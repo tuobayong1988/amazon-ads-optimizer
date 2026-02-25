@@ -52717,7 +52717,24 @@ async function resolveKeywordIds(accountId, conn, result) {
         continue;
       }
       const amazonAdGroupId = Number(agRows[0].adGroupId);
-      const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+      let adGroupCampaignType = "sp_manual";
+      try {
+        const [agCampRows] = await conn.execute(
+          `SELECT c.campaignType FROM campaigns c
+           INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId
+           WHERE ag.id = ? LIMIT 1`,
+          [adGroupLocalId]
+        );
+        if (agCampRows.length > 0 && agCampRows[0].campaignType) {
+          adGroupCampaignType = agCampRows[0].campaignType;
+        }
+      } catch (_3) {
+      }
+      const isAdGroupSb = adGroupCampaignType === "sb";
+      const amazonKeywords = isAdGroupSb ? await syncService.client.listSbKeywords(String(amazonAdGroupId)) : await syncService.client.listSpKeywords(amazonAdGroupId);
+      if (isAdGroupSb) {
+        log6.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): \u4F7F\u7528SB API\u67E5\u627E\u5173\u952E\u8BCD, \u627E\u5230${amazonKeywords.length}\u4E2A`);
+      }
       log6.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon\u8FD4\u56DE${amazonKeywords.length}\u4E2Akeywords, \u672C\u5730\u7F3A\u5931${kwsInGroup.length}\u4E2A`);
       const amazonKwMap = /* @__PURE__ */ new Map();
       for (const ak of amazonKeywords) {
@@ -52775,7 +52792,10 @@ async function resolveKeywordIds(accountId, conn, result) {
         );
         const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
         const campaignTargetingType = campRows[0]?.targetingType || "manual";
-        if (!canAddPositiveKeyword(campaignTargetingType)) {
+        if (isAdGroupSb) {
+          log6.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7`);
+          result.keywordsFailed += toCreate.length;
+        } else if (!canAddPositiveKeyword(campaignTargetingType)) {
           log6.info(`\u26A0\uFE0F adGroup=${adGroupLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7${toCreate.length}\u4E2A\u6B63\u9762\u5173\u952E\u8BCD\u521B\u5EFA\uFF08\u81EA\u52A8\u5E7F\u544A\u53EA\u80FD\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD\uFF09`);
           for (const kw of toCreate) {
             await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
@@ -52845,7 +52865,7 @@ async function resolveKeywordIds(accountId, conn, result) {
                   }
                   if (!resolved) {
                     try {
-                      const amazonKeywords2 = await syncService.client.listSpKeywords(Number(amazonAdGroupId));
+                      const amazonKeywords2 = isAdGroupSb ? await syncService.client.listSbKeywords(String(amazonAdGroupId)) : await syncService.client.listSpKeywords(Number(amazonAdGroupId));
                       const matchedKw = amazonKeywords2.find(
                         (ak) => ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && ak.matchType?.toUpperCase() === (original.matchType || "broad").toUpperCase()
                       );
@@ -53020,8 +53040,23 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
     }
     const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
+    let campaignType = "sp_manual";
+    try {
+      const [campTypeRows] = await conn.execute(
+        "SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1",
+        [String(kw.amazonCampaignId)]
+      );
+      if (campTypeRows.length > 0 && campTypeRows[0].campaignType) {
+        campaignType = campTypeRows[0].campaignType;
+      }
+    } catch (_3) {
+    }
+    const isSbCampaign = campaignType === "sb";
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
-    const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+    const amazonKeywords = isSbCampaign ? await syncService.client.listSbKeywords(String(amazonAdGroupId)) : await syncService.client.listSpKeywords(amazonAdGroupId);
+    if (isSbCampaign) {
+      log6.info(`[IdResolver] v224: SB\u5173\u952E\u8BCDID\u89E3\u6790 - \u4F7F\u7528SB API, adGroupId=${amazonAdGroupId}, \u627E\u5230${amazonKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
+    }
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
       const akKey = `${ak.keywordText?.toLowerCase()}|${ak.matchType?.toLowerCase()}`;
@@ -53058,6 +53093,10 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
       if (!kwValidation.isValid) {
         log6.info(`\u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" \u6821\u9A8C\u4E0D\u901A\u8FC7: ${kwValidation.reasonMessage}`);
         await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
+        return null;
+      }
+      if (isSbCampaign) {
+        log6.info(`[IdResolver] v224: SB\u5173\u952E\u8BCD id=${keywordLocalId} \u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD`);
         return null;
       }
       try {
@@ -78613,38 +78652,100 @@ async function executeBatchByType(conn, syncService, taskType, batch) {
         }
       }
       if (kwTasks.length > 0) {
-        try {
-          const apiResult = await syncService.client.updateKeywordBids(
-            kwTasks.map((t7) => ({
-              keywordId: String(t7.amazon_entity_id),
-              bid: Number(parseFloat(t7.new_value).toFixed(2))
-            }))
-          );
-          const successIds = /* @__PURE__ */ new Set();
-          const failedIds = /* @__PURE__ */ new Map();
-          if (apiResult.errors && apiResult.errors.length > 0) {
-            for (const err2 of apiResult.errors) {
-              failedIds.set(String(err2.keywordId), err2.details || err2.code || "API_ERROR");
+        const spKwTasks = [];
+        const sbKwTasks = [];
+        for (const t7 of kwTasks) {
+          try {
+            let campaignType = "sp_manual";
+            if (t7.campaign_id) {
+              const [campRows] = await conn.execute(
+                "SELECT campaignType FROM campaigns WHERE id = ? OR campaignId = ? LIMIT 1",
+                [t7.campaign_id, String(t7.campaign_id)]
+              );
+              if (campRows.length > 0 && campRows[0].campaignType) {
+                campaignType = campRows[0].campaignType;
+              }
+            } else if (t7.target_entity_id) {
+              const [kwCampRows] = await conn.execute(
+                `SELECT c.campaignType FROM keywords k
+                 INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+                 INNER JOIN campaigns c ON ag.campaignId = c.campaignId
+                 WHERE k.id = ? LIMIT 1`,
+                [t7.target_entity_id]
+              );
+              if (kwCampRows.length > 0 && kwCampRows[0].campaignType) {
+                campaignType = kwCampRows[0].campaignType;
+              }
             }
-          }
-          for (const t7 of kwTasks) {
-            if (failedIds.has(String(t7.amazon_entity_id))) {
-              await markTaskFailed(conn, t7.id, failedIds.get(String(t7.amazon_entity_id)));
-              result.failed++;
+            if (campaignType === "sb") {
+              sbKwTasks.push(t7);
             } else {
+              spKwTasks.push(t7);
+            }
+          } catch (typeErr) {
+            log15.warn(`[SyncEngine] v224: \u67E5\u8BE2campaign\u7C7B\u578B\u5931\u8D25: ${typeErr.message}, \u9ED8\u8BA4\u4F7F\u7528SP API`);
+            spKwTasks.push(t7);
+          }
+        }
+        if (sbKwTasks.length > 0) {
+          log15.info(`[SyncEngine] v224: \u68C0\u6D4B\u5230${sbKwTasks.length}\u4E2ASB\u5173\u952E\u8BCD\uFF0C\u4F7F\u7528SB API\u540C\u6B65\u51FA\u4EF7`);
+        }
+        if (spKwTasks.length > 0) {
+          try {
+            const apiResult = await syncService.client.updateKeywordBids(
+              spKwTasks.map((t7) => ({
+                keywordId: String(t7.amazon_entity_id),
+                bid: Number(parseFloat(t7.new_value).toFixed(2))
+              }))
+            );
+            const failedIds = /* @__PURE__ */ new Map();
+            if (apiResult.errors && apiResult.errors.length > 0) {
+              for (const err2 of apiResult.errors) {
+                failedIds.set(String(err2.keywordId), err2.details || err2.code || "API_ERROR");
+              }
+            }
+            for (const t7 of spKwTasks) {
+              if (failedIds.has(String(t7.amazon_entity_id))) {
+                await markTaskFailed(conn, t7.id, failedIds.get(String(t7.amazon_entity_id)));
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t7.id);
+                await updateLocalBid(conn, "keyword", t7.target_entity_id, t7.new_value);
+                result.synced++;
+              }
+            }
+            log15.warn(`[SyncEngine] SP\u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${spKwTasks.length}, \u6210\u529F=${spKwTasks.length - failedIds.size}, \u5931\u8D25=${failedIds.size}`);
+          } catch (err2) {
+            log15.error(`[SyncEngine] SP\u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CFAPI\u8C03\u7528\u5931\u8D25: ${err2.message}`);
+            for (const t7 of spKwTasks) {
+              await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+            }
+            result.failed += spKwTasks.length;
+            result.errors.push(`SP\u5173\u952E\u8BCD\u51FA\u4EF7API\u5931\u8D25: ${err2.message}`);
+          }
+        }
+        if (sbKwTasks.length > 0) {
+          try {
+            await syncService.client.updateSbKeywordBids(
+              sbKwTasks.map((t7) => ({
+                keywordId: String(t7.amazon_entity_id),
+                bid: Number(parseFloat(t7.new_value).toFixed(2))
+              }))
+            );
+            for (const t7 of sbKwTasks) {
               await markTaskSynced(conn, t7.id);
               await updateLocalBid(conn, "keyword", t7.target_entity_id, t7.new_value);
               result.synced++;
             }
+            log15.warn(`[SyncEngine] v224: SB\u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${sbKwTasks.length}, \u5168\u90E8\u6210\u529F`);
+          } catch (err2) {
+            log15.error(`[SyncEngine] v224: SB\u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CFAPI\u8C03\u7528\u5931\u8D25: ${err2.message}`);
+            for (const t7 of sbKwTasks) {
+              await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+            }
+            result.failed += sbKwTasks.length;
+            result.errors.push(`SB\u5173\u952E\u8BCD\u51FA\u4EF7API\u5931\u8D25: ${err2.message}`);
           }
-          log15.warn(`[SyncEngine] \u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${kwTasks.length}, \u6210\u529F=${kwTasks.length - failedIds.size}, \u5931\u8D25=${failedIds.size}`);
-        } catch (err2) {
-          log15.error(`[SyncEngine] \u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CFAPI\u8C03\u7528\u5931\u8D25: ${err2.message}`);
-          for (const t7 of kwTasks) {
-            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
-          }
-          result.failed += kwTasks.length;
-          result.errors.push(`\u5173\u952E\u8BCD\u51FA\u4EF7API\u5931\u8D25: ${err2.message}`);
         }
       }
       if (ptTasks.length > 0) {

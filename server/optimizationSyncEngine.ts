@@ -514,47 +514,118 @@ async function executeBatchByType(
         }
       }
       
-      // 批量更新关键词出价
+      // v224: 区分SP和SB关键词，使用不同的API端点
+      // SB/SBV广告活动的关键词需要使用SB API，SP广告活动使用SP API
       if (kwTasks.length > 0) {
-        try {
-          const apiResult = await syncService.client.updateKeywordBids(
-            kwTasks.map((t: any) => ({
-              keywordId: String(t.amazon_entity_id),
-              bid: Number(parseFloat(t.new_value).toFixed(2)),
-            }))
-          );
-          
-          // 解析API响应，区分成功和失败
-          const successIds = new Set<string>();
-          const failedIds = new Map<string, string>();
-          
-          if (apiResult.errors && apiResult.errors.length > 0) {
-            for (const err of apiResult.errors) {
-              failedIds.set(String(err.keywordId), err.details || err.code || 'API_ERROR');
+        // 查询每个关键词所属campaign的类型
+        const spKwTasks: any[] = [];
+        const sbKwTasks: any[] = [];
+        
+        for (const t of kwTasks) {
+          try {
+            let campaignType = 'sp_manual'; // 默认SP
+            if (t.campaign_id) {
+              const [campRows] = await conn.execute(
+                'SELECT campaignType FROM campaigns WHERE id = ? OR campaignId = ? LIMIT 1',
+                [t.campaign_id, String(t.campaign_id)]
+              ) as any[];
+              if (campRows.length > 0 && campRows[0].campaignType) {
+                campaignType = campRows[0].campaignType;
+              }
+            } else if (t.target_entity_id) {
+              // 通过关键词 -> 广告组 -> 广告活动 查找类型
+              const [kwCampRows] = await conn.execute(
+                `SELECT c.campaignType FROM keywords k
+                 INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+                 INNER JOIN campaigns c ON ag.campaignId = c.campaignId
+                 WHERE k.id = ? LIMIT 1`,
+                [t.target_entity_id]
+              ) as any[];
+              if (kwCampRows.length > 0 && kwCampRows[0].campaignType) {
+                campaignType = kwCampRows[0].campaignType;
+              }
             }
-          }
-          
-          for (const t of kwTasks) {
-            if (failedIds.has(String(t.amazon_entity_id))) {
-              await markTaskFailed(conn, t.id, failedIds.get(String(t.amazon_entity_id))!);
-              result.failed++;
+            
+            if (campaignType === 'sb') {
+              sbKwTasks.push(t);
             } else {
+              spKwTasks.push(t);
+            }
+          } catch (typeErr: any) {
+            log.warn(`[SyncEngine] v224: 查询campaign类型失败: ${typeErr.message}, 默认使用SP API`);
+            spKwTasks.push(t);
+          }
+        }
+        
+        if (sbKwTasks.length > 0) {
+          log.info(`[SyncEngine] v224: 检测到${sbKwTasks.length}个SB关键词，使用SB API同步出价`);
+        }
+        
+        // SP关键词出价同步
+        if (spKwTasks.length > 0) {
+          try {
+            const apiResult = await syncService.client.updateKeywordBids(
+              spKwTasks.map((t: any) => ({
+                keywordId: String(t.amazon_entity_id),
+                bid: Number(parseFloat(t.new_value).toFixed(2)),
+              }))
+            );
+            
+            const failedIds = new Map<string, string>();
+            if (apiResult.errors && apiResult.errors.length > 0) {
+              for (const err of apiResult.errors) {
+                failedIds.set(String(err.keywordId), err.details || err.code || 'API_ERROR');
+              }
+            }
+            
+            for (const t of spKwTasks) {
+              if (failedIds.has(String(t.amazon_entity_id))) {
+                await markTaskFailed(conn, t.id, failedIds.get(String(t.amazon_entity_id))!);
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
+                result.synced++;
+              }
+            }
+            
+            log.warn(`[SyncEngine] SP关键词出价批量同步: 发送=${spKwTasks.length}, 成功=${spKwTasks.length - failedIds.size}, 失败=${failedIds.size}`);
+          } catch (err: any) {
+            log.error(`[SyncEngine] SP关键词出价批量API调用失败: ${err.message}`);
+            for (const t of spKwTasks) {
+              await markTaskForRetry(conn, t.id, t.retry_count, err.message);
+            }
+            result.failed += spKwTasks.length;
+            result.errors.push(`SP关键词出价API失败: ${err.message}`);
+          }
+        }
+        
+        // v224: SB关键词出价同步 — 使用SB API
+        if (sbKwTasks.length > 0) {
+          try {
+            await syncService.client.updateSbKeywordBids(
+              sbKwTasks.map((t: any) => ({
+                keywordId: String(t.amazon_entity_id),
+                bid: Number(parseFloat(t.new_value).toFixed(2)),
+              }))
+            );
+            
+            // SB API不返回详细的成功/失败列表，如果没有抛异常则视为全部成功
+            for (const t of sbKwTasks) {
               await markTaskSynced(conn, t.id);
-              // 更新本地数据库出价
               await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
               result.synced++;
             }
+            
+            log.warn(`[SyncEngine] v224: SB关键词出价批量同步: 发送=${sbKwTasks.length}, 全部成功`);
+          } catch (err: any) {
+            log.error(`[SyncEngine] v224: SB关键词出价批量API调用失败: ${err.message}`);
+            for (const t of sbKwTasks) {
+              await markTaskForRetry(conn, t.id, t.retry_count, err.message);
+            }
+            result.failed += sbKwTasks.length;
+            result.errors.push(`SB关键词出价API失败: ${err.message}`);
           }
-          
-          log.warn(`[SyncEngine] 关键词出价批量同步: 发送=${kwTasks.length}, 成功=${kwTasks.length - failedIds.size}, 失败=${failedIds.size}`);
-        } catch (err: any) {
-          log.error(`[SyncEngine] 关键词出价批量API调用失败: ${err.message}`);
-          // API调用整体失败，所有任务标记为失败并设置重试
-          for (const t of kwTasks) {
-            await markTaskForRetry(conn, t.id, t.retry_count, err.message);
-          }
-          result.failed += kwTasks.length;
-          result.errors.push(`关键词出价API失败: ${err.message}`);
         }
       }
       

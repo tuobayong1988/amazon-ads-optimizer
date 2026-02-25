@@ -172,8 +172,28 @@ async function resolveKeywordIds(
 
       const amazonAdGroupId = Number(agRows[0].adGroupId);
 
-      // 通过Amazon API查询该adGroup下的所有keywords
-      const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+      // v224: 查询该广告组所属campaign的类型，SB广告活动使用SB API
+      let adGroupCampaignType = 'sp_manual';
+      try {
+        const [agCampRows] = await conn.execute(
+          `SELECT c.campaignType FROM campaigns c
+           INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId
+           WHERE ag.id = ? LIMIT 1`,
+          [adGroupLocalId]
+        );
+        if (agCampRows.length > 0 && agCampRows[0].campaignType) {
+          adGroupCampaignType = agCampRows[0].campaignType;
+        }
+      } catch (_) {}
+      const isAdGroupSb = adGroupCampaignType === 'sb';
+
+      // v224: 通过Amazon API查询该adGroup下的所有keywords - 根据campaign类型选择API
+      const amazonKeywords = isAdGroupSb
+        ? await syncService.client.listSbKeywords(String(amazonAdGroupId))
+        : await syncService.client.listSpKeywords(amazonAdGroupId);
+      if (isAdGroupSb) {
+        log.info(`[IdResolver] v224: SB广告组 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): 使用SB API查找关键词, 找到${amazonKeywords.length}个`);
+      }
       log.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonKeywords.length}个keywords, 本地缺失${kwsInGroup.length}个`);
 
       // 构建匹配索引: "keywordText|matchType" -> keywordId
@@ -249,8 +269,12 @@ async function resolveKeywordIds(
         const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
         const campaignTargetingType = campRows[0]?.targetingType || 'manual';
 
-        // v192: 自动广告活动不允许创建正面关键词
-        if (!canAddPositiveKeyword(campaignTargetingType)) {
+        // v224: SB广告活动不支持通过API创建关键词
+        if (isAdGroupSb) {
+          log.info(`[IdResolver] v224: SB广告组 adGroup=${adGroupLocalId}: ${toCreate.length}个关键词在Amazon上不存在，SB广告活动不支持API创建关键词，跳过`);
+          result.keywordsFailed += toCreate.length;
+        } else if (!canAddPositiveKeyword(campaignTargetingType)) {
+          // v192: 自动广告活动不允许创建正面关键词
           log.info(`⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
           // 清理这些不应该存在的关键词记录
           for (const kw of toCreate) {
@@ -331,7 +355,10 @@ async function resolveKeywordIds(
                   // 如果本地没有，尝试从Amazon API查询并回填
                   if (!resolved) {
                     try {
-                      const amazonKeywords = await syncService.client.listSpKeywords(Number(amazonAdGroupId));
+                      // v224: 根据campaign类型选择正确的API
+                      const amazonKeywords = isAdGroupSb
+                        ? await syncService.client.listSbKeywords(String(amazonAdGroupId))
+                        : await syncService.client.listSpKeywords(Number(amazonAdGroupId));
                       const matchedKw = amazonKeywords.find((ak: any) => 
                         ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
@@ -563,8 +590,27 @@ export async function resolveKeywordIdOnDemand(
     const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
 
+    // v224: 查询campaign类型，SB广告活动使用SB API查找关键词
+    let campaignType = 'sp_manual';
+    try {
+      const [campTypeRows] = await conn.execute(
+        'SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1',
+        [String(kw.amazonCampaignId)]
+      );
+      if (campTypeRows.length > 0 && campTypeRows[0].campaignType) {
+        campaignType = campTypeRows[0].campaignType;
+      }
+    } catch (_) {}
+    const isSbCampaign = campaignType === 'sb';
+
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
-    const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+    const amazonKeywords = isSbCampaign
+      ? await syncService.client.listSbKeywords(String(amazonAdGroupId))
+      : await syncService.client.listSpKeywords(amazonAdGroupId);
+    
+    if (isSbCampaign) {
+      log.info(`[IdResolver] v224: SB关键词ID解析 - 使用SB API, adGroupId=${amazonAdGroupId}, 找到${amazonKeywords.length}个关键词`);
+    }
 
     // 按 keywordText + matchType 匹配
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
@@ -609,6 +655,12 @@ export async function resolveKeywordIdOnDemand(
       if (!kwValidation.isValid) {
         log.info(`⚠️ 即时创建拦截: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" 校验不通过: ${kwValidation.reasonMessage}`);
         await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
+        return null;
+      }
+      
+      // v224: SB广告活动不支持通过API创建关键词，跳过创建步骤
+      if (isSbCampaign) {
+        log.info(`[IdResolver] v224: SB关键词 id=${keywordLocalId} 在Amazon上不存在，SB广告活动不支持API创建关键词`);
         return null;
       }
       
