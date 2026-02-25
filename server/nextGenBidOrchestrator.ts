@@ -171,12 +171,26 @@ function ruleEngineDecision(
   const entityId = (target as any).keywordId || (target as any).targetId || 0;
   
   // 场景1: 零曝光 — 需要提升可见性
+  // v238: 增加出价累积保护，防止零曝光关键词被无限提价
   if (impressions === 0) {
+    // v238: 出价累积保护 — 如果当前出价已经达到maxBid的40%，不再提价
+    // 这防止了零曝光关键词通过多次小幅提价累积到过高出价的问题
+    const explorationCeiling = maxBid * 0.40;
+    if (currentBid >= explorationCeiling) {
+      return {
+        bid: currentBid,
+        confidence: 0.3,
+        reason: `零曝光但出价已达探索上限($${currentBid.toFixed(2)} >= $${explorationCeiling.toFixed(2)}): 维持出价，建议检查关键词相关性`,
+      };
+    }
+    
     // 新关键词或长期零曝光，适度提升出价以获取曝光
     const boostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.10); // v230: 5%~15%确定性提升
     const newBid = currentBid * (1 + boostRatio);
+    // v238: 提价后也不能超过探索上限
+    const cappedBid = Math.min(newBid, explorationCeiling, maxBid);
     return {
-      bid: Math.min(newBid, maxBid),
+      bid: cappedBid,
       confidence: 0.4,
       reason: `零曝光探索: 提升${(boostRatio * 100).toFixed(0)}%以获取曝光数据`,
     };
@@ -185,10 +199,20 @@ function ruleEngineDecision(
   // 场景2: 有曝光但零点击 — 出价可能过低或相关性差
   if (clicks === 0 && impressions > 0) {
     if (impressions < 100) {
+      // v238: 低曝光零点击也增加出价上限保护
+      const lowClickCeiling = maxBid * 0.50;
+      if (currentBid >= lowClickCeiling) {
+        return {
+          bid: currentBid,
+          confidence: 0.3,
+          reason: `低曝光零点击(${impressions}次)但出价已达上限($${currentBid.toFixed(2)}): 维持出价观察`,
+        };
+      }
       // 曝光不足，可能需要更多数据
       const boostRatio = Math.min(0.10, 0.03 + deterministicHash(entityId, 2) * 0.07);
+      const newBid = Math.min(currentBid * (1 + boostRatio), lowClickCeiling);
       return {
-        bid: currentBid * (1 + boostRatio),
+        bid: newBid,
         confidence: 0.35,
         reason: `低曝光零点击(${impressions}次): 小幅提升${(boostRatio * 100).toFixed(0)}%`,
       };
@@ -204,6 +228,7 @@ function ruleEngineDecision(
   }
   
   // 场景3: 有点击但零订单 — 根据花费判断
+  // v238: 增强零转化场景的降价力度，避免持续烧钱
   if (orders === 0 && clicks > 0) {
     // 计算每次点击成本
     const cpc = spend / clicks;
@@ -213,19 +238,31 @@ function ruleEngineDecision(
     const maxAcceptableSpend = estimatedAov * targetAcos;
     
     if (spend > maxAcceptableSpend) {
-      const reduceRatio = Math.min(0.20, (spend / maxAcceptableSpend - 1) * 0.10);
+      // v238: 增强降价力度 — 花费超标越多降价越快，最大25%
+      const spendRatio = spend / maxAcceptableSpend;
+      const reduceRatio = Math.min(0.25, (spendRatio - 1) * 0.15);
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.45,
-        reason: `零转化高花费($${spend.toFixed(2)}): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        confidence: 0.50,
+        reason: `零转化高花费($${spend.toFixed(2)}, ${spendRatio.toFixed(1)}x超标): 降低${(reduceRatio * 100).toFixed(0)}%`,
       };
     }
     
-    // 花费在可接受范围内，维持或小幅调整
+    // v238: 即使花费在可接受范围内，如果点击数较多(>=10)仍无转化，也应小幅降价
+    if (clicks >= 10) {
+      const reduceRatio = Math.min(0.10, clicks / 200);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.40,
+        reason: `零转化${clicks}次点击($${spend.toFixed(2)}): 小幅降低${(reduceRatio * 100).toFixed(0)}%`,
+      };
+    }
+    
+    // 花费在可接受范围内且点击数少，维持观察
     return {
       bid: currentBid,
       confidence: 0.4,
-      reason: `零转化但花费可控($${spend.toFixed(2)}): 维持出价观察`,
+      reason: `零转化但花费可控($${spend.toFixed(2)}, ${clicks}次点击): 维持出价观察`,
     };
   }
   

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 223;
+export const SYSTEM_VERSION = 238;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -203,6 +203,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v223: [严重修复] NextGen规则引擎targetAcos单位转换Bug — 数据库存储百分比(30.0)被当作小数(0.30)使用,导致目标ACoS被误读为3000%,所有关键词出价只升不降. 修复: (1)calculateNextGenBid入口添加防御性转换(>1则/100) (2)ruleEngineDecision添加双重兆底转换 (3)分时竞价出价不变时跳过日志记录 (4)清理无效pending分时竞价日志 (5)部署后自动触发全量重优化,使用修复后的算法纠正所有错误出价',
     affectedModules: ['bid'],
     correctionActions: ['cleanup_stale_pending', 'rerun_optimization'],
+  },
+  {
+    version: 238,
+    description: 'v238: [关键修复] 规则引擎零曝光探索无限提价循环修复 + 出价累积保护 — (1)零曝光探索增加出价上限保护(不超过maxBid的40%) (2)零点击低曝光场景增加出价上限保护(不超过maxBid的50%) (3)零转化场景增强降价力度(花费超标时降价10-25%) (4)ACOS超标降价增强(v232紧急降价+v238累积保护) (5)部署后自动触发全量重优化纠正历史错误提价',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
   },
 ];
 
