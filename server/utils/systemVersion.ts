@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 248;  // v248: 统一修复版本
+export const SYSTEM_VERSION = 249;  // v249: 监控仪表盘SQL修复 + 优化事件字段补全

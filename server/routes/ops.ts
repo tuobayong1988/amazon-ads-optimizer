@@ -573,10 +573,14 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     if (category) whereClause += ` AND event_category = '${category}'`;
     // execution_status列可能不存在，使用event_category过滤即可
     
+    // v249: 补全api_sync_status、keyword_text、previous_bid、new_bid字段，确保监控端点能完整展示API同步状态和出价详情
     const [rows] = await db.execute(sql.raw(
       `SELECT id, event_category, action_type, 
               campaign_name, change_reason, algorithm_version,
-              previous_value, new_value, created_at
+              previous_value, new_value, 
+              api_sync_status, api_sync_detail,
+              keyword_text, previous_bid, new_bid, bid_change_percent,
+              created_at
        FROM optimization_events 
        ${whereClause}
        ORDER BY id DESC 
@@ -591,11 +595,30 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
        GROUP BY event_category`
     ));
     
+    // v249: 增加API同步状态统计，方便监控优化指令是否实际传达到Amazon
+    let apiSyncStats: any[] = [];
+    try {
+      const [syncRows] = await db.execute(sql.raw(
+        `SELECT 
+           event_category,
+           api_sync_status,
+           COUNT(*) as cnt
+         FROM optimization_events 
+         WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+           AND event_category = 'bid_adjustment'
+         GROUP BY event_category, api_sync_status`
+      ));
+      apiSyncStats = Array.isArray(syncRows) ? syncRows as any[] : [];
+    } catch (syncErr) {
+      // api_sync_status字段可能不存在，忽略
+    }
+    
     res.json({
       query: { limit, hours, category, status },
       count: Array.isArray(rows) ? rows.length : 0,
       entries: rows,
       stats: statsRows,
+      apiSyncStats,
       timestamp: new Date().toISOString(),
     });
   } catch (e: any) {
@@ -914,17 +937,19 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
     const since = new Date(Date.now() - hoursBack * 3600000).toISOString();
     
     // 1. 今日出价优化统计
+    // v249: 修复action_type过滤条件 - recordExecutionLog写入的actionType是'bid_increase'/'bid_decrease'，
+    //       而非'bid_adjustment'。同时使用log_category='bid_adjustment'作为主过滤条件确保完整覆盖。
     const bidStats = await db.execute(sql.raw(`
       SELECT 
         COUNT(*) as total_events,
-        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
-        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
+        SUM(CASE WHEN previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
+        SUM(CASE WHEN previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
         SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as api_synced,
         SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as api_failed,
         SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as api_pending
       FROM optimization_logs 
       WHERE created_at >= '${since}'
-        AND action_type IN ('bid_adjustment', 'bid_optimization')
+        AND (log_category = 'bid_adjustment' OR action_type IN ('bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'bid_adjustment', 'bid_optimization'))
     `));
     
     // 2. 算法分布统计 (v242: 从 change_reason 中提取算法信息，因为optimization_logs表无algorithm_version字段)

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 248;  // v248: 统一修复版本
+export const SYSTEM_VERSION = 249;  // v249: 监控仪表盘SQL修复 + 优化事件字段补全
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -257,6 +257,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v248: [统一修复] — (1)同步层冲突跳过正确分类: 修复v222新格式层冲突消息未被识别为skipped而被记录为failed (2)RL Reward回填下限6h→3h: 打破冷启动死锁,加速高级算法eligible (3)negative_keywords同步频率提升: 从full层(60min)提升到medium层(30min) (4)日志缓冲区扩容: 5000→15000避免日志丢失 (5)API 429限流增强: 重试2→4次,基础延迟2s→3s,最大退避15s→30s,批量延迟1s→2s (6)数据库自动迁移: 启动时自动创建缺失的表/列(anomaly_alert_logs,emergency_optimization_queue,module_execution_times)',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 249,
+    description: 'v249: [监控修复] — (1)nextgen-monitor bidStats SQL查询条件修复: action_type过滤与recordExecutionLog写入值不匹配导致totalEvents始终为0 (2)optimization-events端点补全api_sync_status/keyword_text/previous_bid/new_bid字段 (3)增加API同步状态统计查询',
+    affectedModules: [],  // 仅监控修复，不需要重新执行优化模块
+    correctionActions: [],
   },
 ];
 
