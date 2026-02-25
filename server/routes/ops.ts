@@ -927,16 +927,21 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
         AND action_type IN ('bid_adjustment', 'bid_optimization')
     `));
     
-    // 2. 算法分布统计
+    // 2. 算法分布统计 (v242: 从 change_reason 中提取算法信息，因为optimization_logs表无algorithm_version字段)
     const algorithmStats = await db.execute(sql.raw(`
       SELECT 
-        algorithm_version,
+        CASE 
+          WHEN change_reason LIKE '%NextGen%' THEN 'NextGen'
+          WHEN change_reason LIKE '%探索%' OR change_reason LIKE '%RL探索%' THEN 'RL-Exploration'
+          WHEN change_reason LIKE '%PostDeploy%' THEN 'PostDeploy'
+          ELSE 'RuleEngine'
+        END as algorithm_source,
         COUNT(*) as count,
         SUM(CASE WHEN previous_value != new_value THEN 1 ELSE 0 END) as effective_count
       FROM optimization_logs 
       WHERE created_at >= '${since}'
-        AND action_type IN ('bid_adjustment', 'bid_optimization')
-      GROUP BY algorithm_version
+        AND action_type IN ('bid_adjustment', 'bid_auto_adjust', 'bid_increase', 'bid_decrease', 'bid_set')
+      GROUP BY algorithm_source
       ORDER BY count DESC
     `));
     

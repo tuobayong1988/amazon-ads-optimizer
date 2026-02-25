@@ -34896,7 +34896,9 @@ var init_schema2 = __esm({
       strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
       strategyApplicationId: int("strategy_application_id"),
       autoOptimize: tinyint("auto_optimize").default(1),
-      lastOptimizationAt: datetime("last_optimization_at", { mode: "string" })
+      lastOptimizationAt: datetime("last_optimization_at", { mode: "string" }),
+      // v242: 模块级别的执行时间持久化，解决部署重启导致调度状态丢失的问题
+      moduleExecutionTimes: text("module_execution_times")
     });
     placementBidSettings = mysqlTable(
       "placement_bid_settings",
@@ -52448,6 +52450,209 @@ var init_timezone = __esm({
   }
 });
 
+// server/attributionWindowHelper.ts
+function getWindowDateRange(windowType, marketplace = "US") {
+  const config2 = windowType === "bid_optimization" ? ATTRIBUTION_WINDOW.BID_OPTIMIZATION : windowType === "risk_control" ? ATTRIBUTION_WINDOW.RISK_CONTROL : ATTRIBUTION_WINDOW.TREND_ANALYSIS;
+  const now = /* @__PURE__ */ new Date();
+  const endDate = new Date(now.getTime() - config2.endDaysAgo * 24 * 60 * 60 * 1e3);
+  const startDate = new Date(now.getTime() - config2.startDaysAgo * 24 * 60 * 60 * 1e3);
+  return {
+    startDate,
+    endDate,
+    startDateStr: startDate.toISOString().split("T")[0],
+    endDateStr: endDate.toISOString().split("T")[0]
+  };
+}
+async function getCampaignWindowedPerformance(accountId, campaignId, windowType, marketplace = "US") {
+  const { startDate, endDate, startDateStr, endDateStr } = getWindowDateRange(windowType, marketplace);
+  const dailyData = await getDailyPerformanceByDateRange(
+    accountId,
+    startDate,
+    endDate,
+    campaignId
+  );
+  let impressions = 0, clicks = 0, spend = 0, sales = 0, orders = 0;
+  for (const day2 of dailyData) {
+    impressions += Number(day2.impressions) || 0;
+    clicks += Number(day2.clicks) || 0;
+    spend += parseFloat(String(day2.spend || "0"));
+    sales += parseFloat(String(day2.sales || "0"));
+    orders += Number(day2.orders) || 0;
+  }
+  const acos = sales > 0 ? spend / sales * 100 : 0;
+  const roas = spend > 0 ? sales / spend : 0;
+  const cvr = clicks > 0 ? orders / clicks * 100 : 0;
+  const cpc = clicks > 0 ? spend / clicks : 0;
+  const ctr = impressions > 0 ? clicks / impressions * 100 : 0;
+  return {
+    windowType,
+    startDate: startDateStr,
+    endDate: endDateStr,
+    impressions,
+    clicks,
+    spend,
+    sales,
+    orders,
+    acos,
+    roas,
+    cvr,
+    cpc,
+    ctr,
+    dataDays: dailyData.length,
+    isAttributionMature: windowType === "bid_optimization"
+  };
+}
+async function calculateAttributionCorrectionFactor(accountId, campaignId, marketplace = "US") {
+  const maturePerf = await getCampaignWindowedPerformance(
+    accountId,
+    campaignId,
+    "bid_optimization",
+    marketplace
+  );
+  const realtimePerf = await getCampaignWindowedPerformance(
+    accountId,
+    campaignId,
+    "risk_control",
+    marketplace
+  );
+  const matureDailySales = maturePerf.dataDays > 0 ? maturePerf.sales / maturePerf.dataDays : 0;
+  const realtimeDailySales = realtimePerf.dataDays > 0 ? realtimePerf.sales / realtimePerf.dataDays : 0;
+  let correctionFactor = 1;
+  if (realtimeDailySales > 0 && matureDailySales > 0) {
+    correctionFactor = matureDailySales / realtimeDailySales;
+    correctionFactor = Math.max(0.5, Math.min(2, correctionFactor));
+  }
+  const confidence = Math.min(0.95, 0.3 + maturePerf.clicks / 500 * 0.65);
+  return {
+    correctionFactor,
+    maturePerformance: maturePerf,
+    realtimePerformance: realtimePerf,
+    confidence
+  };
+}
+function applyAttributionCorrection(rawPerformance, correctionFactor, windowType) {
+  if (windowType === "risk_control") {
+    return {
+      ...rawPerformance,
+      corrected: false,
+      correctionFactor: 1
+    };
+  }
+  if (windowType === "bid_optimization") {
+    return {
+      impressions: rawPerformance.impressions,
+      clicks: rawPerformance.clicks,
+      spend: rawPerformance.spend,
+      // 销售和订单乘以校正系数
+      sales: rawPerformance.sales * correctionFactor,
+      orders: Math.round(rawPerformance.orders * correctionFactor),
+      corrected: true,
+      correctionFactor
+    };
+  }
+  return {
+    ...rawPerformance,
+    corrected: false,
+    correctionFactor: 1
+  };
+}
+function shouldApplyCorrection(correctionFactor, matureClicks, campaignCreatedDaysAgo) {
+  if (matureClicks < 50) return false;
+  if (campaignCreatedDaysAgo < 7) return false;
+  if (Math.abs(correctionFactor - 1) < 0.1) return false;
+  return true;
+}
+async function detectRiskSignals(accountId, campaignId, marketplace = "US") {
+  const { maturePerformance, realtimePerformance } = await calculateAttributionCorrectionFactor(
+    accountId,
+    campaignId,
+    marketplace
+  );
+  const risks = [];
+  const matureDailySpend = maturePerformance.dataDays > 0 ? maturePerformance.spend / maturePerformance.dataDays : 0;
+  const realtimeDailySpend = realtimePerformance.dataDays > 0 ? realtimePerformance.spend / realtimePerformance.dataDays : 0;
+  if (matureDailySpend > 0 && realtimeDailySpend > matureDailySpend * 2) {
+    const ratio = realtimeDailySpend / matureDailySpend;
+    risks.push({
+      type: "spend_spike",
+      severity: ratio > 3 ? "critical" : ratio > 2.5 ? "high" : "medium",
+      description: `\u65E5\u5747\u82B1\u8D39\u98D9\u5347: \u5B9E\u65F6$${realtimeDailySpend.toFixed(2)} vs \u6210\u719F$${matureDailySpend.toFixed(2)} (${ratio.toFixed(1)}x)`,
+      matureValue: matureDailySpend,
+      realtimeValue: realtimeDailySpend
+    });
+  }
+  const matureDailyImpressions = maturePerformance.dataDays > 0 ? maturePerformance.impressions / maturePerformance.dataDays : 0;
+  if (matureDailyImpressions > 100 && realtimePerformance.impressions === 0) {
+    risks.push({
+      type: "zero_impression_storm",
+      severity: matureDailyImpressions > 1e3 ? "critical" : "high",
+      description: `\u96F6\u66DD\u5149\u98CE\u66B4: \u6210\u719F\u7A97\u53E3\u65E5\u5747${Math.round(matureDailyImpressions)}\u66DD\u5149\uFF0C\u5B9E\u65F6\u7A97\u53E3\u4E3A0`,
+      matureValue: matureDailyImpressions,
+      realtimeValue: 0
+    });
+  }
+  if (maturePerformance.cpc > 0 && realtimePerformance.cpc > maturePerformance.cpc * 1.5) {
+    const ratio = realtimePerformance.cpc / maturePerformance.cpc;
+    risks.push({
+      type: "cpc_spike",
+      severity: ratio > 2 ? "high" : "medium",
+      description: `CPC\u98D9\u5347: \u5B9E\u65F6$${realtimePerformance.cpc.toFixed(2)} vs \u6210\u719F$${maturePerformance.cpc.toFixed(2)} (${ratio.toFixed(1)}x)`,
+      matureValue: maturePerformance.cpc,
+      realtimeValue: realtimePerformance.cpc
+    });
+  }
+  if (maturePerformance.acos > 0 && realtimePerformance.spend > 0) {
+    const adjustedRealtimeAcos = realtimePerformance.acos;
+    const threshold = maturePerformance.acos * 2.5;
+    if (adjustedRealtimeAcos > threshold && adjustedRealtimeAcos > 100) {
+      risks.push({
+        type: "acos_spike",
+        severity: adjustedRealtimeAcos > maturePerformance.acos * 4 ? "high" : "medium",
+        description: `ACoS\u5F02\u5E38: \u5B9E\u65F6${adjustedRealtimeAcos.toFixed(1)}% vs \u6210\u719F${maturePerformance.acos.toFixed(1)}% (\u8003\u8651\u5F52\u56E0\u5EF6\u8FDF\u540E\u4ECD\u5F02\u5E38)`,
+        matureValue: maturePerformance.acos,
+        realtimeValue: adjustedRealtimeAcos
+      });
+    }
+  }
+  return {
+    hasRisk: risks.length > 0,
+    risks
+  };
+}
+var ATTRIBUTION_WINDOW;
+var init_attributionWindowHelper = __esm({
+  "server/attributionWindowHelper.ts"() {
+    "use strict";
+    init_db2();
+    ATTRIBUTION_WINDOW = {
+      /** Amazon 7天归因窗口的安全边际（天） */
+      ATTRIBUTION_LAG_DAYS: 3,
+      /** 出价优化数据窗口：D-4 到 D-30（成熟数据） */
+      BID_OPTIMIZATION: {
+        startDaysAgo: 30,
+        // 从30天前开始
+        endDaysAgo: 4,
+        // 到4天前结束（跳过D-0~D-3）
+        description: "\u51FA\u4EF7\u4F18\u5316\u7A97\u53E3(D-4~D-30): \u5F52\u56E0\u5DF2\u7A33\u5B9A\u7684\u6210\u719F\u6570\u636E"
+      },
+      /** 风控扫描数据窗口：D-0 到 D-3（实时数据） */
+      RISK_CONTROL: {
+        startDaysAgo: 3,
+        // 从3天前开始
+        endDaysAgo: 0,
+        // 到今天
+        description: "\u98CE\u63A7\u626B\u63CF\u7A97\u53E3(D-0~D-3): \u68C0\u6D4B\u5F02\u5E38\u7684\u5B9E\u65F6\u6570\u636E"
+      },
+      /** 趋势分析数据窗口：D-0 到 D-60（全量数据） */
+      TREND_ANALYSIS: {
+        startDaysAgo: 60,
+        endDaysAgo: 0,
+        description: "\u8D8B\u52BF\u5206\u6790\u7A97\u53E3(D-0~D-60): \u957F\u671F\u8D8B\u52BF\u5224\u65AD"
+      }
+    };
+  }
+});
+
 // server/services/syncServiceProvider.ts
 function registerSyncServiceFactory(factory2) {
   _syncServiceFactory = factory2;
@@ -56742,8 +56947,8 @@ async function backfillRewards(accountId) {
   const db = await getDbInstance3();
   let filledCount = 0;
   try {
-    const hoursAgo72 = new Date(Date.now() - 72 * 36e5).toISOString();
-    const hoursAgo24 = new Date(Date.now() - 24 * 36e5).toISOString();
+    const hoursAgo96 = new Date(Date.now() - 96 * 36e5).toISOString();
+    const hoursAgo12 = new Date(Date.now() - 12 * 36e5).toISOString();
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -56756,8 +56961,8 @@ async function backfillRewards(accountId) {
     }).from(rlTrainingLogs).where(and(
       eq(rlTrainingLogs.accountId, accountId),
       isNull(rlTrainingLogs.rewardFilledAt),
-      gte(rlTrainingLogs.createdAt, hoursAgo72),
-      lte(rlTrainingLogs.createdAt, hoursAgo24)
+      gte(rlTrainingLogs.createdAt, hoursAgo96),
+      lte(rlTrainingLogs.createdAt, hoursAgo12)
     )).limit(500);
     for (const log39 of pendingLogs) {
       try {
@@ -67450,27 +67655,37 @@ function ruleEngineDecision(target, groupConfig) {
   };
   const entityId = target.keywordId || target.targetId || 0;
   if (impressions === 0) {
-    const explorationCeiling = maxBid * 0.5;
+    const explorationCeiling = maxBid * 0.4;
     if (currentBid >= explorationCeiling) {
       return {
         bid: currentBid,
         confidence: 0.3,
-        reason: `\u96F6\u66DD\u5149\u4F46\u5DF2\u8FBE\u63A2\u7D22\u4E0A\u9650($${currentBid.toFixed(2)} >= maxBid*50%=$${explorationCeiling.toFixed(2)}): \u7EF4\u6301\u51FA\u4EF7\uFF0C\u5EFA\u8BAE\u68C0\u67E5\u5173\u952E\u8BCD\u76F8\u5173\u6027`
+        reason: `\u96F6\u66DD\u5149\u4F46\u51FA\u4EF7\u5DF2\u8FBE\u63A2\u7D22\u4E0A\u9650($${currentBid.toFixed(2)} >= $${explorationCeiling.toFixed(2)}): \u7EF4\u6301\u51FA\u4EF7\uFF0C\u5EFA\u8BAE\u68C0\u67E5\u5173\u952E\u8BCD\u76F8\u5173\u6027`
       };
     }
     const boostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.1);
     const newBid = currentBid * (1 + boostRatio);
+    const cappedBid = Math.min(newBid, explorationCeiling, maxBid);
     return {
-      bid: Math.min(newBid, explorationCeiling),
+      bid: cappedBid,
       confidence: 0.4,
-      reason: `\u96F6\u66DD\u5149\u63A2\u7D22: \u63D0\u5347${(boostRatio * 100).toFixed(0)}%\u4EE5\u83B7\u53D6\u66DD\u5149\u6570\u636E (\u4E0A\u9650$${explorationCeiling.toFixed(2)})`
+      reason: `\u96F6\u66DD\u5149\u63A2\u7D22: \u63D0\u5347${(boostRatio * 100).toFixed(0)}%\u4EE5\u83B7\u53D6\u66DD\u5149\u6570\u636E`
     };
   }
   if (clicks === 0 && impressions > 0) {
     if (impressions < 100) {
+      const lowClickCeiling = maxBid * 0.5;
+      if (currentBid >= lowClickCeiling) {
+        return {
+          bid: currentBid,
+          confidence: 0.3,
+          reason: `\u4F4E\u66DD\u5149\u96F6\u70B9\u51FB(${impressions}\u6B21)\u4F46\u51FA\u4EF7\u5DF2\u8FBE\u4E0A\u9650($${currentBid.toFixed(2)}): \u7EF4\u6301\u51FA\u4EF7\u89C2\u5BDF`
+        };
+      }
       const boostRatio = Math.min(0.1, 0.03 + deterministicHash(entityId, 2) * 0.07);
+      const newBid = Math.min(currentBid * (1 + boostRatio), lowClickCeiling);
       return {
-        bid: currentBid * (1 + boostRatio),
+        bid: newBid,
         confidence: 0.35,
         reason: `\u4F4E\u66DD\u5149\u96F6\u70B9\u51FB(${impressions}\u6B21): \u5C0F\u5E45\u63D0\u5347${(boostRatio * 100).toFixed(0)}%`
       };
@@ -67485,32 +67700,28 @@ function ruleEngineDecision(target, groupConfig) {
   }
   if (orders === 0 && clicks > 0) {
     const cpc = spend / clicks;
-    const accountSales = target.accountSales || 0;
-    const accountOrders = target.accountOrders || 0;
-    const estimatedAov = accountOrders > 0 ? accountSales / accountOrders : Math.max(currentBid * 20, 15);
+    const estimatedAov = currentBid * 30;
     const maxAcceptableSpend = estimatedAov * targetAcos;
     if (spend > maxAcceptableSpend) {
-      const overSpendRatio = spend / maxAcceptableSpend;
-      const baseReduce = (overSpendRatio - 1) * 0.15;
-      const clickPenalty = Math.min(0.05, clicks / 200 * 0.05);
-      const reduceRatio = Math.min(0.3, baseReduce + clickPenalty);
+      const spendRatio = spend / maxAcceptableSpend;
+      const reduceRatio = Math.min(0.25, (spendRatio - 1) * 0.15);
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.55,
-        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, ${clicks}\u6B21\u70B9\u51FB, AOV\u4F30$${estimatedAov.toFixed(0)}): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        confidence: 0.5,
+        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, ${spendRatio.toFixed(1)}x\u8D85\u6807): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
       };
     }
     if (clicks >= 10) {
-      const mildReduce = Math.min(0.1, clicks / 100 * 0.05);
+      const reduceRatio = Math.min(0.1, clicks / 200);
       return {
-        bid: currentBid * (1 - mildReduce),
+        bid: currentBid * (1 - reduceRatio),
         confidence: 0.4,
-        reason: `\u96F6\u8F6C\u5316${clicks}\u6B21\u70B9\u51FB(\u82B1\u8D39$${spend.toFixed(2)}\u672A\u8D85\u6807): \u5C0F\u5E45\u964D\u4F4E${(mildReduce * 100).toFixed(0)}%`
+        reason: `\u96F6\u8F6C\u5316${clicks}\u6B21\u70B9\u51FB($${spend.toFixed(2)}): \u5C0F\u5E45\u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
       };
     }
     return {
       bid: currentBid,
-      confidence: 0.35,
+      confidence: 0.4,
       reason: `\u96F6\u8F6C\u5316\u4F46\u82B1\u8D39\u53EF\u63A7($${spend.toFixed(2)}, ${clicks}\u6B21\u70B9\u51FB): \u7EF4\u6301\u51FA\u4EF7\u89C2\u5BDF`
     };
   }
@@ -67525,18 +67736,22 @@ function ruleEngineDecision(target, groupConfig) {
         reason: `ACOS\u4F18\u79C0(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%): \u63D0\u5347${(boostRatio * 100).toFixed(0)}%`
       };
     } else if (acosRatio <= 1) {
-      const adjustRatio = (1 - acosRatio) * 0.1;
+      const rawAdjustRatio = (1 - acosRatio) * 0.15;
+      const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
+      const adjustRatio = rawAdjustRatio > 1e-3 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.65,
-        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%`
+        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else if (acosRatio <= 1.5) {
-      const reduceRatio = Math.min(0.15, (acosRatio - 1) * 0.2);
+      const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
+      const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
+      const reduceRatio = rawReduceRatio > 1e-3 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.6,
-        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else {
       const baseReduceRatio = (acosRatio - 1) * 0.25;
@@ -67604,7 +67819,29 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
   }
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
-    const safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    let finalReason = ruleResult.reason;
+    const isEffectivelyHold = Math.abs(safeBid - target.currentBid) <= 5e-3;
+    if (isEffectivelyHold && target.currentBid > 0.05) {
+      const entityId = target.id;
+      const hourSeed = Math.floor(Date.now() / (4 * 36e5));
+      const explorationHash = (entityId * 2654435761 + hourSeed * 1597334677 >>> 0) % 100;
+      const EXPLORATION_RATE = 25;
+      if (explorationHash < EXPLORATION_RATE) {
+        const directionHash = (entityId * 1103515245 + hourSeed >>> 0) % 100;
+        const minExplorationRatio = target.currentBid > 0 ? 0.02 / target.currentBid : 0.03;
+        const explorationRatio = Math.max(minExplorationRatio, 0.03 + explorationHash / 100 * 0.02);
+        let explorationBid;
+        if (directionHash < 50) {
+          explorationBid = target.currentBid * (1 + explorationRatio);
+        } else {
+          explorationBid = target.currentBid * (1 - explorationRatio);
+        }
+        safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
+        finalReason += ` | RL\u63A2\u7D22: ${directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2"}${(explorationRatio * 100).toFixed(1)}%`;
+        log10.info(`[NextGenOrchestrator] RL\u51B7\u542F\u52A8\u63A2\u7D22: target=${target.id}, \u65B9\u5411=${directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2"}, \u5E45\u5EA6=${(explorationRatio * 100).toFixed(1)}%, $${target.currentBid.toFixed(2)} \u2192 $${safeBid.toFixed(2)}`);
+      }
+    }
     const keywordId = target.type === "keyword" ? target.id : void 0;
     const targetId = target.type === "product_target" ? target.id : void 0;
     recordBidAction({
@@ -67620,7 +67857,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       safeBid,
       "rule_engine",
       ruleResult.confidence,
-      `[\u89C4\u5219\u5F15\u64CE] ${ruleResult.reason}`,
+      `[\u89C4\u5219\u5F15\u64CE] ${finalReason}`,
       "rule_engine"
     );
   } catch (ruleError) {
@@ -67638,7 +67875,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
 function buildResult(target, newBid, algorithmUsed, confidence, reason, tier, metaDecision) {
   const bidChangePercent = target.currentBid > 0 ? (newBid - target.currentBid) / target.currentBid * 100 : 0;
   let actionType = "hold";
-  if (Math.abs(newBid - target.currentBid) > 0.01) {
+  if (Math.abs(newBid - target.currentBid) > 5e-3) {
     actionType = newBid > target.currentBid ? "increase" : "decrease";
   }
   return {
@@ -67701,7 +67938,7 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
       const safeBid = safetyValidate(target.currentBid, gtoCorrectedBid, safetyConfig, maxBidLimit);
       result.newBid = safeBid;
       result.bidChangePercent = target.currentBid > 0 ? Math.round((safeBid - target.currentBid) / target.currentBid * 1e4) / 100 : 0;
-      result.actionType = Math.abs(safeBid - target.currentBid) > 0.01 ? safeBid > target.currentBid ? "increase" : "decrease" : "hold";
+      result.actionType = Math.abs(safeBid - target.currentBid) > 5e-3 ? safeBid > target.currentBid ? "increase" : "decrease" : "hold";
       result.reason += ` | GTO\u4FEE\u6B63: ${gtoMod.reasoning}`;
       result.gtoModifier = gtoMod;
     }
@@ -156046,6 +156283,1723 @@ var init_budgetAllocationService = __esm({
   }
 });
 
+// server/searchTermHarvester.ts
+async function identifyHarvestCandidates(accountId, config2 = {}) {
+  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
+  const candidates = [];
+  try {
+    const allCampaigns = await getCampaignsByAccountId(accountId);
+    if (!allCampaigns || allCampaigns.length === 0) {
+      log28.debug(`\u8D26\u53F7 ${accountId} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
+      return [];
+    }
+    const sourceCampaigns = allCampaigns.filter(
+      (c5) => c5.campaignStatus === "enabled" && (c5.campaignType === "sp_auto" || c5.targetingType === "auto")
+    );
+    const manualCampaigns = allCampaigns.filter(
+      (c5) => c5.campaignStatus === "enabled" && c5.campaignType === "sp_manual" && c5.targetingType === "manual"
+    );
+    if (sourceCampaigns.length === 0) {
+      log28.info(`\u8D26\u53F7 ${accountId} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
+      return [];
+    }
+    for (const sourceCampaign of sourceCampaigns) {
+      const searchTermsList = await getSearchTermsByCampaignId(sourceCampaign.id);
+      for (const st3 of searchTermsList) {
+        const clicks = Number(st3.searchTermClicks) || 0;
+        const orders = Number(st3.searchTermOrders) || 0;
+        const spend = parseFloat(String(st3.searchTermSpend || "0"));
+        const sales = parseFloat(String(st3.searchTermSales || "0"));
+        if (clicks < cfg.minClicks || orders < cfg.minOrders) continue;
+        const acos = sales > 0 ? spend / sales * 100 : 999;
+        const roas = spend > 0 ? sales / spend : 0;
+        const cvr = clicks > 0 ? orders / clicks * 100 : 0;
+        if (acos > cfg.maxAcos && roas < cfg.minRoas) continue;
+        if (isAsinSearchTerm(st3.searchTerm)) {
+          log28.info(`v194: \u8DF3\u8FC7ASIN\u641C\u7D22\u8BCD "${st3.searchTerm}"\uFF0C\u5E94\u4F5C\u4E3Aproduct target\u5904\u7406`);
+          continue;
+        }
+        const validation = sanitizeAndValidateKeyword(st3.searchTerm);
+        if (!validation.isValid) {
+          log28.warn(`v194: \u641C\u7D22\u8BCD\u6821\u9A8C\u5931\u8D25 "${st3.searchTerm}": ${validation.reasonMessage || validation.reasonCode || "invalid"}`);
+          continue;
+        }
+        const targetInfo = await findTargetAdGroup(
+          st3.searchTerm,
+          manualCampaigns,
+          sourceCampaign
+        );
+        if (!targetInfo) continue;
+        const existingKeywords = await getKeywordsByAdGroupId(targetInfo.adGroupId);
+        const alreadyExists = existingKeywords.some(
+          (k5) => k5.keywordText?.toLowerCase() === st3.searchTerm.toLowerCase() && k5.matchType === "exact"
+        );
+        if (alreadyExists) continue;
+        const suggestedBid = calculateHarvestBid(
+          { clicks, orders, spend, sales },
+          cfg
+        );
+        const sourceAdGroup = await getAdGroupById(st3.adGroupId);
+        if (!sourceAdGroup) continue;
+        candidates.push({
+          searchTerm: st3.searchTerm,
+          sourceAdGroupId: st3.adGroupId,
+          sourceCampaignId: sourceCampaign.id,
+          sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
+          sourceAmazonCampaignId: sourceCampaign.campaignId,
+          targetAdGroupId: targetInfo.adGroupId,
+          targetCampaignId: targetInfo.campaignId,
+          targetAmazonAdGroupId: targetInfo.amazonAdGroupId,
+          targetAmazonCampaignId: targetInfo.amazonCampaignId,
+          suggestedBid,
+          performance: { clicks, orders, spend, sales, acos, roas, cvr },
+          reason: `\u9AD8\u7EE9\u6548\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%, ROAS=${roas.toFixed(2)}, CVR=${cvr.toFixed(1)}%`
+        });
+      }
+    }
+    log28.debug(`\u8D26\u53F7 ${accountId} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
+    return candidates;
+  } catch (error54) {
+    log28.error(`\u8BC6\u522B\u5019\u9009\u9879\u5931\u8D25:`, error54.message);
+    return [];
+  }
+}
+async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
+  const result = {
+    searchTerm: candidate.searchTerm,
+    success: false,
+    stage: "failed"
+  };
+  log28.info(`\u5F00\u59CB\u539F\u5B50\u6536\u5272: "${candidate.searchTerm}" (${candidate.reason})`);
+  try {
+    const createResult = await apiClient.createSpKeywords([{
+      adGroupId: parseInt(candidate.targetAmazonAdGroupId),
+      campaignId: parseInt(candidate.targetAmazonCampaignId),
+      keywordText: candidate.searchTerm,
+      matchType: "exact",
+      bid: candidate.suggestedBid,
+      state: "enabled"
+    }]);
+    if (!createResult.success || createResult.createdKeywords.length === 0) {
+      const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
+      const isDuplicate = createResult.errors.some(
+        (e6) => String(e6).includes("DUPLICATE") || String(e6).includes("already exists")
+      );
+      if (isDuplicate) {
+        log28.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
+        result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
+        return result;
+      }
+      result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
+      log28.error(`${result.error}`);
+      return result;
+    }
+    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
+    result.stage = "keyword_created";
+    log28.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}`);
+  } catch (error54) {
+    result.error = `Step1 \u5F02\u5E38: ${error54.message}`;
+    log28.error(`${result.error}`);
+    return result;
+  }
+  const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
+  const negativeMatchType = searchTermWords.length <= 2 ? "negativePhrase" : "negativeExact";
+  try {
+    log28.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
+    const negativeResult = await apiClient.createSpNegativeKeywords([{
+      adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
+      campaignId: parseInt(candidate.sourceAmazonCampaignId),
+      keywordText: candidate.searchTerm,
+      matchType: negativeMatchType,
+      state: "enabled"
+    }]);
+    const negativeErrors = negativeResult.filter((r5) => r5.code && r5.code !== "SUCCESS");
+    if (negativeErrors.length > 0) {
+      const isDuplicate = negativeErrors.some(
+        (e6) => String(e6.code).includes("DUPLICATE") || String(e6.details).includes("already exists")
+      );
+      if (!isDuplicate) {
+        log28.error(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+        await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+        result.stage = "rolled_back";
+        result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${JSON.stringify(negativeErrors)}`;
+        result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+        return result;
+      }
+    }
+    const successNeg = negativeResult.find((r5) => !r5.code || r5.code === "SUCCESS");
+    if (successNeg) {
+      result.createdNegativeKeywordId = successNeg.keywordId;
+    }
+    result.stage = "negative_added";
+    log28.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}`);
+  } catch (error54) {
+    log28.error(`Step2 \u5F02\u5E38: ${error54.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+    await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+    result.stage = "rolled_back";
+    result.error = `Step2 \u5F02\u5E38: ${error54.message}`;
+    result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+    return result;
+  }
+  try {
+    const localKeywordId = await createKeyword({
+      adGroupId: candidate.targetAdGroupId,
+      keywordId: String(result.createdKeywordId),
+      keywordText: candidate.searchTerm,
+      matchType: "exact",
+      bid: candidate.suggestedBid.toFixed(2),
+      keywordStatus: "enabled"
+    });
+    result.localKeywordId = localKeywordId;
+    await addNegativeKeyword({
+      campaignId: candidate.sourceCampaignId,
+      adGroupId: candidate.sourceAdGroupId,
+      keyword: candidate.searchTerm,
+      matchType: negativeMatchType === "negativePhrase" ? "phrase" : "exact",
+      level: "ad_group"
+    });
+    await createBiddingLog({
+      accountId,
+      campaignId: String(candidate.targetCampaignId),
+      adGroupId: candidate.targetAdGroupId,
+      logTargetType: "keyword",
+      targetId: localKeywordId,
+      targetName: candidate.searchTerm,
+      logMatchType: "exact",
+      actionType: "set",
+      previousBid: "0.00",
+      newBid: candidate.suggestedBid.toFixed(2),
+      bidChangePercent: "100.00",
+      reason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason} | \u6E90Campaign=${candidate.sourceCampaignId} \u2192 \u76EE\u6807Campaign=${candidate.targetCampaignId}`,
+      algorithmVersion: "2.0.0-harvest",
+      isIntradayAdjustment: 0
+    });
+    try {
+      await insertOptimizationEvent({
+        accountId,
+        eventCategory: "search_term_action",
+        actionType: "search_term_harvest",
+        campaignId: candidate.targetCampaignId,
+        keywordId: localKeywordId,
+        keywordText: candidate.searchTerm,
+        matchType: "exact",
+        previousBid: "0.00",
+        newBid: candidate.suggestedBid.toFixed(2),
+        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason}`,
+        status: "success",
+        apiSyncStatus: "synced",
+        sourceTable: "search_term_harvester"
+      });
+      await insertOptimizationEvent({
+        accountId,
+        eventCategory: "search_term_action",
+        actionType: "negative_keyword_add",
+        campaignId: candidate.sourceCampaignId,
+        keywordText: candidate.searchTerm,
+        matchType: "exact",
+        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272-\u5426\u5B9A] \u6E90\u5E7F\u544A\u7EC4\u6DFB\u52A0\u5426\u5B9A\u8BCD`,
+        status: "success",
+        apiSyncStatus: "synced",
+        sourceTable: "search_term_harvester"
+      });
+    } catch (eventErr) {
+      log28.warn(`v189: \u8BB0\u5F55optimization_events\u5931\u8D25: ${eventErr.message}`);
+    }
+    result.stage = "db_logged";
+    result.success = true;
+    log28.info(`Step3 \u5B8C\u6210: \u672C\u5730\u6570\u636E\u5E93\u5DF2\u66F4\u65B0`);
+  } catch (error54) {
+    log28.warn(`Step3 \u672C\u5730DB\u8BB0\u5F55\u5931\u8D25: ${error54.message}\uFF0CAPI\u64CD\u4F5C\u5DF2\u751F\u6548`);
+    result.error = `Step3 \u672C\u5730DB\u5931\u8D25(API\u5DF2\u751F\u6548): ${error54.message}`;
+    result.success = true;
+    result.stage = "negative_added";
+  }
+  return result;
+}
+async function batchHarvestSearchTerms(accountId, config2 = {}) {
+  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
+  const candidates = await identifyHarvestCandidates(accountId, cfg);
+  if (candidates.length === 0) {
+    return {
+      candidates: [],
+      results: [],
+      summary: { total: 0, success: 0, failed: 0, rolledBack: 0, skipped: 0 }
+    };
+  }
+  if (cfg.dryRun) {
+    log28.info(`Dry Run: \u53D1\u73B0 ${candidates.length} \u4E2A\u5019\u9009\u9879\uFF0C\u4E0D\u6267\u884C`);
+    return {
+      candidates,
+      results: [],
+      summary: { total: candidates.length, success: 0, failed: 0, rolledBack: 0, skipped: candidates.length }
+    };
+  }
+  const credentials = await getAmazonApiCredentials(accountId);
+  if (!credentials) {
+    log28.error(`\u8D26\u53F7 ${accountId} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
+    return {
+      candidates,
+      results: [],
+      summary: { total: candidates.length, success: 0, failed: candidates.length, rolledBack: 0, skipped: 0 }
+    };
+  }
+  const apiClient = createAmazonAdsClient({
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    refreshToken: typeof credentials.refreshToken === "string" ? credentials.refreshToken : "",
+    profileId: credentials.profileId,
+    region: credentials.region
+  });
+  const results = [];
+  let success2 = 0, failed = 0, rolledBack = 0;
+  for (const candidate of candidates) {
+    try {
+      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
+      results.push(result);
+      if (result.success) {
+        success2++;
+      } else if (result.stage === "rolled_back") {
+        rolledBack++;
+      } else {
+        failed++;
+      }
+      await new Promise((resolve8) => setTimeout(resolve8, 500));
+    } catch (error54) {
+      log28.error(`\u6536\u5272\u5F02\u5E38: "${candidate.searchTerm}" - ${error54.message}`);
+      results.push({
+        searchTerm: candidate.searchTerm,
+        success: false,
+        stage: "failed",
+        error: error54.message
+      });
+      failed++;
+    }
+  }
+  log28.warn(`\u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success2}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}`);
+  return {
+    candidates,
+    results,
+    summary: {
+      total: candidates.length,
+      success: success2,
+      failed,
+      rolledBack,
+      skipped: 0
+    }
+  };
+}
+async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
+  const exactCampaigns = manualCampaigns.filter(
+    (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
+  );
+  for (const campaign of exactCampaigns) {
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
+    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
+    for (const ag of enabledAdGroups) {
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) {
+        log28.info(`v194: \u8DF3\u8FC7product target\u5E7F\u544A\u7EC4 id=${ag.id}`);
+        continue;
+      }
+      return {
+        adGroupId: ag.id,
+        campaignId: campaign.campaignId,
+        amazonAdGroupId: ag.adGroupId,
+        amazonCampaignId: campaign.campaignId
+      };
+    }
+  }
+  for (const campaign of manualCampaigns) {
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
+    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
+    for (const ag of enabledAdGroups) {
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) continue;
+      return {
+        adGroupId: ag.id,
+        campaignId: campaign.campaignId,
+        amazonAdGroupId: ag.adGroupId,
+        amazonCampaignId: campaign.campaignId
+      };
+    }
+  }
+  return null;
+}
+function calculateHarvestBid(performance3, config2) {
+  const { clicks, orders, spend, sales } = performance3;
+  if (config2.bidStrategy === "cvr_aov_based" && orders > 0) {
+    const cvr = orders / clicks;
+    const aov = sales / orders;
+    const targetAcosRate = 0.3;
+    const theoreticalBid = cvr * aov * targetAcosRate * config2.bidDiscountFactor;
+    return Math.round(Math.max(0.1, Math.min(theoreticalBid, 5)) * 100) / 100;
+  }
+  if (clicks > 0) {
+    const historicalCpc = spend / clicks;
+    const bid = historicalCpc * config2.bidDiscountFactor;
+    return Math.round(Math.max(0.1, Math.min(bid, 5)) * 100) / 100;
+  }
+  return 0.5;
+}
+async function rollbackKeywordCreation(apiClient, keywordId) {
+  try {
+    await apiClient.updateKeywordBids([{
+      keywordId,
+      bid: 0.02
+      // 设置最低出价
+    }]);
+    log28.info(`\u56DE\u6EDA\u6210\u529F: \u5173\u952E\u8BCD ${keywordId} \u5DF2\u8BBE\u7F6E\u6700\u4F4E\u51FA\u4EF7`);
+  } catch (error54) {
+    log28.error(`\u56DE\u6EDA\u5931\u8D25: \u5173\u952E\u8BCD ${keywordId} - ${error54.message}`);
+  }
+}
+var log28, DEFAULT_HARVEST_CONFIG;
+var init_searchTermHarvester = __esm({
+  "server/searchTermHarvester.ts"() {
+    "use strict";
+    init_db2();
+    init_amazonAdsApi();
+    init_keywordValidator();
+    init_logger2();
+    log28 = createModuleLogger("SearchTermHarvester");
+    DEFAULT_HARVEST_CONFIG = {
+      minOrders: 2,
+      maxAcos: 50,
+      minClicks: 10,
+      minRoas: 2,
+      bidStrategy: "cvr_aov_based",
+      bidDiscountFactor: 0.85,
+      // 精确匹配出价为宽泛/短语的85%
+      dryRun: false
+    };
+  }
+});
+
+// server/services/intradayPacingService.ts
+var intradayPacingService_exports = {};
+__export(intradayPacingService_exports, {
+  INTRADAY_CONFIG: () => INTRADAY_CONFIG,
+  adjustIntradayPacing: () => adjustIntradayPacing,
+  applyIntradayAdjustment: () => applyIntradayAdjustment,
+  calculateBudgetRunway: () => calculateBudgetRunway,
+  checkAllCampaignsPacing: () => checkAllCampaignsPacing,
+  default: () => intradayPacingService_default,
+  getCriticalCampaigns: () => getCriticalCampaigns
+});
+async function adjustIntradayPacing(campaignId, accountId) {
+  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
+  const dailyBudget = await getCampaignBudget(accountId, campaignId);
+  const marketplace = await getAccountMarketplace(accountId);
+  const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
+  const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
+  const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
+  const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
+  const idealSpendPercent = hoursPassed / totalHours;
+  const actualSpendPercent = dailyBudget > 0 ? realtimeData.todaySpend / dailyBudget : 0;
+  const pacingRatio = idealSpendPercent > 0 ? actualSpendPercent / idealSpendPercent : 1;
+  let pacingStatus;
+  let suggestedAction = "none";
+  let suggestedMultiplier = 1;
+  let reason = "";
+  if (pacingRatio >= INTRADAY_CONFIG.criticalThreshold) {
+    pacingStatus = "critical";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.criticalMultiplier;
+    reason = `\u{1F525} \u70E7\u94B1\u592A\u5FEB\uFF01\u6D88\u8017\u901F\u5EA6\u662F\u7406\u60F3\u7684${(pacingRatio * 100).toFixed(0)}%\uFF0C\u89E6\u53D1\u65E5\u5185\u4FDD\u62A4`;
+  } else if (pacingRatio >= INTRADAY_CONFIG.overspendingThreshold) {
+    pacingStatus = "overspending";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.overspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u5FEB\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7`;
+  } else if (pacingRatio <= INTRADAY_CONFIG.underspendingThreshold) {
+    pacingStatus = "underspending";
+    suggestedAction = "increase_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.underspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u6162\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u53EF\u4EE5\u9002\u5F53\u63D0\u9AD8\u51FA\u4EF7`;
+  } else {
+    pacingStatus = "on_track";
+    reason = "\u6D88\u8017\u901F\u5EA6\u6B63\u5E38";
+  }
+  const anomalyResult = detectAnomalies3(
+    realtimeData.todayClicks,
+    realtimeData.todayImpressions,
+    realtimeData.todaySpend,
+    currentHour
+  );
+  if (anomalyResult.detected) {
+    suggestedAction = anomalyResult.action;
+    reason = anomalyResult.reason;
+  }
+  return {
+    campaignId,
+    accountId,
+    currentHour,
+    dailyBudget,
+    todaySpend: realtimeData.todaySpend,
+    todayClicks: realtimeData.todayClicks,
+    todayImpressions: realtimeData.todayImpressions,
+    idealSpendPercent: Math.round(idealSpendPercent * 100) / 100,
+    actualSpendPercent: Math.round(actualSpendPercent * 100) / 100,
+    pacingStatus,
+    suggestedAction,
+    suggestedMultiplier,
+    reason,
+    anomalyDetected: anomalyResult.detected,
+    anomalyType: anomalyResult.type
+  };
+}
+async function checkAllCampaignsPacing(accountId) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT campaignId, dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND state = 'enabled'
+        AND dailyBudget > 0
+    `);
+    const campaigns7 = Array.isArray(rows) ? rows : [];
+    const results = [];
+    for (const campaign of campaigns7) {
+      const adjustment = await adjustIntradayPacing(
+        campaign.campaignId,
+        accountId
+      );
+      results.push(adjustment);
+    }
+    return results;
+  } catch (error54) {
+    console.error("[IntradayPacing] \u6279\u91CF\u68C0\u67E5\u5931\u8D25:", error54);
+    return [];
+  }
+}
+async function getCriticalCampaigns(accountId) {
+  const allAdjustments = await checkAllCampaignsPacing(accountId);
+  return allAdjustments.filter(
+    (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
+  );
+}
+async function applyIntradayAdjustment(adjustment) {
+  console.log("[IntradayPacing] \u5E94\u7528\u8C03\u6574:", {
+    campaignId: adjustment.campaignId,
+    action: adjustment.suggestedAction,
+    multiplier: adjustment.suggestedMultiplier,
+    reason: adjustment.reason
+  });
+  return {
+    success: true,
+    action: adjustment.suggestedAction,
+    previousMultiplier: 1,
+    newMultiplier: adjustment.suggestedMultiplier
+  };
+}
+async function getCampaignBudget(accountId, campaignId) {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND campaignId = ${campaignId}
+      LIMIT 1
+    `);
+    const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    return campaign?.dailyBudget || 0;
+  } catch (error54) {
+    console.error("[IntradayPacing] \u83B7\u53D6\u9884\u7B97\u5931\u8D25:", error54);
+    return 0;
+  }
+}
+function detectAnomalies3(clicks, impressions, spend, currentHour) {
+  const avgClicksPerHour = currentHour > 0 ? clicks / currentHour : clicks;
+  const ctr = impressions > 0 ? clicks / impressions : 0;
+  if (avgClicksPerHour > INTRADAY_CONFIG.clickFraudThreshold || ctr > INTRADAY_CONFIG.clickFraudCtrThreshold) {
+    return {
+      detected: true,
+      type: "click_fraud",
+      action: "pause",
+      reason: `\u26A0\uFE0F \u68C0\u6D4B\u5230\u5F02\u5E38\u6D41\u91CF\uFF01\u6BCF\u5C0F\u65F6\u70B9\u51FB${avgClicksPerHour.toFixed(0)}\u6B21\uFF0CCTR ${(ctr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u7D27\u6025\u6682\u505C`
+    };
+  }
+  if (spend > 0 && clicks > INTRADAY_CONFIG.zeroConversionClickThreshold) {
+    const avgSpendPerClick = spend / clicks;
+    if (avgSpendPerClick > 2) {
+      return {
+        detected: true,
+        type: "budget_drain",
+        action: "alert",
+        reason: `\u26A0\uFE0F \u6BCF\u6B21\u70B9\u51FB\u6210\u672C\u5F02\u5E38\u9AD8\uFF08$${avgSpendPerClick.toFixed(2)}\uFF09\uFF0C\u8BF7\u68C0\u67E5\u7ADE\u4EF7\u8BBE\u7F6E`
+      };
+    }
+  }
+  return {
+    detected: false,
+    action: "none",
+    reason: ""
+  };
+}
+function calculateBudgetRunway(dailyBudget, currentSpend, currentHour, avgSpendPerHour) {
+  const remainingBudget = dailyBudget - currentSpend;
+  const hoursRemaining = avgSpendPerHour > 0 ? remainingBudget / avgSpendPerHour : 24 - currentHour;
+  const projectedEndHour = currentHour + hoursRemaining;
+  return {
+    remainingBudget,
+    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
+    projectedEndHour: Math.min(24, Math.round(projectedEndHour)),
+    willLastUntilTarget: projectedEndHour >= INTRADAY_CONFIG.targetEndHour
+  };
+}
+var INTRADAY_CONFIG, intradayPacingService_default;
+var init_intradayPacingService = __esm({
+  "server/services/intradayPacingService.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_dualTrackSyncService();
+    init_algorithmUtils();
+    INTRADAY_CONFIG = {
+      // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
+      targetEndHour: 22,
+      // 开始时间（小时）
+      startHour: 0,
+      // 消耗速度阈值
+      overspendingThreshold: 1.5,
+      // 超过理想消耗的150%
+      criticalThreshold: 2,
+      // 超过理想消耗的200%
+      underspendingThreshold: 0.5,
+      // 低于理想消耗的50%
+      // 调整乘数
+      overspendingMultiplier: 0.8,
+      // 花太快时降低20%
+      criticalMultiplier: 0.5,
+      // 危急时降低50%
+      underspendingMultiplier: 1.2,
+      // 花太慢时提高20%
+      // 异常检测阈值
+      clickFraudThreshold: 100,
+      // 单小时点击超过100次
+      clickFraudCtrThreshold: 0.15,
+      // CTR超过15%可能是异常
+      zeroConversionClickThreshold: 50,
+      // 50次点击0转化触发警告
+      // 最小检查间隔（分钟）
+      minCheckInterval: 15
+    };
+    intradayPacingService_default = {
+      adjustIntradayPacing,
+      checkAllCampaignsPacing,
+      getCriticalCampaigns,
+      applyIntradayAdjustment,
+      calculateBudgetRunway,
+      INTRADAY_CONFIG
+    };
+  }
+});
+
+// server/dataSyncScheduler.ts
+var dataSyncScheduler_exports = {};
+__export(dataSyncScheduler_exports, {
+  OPTIMIZATION_SCHEDULE: () => OPTIMIZATION_SCHEDULE,
+  SYNC_TIER_CONFIG: () => SYNC_TIER_CONFIG,
+  acquireAccountOptimizationLock: () => acquireAccountOptimizationLock2,
+  acquireAccountOptimizationLockWithRetry: () => acquireAccountOptimizationLockWithRetry,
+  deleteSyncSchedule: () => deleteSyncSchedule3,
+  frequencyToMs: () => frequencyToMs,
+  getModuleLockGroup: () => getModuleLockGroup2,
+  getSchedulerStatus: () => getSchedulerStatus3,
+  getSyncQueueStatus: () => getSyncQueueStatus,
+  getSyncSchedule: () => getSyncSchedule,
+  recordModuleExecution: () => recordModuleExecution,
+  releaseAccountOptimizationLock: () => releaseAccountOptimizationLock2,
+  startDataSyncScheduler: () => startDataSyncScheduler,
+  startOptimizationScheduler: () => startOptimizationScheduler2,
+  stopDataSyncScheduler: () => stopDataSyncScheduler,
+  stopOptimizationScheduler: () => stopOptimizationScheduler2,
+  triggerManualSync: () => triggerManualSync,
+  upsertSyncSchedule: () => upsertSyncSchedule,
+  withExponentialBackoff: () => withExponentialBackoff
+});
+function getSchedulerStatus3() {
+  return { ...schedulerStatus2 };
+}
+function startDataSyncScheduler(defaultIntervalMs = 60 * 60 * 1e3) {
+  if (schedulerStatus2.isRunning) {
+    log29.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u5728\u8FD0\u884C\u4E2D");
+    return;
+  }
+  schedulerStatus2.isRunning = true;
+  log29.info("[DataSyncScheduler] v219: \u542F\u52A8\u7EDF\u4E00\u540C\u6B65\u5F15\u64CE\u9A71\u52A8\u7684\u5206\u5C42\u540C\u6B65\u8C03\u5EA6\u5668...");
+  logSystem("DataSyncScheduler", "v219\u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u542F\u52A8", { defaultIntervalMs, mode: "unified_engine" });
+  schedulerIntervals.high = setInterval(async () => {
+    await executeUnifiedSync("high");
+  }, SYNC_TIER_CONFIG.high.intervalMs);
+  log29.info(`[DataSyncScheduler] v219: \u9AD8\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.high.intervalMs / 1e3 / 60} \u5206\u949F`);
+  schedulerIntervals.medium = setInterval(async () => {
+    await executeUnifiedSync("medium");
+  }, SYNC_TIER_CONFIG.medium.intervalMs);
+  log29.info(`[DataSyncScheduler] v219: \u4E2D\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.medium.intervalMs / 1e3 / 60} \u5206\u949F`);
+  schedulerIntervals.full = setInterval(async () => {
+    await executeUnifiedSync("full");
+  }, defaultIntervalMs);
+  schedulerStatus2.nextRunTime = new Date(Date.now() + defaultIntervalMs);
+  log29.info(`[DataSyncScheduler] v219: \u5B8C\u6574\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
+  setTimeout(async () => {
+    log29.info("[DataSyncScheduler] v219: \u542F\u52A8\u540E\u9996\u6B21\u9AD8\u9891\u540C\u6B65...");
+    await executeUnifiedSync("high");
+  }, 2 * 60 * 1e3);
+  setInterval(() => {
+    try {
+      const { logHealthSnapshot: logHealthSnapshot2 } = (init_unifiedSyncEngine(), __toCommonJS(unifiedSyncEngine_exports));
+      logHealthSnapshot2();
+    } catch (err2) {
+      log29.warn(`[DataSyncScheduler] v220: \u5065\u5EB7\u76D1\u63A7\u5FEB\u7167\u5931\u8D25: ${err2.message}`);
+    }
+  }, 15 * 60 * 1e3);
+  log29.info("[DataSyncScheduler] v220: \u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 15\u5206\u949F");
+  setInterval(async () => {
+    try {
+      const { processRetryTasks: processRetryTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+      const retryResult = await processRetryTasks2();
+      if (retryResult.processed > 0) {
+        log29.warn(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5B8C\u6210: \u5904\u7406=${retryResult.processed}, \u6210\u529F=${retryResult.synced}, \u5931\u8D25=${retryResult.failed}`);
+      }
+    } catch (err2) {
+      log29.error(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
+    }
+  }, 5 * 60 * 1e3);
+  log29.info(`[DataSyncScheduler] v137: \u4F18\u5316\u4EFB\u52A1\u91CD\u8BD5\u540C\u6B65\u5F15\u64CE\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 5\u5206\u949F`);
+  log29.info(`[DataSyncScheduler] v219: \u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u5B8C\u6574\u540C\u6B65\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
+}
+function stopDataSyncScheduler() {
+  if (!schedulerStatus2.isRunning) {
+    log29.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u672A\u5728\u8FD0\u884C");
+    return;
+  }
+  Object.keys(schedulerIntervals).forEach((tier) => {
+    const interval = schedulerIntervals[tier];
+    if (interval) {
+      clearInterval(interval);
+      schedulerIntervals[tier] = null;
+    }
+  });
+  schedulerStatus2.isRunning = false;
+  schedulerStatus2.nextRunTime = null;
+  schedulerStatus2.currentTier = null;
+  log29.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+  logSystem("DataSyncScheduler", "\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+}
+async function executeUnifiedSync(tier) {
+  if (tier === "high") {
+    if (tierRunningState.full) {
+      log29.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bhigh\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+    if (tierRunningState.medium) {
+      log29.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08\u907F\u514DAPI\u5E76\u53D1\u538B\u529B\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "medium_running" });
+      return;
+    }
+  }
+  if (tier === "medium") {
+    if (tierRunningState.full) {
+      log29.info(`[DataSyncScheduler] v222: medium\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bmedium\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: medium\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+  }
+  tierRunningState[tier] = true;
+  log29.info(`[DataSyncScheduler] v222: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  logSync("DataSyncScheduler", `v222: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
+  schedulerStatus2.currentTier = tier;
+  try {
+    const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const batchResult = await syncAllAccounts2(tier);
+    schedulerStatus2.tierLastRun[tier] = /* @__PURE__ */ new Date();
+    schedulerStatus2.lastRunTime = /* @__PURE__ */ new Date();
+    schedulerStatus2.successfulSyncs += batchResult.successfulAccounts;
+    schedulerStatus2.failedSyncs += batchResult.failedAccounts;
+    schedulerStatus2.totalSyncs += batchResult.totalAccounts;
+    log29.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}\u5B8C\u6210: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} \u6210\u529F, ${batchResult.failedAccounts} \u5931\u8D25, ${batchResult.skippedAccounts} \u8DF3\u8FC7, \u8017\u65F6 ${batchResult.durationMs}ms`);
+    if (tier === "full" || tier === "low") {
+      for (const accountResult of batchResult.accountResults) {
+        if (!accountResult.success) continue;
+        try {
+          const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+          await triggerAccountOptimizations2(accountResult.accountId, "unified_sync_complete");
+          log29.info(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210`);
+        } catch (optErr) {
+          log29.error(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25: ${optErr.message}`);
+        }
+      }
+    }
+    if (tier === "full") {
+      schedulerStatus2.nextRunTime = new Date(Date.now() + (schedulerIntervals.full ? 60 * 60 * 1e3 : 30 * 60 * 1e3));
+    }
+    schedulerStatus2.errors = schedulerStatus2.errors.slice(-10);
+  } catch (error54) {
+    log29.error(`[DataSyncScheduler] v219: ${tier}\u5C42\u540C\u6B65\u6267\u884C\u5931\u8D25:`, error54);
+    schedulerStatus2.errors.push(`v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
+    logSyncError("DataSyncScheduler", `v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25`, { tier, error: error54.message });
+  }
+  schedulerStatus2.currentTier = null;
+  tierRunningState[tier] = false;
+}
+async function triggerManualSync(userId, accountId) {
+  try {
+    const { triggerManualFullSync: triggerManualFullSync2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const syncResult = await triggerManualFullSync2(accountId);
+    if (!syncResult) {
+      return { success: false, message: "\u8D26\u53F7\u4E0D\u5B58\u5728\u6216\u672A\u914D\u7F6EAPI\u51ED\u8BC1" };
+    }
+    return {
+      success: syncResult.success,
+      message: syncResult.success ? `\u540C\u6B65\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u540C\u6B65${syncResult.totalSynced}\u6761\u6570\u636E, \u8017\u65F6${syncResult.durationMs}ms` : `\u540C\u6B65\u90E8\u5206\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u9519\u8BEF: ${syncResult.errors.slice(0, 3).join("; ")}`,
+      result: {
+        campaigns: (syncResult.stepResults["sp_campaigns"]?.synced || 0) + (syncResult.stepResults["sb_campaigns"]?.synced || 0) + (syncResult.stepResults["sd_campaigns"]?.synced || 0),
+        adGroups: (syncResult.stepResults["sp_ad_groups"]?.synced || 0) + (syncResult.stepResults["sb_ad_groups"]?.synced || 0) + (syncResult.stepResults["sd_ad_groups"]?.synced || 0),
+        keywords: (syncResult.stepResults["sp_keywords"]?.synced || 0) + (syncResult.stepResults["sb_keywords"]?.synced || 0),
+        targets: (syncResult.stepResults["sp_product_targets"]?.synced || 0) + (syncResult.stepResults["sb_product_targets"]?.synced || 0) + (syncResult.stepResults["sd_product_targets"]?.synced || 0),
+        performance: syncResult.stepResults["performance_14d"]?.synced || 0,
+        spCampaigns: syncResult.stepResults["sp_campaigns"]?.synced || 0,
+        sbCampaigns: syncResult.stepResults["sb_campaigns"]?.synced || 0,
+        sdCampaigns: syncResult.stepResults["sd_campaigns"]?.synced || 0,
+        durationMs: syncResult.durationMs,
+        completedSteps: syncResult.completedSteps,
+        totalSteps: syncResult.totalSteps,
+        failedSteps: syncResult.failedSteps
+      }
+    };
+  } catch (error54) {
+    return {
+      success: false,
+      message: `\u540C\u6B65\u5931\u8D25: ${error54.message}`
+    };
+  }
+}
+function getSyncQueueStatus() {
+  return {
+    queueLength: requestQueue.length,
+    isProcessing: isProcessingQueue,
+    schedulerStatus: { ...schedulerStatus2 }
+  };
+}
+async function upsertSyncSchedule(params) {
+  const existing = await getSyncScheduleByAccountId(params.userId, params.accountId);
+  if (existing) {
+    await updateSyncSchedule(existing.id, {
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime,
+      preferredDayOfWeek: params.preferredDayOfWeek,
+      isEnabled: params.isEnabled
+    });
+    return { ...existing, ...params };
+  } else {
+    const id = await createSyncSchedule({
+      userId: params.userId,
+      accountId: params.accountId,
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime,
+      preferredDayOfWeek: params.preferredDayOfWeek,
+      isEnabled: params.isEnabled
+    });
+    return {
+      id,
+      userId: params.userId,
+      accountId: params.accountId,
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime || null,
+      preferredDayOfWeek: params.preferredDayOfWeek || null,
+      isEnabled: params.isEnabled ? 1 : 0,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+}
+async function getSyncSchedule(userId, accountId) {
+  return getSyncScheduleByAccountId(userId, accountId);
+}
+async function deleteSyncSchedule3(scheduleId) {
+  await deleteSyncSchedule(scheduleId);
+}
+function sleep3(ms) {
+  return new Promise((resolve8) => setTimeout(resolve8, ms));
+}
+async function withExponentialBackoff(fn2, maxRetries = 3, baseDelayMs = 1e3) {
+  let lastError = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn2();
+    } catch (error54) {
+      lastError = error54;
+      if (error54.response?.status === 429 || error54.message?.includes("429")) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        log29.info(`[DataSyncScheduler] \u9047\u5230\u901F\u7387\u9650\u5236\uFF0C\u7B49\u5F85 ${delay}ms \u540E\u91CD\u8BD5 (\u5C1D\u8BD5 ${attempt + 1}/${maxRetries})`);
+        await sleep3(delay);
+      } else {
+        throw error54;
+      }
+    }
+  }
+  throw lastError || new Error("\u91CD\u8BD5\u6B21\u6570\u5DF2\u7528\u5C3D");
+}
+function getModuleLockGroup2(specificModules) {
+  if (!specificModules || specificModules.length === 0) return "all";
+  if (specificModules.includes("bid") || specificModules.includes("keyword")) return "bid";
+  if (specificModules.includes("dayparting") || specificModules.includes("multidim")) return "dayparting";
+  if (specificModules.includes("dayparting_budget")) return "dayparting_budget";
+  if (specificModules.includes("placement")) return "placement";
+  if (specificModules.includes("searchterm")) return "searchterm";
+  if (specificModules.includes("budget")) return "budget";
+  return "all";
+}
+function acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (!accountModuleLocks2[lockKey]) {
+    accountModuleLocks2[lockKey] = { locked: false, lockedBy: "", lockedAt: null };
+  }
+  const lock = accountModuleLocks2[lockKey];
+  if (lock.locked) {
+    if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
+      log29.warn(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
+    } else {
+      log29.info(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
+      return false;
+    }
+  }
+  lock.locked = true;
+  lock.lockedBy = lockedBy;
+  lock.lockedAt = /* @__PURE__ */ new Date();
+  return true;
+}
+function releaseAccountOptimizationLock2(accountId, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (accountModuleLocks2[lockKey]) {
+    accountModuleLocks2[lockKey].locked = false;
+    accountModuleLocks2[lockKey].lockedBy = "";
+    accountModuleLocks2[lockKey].lockedAt = null;
+  }
+}
+async function acquireAccountOptimizationLockWithRetry(accountId, lockedBy, moduleGroup, maxRetries = 3, retryDelayMs = 1e4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup)) {
+      if (attempt > 0) {
+        log29.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u7B2C${attempt + 1}\u6B21\u5C1D\u8BD5\u83B7\u53D6\u9501\u6210\u529F (${lockedBy})`);
+      }
+      return true;
+    }
+    if (attempt < maxRetries) {
+      log29.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u9501\u88AB\u5360\u7528\uFF0C${retryDelayMs / 1e3}\u79D2\u540E\u91CD\u8BD5 (${attempt + 1}/${maxRetries})`);
+      await new Promise((resolve8) => setTimeout(resolve8, retryDelayMs));
+    }
+  }
+  return false;
+}
+function shouldExecuteModuleForTarget(targetId, moduleName, stage) {
+  const key = `${targetId}:${moduleName}`;
+  const lastExecuted = moduleLastExecutionMap.get(key) || null;
+  const result = shouldExecuteModule(moduleName, lastExecuted, stage);
+  return { shouldExecute: result.shouldExecute, reason: result.reason };
+}
+async function recordModuleExecution(targetId, moduleName) {
+  const key = `${targetId}:${moduleName}`;
+  const now = /* @__PURE__ */ new Date();
+  moduleLastExecutionMap.set(key, now);
+  try {
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const [rows] = await dbInstance.execute(
+        "SELECT module_execution_times FROM performance_groups WHERE id = ?",
+        [targetId]
+      );
+      let executionTimes = {};
+      if (rows && rows.length > 0 && rows[0].module_execution_times) {
+        try {
+          executionTimes = JSON.parse(rows[0].module_execution_times);
+        } catch (e6) {
+          executionTimes = {};
+        }
+      }
+      executionTimes[moduleName] = now.toISOString();
+      await dbInstance.execute(
+        "UPDATE performance_groups SET module_execution_times = ? WHERE id = ?",
+        [JSON.stringify(executionTimes), targetId]
+      );
+    }
+  } catch (dbErr) {
+    log29.warn(`[OptimizationScheduler] v242: \u6301\u4E45\u5316\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25(target=${targetId}, module=${moduleName}): ${dbErr.message}`);
+  }
+}
+function acquireLock(taskType) {
+  if (executionLocks[taskType]) {
+    log29.info(`[OptimizationScheduler] \u4EFB\u52A1 ${taskType} \u6B63\u5728\u6267\u884C\u4E2D\uFF0C\u8DF3\u8FC7`);
+    return false;
+  }
+  executionLocks[taskType] = true;
+  return true;
+}
+function releaseLock(taskType) {
+  executionLocks[taskType] = false;
+}
+function shouldExecuteThisHour(taskType) {
+  const now = /* @__PURE__ */ new Date();
+  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+  if (lastExecutionHour[taskType] === hourKey) {
+    return false;
+  }
+  lastExecutionHour[taskType] = hourKey;
+  return true;
+}
+async function startOptimizationScheduler2() {
+  log29.info("[OptimizationScheduler] \u542F\u52A8v156\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
+  try {
+    const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const targets = await getEnabledOptimizationTargets2();
+    const dbInstance = await getDb();
+    let restoredFromJson = 0;
+    let restoredFromFallback = 0;
+    for (const target of targets) {
+      let moduleTimesRestored = false;
+      if (dbInstance) {
+        try {
+          const [rows] = await dbInstance.execute(
+            "SELECT module_execution_times FROM performance_groups WHERE id = ?",
+            [target.id]
+          );
+          if (rows && rows.length > 0 && rows[0].module_execution_times) {
+            const executionTimes = JSON.parse(rows[0].module_execution_times);
+            const modules = Object.keys(executionTimes);
+            if (modules.length > 0) {
+              for (const mod of modules) {
+                const key = `${target.id}:${mod}`;
+                if (!moduleLastExecutionMap.has(key)) {
+                  moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+                }
+              }
+              moduleTimesRestored = true;
+              restoredFromJson++;
+              log29.info(`[OptimizationScheduler] v242: \u4ECE\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u6062\u590D ${target.name}: ${modules.map((m4) => `${m4}=${executionTimes[m4]}`).join(", ")}`);
+            }
+          }
+        } catch (jsonErr) {
+          log29.warn(`[OptimizationScheduler] v242: \u89E3\u6790\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u5931\u8D25(target=${target.id}): ${jsonErr.message}`);
+        }
+      }
+      if (!moduleTimesRestored && target.lastExecutionTime) {
+        const modules = ["bid", "negativeKeyword", "searchTermHarvest", "placement", "budget", "dayparting"];
+        for (const mod of modules) {
+          const key = `${target.id}:${mod}`;
+          if (!moduleLastExecutionMap.has(key)) {
+            moduleLastExecutionMap.set(key, target.lastExecutionTime);
+          }
+        }
+        restoredFromFallback++;
+        log29.info(`[OptimizationScheduler] v242: \u56DE\u9000\u6062\u590D ${target.name} \u7684\u6A21\u5757\u6267\u884C\u65F6\u95F4: ${target.lastExecutionTime.toISOString()}`);
+      }
+    }
+    log29.info(`[OptimizationScheduler] v242: \u5DF2\u6062\u590D ${moduleLastExecutionMap.size} \u4E2A\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55 (JSON\u7CBE\u786E\u6062\u590D=${restoredFromJson}, \u56DE\u9000\u6062\u590D=${restoredFromFallback})`);
+  } catch (restoreErr) {
+    log29.error(`[OptimizationScheduler] v242: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
+  }
+  setTimeout(() => {
+    optimizationIntervals.intraday_pacing = setInterval(async () => {
+      await executeOptimizationTask("intraday_pacing");
+    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+    executeOptimizationTask("intraday_pacing");
+  }, 1 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F\uFF0C\u504F\u79FB: 1\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.risk_scan = setInterval(async () => {
+      await executeOptimizationTask("risk_scan");
+    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
+    executeOptimizationTask("risk_scan");
+  }, 6 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 6\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+      await executeOptimizationTask("dayparting_adjustment");
+    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+    executeOptimizationTask("dayparting_adjustment");
+  }, 11 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6\uFF0C\u504F\u79FB: 11\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_budget = setInterval(async () => {
+      await executeOptimizationTask("dayparting_budget");
+    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  }, 16 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u504F\u79FB: 16\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_bid_optimization");
+    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+    executeOptimizationTask("daily_bid_optimization");
+  }, 21 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 21\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_placement_optimization");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_placement_optimization");
+  }, 26 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 26\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+      await executeOptimizationTask("daily_search_term_negation");
+    }, 12 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_search_term_negation");
+  }, 31 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u504F\u79FB: 31\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.budget_allocation = setInterval(async () => {
+      await executeOptimizationTask("budget_allocation");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("budget_allocation");
+  }, 36 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
+  optimizationIntervals.search_term_harvest = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    if (localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
+      await executeOptimizationTask("search_term_harvest");
+    }
+  }, 60 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
+  optimizationIntervals.weekly_report = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    const localDow = getLocalDayOfWeek(now, "US");
+    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour("weekly_report")) {
+      await executeOptimizationTask("weekly_report");
+    }
+  }, 60 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
+  log29.info("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
+  log29.debug("[OptimizationScheduler] \u751F\u547D\u5468\u671F\u9891\u7387\u8868:");
+  log29.info("  | \u6A21\u5757           | \u542F\u52A8\u671F  | \u6210\u957F\u671F  | \u6210\u719F\u671F  |");
+  log29.debug("  |----------------|---------|---------|---------|");
+  log29.debug("  | \u51FA\u4EF7\u4F18\u5316       | 4\u5C0F\u65F6   | 6\u5C0F\u65F6   | 12\u5C0F\u65F6  |");
+  log29.debug("  | \u5206\u65F6\u8C03\u6574       | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   |");
+  log29.debug("  | \u4F4D\u7F6E\u503E\u659C       | 24\u5C0F\u65F6  | 12\u5C0F\u65F6  | 12\u5C0F\u65F6  |");
+  log29.debug("  | \u5426\u5B9A\u641C\u7D22\u8BCD     | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
+  log29.debug("  | \u641C\u7D22\u8BCD\u8FC1\u79FB     | 72\u5C0F\u65F6  | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
+  log29.debug("  | \u9884\u7B97\u5206\u914D       | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   |");
+  try {
+    startAutoCorrector();
+    log29.info("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8");
+  } catch (correctorErr) {
+    log29.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
+  }
+  setTimeout(() => {
+    executeOptimizationTask("nextgen_maintenance");
+  }, 2 * 60 * 1e3);
+  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
+    await executeOptimizationTask("nextgen_maintenance");
+  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
+  log29.info(`[OptimizationScheduler] v232: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 6e4}\u5206\u949F\uFF0C\u9996\u6B21\u6267\u884C: 2\u5206\u949F\u540E`);
+  optimizationIntervals.nextgen_model_training = setInterval(async () => {
+    await executeOptimizationTask("nextgen_model_training");
+  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
+  setTimeout(() => {
+    executeOptimizationTask("nextgen_model_training");
+  }, 10 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] v204: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 10\u5206\u949F\u540E`);
+  optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    if (localHour === 2 && shouldExecuteThisHour("nextgen_budget_optimization")) {
+      await executeOptimizationTask("nextgen_budget_optimization");
+    }
+  }, 60 * 60 * 1e3);
+  log29.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66682:00`);
+}
+function stopOptimizationScheduler2() {
+  Object.keys(optimizationIntervals).forEach((type) => {
+    const interval = optimizationIntervals[type];
+    if (interval) {
+      clearInterval(interval);
+      optimizationIntervals[type] = null;
+    }
+  });
+  log29.debug("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+  try {
+    stopAutoCorrector();
+  } catch (e6) {
+  }
+}
+async function executeOptimizationTask(taskType) {
+  if (!acquireLock(taskType)) return;
+  const config2 = OPTIMIZATION_SCHEDULE[taskType];
+  log29.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  try {
+    const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    switch (taskType) {
+      // ==================== 日内节奏监控（每30分钟）====================
+      case "intraday_pacing": {
+        log29.info(`[OptimizationScheduler] \u6267\u884C\u65E5\u5185\u8282\u594F\u76D1\u63A7`);
+        try {
+          const { checkAllCampaignsPacing: checkAllCampaignsPacing2, applyIntradayAdjustment: applyIntradayAdjustment2 } = await Promise.resolve().then(() => (init_intradayPacingService(), intradayPacingService_exports));
+          const targets = await getEnabledOptimizationTargets2();
+          const checkedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (checkedAccountIds.has(target.accountId)) continue;
+            checkedAccountIds.add(target.accountId);
+            try {
+              const adjustments = await checkAllCampaignsPacing2(target.accountId);
+              const criticalCount = adjustments.filter((a4) => a4.pacingStatus === "critical" || a4.anomalyDetected).length;
+              const overspendCount = adjustments.filter((a4) => a4.pacingStatus === "overspending").length;
+              const underspendCount = adjustments.filter((a4) => a4.pacingStatus === "underspending").length;
+              for (const adj of adjustments) {
+                if (adj.suggestedAction !== "none" && (adj.pacingStatus === "critical" || adj.pacingStatus === "overspending")) {
+                  await applyIntradayAdjustment2(adj);
+                }
+              }
+              log29.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5B8C\u6210: ${adjustments.length}\u4E2ACampaign, \u5371\u6025=${criticalCount}, \u8D85\u901F=${overspendCount}, \u6B20\u901F=${underspendCount}`);
+            } catch (pacingError) {
+              log29.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5F02\u5E38:`, pacingError.message);
+            }
+          }
+        } catch (pacingError) {
+          log29.error(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5F02\u5E38:`, pacingError.message);
+        }
+        break;
+      }
+      // ==================== 高频风控扫描（每2小时，仅风控）====================
+      case "risk_scan": {
+        log29.info(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u4EC5\u98CE\u63A7\uFF0C\u4E0D\u542B\u4F18\u5316)`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const scannedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (scannedAccountIds.has(target.accountId)) continue;
+            scannedAccountIds.add(target.accountId);
+            try {
+              const riskCampaigns = await getCampaignsByAccountId(target.accountId);
+              const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
+              let totalRisks = 0;
+              for (const campaign of enabledCampaigns) {
+                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
+                if (riskResult.hasRisk) {
+                  totalRisks += riskResult.risks.length;
+                  for (const risk of riskResult.risks) {
+                    log29.warn(`[RiskScan] Campaign ${campaign.campaignName}: [${risk.severity}] ${risk.description}`);
+                  }
+                }
+              }
+              log29.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
+            } catch (riskError) {
+              log29.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+            }
+          }
+        } catch (riskError) {
+          log29.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+        }
+        break;
+      }
+      // ==================== 分时竞价调整（每小时）====================
+      case "dayparting_adjustment": {
+        log29.info(`[OptimizationScheduler] \u6267\u884C\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574`);
+        try {
+          const daypartingResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["multidim", "dayparting", "coordination"]
+          });
+          log29.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingResults) {
+            log29.debug(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
+          }
+        } catch (daypartingError) {
+          log29.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
+        }
+        break;
+      }
+      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
+      case "dayparting_budget": {
+        log29.info(`[OptimizationScheduler] v179: \u6267\u884C\u5206\u65F6\u9884\u7B97\u8C03\u6574`);
+        try {
+          const daypartingBudgetResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["multidim", "dayparting_budget"]
+          });
+          log29.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5B8C\u6210: ${daypartingBudgetResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingBudgetResults) {
+            log29.debug(`  - ${r5.targetName}: \u5206\u65F6\u9884\u7B97\u8C03\u6574=${r5.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
+          }
+        } catch (daypartingBudgetError) {
+          log29.error(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5931\u8D25:`, daypartingBudgetError.message);
+        }
+        break;
+      }
+      // ==================== v143: 出价智能优化（生命周期感知）====================
+      case "daily_bid_optimization": {
+        log29.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "bid", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log29.info(`[OptimizationScheduler] \u8DF3\u8FC7\u51FA\u4EF7\u4F18\u5316: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["bid", "keyword", "coordination"]
+              });
+              await recordModuleExecution(target.id, "bid");
+              executedCount++;
+              log29.debug(`  - ${target.name} [${stage}]: \u51FA\u4EF7\u8C03\u6574=${result.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${result.keywordStatusChanges.pausedCount}`);
+            } catch (targetErr) {
+              log29.error(`  - ${target.name} \u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log29.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (bidError) {
+          log29.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
+        }
+        break;
+      }
+      // ==================== v143: 位置优化（生命周期感知）====================
+      case "daily_placement_optimization": {
+        log29.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "placement", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log29.info(`[OptimizationScheduler] \u8DF3\u8FC7\u4F4D\u7F6E\u4F18\u5316: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["placement"]
+              });
+              await recordModuleExecution(target.id, "placement");
+              executedCount++;
+              log29.debug(`  - ${target.name} [${stage}]: \u4F4D\u7F6E\u8C03\u6574=${result.placementOptimization.adjustmentsCount}`);
+            } catch (targetErr) {
+              log29.error(`  - ${target.name} \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log29.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (placementError) {
+          log29.error(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25:`, placementError.message);
+        }
+        break;
+      }
+      // ==================== v143: 搜索词否定（生命周期感知）====================
+      case "daily_search_term_negation": {
+        log29.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "negativeKeyword", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log29.info(`[OptimizationScheduler] \u8DF3\u8FC7\u641C\u7D22\u8BCD\u5426\u5B9A: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["searchterm"]
+              });
+              await recordModuleExecution(target.id, "negativeKeyword");
+              executedCount++;
+              log29.debug(`  - ${target.name} [${stage}]: \u5426\u5B9A\u8BCD\u6DFB\u52A0=${result.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u5173\u952E\u8BCD=${result.searchTermAnalysis.newKeywordsAdded}`);
+            } catch (targetErr) {
+              log29.error(`  - ${target.name} \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log29.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (searchTermError) {
+          log29.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25:`, searchTermError.message);
+        }
+        break;
+      }
+      // ==================== v143: 预算智能分配（生命周期感知）====================
+      case "budget_allocation": {
+        log29.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "budget", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log29.info(`[OptimizationScheduler] \u8DF3\u8FC7\u9884\u7B97\u5206\u914D: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["budget"]
+              });
+              await recordModuleExecution(target.id, "budget");
+              executedCount++;
+              log29.debug(`  - ${target.name} [${stage}]: \u9884\u7B97\u8C03\u6574=${result.budgetAllocation.adjustmentsCount}`);
+            } catch (targetErr) {
+              log29.error(`  - ${target.name} \u9884\u7B97\u5206\u914D\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log29.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (budgetError) {
+          log29.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
+        }
+        break;
+      }
+      // ==================== 搜索词收割（周一凌晨5:00）====================
+      case "search_term_harvest": {
+        log29.info(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const harvestedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (harvestedAccountIds.has(target.accountId)) continue;
+            harvestedAccountIds.add(target.accountId);
+            try {
+              const harvestResult = await batchHarvestSearchTerms(
+                target.accountId,
+                { dryRun: false }
+              );
+              log29.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
+            } catch (harvestError) {
+              log29.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
+            }
+          }
+        } catch (harvestError) {
+          log29.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
+        }
+        break;
+      }
+      // ==================== 绩效周报（周一上午9:00）====================
+      case "weekly_report": {
+        log29.debug(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
+        break;
+      }
+      // ==================== v197: NextGen维护任务 ====================
+      case "nextgen_maintenance": {
+        log29.info(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u4EFB\u52A1\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              const result = await executeNextGenMaintenanceTasks(target.accountId);
+              log29.debug(`  - \u8D26\u6237${target.accountId}: \u7279\u5F81\u7F13\u5B58=${result.featuresCached}, Sigmoid\u62DF\u5408=${result.sigmoidFitted.fitted}, Reward\u56DE\u586B=${result.rewardsBackfilled}, \u56E0\u679C\u5206\u6790=${result.causalAnalysis.analyzed}`);
+            } catch (err2) {
+              log29.error(`  - \u8D26\u6237${target.accountId} NextGen\u7EF4\u62A4\u5931\u8D25: ${err2.message}`);
+            }
+          }
+          try {
+            const { backfillBidPerformanceResults: backfillBidPerformanceResults2 } = await Promise.resolve().then(() => (init_rlDataRecorder(), rlDataRecorder_exports));
+            const backfillResult = await backfillBidPerformanceResults2();
+            log29.info(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5B8C\u6210: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
+          } catch (bErr) {
+            log29.error(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5931\u8D25: ${bErr.message}`);
+          }
+        } catch (err2) {
+          log29.error(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+      // ==================== v197: NextGen模型训练 ====================
+      case "nextgen_model_training": {
+        log29.info(`[OptimizationScheduler] v197: NextGen\u6A21\u578B\u8BAD\u7EC3\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              await executeModelTraining(target.accountId);
+              log29.info(`  - \u8D26\u6237${target.accountId}: CQL\u6A21\u578B\u8BAD\u7EC3\u5B8C\u6210`);
+            } catch (err2) {
+              log29.error(`  - \u8D26\u6237${target.accountId} CQL\u8BAD\u7EC3\u5931\u8D25: ${err2.message}`);
+            }
+          }
+        } catch (err2) {
+          log29.error(`[OptimizationScheduler] v197: \u6A21\u578B\u8BAD\u7EC3\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+      // ==================== v197: NextGen预算优化+关键词图谱 ====================
+      case "nextgen_budget_optimization": {
+        log29.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              await executeBudgetOptimization(target.accountId);
+              log29.info(`  - \u8D26\u6237${target.accountId}: \u9884\u7B97\u7EC4\u5408\u4F18\u5316\u5B8C\u6210`);
+            } catch (err2) {
+              log29.error(`  - \u8D26\u6237${target.accountId} \u9884\u7B97\u4F18\u5316\u5931\u8D25: ${err2.message}`);
+            }
+            try {
+              await executeKeywordGraphAnalysis(target.accountId);
+              log29.info(`  - \u8D26\u6237${target.accountId}: \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790\u5B8C\u6210`);
+            } catch (err2) {
+              log29.error(`  - \u8D26\u6237${target.accountId} \u5173\u952E\u8BCD\u56FE\u8C31\u5931\u8D25: ${err2.message}`);
+            }
+          }
+        } catch (err2) {
+          log29.error(`[OptimizationScheduler] v197: \u9884\u7B97\u4F18\u5316\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+    }
+    log29.info(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
+  } catch (error54) {
+    log29.error(`[OptimizationScheduler] ${taskType} \u6267\u884C\u5931\u8D25:`, error54.message);
+  } finally {
+    releaseLock(taskType);
+  }
+}
+var log29, SYNC_TIER_CONFIG, schedulerStatus2, schedulerIntervals, requestQueue, isProcessingQueue, frequencyToMs, tierRunningState, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks2, moduleLastExecutionMap;
+var init_dataSyncScheduler = __esm({
+  "server/dataSyncScheduler.ts"() {
+    "use strict";
+    init_db2();
+    init_amazonSyncService();
+    init_notification();
+    init_algorithmUtils();
+    init_searchTermHarvester();
+    init_attributionWindowHelper();
+    init_campaignLifecycleService();
+    init_optimizationAutoCorrector();
+    init_nextGenBidOrchestrator();
+    init_logger2();
+    init_opsLogger();
+    log29 = createModuleLogger("Scheduler");
+    SYNC_TIER_CONFIG = {
+      high: {
+        intervalMs: 15 * 60 * 1e3,
+        // 15分钟
+        description: "\u9AD8\u9891\u540C\u6B65 - \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u548C\u9884\u7B97",
+        syncTypes: ["campaigns_status", "budgets"]
+      },
+      medium: {
+        intervalMs: 30 * 60 * 1e3,
+        // 30分钟
+        description: "\u4E2D\u9891\u540C\u6B65 - \u5E7F\u544A\u7EC4\u3001\u5173\u952E\u8BCD\u3001\u5B9A\u4F4D",
+        syncTypes: ["ad_groups", "keywords", "targets"]
+      },
+      low: {
+        intervalMs: 60 * 60 * 1e3,
+        // 1小时
+        description: "\u4F4E\u9891\u540C\u6B65 - \u5B8C\u6574\u6570\u636E\u540C\u6B65",
+        syncTypes: ["full_sync"]
+      },
+      full: {
+        intervalMs: 30 * 60 * 1e3,
+        // 30分钟（完整同步，获取60天历史数据）
+        description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF0860\u5929\u5386\u53F2\uFF09",
+        syncTypes: ["all"]
+      }
+    };
+    schedulerStatus2 = {
+      isRunning: false,
+      lastRunTime: null,
+      nextRunTime: null,
+      totalSyncs: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+      errors: [],
+      currentTier: null,
+      tierLastRun: {
+        high: null,
+        medium: null,
+        low: null,
+        full: null
+      }
+    };
+    schedulerIntervals = {
+      high: null,
+      medium: null,
+      low: null,
+      full: null
+    };
+    requestQueue = [];
+    isProcessingQueue = false;
+    frequencyToMs = {
+      "every_15_minutes": 15 * 60 * 1e3,
+      "every_30_minutes": 30 * 60 * 1e3,
+      "hourly": 60 * 60 * 1e3,
+      "every_2_hours": 2 * 60 * 60 * 1e3,
+      "every_4_hours": 4 * 60 * 60 * 1e3,
+      "every_6_hours": 6 * 60 * 60 * 1e3,
+      "every_12_hours": 12 * 60 * 60 * 1e3,
+      "daily": 24 * 60 * 60 * 1e3,
+      "weekly": 7 * 24 * 60 * 60 * 1e3
+    };
+    tierRunningState = {
+      high: false,
+      medium: false,
+      full: false
+    };
+    OPTIMIZATION_SCHEDULE = {
+      intraday_pacing: {
+        type: "intraday_pacing",
+        description: "\u65E5\u5185\u8282\u594F\u76D1\u63A7 - \u9884\u7B97\u6D88\u8017\u901F\u5EA6\u76D1\u63A7\u548C\u5F02\u5E38\u6D41\u91CF\u68C0\u6D4B",
+        intervalMs: 30 * 60 * 1e3,
+        // 每30分钟
+        specificModules: []
+        // 独立执行，不走优化目标引擎
+      },
+      risk_scan: {
+        type: "risk_scan",
+        description: "\u9AD8\u9891\u98CE\u63A7\u626B\u63CF - \u96F6\u66DD\u5149\u98CE\u66B4\u3001\u5F02\u5E38\u82B1\u9500\u3001CPC\u98D9\u5347\u68C0\u6D4B",
+        intervalMs: 2 * 60 * 60 * 1e3,
+        // 每2小时（从4小时缩短到2小时）
+        specificModules: []
+        // 仅风控，不执行优化模块
+      },
+      dayparting_adjustment: {
+        type: "dayparting_adjustment",
+        description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
+        intervalMs: 60 * 60 * 1e3,
+        // 每小时
+        specificModules: ["multidim", "dayparting", "coordination"]
+        // v179: 添加multidim模块以生成分时竞价规则
+      },
+      dayparting_budget: {
+        type: "dayparting_budget",
+        description: "v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574 - \u6839\u636E\u661F\u671F\u51E0\u7684\u8868\u73B0\u52A8\u6001\u8C03\u6574\u9884\u7B97",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每天执行一次
+        cronHours: [6],
+        // 凌昨6:00执行（在分时竞价规则生成后）
+        specificModules: ["multidim", "dayparting_budget"]
+        // 先生成规则，再应用预算
+      },
+      daily_bid_optimization: {
+        type: "daily_bid_optimization",
+        description: "\u51FA\u4EF7\u667A\u80FD\u4F18\u5316 - \u6BCF2\u5C0F\u65F6\u57FA\u4E8E\u5E02\u573A\u66F2\u7EBF\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u51FA\u4EF7",
+        intervalMs: 2 * 60 * 60 * 1e3,
+        // v122h: 从每日1次提升到每2小时，与宣传一致
+        specificModules: ["bid", "keyword", "coordination"]
+      },
+      daily_placement_optimization: {
+        type: "daily_placement_optimization",
+        description: "\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316 - \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u8C03\u6574",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        cronHours: [3],
+        // 凌晨3:00
+        specificModules: ["placement"]
+        // 仅位置优化
+      },
+      daily_search_term_negation: {
+        type: "daily_search_term_negation",
+        description: "\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A - \u81EA\u52A8\u5426\u5B9A\u4F4E\u6548\u641C\u7D22\u8BCD",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        cronHours: [4],
+        // 凌晨4:00
+        specificModules: ["searchterm"]
+        // 仅搜索词分析
+      },
+      budget_allocation: {
+        type: "budget_allocation",
+        description: "\u9884\u7B97\u667A\u80FD\u5206\u914D - \u65E9\u665A\u4E24\u6B21\u9884\u7B97\u5206\u914D",
+        intervalMs: 12 * 60 * 60 * 1e3,
+        cronHours: [8, 18],
+        // 早8:00 + 晚18:00
+        specificModules: ["budget"]
+        // 仅预算分配
+      },
+      search_term_harvest: {
+        type: "search_term_harvest",
+        description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u65E5\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // v192: 从每周改为每日
+        cronHours: [5],
+        // 凌晨5:00
+        // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
+        specificModules: []
+        // 独立执行，使用searchTermHarvester服务
+      },
+      weekly_report: {
+        type: "weekly_report",
+        description: "\u7EE9\u6548\u5468\u62A5 - \u6BCF\u5468\u81EA\u52A8\u751F\u6210\u5E7F\u544A\u4F18\u5316\u62A5\u544A",
+        intervalMs: 7 * 24 * 60 * 60 * 1e3,
+        cronHours: [9],
+        // 上午9:00
+        cronDayOfWeek: 1,
+        // 周一
+        specificModules: []
+      },
+      // v197: 下一代算法定时任务
+      nextgen_maintenance: {
+        type: "nextgen_maintenance",
+        description: "v204: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
+        intervalMs: 30 * 60 * 1e3,
+        // v232: 从2小时大幅缩短到30分钟，加速算法进化
+        specificModules: []
+      },
+      nextgen_model_training: {
+        type: "nextgen_model_training",
+        description: "v197: NextGen\u6A21\u578B\u8BAD\u7EC3 - CQL\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60\u6A21\u578B\u8BAD\u7EC3",
+        intervalMs: 6 * 60 * 60 * 1e3,
+        // 每6小时
+        specificModules: []
+      },
+      nextgen_budget_optimization: {
+        type: "nextgen_budget_optimization",
+        description: "v197: NextGen\u9884\u7B97\u7EC4\u5408\u4F18\u5316 + \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每日
+        cronHours: [2],
+        // 凌晨2:00
+        specificModules: []
+      }
+    };
+    optimizationIntervals = {
+      intraday_pacing: null,
+      risk_scan: null,
+      dayparting_adjustment: null,
+      dayparting_budget: null,
+      // v179
+      daily_bid_optimization: null,
+      daily_placement_optimization: null,
+      daily_search_term_negation: null,
+      budget_allocation: null,
+      search_term_harvest: null,
+      weekly_report: null,
+      // v197: NextGen定时任务
+      nextgen_maintenance: null,
+      nextgen_model_training: null,
+      nextgen_budget_optimization: null
+    };
+    executionLocks = {};
+    lastExecutionHour = {};
+    accountModuleLocks2 = {};
+    moduleLastExecutionMap = /* @__PURE__ */ new Map();
+  }
+});
+
 // server/postDeployOptimizer.ts
 var postDeployOptimizer_exports = {};
 __export(postDeployOptimizer_exports, {
@@ -156076,7 +158030,7 @@ async function getLastDeployedVersion() {
     }
     return null;
   } catch (error54) {
-    log28.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
+    log30.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
     return null;
   }
 }
@@ -156107,9 +158061,9 @@ async function recordDeployVersion(version5, result) {
       status: result.targetsFailed === 0 ? "success" : "pending",
       apiSyncStatus: "not_applicable"
     });
-    log28.info(`[PostDeployOptimizer] \u5DF2\u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5}`);
+    log30.info(`[PostDeployOptimizer] \u5DF2\u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5}`);
   } catch (error54) {
-    log28.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
+    log30.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
   }
 }
 async function updateTargetOptimizedVersion(targetId, version5) {
@@ -156133,7 +158087,7 @@ async function updateTargetOptimizedVersion(targetId, version5) {
       apiSyncStatus: "not_applicable"
     });
   } catch (error54) {
-    log28.error(`[PostDeployOptimizer] \u66F4\u65B0\u76EE\u6807\u7248\u672C\u5931\u8D25: ${error54.message}`);
+    log30.error(`[PostDeployOptimizer] \u66F4\u65B0\u76EE\u6807\u7248\u672C\u5931\u8D25: ${error54.message}`);
   }
 }
 function getVersionsToApply(lastVersion) {
@@ -156183,12 +158137,12 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
         duration: Date.now() - startTime
       };
     }
-    log28.info(`[PostDeployOptimizer] \u5F00\u59CB\u91CD\u4F18\u5316\u76EE\u6807: ${config2.name} (ID: ${targetId}), \u6A21\u5757: ${affectedModules.join(",")}`);
+    log30.info(`[PostDeployOptimizer] \u5F00\u59CB\u91CD\u4F18\u5316\u76EE\u6807: ${config2.name} (ID: ${targetId}), \u6A21\u5757: ${affectedModules.join(",")}`);
     for (const action of correctionActions) {
       try {
         switch (action) {
           case "rebuild_combo_analysis": {
-            log28.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u5EFA\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790...`);
+            log30.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u5EFA\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790...`);
             try {
               const { analyzeCampaignCombos: analyzeCampaignCombos2 } = await Promise.resolve().then(() => (init_multiDimComboAnalyzer(), multiDimComboAnalyzer_exports));
               const database = await getDb();
@@ -156215,31 +158169,31 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             break;
           }
           case "reset_dayparting_rules": {
-            log28.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u5206\u65F6\u7ADE\u4EF7\u89C4\u5219...`);
+            log30.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u5206\u65F6\u7ADE\u4EF7\u89C4\u5219...`);
             modulesExecuted.push("dayparting_reset");
             correctionsApplied++;
             break;
           }
           case "reset_placement_rules": {
-            log28.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u4F4D\u7F6E\u4F18\u5316\u89C4\u5219...`);
+            log30.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u4F4D\u7F6E\u4F18\u5316\u89C4\u5219...`);
             modulesExecuted.push("placement_reset");
             correctionsApplied++;
             break;
           }
           case "fix_timezone_errors": {
-            log28.warn(`[PostDeployOptimizer] [${config2.name}] \u6807\u8BB0\u65F6\u533A\u9519\u8BEF\u8C03\u6574\u4E3A\u5F85\u7EA0\u6B63...`);
+            log30.warn(`[PostDeployOptimizer] [${config2.name}] \u6807\u8BB0\u65F6\u533A\u9519\u8BEF\u8C03\u6574\u4E3A\u5F85\u7EA0\u6B63...`);
             modulesExecuted.push("timezone_fix");
             correctionsApplied++;
             break;
           }
           case "recalculate_budgets": {
-            log28.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u65B0\u8BA1\u7B97\u9884\u7B97\u5206\u914D...`);
+            log30.debug(`[PostDeployOptimizer] [${config2.name}] \u91CD\u65B0\u8BA1\u7B97\u9884\u7B97\u5206\u914D...`);
             modulesExecuted.push("budget_recalc");
             correctionsApplied++;
             break;
           }
           case "cleanup_stale_pending": {
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u65E0\u6548pending\u5206\u65F6\u7ADE\u4EF7\u65E5\u5FD7...`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u65E0\u6548pending\u5206\u65F6\u7ADE\u4EF7\u65E5\u5FD7...`);
             try {
               const database = await getDb();
               if (database) {
@@ -156253,7 +158207,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
                         AND previous_value = new_value`
                 );
                 const cleaned = cleanupResult?.[0]?.affectedRows || 0;
-                log28.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u4E86 ${cleaned} \u6761\u65E0\u6548pending\u65E5\u5FD7`);
+                log30.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u4E86 ${cleaned} \u6761\u65E0\u6548pending\u65E5\u5FD7`);
                 correctionsApplied += cleaned;
                 modulesExecuted.push("cleanup_stale_pending");
               }
@@ -156271,7 +158225,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
     }
     const shouldFullReoptimize = correctionActions.includes("full_reoptimize") || correctionActions.includes("rerun_optimization");
     if (shouldFullReoptimize) {
-      log28.info(`[PostDeployOptimizer] [${config2.name}] \u6267\u884C\u5168\u91CF\u91CD\u4F18\u5316...`);
+      log30.info(`[PostDeployOptimizer] [${config2.name}] \u6267\u884C\u5168\u91CF\u91CD\u4F18\u5316...`);
       try {
         if (affectedModules.includes("multidim") || affectedModules.includes("dayparting")) {
           try {
@@ -156281,7 +158235,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             });
             optimizationActions += daypartingResult.daypartingOptimization.adjustmentsCount;
             modulesExecuted.push("dayparting");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u7ADE\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${daypartingResult.daypartingOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u7ADE\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${daypartingResult.daypartingOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
           } catch (dpErr) {
             errors.push(`\u5206\u65F6\u7ADE\u4EF7\u91CD\u4F18\u5316\u5931\u8D25: ${dpErr.message}`);
           }
@@ -156294,7 +158248,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             });
             optimizationActions += budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0;
             modulesExecuted.push("dayparting_budget");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}\u4E2A\u8C03\u6574`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}\u4E2A\u8C03\u6574`);
           } catch (dbErr) {
             errors.push(`\u5206\u65F6\u9884\u7B97\u91CD\u4F18\u5316\u5931\u8D25: ${dbErr.message}`);
           }
@@ -156308,7 +158262,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             optimizationActions += bidResult.bidOptimization.adjustmentsCount;
             optimizationActions += bidResult.keywordStatusChanges.pausedCount + bidResult.keywordStatusChanges.enabledCount;
             modulesExecuted.push("bid");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u51FA\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${bidResult.bidOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u51FA\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${bidResult.bidOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
           } catch (bidErr) {
             errors.push(`\u51FA\u4EF7\u91CD\u4F18\u5316\u5931\u8D25: ${bidErr.message}`);
           }
@@ -156321,7 +158275,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             });
             optimizationActions += placementResult.placementOptimization.adjustmentsCount;
             modulesExecuted.push("placement");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u4F4D\u7F6E\u91CD\u4F18\u5316\u5B8C\u6210: ${placementResult.placementOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u4F4D\u7F6E\u91CD\u4F18\u5316\u5B8C\u6210: ${placementResult.placementOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
           } catch (plErr) {
             errors.push(`\u4F4D\u7F6E\u91CD\u4F18\u5316\u5931\u8D25: ${plErr.message}`);
           }
@@ -156334,7 +158288,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             });
             optimizationActions += budgetResult.budgetAllocation.adjustmentsCount;
             modulesExecuted.push("budget");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetResult.budgetAllocation.adjustmentsCount}\u4E2A\u8C03\u6574`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetResult.budgetAllocation.adjustmentsCount}\u4E2A\u8C03\u6574`);
           } catch (bgErr) {
             errors.push(`\u9884\u7B97\u91CD\u4F18\u5316\u5931\u8D25: ${bgErr.message}`);
           }
@@ -156347,7 +158301,7 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             });
             optimizationActions += stResult.searchTermAnalysis.negativeKeywordsAdded + stResult.searchTermAnalysis.newKeywordsAdded;
             modulesExecuted.push("searchterm");
-            log28.info(`[PostDeployOptimizer] [${config2.name}] \u641C\u7D22\u8BCD\u91CD\u4F18\u5316\u5B8C\u6210: \u5426\u5B9A=${stResult.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u589E=${stResult.searchTermAnalysis.newKeywordsAdded}`);
+            log30.info(`[PostDeployOptimizer] [${config2.name}] \u641C\u7D22\u8BCD\u91CD\u4F18\u5316\u5B8C\u6210: \u5426\u5B9A=${stResult.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u589E=${stResult.searchTermAnalysis.newKeywordsAdded}`);
           } catch (stErr) {
             errors.push(`\u641C\u7D22\u8BCD\u91CD\u4F18\u5316\u5931\u8D25: ${stErr.message}`);
           }
@@ -156357,6 +158311,26 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
       }
     }
     await updateTargetOptimizedVersion(targetId, SYSTEM_VERSION);
+    try {
+      const { recordModuleExecution: recordModuleExecution2 } = await Promise.resolve().then(() => (init_dataSyncScheduler(), dataSyncScheduler_exports));
+      for (const mod of modulesExecuted) {
+        const moduleMapping = {
+          "bid": "bid",
+          "placement": "placement",
+          "dayparting": "dayparting",
+          "dayparting_budget": "budget",
+          "searchterm": "searchTermHarvest",
+          "budget": "budget"
+        };
+        const schedulerModule = moduleMapping[mod];
+        if (schedulerModule) {
+          await recordModuleExecution2(targetId, schedulerModule);
+          log30.info(`[PostDeployOptimizer] v242: \u5DF2\u66F4\u65B0\u6A21\u5757\u6267\u884C\u65F6\u95F4(\u5185\u5B58+\u6570\u636E\u5E93): target=${targetId}, module=${schedulerModule}`);
+        }
+      }
+    } catch (syncErr) {
+      log30.warn(`[PostDeployOptimizer] v241: \u66F4\u65B0\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${syncErr.message}`);
+    }
     return {
       targetId,
       targetName: config2.name,
@@ -156384,11 +158358,11 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
 }
 async function runPostDeployOptimization() {
   const startedAt = /* @__PURE__ */ new Date();
-  log28.info(`[PostDeployOptimizer] v${SYSTEM_VERSION}: \u5F00\u59CB\u90E8\u7F72\u540E\u68C0\u67E5...`);
+  log30.info(`[PostDeployOptimizer] v${SYSTEM_VERSION}: \u5F00\u59CB\u90E8\u7F72\u540E\u68C0\u67E5...`);
   const lastVersion = await getLastDeployedVersion();
-  log28.info(`[PostDeployOptimizer] \u4E0A\u6B21\u90E8\u7F72\u7248\u672C: ${lastVersion || "\u65E0\u8BB0\u5F55\uFF08\u9996\u6B21\u90E8\u7F72\uFF09"}, \u5F53\u524D\u7248\u672C: v${SYSTEM_VERSION}`);
+  log30.info(`[PostDeployOptimizer] \u4E0A\u6B21\u90E8\u7F72\u7248\u672C: ${lastVersion || "\u65E0\u8BB0\u5F55\uFF08\u9996\u6B21\u90E8\u7F72\uFF09"}, \u5F53\u524D\u7248\u672C: v${SYSTEM_VERSION}`);
   if (lastVersion !== null && lastVersion >= SYSTEM_VERSION) {
-    log28.info(`[PostDeployOptimizer] \u7248\u672C\u672A\u53D8\u5316 (v${lastVersion} >= v${SYSTEM_VERSION})\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
+    log30.info(`[PostDeployOptimizer] \u7248\u672C\u672A\u53D8\u5316 (v${lastVersion} >= v${SYSTEM_VERSION})\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
     const result = {
       triggered: false,
       reason: `\u7248\u672C\u672A\u53D8\u5316 (v${lastVersion} >= v${SYSTEM_VERSION})`,
@@ -156420,7 +158394,7 @@ async function runPostDeployOptimization() {
             AND api_sync_status IN ('failed', 'pending')
         `);
         const settingsFixed = settingsResult[0]?.affectedRows || 0;
-        log28.info(`[PostDeployOptimizer] v203: \u4FEE\u590D${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
+        log30.info(`[PostDeployOptimizer] v203: \u4FEE\u590D${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
         await database.execute(sql`
           UPDATE optimization_logs ol
           INNER JOIN optimization_events oe ON oe.source_id = ol.id AND oe.source_table = 'optimization_logs'
@@ -156429,7 +158403,7 @@ async function runPostDeployOptimization() {
             AND oe.event_category = 'settings_change'
             AND oe.api_sync_status = 'not_applicable'
             AND ol.api_sync_status IN ('failed', 'pending')
-        `).catch((e6) => log28.warn(`[PostDeployOptimizer] v202: \u540C\u6B65optimization_logs\u5931\u8D25: ${e6.message}`));
+        `).catch((e6) => log30.warn(`[PostDeployOptimizer] v202: \u540C\u6B65optimization_logs\u5931\u8D25: ${e6.message}`));
         const legacyResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'invalid_legacy',
@@ -156439,7 +158413,7 @@ async function runPostDeployOptimization() {
             AND action_type NOT IN ('bid_increase', 'bid_decrease')
         `);
         const legacyFixed = legacyResult[0]?.affectedRows || 0;
-        log28.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${legacyFixed}\u4E2A\u8D85\u8FC730\u5929\u7684\u65E7\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        log30.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${legacyFixed}\u4E2A\u8D85\u8FC730\u5929\u7684\u65E7\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
         const targetResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'invalid_legacy',
@@ -156449,7 +158423,7 @@ async function runPostDeployOptimization() {
             AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
         const targetFixed = targetResult[0]?.affectedRows || 0;
-        log28.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${targetFixed}\u4E2A\u8D85\u8FC77\u5929\u7684target\u72B6\u6001\u53D8\u66F4\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        log30.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${targetFixed}\u4E2A\u8D85\u8FC77\u5929\u7684target\u72B6\u6001\u53D8\u66F4\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
         const miscResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'invalid_legacy',
@@ -156458,25 +158432,25 @@ async function runPostDeployOptimization() {
             AND api_sync_status = 'failed'
         `);
         const miscFixed = miscResult[0]?.affectedRows || 0;
-        log28.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${miscFixed}\u4E2A\u65E0\u91CD\u8BD5\u673A\u5236\u7684\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        log30.warn(`[PostDeployOptimizer] v203: \u6807\u8BB0${miscFixed}\u4E2A\u65E0\u91CD\u8BD5\u673A\u5236\u7684\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
       }
     } catch (migrationErr) {
-      log28.error(`[PostDeployOptimizer] v203: \u6570\u636E\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
+      log30.error(`[PostDeployOptimizer] v203: \u6570\u636E\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
     }
   }
   const versionsToApply = getVersionsToApply(lastVersion);
   const affectedModules = mergeAffectedModules(versionsToApply);
   const correctionActions = mergeCorrectionActions(versionsToApply);
-  log28.info(`[PostDeployOptimizer] \u9700\u8981\u5E94\u7528 ${versionsToApply.length} \u4E2A\u7248\u672C\u53D8\u66F4:`);
+  log30.info(`[PostDeployOptimizer] \u9700\u8981\u5E94\u7528 ${versionsToApply.length} \u4E2A\u7248\u672C\u53D8\u66F4:`);
   for (const v6 of versionsToApply) {
-    log28.debug(`  - v${v6.version}: ${v6.description}`);
+    log30.debug(`  - v${v6.version}: ${v6.description}`);
   }
-  log28.debug(`[PostDeployOptimizer] \u53D7\u5F71\u54CD\u6A21\u5757: ${affectedModules.join(", ")}`);
-  log28.info(`[PostDeployOptimizer] \u7EA0\u6B63\u52A8\u4F5C: ${correctionActions.join(", ")}`);
+  log30.debug(`[PostDeployOptimizer] \u53D7\u5F71\u54CD\u6A21\u5757: ${affectedModules.join(", ")}`);
+  log30.info(`[PostDeployOptimizer] \u7EA0\u6B63\u52A8\u4F5C: ${correctionActions.join(", ")}`);
   const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
   const targets = await getEnabledOptimizationTargets2();
   if (targets.length === 0) {
-    log28.info(`[PostDeployOptimizer] \u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
+    log30.info(`[PostDeployOptimizer] \u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
     const result = {
       triggered: true,
       reason: "\u7248\u672C\u53D8\u5316\u4F46\u65E0\u6D3B\u8DC3\u76EE\u6807",
@@ -156495,7 +158469,7 @@ async function runPostDeployOptimization() {
     await recordDeployVersion(SYSTEM_VERSION, result);
     return result;
   }
-  log28.info(`[PostDeployOptimizer] \u5F00\u59CB\u5BF9 ${targets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u6267\u884C\u91CD\u4F18\u5316...`);
+  log30.info(`[PostDeployOptimizer] \u5F00\u59CB\u5BF9 ${targets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u6267\u884C\u91CD\u4F18\u5316...`);
   const sortedTargets = targets.sort((a4, b6) => {
     const aTime = a4.lastExecutionTime ? new Date(a4.lastExecutionTime).getTime() : 0;
     const bTime = b6.lastExecutionTime ? new Date(b6.lastExecutionTime).getTime() : 0;
@@ -156507,7 +158481,7 @@ async function runPostDeployOptimization() {
     const batch = sortedTargets.slice(i4, i4 + POST_DEPLOY_CONFIG.batchSize);
     const batchNum = Math.floor(i4 / POST_DEPLOY_CONFIG.batchSize) + 1;
     const totalBatches = Math.ceil(sortedTargets.length / POST_DEPLOY_CONFIG.batchSize);
-    log28.info(`[PostDeployOptimizer] \u6267\u884C\u6279\u6B21 ${batchNum}/${totalBatches} (${batch.length}\u4E2A\u76EE\u6807)...`);
+    log30.info(`[PostDeployOptimizer] \u6267\u884C\u6279\u6B21 ${batchNum}/${totalBatches} (${batch.length}\u4E2A\u76EE\u6807)...`);
     for (const target of batch) {
       let retries = 0;
       let result = null;
@@ -156530,8 +158504,8 @@ async function runPostDeployOptimization() {
               duration: 0
             };
           } else {
-            log28.warn(`[PostDeployOptimizer] [${target.name}] \u91CD\u8BD5 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err2.message}`);
-            await sleep3(5e3);
+            log30.warn(`[PostDeployOptimizer] [${target.name}] \u91CD\u8BD5 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err2.message}`);
+            await sleep4(5e3);
           }
         }
       }
@@ -156539,12 +158513,12 @@ async function runPostDeployOptimization() {
         targetResults.push(result);
         totalActions += result.optimizationActions;
         const statusIcon = result.status === "success" ? "\u2713" : "\u2717";
-        log28.debug(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: \u6A21\u5757=${result.modulesExecuted.join(",")}, \u7EA0\u6B63=${result.correctionsApplied}, \u4F18\u5316=${result.optimizationActions}, \u8017\u65F6=${result.duration}ms` + (result.errors.length > 0 ? `, \u9519\u8BEF=${result.errors.length}` : ""));
+        log30.debug(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: \u6A21\u5757=${result.modulesExecuted.join(",")}, \u7EA0\u6B63=${result.correctionsApplied}, \u4F18\u5316=${result.optimizationActions}, \u8017\u65F6=${result.duration}ms` + (result.errors.length > 0 ? `, \u9519\u8BEF=${result.errors.length}` : ""));
       }
     }
     if (i4 + POST_DEPLOY_CONFIG.batchSize < sortedTargets.length) {
-      log28.debug(`[PostDeployOptimizer] \u6279\u6B21\u95F4\u7B49\u5F85 ${POST_DEPLOY_CONFIG.batchDelayMs / 1e3}\u79D2...`);
-      await sleep3(POST_DEPLOY_CONFIG.batchDelayMs);
+      log30.debug(`[PostDeployOptimizer] \u6279\u6B21\u95F4\u7B49\u5F85 ${POST_DEPLOY_CONFIG.batchDelayMs / 1e3}\u79D2...`);
+      await sleep4(POST_DEPLOY_CONFIG.batchDelayMs);
     }
   }
   const succeeded = targetResults.filter((r5) => r5.status === "success").length;
@@ -156565,20 +158539,20 @@ async function runPostDeployOptimization() {
     targetResults
   };
   await recordDeployVersion(SYSTEM_VERSION, finalResult);
-  log28.debug(`[PostDeployOptimizer] ========================================`);
-  log28.info(`[PostDeployOptimizer] \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210!`);
-  log28.info(`[PostDeployOptimizer] \u7248\u672C: v${lastVersion || 0} \u2192 v${SYSTEM_VERSION}`);
-  log28.warn(`[PostDeployOptimizer] \u76EE\u6807: ${targetResults.length}\u4E2A\u5904\u7406, ${succeeded}\u4E2A\u6210\u529F, ${failed}\u4E2A\u5931\u8D25`);
-  log28.debug(`[PostDeployOptimizer] \u4F18\u5316\u52A8\u4F5C: ${totalActions}\u4E2A`);
-  log28.debug(`[PostDeployOptimizer] \u8017\u65F6: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1e3).toFixed(1)}\u79D2`);
-  log28.debug(`[PostDeployOptimizer] ========================================`);
+  log30.debug(`[PostDeployOptimizer] ========================================`);
+  log30.info(`[PostDeployOptimizer] \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210!`);
+  log30.info(`[PostDeployOptimizer] \u7248\u672C: v${lastVersion || 0} \u2192 v${SYSTEM_VERSION}`);
+  log30.warn(`[PostDeployOptimizer] \u76EE\u6807: ${targetResults.length}\u4E2A\u5904\u7406, ${succeeded}\u4E2A\u6210\u529F, ${failed}\u4E2A\u5931\u8D25`);
+  log30.debug(`[PostDeployOptimizer] \u4F18\u5316\u52A8\u4F5C: ${totalActions}\u4E2A`);
+  log30.debug(`[PostDeployOptimizer] \u8017\u65F6: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1e3).toFixed(1)}\u79D2`);
+  log30.debug(`[PostDeployOptimizer] ========================================`);
   return finalResult;
 }
 async function forceReoptimize(modules, targetId) {
   const startedAt = /* @__PURE__ */ new Date();
   const affectedModules = modules || ["bid", "placement", "dayparting", "dayparting_budget", "budget", "searchterm", "keyword", "multidim", "coordination"];
   const correctionActions = ["rebuild_combo_analysis", "full_reoptimize"];
-  log28.info(`[PostDeployOptimizer] \u624B\u52A8\u89E6\u53D1\u91CD\u4F18\u5316, \u6A21\u5757: ${affectedModules.join(",")}, \u76EE\u6807: ${targetId || "all"}`);
+  log30.info(`[PostDeployOptimizer] \u624B\u52A8\u89E6\u53D1\u91CD\u4F18\u5316, \u6A21\u5757: ${affectedModules.join(",")}, \u76EE\u6807: ${targetId || "all"}`);
   const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
   let targets = await getEnabledOptimizationTargets2();
   if (targetId) {
@@ -156615,10 +158589,10 @@ function getSystemVersionInfo() {
     changelog: VERSION_CHANGELOG
   };
 }
-function sleep3(ms) {
+function sleep4(ms) {
   return new Promise((resolve8) => setTimeout(resolve8, ms));
 }
-var log28, SYSTEM_VERSION, VERSION_CHANGELOG, POST_DEPLOY_CONFIG;
+var log30, SYSTEM_VERSION, VERSION_CHANGELOG, POST_DEPLOY_CONFIG;
 var init_postDeployOptimizer = __esm({
   "server/postDeployOptimizer.ts"() {
     "use strict";
@@ -156627,8 +158601,8 @@ var init_postDeployOptimizer = __esm({
     init_schema2();
     init_drizzle_orm();
     init_logger2();
-    log28 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 239;
+    log30 = createModuleLogger("PostDeploy");
+    SYSTEM_VERSION = 242;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -156769,22 +158743,34 @@ var init_postDeployOptimizer = __esm({
         correctionActions: ["cleanup_stale_pending", "rerun_optimization"]
       },
       {
-        version: 235,
-        description: "v235: \u4FEE\u590D\u7B97\u6CD5\u6548\u679C\u6982\u89C8\u6570\u636E\u5F15\u7528(\u4ECE\u7A7A\u7684algorithm_effect_records\u6539\u4E3A\u771F\u5B9E\u7684optimization_events), \u4FEE\u590D\u540C\u6B65\u6210\u529F\u7387\u8BA1\u7B97(\u6392\u9664not_applicable/invalid_legacy), goalProgress\u65B0\u589E\u7B2C6\u7EF4\u5EA6\u7B97\u6CD5\u6548\u80FD\u8BC4\u5206, riskActionEngine\u5C06\u8D26\u6237\u98CE\u9669\u548C\u540C\u6B65\u5065\u5EB7\u5EA6\u5347\u7EA7\u4E3A\u53EF\u89E6\u53D1\u81EA\u52A8\u4F18\u5316\u7684\u884C\u52A8\u6307\u6807",
+        version: 238,
+        description: "v238: [\u5173\u952E\u4FEE\u590D] \u89C4\u5219\u5F15\u64CE\u96F6\u66DD\u5149\u63A2\u7D22\u65E0\u9650\u63D0\u4EF7\u5FAA\u73AF\u4FEE\u590D + \u51FA\u4EF7\u7D2F\u79EF\u4FDD\u62A4 \u2014 (1)\u96F6\u66DD\u5149\u63A2\u7D22\u589E\u52A0\u51FA\u4EF7\u4E0A\u9650\u4FDD\u62A4(\u4E0D\u8D85\u8FC7maxBid\u768440%) (2)\u96F6\u70B9\u51FB\u4F4E\u66DD\u5149\u573A\u666F\u589E\u52A0\u51FA\u4EF7\u4E0A\u9650\u4FDD\u62A4(\u4E0D\u8D85\u8FC7maxBid\u768450%) (3)\u96F6\u8F6C\u5316\u573A\u666F\u589E\u5F3A\u964D\u4EF7\u529B\u5EA6(\u82B1\u8D39\u8D85\u6807\u65F6\u964D\u4EF710-25%) (4)ACOS\u8D85\u6807\u964D\u4EF7\u589E\u5F3A(v232\u7D27\u6025\u964D\u4EF7+v238\u7D2F\u79EF\u4FDD\u62A4) (5)\u90E8\u7F72\u540E\u81EA\u52A8\u89E6\u53D1\u5168\u91CF\u91CD\u4F18\u5316\u7EA0\u6B63\u5386\u53F2\u9519\u8BEF\u63D0\u4EF7",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       },
       {
-        version: 236,
-        description: "v236: NextGen-GTO\u535A\u5F08\u8BBA\u7B97\u6CD5\u5347\u7EA7 \u2014 6\u4E2AGTO\u5F15\u64CE\u6A21\u5757(\u7ADE\u4E89\u73AF\u5883\u611F\u77E5/\u52A8\u6001EV\u51FA\u4EF7/\u63A2\u7D22\u6027\u6295\u8D44/\u9884\u7B97\u5206\u6C60\u98CE\u63A7/\u7ADE\u4E89\u7A97\u53E3\u6253\u51FB/\u5173\u952E\u8BCD\u7EC4\u5408\u5E73\u8861), \u975E\u4FB5\u5165\u5F0F\u96C6\u6210\u5230batchCalculateNextGenBids, GTO\u4FEE\u6B63\u7CFB\u6570[0.6,1.4]\u5B89\u5168\u8FB9\u754C",
-        affectedModules: ["bid", "budget"],
-        correctionActions: ["full_reoptimize", "recalculate_budgets"]
+        version: 239,
+        description: "v239: \u5143\u5B66\u4E60\u7B97\u6CD5\u9009\u62E9\u5668\u95E8\u69DB\u964D\u4F4E \u2014 UCB\u95E8\u69DB10\u21925\u6761RL\u65E5\u5FD7, Sigmoid\u95E8\u69DB20\u219210\u6761, CQL\u95E8\u69DB50\u219230\u6761, Ensemble\u95E8\u69DB3\u21922\u4E2A\u7B97\u6CD5\u53EF\u7528, \u52A0\u901F\u9AD8\u7EA7\u7B97\u6CD5\u51B7\u542F\u52A8",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
       },
       {
-        version: 239,
-        description: "v239: \u7CFB\u7EDF\u7A33\u5B9A\u6027\u4E0E\u7B97\u6CD5\u6548\u80FD\u5168\u9762\u5347\u7EA7 \u2014 (1)SYSTEM_VERSION\u4ECE223\u66F4\u65B0\u5230239\u89E6\u53D1PostDeploy\u5168\u91CF\u91CD\u4F18\u5316 (2)\u96F6\u66DD\u5149\u63A2\u7D22\u4E0A\u9650\u4FDD\u62A4(\u7EDD\u5BF9\u51FA\u4EF7\u4E0A\u9650maxBid*50%) (3)\u96F6\u8F6C\u5316\u964D\u4EF7\u589E\u5F3A(\u4F7F\u7528\u5B9E\u9645AOV,\u6700\u5927\u964D\u5E4530%,\u8FDE\u7EED\u96F6\u8F6C\u5316\u5929\u6570\u56E0\u5B50) (4)\u9AD8\u7EA7\u7B97\u6CD5\u51B7\u542F\u52A8\u95E8\u69DB\u964D\u4F4E(UCB:5/Sigmoid:10/CQL:30/Ensemble:2) (5)\u76D1\u63A7\u544A\u8B66\u7CFB\u7EDF(\u63D0\u964D\u6BD4/ACoS\u8D85\u6807/\u7B97\u6CD5\u5F02\u5E38) (6)\u81EA\u52A8\u5316\u56DE\u5F52\u6D4B\u8BD5\u6846\u67B6",
-        affectedModules: ["all"],
-        correctionActions: ["full_reoptimize", "rebuild_combo_analysis", "recalculate_budgets"]
+        version: 240,
+        description: "v240: [\u5BA1\u8BA1\u4FEE\u590D] \u51FA\u4EF7\u5FAE\u8C03\u7075\u654F\u5EA6\u63D0\u5347 \u2014 (1)hold\u5224\u5B9A\u9608\u503C\u4ECE$0.01\u964D\u4F4E\u5230$0.005\uFF0C\u4F4E\u51FA\u4EF7\u5173\u952E\u8BCD\u7684\u5FAE\u8C03\u4E0D\u518D\u88AB\u56DB\u820D\u4E94\u5165\u5403\u6389 (2)ACOS\u8FBE\u6807\u573A\u666F\u8C03\u6574\u7CFB\u6570\u4ECE0.10\u63D0\u9AD8\u52300.15\uFF0C\u5FAE\u8C03\u66F4\u6709\u6548 (3)ACOS\u7565\u9AD8\u573A\u666F\u964D\u4EF7\u7CFB\u6570\u4ECE0.20\u63D0\u9AD8\u52300.25\uFF0C\u964D\u4EF7\u66F4\u79EF\u6781 (4)\u90E8\u7F72\u540E\u81EA\u52A8\u89E6\u53D1\u5168\u91CF\u91CD\u4F18\u5316\u7EA0\u6B63\u5386\u53F2hold\u5224\u5B9A",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 241,
+        description: "v241: [RL\u51B7\u542F\u52A8+\u90E8\u7F72\u6D41\u7A0B\u4F18\u5316+\u76D1\u63A7] \u2014 (1)RL\u51B7\u542F\u52A8\u63A2\u7D22\u7B56\u7565: \u5F53\u89C4\u5219\u5F15\u64CE\u5224\u5B9A\u4E3Ahold\u65F6\uFF0C20%\u6982\u7387\u8FDB\u884C\xB13-5%\u63A2\u7D22\u6027\u51FA\u4EF7\uFF0C\u6253\u7834\u51B7\u542F\u52A8\u6B7B\u9501 (2)Reward\u56DE\u586B\u7A97\u53E3\u4ECE24-72h\u6269\u5C55\u523012-96h\uFF0C\u52A0\u901F\u6570\u636E\u79EF\u7D2F (3)PostDeploy\u91CD\u4F18\u5316\u540E\u540C\u6B65\u66F4\u65B0moduleLastExecutionMap\uFF0C\u907F\u514D\u5B9A\u65F6\u4EFB\u52A1\u88AB\u8DF3\u8FC7 (4)\u65B0\u589ENextGen\u76D1\u63A7\u4EEA\u8868\u677FAPI /api/ops/nextgen-monitor (5)recordModuleExecution\u5BFC\u51FA\u4E3A\u516C\u5171\u51FD\u6570",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 242,
+        description: "v242: [\u7CFB\u7EDF\u6027\u4FEE\u590D] \u2014 (1)\u89C4\u5219\u5F15\u64CE\u7CBE\u5EA6\u611F\u77E5\u8C03\u6574: \u5F15\u5165\u6700\u5C0F\u6709\u6548\u8C03\u6574\u91CF$0.02\uFF0C\u907F\u514D\u5FAE\u8C03\u88AB\u56DB\u820D\u4E94\u5165\u5403\u6389 (2)RL\u51B7\u542F\u52A8\u63A2\u7D22\u7B56\u7565\u4F18\u5316: \u63A2\u7D22\u7387\u81EA\u9002\u5E94\u8C03\u6574\uFF0C\u52A0\u901F\u6570\u636E\u79EF\u7D2F (3)\u8C03\u5EA6\u72B6\u6001\u6301\u4E45\u5316: \u6A21\u5757\u6267\u884C\u65F6\u95F4\u6301\u4E45\u5316\u5230\u6570\u636E\u5E93\uFF0C\u5F7B\u5E95\u89E3\u51B3\u90E8\u7F72\u91CD\u542F\u5BFC\u81F4\u5B9A\u65F6\u4EFB\u52A1\u88AB\u8DF3\u8FC7 (4)\u5173\u952E\u8BCD\u540C\u6B65\u4FEE\u590D: \u589E\u5F3A\u9519\u8BEF\u65E5\u5FD7\u5E8F\u5217\u5316+\u91CD\u8BD5\u673A\u5236+\u5E76\u53D1\u63A7\u5236 (5)\u6570\u636E\u5E93\u8FC1\u79FB: \u65B0\u589Emodule_execution_times\u5B57\u6BB5",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -158245,7 +160231,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 239;
+    SYSTEM_VERSION2 = 242;
   }
 });
 
@@ -167539,7 +169525,7 @@ function isDynamicPattern(pattern, options) {
   const scan = import_picomatch.default.scan(pattern);
   return scan.isGlob || scan.negated;
 }
-function log29(...tasks) {
+function log31(...tasks) {
   console.log(`[tinyglobby ${(/* @__PURE__ */ new Date()).toLocaleTimeString("es")}]`, ...tasks);
 }
 function normalizePattern(pattern, expandDirectories, cwd2, props, isIgnore) {
@@ -167622,7 +169608,7 @@ function getCrawler(patterns, inputOptions = {}) {
     debug: true
   } : inputOptions;
   const cwd2 = normalizeCwd(options.cwd);
-  if (options.debug) log29("globbing with:", {
+  if (options.debug) log31("globbing with:", {
     patterns,
     options,
     cwd: cwd2
@@ -167640,7 +169626,7 @@ function getCrawler(patterns, inputOptions = {}) {
     ...options,
     patterns
   }, cwd2, props);
-  if (options.debug) log29("internal processing patterns:", processed);
+  if (options.debug) log31("internal processing patterns:", processed);
   const matchOptions = {
     dot: options.dot,
     nobrace: options.braceExpansion === false,
@@ -167661,14 +169647,14 @@ function getCrawler(patterns, inputOptions = {}) {
     filters: [options.debug ? (p4, isDirectory2) => {
       const path$12 = format8(p4, isDirectory2);
       const matches2 = matcher(path$12);
-      if (matches2) log29(`matched ${path$12}`);
+      if (matches2) log31(`matched ${path$12}`);
       return matches2;
     } : (p4, isDirectory2) => matcher(format8(p4, isDirectory2))],
     exclude: options.debug ? (_3, p4) => {
       const relativePath = formatExclude(p4, true);
       const skipped = relativePath !== "." && !partialMatcher(relativePath) || ignore(relativePath);
-      if (skipped) log29(`skipped ${p4}`);
-      else log29(`crawling ${p4}`);
+      if (skipped) log31(`skipped ${p4}`);
+      else log31(`crawling ${p4}`);
       return skipped;
     } : (_3, p4) => {
       const relativePath = formatExclude(p4, true);
@@ -167703,7 +169689,7 @@ function getCrawler(patterns, inputOptions = {}) {
   } else if (options.onlyFiles === false) fdirOptions.includeDirs = true;
   props.root = props.root.replace(BACKSLASHES, "");
   const root2 = props.root;
-  if (options.debug) log29("internal properties:", props);
+  if (options.debug) log31("internal properties:", props);
   const relative5 = cwd2 !== root2 && !options.absolute && buildRelative(cwd2, props.root);
   return [new Builder(fdirOptions).crawl(root2), relative5];
 }
@@ -330385,230 +332371,6 @@ var init_dist9 = __esm({
   }
 });
 
-// server/services/intradayPacingService.ts
-var intradayPacingService_exports = {};
-__export(intradayPacingService_exports, {
-  INTRADAY_CONFIG: () => INTRADAY_CONFIG,
-  adjustIntradayPacing: () => adjustIntradayPacing,
-  applyIntradayAdjustment: () => applyIntradayAdjustment,
-  calculateBudgetRunway: () => calculateBudgetRunway,
-  checkAllCampaignsPacing: () => checkAllCampaignsPacing,
-  default: () => intradayPacingService_default,
-  getCriticalCampaigns: () => getCriticalCampaigns
-});
-async function adjustIntradayPacing(campaignId, accountId) {
-  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
-  const dailyBudget = await getCampaignBudget(accountId, campaignId);
-  const marketplace = await getAccountMarketplace(accountId);
-  const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
-  const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
-  const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
-  const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
-  const idealSpendPercent = hoursPassed / totalHours;
-  const actualSpendPercent = dailyBudget > 0 ? realtimeData.todaySpend / dailyBudget : 0;
-  const pacingRatio = idealSpendPercent > 0 ? actualSpendPercent / idealSpendPercent : 1;
-  let pacingStatus;
-  let suggestedAction = "none";
-  let suggestedMultiplier = 1;
-  let reason = "";
-  if (pacingRatio >= INTRADAY_CONFIG.criticalThreshold) {
-    pacingStatus = "critical";
-    suggestedAction = "reduce_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.criticalMultiplier;
-    reason = `\u{1F525} \u70E7\u94B1\u592A\u5FEB\uFF01\u6D88\u8017\u901F\u5EA6\u662F\u7406\u60F3\u7684${(pacingRatio * 100).toFixed(0)}%\uFF0C\u89E6\u53D1\u65E5\u5185\u4FDD\u62A4`;
-  } else if (pacingRatio >= INTRADAY_CONFIG.overspendingThreshold) {
-    pacingStatus = "overspending";
-    suggestedAction = "reduce_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.overspendingMultiplier;
-    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u5FEB\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7`;
-  } else if (pacingRatio <= INTRADAY_CONFIG.underspendingThreshold) {
-    pacingStatus = "underspending";
-    suggestedAction = "increase_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.underspendingMultiplier;
-    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u6162\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u53EF\u4EE5\u9002\u5F53\u63D0\u9AD8\u51FA\u4EF7`;
-  } else {
-    pacingStatus = "on_track";
-    reason = "\u6D88\u8017\u901F\u5EA6\u6B63\u5E38";
-  }
-  const anomalyResult = detectAnomalies3(
-    realtimeData.todayClicks,
-    realtimeData.todayImpressions,
-    realtimeData.todaySpend,
-    currentHour
-  );
-  if (anomalyResult.detected) {
-    suggestedAction = anomalyResult.action;
-    reason = anomalyResult.reason;
-  }
-  return {
-    campaignId,
-    accountId,
-    currentHour,
-    dailyBudget,
-    todaySpend: realtimeData.todaySpend,
-    todayClicks: realtimeData.todayClicks,
-    todayImpressions: realtimeData.todayImpressions,
-    idealSpendPercent: Math.round(idealSpendPercent * 100) / 100,
-    actualSpendPercent: Math.round(actualSpendPercent * 100) / 100,
-    pacingStatus,
-    suggestedAction,
-    suggestedMultiplier,
-    reason,
-    anomalyDetected: anomalyResult.detected,
-    anomalyType: anomalyResult.type
-  };
-}
-async function checkAllCampaignsPacing(accountId) {
-  const db = await getDb();
-  if (!db) return [];
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT campaignId, dailyBudget
-      FROM campaigns
-      WHERE accountId = ${accountId}
-        AND state = 'enabled'
-        AND dailyBudget > 0
-    `);
-    const campaigns7 = Array.isArray(rows) ? rows : [];
-    const results = [];
-    for (const campaign of campaigns7) {
-      const adjustment = await adjustIntradayPacing(
-        campaign.campaignId,
-        accountId
-      );
-      results.push(adjustment);
-    }
-    return results;
-  } catch (error54) {
-    console.error("[IntradayPacing] \u6279\u91CF\u68C0\u67E5\u5931\u8D25:", error54);
-    return [];
-  }
-}
-async function getCriticalCampaigns(accountId) {
-  const allAdjustments = await checkAllCampaignsPacing(accountId);
-  return allAdjustments.filter(
-    (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
-  );
-}
-async function applyIntradayAdjustment(adjustment) {
-  console.log("[IntradayPacing] \u5E94\u7528\u8C03\u6574:", {
-    campaignId: adjustment.campaignId,
-    action: adjustment.suggestedAction,
-    multiplier: adjustment.suggestedMultiplier,
-    reason: adjustment.reason
-  });
-  return {
-    success: true,
-    action: adjustment.suggestedAction,
-    previousMultiplier: 1,
-    newMultiplier: adjustment.suggestedMultiplier
-  };
-}
-async function getCampaignBudget(accountId, campaignId) {
-  const db = await getDb();
-  if (!db) return 0;
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT dailyBudget
-      FROM campaigns
-      WHERE accountId = ${accountId}
-        AND campaignId = ${campaignId}
-      LIMIT 1
-    `);
-    const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-    return campaign?.dailyBudget || 0;
-  } catch (error54) {
-    console.error("[IntradayPacing] \u83B7\u53D6\u9884\u7B97\u5931\u8D25:", error54);
-    return 0;
-  }
-}
-function detectAnomalies3(clicks, impressions, spend, currentHour) {
-  const avgClicksPerHour = currentHour > 0 ? clicks / currentHour : clicks;
-  const ctr = impressions > 0 ? clicks / impressions : 0;
-  if (avgClicksPerHour > INTRADAY_CONFIG.clickFraudThreshold || ctr > INTRADAY_CONFIG.clickFraudCtrThreshold) {
-    return {
-      detected: true,
-      type: "click_fraud",
-      action: "pause",
-      reason: `\u26A0\uFE0F \u68C0\u6D4B\u5230\u5F02\u5E38\u6D41\u91CF\uFF01\u6BCF\u5C0F\u65F6\u70B9\u51FB${avgClicksPerHour.toFixed(0)}\u6B21\uFF0CCTR ${(ctr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u7D27\u6025\u6682\u505C`
-    };
-  }
-  if (spend > 0 && clicks > INTRADAY_CONFIG.zeroConversionClickThreshold) {
-    const avgSpendPerClick = spend / clicks;
-    if (avgSpendPerClick > 2) {
-      return {
-        detected: true,
-        type: "budget_drain",
-        action: "alert",
-        reason: `\u26A0\uFE0F \u6BCF\u6B21\u70B9\u51FB\u6210\u672C\u5F02\u5E38\u9AD8\uFF08$${avgSpendPerClick.toFixed(2)}\uFF09\uFF0C\u8BF7\u68C0\u67E5\u7ADE\u4EF7\u8BBE\u7F6E`
-      };
-    }
-  }
-  return {
-    detected: false,
-    action: "none",
-    reason: ""
-  };
-}
-function calculateBudgetRunway(dailyBudget, currentSpend, currentHour, avgSpendPerHour) {
-  const remainingBudget = dailyBudget - currentSpend;
-  const hoursRemaining = avgSpendPerHour > 0 ? remainingBudget / avgSpendPerHour : 24 - currentHour;
-  const projectedEndHour = currentHour + hoursRemaining;
-  return {
-    remainingBudget,
-    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
-    projectedEndHour: Math.min(24, Math.round(projectedEndHour)),
-    willLastUntilTarget: projectedEndHour >= INTRADAY_CONFIG.targetEndHour
-  };
-}
-var INTRADAY_CONFIG, intradayPacingService_default;
-var init_intradayPacingService = __esm({
-  "server/services/intradayPacingService.ts"() {
-    "use strict";
-    init_db2();
-    init_drizzle_orm();
-    init_dualTrackSyncService();
-    init_algorithmUtils();
-    INTRADAY_CONFIG = {
-      // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
-      targetEndHour: 22,
-      // 开始时间（小时）
-      startHour: 0,
-      // 消耗速度阈值
-      overspendingThreshold: 1.5,
-      // 超过理想消耗的150%
-      criticalThreshold: 2,
-      // 超过理想消耗的200%
-      underspendingThreshold: 0.5,
-      // 低于理想消耗的50%
-      // 调整乘数
-      overspendingMultiplier: 0.8,
-      // 花太快时降低20%
-      criticalMultiplier: 0.5,
-      // 危急时降低50%
-      underspendingMultiplier: 1.2,
-      // 花太慢时提高20%
-      // 异常检测阈值
-      clickFraudThreshold: 100,
-      // 单小时点击超过100次
-      clickFraudCtrThreshold: 0.15,
-      // CTR超过15%可能是异常
-      zeroConversionClickThreshold: 50,
-      // 50次点击0转化触发警告
-      // 最小检查间隔（分钟）
-      minCheckInterval: 15
-    };
-    intradayPacingService_default = {
-      adjustIntradayPacing,
-      checkAllCampaignsPacing,
-      getCriticalCampaigns,
-      applyIntradayAdjustment,
-      calculateBudgetRunway,
-      INTRADAY_CONFIG
-    };
-  }
-});
-
 // node_modules/dotenv/config.js
 (function() {
   require_main().config(
@@ -347269,205 +349031,7 @@ init_db2();
 init_db2();
 init_schema2();
 init_drizzle_orm();
-
-// server/attributionWindowHelper.ts
-init_db2();
-var ATTRIBUTION_WINDOW = {
-  /** Amazon 7天归因窗口的安全边际（天） */
-  ATTRIBUTION_LAG_DAYS: 3,
-  /** 出价优化数据窗口：D-4 到 D-30（成熟数据） */
-  BID_OPTIMIZATION: {
-    startDaysAgo: 30,
-    // 从30天前开始
-    endDaysAgo: 4,
-    // 到4天前结束（跳过D-0~D-3）
-    description: "\u51FA\u4EF7\u4F18\u5316\u7A97\u53E3(D-4~D-30): \u5F52\u56E0\u5DF2\u7A33\u5B9A\u7684\u6210\u719F\u6570\u636E"
-  },
-  /** 风控扫描数据窗口：D-0 到 D-3（实时数据） */
-  RISK_CONTROL: {
-    startDaysAgo: 3,
-    // 从3天前开始
-    endDaysAgo: 0,
-    // 到今天
-    description: "\u98CE\u63A7\u626B\u63CF\u7A97\u53E3(D-0~D-3): \u68C0\u6D4B\u5F02\u5E38\u7684\u5B9E\u65F6\u6570\u636E"
-  },
-  /** 趋势分析数据窗口：D-0 到 D-60（全量数据） */
-  TREND_ANALYSIS: {
-    startDaysAgo: 60,
-    endDaysAgo: 0,
-    description: "\u8D8B\u52BF\u5206\u6790\u7A97\u53E3(D-0~D-60): \u957F\u671F\u8D8B\u52BF\u5224\u65AD"
-  }
-};
-function getWindowDateRange(windowType, marketplace = "US") {
-  const config2 = windowType === "bid_optimization" ? ATTRIBUTION_WINDOW.BID_OPTIMIZATION : windowType === "risk_control" ? ATTRIBUTION_WINDOW.RISK_CONTROL : ATTRIBUTION_WINDOW.TREND_ANALYSIS;
-  const now = /* @__PURE__ */ new Date();
-  const endDate = new Date(now.getTime() - config2.endDaysAgo * 24 * 60 * 60 * 1e3);
-  const startDate = new Date(now.getTime() - config2.startDaysAgo * 24 * 60 * 60 * 1e3);
-  return {
-    startDate,
-    endDate,
-    startDateStr: startDate.toISOString().split("T")[0],
-    endDateStr: endDate.toISOString().split("T")[0]
-  };
-}
-async function getCampaignWindowedPerformance(accountId, campaignId, windowType, marketplace = "US") {
-  const { startDate, endDate, startDateStr, endDateStr } = getWindowDateRange(windowType, marketplace);
-  const dailyData = await getDailyPerformanceByDateRange(
-    accountId,
-    startDate,
-    endDate,
-    campaignId
-  );
-  let impressions = 0, clicks = 0, spend = 0, sales = 0, orders = 0;
-  for (const day2 of dailyData) {
-    impressions += Number(day2.impressions) || 0;
-    clicks += Number(day2.clicks) || 0;
-    spend += parseFloat(String(day2.spend || "0"));
-    sales += parseFloat(String(day2.sales || "0"));
-    orders += Number(day2.orders) || 0;
-  }
-  const acos = sales > 0 ? spend / sales * 100 : 0;
-  const roas = spend > 0 ? sales / spend : 0;
-  const cvr = clicks > 0 ? orders / clicks * 100 : 0;
-  const cpc = clicks > 0 ? spend / clicks : 0;
-  const ctr = impressions > 0 ? clicks / impressions * 100 : 0;
-  return {
-    windowType,
-    startDate: startDateStr,
-    endDate: endDateStr,
-    impressions,
-    clicks,
-    spend,
-    sales,
-    orders,
-    acos,
-    roas,
-    cvr,
-    cpc,
-    ctr,
-    dataDays: dailyData.length,
-    isAttributionMature: windowType === "bid_optimization"
-  };
-}
-async function calculateAttributionCorrectionFactor(accountId, campaignId, marketplace = "US") {
-  const maturePerf = await getCampaignWindowedPerformance(
-    accountId,
-    campaignId,
-    "bid_optimization",
-    marketplace
-  );
-  const realtimePerf = await getCampaignWindowedPerformance(
-    accountId,
-    campaignId,
-    "risk_control",
-    marketplace
-  );
-  const matureDailySales = maturePerf.dataDays > 0 ? maturePerf.sales / maturePerf.dataDays : 0;
-  const realtimeDailySales = realtimePerf.dataDays > 0 ? realtimePerf.sales / realtimePerf.dataDays : 0;
-  let correctionFactor = 1;
-  if (realtimeDailySales > 0 && matureDailySales > 0) {
-    correctionFactor = matureDailySales / realtimeDailySales;
-    correctionFactor = Math.max(0.5, Math.min(2, correctionFactor));
-  }
-  const confidence = Math.min(0.95, 0.3 + maturePerf.clicks / 500 * 0.65);
-  return {
-    correctionFactor,
-    maturePerformance: maturePerf,
-    realtimePerformance: realtimePerf,
-    confidence
-  };
-}
-function applyAttributionCorrection(rawPerformance, correctionFactor, windowType) {
-  if (windowType === "risk_control") {
-    return {
-      ...rawPerformance,
-      corrected: false,
-      correctionFactor: 1
-    };
-  }
-  if (windowType === "bid_optimization") {
-    return {
-      impressions: rawPerformance.impressions,
-      clicks: rawPerformance.clicks,
-      spend: rawPerformance.spend,
-      // 销售和订单乘以校正系数
-      sales: rawPerformance.sales * correctionFactor,
-      orders: Math.round(rawPerformance.orders * correctionFactor),
-      corrected: true,
-      correctionFactor
-    };
-  }
-  return {
-    ...rawPerformance,
-    corrected: false,
-    correctionFactor: 1
-  };
-}
-function shouldApplyCorrection(correctionFactor, matureClicks, campaignCreatedDaysAgo) {
-  if (matureClicks < 50) return false;
-  if (campaignCreatedDaysAgo < 7) return false;
-  if (Math.abs(correctionFactor - 1) < 0.1) return false;
-  return true;
-}
-async function detectRiskSignals(accountId, campaignId, marketplace = "US") {
-  const { maturePerformance, realtimePerformance } = await calculateAttributionCorrectionFactor(
-    accountId,
-    campaignId,
-    marketplace
-  );
-  const risks = [];
-  const matureDailySpend = maturePerformance.dataDays > 0 ? maturePerformance.spend / maturePerformance.dataDays : 0;
-  const realtimeDailySpend = realtimePerformance.dataDays > 0 ? realtimePerformance.spend / realtimePerformance.dataDays : 0;
-  if (matureDailySpend > 0 && realtimeDailySpend > matureDailySpend * 2) {
-    const ratio = realtimeDailySpend / matureDailySpend;
-    risks.push({
-      type: "spend_spike",
-      severity: ratio > 3 ? "critical" : ratio > 2.5 ? "high" : "medium",
-      description: `\u65E5\u5747\u82B1\u8D39\u98D9\u5347: \u5B9E\u65F6$${realtimeDailySpend.toFixed(2)} vs \u6210\u719F$${matureDailySpend.toFixed(2)} (${ratio.toFixed(1)}x)`,
-      matureValue: matureDailySpend,
-      realtimeValue: realtimeDailySpend
-    });
-  }
-  const matureDailyImpressions = maturePerformance.dataDays > 0 ? maturePerformance.impressions / maturePerformance.dataDays : 0;
-  if (matureDailyImpressions > 100 && realtimePerformance.impressions === 0) {
-    risks.push({
-      type: "zero_impression_storm",
-      severity: matureDailyImpressions > 1e3 ? "critical" : "high",
-      description: `\u96F6\u66DD\u5149\u98CE\u66B4: \u6210\u719F\u7A97\u53E3\u65E5\u5747${Math.round(matureDailyImpressions)}\u66DD\u5149\uFF0C\u5B9E\u65F6\u7A97\u53E3\u4E3A0`,
-      matureValue: matureDailyImpressions,
-      realtimeValue: 0
-    });
-  }
-  if (maturePerformance.cpc > 0 && realtimePerformance.cpc > maturePerformance.cpc * 1.5) {
-    const ratio = realtimePerformance.cpc / maturePerformance.cpc;
-    risks.push({
-      type: "cpc_spike",
-      severity: ratio > 2 ? "high" : "medium",
-      description: `CPC\u98D9\u5347: \u5B9E\u65F6$${realtimePerformance.cpc.toFixed(2)} vs \u6210\u719F$${maturePerformance.cpc.toFixed(2)} (${ratio.toFixed(1)}x)`,
-      matureValue: maturePerformance.cpc,
-      realtimeValue: realtimePerformance.cpc
-    });
-  }
-  if (maturePerformance.acos > 0 && realtimePerformance.spend > 0) {
-    const adjustedRealtimeAcos = realtimePerformance.acos;
-    const threshold = maturePerformance.acos * 2.5;
-    if (adjustedRealtimeAcos > threshold && adjustedRealtimeAcos > 100) {
-      risks.push({
-        type: "acos_spike",
-        severity: adjustedRealtimeAcos > maturePerformance.acos * 4 ? "high" : "medium",
-        description: `ACoS\u5F02\u5E38: \u5B9E\u65F6${adjustedRealtimeAcos.toFixed(1)}% vs \u6210\u719F${maturePerformance.acos.toFixed(1)}% (\u8003\u8651\u5F52\u56E0\u5EF6\u8FDF\u540E\u4ECD\u5F02\u5E38)`,
-        matureValue: maturePerformance.acos,
-        realtimeValue: adjustedRealtimeAcos
-      });
-    }
-  }
-  return {
-    hasRisk: risks.length > 0,
-    risks
-  };
-}
-
-// server/unifiedOptimizationEngine.ts
+init_attributionWindowHelper();
 async function getDbInstance() {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
@@ -375006,1248 +376570,8 @@ function serveStatic(app) {
   });
 }
 
-// server/dataSyncScheduler.ts
-init_db2();
-init_amazonSyncService();
-init_notification();
-init_algorithmUtils();
-
-// server/searchTermHarvester.ts
-init_db2();
-init_amazonAdsApi();
-init_keywordValidator();
-init_logger2();
-var log30 = createModuleLogger("SearchTermHarvester");
-var DEFAULT_HARVEST_CONFIG = {
-  minOrders: 2,
-  maxAcos: 50,
-  minClicks: 10,
-  minRoas: 2,
-  bidStrategy: "cvr_aov_based",
-  bidDiscountFactor: 0.85,
-  // 精确匹配出价为宽泛/短语的85%
-  dryRun: false
-};
-async function identifyHarvestCandidates(accountId, config2 = {}) {
-  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
-  const candidates = [];
-  try {
-    const allCampaigns = await getCampaignsByAccountId(accountId);
-    if (!allCampaigns || allCampaigns.length === 0) {
-      log30.debug(`\u8D26\u53F7 ${accountId} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
-      return [];
-    }
-    const sourceCampaigns = allCampaigns.filter(
-      (c5) => c5.campaignStatus === "enabled" && (c5.campaignType === "sp_auto" || c5.targetingType === "auto")
-    );
-    const manualCampaigns = allCampaigns.filter(
-      (c5) => c5.campaignStatus === "enabled" && c5.campaignType === "sp_manual" && c5.targetingType === "manual"
-    );
-    if (sourceCampaigns.length === 0) {
-      log30.info(`\u8D26\u53F7 ${accountId} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
-      return [];
-    }
-    for (const sourceCampaign of sourceCampaigns) {
-      const searchTermsList = await getSearchTermsByCampaignId(sourceCampaign.id);
-      for (const st3 of searchTermsList) {
-        const clicks = Number(st3.searchTermClicks) || 0;
-        const orders = Number(st3.searchTermOrders) || 0;
-        const spend = parseFloat(String(st3.searchTermSpend || "0"));
-        const sales = parseFloat(String(st3.searchTermSales || "0"));
-        if (clicks < cfg.minClicks || orders < cfg.minOrders) continue;
-        const acos = sales > 0 ? spend / sales * 100 : 999;
-        const roas = spend > 0 ? sales / spend : 0;
-        const cvr = clicks > 0 ? orders / clicks * 100 : 0;
-        if (acos > cfg.maxAcos && roas < cfg.minRoas) continue;
-        if (isAsinSearchTerm(st3.searchTerm)) {
-          log30.info(`v194: \u8DF3\u8FC7ASIN\u641C\u7D22\u8BCD "${st3.searchTerm}"\uFF0C\u5E94\u4F5C\u4E3Aproduct target\u5904\u7406`);
-          continue;
-        }
-        const validation = sanitizeAndValidateKeyword(st3.searchTerm);
-        if (!validation.isValid) {
-          log30.warn(`v194: \u641C\u7D22\u8BCD\u6821\u9A8C\u5931\u8D25 "${st3.searchTerm}": ${validation.reasonMessage || validation.reasonCode || "invalid"}`);
-          continue;
-        }
-        const targetInfo = await findTargetAdGroup(
-          st3.searchTerm,
-          manualCampaigns,
-          sourceCampaign
-        );
-        if (!targetInfo) continue;
-        const existingKeywords = await getKeywordsByAdGroupId(targetInfo.adGroupId);
-        const alreadyExists = existingKeywords.some(
-          (k5) => k5.keywordText?.toLowerCase() === st3.searchTerm.toLowerCase() && k5.matchType === "exact"
-        );
-        if (alreadyExists) continue;
-        const suggestedBid = calculateHarvestBid(
-          { clicks, orders, spend, sales },
-          cfg
-        );
-        const sourceAdGroup = await getAdGroupById(st3.adGroupId);
-        if (!sourceAdGroup) continue;
-        candidates.push({
-          searchTerm: st3.searchTerm,
-          sourceAdGroupId: st3.adGroupId,
-          sourceCampaignId: sourceCampaign.id,
-          sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
-          sourceAmazonCampaignId: sourceCampaign.campaignId,
-          targetAdGroupId: targetInfo.adGroupId,
-          targetCampaignId: targetInfo.campaignId,
-          targetAmazonAdGroupId: targetInfo.amazonAdGroupId,
-          targetAmazonCampaignId: targetInfo.amazonCampaignId,
-          suggestedBid,
-          performance: { clicks, orders, spend, sales, acos, roas, cvr },
-          reason: `\u9AD8\u7EE9\u6548\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%, ROAS=${roas.toFixed(2)}, CVR=${cvr.toFixed(1)}%`
-        });
-      }
-    }
-    log30.debug(`\u8D26\u53F7 ${accountId} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
-    return candidates;
-  } catch (error54) {
-    log30.error(`\u8BC6\u522B\u5019\u9009\u9879\u5931\u8D25:`, error54.message);
-    return [];
-  }
-}
-async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
-  const result = {
-    searchTerm: candidate.searchTerm,
-    success: false,
-    stage: "failed"
-  };
-  log30.info(`\u5F00\u59CB\u539F\u5B50\u6536\u5272: "${candidate.searchTerm}" (${candidate.reason})`);
-  try {
-    const createResult = await apiClient.createSpKeywords([{
-      adGroupId: parseInt(candidate.targetAmazonAdGroupId),
-      campaignId: parseInt(candidate.targetAmazonCampaignId),
-      keywordText: candidate.searchTerm,
-      matchType: "exact",
-      bid: candidate.suggestedBid,
-      state: "enabled"
-    }]);
-    if (!createResult.success || createResult.createdKeywords.length === 0) {
-      const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
-      const isDuplicate = createResult.errors.some(
-        (e6) => String(e6).includes("DUPLICATE") || String(e6).includes("already exists")
-      );
-      if (isDuplicate) {
-        log30.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
-        result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
-        return result;
-      }
-      result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
-      log30.error(`${result.error}`);
-      return result;
-    }
-    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
-    result.stage = "keyword_created";
-    log30.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}`);
-  } catch (error54) {
-    result.error = `Step1 \u5F02\u5E38: ${error54.message}`;
-    log30.error(`${result.error}`);
-    return result;
-  }
-  const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
-  const negativeMatchType = searchTermWords.length <= 2 ? "negativePhrase" : "negativeExact";
-  try {
-    log30.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
-    const negativeResult = await apiClient.createSpNegativeKeywords([{
-      adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
-      campaignId: parseInt(candidate.sourceAmazonCampaignId),
-      keywordText: candidate.searchTerm,
-      matchType: negativeMatchType,
-      state: "enabled"
-    }]);
-    const negativeErrors = negativeResult.filter((r5) => r5.code && r5.code !== "SUCCESS");
-    if (negativeErrors.length > 0) {
-      const isDuplicate = negativeErrors.some(
-        (e6) => String(e6.code).includes("DUPLICATE") || String(e6.details).includes("already exists")
-      );
-      if (!isDuplicate) {
-        log30.error(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
-        await rollbackKeywordCreation(apiClient, result.createdKeywordId);
-        result.stage = "rolled_back";
-        result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${JSON.stringify(negativeErrors)}`;
-        result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
-        return result;
-      }
-    }
-    const successNeg = negativeResult.find((r5) => !r5.code || r5.code === "SUCCESS");
-    if (successNeg) {
-      result.createdNegativeKeywordId = successNeg.keywordId;
-    }
-    result.stage = "negative_added";
-    log30.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}`);
-  } catch (error54) {
-    log30.error(`Step2 \u5F02\u5E38: ${error54.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
-    await rollbackKeywordCreation(apiClient, result.createdKeywordId);
-    result.stage = "rolled_back";
-    result.error = `Step2 \u5F02\u5E38: ${error54.message}`;
-    result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
-    return result;
-  }
-  try {
-    const localKeywordId = await createKeyword({
-      adGroupId: candidate.targetAdGroupId,
-      keywordId: String(result.createdKeywordId),
-      keywordText: candidate.searchTerm,
-      matchType: "exact",
-      bid: candidate.suggestedBid.toFixed(2),
-      keywordStatus: "enabled"
-    });
-    result.localKeywordId = localKeywordId;
-    await addNegativeKeyword({
-      campaignId: candidate.sourceCampaignId,
-      adGroupId: candidate.sourceAdGroupId,
-      keyword: candidate.searchTerm,
-      matchType: negativeMatchType === "negativePhrase" ? "phrase" : "exact",
-      level: "ad_group"
-    });
-    await createBiddingLog({
-      accountId,
-      campaignId: String(candidate.targetCampaignId),
-      adGroupId: candidate.targetAdGroupId,
-      logTargetType: "keyword",
-      targetId: localKeywordId,
-      targetName: candidate.searchTerm,
-      logMatchType: "exact",
-      actionType: "set",
-      previousBid: "0.00",
-      newBid: candidate.suggestedBid.toFixed(2),
-      bidChangePercent: "100.00",
-      reason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason} | \u6E90Campaign=${candidate.sourceCampaignId} \u2192 \u76EE\u6807Campaign=${candidate.targetCampaignId}`,
-      algorithmVersion: "2.0.0-harvest",
-      isIntradayAdjustment: 0
-    });
-    try {
-      await insertOptimizationEvent({
-        accountId,
-        eventCategory: "search_term_action",
-        actionType: "search_term_harvest",
-        campaignId: candidate.targetCampaignId,
-        keywordId: localKeywordId,
-        keywordText: candidate.searchTerm,
-        matchType: "exact",
-        previousBid: "0.00",
-        newBid: candidate.suggestedBid.toFixed(2),
-        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason}`,
-        status: "success",
-        apiSyncStatus: "synced",
-        sourceTable: "search_term_harvester"
-      });
-      await insertOptimizationEvent({
-        accountId,
-        eventCategory: "search_term_action",
-        actionType: "negative_keyword_add",
-        campaignId: candidate.sourceCampaignId,
-        keywordText: candidate.searchTerm,
-        matchType: "exact",
-        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272-\u5426\u5B9A] \u6E90\u5E7F\u544A\u7EC4\u6DFB\u52A0\u5426\u5B9A\u8BCD`,
-        status: "success",
-        apiSyncStatus: "synced",
-        sourceTable: "search_term_harvester"
-      });
-    } catch (eventErr) {
-      log30.warn(`v189: \u8BB0\u5F55optimization_events\u5931\u8D25: ${eventErr.message}`);
-    }
-    result.stage = "db_logged";
-    result.success = true;
-    log30.info(`Step3 \u5B8C\u6210: \u672C\u5730\u6570\u636E\u5E93\u5DF2\u66F4\u65B0`);
-  } catch (error54) {
-    log30.warn(`Step3 \u672C\u5730DB\u8BB0\u5F55\u5931\u8D25: ${error54.message}\uFF0CAPI\u64CD\u4F5C\u5DF2\u751F\u6548`);
-    result.error = `Step3 \u672C\u5730DB\u5931\u8D25(API\u5DF2\u751F\u6548): ${error54.message}`;
-    result.success = true;
-    result.stage = "negative_added";
-  }
-  return result;
-}
-async function batchHarvestSearchTerms(accountId, config2 = {}) {
-  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
-  const candidates = await identifyHarvestCandidates(accountId, cfg);
-  if (candidates.length === 0) {
-    return {
-      candidates: [],
-      results: [],
-      summary: { total: 0, success: 0, failed: 0, rolledBack: 0, skipped: 0 }
-    };
-  }
-  if (cfg.dryRun) {
-    log30.info(`Dry Run: \u53D1\u73B0 ${candidates.length} \u4E2A\u5019\u9009\u9879\uFF0C\u4E0D\u6267\u884C`);
-    return {
-      candidates,
-      results: [],
-      summary: { total: candidates.length, success: 0, failed: 0, rolledBack: 0, skipped: candidates.length }
-    };
-  }
-  const credentials = await getAmazonApiCredentials(accountId);
-  if (!credentials) {
-    log30.error(`\u8D26\u53F7 ${accountId} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
-    return {
-      candidates,
-      results: [],
-      summary: { total: candidates.length, success: 0, failed: candidates.length, rolledBack: 0, skipped: 0 }
-    };
-  }
-  const apiClient = createAmazonAdsClient({
-    clientId: credentials.clientId,
-    clientSecret: credentials.clientSecret,
-    refreshToken: typeof credentials.refreshToken === "string" ? credentials.refreshToken : "",
-    profileId: credentials.profileId,
-    region: credentials.region
-  });
-  const results = [];
-  let success2 = 0, failed = 0, rolledBack = 0;
-  for (const candidate of candidates) {
-    try {
-      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
-      results.push(result);
-      if (result.success) {
-        success2++;
-      } else if (result.stage === "rolled_back") {
-        rolledBack++;
-      } else {
-        failed++;
-      }
-      await new Promise((resolve8) => setTimeout(resolve8, 500));
-    } catch (error54) {
-      log30.error(`\u6536\u5272\u5F02\u5E38: "${candidate.searchTerm}" - ${error54.message}`);
-      results.push({
-        searchTerm: candidate.searchTerm,
-        success: false,
-        stage: "failed",
-        error: error54.message
-      });
-      failed++;
-    }
-  }
-  log30.warn(`\u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success2}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}`);
-  return {
-    candidates,
-    results,
-    summary: {
-      total: candidates.length,
-      success: success2,
-      failed,
-      rolledBack,
-      skipped: 0
-    }
-  };
-}
-async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
-  const exactCampaigns = manualCampaigns.filter(
-    (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
-  );
-  for (const campaign of exactCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
-    for (const ag of enabledAdGroups) {
-      const hasPT = await adGroupHasProductTargets(ag.id);
-      if (hasPT) {
-        log30.info(`v194: \u8DF3\u8FC7product target\u5E7F\u544A\u7EC4 id=${ag.id}`);
-        continue;
-      }
-      return {
-        adGroupId: ag.id,
-        campaignId: campaign.campaignId,
-        amazonAdGroupId: ag.adGroupId,
-        amazonCampaignId: campaign.campaignId
-      };
-    }
-  }
-  for (const campaign of manualCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
-    for (const ag of enabledAdGroups) {
-      const hasPT = await adGroupHasProductTargets(ag.id);
-      if (hasPT) continue;
-      return {
-        adGroupId: ag.id,
-        campaignId: campaign.campaignId,
-        amazonAdGroupId: ag.adGroupId,
-        amazonCampaignId: campaign.campaignId
-      };
-    }
-  }
-  return null;
-}
-function calculateHarvestBid(performance3, config2) {
-  const { clicks, orders, spend, sales } = performance3;
-  if (config2.bidStrategy === "cvr_aov_based" && orders > 0) {
-    const cvr = orders / clicks;
-    const aov = sales / orders;
-    const targetAcosRate = 0.3;
-    const theoreticalBid = cvr * aov * targetAcosRate * config2.bidDiscountFactor;
-    return Math.round(Math.max(0.1, Math.min(theoreticalBid, 5)) * 100) / 100;
-  }
-  if (clicks > 0) {
-    const historicalCpc = spend / clicks;
-    const bid = historicalCpc * config2.bidDiscountFactor;
-    return Math.round(Math.max(0.1, Math.min(bid, 5)) * 100) / 100;
-  }
-  return 0.5;
-}
-async function rollbackKeywordCreation(apiClient, keywordId) {
-  try {
-    await apiClient.updateKeywordBids([{
-      keywordId,
-      bid: 0.02
-      // 设置最低出价
-    }]);
-    log30.info(`\u56DE\u6EDA\u6210\u529F: \u5173\u952E\u8BCD ${keywordId} \u5DF2\u8BBE\u7F6E\u6700\u4F4E\u51FA\u4EF7`);
-  } catch (error54) {
-    log30.error(`\u56DE\u6EDA\u5931\u8D25: \u5173\u952E\u8BCD ${keywordId} - ${error54.message}`);
-  }
-}
-
-// server/dataSyncScheduler.ts
-init_campaignLifecycleService();
-init_optimizationAutoCorrector();
-init_nextGenBidOrchestrator();
-init_logger2();
-init_opsLogger();
-var log31 = createModuleLogger("Scheduler");
-var SYNC_TIER_CONFIG = {
-  high: {
-    intervalMs: 15 * 60 * 1e3,
-    // 15分钟
-    description: "\u9AD8\u9891\u540C\u6B65 - \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u548C\u9884\u7B97",
-    syncTypes: ["campaigns_status", "budgets"]
-  },
-  medium: {
-    intervalMs: 30 * 60 * 1e3,
-    // 30分钟
-    description: "\u4E2D\u9891\u540C\u6B65 - \u5E7F\u544A\u7EC4\u3001\u5173\u952E\u8BCD\u3001\u5B9A\u4F4D",
-    syncTypes: ["ad_groups", "keywords", "targets"]
-  },
-  low: {
-    intervalMs: 60 * 60 * 1e3,
-    // 1小时
-    description: "\u4F4E\u9891\u540C\u6B65 - \u5B8C\u6574\u6570\u636E\u540C\u6B65",
-    syncTypes: ["full_sync"]
-  },
-  full: {
-    intervalMs: 30 * 60 * 1e3,
-    // 30分钟（完整同步，获取60天历史数据）
-    description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF0860\u5929\u5386\u53F2\uFF09",
-    syncTypes: ["all"]
-  }
-};
-var schedulerStatus2 = {
-  isRunning: false,
-  lastRunTime: null,
-  nextRunTime: null,
-  totalSyncs: 0,
-  successfulSyncs: 0,
-  failedSyncs: 0,
-  errors: [],
-  currentTier: null,
-  tierLastRun: {
-    high: null,
-    medium: null,
-    low: null,
-    full: null
-  }
-};
-var schedulerIntervals = {
-  high: null,
-  medium: null,
-  low: null,
-  full: null
-};
-var frequencyToMs = {
-  "every_15_minutes": 15 * 60 * 1e3,
-  "every_30_minutes": 30 * 60 * 1e3,
-  "hourly": 60 * 60 * 1e3,
-  "every_2_hours": 2 * 60 * 60 * 1e3,
-  "every_4_hours": 4 * 60 * 60 * 1e3,
-  "every_6_hours": 6 * 60 * 60 * 1e3,
-  "every_12_hours": 12 * 60 * 60 * 1e3,
-  "daily": 24 * 60 * 60 * 1e3,
-  "weekly": 7 * 24 * 60 * 60 * 1e3
-};
-function startDataSyncScheduler(defaultIntervalMs = 60 * 60 * 1e3) {
-  if (schedulerStatus2.isRunning) {
-    log31.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u5728\u8FD0\u884C\u4E2D");
-    return;
-  }
-  schedulerStatus2.isRunning = true;
-  log31.info("[DataSyncScheduler] v219: \u542F\u52A8\u7EDF\u4E00\u540C\u6B65\u5F15\u64CE\u9A71\u52A8\u7684\u5206\u5C42\u540C\u6B65\u8C03\u5EA6\u5668...");
-  logSystem("DataSyncScheduler", "v219\u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u542F\u52A8", { defaultIntervalMs, mode: "unified_engine" });
-  schedulerIntervals.high = setInterval(async () => {
-    await executeUnifiedSync("high");
-  }, SYNC_TIER_CONFIG.high.intervalMs);
-  log31.info(`[DataSyncScheduler] v219: \u9AD8\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.high.intervalMs / 1e3 / 60} \u5206\u949F`);
-  schedulerIntervals.medium = setInterval(async () => {
-    await executeUnifiedSync("medium");
-  }, SYNC_TIER_CONFIG.medium.intervalMs);
-  log31.info(`[DataSyncScheduler] v219: \u4E2D\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.medium.intervalMs / 1e3 / 60} \u5206\u949F`);
-  schedulerIntervals.full = setInterval(async () => {
-    await executeUnifiedSync("full");
-  }, defaultIntervalMs);
-  schedulerStatus2.nextRunTime = new Date(Date.now() + defaultIntervalMs);
-  log31.info(`[DataSyncScheduler] v219: \u5B8C\u6574\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
-  setTimeout(async () => {
-    log31.info("[DataSyncScheduler] v219: \u542F\u52A8\u540E\u9996\u6B21\u9AD8\u9891\u540C\u6B65...");
-    await executeUnifiedSync("high");
-  }, 2 * 60 * 1e3);
-  setInterval(() => {
-    try {
-      const { logHealthSnapshot: logHealthSnapshot2 } = (init_unifiedSyncEngine(), __toCommonJS(unifiedSyncEngine_exports));
-      logHealthSnapshot2();
-    } catch (err2) {
-      log31.warn(`[DataSyncScheduler] v220: \u5065\u5EB7\u76D1\u63A7\u5FEB\u7167\u5931\u8D25: ${err2.message}`);
-    }
-  }, 15 * 60 * 1e3);
-  log31.info("[DataSyncScheduler] v220: \u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 15\u5206\u949F");
-  setInterval(async () => {
-    try {
-      const { processRetryTasks: processRetryTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
-      const retryResult = await processRetryTasks2();
-      if (retryResult.processed > 0) {
-        log31.warn(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5B8C\u6210: \u5904\u7406=${retryResult.processed}, \u6210\u529F=${retryResult.synced}, \u5931\u8D25=${retryResult.failed}`);
-      }
-    } catch (err2) {
-      log31.error(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
-    }
-  }, 5 * 60 * 1e3);
-  log31.info(`[DataSyncScheduler] v137: \u4F18\u5316\u4EFB\u52A1\u91CD\u8BD5\u540C\u6B65\u5F15\u64CE\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 5\u5206\u949F`);
-  log31.info(`[DataSyncScheduler] v219: \u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u5B8C\u6574\u540C\u6B65\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
-}
-function stopDataSyncScheduler() {
-  if (!schedulerStatus2.isRunning) {
-    log31.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u672A\u5728\u8FD0\u884C");
-    return;
-  }
-  Object.keys(schedulerIntervals).forEach((tier) => {
-    const interval = schedulerIntervals[tier];
-    if (interval) {
-      clearInterval(interval);
-      schedulerIntervals[tier] = null;
-    }
-  });
-  schedulerStatus2.isRunning = false;
-  schedulerStatus2.nextRunTime = null;
-  schedulerStatus2.currentTier = null;
-  log31.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-  logSystem("DataSyncScheduler", "\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-}
-var tierRunningState = {
-  high: false,
-  medium: false,
-  full: false
-};
-async function executeUnifiedSync(tier) {
-  if (tier === "high") {
-    if (tierRunningState.full) {
-      log31.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bhigh\u6B65\u9AA4\uFF09`);
-      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
-      return;
-    }
-    if (tierRunningState.medium) {
-      log31.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08\u907F\u514DAPI\u5E76\u53D1\u538B\u529B\uFF09`);
-      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "medium_running" });
-      return;
-    }
-  }
-  if (tier === "medium") {
-    if (tierRunningState.full) {
-      log31.info(`[DataSyncScheduler] v222: medium\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bmedium\u6B65\u9AA4\uFF09`);
-      logSync("DataSyncScheduler", "v222: medium\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
-      return;
-    }
-  }
-  tierRunningState[tier] = true;
-  log31.info(`[DataSyncScheduler] v222: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
-  logSync("DataSyncScheduler", `v222: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
-  schedulerStatus2.currentTier = tier;
-  try {
-    const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-    const batchResult = await syncAllAccounts2(tier);
-    schedulerStatus2.tierLastRun[tier] = /* @__PURE__ */ new Date();
-    schedulerStatus2.lastRunTime = /* @__PURE__ */ new Date();
-    schedulerStatus2.successfulSyncs += batchResult.successfulAccounts;
-    schedulerStatus2.failedSyncs += batchResult.failedAccounts;
-    schedulerStatus2.totalSyncs += batchResult.totalAccounts;
-    log31.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}\u5B8C\u6210: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} \u6210\u529F, ${batchResult.failedAccounts} \u5931\u8D25, ${batchResult.skippedAccounts} \u8DF3\u8FC7, \u8017\u65F6 ${batchResult.durationMs}ms`);
-    if (tier === "full" || tier === "low") {
-      for (const accountResult of batchResult.accountResults) {
-        if (!accountResult.success) continue;
-        try {
-          const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
-          await triggerAccountOptimizations2(accountResult.accountId, "unified_sync_complete");
-          log31.info(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210`);
-        } catch (optErr) {
-          log31.error(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25: ${optErr.message}`);
-        }
-      }
-    }
-    if (tier === "full") {
-      schedulerStatus2.nextRunTime = new Date(Date.now() + (schedulerIntervals.full ? 60 * 60 * 1e3 : 30 * 60 * 1e3));
-    }
-    schedulerStatus2.errors = schedulerStatus2.errors.slice(-10);
-  } catch (error54) {
-    log31.error(`[DataSyncScheduler] v219: ${tier}\u5C42\u540C\u6B65\u6267\u884C\u5931\u8D25:`, error54);
-    schedulerStatus2.errors.push(`v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
-    logSyncError("DataSyncScheduler", `v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25`, { tier, error: error54.message });
-  }
-  schedulerStatus2.currentTier = null;
-  tierRunningState[tier] = false;
-}
-var OPTIMIZATION_SCHEDULE = {
-  intraday_pacing: {
-    type: "intraday_pacing",
-    description: "\u65E5\u5185\u8282\u594F\u76D1\u63A7 - \u9884\u7B97\u6D88\u8017\u901F\u5EA6\u76D1\u63A7\u548C\u5F02\u5E38\u6D41\u91CF\u68C0\u6D4B",
-    intervalMs: 30 * 60 * 1e3,
-    // 每30分钟
-    specificModules: []
-    // 独立执行，不走优化目标引擎
-  },
-  risk_scan: {
-    type: "risk_scan",
-    description: "\u9AD8\u9891\u98CE\u63A7\u626B\u63CF - \u96F6\u66DD\u5149\u98CE\u66B4\u3001\u5F02\u5E38\u82B1\u9500\u3001CPC\u98D9\u5347\u68C0\u6D4B",
-    intervalMs: 2 * 60 * 60 * 1e3,
-    // 每2小时（从4小时缩短到2小时）
-    specificModules: []
-    // 仅风控，不执行优化模块
-  },
-  dayparting_adjustment: {
-    type: "dayparting_adjustment",
-    description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
-    intervalMs: 60 * 60 * 1e3,
-    // 每小时
-    specificModules: ["multidim", "dayparting", "coordination"]
-    // v179: 添加multidim模块以生成分时竞价规则
-  },
-  dayparting_budget: {
-    type: "dayparting_budget",
-    description: "v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574 - \u6839\u636E\u661F\u671F\u51E0\u7684\u8868\u73B0\u52A8\u6001\u8C03\u6574\u9884\u7B97",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    // 每天执行一次
-    cronHours: [6],
-    // 凌昨6:00执行（在分时竞价规则生成后）
-    specificModules: ["multidim", "dayparting_budget"]
-    // 先生成规则，再应用预算
-  },
-  daily_bid_optimization: {
-    type: "daily_bid_optimization",
-    description: "\u51FA\u4EF7\u667A\u80FD\u4F18\u5316 - \u6BCF2\u5C0F\u65F6\u57FA\u4E8E\u5E02\u573A\u66F2\u7EBF\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u51FA\u4EF7",
-    intervalMs: 2 * 60 * 60 * 1e3,
-    // v122h: 从每日1次提升到每2小时，与宣传一致
-    specificModules: ["bid", "keyword", "coordination"]
-  },
-  daily_placement_optimization: {
-    type: "daily_placement_optimization",
-    description: "\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316 - \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u8C03\u6574",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    cronHours: [3],
-    // 凌晨3:00
-    specificModules: ["placement"]
-    // 仅位置优化
-  },
-  daily_search_term_negation: {
-    type: "daily_search_term_negation",
-    description: "\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A - \u81EA\u52A8\u5426\u5B9A\u4F4E\u6548\u641C\u7D22\u8BCD",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    cronHours: [4],
-    // 凌晨4:00
-    specificModules: ["searchterm"]
-    // 仅搜索词分析
-  },
-  budget_allocation: {
-    type: "budget_allocation",
-    description: "\u9884\u7B97\u667A\u80FD\u5206\u914D - \u65E9\u665A\u4E24\u6B21\u9884\u7B97\u5206\u914D",
-    intervalMs: 12 * 60 * 60 * 1e3,
-    cronHours: [8, 18],
-    // 早8:00 + 晚18:00
-    specificModules: ["budget"]
-    // 仅预算分配
-  },
-  search_term_harvest: {
-    type: "search_term_harvest",
-    description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u65E5\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    // v192: 从每周改为每日
-    cronHours: [5],
-    // 凌晨5:00
-    // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
-    specificModules: []
-    // 独立执行，使用searchTermHarvester服务
-  },
-  weekly_report: {
-    type: "weekly_report",
-    description: "\u7EE9\u6548\u5468\u62A5 - \u6BCF\u5468\u81EA\u52A8\u751F\u6210\u5E7F\u544A\u4F18\u5316\u62A5\u544A",
-    intervalMs: 7 * 24 * 60 * 60 * 1e3,
-    cronHours: [9],
-    // 上午9:00
-    cronDayOfWeek: 1,
-    // 周一
-    specificModules: []
-  },
-  // v197: 下一代算法定时任务
-  nextgen_maintenance: {
-    type: "nextgen_maintenance",
-    description: "v204: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
-    intervalMs: 30 * 60 * 1e3,
-    // v232: 从2小时大幅缩短到30分钟，加速算法进化
-    specificModules: []
-  },
-  nextgen_model_training: {
-    type: "nextgen_model_training",
-    description: "v197: NextGen\u6A21\u578B\u8BAD\u7EC3 - CQL\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60\u6A21\u578B\u8BAD\u7EC3",
-    intervalMs: 6 * 60 * 60 * 1e3,
-    // 每6小时
-    specificModules: []
-  },
-  nextgen_budget_optimization: {
-    type: "nextgen_budget_optimization",
-    description: "v197: NextGen\u9884\u7B97\u7EC4\u5408\u4F18\u5316 + \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    // 每日
-    cronHours: [2],
-    // 凌晨2:00
-    specificModules: []
-  }
-};
-var optimizationIntervals = {
-  intraday_pacing: null,
-  risk_scan: null,
-  dayparting_adjustment: null,
-  dayparting_budget: null,
-  // v179
-  daily_bid_optimization: null,
-  daily_placement_optimization: null,
-  daily_search_term_negation: null,
-  budget_allocation: null,
-  search_term_harvest: null,
-  weekly_report: null,
-  // v197: NextGen定时任务
-  nextgen_maintenance: null,
-  nextgen_model_training: null,
-  nextgen_budget_optimization: null
-};
-var executionLocks = {};
-var lastExecutionHour = {};
-var moduleLastExecutionMap = /* @__PURE__ */ new Map();
-function shouldExecuteModuleForTarget(targetId, moduleName, stage) {
-  const key = `${targetId}:${moduleName}`;
-  const lastExecuted = moduleLastExecutionMap.get(key) || null;
-  const result = shouldExecuteModule(moduleName, lastExecuted, stage);
-  return { shouldExecute: result.shouldExecute, reason: result.reason };
-}
-function recordModuleExecution(targetId, moduleName) {
-  const key = `${targetId}:${moduleName}`;
-  moduleLastExecutionMap.set(key, /* @__PURE__ */ new Date());
-}
-function acquireLock(taskType) {
-  if (executionLocks[taskType]) {
-    log31.info(`[OptimizationScheduler] \u4EFB\u52A1 ${taskType} \u6B63\u5728\u6267\u884C\u4E2D\uFF0C\u8DF3\u8FC7`);
-    return false;
-  }
-  executionLocks[taskType] = true;
-  return true;
-}
-function releaseLock(taskType) {
-  executionLocks[taskType] = false;
-}
-function shouldExecuteThisHour(taskType) {
-  const now = /* @__PURE__ */ new Date();
-  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
-  if (lastExecutionHour[taskType] === hourKey) {
-    return false;
-  }
-  lastExecutionHour[taskType] = hourKey;
-  return true;
-}
-async function startOptimizationScheduler2() {
-  log31.info("[OptimizationScheduler] \u542F\u52A8v156\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
-  try {
-    const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-    const targets = await getEnabledOptimizationTargets2();
-    for (const target of targets) {
-      if (target.lastExecutionTime) {
-        const modules = ["bid", "negativeKeyword", "searchTermHarvest", "placement", "budget", "dayparting"];
-        for (const mod of modules) {
-          const key = `${target.id}:${mod}`;
-          if (!moduleLastExecutionMap.has(key)) {
-            moduleLastExecutionMap.set(key, target.lastExecutionTime);
-          }
-        }
-        log31.info(`[OptimizationScheduler] v156: \u6062\u590D\u4F18\u5316\u76EE\u6807 ${target.name} \u7684\u6A21\u5757\u6267\u884C\u65F6\u95F4: ${target.lastExecutionTime.toISOString()}`);
-      }
-    }
-    log31.info(`[OptimizationScheduler] v156: \u5DF2\u4ECE\u6570\u636E\u5E93\u6062\u590D ${moduleLastExecutionMap.size} \u4E2A\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55`);
-  } catch (restoreErr) {
-    log31.error(`[OptimizationScheduler] v156: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
-  }
-  setTimeout(() => {
-    optimizationIntervals.intraday_pacing = setInterval(async () => {
-      await executeOptimizationTask("intraday_pacing");
-    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
-    executeOptimizationTask("intraday_pacing");
-  }, 1 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F\uFF0C\u504F\u79FB: 1\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.risk_scan = setInterval(async () => {
-      await executeOptimizationTask("risk_scan");
-    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-    executeOptimizationTask("risk_scan");
-  }, 6 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 6\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
-      await executeOptimizationTask("dayparting_adjustment");
-    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
-    executeOptimizationTask("dayparting_adjustment");
-  }, 11 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6\uFF0C\u504F\u79FB: 11\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.dayparting_budget = setInterval(async () => {
-      await executeOptimizationTask("dayparting_budget");
-    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
-  }, 16 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u504F\u79FB: 16\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-      await executeOptimizationTask("daily_bid_optimization");
-    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
-    executeOptimizationTask("daily_bid_optimization");
-  }, 21 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 21\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
-      await executeOptimizationTask("daily_placement_optimization");
-    }, 4 * 60 * 60 * 1e3);
-    executeOptimizationTask("daily_placement_optimization");
-  }, 26 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 26\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
-      await executeOptimizationTask("daily_search_term_negation");
-    }, 12 * 60 * 60 * 1e3);
-    executeOptimizationTask("daily_search_term_negation");
-  }, 31 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u504F\u79FB: 31\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.budget_allocation = setInterval(async () => {
-      await executeOptimizationTask("budget_allocation");
-    }, 4 * 60 * 60 * 1e3);
-    executeOptimizationTask("budget_allocation");
-  }, 36 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
-  optimizationIntervals.search_term_harvest = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    if (localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
-      await executeOptimizationTask("search_term_harvest");
-    }
-  }, 60 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
-  optimizationIntervals.weekly_report = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    const localDow = getLocalDayOfWeek(now, "US");
-    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour("weekly_report")) {
-      await executeOptimizationTask("weekly_report");
-    }
-  }, 60 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
-  log31.info("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
-  log31.debug("[OptimizationScheduler] \u751F\u547D\u5468\u671F\u9891\u7387\u8868:");
-  log31.info("  | \u6A21\u5757           | \u542F\u52A8\u671F  | \u6210\u957F\u671F  | \u6210\u719F\u671F  |");
-  log31.debug("  |----------------|---------|---------|---------|");
-  log31.debug("  | \u51FA\u4EF7\u4F18\u5316       | 4\u5C0F\u65F6   | 6\u5C0F\u65F6   | 12\u5C0F\u65F6  |");
-  log31.debug("  | \u5206\u65F6\u8C03\u6574       | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   |");
-  log31.debug("  | \u4F4D\u7F6E\u503E\u659C       | 24\u5C0F\u65F6  | 12\u5C0F\u65F6  | 12\u5C0F\u65F6  |");
-  log31.debug("  | \u5426\u5B9A\u641C\u7D22\u8BCD     | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
-  log31.debug("  | \u641C\u7D22\u8BCD\u8FC1\u79FB     | 72\u5C0F\u65F6  | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
-  log31.debug("  | \u9884\u7B97\u5206\u914D       | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   |");
-  try {
-    startAutoCorrector();
-    log31.info("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8");
-  } catch (correctorErr) {
-    log31.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
-  }
-  setTimeout(() => {
-    executeOptimizationTask("nextgen_maintenance");
-  }, 2 * 60 * 1e3);
-  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
-    await executeOptimizationTask("nextgen_maintenance");
-  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
-  log31.info(`[OptimizationScheduler] v232: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 6e4}\u5206\u949F\uFF0C\u9996\u6B21\u6267\u884C: 2\u5206\u949F\u540E`);
-  optimizationIntervals.nextgen_model_training = setInterval(async () => {
-    await executeOptimizationTask("nextgen_model_training");
-  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
-  setTimeout(() => {
-    executeOptimizationTask("nextgen_model_training");
-  }, 10 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] v204: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 10\u5206\u949F\u540E`);
-  optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    if (localHour === 2 && shouldExecuteThisHour("nextgen_budget_optimization")) {
-      await executeOptimizationTask("nextgen_budget_optimization");
-    }
-  }, 60 * 60 * 1e3);
-  log31.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66682:00`);
-}
-function stopOptimizationScheduler2() {
-  Object.keys(optimizationIntervals).forEach((type) => {
-    const interval = optimizationIntervals[type];
-    if (interval) {
-      clearInterval(interval);
-      optimizationIntervals[type] = null;
-    }
-  });
-  log31.debug("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-  try {
-    stopAutoCorrector();
-  } catch (e6) {
-  }
-}
-async function executeOptimizationTask(taskType) {
-  if (!acquireLock(taskType)) return;
-  const config2 = OPTIMIZATION_SCHEDULE[taskType];
-  log31.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
-  try {
-    const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-    switch (taskType) {
-      // ==================== 日内节奏监控（每30分钟）====================
-      case "intraday_pacing": {
-        log31.info(`[OptimizationScheduler] \u6267\u884C\u65E5\u5185\u8282\u594F\u76D1\u63A7`);
-        try {
-          const { checkAllCampaignsPacing: checkAllCampaignsPacing2, applyIntradayAdjustment: applyIntradayAdjustment2 } = await Promise.resolve().then(() => (init_intradayPacingService(), intradayPacingService_exports));
-          const targets = await getEnabledOptimizationTargets2();
-          const checkedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (checkedAccountIds.has(target.accountId)) continue;
-            checkedAccountIds.add(target.accountId);
-            try {
-              const adjustments = await checkAllCampaignsPacing2(target.accountId);
-              const criticalCount = adjustments.filter((a4) => a4.pacingStatus === "critical" || a4.anomalyDetected).length;
-              const overspendCount = adjustments.filter((a4) => a4.pacingStatus === "overspending").length;
-              const underspendCount = adjustments.filter((a4) => a4.pacingStatus === "underspending").length;
-              for (const adj of adjustments) {
-                if (adj.suggestedAction !== "none" && (adj.pacingStatus === "critical" || adj.pacingStatus === "overspending")) {
-                  await applyIntradayAdjustment2(adj);
-                }
-              }
-              log31.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5B8C\u6210: ${adjustments.length}\u4E2ACampaign, \u5371\u6025=${criticalCount}, \u8D85\u901F=${overspendCount}, \u6B20\u901F=${underspendCount}`);
-            } catch (pacingError) {
-              log31.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5F02\u5E38:`, pacingError.message);
-            }
-          }
-        } catch (pacingError) {
-          log31.error(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5F02\u5E38:`, pacingError.message);
-        }
-        break;
-      }
-      // ==================== 高频风控扫描（每2小时，仅风控）====================
-      case "risk_scan": {
-        log31.info(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u4EC5\u98CE\u63A7\uFF0C\u4E0D\u542B\u4F18\u5316)`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          const scannedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (scannedAccountIds.has(target.accountId)) continue;
-            scannedAccountIds.add(target.accountId);
-            try {
-              const riskCampaigns = await getCampaignsByAccountId(target.accountId);
-              const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
-              let totalRisks = 0;
-              for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
-                if (riskResult.hasRisk) {
-                  totalRisks += riskResult.risks.length;
-                  for (const risk of riskResult.risks) {
-                    log31.warn(`[RiskScan] Campaign ${campaign.campaignName}: [${risk.severity}] ${risk.description}`);
-                  }
-                }
-              }
-              log31.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
-            } catch (riskError) {
-              log31.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
-            }
-          }
-        } catch (riskError) {
-          log31.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
-        }
-        break;
-      }
-      // ==================== 分时竞价调整（每小时）====================
-      case "dayparting_adjustment": {
-        log31.info(`[OptimizationScheduler] \u6267\u884C\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574`);
-        try {
-          const daypartingResults = await executeAllEnabledTargets2(void 0, {
-            dryRun: false,
-            specificModules: ["multidim", "dayparting", "coordination"]
-          });
-          log31.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
-          for (const r5 of daypartingResults) {
-            log31.debug(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
-          }
-        } catch (daypartingError) {
-          log31.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
-        }
-        break;
-      }
-      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
-      case "dayparting_budget": {
-        log31.info(`[OptimizationScheduler] v179: \u6267\u884C\u5206\u65F6\u9884\u7B97\u8C03\u6574`);
-        try {
-          const daypartingBudgetResults = await executeAllEnabledTargets2(void 0, {
-            dryRun: false,
-            specificModules: ["multidim", "dayparting_budget"]
-          });
-          log31.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5B8C\u6210: ${daypartingBudgetResults.length}\u4E2A\u76EE\u6807`);
-          for (const r5 of daypartingBudgetResults) {
-            log31.debug(`  - ${r5.targetName}: \u5206\u65F6\u9884\u7B97\u8C03\u6574=${r5.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
-          }
-        } catch (daypartingBudgetError) {
-          log31.error(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5931\u8D25:`, daypartingBudgetError.message);
-        }
-        break;
-      }
-      // ==================== v143: 出价智能优化（生命周期感知）====================
-      case "daily_bid_optimization": {
-        log31.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "bid", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log31.info(`[OptimizationScheduler] \u8DF3\u8FC7\u51FA\u4EF7\u4F18\u5316: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["bid", "keyword", "coordination"]
-              });
-              recordModuleExecution(target.id, "bid");
-              executedCount++;
-              log31.debug(`  - ${target.name} [${stage}]: \u51FA\u4EF7\u8C03\u6574=${result.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${result.keywordStatusChanges.pausedCount}`);
-            } catch (targetErr) {
-              log31.error(`  - ${target.name} \u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log31.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (bidError) {
-          log31.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
-        }
-        break;
-      }
-      // ==================== v143: 位置优化（生命周期感知）====================
-      case "daily_placement_optimization": {
-        log31.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "placement", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log31.info(`[OptimizationScheduler] \u8DF3\u8FC7\u4F4D\u7F6E\u4F18\u5316: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["placement"]
-              });
-              recordModuleExecution(target.id, "placement");
-              executedCount++;
-              log31.debug(`  - ${target.name} [${stage}]: \u4F4D\u7F6E\u8C03\u6574=${result.placementOptimization.adjustmentsCount}`);
-            } catch (targetErr) {
-              log31.error(`  - ${target.name} \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log31.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (placementError) {
-          log31.error(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25:`, placementError.message);
-        }
-        break;
-      }
-      // ==================== v143: 搜索词否定（生命周期感知）====================
-      case "daily_search_term_negation": {
-        log31.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "negativeKeyword", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log31.info(`[OptimizationScheduler] \u8DF3\u8FC7\u641C\u7D22\u8BCD\u5426\u5B9A: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["searchterm"]
-              });
-              recordModuleExecution(target.id, "negativeKeyword");
-              executedCount++;
-              log31.debug(`  - ${target.name} [${stage}]: \u5426\u5B9A\u8BCD\u6DFB\u52A0=${result.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u5173\u952E\u8BCD=${result.searchTermAnalysis.newKeywordsAdded}`);
-            } catch (targetErr) {
-              log31.error(`  - ${target.name} \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log31.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (searchTermError) {
-          log31.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25:`, searchTermError.message);
-        }
-        break;
-      }
-      // ==================== v143: 预算智能分配（生命周期感知）====================
-      case "budget_allocation": {
-        log31.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "budget", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log31.info(`[OptimizationScheduler] \u8DF3\u8FC7\u9884\u7B97\u5206\u914D: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["budget"]
-              });
-              recordModuleExecution(target.id, "budget");
-              executedCount++;
-              log31.debug(`  - ${target.name} [${stage}]: \u9884\u7B97\u8C03\u6574=${result.budgetAllocation.adjustmentsCount}`);
-            } catch (targetErr) {
-              log31.error(`  - ${target.name} \u9884\u7B97\u5206\u914D\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log31.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (budgetError) {
-          log31.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
-        }
-        break;
-      }
-      // ==================== 搜索词收割（周一凌晨5:00）====================
-      case "search_term_harvest": {
-        log31.info(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          const harvestedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (harvestedAccountIds.has(target.accountId)) continue;
-            harvestedAccountIds.add(target.accountId);
-            try {
-              const harvestResult = await batchHarvestSearchTerms(
-                target.accountId,
-                { dryRun: false }
-              );
-              log31.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
-            } catch (harvestError) {
-              log31.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
-            }
-          }
-        } catch (harvestError) {
-          log31.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
-        }
-        break;
-      }
-      // ==================== 绩效周报（周一上午9:00）====================
-      case "weekly_report": {
-        log31.debug(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
-        break;
-      }
-      // ==================== v197: NextGen维护任务 ====================
-      case "nextgen_maintenance": {
-        log31.info(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u4EFB\u52A1\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              const result = await executeNextGenMaintenanceTasks(target.accountId);
-              log31.debug(`  - \u8D26\u6237${target.accountId}: \u7279\u5F81\u7F13\u5B58=${result.featuresCached}, Sigmoid\u62DF\u5408=${result.sigmoidFitted.fitted}, Reward\u56DE\u586B=${result.rewardsBackfilled}, \u56E0\u679C\u5206\u6790=${result.causalAnalysis.analyzed}`);
-            } catch (err2) {
-              log31.error(`  - \u8D26\u6237${target.accountId} NextGen\u7EF4\u62A4\u5931\u8D25: ${err2.message}`);
-            }
-          }
-          try {
-            const { backfillBidPerformanceResults: backfillBidPerformanceResults2 } = await Promise.resolve().then(() => (init_rlDataRecorder(), rlDataRecorder_exports));
-            const backfillResult = await backfillBidPerformanceResults2();
-            log31.info(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5B8C\u6210: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
-          } catch (bErr) {
-            log31.error(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5931\u8D25: ${bErr.message}`);
-          }
-        } catch (err2) {
-          log31.error(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-      // ==================== v197: NextGen模型训练 ====================
-      case "nextgen_model_training": {
-        log31.info(`[OptimizationScheduler] v197: NextGen\u6A21\u578B\u8BAD\u7EC3\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              await executeModelTraining(target.accountId);
-              log31.info(`  - \u8D26\u6237${target.accountId}: CQL\u6A21\u578B\u8BAD\u7EC3\u5B8C\u6210`);
-            } catch (err2) {
-              log31.error(`  - \u8D26\u6237${target.accountId} CQL\u8BAD\u7EC3\u5931\u8D25: ${err2.message}`);
-            }
-          }
-        } catch (err2) {
-          log31.error(`[OptimizationScheduler] v197: \u6A21\u578B\u8BAD\u7EC3\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-      // ==================== v197: NextGen预算优化+关键词图谱 ====================
-      case "nextgen_budget_optimization": {
-        log31.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              await executeBudgetOptimization(target.accountId);
-              log31.info(`  - \u8D26\u6237${target.accountId}: \u9884\u7B97\u7EC4\u5408\u4F18\u5316\u5B8C\u6210`);
-            } catch (err2) {
-              log31.error(`  - \u8D26\u6237${target.accountId} \u9884\u7B97\u4F18\u5316\u5931\u8D25: ${err2.message}`);
-            }
-            try {
-              await executeKeywordGraphAnalysis(target.accountId);
-              log31.info(`  - \u8D26\u6237${target.accountId}: \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790\u5B8C\u6210`);
-            } catch (err2) {
-              log31.error(`  - \u8D26\u6237${target.accountId} \u5173\u952E\u8BCD\u56FE\u8C31\u5931\u8D25: ${err2.message}`);
-            }
-          }
-        } catch (err2) {
-          log31.error(`[OptimizationScheduler] v197: \u9884\u7B97\u4F18\u5316\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-    }
-    log31.info(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
-  } catch (error54) {
-    log31.error(`[OptimizationScheduler] ${taskType} \u6267\u884C\u5931\u8D25:`, error54.message);
-  } finally {
-    releaseLock(taskType);
-  }
-}
-
 // server/_core/index.ts
+init_dataSyncScheduler();
 init_db2();
 init_sqsConsumerService();
 
@@ -376307,6 +376631,7 @@ init_logger2();
 init_db2();
 init_schema2();
 init_drizzle_orm();
+init_dataSyncScheduler();
 init_sqsConsumerService();
 init_systemVersion();
 init_logger2();
@@ -377470,6 +377795,150 @@ function extractCount(result) {
   }
   return result.cnt ?? result.total ?? result.count ?? 0;
 }
+router3.get("/nextgen-monitor", opsAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const hoursBack = parseInt(req.query.hours) || 24;
+    const since = new Date(Date.now() - hoursBack * 36e5).toISOString();
+    const bidStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_events,
+        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
+        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as api_synced,
+        SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as api_failed,
+        SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as api_pending
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND action_type IN ('bid_adjustment', 'bid_optimization')
+    `));
+    const algorithmStats = await db.execute(sql.raw(`
+      SELECT 
+        CASE 
+          WHEN change_reason LIKE '%NextGen%' THEN 'NextGen'
+          WHEN change_reason LIKE '%\u63A2\u7D22%' OR change_reason LIKE '%RL\u63A2\u7D22%' THEN 'RL-Exploration'
+          WHEN change_reason LIKE '%PostDeploy%' THEN 'PostDeploy'
+          ELSE 'RuleEngine'
+        END as algorithm_source,
+        COUNT(*) as count,
+        SUM(CASE WHEN previous_value != new_value THEN 1 ELSE 0 END) as effective_count
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND action_type IN ('bid_adjustment', 'bid_auto_adjust', 'bid_increase', 'bid_decrease', 'bid_set')
+      GROUP BY algorithm_source
+      ORDER BY count DESC
+    `));
+    const rlStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_logs,
+        SUM(CASE WHEN reward IS NOT NULL AND reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as reward_filled,
+        SUM(CASE WHEN reward IS NULL OR reward_filled_at IS NULL THEN 1 ELSE 0 END) as reward_pending,
+        SUM(CASE WHEN action_type = 'bid_increase' THEN 1 ELSE 0 END) as bid_increase_count,
+        SUM(CASE WHEN action_type = 'bid_decrease' THEN 1 ELSE 0 END) as bid_decrease_count,
+        SUM(CASE WHEN action_type = 'bid_hold' THEN 1 ELSE 0 END) as bid_hold_count,
+        SUM(CASE WHEN action_source = 'linucb' THEN 1 ELSE 0 END) as linucb_count,
+        SUM(CASE WHEN action_source = 'cql' THEN 1 ELSE 0 END) as cql_count,
+        SUM(CASE WHEN action_source = 'rule_based' THEN 1 ELSE 0 END) as rule_based_count
+      FROM rl_training_logs 
+      WHERE created_at >= '${since}'
+    `));
+    const explorationStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_exploration_actions
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND change_reason LIKE '%RL\u63A2\u7D22%'
+    `));
+    const sigmoidCount = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM sigmoid_curve_params WHERE updated_at >= '${since}'
+    `));
+    const featureCount = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM context_feature_cache WHERE updated_at >= '${since}'
+    `));
+    const opsLogs = opsCollector.query({
+      category: "optimization",
+      keyword: "NextGen",
+      limit: 20
+    });
+    const bid = Array.isArray(bidStats) ? bidStats[0]?.[0] || bidStats[0] : bidStats;
+    const rl = Array.isArray(rlStats) ? rlStats[0]?.[0] || rlStats[0] : rlStats;
+    const exploration = Array.isArray(explorationStats) ? explorationStats[0]?.[0] || explorationStats[0] : explorationStats;
+    const sigmoid2 = extractCount(Array.isArray(sigmoidCount) ? sigmoidCount[0] : sigmoidCount);
+    const features = extractCount(Array.isArray(featureCount) ? featureCount[0] : featureCount);
+    const totalBidEvents = Number(bid?.total_events) || 0;
+    const actualAdjustments = Number(bid?.actual_adjustments) || 0;
+    const holdCount = Number(bid?.hold_count) || 0;
+    const effectiveRate = totalBidEvents > 0 ? (actualAdjustments / totalBidEvents * 100).toFixed(1) : "0.0";
+    const totalRLLogs = Number(rl?.total_logs) || 0;
+    const rewardFilled = Number(rl?.reward_filled) || 0;
+    const advancedAlgoCount = Number(rl?.linucb_count || 0) + Number(rl?.cql_count || 0);
+    const advancedRate = totalRLLogs > 0 ? (advancedAlgoCount / totalRLLogs * 100).toFixed(1) : "0.0";
+    const rlExplorationCount = Number(exploration?.total_exploration_actions) || 0;
+    let healthStatus = "healthy";
+    const healthIssues = [];
+    if (parseFloat(effectiveRate) < 10 && totalBidEvents > 10) {
+      healthStatus = "warning";
+      healthIssues.push(`\u51FA\u4EF7\u6709\u6548\u7387\u4EC5${effectiveRate}%\uFF0C\u5927\u91CF\u8C03\u6574\u88AB\u5224\u5B9A\u4E3Ahold`);
+    }
+    if (advancedAlgoCount === 0 && totalRLLogs > 50) {
+      healthStatus = "warning";
+      healthIssues.push("\u9AD8\u7EA7\u7B97\u6CD5\u4ECE\u672A\u88AB\u6FC0\u6D3B\uFF0CRL\u51B7\u542F\u52A8\u53EF\u80FD\u5B58\u5728\u95EE\u9898");
+    }
+    if (rewardFilled === 0 && totalRLLogs > 20) {
+      healthStatus = "critical";
+      healthIssues.push("Reward\u56DE\u586B\u4E3A0\uFF0C\u9AD8\u7EA7\u7B97\u6CD5\u65E0\u6CD5\u5B66\u4E60");
+    }
+    res.json({
+      monitorPeriod: `\u8FC7\u53BB${hoursBack}\u5C0F\u65F6`,
+      since,
+      health: {
+        status: healthStatus,
+        issues: healthIssues
+      },
+      bidOptimization: {
+        totalEvents: totalBidEvents,
+        actualAdjustments,
+        holdCount,
+        effectiveRate: `${effectiveRate}%`,
+        apiSynced: Number(bid?.api_synced) || 0,
+        apiFailed: Number(bid?.api_failed) || 0,
+        apiPending: Number(bid?.api_pending) || 0
+      },
+      algorithmDistribution: Array.isArray(algorithmStats) ? Array.isArray(algorithmStats[0]) ? algorithmStats[0] : algorithmStats : [],
+      rlColdStart: {
+        totalRLLogs,
+        rewardFilled,
+        rewardPending: Number(rl?.reward_pending) || 0,
+        bidIncreaseCount: Number(rl?.bid_increase_count) || 0,
+        bidDecreaseCount: Number(rl?.bid_decrease_count) || 0,
+        bidHoldCount: Number(rl?.bid_hold_count) || 0,
+        explorationActions: rlExplorationCount,
+        advancedAlgorithm: {
+          linucbCount: Number(rl?.linucb_count) || 0,
+          cqlCount: Number(rl?.cql_count) || 0,
+          ruleBasedCount: Number(rl?.rule_based_count) || 0,
+          advancedRate: `${advancedRate}%`
+        }
+      },
+      modelStatus: {
+        sigmoidFittedRecent: sigmoid2,
+        featuresCachedRecent: features
+      },
+      recentNextGenLogs: opsLogs.map((l6) => ({
+        timestamp: l6.timestamp,
+        level: l6.level,
+        message: l6.message
+      })),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
 var ops_default = router3;
 
 // server/_core/index.ts
@@ -379469,7 +379938,8 @@ AmazonSyncService.prototype.syncPerformanceData = async function(days = 14) {
     log37.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: \u5171${totalSynced}\u6761\u8BB0\u5F55`);
     return totalSynced;
   } catch (error54) {
-    log37.error("\u540C\u6B65\u7EE9\u6548\u6570\u636E\u5931\u8D25:", error54);
+    log37.error(`[v242] \u540C\u6B65\u7EE9\u6548\u6570\u636E\u5931\u8D25: ${JSON.stringify({ message: error54.message, status: error54.status || error54.response?.status, code: error54.code })}`);
+    log37.error("[v242] \u8BE6\u7EC6\u9519\u8BEF:", error54.stack?.substring(0, 500));
     if (error54.message?.includes("timeout") || error54.message?.includes("PENDING") || error54.message?.includes("Report generation")) {
       log37.error("v148: \u62A5\u544A\u8D85\u65F6\u6216\u751F\u6210\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u540C\u6B65\u5468\u671F\u91CD\u8BD5\u3002\u4E0D\u518D\u751F\u6210\u6A21\u62DF\u6570\u636E\u3002");
     }
@@ -379931,7 +380401,14 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
     }
     return synced;
   } catch (error54) {
-    log37.error("Error syncing keyword performance data:", error54);
+    const errorInfo = {
+      message: error54.message || "Unknown error",
+      status: error54.status || error54.response?.status,
+      code: error54.code,
+      url: error54.config?.url,
+      responseData: error54.response?.data ? JSON.stringify(error54.response.data).substring(0, 500) : void 0
+    };
+    log37.error(`[v242] \u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5931\u8D25(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
     return 0;
   }
 };
