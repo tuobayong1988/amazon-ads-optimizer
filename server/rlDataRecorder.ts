@@ -8,6 +8,9 @@
  * 4. 为离线强化学习（CQL）提供高质量训练数据
  */
 import { getDb } from "./db";
+import { createModuleLogger } from './utils/logger';
+
+const rlLog = createModuleLogger('RLDataRecorder');
 import { rlTrainingLogs, dailyPerformance, keywords, productTargets } from "../drizzle/schema";
 import { eq, and, gte, lte, isNull, sql } from "drizzle-orm";
 import { extractFeatureVector, type ContextFeatureVector } from "./contextualFeatureService";
@@ -267,12 +270,13 @@ export async function backfillRewards(accountId: number): Promise<number> {
   let filledCount = 0;
   
   try {
-    // v245: 进一步缩短回填下限 12h → 6h，加速冷启动数据积累
-    // 原因: v244部署后所有RL日志重新创建，12小时下限导致首次回填等待过久
-    // Amazon广告数据通常在3-6小时后可用，6小时是安全的最小等待时间
+    // v248: 进一步缩短回填下限 6h → 3h，打破RL冷启动死锁
+    // 根因: 6h下限导致所有RL日志reward始终为0，高级算法永远不能eligible
+    // Amazon广告数据通常在2-4小时后可用，3小时是更积极的安全下限
     // 上限保持96小时，避免因系统重启导致的回填空窗
     const hoursAgo96 = new Date(Date.now() - 96 * 3600000).toISOString();
-    const hoursAgo6 = new Date(Date.now() - 6 * 3600000).toISOString();
+    const hoursAgo3 = new Date(Date.now() - 3 * 3600000).toISOString();
+    rlLog.info(`[backfillRewards] 账户${accountId}: 查找3-96h内未回填的RL日志...`);
     
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
@@ -288,7 +292,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         eq(rlTrainingLogs.accountId, accountId),
         isNull(rlTrainingLogs.rewardFilledAt),
         gte(rlTrainingLogs.createdAt, hoursAgo96),
-        lte(rlTrainingLogs.createdAt, hoursAgo6)
+        lte(rlTrainingLogs.createdAt, hoursAgo3)
       ))
       .limit(500);
     
@@ -388,11 +392,11 @@ export async function backfillRewards(accountId: number): Promise<number> {
       }
     }
     
-    console.log(`[RLDataRecorder] Backfilled ${filledCount} rewards for account ${accountId}`);
+    rlLog.info(`[backfillRewards] 账户${accountId}: 回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}`);
     return filledCount;
     
-  } catch (error) {
-    console.error(`[RLDataRecorder] Error backfilling rewards:`, error);
+  } catch (error: any) {
+    rlLog.error(`[backfillRewards] 账户${accountId}回填异常: ${error.message}`);
     return filledCount;
   }
 }

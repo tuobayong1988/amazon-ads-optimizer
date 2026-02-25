@@ -27,7 +27,7 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   options: { maxRetries?: number; baseDelayMs?: number; label?: string } = {}
 ): Promise<T> {
-  const { maxRetries = 2, baseDelayMs = 2000, label = 'API' } = options;
+  const { maxRetries = 4, baseDelayMs = 3000, label = 'API' } = options;  // v248: 增强429限流重试（2→4次，2s→3s基础延迟）
   let lastError: any;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -43,7 +43,7 @@ async function withRetry<T>(
       }
       
       const delay = isThrottle 
-        ? Math.min(baseDelayMs * Math.pow(2, attempt), 15000) 
+        ? Math.min(baseDelayMs * Math.pow(2, attempt), 30000)  // v248: 最大退避15s→30s
         : baseDelayMs * (attempt + 1);
       log.warn(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${error.message?.substring(0, 80)})`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -263,7 +263,7 @@ export async function syncNewKeywordsToAmazon(
   
   // v127: 分批处理机制 - 每批最多50个关键词，批间延迟1秒避免限流
   const BATCH_SIZE = 50;
-  const BATCH_DELAY_MS = 1000;
+  const BATCH_DELAY_MS = 2000;  // v248: 从1000增加到2000ms，减少Amazon API 429限流
   const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
   log.info(`[AmazonApiHelper] 分批处理: 总计${newKeywords.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
   

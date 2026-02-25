@@ -655,7 +655,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_negative_keywords',
     name: 'SP否定关键词',
-    tier: 'full',
+    tier: 'medium',  // v248: 从 full 提升到 medium，提高同步频率（60min→30min）
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeKeywords();
@@ -668,7 +668,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sb_negative_keywords',
     name: 'SB否定关键词',
-    tier: 'full',
+    tier: 'medium',  // v248: 从 full 提升到 medium
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeKeywords();
@@ -681,7 +681,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_negative_targets',
     name: 'SP否定商品定位',
-    tier: 'full',
+    tier: 'medium',  // v248: 从 full 提升到 medium
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeProductTargets();
@@ -694,7 +694,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sb_negative_targets',
     name: 'SB否定商品定位',
-    tier: 'full',
+    tier: 'medium',  // v248: 从 full 提升到 medium
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeTargets();
@@ -1285,7 +1285,14 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       batchResult.accountResults.push(accountResult);
       if (accountResult.success) {
         batchResult.successfulAccounts++;
-      } else if (accountResult.errors.some(e => e.includes('已有') && e.includes('在运行'))) {
+      } else if (accountResult.errors.some(e => 
+        (e.includes('已有') && e.includes('在运行')) ||
+        e.includes('层同步在运行') ||
+        e.includes('层正在运行') ||
+        e.includes('层跟过') ||
+        e.includes('智能跳过') ||
+        e.includes('等下一轮')
+      )) {
         batchResult.skippedAccounts++;
       } else {
         batchResult.failedAccounts++;
@@ -1468,8 +1475,15 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
     const { dataSyncJobs } = await import('../drizzle/schema');
 
     for (const accountResult of batchResult.accountResults) {
-      if (accountResult.errors.some(e => e.includes('已有') && e.includes('在运行'))) {
-        continue; // 跳过被跳过的账户
+      if (accountResult.errors.some(e => 
+        (e.includes('已有') && e.includes('在运行')) ||
+        e.includes('层同步在运行') ||
+        e.includes('层正在运行') ||
+        e.includes('层跟过') ||
+        e.includes('智能跳过') ||
+        e.includes('等下一轮')
+      )) {
+        continue; // v248: 跳过层冲突导致的跳过，不记录为failed
       }
 
       try {

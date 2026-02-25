@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 245;
+export const SYSTEM_VERSION = 248;  // v248: 统一修复版本
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -251,6 +251,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v245: [系统健康修复] — (1)RL奖励回填窗口从12h降至6h加速冷启动 (2)紧急优化队列持久化到数据库(emergency_optimization_queue表) (3)风险评估结果写入anomaly_alert_logs (4)预算同步自动确认:syncSpCampaigns中检测Amazon返回budget与pendingBudget一致时自动标记synced (5)自动化部署脚本:构建→打包→部署→版本验证→自动回滚',
     affectedModules: ['bid', 'budget'],
     correctionActions: ['rerun_optimization', 'recalculate_budgets'],
+  },
+  {
+    version: 248,
+    description: 'v248: [统一修复] — (1)同步层冲突跳过正确分类: 修复v222新格式层冲突消息未被识别为skipped而被记录为failed (2)RL Reward回填下限6h→3h: 打破冷启动死锁,加速高级算法eligible (3)negative_keywords同步频率提升: 从full层(60min)提升到medium层(30min) (4)日志缓冲区扩容: 5000→15000避免日志丢失 (5)API 429限流增强: 重试2→4次,基础延迟2s→3s,最大退避15s→30s,批量延迟1s→2s (6)数据库自动迁移: 启动时自动创建缺失的表/列(anomaly_alert_logs,emergency_optimization_queue,module_execution_times)',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
   },
 ];
 

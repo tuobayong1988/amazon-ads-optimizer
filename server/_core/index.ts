@@ -18,6 +18,7 @@ import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo } from '../deployLifecycleManager';
 import { isShuttingDown } from '../utils/taskLifecycle';
 import { ensureNextGenTables } from '../nextGenMigration';
+import { runAutoDbMigration } from '../dbAutoMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
@@ -165,6 +166,17 @@ async function startServer() {
       }
     }).catch(err => {
       console.error('[NextGen] 数据库表检查异常:', err.message);
+    });
+
+    // v248: 启动时自动创建v245+所需的数据库表和列
+    runAutoDbMigration().then(result => {
+      if (result.success) {
+        console.log(`[AutoDbMigration] v248数据库迁移完成: ${result.results.join('; ')}`);
+      } else {
+        console.error('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
+      }
+    }).catch(err => {
+      console.error('[AutoDbMigration] v248迁移异常:', err.message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
