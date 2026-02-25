@@ -158729,7 +158729,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 248;
+    SYSTEM_VERSION = 249;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -158922,6 +158922,13 @@ var init_postDeployOptimizer = __esm({
         description: "v248: [\u7EDF\u4E00\u4FEE\u590D] \u2014 (1)\u540C\u6B65\u5C42\u51B2\u7A81\u8DF3\u8FC7\u6B63\u786E\u5206\u7C7B: \u4FEE\u590Dv222\u65B0\u683C\u5F0F\u5C42\u51B2\u7A81\u6D88\u606F\u672A\u88AB\u8BC6\u522B\u4E3Askipped\u800C\u88AB\u8BB0\u5F55\u4E3Afailed (2)RL Reward\u56DE\u586B\u4E0B\u96506h\u21923h: \u6253\u7834\u51B7\u542F\u52A8\u6B7B\u9501,\u52A0\u901F\u9AD8\u7EA7\u7B97\u6CD5eligible (3)negative_keywords\u540C\u6B65\u9891\u7387\u63D0\u5347: \u4ECEfull\u5C42(60min)\u63D0\u5347\u5230medium\u5C42(30min) (4)\u65E5\u5FD7\u7F13\u51B2\u533A\u6269\u5BB9: 5000\u219215000\u907F\u514D\u65E5\u5FD7\u4E22\u5931 (5)API 429\u9650\u6D41\u589E\u5F3A: \u91CD\u8BD52\u21924\u6B21,\u57FA\u7840\u5EF6\u8FDF2s\u21923s,\u6700\u5927\u9000\u907F15s\u219230s,\u6279\u91CF\u5EF6\u8FDF1s\u21922s (6)\u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB: \u542F\u52A8\u65F6\u81EA\u52A8\u521B\u5EFA\u7F3A\u5931\u7684\u8868/\u5217(anomaly_alert_logs,emergency_optimization_queue,module_execution_times)",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 249,
+        description: "v249: [\u76D1\u63A7\u4FEE\u590D] \u2014 (1)nextgen-monitor bidStats SQL\u67E5\u8BE2\u6761\u4EF6\u4FEE\u590D: action_type\u8FC7\u6EE4\u4E0ErecordExecutionLog\u5199\u5165\u503C\u4E0D\u5339\u914D\u5BFC\u81F4totalEvents\u59CB\u7EC8\u4E3A0 (2)optimization-events\u7AEF\u70B9\u8865\u5168api_sync_status/keyword_text/previous_bid/new_bid\u5B57\u6BB5 (3)\u589E\u52A0API\u540C\u6B65\u72B6\u6001\u7EDF\u8BA1\u67E5\u8BE2",
+        affectedModules: [],
+        // 仅监控修复，不需要重新执行优化模块
+        correctionActions: []
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -160382,7 +160389,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 248;
+    SYSTEM_VERSION2 = 249;
   }
 });
 
@@ -377684,7 +377691,10 @@ router3.get("/optimization-events", async (req, res) => {
     const [rows] = await db.execute(sql.raw(
       `SELECT id, event_category, action_type, 
               campaign_name, change_reason, algorithm_version,
-              previous_value, new_value, created_at
+              previous_value, new_value, 
+              api_sync_status, api_sync_detail,
+              keyword_text, previous_bid, new_bid, bid_change_percent,
+              created_at
        FROM optimization_events 
        ${whereClause}
        ORDER BY id DESC 
@@ -377696,11 +377706,27 @@ router3.get("/optimization-events", async (req, res) => {
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
        GROUP BY event_category`
     ));
+    let apiSyncStats = [];
+    try {
+      const [syncRows] = await db.execute(sql.raw(
+        `SELECT 
+           event_category,
+           api_sync_status,
+           COUNT(*) as cnt
+         FROM optimization_events 
+         WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+           AND event_category = 'bid_adjustment'
+         GROUP BY event_category, api_sync_status`
+      ));
+      apiSyncStats = Array.isArray(syncRows) ? syncRows : [];
+    } catch (syncErr) {
+    }
     res.json({
       query: { limit: limit2, hours, category, status },
       count: Array.isArray(rows) ? rows.length : 0,
       entries: rows,
       stats: statsRows,
+      apiSyncStats,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
   } catch (e6) {
@@ -377958,14 +377984,14 @@ router3.get("/nextgen-monitor", opsAuth, async (req, res) => {
     const bidStats = await db.execute(sql.raw(`
       SELECT 
         COUNT(*) as total_events,
-        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
-        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
+        SUM(CASE WHEN previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
+        SUM(CASE WHEN previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
         SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as api_synced,
         SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as api_failed,
         SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as api_pending
       FROM optimization_logs 
       WHERE created_at >= '${since}'
-        AND action_type IN ('bid_adjustment', 'bid_optimization')
+        AND (log_category = 'bid_adjustment' OR action_type IN ('bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'bid_adjustment', 'bid_optimization'))
     `));
     const algorithmStats = await db.execute(sql.raw(`
       SELECT 
