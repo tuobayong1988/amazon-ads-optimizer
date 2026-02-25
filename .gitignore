@@ -111,3 +111,4 @@ deploy.zip
 .org.chromium.Chromium*
 .X0-lock
 .github/workflows/
+*.zip
