@@ -1226,12 +1226,41 @@ function shouldExecuteModuleForTarget(
 }
 
 /**
- * v143: 记录某个优化目标的某个模块的执行时间
- * v241: 导出函数，允许PostDeploy重优化后更新模块执行时间
+ * v242: 记录某个优化目标的某个模块的执行时间
+ * 同时更新内存Map和数据库，确保部署重启后能精确恢复每个模块的执行时间
  */
-export function recordModuleExecution(targetId: number, moduleName: string): void {
+export async function recordModuleExecution(targetId: number, moduleName: string): Promise<void> {
   const key = `${targetId}:${moduleName}`;
-  moduleLastExecutionMap.set(key, new Date());
+  const now = new Date();
+  moduleLastExecutionMap.set(key, now);
+  
+  // v242: 持久化到数据库 - 使用module_execution_times JSON字段
+  try {
+    const dbInstance = await db.getDb();
+    if (dbInstance) {
+      // 先读取当前的模块执行时间JSON，然后更新对应模块
+      const [rows] = await (dbInstance as any).execute(
+        'SELECT module_execution_times FROM performance_groups WHERE id = ?',
+        [targetId]
+      );
+      let executionTimes: Record<string, string> = {};
+      if (rows && rows.length > 0 && rows[0].module_execution_times) {
+        try {
+          executionTimes = JSON.parse(rows[0].module_execution_times);
+        } catch (e) {
+          executionTimes = {};
+        }
+      }
+      executionTimes[moduleName] = now.toISOString();
+      await (dbInstance as any).execute(
+        'UPDATE performance_groups SET module_execution_times = ? WHERE id = ?',
+        [JSON.stringify(executionTimes), targetId]
+      );
+    }
+  } catch (dbErr: any) {
+    // 数据库更新失败不影响内存Map的正常工作
+    log.warn(`[OptimizationScheduler] v242: 持久化模块执行时间失败(target=${targetId}, module=${moduleName}): ${dbErr.message}`);
+  }
 }
 
 /**
@@ -1278,13 +1307,48 @@ function shouldExecuteThisHour(taskType: string): boolean {
 export async function startOptimizationScheduler(): Promise<void> {
   log.info('[OptimizationScheduler] 启动v156生命周期感知智能优化调度器...');
   
-  // v156: 从数据库恢复各模块的上次执行时间，避免服务器重启后所有模块立即执行
+  // v242: 从数据库恢复各模块的上次执行时间（模块级别精确恢复）
+  // 优先从 module_execution_times JSON字段恢复各模块独立的执行时间
+  // 回退方案：使用 last_optimization_at 作为所有模块的基准时间
   try {
     const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
     const targets = await getEnabledOptimizationTargets();
+    const dbInstance = await db.getDb();
+    let restoredFromJson = 0;
+    let restoredFromFallback = 0;
+    
     for (const target of targets) {
-      // 使用 last_optimization_at 作为所有模块的基准时间
-      if (target.lastExecutionTime) {
+      let moduleTimesRestored = false;
+      
+      // 优先尝试从 module_execution_times JSON字段恢复
+      if (dbInstance) {
+        try {
+          const [rows] = await (dbInstance as any).execute(
+            'SELECT module_execution_times FROM performance_groups WHERE id = ?',
+            [target.id]
+          );
+          if (rows && rows.length > 0 && rows[0].module_execution_times) {
+            const executionTimes = JSON.parse(rows[0].module_execution_times);
+            const modules = Object.keys(executionTimes);
+            if (modules.length > 0) {
+              for (const mod of modules) {
+                const key = `${target.id}:${mod}`;
+                if (!moduleLastExecutionMap.has(key)) {
+                  moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+                }
+              }
+              moduleTimesRestored = true;
+              restoredFromJson++;
+              log.info(`[OptimizationScheduler] v242: 从模块执行时间JSON恢复 ${target.name}: ${modules.map(m => `${m}=${executionTimes[m]}`).join(', ')}`);
+            }
+          }
+        } catch (jsonErr: any) {
+          log.warn(`[OptimizationScheduler] v242: 解析模块执行时间JSON失败(target=${target.id}): ${jsonErr.message}`);
+        }
+      }
+      
+      // 回退方案：使用 last_optimization_at
+      if (!moduleTimesRestored && target.lastExecutionTime) {
         const modules = ['bid', 'negativeKeyword', 'searchTermHarvest', 'placement', 'budget', 'dayparting'];
         for (const mod of modules) {
           const key = `${target.id}:${mod}`;
@@ -1292,12 +1356,13 @@ export async function startOptimizationScheduler(): Promise<void> {
             moduleLastExecutionMap.set(key, target.lastExecutionTime);
           }
         }
-        log.info(`[OptimizationScheduler] v156: 恢复优化目标 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
+        restoredFromFallback++;
+        log.info(`[OptimizationScheduler] v242: 回退恢复 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
       }
     }
-    log.info(`[OptimizationScheduler] v156: 已从数据库恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录`);
+    log.info(`[OptimizationScheduler] v242: 已恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录 (JSON精确恢复=${restoredFromJson}, 回退恢复=${restoredFromFallback})`);
   } catch (restoreErr: any) {
-    log.error(`[OptimizationScheduler] v156: 恢复模块执行时间失败: ${restoreErr.message}`);
+    log.error(`[OptimizationScheduler] v242: 恢复模块执行时间失败: ${restoreErr.message}`);
   }
   
   // v181: 所有任务添加启动偏移量，避免多个任务同时触发导致锁竞争
@@ -1628,7 +1693,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 dryRun: false,
                 specificModules: ['bid', 'keyword', 'coordination'],
               });
-              recordModuleExecution(target.id, 'bid');
+              await recordModuleExecution(target.id, 'bid');
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 出价调整=${result.bidOptimization.adjustmentsCount}, 关键词暂停=${result.keywordStatusChanges.pausedCount}`);
             } catch (targetErr: any) {
@@ -1667,7 +1732,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 dryRun: false,
                 specificModules: ['placement'],
               });
-              recordModuleExecution(target.id, 'placement');
+              await recordModuleExecution(target.id, 'placement');
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 位置调整=${result.placementOptimization.adjustmentsCount}`);
             } catch (targetErr: any) {
@@ -1706,7 +1771,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 dryRun: false,
                 specificModules: ['searchterm'],
               });
-              recordModuleExecution(target.id, 'negativeKeyword');
+              await recordModuleExecution(target.id, 'negativeKeyword');
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 否定词添加=${result.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${result.searchTermAnalysis.newKeywordsAdded}`);
             } catch (targetErr: any) {
@@ -1745,7 +1810,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 dryRun: false,
                 specificModules: ['budget'],
               });
-              recordModuleExecution(target.id, 'budget');
+              await recordModuleExecution(target.id, 'budget');
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 预算调整=${result.budgetAllocation.adjustmentsCount}`);
             } catch (targetErr: any) {

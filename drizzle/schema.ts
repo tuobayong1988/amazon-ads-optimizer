@@ -2190,6 +2190,8 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	strategyApplicationId: int("strategy_application_id"),
 	autoOptimize: tinyint("auto_optimize").default(1),
 	lastOptimizationAt: datetime("last_optimization_at", { mode: 'string' }),
+	// v242: 模块级别的执行时间持久化，解决部署重启导致调度状态丢失的问题
+	moduleExecutionTimes: text("module_execution_times"),
 });
 
 export const placementBidSettings = mysqlTable("placement_bid_settings", {

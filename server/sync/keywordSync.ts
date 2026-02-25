@@ -31,15 +31,80 @@ export interface SyncContext {
 const log = createModuleLogger('keywordSync');
 
 /**
+ * v242: 结构化错误日志辅助函数 - 确保错误信息不被截断
+ */
+function serializeError(error: any): string {
+  try {
+    const info: Record<string, any> = {
+      message: error.message || 'Unknown error',
+      code: error.code,
+      status: error.status || error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      method: error.config?.method,
+      retryCount: error.retryCount,
+    };
+    // 记录API响应体（截断到500字符避免日志爆炸）
+    if (error.response?.data) {
+      const dataStr = typeof error.response.data === 'string' 
+        ? error.response.data 
+        : JSON.stringify(error.response.data);
+      info.responseData = dataStr.substring(0, 500);
+    }
+    // 过滤掉undefined值
+    return JSON.stringify(Object.fromEntries(Object.entries(info).filter(([_, v]) => v !== undefined)));
+  } catch {
+    return error?.message || String(error);
+  }
+}
+
+/**
+ * v242: 通用重试包装器 - 用于关键词同步的各个阶段
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  operationName: string,
+  maxRetries: number = 2,
+  baseDelayMs: number = 3000
+): Promise<T> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      const isThrottle = error.status === 429 || error.message?.includes('429') || error.message?.includes('限流');
+      const isRetryable = isThrottle || error.status >= 500 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+      
+      if (isRetryable && attempt <= maxRetries) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 1000;
+        log.warn(`[v242] ${operationName} 第${attempt}次失败(可重试): ${serializeError(error)}, ${Math.round(delay)}ms后重试...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        log.error(`[v242] ${operationName} 最终失败(尝试${attempt}次): ${serializeError(error)}`);
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * 同步SB关键词投放
- * 从Amazon SB API获取关键词列表并同步到本地数据库
+ * 从SB API获取关键词列表并同步到本地数据库
+ * v242: 增强错误处理和重试机制
  */
 export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
 
   try {
-    const apiKeywords = await service.client.listSbKeywords();
+    // v242: 使用重试包装器获取SB关键词列表
+    const apiKeywords = await withRetry(
+      () => service.client.listSbKeywords(),
+      `SB关键词列表获取(account=${service.accountId})`,
+      2, 3000
+    );
     let synced = 0;
     let skipped = 0;
 
@@ -98,8 +163,8 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error) {
-    log.error('Error syncing SB keywords:', error);
+  } catch (error: any) {
+    log.error(`[v242] SB关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -114,7 +179,12 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
   if (!db) return { synced: 0, skipped: 0 };
 
   try {
-    const apiKeywords = await service.client.listSpKeywords();
+    // v242: 使用重试包装器获取SP关键词列表
+    const apiKeywords = await withRetry(
+      () => service.client.listSpKeywords(),
+      `SP关键词列表获取(account=${service.accountId})`,
+      2, 3000
+    );
     let synced = 0;
     let skipped = 0;
 
@@ -207,8 +277,8 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
     return { synced, skipped };
-  } catch (error) {
-    log.error('Error syncing SP keywords:', error);
+  } catch (error: any) {
+    log.error(`[v242] SP关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -231,13 +301,21 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
 
     log.info(`v196: 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${service.marketplace})`);
 
-    // 请求关键词报告
-    const reportId = await service.client.requestSpKeywordReport(startDateStr, endDateStr);
-    log.info(`v196: 关键词报告请求成功, reportId: ${reportId}`);
+    // v242: 报告请求阶段 - 使用重试包装器
+    const reportId = await withRetry(
+      () => service.client.requestSpKeywordReport(startDateStr, endDateStr),
+      `SP关键词报告请求(account=${service.accountId}, ${startDateStr}~${endDateStr})`,
+      2, 5000
+    );
+    log.info(`v242: 关键词报告请求成功, reportId: ${reportId}`);
     
-    // 等待并下载报告（超时15分钟）
-    const reportData = await service.client.waitAndDownloadReport(reportId, 900000);
-    log.info(`v196: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
+    // v242: 报告下载阶段 - 使用重试包装器
+    const reportData = await withRetry(
+      () => service.client.waitAndDownloadReport(reportId, 900000),
+      `SP关键词报告下载(reportId=${reportId})`,
+      1, 10000
+    );
+    log.info(`v242: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
     
     if (!reportData || reportData.length === 0) {
       log.warn('v196: 关键词报告数据为空');
@@ -438,8 +516,8 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     }
     
     return synced;
-  } catch (error) {
-    log.error('Error syncing keyword performance data:', error);
+  } catch (error: any) {
+    log.error(`[v242] 关键词绩效同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return 0;
   }
 }

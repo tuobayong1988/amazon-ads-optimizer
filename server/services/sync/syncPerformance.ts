@@ -134,7 +134,8 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
     return totalSynced;
   } catch (error: any) {
-    log.error('同步绩效数据失败:', error);
+    log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: error.message, status: error.status || error.response?.status, code: error.code })}`);
+    log.error('[v242] 详细错误:', error.stack?.substring(0, 500));
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
     if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
@@ -764,8 +765,16 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     }
     
     return synced;
-  } catch (error) {
-    log.error('Error syncing keyword performance data:', error);
+  } catch (error: any) {
+    // v242: 结构化错误日志，避免错误信息被截断
+    const errorInfo = {
+      message: error.message || 'Unknown error',
+      status: error.status || error.response?.status,
+      code: error.code,
+      url: error.config?.url,
+      responseData: error.response?.data ? JSON.stringify(error.response.data).substring(0, 500) : undefined,
+    };
+    log.error(`[v242] 关键词绩效同步失败(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
     return 0;
   }
 };

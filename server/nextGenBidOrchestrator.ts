@@ -280,20 +280,30 @@ function ruleEngineDecision(
         reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%): 提升${(boostRatio * 100).toFixed(0)}%`,
       };
     } else if (acosRatio <= 1.0) {
-      // v240: ACOS在目标范围内，提高调整系数 0.10→0.15，使微调更有效
-      const adjustRatio = (1 - acosRatio) * 0.15;
+      // v242: ACOS在目标范围内 — 精度感知微调
+      // 核心问题：当adjustRatio很小时（如1.5%），对低出价关键词（如$0.50），
+      // 调整后$0.5075四舍五入为$0.51，差异$0.01被hold阈值吃掉。
+      // 解决方案：引入"最小有效调整量"机制
+      const rawAdjustRatio = (1 - acosRatio) * 0.15;
+      // 计算最小有效调整量：至少产生$0.01的差异（即超过hold阈值$0.005）
+      const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
+      // 如果原始调整比例太小但不为零，放大到最小有效值
+      const adjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.65,
-        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%): 微调${(adjustRatio * 100).toFixed(1)}%`,
+        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%): 微调${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else if (acosRatio <= 1.5) {
-      // v240: ACOS略高于目标，提高降价系数 0.20→0.25，使降价更积极
-      const reduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
+      // v242: ACOS略高于目标 — 精度感知降价
+      const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
+      // 同样应用最小有效调整量机制
+      const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
+      const reduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.6,
-        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else {
       // ACOS严重超标
@@ -401,33 +411,30 @@ export async function calculateNextGenBid(
     let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
     let finalReason = ruleResult.reason;
     
-    // v241: RL冷启动探索策略
-    // 当规则引擎判定为hold（出价几乎不变）时，以一定概率进行小幅探索性调整
-    // 目的：产生有效的bid_increase/bid_decrease RL日志，打破冷启动死锁
+    // v242: RL冷启动探索策略（增强版）
+    // 精度感知调整已减少了大部分hold，但对于"数据不足"场景和"零转化但花费可控"场景，
+    // 规则引擎仍会返回维持不变。探索策略确保这些场景也能产生RL训练数据。
     // 安全保障：探索幅度限制在±3-5%，且受safetyValidate约束
     const isEffectivelyHold = Math.abs(safeBid - target.currentBid) <= 0.005;
     if (isEffectivelyHold && target.currentBid > 0.05) {
-      // 使用确定性哈希决定是否探索（避免每次重启结果不同）
-      const entityId = target.type === 'keyword' ? target.id : target.id;
+      const entityId = target.id;
       const hourSeed = Math.floor(Date.now() / (4 * 3600000)); // 每4小时一个种子
       const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
-      const EXPLORATION_RATE = 20; // 20%的概率进行探索
+      const EXPLORATION_RATE = 25; // v242: 提高到25%，因为精度感知已减少hold数量，此处探索更具针对性
       
       if (explorationHash < EXPLORATION_RATE) {
-        // 探索方向：基于哈希的确定性选择（上调或下调）
         const directionHash = ((entityId * 1103515245 + hourSeed) >>> 0) % 100;
-        const explorationRatio = 0.03 + (explorationHash / 100) * 0.02; // 3-5%的探索幅度
+        // v242: 探索幅度也要精度感知，确保产生有效调整
+        const minExplorationRatio = target.currentBid > 0 ? 0.02 / target.currentBid : 0.03;
+        const explorationRatio = Math.max(minExplorationRatio, 0.03 + (explorationHash / 100) * 0.02);
         
         let explorationBid: number;
         if (directionHash < 50) {
-          // 上探：小幅提价
           explorationBid = target.currentBid * (1 + explorationRatio);
         } else {
-          // 下探：小幅降价
           explorationBid = target.currentBid * (1 - explorationRatio);
         }
         
-        // 探索出价也要通过安全校验
         safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
         finalReason += ` | RL探索: ${directionHash < 50 ? '上探' : '下探'}${(explorationRatio * 100).toFixed(1)}%`;
         log.info(`[NextGenOrchestrator] RL冷启动探索: target=${target.id}, ` +

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 241;
+export const SYSTEM_VERSION = 242;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -225,6 +225,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 241,
     description: 'v241: [RL冷启动+部署流程优化+监控] — (1)RL冷启动探索策略: 当规则引擎判定为hold时，20%概率进行±3-5%探索性出价，打破冷启动死锁 (2)Reward回填窗口从24-72h扩展到12-96h，加速数据积累 (3)PostDeploy重优化后同步更新moduleLastExecutionMap，避免定时任务被跳过 (4)新增NextGen监控仪表板API /api/ops/nextgen-monitor (5)recordModuleExecution导出为公共函数',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 242,
+    description: 'v242: [系统性修复] — (1)规则引擎精度感知调整: 引入最小有效调整量$0.02，避免微调被四舍五入吃掉 (2)RL冷启动探索策略优化: 探索率自适应调整，加速数据积累 (3)调度状态持久化: 模块执行时间持久化到数据库，彻底解决部署重启导致定时任务被跳过 (4)关键词同步修复: 增强错误日志序列化+重试机制+并发控制 (5)数据库迁移: 新增module_execution_times字段',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
@@ -734,8 +740,8 @@ async function reoptimizeTarget(
         };
         const schedulerModule = moduleMapping[mod];
         if (schedulerModule) {
-          recordModuleExecution(targetId, schedulerModule);
-          log.info(`[PostDeployOptimizer] v241: 已更新模块执行时间: target=${targetId}, module=${schedulerModule}`);
+          await recordModuleExecution(targetId, schedulerModule);
+          log.info(`[PostDeployOptimizer] v242: 已更新模块执行时间(内存+数据库): target=${targetId}, module=${schedulerModule}`);
         }
       }
     } catch (syncErr: any) {
