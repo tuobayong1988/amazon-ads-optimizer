@@ -1239,23 +1239,25 @@ export async function recordModuleExecution(targetId: number, moduleName: string
     const dbInstance = await db.getDb();
     if (dbInstance) {
       // 先读取当前的模块执行时间JSON，然后更新对应模块
-      const [rows] = await (dbInstance as any).execute(
-        'SELECT module_execution_times FROM performance_groups WHERE id = ?',
-        [targetId]
-      );
+      const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
       let executionTimes: Record<string, string> = {};
-      if (rows && rows.length > 0 && rows[0].module_execution_times) {
-        try {
-          executionTimes = JSON.parse(rows[0].module_execution_times);
-        } catch (e) {
-          executionTimes = {};
+      const rowData = Array.isArray(rows) ? rows[0] : (rows as any)?.rows?.[0];
+      if (rowData) {
+        const rawArr = Array.isArray(rowData) ? rowData : [rowData];
+        for (const r of rawArr) {
+          const met = (r as any).module_execution_times;
+          if (met) {
+            try {
+              executionTimes = JSON.parse(met);
+            } catch (e) {
+              executionTimes = {};
+            }
+            break;
+          }
         }
       }
       executionTimes[moduleName] = now.toISOString();
-      await (dbInstance as any).execute(
-        'UPDATE performance_groups SET module_execution_times = ? WHERE id = ?',
-        [JSON.stringify(executionTimes), targetId]
-      );
+      await dbInstance.execute(sql`UPDATE performance_groups SET module_execution_times = ${JSON.stringify(executionTimes)} WHERE id = ${targetId}`);
     }
   } catch (dbErr: any) {
     // 数据库更新失败不影响内存Map的正常工作
@@ -1323,23 +1325,27 @@ export async function startOptimizationScheduler(): Promise<void> {
       // 优先尝试从 module_execution_times JSON字段恢复
       if (dbInstance) {
         try {
-          const [rows] = await (dbInstance as any).execute(
-            'SELECT module_execution_times FROM performance_groups WHERE id = ?',
-            [target.id]
-          );
-          if (rows && rows.length > 0 && rows[0].module_execution_times) {
-            const executionTimes = JSON.parse(rows[0].module_execution_times);
-            const modules = Object.keys(executionTimes);
-            if (modules.length > 0) {
-              for (const mod of modules) {
-                const key = `${target.id}:${mod}`;
-                if (!moduleLastExecutionMap.has(key)) {
-                  moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+          const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${target.id}`);
+          // Drizzle mysql2返回 [rows, fields]，取第一个元素
+          const resultRows = Array.isArray(rows) ? rows[0] : rows;
+          const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
+          for (const row of dataArr) {
+            const met = (row as any)?.module_execution_times;
+            if (met) {
+              const executionTimes = JSON.parse(met);
+              const modules = Object.keys(executionTimes);
+              if (modules.length > 0) {
+                for (const mod of modules) {
+                  const key = `${target.id}:${mod}`;
+                  if (!moduleLastExecutionMap.has(key)) {
+                    moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+                  }
                 }
+                moduleTimesRestored = true;
+                restoredFromJson++;
+                log.info(`[OptimizationScheduler] v242: 从模块执行时间JSON恢复 ${target.name}: ${modules.map(m => `${m}=${executionTimes[m]}`).join(', ')}`);
               }
-              moduleTimesRestored = true;
-              restoredFromJson++;
-              log.info(`[OptimizationScheduler] v242: 从模块执行时间JSON恢复 ${target.name}: ${modules.map(m => `${m}=${executionTimes[m]}`).join(', ')}`);
+              break;
             }
           }
         } catch (jsonErr: any) {

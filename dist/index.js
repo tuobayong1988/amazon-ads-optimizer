@@ -74349,25 +74349,28 @@ var init_amazonAdsApi = __esm({
               adProduct: "SPONSORED_PRODUCTS",
               groupBy: ["targeting"],
               columns: [
-                // 基础信息 - 根据Excel文档SP-Targeting sheet
-                "date",
+                // 基础信息 - v242: 移除不属于keyword报告的字段(advertisedSku/Asin/targetId/targetingExpression/targetingText)
+                // v242: 使用startDate/endDate替代date (SUMMARY模式不支持date)
+                "startDate",
+                "endDate",
                 "campaignId",
                 "campaignName",
-                // Excel: campaignName - 广告系列名称
+                // 广告系列名称
                 "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
+                // 货币
                 "adGroupId",
                 "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "advertisedSku",
-                // Excel: advertisedSku - 已投放广告的SKU
-                "advertisedAsin",
-                // Excel: advertisedAsin - 已投放广告的ASIN
-                "targetId",
-                "targetingExpression",
-                "targetingText",
+                // 广告组名称
+                "keywordId",
+                // 关键词ID
+                "keyword",
+                // 关键词文本
+                "keywordBid",
+                // 关键词出价
                 "keywordType",
                 "matchType",
+                "targeting",
+                // 定位表达式
                 // 流量指标
                 "impressions",
                 // Excel: impressions - 展示次数
@@ -74992,25 +74995,28 @@ var init_amazonAdsApi = __esm({
               adProduct: "SPONSORED_PRODUCTS",
               groupBy: ["targeting"],
               columns: [
-                "date",
+                // v242: 修复无效列名 - 移除targetId/targetingExpression/targetingText/targetingType/date
+                "startDate",
+                "endDate",
                 "campaignId",
                 "campaignName",
                 "adGroupId",
                 "adGroupName",
-                "targetId",
-                "targetingExpression",
-                "targetingType",
-                // AUTO / MANUAL
-                "targetingText",
+                "keywordId",
+                // 替代targetId
+                "keyword",
+                // 替代targetingText
+                "targeting",
+                // 替代targetingExpression
+                "keywordType",
+                // 替代targetingType
+                "matchType",
                 "impressions",
                 "clicks",
                 "cost",
                 "sales7d",
-                // ✅ 7天归因销售额 (修正字段名)
                 "unitsSoldClicks7d",
-                // ✅ 7天归因订单单位数 (修正字段名)
                 "purchases7d"
-                // ✅ 7天归因转化数 (修正字段名)
               ],
               reportTypeId: "spTargeting",
               timeUnit: "SUMMARY",
@@ -157218,23 +157224,25 @@ async function recordModuleExecution(targetId, moduleName) {
   try {
     const dbInstance = await getDb();
     if (dbInstance) {
-      const [rows] = await dbInstance.execute(
-        "SELECT module_execution_times FROM performance_groups WHERE id = ?",
-        [targetId]
-      );
+      const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
       let executionTimes = {};
-      if (rows && rows.length > 0 && rows[0].module_execution_times) {
-        try {
-          executionTimes = JSON.parse(rows[0].module_execution_times);
-        } catch (e6) {
-          executionTimes = {};
+      const rowData = Array.isArray(rows) ? rows[0] : rows?.rows?.[0];
+      if (rowData) {
+        const rawArr = Array.isArray(rowData) ? rowData : [rowData];
+        for (const r5 of rawArr) {
+          const met = r5.module_execution_times;
+          if (met) {
+            try {
+              executionTimes = JSON.parse(met);
+            } catch (e6) {
+              executionTimes = {};
+            }
+            break;
+          }
         }
       }
       executionTimes[moduleName] = now.toISOString();
-      await dbInstance.execute(
-        "UPDATE performance_groups SET module_execution_times = ? WHERE id = ?",
-        [JSON.stringify(executionTimes), targetId]
-      );
+      await dbInstance.execute(sql`UPDATE performance_groups SET module_execution_times = ${JSON.stringify(executionTimes)} WHERE id = ${targetId}`);
     }
   } catch (dbErr) {
     log29.warn(`[OptimizationScheduler] v242: \u6301\u4E45\u5316\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25(target=${targetId}, module=${moduleName}): ${dbErr.message}`);
@@ -157272,23 +157280,26 @@ async function startOptimizationScheduler2() {
       let moduleTimesRestored = false;
       if (dbInstance) {
         try {
-          const [rows] = await dbInstance.execute(
-            "SELECT module_execution_times FROM performance_groups WHERE id = ?",
-            [target.id]
-          );
-          if (rows && rows.length > 0 && rows[0].module_execution_times) {
-            const executionTimes = JSON.parse(rows[0].module_execution_times);
-            const modules = Object.keys(executionTimes);
-            if (modules.length > 0) {
-              for (const mod of modules) {
-                const key = `${target.id}:${mod}`;
-                if (!moduleLastExecutionMap.has(key)) {
-                  moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+          const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${target.id}`);
+          const resultRows = Array.isArray(rows) ? rows[0] : rows;
+          const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
+          for (const row of dataArr) {
+            const met = row?.module_execution_times;
+            if (met) {
+              const executionTimes = JSON.parse(met);
+              const modules = Object.keys(executionTimes);
+              if (modules.length > 0) {
+                for (const mod of modules) {
+                  const key = `${target.id}:${mod}`;
+                  if (!moduleLastExecutionMap.has(key)) {
+                    moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+                  }
                 }
+                moduleTimesRestored = true;
+                restoredFromJson++;
+                log29.info(`[OptimizationScheduler] v242: \u4ECE\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u6062\u590D ${target.name}: ${modules.map((m4) => `${m4}=${executionTimes[m4]}`).join(", ")}`);
               }
-              moduleTimesRestored = true;
-              restoredFromJson++;
-              log29.info(`[OptimizationScheduler] v242: \u4ECE\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u6062\u590D ${target.name}: ${modules.map((m4) => `${m4}=${executionTimes[m4]}`).join(", ")}`);
+              break;
             }
           }
         } catch (jsonErr) {
@@ -157784,6 +157795,7 @@ var init_dataSyncScheduler = __esm({
   "server/dataSyncScheduler.ts"() {
     "use strict";
     init_db2();
+    init_drizzle_orm();
     init_amazonSyncService();
     init_notification();
     init_algorithmUtils();
