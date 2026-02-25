@@ -267,12 +267,12 @@ export async function backfillRewards(accountId: number): Promise<number> {
   let filledCount = 0;
   
   try {
-    // v241: 扩展回填窗口 24-72h → 12-96h
-    // 原因: 24小时的下限导致新部署后的RL日志需要等待太久才能被回填
-    // 扩展到 12小时后即可开始回填，加速冷启动数据积累
-    // 上限扩展到96小时，避免因系统重启导致的回填空窗
+    // v245: 进一步缩短回填下限 12h → 6h，加速冷启动数据积累
+    // 原因: v244部署后所有RL日志重新创建，12小时下限导致首次回填等待过久
+    // Amazon广告数据通常在3-6小时后可用，6小时是安全的最小等待时间
+    // 上限保持96小时，避免因系统重启导致的回填空窗
     const hoursAgo96 = new Date(Date.now() - 96 * 3600000).toISOString();
-    const hoursAgo12 = new Date(Date.now() - 12 * 3600000).toISOString();
+    const hoursAgo6 = new Date(Date.now() - 6 * 3600000).toISOString();
     
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
@@ -288,7 +288,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         eq(rlTrainingLogs.accountId, accountId),
         isNull(rlTrainingLogs.rewardFilledAt),
         gte(rlTrainingLogs.createdAt, hoursAgo96),
-        lte(rlTrainingLogs.createdAt, hoursAgo12)
+        lte(rlTrainingLogs.createdAt, hoursAgo6)
       ))
       .limit(500);
     

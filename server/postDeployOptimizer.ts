@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 244;
+export const SYSTEM_VERSION = 245;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -242,9 +242,15 @@ const VERSION_CHANGELOG: VersionChange[] = [
   },
   {
     version: 244,
-    description: 'v244: [紧急修复] 修复v232安全检查过度激进导致优化目标被错误关闭 — (1)移除v232紧急止损逻辑: 单个campaign安全检查触发不再关闭整个优化目标(autoOptimize=0) (2)改为跳过该campaign继续处理其他campaign (3)移除v235的emergencyPause提前返回逻辑，其他优化模块不受影响 (4)添加安全暂停比例汇总日志 (5)部署后自动恢复所有被错误关闭的优化目标',
+    description: 'v244: [安全检查修复] — (1)移除v232紧急止损逻辑:安全检查触发时跳过该campaign而非暂停整个优化目标 (2)PostDeploy自动恢复被错误关闭的优化目标(autoOptimize=0→1) (3)修复前端自动优化状态显示bug(使用autoOptimize字段而非status字段)',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 245,
+    description: 'v245: [系统健康修复] — (1)RL奖励回填窗口从12h降至6h加速冷启动 (2)紧急优化队列持久化到数据库(emergency_optimization_queue表) (3)风险评估结果写入anomaly_alert_logs (4)预算同步自动确认:syncSpCampaigns中检测Amazon返回budget与pendingBudget一致时自动标记synced (5)自动化部署脚本:构建→打包→部署→版本验证→自动回滚',
+    affectedModules: ['bid', 'budget'],
+    correctionActions: ['rerun_optimization', 'recalculate_budgets'],
   },
 ];
 

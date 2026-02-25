@@ -491,13 +491,13 @@ export async function executeOptimizationTarget(
   let emergencyMode = false;
   try {
     const { isAccountInEmergencyQueue, markEmergencyOptimizationProcessed } = await import('./riskActionEngine');
-    const emergencyCheck = isAccountInEmergencyQueue(config.accountId);
+    const emergencyCheck = await isAccountInEmergencyQueue(config.accountId);
     if (emergencyCheck.inQueue) {
       emergencyMode = true;
       log.info(`[OptimizationTarget] v235: 账户${config.accountId}在紧急优化队列中 (${emergencyCheck.type})，启用紧急优化模式`);
       result.warnings.push(`v235: 紧急优化模式已启用 - ${emergencyCheck.type}`);
       // 标记已处理
-      markEmergencyOptimizationProcessed(config.accountId);
+      await markEmergencyOptimizationProcessed(config.accountId);
     }
   } catch (riskErr: any) {
     log.warn(`[OptimizationTarget] v235: 紧急优化检查异常: ${riskErr.message}`);

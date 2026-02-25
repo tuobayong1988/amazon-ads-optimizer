@@ -83724,6 +83724,13 @@ async function executeOptimizationTarget(targetId, options = {}) {
     try {
       const bidResults = await executeBidOptimization(config2, campaigns7, dryRun);
       result.bidOptimization = bidResults;
+      if (bidResults.emergencyPause) {
+        result.errors.push(bidResults.emergencyReason || "Emergency pause triggered");
+        result.status = "failed";
+        if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
+        unregisterActiveTask(activeTaskId);
+        return result;
+      }
     } catch (error54) {
       result.errors.push(`\u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
     }
@@ -84150,7 +84157,6 @@ async function executeOptimizationTarget(targetId, options = {}) {
 async function executeBidOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
-  let safetyPausedCampaignCount = 0;
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
   for (const c5 of campaigns7) {
     totalClicks += c5.clicks || 0;
@@ -84228,8 +84234,15 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           action: "safety_pause",
           reason: `[\u5B89\u5168\u68C0\u67E5] ${safetyCheck.warnings.join("\uFF1B")}`
         });
-        safetyPausedCampaignCount++;
-        log19.warn(`[BidOptimization] v244: Campaign ${campaignLocalId} (${campaign.campaignName}) \u5B89\u5168\u68C0\u67E5\u89E6\u53D1\uFF0C\u8DF3\u8FC7\u8BE5campaign\u7684\u51FA\u4EF7\u4F18\u5316\uFF08\u4E0D\u6682\u505C\u6574\u4E2A\u4F18\u5316\u76EE\u6807\uFF09`);
+        try {
+          await updatePerformanceGroup(config2.id, { autoOptimize: 0 });
+          const pauseMsg = `v232: \u4F18\u5316\u76EE\u6807 "${config2.name}" \u5DF2\u88AB\u5B89\u5168\u7CFB\u7EDF\u81EA\u52A8\u6682\u505C - Campaign ${campaign.campaignName} \u89E6\u53D1\u4E25\u91CD\u98CE\u9669\u4FE1\u53F7: ${safetyCheck.reason}`;
+          log19.error(`[OptimizationTarget] ${pauseMsg}`);
+          details.push({ action: "emergency_pause", reason: pauseMsg, campaignName: campaign.campaignName });
+          return { executed: true, adjustmentsCount, details, emergencyPause: true, emergencyReason: pauseMsg };
+        } catch (autoPauseErr) {
+          log19.error(`[OptimizationTarget] v232: \u81EA\u52A8\u6682\u505C\u4F18\u5316\u76EE\u6807\u5931\u8D25:`, autoPauseErr.message);
+        }
         continue;
       }
       if (safetyCheck.warnings.length > 0) {
@@ -84510,17 +84523,6 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         error: "\u672A\u83B7\u53D6\u5230\u5355\u6761\u540C\u6B65\u72B6\u6001"
       });
     }
-  }
-  if (safetyPausedCampaignCount > 0) {
-    const totalCampaigns = campaigns7.length;
-    const pauseRatio = safetyPausedCampaignCount / totalCampaigns;
-    const summaryMsg = `v244: \u4F18\u5316\u76EE\u6807"${config2.name}" \u5B89\u5168\u68C0\u67E5\u6C47\u603B - ${safetyPausedCampaignCount}/${totalCampaigns}\u4E2Acampaign\u89E6\u53D1\u5B89\u5168\u6682\u505C(${(pauseRatio * 100).toFixed(0)}%)\uFF0C\u5DF2\u8DF3\u8FC7\u8FD9\u4E9Bcampaign\u7684\u51FA\u4EF7\u4F18\u5316`;
-    if (pauseRatio > 0.5) {
-      log19.error(`[BidOptimization] ${summaryMsg} - \u8D85\u8FC750%campaign\u89E6\u53D1\u5B89\u5168\u6682\u505C\uFF0C\u5EFA\u8BAE\u4EBA\u5DE5\u68C0\u67E5`);
-    } else {
-      log19.warn(`[BidOptimization] ${summaryMsg}`);
-    }
-    details.push({ action: "safety_summary", reason: summaryMsg, safetyPausedCount: safetyPausedCampaignCount, totalCampaigns, pauseRatio });
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
@@ -86355,9 +86357,9 @@ async function recordExecutionLog(result) {
       }
     }
     try {
-      const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { performanceGroups: performanceGroups8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
+      await dbInstance.update(performanceGroups8).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups8.id, result.targetId));
       log19.info(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
@@ -158448,32 +158450,6 @@ async function runPostDeployOptimization() {
   }
   log30.debug(`[PostDeployOptimizer] \u53D7\u5F71\u54CD\u6A21\u5757: ${affectedModules.join(", ")}`);
   log30.info(`[PostDeployOptimizer] \u7EA0\u6B63\u52A8\u4F5C: ${correctionActions.join(", ")}`);
-  try {
-    const database = await getDb();
-    if (database) {
-      const allGroups = await database.select({ id: performanceGroups.id, name: performanceGroups.name, autoOptimize: performanceGroups.autoOptimize, status: performanceGroups.status }).from(performanceGroups).where(and(
-        eq(performanceGroups.status, "active"),
-        eq(performanceGroups.autoOptimize, 0)
-      ));
-      if (allGroups.length > 0) {
-        log30.warn(`[PostDeployOptimizer] v244: \u53D1\u73B0 ${allGroups.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u7684autoOptimize\u88AB\u5173\u95ED\uFF0C\u6B63\u5728\u81EA\u52A8\u6062\u590D...`);
-        for (const group of allGroups) {
-          const pgCampaigns = await getCampaignsByPerformanceGroupId(group.id);
-          const enabledCount = pgCampaigns.filter((c5) => c5.campaignStatus === "enabled").length;
-          if (enabledCount > 0) {
-            await updatePerformanceGroup(group.id, { autoOptimize: 1 });
-            log30.info(`[PostDeployOptimizer] v244: \u5DF2\u6062\u590D\u4F18\u5316\u76EE\u6807 "${group.name}" (ID:${group.id}) \u7684\u81EA\u52A8\u4F18\u5316 - \u6709${enabledCount}\u4E2Aenabled\u5E7F\u544A\u6D3B\u52A8`);
-          } else {
-            log30.info(`[PostDeployOptimizer] v244: \u4F18\u5316\u76EE\u6807 "${group.name}" (ID:${group.id}) \u4E0B\u65E0enabled\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4FDD\u6301\u5173\u95ED\u72B6\u6001`);
-          }
-        }
-      } else {
-        log30.info(`[PostDeployOptimizer] v244: \u6240\u6709\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u7684autoOptimize\u72B6\u6001\u6B63\u5E38`);
-      }
-    }
-  } catch (restoreErr) {
-    log30.error(`[PostDeployOptimizer] v244: \u6062\u590D\u4F18\u5316\u76EE\u6807\u72B6\u6001\u5931\u8D25:`, restoreErr.message);
-  }
   const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
   const targets = await getEnabledOptimizationTargets2();
   if (targets.length === 0) {
@@ -158629,7 +158605,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 244;
+    SYSTEM_VERSION = 243;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -158802,12 +158778,6 @@ var init_postDeployOptimizer = __esm({
       {
         version: 243,
         description: "v243: [\u6B7B\u9501\u4FEE\u590D] \u2014 (1)\u751F\u547D\u5468\u671F\u5224\u5B9A\u4F18\u5316: OR\u6539\u4E3AAND\u903B\u8F91\uFF0C\u907F\u514D\u8001\u5E7F\u544A\u6C38\u4E45\u505C\u7559\u5728launch\u9636\u6BB5 (2)launch\u9636\u6BB5bid\u95F4\u96944h\u964D\u4E3A2h (3)\u6A21\u5757\u6267\u884C\u65F6\u95F4\u6062\u590D\u7B56\u7565\u4F18\u5316: \u4E0D\u518D\u4F7F\u7528last_optimization_at\u56DE\u9000\u586B\u5145\uFF0C\u907F\u514DPostDeploy\u66F4\u65B0\u65F6\u95F4\u5BFC\u81F4\u6B7B\u9501 (4)PostDeploy\u5F3A\u5236\u521D\u59CB\u5316module_execution_times",
-        affectedModules: ["bid"],
-        correctionActions: ["rerun_optimization"]
-      },
-      {
-        version: 244,
-        description: "v244: [\u7D27\u6025\u4FEE\u590D] \u4FEE\u590Dv232\u5B89\u5168\u68C0\u67E5\u8FC7\u5EA6\u6FC0\u8FDB\u5BFC\u81F4\u4F18\u5316\u76EE\u6807\u88AB\u9519\u8BEF\u5173\u95ED \u2014 (1)\u79FB\u9664v232\u7D27\u6025\u6B62\u635F\u903B\u8F91: \u5355\u4E2Acampaign\u5B89\u5168\u68C0\u67E5\u89E6\u53D1\u4E0D\u518D\u5173\u95ED\u6574\u4E2A\u4F18\u5316\u76EE\u6807(autoOptimize=0) (2)\u6539\u4E3A\u8DF3\u8FC7\u8BE5campaign\u7EE7\u7EED\u5904\u7406\u5176\u4ED6campaign (3)\u79FB\u9664v235\u7684emergencyPause\u63D0\u524D\u8FD4\u56DE\u903B\u8F91\uFF0C\u5176\u4ED6\u4F18\u5316\u6A21\u5757\u4E0D\u53D7\u5F71\u54CD (4)\u6DFB\u52A0\u5B89\u5168\u6682\u505C\u6BD4\u4F8B\u6C47\u603B\u65E5\u5FD7 (5)\u90E8\u7F72\u540E\u81EA\u52A8\u6062\u590D\u6240\u6709\u88AB\u9519\u8BEF\u5173\u95ED\u7684\u4F18\u5316\u76EE\u6807",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }
@@ -371613,13 +371583,13 @@ var crossAccountRouter = router({
     }
     const accountsData = await Promise.all(
       accounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend2 = 0;
         let totalSales2 = 0;
         let totalImpressions2 = 0;
         let totalClicks2 = 0;
         let totalOrders2 = 0;
-        for (const pg of performanceGroups7) {
+        for (const pg of performanceGroups8) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend2 += parseFloat(campaign.spend || "0");
@@ -371697,13 +371667,13 @@ var crossAccountRouter = router({
     const selectedAccounts = accounts.filter((a4) => input.accountIds.includes(a4.id));
     const comparisonData = await Promise.all(
       selectedAccounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalImpressions = 0;
         let totalClicks = 0;
         let totalOrders = 0;
-        for (const pg of performanceGroups7) {
+        for (const pg of performanceGroups8) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend += parseFloat(campaign.spend || "0");

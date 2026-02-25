@@ -548,6 +548,34 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
           }
         }
         
+        // v245: 预算同步状态自动确认
+        // 当campaign处于pending_confirmation状态时，检查Amazon API返回的budget是否与pendingBudget一致
+        // 如果一致，说明Amazon已采纳我们的预算调整，自动将状态更新为synced
+        if (existing.budgetSyncStatus === 'pending_confirmation' && existing.pendingBudget) {
+          const pendingBudgetVal = parseFloat(String(existing.pendingBudget));
+          if (apiBudget > 0 && Math.abs(apiBudget - pendingBudgetVal) < 0.01) {
+            // Amazon已确认预算调整
+            (campaignData as any).budgetSyncStatus = 'synced';
+            (campaignData as any).pendingBudget = null;
+            log.info(`v245: 预算同步确认 - campaign=${existing.campaignName}, pending=$${pendingBudgetVal}, api=$${apiBudget}, 状态→synced`);
+          } else if (apiBudget > 0 && Math.abs(apiBudget - pendingBudgetVal) >= 0.01) {
+            // Amazon返回的budget与pendingBudget不一致，标记为conflict
+            (campaignData as any).budgetSyncStatus = 'conflict';
+            log.warn(`v245: 预算同步冲突 - campaign=${existing.campaignName}, pending=$${pendingBudgetVal}, api=$${apiBudget}, 状态→conflict`);
+          }
+        }
+        
+        // 同样处理位置倾斜同步状态
+        if (existing.placementSyncStatus === 'pending_confirmation') {
+          const apiTop = (campaignData as any).placementTopSearchBidAdjustment || 0;
+          const apiProduct = (campaignData as any).placementProductPageBidAdjustment || 0;
+          // 如果API返回了有效的位置倾斜数据，确认同步成功
+          if (apiTop > 0 || apiProduct > 0) {
+            (campaignData as any).placementSyncStatus = 'synced';
+            log.info(`v245: 位置倾斜同步确认 - campaign=${existing.campaignName}, top=${apiTop}%, product=${apiProduct}%, 状态→synced`);
+          }
+        }
+
         // v165: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
         const apiTopPlacement1 = (campaignData as any).placementTopSearchBidAdjustment || 0;

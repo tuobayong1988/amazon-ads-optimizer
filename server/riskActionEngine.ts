@@ -1,8 +1,13 @@
 /**
- * riskActionEngine.ts - 风险行动引擎 (v235)
+ * riskActionEngine.ts - 风险行动引擎 (v245)
  * 
  * 将数据概览模块的"账户风险排行"和"同步健康度"从被动展示指标
  * 升级为可触发自动优化的"行动指标"。
+ * 
+ * v245修复：
+ * 1. 紧急优化队列从内存Map改为数据库表emergency_optimization_queue持久化
+ * 2. 风险评估结果写入anomaly_alert_logs表，确保告警可追溯
+ * 3. 所有行动结果持久化，重启后不丢失
  * 
  * 核心理念：
  * 1. 账户风险等级变化 → 自动触发NextGen算法紧急优化
@@ -81,6 +86,70 @@ function assessAccountRiskLevel(acos: number): 'critical' | 'warning' | 'healthy
   return 'healthy';
 }
 
+// ==================== 数据库持久化辅助函数 ====================
+
+/**
+ * v245: 将风险评估结果写入anomaly_alert_logs表
+ */
+async function persistRiskAlert(
+  accountId: number,
+  alertType: string,
+  severity: string,
+  detail: string
+): Promise<void> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    await dbInstance.execute(sql`
+      INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+      VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
+    `);
+  } catch (err: any) {
+    log.error(`[persistRiskAlert] 写入anomaly_alert_logs失败: ${err.message}`);
+  }
+}
+
+/**
+ * v245: 将紧急优化任务写入数据库表emergency_optimization_queue
+ */
+async function persistEmergencyTask(
+  accountId: number,
+  actionType: string,
+  priority: string,
+  detail: string
+): Promise<boolean> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return false;
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    // 检查是否已有未处理的同类型任务
+    const [existing] = await dbInstance.execute(sql`
+      SELECT id FROM emergency_optimization_queue
+      WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
+      LIMIT 1
+    `) as any;
+    
+    if (existing && existing.length > 0) {
+      log.info(`[RiskActionEngine] 账户${accountId}已有未处理的${actionType}任务，跳过重复入队`);
+      return true;
+    }
+    
+    await dbInstance.execute(sql`
+      INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
+      VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
+    `);
+    
+    log.info(`[RiskActionEngine] v245: 账户${accountId}紧急优化任务已持久化到数据库: ${actionType}`);
+    return true;
+  } catch (err: any) {
+    log.error(`[persistEmergencyTask] 写入emergency_optimization_queue失败: ${err.message}`);
+    return false;
+  }
+}
+
 // ==================== 账户风险评估 ====================
 
 /**
@@ -139,6 +208,16 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
             description: `账户ACoS=${acos.toFixed(1)}%偏高，触发NextGen算法重新评估所有优化目标`,
             estimatedImpact: '重新计算出价策略，加速ACoS回归目标',
           });
+        }
+        
+        // v245: 将非healthy的风险评估写入anomaly_alert_logs
+        if (riskLevel !== 'healthy') {
+          await persistRiskAlert(
+            account.id,
+            `risk_${riskLevel}`,
+            riskLevel === 'critical' ? 'high' : 'medium',
+            `账户${account.storeName || account.accountName}(${account.marketplace}) 7日ACoS=${acos.toFixed(1)}%, 风险等级=${riskLevel}, 推荐行动: ${actions.map(a => a.actionType).join(', ')}`
+          );
         }
         
         assessments.push({
@@ -205,6 +284,14 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
         targetEntityCount: failed,
         estimatedImpact: '修复同步失败事件，恢复100%同步成功率',
       });
+      
+      // v245: 同步健康度异常也写入anomaly_alert_logs
+      await persistRiskAlert(
+        0, // accountId=0 表示系统级告警
+        'sync_health_critical',
+        'high',
+        `同步健康度异常: ${failed}条失败, ${pending}条待同步, 成功率=${syncRate.toFixed(1)}%`
+      );
     } else if (pending > 50) {
       healthStatus = 'degraded';
       actions.push({
@@ -265,27 +352,25 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
     for (const action of account.recommendedActions) {
       try {
         if (action.actionType === 'emergency_bid_reduction') {
-          // 触发NextGen紧急降价 — 通过优化目标引擎执行
-          // 这里不直接调用API，而是标记账户需要紧急优化，
-          // 让下一轮定时优化周期以更高优先级处理
-          const result = await markAccountForEmergencyOptimization(account.accountId, 'emergency_bid_reduction');
+          // v245: 持久化到数据库而非内存
+          const result = await markAccountForEmergencyOptimization(account.accountId, 'emergency_bid_reduction', action.priority, action.description);
           actionsTriggered++;
           actionResults.push({
             actionType: 'emergency_bid_reduction',
             accountId: account.accountId,
             success: result,
-            detail: `账户${account.accountName}(ACoS=${account.currentAcos.toFixed(1)}%)已标记为紧急优化`,
+            detail: `账户${account.accountName}(ACoS=${account.currentAcos.toFixed(1)}%)已标记为紧急优化(已持久化到DB)`,
           });
         }
         
         if (action.actionType === 'pause_extreme_loss') {
-          const result = await markAccountForEmergencyOptimization(account.accountId, 'pause_extreme_loss');
+          const result = await markAccountForEmergencyOptimization(account.accountId, 'pause_extreme_loss', action.priority, action.description);
           actionsTriggered++;
           actionResults.push({
             actionType: 'pause_extreme_loss',
             accountId: account.accountId,
             success: result,
-            detail: `账户${account.accountName}已标记暂停极端亏损关键词`,
+            detail: `账户${account.accountName}已标记暂停极端亏损关键词(已持久化到DB)`,
           });
         }
       } catch (err: any) {
@@ -336,21 +421,19 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
 // ==================== 内部辅助函数 ====================
 
 /**
- * 标记账户需要紧急优化
- * 通过在内存中维护紧急优化队列，让下一轮定时优化以更高优先级处理
+ * v245: 标记账户需要紧急优化 — 持久化到数据库
+ * 替代原来的内存Map方案，确保重启后不丢失
  */
-const emergencyOptimizationQueue = new Map<number, { type: string; timestamp: string; processed: boolean }>();
-
-async function markAccountForEmergencyOptimization(accountId: number, actionType: string): Promise<boolean> {
+async function markAccountForEmergencyOptimization(
+  accountId: number, 
+  actionType: string,
+  priority: string = 'P1',
+  detail: string = ''
+): Promise<boolean> {
   try {
-    emergencyOptimizationQueue.set(accountId, {
-      type: actionType,
-      timestamp: new Date().toISOString(),
-      processed: false,
-    });
-    
-    log.info(`[RiskActionEngine] 账户${accountId}已加入紧急优化队列: ${actionType}`);
-    return true;
+    const result = await persistEmergencyTask(accountId, actionType, priority, detail);
+    log.info(`[RiskActionEngine] 账户${accountId}已加入紧急优化队列(DB持久化): ${actionType}`);
+    return result;
   } catch (err: any) {
     log.error(`[RiskActionEngine] 标记紧急优化失败: ${err.message}`);
     return false;
@@ -358,49 +441,95 @@ async function markAccountForEmergencyOptimization(accountId: number, actionType
 }
 
 /**
- * 检查账户是否在紧急优化队列中
+ * v245: 检查账户是否在紧急优化队列中 — 从数据库查询
  * 供optimizationTargetEngine在执行优化时调用
  */
-export function isAccountInEmergencyQueue(accountId: number): { inQueue: boolean; type?: string } {
-  const entry = emergencyOptimizationQueue.get(accountId);
-  if (entry && !entry.processed) {
-    return { inQueue: true, type: entry.type };
-  }
-  return { inQueue: false };
-}
-
-/**
- * 标记账户紧急优化已处理
- */
-export function markEmergencyOptimizationProcessed(accountId: number): void {
-  const entry = emergencyOptimizationQueue.get(accountId);
-  if (entry) {
-    entry.processed = true;
-    log.info(`[RiskActionEngine] 账户${accountId}紧急优化已处理`);
-  }
-}
-
-/**
- * 获取所有待处理的紧急优化账户
- */
-export function getPendingEmergencyAccounts(): { accountId: number; type: string }[] {
-  const pending: { accountId: number; type: string }[] = [];
-  for (const [accountId, entry] of emergencyOptimizationQueue) {
-    if (!entry.processed) {
-      pending.push({ accountId, type: entry.type });
+export async function isAccountInEmergencyQueue(accountId: number): Promise<{ inQueue: boolean; type?: string }> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return { inQueue: false };
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    const [rows] = await dbInstance.execute(sql`
+      SELECT actionType FROM emergency_optimization_queue
+      WHERE accountId = ${accountId} AND processed = 0
+      ORDER BY createdAt DESC LIMIT 1
+    `) as any;
+    
+    if (rows && rows.length > 0) {
+      return { inQueue: true, type: rows[0].actionType };
     }
+    return { inQueue: false };
+  } catch (err: any) {
+    log.error(`[isAccountInEmergencyQueue] 查询失败: ${err.message}`);
+    return { inQueue: false };
   }
-  return pending;
 }
 
 /**
- * 清理已处理超过1小时的紧急优化记录
+ * v245: 标记账户紧急优化已处理 — 更新数据库
  */
-export function cleanupProcessedEntries(): void {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  for (const [accountId, entry] of emergencyOptimizationQueue) {
-    if (entry.processed && entry.timestamp < oneHourAgo) {
-      emergencyOptimizationQueue.delete(accountId);
+export async function markEmergencyOptimizationProcessed(accountId: number): Promise<void> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    await dbInstance.execute(sql`
+      UPDATE emergency_optimization_queue 
+      SET processed = 1, processedAt = NOW()
+      WHERE accountId = ${accountId} AND processed = 0
+    `);
+    log.info(`[RiskActionEngine] 账户${accountId}紧急优化已处理(DB更新)`);
+  } catch (err: any) {
+    log.error(`[markEmergencyOptimizationProcessed] 更新失败: ${err.message}`);
+  }
+}
+
+/**
+ * v245: 获取所有待处理的紧急优化账户 — 从数据库查询
+ */
+export async function getPendingEmergencyAccounts(): Promise<{ accountId: number; type: string }[]> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return [];
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    const [rows] = await dbInstance.execute(sql`
+      SELECT accountId, actionType FROM emergency_optimization_queue
+      WHERE processed = 0
+      ORDER BY 
+        CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 END,
+        createdAt ASC
+    `) as any;
+    
+    if (!rows) return [];
+    return rows.map((r: any) => ({ accountId: r.accountId, type: r.actionType }));
+  } catch (err: any) {
+    log.error(`[getPendingEmergencyAccounts] 查询失败: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * v245: 清理已处理超过24小时的紧急优化记录 — 数据库清理
+ */
+export async function cleanupProcessedEntries(): Promise<void> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    const [result] = await dbInstance.execute(sql`
+      DELETE FROM emergency_optimization_queue
+      WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `) as any;
+    
+    const deleted = (result as any)?.affectedRows || 0;
+    if (deleted > 0) {
+      log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);
     }
+  } catch (err: any) {
+    log.error(`[cleanupProcessedEntries] 清理失败: ${err.message}`);
   }
 }
