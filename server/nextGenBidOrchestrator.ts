@@ -280,16 +280,16 @@ function ruleEngineDecision(
         reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%): 提升${(boostRatio * 100).toFixed(0)}%`,
       };
     } else if (acosRatio <= 1.0) {
-      // ACOS在目标范围内，小幅优化
-      const adjustRatio = (1 - acosRatio) * 0.10;
+      // v240: ACOS在目标范围内，提高调整系数 0.10→0.15，使微调更有效
+      const adjustRatio = (1 - acosRatio) * 0.15;
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.65,
         reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%): 微调${(adjustRatio * 100).toFixed(1)}%`,
       };
     } else if (acosRatio <= 1.5) {
-      // ACOS略高于目标，适度降低
-      const reduceRatio = Math.min(0.15, (acosRatio - 1) * 0.20);
+      // v240: ACOS略高于目标，提高降价系数 0.20→0.25，使降价更积极
+      const reduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.6,
@@ -441,7 +441,8 @@ function buildResult(
     : 0;
   
   let actionType: 'increase' | 'decrease' | 'hold' = 'hold';
-  if (Math.abs(newBid - target.currentBid) > 0.01) {
+  // v240: 降低hold阈值0.01→0.005，让低出价关键词的微调也能生效
+  if (Math.abs(newBid - target.currentBid) > 0.005) {
     actionType = newBid > target.currentBid ? 'increase' : 'decrease';
   }
   
@@ -535,7 +536,8 @@ export async function batchCalculateNextGenBids(
       result.bidChangePercent = target.currentBid > 0 
         ? Math.round(((safeBid - target.currentBid) / target.currentBid) * 10000) / 100 
         : 0;
-      result.actionType = Math.abs(safeBid - target.currentBid) > 0.01 
+      // v240: 降低hold阈值0.01→0.005，与buildResult保持一致
+      result.actionType = Math.abs(safeBid - target.currentBid) > 0.005 
         ? (safeBid > target.currentBid ? 'increase' : 'decrease') 
         : 'hold';
       result.reason += ` | GTO修正: ${gtoMod.reasoning}`;

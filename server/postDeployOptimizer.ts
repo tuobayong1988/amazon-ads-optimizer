@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 238;
+export const SYSTEM_VERSION = 240;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -207,6 +207,18 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 238,
     description: 'v238: [关键修复] 规则引擎零曝光探索无限提价循环修复 + 出价累积保护 — (1)零曝光探索增加出价上限保护(不超过maxBid的40%) (2)零点击低曝光场景增加出价上限保护(不超过maxBid的50%) (3)零转化场景增强降价力度(花费超标时降价10-25%) (4)ACOS超标降价增强(v232紧急降价+v238累积保护) (5)部署后自动触发全量重优化纠正历史错误提价',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 239,
+    description: 'v239: 元学习算法选择器门槛降低 — UCB门槛10→5条RL日志, Sigmoid门槛20→10条, CQL门槛50→30条, Ensemble门槛3→2个算法可用, 加速高级算法冷启动',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 240,
+    description: 'v240: [审计修复] 出价微调灵敏度提升 — (1)hold判定阈值从$0.01降低到$0.005，低出价关键词的微调不再被四舍五入吃掉 (2)ACOS达标场景调整系数从0.10提高到0.15，微调更有效 (3)ACOS略高场景降价系数从0.20提高到0.25，降价更积极 (4)部署后自动触发全量重优化纠正历史hold判定',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
