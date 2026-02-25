@@ -1286,20 +1286,21 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['targeting'],
           columns: [
-            // 基础信息 - 根据Excel文档SP-Targeting sheet
-            'date',
+            // 基础信息 - v242: 移除不属于keyword报告的字段(advertisedSku/Asin/targetId/targetingExpression/targetingText)
+            // v242: 使用startDate/endDate替代date (SUMMARY模式不支持date)
+            'startDate',
+            'endDate',
             'campaignId',
-            'campaignName',                      // Excel: campaignName - 广告系列名称
-            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'campaignName',                      // 广告系列名称
+            'campaignBudgetCurrencyCode',        // 货币
             'adGroupId',
-            'adGroupName',                       // Excel: adGroupName - 广告组名称
-            'advertisedSku',                     // Excel: advertisedSku - 已投放广告的SKU
-            'advertisedAsin',                    // Excel: advertisedAsin - 已投放广告的ASIN
-            'targetId',
-            'targetingExpression',
-            'targetingText',
+            'adGroupName',                       // 广告组名称
+            'keywordId',                         // 关键词ID
+            'keyword',                           // 关键词文本
+            'keywordBid',                        // 关键词出价
             'keywordType',
             'matchType',
+            'targeting',                         // 定位表达式
             // 流量指标
             'impressions',                       // Excel: impressions - 展示次数
             'clicks',                            // Excel: clicks - 点击次数
@@ -1865,21 +1866,24 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['targeting'],
           columns: [
-            'date',
+            // v242: 修复无效列名 - 移除targetId/targetingExpression/targetingText/targetingType/date
+            'startDate',
+            'endDate',
             'campaignId',
             'campaignName',
             'adGroupId',
             'adGroupName',
-            'targetId',
-            'targetingExpression',
-            'targetingType',              // AUTO / MANUAL
-            'targetingText',
+            'keywordId',                   // 替代targetId
+            'keyword',                     // 替代targetingText
+            'targeting',                   // 替代targetingExpression
+            'keywordType',                 // 替代targetingType
+            'matchType',
             'impressions',
             'clicks',
             'cost',
-            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
-            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
-            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
+            'sales7d',
+            'unitsSoldClicks7d',
+            'purchases7d'
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',

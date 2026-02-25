@@ -385,6 +385,11 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     const ptUpdates: { id: number; data: any }[] = [];
     
     for (const row of reportData) {
+      // v242: 字段兼容层 - spTargeting报告API返回keyword/keywordId/targeting，映射到旧字段名
+      if (!row.targetId && row.keywordId) row.targetId = row.keywordId;
+      if (!row.targetingText && row.keyword) row.targetingText = row.keyword;
+      if (!row.targetingExpression && row.targeting) row.targetingExpression = row.targeting;
+      
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId) continue;
       
