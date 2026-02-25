@@ -45,7 +45,19 @@ import {
   Calculator,
   Filter,
   Lightbulb,
-  GripVertical
+  GripVertical,
+  Swords,
+  Crosshair,
+  Radar,
+  Gauge,
+  Flame,
+  Scale,
+  ScanEye,
+  ShieldCheck,
+  Trophy,
+  Crown,
+  Orbit,
+  Telescope
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -77,10 +89,10 @@ import { formatInTimeZone } from "date-fns-tz";
 // 营销页面组件（未登录时显示）
 function MarketingPage() {
   useEffect(() => {
-    document.title = "亚马逊广告智能优化系统 - Amazon Ads Optimizer";
+    document.title = "NextGen-GTO 博弈论驱动的亚马逊广告智能优化 - Amazon Ads Optimizer";
   }, []);
 
-  // 算法工作原理数据
+  // 算法工作原理数据 - v237: NextGen-GTO五步流程
   const algorithmSteps = [
     {
       step: 1,
@@ -98,22 +110,29 @@ function MarketingPage() {
     },
     {
       step: 3,
+      title: "GTO博弈论修正",
+      description: "六大GTO引擎对NextGen基础出价进行博弈论修正：感知竞争环境、计算期望价值、识别探索机会、分配预算池、捕捉竞争窗口、平衡关键词组合，输出最优修正系数。",
+      icon: Swords,
+      details: ["竞争环境动态感知", "期望价值(EV)出价", "关键词组合平衡"]
+    },
+    {
+      step: 4,
       title: "智能分时分位置倾斜",
       description: "基于时区感知的消费者行为分析，识别高投产的时间段和广告位置，自动向高转化时段和位置倾斜竞价和预算，最大化每一分广告花费的回报。",
       icon: Calculator,
       details: ["本地时区购物高峰识别", "位置倾斜比例优化", "搜索词自动迁移"]
     },
     {
-      step: 4,
+      step: 5,
       title: "闭环执行与纠错",
-      description: "优化结果实时传递给Amazon并同步回数据库，内置自动纠错监控，确保数据一致性。渐进式调整策略保障安全，异常检测机制实时告警。",
+      description: "优化结果实时传递给Amazon并同步回数据库，内置自动纠错监控和风险行动引擎，确保数据一致性。渐进式调整策略保障安全，异常检测机制实时告警。",
       icon: RefreshCw,
-      details: ["双向数据同步保障", "自动纠错引擎", "渐进式安全调整"]
+      details: ["双向数据同步保障", "自动纠错引擎", "风险行动自动触发"]
     }
   ];
 
-  // 核心算法特性 - NextGen六大核心引擎
-  const coreFeatures = [
+  // v237: NextGen-GTO双层引擎体系 — 6个ML基础引擎 + 6个GTO博弈引擎
+  const mlEngines = [
     {
       icon: Brain,
       title: "CQL离线强化学习",
@@ -158,31 +177,84 @@ function MarketingPage() {
     }
   ];
 
-  // 效果数据展示
+  // v237: GTO博弈论引擎 — 六大博弈策略引擎
+  const gtoEngines = [
+    {
+      icon: Radar,
+      title: "竞争环境感知引擎",
+      subtitle: "实时识别竞争对手行为模式",
+      description: "借鉴扑克中的对手分类策略，通过分析CPC波动、曝光份额变化和竞争密度，将竞争环境动态分类为疯狂型、紧缩型、被动型或中性型，并据此调整出价策略。",
+      benefits: ["4种竞争环境自动识别", "竞争密度实时监测", "对手行为模式追踪"]
+    },
+    {
+      icon: Scale,
+      title: "动态EV出价引擎",
+      subtitle: "基于期望价值计算最优出价",
+      description: "将扑克中的底池赔率和隐含赔率概念应用于广告出价。为每个关键词计算每次点击的期望价值(EV)和盈亏平衡出价，只在EV为正时加注，EV为负时果断弃牌。",
+      benefits: ["每次点击EV精确计算", "盈亏平衡出价自动推导", "加注/跟注/弃牌智能决策"]
+    },
+    {
+      icon: Telescope,
+      title: "探索性投资引擎",
+      subtitle: "对潜力关键词进行脉冲式探测",
+      description: "借鉴扑克中的半诈唬策略，对数据不足但有潜力的'听牌型'关键词进行小幅脉冲式加注探测。以可控的成本验证关键词潜力，避免过早放弃可能的高价值机会。",
+      benefits: ["冷启动关键词智能探测", "听牌型关键词脉冲加注", "探测成本严格可控"]
+    },
+    {
+      icon: ShieldCheck,
+      title: "预算分池与风控引擎",
+      subtitle: "80/20分池策略与ACoS熔断机制",
+      description: "借鉴扑克中的资金管理策略，将预算分为80%核心池和20%探索池。核心池保护已验证的高ROI关键词，探索池用于测试新机会。当ACoS超过目标2倍时自动触发熔断保护。",
+      benefits: ["80/20预算分池管理", "ACoS熔断自动保护", "核心利润永不受损"]
+    },
+    {
+      icon: Crosshair,
+      title: "竞争窗口打击引擎",
+      subtitle: "捕捉并利用每日弱竞争时段",
+      description: "借鉴扑克中的位置攻击策略，分析每日24小时的竞争强度变化，识别竞争对手退出或减弱的时间窗口，在这些窗口中加大投放力度，以更低的CPC获取更多高质量流量。",
+      benefits: ["弱竞争窗口自动识别", "低CPC高效获客", "竞争高峰智能收缩"]
+    },
+    {
+      icon: Orbit,
+      title: "关键词组合平衡器",
+      subtitle: "全局视角优化关键词投资组合",
+      description: "借鉴扑克中的范围平衡策略，将关键词分为利润核心、流量驱动、品牌防御、长尾探索和新词探索五种角色，确保投资组合在进攻与防守之间保持最优平衡。",
+      benefits: ["5种关键词角色分配", "攻守平衡自动调节", "全局投资组合优化"]
+    }
+  ];
+
+  // 合并为coreFeatures供向后兼容
+  const coreFeatures = mlEngines;
+
+  // v237: 效果数据展示 - 更新为GTO体系指标
   const performanceMetrics = [
     { label: "平均ACoS降低", value: "23%", trend: "down", color: "text-green-500" },
     { label: "广告销售额提升", value: "35%", trend: "up", color: "text-blue-500" },
-    { label: "数据同步频率", value: "15min", trend: "up", color: "text-cyan-500" },
+    { label: "GTO引擎数量", value: "12", trend: "up", color: "text-amber-500" },
     { label: "运营时间节省", value: "90%", trend: "up", color: "text-purple-500" }
   ];
 
-  // FAQ数据
+  // v237: FAQ数据 - 更新为NextGen-GTO体系
   const faqs = [
     {
       question: "系统支持哪些类型的Amazon广告？",
       answer: "支持Sponsored Products (SP)、Sponsored Brands (SB)和Sponsored Display (SD)三种广告类型，覆盖Amazon广告的全部主流形式。系统会针对每种广告类型的特点采用不同的优化策略。"
     },
     {
-      question: "NextGen算法是如何工作的？",
-      answer: "NextGen是我们自主研发的下一代出价引擎，采用三层降级架构：数据充足时自动启用CQL强化学习、Sigmoid曲线拟合或LinUCB上下文赌博机等高级算法；数据不足时智能降级到基于规则的可靠决策；极端情况下采用保守策略兜底。Meta-Learning选择器会自动为每个关键词选择最优算法，无需人工干预。"
+      question: "NextGen-GTO算法是如何工作的？",
+      answer: "NextGen-GTO是我们自主研发的博弈论驱动广告优化引擎，采用双层12引擎架构。第一层是NextGen机器学习层，包含CQL强化学习、Sigmoid曲线拟合、LinUCB上下文赌博机等高级算法，为每个关键词计算基础出价。第二层是GTO博弈论修正层，包含竞争环境感知、动态EV出价、探索性投资、预算分池风控、竞争窗口打击和关键词组合平衡六大引擎，对基础出价进行博弈论修正。两层协同工作，输出最终的最优出价。"
+    },
+    {
+      question: "什么是GTO博弈论优化？它和传统优化有什么区别？",
+      answer: "GTO (Game Theory Optimal) 是博弈论中的最优策略概念。传统广告优化只关注关键词自身的表现数据，而GTO优化将广告竞价视为一场多方博弈：它会感知竞争对手的行为模式、计算每次点击的期望价值、识别竞争薄弱的时间窗口、平衡整体关键词投资组合。这种全局博弈视角能够在复杂的竞争环境中找到更优的出价策略。"
     },
     {
       question: "数据同步频率是多少？如何保证数据一致性？",
-      answer: "系统采用三层分频同步策略：广告活动状态和预算每15分钟同步一次，广告组和关键词每30分钟同步，完整数据每1小时全量同步。优化调整会实时传递给Amazon并同步回数据库，内置自动纠错引擎确保数据双向一致。"
+      answer: "系统采用三层分频同步策略：广告活动状态和预算每15分钟同步一次，广告组和关键词每30分钟同步，完整数据每1小时全量同步。优化调整会实时传递给Amazon并同步回数据库，内置自动纠错引擎确保数据双向一致，同步成功率始终保持在100%。"
     },
     {
       question: "如何保证优化不会导致广告效果下降？",
-      answer: "系统采用多层安全保障：NextGen引擎内置渐进式调整策略，单次出价变化不超过30%；Meta-Learning会持续追踪每个算法的表现，自动降级表现不佳的算法；异常检测机制实时监控，发现效果异常立即告警并暂停优化。"
+      answer: "系统采用多层安全保障：NextGen引擎内置渐进式调整策略，单次出价变化不超过30%；GTO修正系数被严格限制在0.6~1.4的安全边界内；预算分池引擎将80%预算锁定在已验证的高ROI关键词上；ACoS熔断机制在超标时自动冻结探索池；Meta-Learning会持续追踪每个算法的表现，自动降级表现不佳的算法。"
     },
     {
       question: "支持多站点多账户管理吗？",
@@ -220,16 +292,17 @@ function MarketingPage() {
         <div className="relative container py-24 lg:py-32">
           <div className="max-w-4xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-              <Brain className="w-4 h-4" />
-              <span>NextGen下一代智能优化引擎</span>
+              <Swords className="w-4 h-4" />
+              <span>NextGen-GTO 博弈论驱动的智能优化引擎</span>
             </div>
             <h1 className="text-4xl lg:text-6xl font-bold tracking-tight mb-6">
-              AI驱动的
+              博弈论驱动的
               <span className="text-primary">亚马逊广告优化</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8 leading-relaxed max-w-3xl">
-              基于<strong className="text-foreground">CQL离线强化学习</strong>、<strong className="text-foreground">Sigmoid曲线拟合</strong>和<strong className="text-foreground">Meta-Learning算法自动选择</strong>，
-              结合三层分频实时数据同步，实现广告竞价、预算、分时分位置的全自动智能优化。
+              融合<strong className="text-foreground">机器学习</strong>与<strong className="text-foreground">博弈论(GTO)</strong>的双层12引擎架构。
+              NextGen层提供CQL强化学习、Sigmoid曲线拟合等AI出价能力，GTO层注入竞争环境感知、期望价值出价、关键词组合平衡等博弈策略，
+              实现广告竞价、预算、分时分位置的全自动智能优化。
             </p>
             
             {/* 核心指标展示 */}
@@ -267,40 +340,103 @@ function MarketingPage() {
         </div>
       </header>
 
-      {/* 核心算法引擎 Section */}
+      {/* v237: 双层引擎架构 Section */}
       <section className="py-24 bg-card/30">
         <div className="container">
+          {/* 架构总览 */}
           <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">NextGen核心技术</Badge>
-            <h2 className="text-3xl lg:text-4xl font-bold mb-4">六大核心算法引擎</h2>
+            <Badge variant="outline" className="mb-4">双层12引擎架构</Badge>
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">NextGen-GTO 双层智能引擎</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              NextGen下一代出价引擎，融合强化学习、曲线拟合与元学习，为每个关键词自动选择最优策略
+              第一层机器学习引擎计算基础出价，第二层博弈论引擎进行竞争环境修正，双层协同输出最优出价
             </p>
           </div>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {coreFeatures.map((feature, i) => (
-              <Card key={i} className="bg-card/50 border-border/50 hover:border-primary/50 transition-colors group">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                    <feature.icon className="w-6 h-6 text-primary" />
-                  </div>
-                  <CardTitle className="text-lg">{feature.title}</CardTitle>
-                  <CardDescription>{feature.subtitle}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
-                  <ul className="space-y-2">
-                    {feature.benefits.map((benefit, j) => (
-                      <li key={j} className="flex items-center gap-2 text-sm">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        <span>{benefit}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
+
+          {/* 第一层: NextGen ML引擎 */}
+          <div className="mb-16">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Brain className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">第一层：NextGen 机器学习引擎</h3>
+                <p className="text-sm text-muted-foreground">基于强化学习、曲线拟合与元学习，为每个关键词计算基础出价</p>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {mlEngines.map((feature, i) => (
+                <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
+                  <CardHeader>
+                    <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
+                      <feature.icon className="w-6 h-6 text-blue-500" />
+                    </div>
+                    <CardTitle className="text-lg">{feature.title}</CardTitle>
+                    <CardDescription>{feature.subtitle}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
+                    <ul className="space-y-2">
+                      {feature.benefits.map((benefit, j) => (
+                        <li key={j} className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                          <span>{benefit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* 连接箭头 */}
+          <div className="flex items-center justify-center my-8">
+            <div className="flex items-center gap-4 px-8 py-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-amber-500/10 to-amber-500/10 border border-border/50">
+              <span className="text-sm font-medium text-blue-500">基础出价</span>
+              <ArrowRight className="w-5 h-5 text-muted-foreground" />
+              <Swords className="w-6 h-6 text-amber-500" />
+              <ArrowRight className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm font-medium text-amber-500">GTO修正系数 (0.6~1.4)</span>
+              <ArrowRight className="w-5 h-5 text-muted-foreground" />
+              <span className="text-sm font-medium text-green-500">最终出价</span>
+            </div>
+          </div>
+
+          {/* 第二层: GTO博弈论引擎 */}
+          <div className="mt-16">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Swords className="w-5 h-5 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">第二层：GTO 博弈论修正引擎</h3>
+                <p className="text-sm text-muted-foreground">基于博弈论最优策略(GTO)，从竞争环境、期望价值、风控等维度修正基础出价</p>
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {gtoEngines.map((feature, i) => (
+                <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
+                  <CardHeader>
+                    <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
+                      <feature.icon className="w-6 h-6 text-amber-500" />
+                    </div>
+                    <CardTitle className="text-lg">{feature.title}</CardTitle>
+                    <CardDescription>{feature.subtitle}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
+                    <ul className="space-y-2">
+                      {feature.benefits.map((benefit, j) => (
+                        <li key={j} className="flex items-center gap-2 text-sm">
+                          <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                          <span>{benefit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -310,13 +446,13 @@ function MarketingPage() {
         <div className="container">
           <div className="text-center mb-16">
             <Badge variant="outline" className="mb-4">工作原理</Badge>
-            <h2 className="text-3xl lg:text-4xl font-bold mb-4">智能优化四步流程</h2>
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">智能优化五步流程</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              从数据采集到自动执行，形成完整的优化闭环
+              从数据采集到AI决策，经博弈论修正后自动执行，形成完整的优化闭环
             </p>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
             {algorithmSteps.map((step, i) => (
               <div key={i} className="relative">
                 {/* 连接线 */}
@@ -366,27 +502,32 @@ function MarketingPage() {
                 {
                   aspect: "出价决策算法",
                   traditional: "固定规则或单一算法，所有关键词一视同仁",
-                  ours: "NextGen多算法融合，Meta-Learning自动为每个关键词选择最优算法"
+                  ours: "NextGen-GTO双层12引擎，ML计算基础出价 + GTO博弈论修正"
                 },
                 {
-                  aspect: "数据同步频率",
-                  traditional: "每天同步一次，数据严重滞后",
-                  ours: "三层分频同步（15分钟/30分钟/1小时），数据始终新鲜"
+                  aspect: "竞争环境感知",
+                  traditional: "完全忽略竞争对手行为，只看自身数据",
+                  ours: "GTO引擎实时感知竞争环境，自动识别对手行为模式并调整策略"
                 },
                 {
-                  aspect: "学习与进化",
-                  traditional: "静态规则，不会从历史数据中学习",
-                  ours: "CQL强化学习+Sigmoid曲线拟合，持续从数据中进化"
+                  aspect: "出价决策逻辑",
+                  traditional: "基于固定规则或简单阈值决策",
+                  ours: "基于期望价值(EV)计算，EV为正加注、EV为负弃牌，类似扑克博弈策略"
                 },
                 {
-                  aspect: "分时分位置优化",
-                  traditional: "使用UTC时间，忽略本地消费者行为",
-                  ours: "时区感知，智能识别高投产时段和位置并自动倾斜"
+                  aspect: "预算风控",
+                  traditional: "无预算分池，探索新词可能损害核心利润",
+                  ours: "80/20预算分池 + ACoS熔断机制，核心利润永不受损"
+                },
+                {
+                  aspect: "关键词组合管理",
+                  traditional: "独立优化每个关键词，缺乏全局视角",
+                  ours: "关键词组合平衡器，5种角色分配，攻守平衡自动调节"
                 },
                 {
                   aspect: "安全保障",
                   traditional: "缺乏降级机制，算法失效时无兜底",
-                  ours: "三层降级架构（高级算法→规则引擎→保守策略），永不失控"
+                  ours: "三层降级 + GTO安全边界(0.6~1.4) + 预算熔断，永不失控"
                 }
               ].map((item, i) => (
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
@@ -555,10 +696,10 @@ function MarketingPage() {
       <section className="py-24">
         <div className="container">
           <div className="max-w-4xl mx-auto text-center bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-3xl p-12 border border-primary/20">
-            <Sparkles className="w-12 h-12 text-primary mx-auto mb-6" />
-            <h2 className="text-3xl lg:text-4xl font-bold mb-4">让NextGen引擎优化您的广告</h2>
+            <Swords className="w-12 h-12 text-primary mx-auto mb-6" />
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">让NextGen-GTO引擎优化您的广告</h2>
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              立即登录，连接您的Amazon Ads账户，让NextGen下一代AI引擎帮您实现广告效果的持续提升
+              立即登录，连接您的Amazon Ads账户，让博弈论驱动的双层12引擎帮您在竞争中赢得每一次出价决策
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Button size="lg" asChild>
@@ -569,7 +710,7 @@ function MarketingPage() {
               </Button>
             </div>
             <p className="text-sm text-muted-foreground mt-6">
-              无需信用卡 · 即刻开始 · 随时取消
+              无需信用卡 · 双层12引擎即刻启动 · 随时取消
             </p>
           </div>
         </div>
@@ -586,7 +727,7 @@ function MarketingPage() {
               <span className="font-semibold">Amazon Ads Optimizer</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2025 Amazon Ads Optimizer. 专注于亚马逊广告智能优化。
+              © 2026 Amazon Ads Optimizer. 博弈论驱动的亚马逊广告智能优化。
             </p>
           </div>
         </div>
