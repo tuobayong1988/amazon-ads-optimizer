@@ -525,15 +525,15 @@ export default function StrategyCenter() {
                           <span className="text-muted-foreground">自动优化</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {group.status === 'active' ? (
+                          {group.autoOptimize ? (
                             <Badge className="bg-green-500/20 text-green-400 text-xs">
                               <CheckCircle className="h-3 w-3 mr-1" />
-                              已启用
+                              自动优化已启用
                             </Badge>
                           ) : (
-                            <Badge className="bg-gray-500/20 text-gray-400 text-xs">
+                            <Badge className="bg-red-500/20 text-red-400 text-xs">
                               <Pause className="h-3 w-3 mr-1" />
-                              已暂停
+                              自动优化已关闭
                             </Badge>
                           )}
                         </div>

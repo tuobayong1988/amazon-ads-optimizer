@@ -935,8 +935,8 @@ export default function PerformanceGroupDetail() {
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">自动优化</span>
-                    <Badge variant={group.status === 'active' ? 'default' : 'secondary'}>
-                      {group.status === 'active' ? '✅ 已开启' : '⛔ 已关闭'}
+                    <Badge variant={group.autoOptimize ? 'default' : 'destructive'}>
+                      {group.autoOptimize ? '✅ 已开启' : '⛔ 已关闭'}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">

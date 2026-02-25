@@ -508,14 +508,9 @@ export async function executeOptimizationTarget(
     try {
       const bidResults = await executeBidOptimization(config, campaigns, dryRun);
       result.bidOptimization = bidResults;
-      // v235: 处理紧急暂停标记（由executeBidOptimization安全检查触发）
-      if ((bidResults as any).emergencyPause) {
-        result.errors.push((bidResults as any).emergencyReason || 'Emergency pause triggered');
-        result.status = 'failed';
-        if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
-        unregisterActiveTask(activeTaskId);
-        return result;
-      }
+      // v244: 移除v235的emergencyPause提前返回逻辑
+      // 原v235行为：单个campaign安全检查触发 → 终止所有优化模块执行
+      // 修复：安全检查只跳过单个campaign，不再影响其他优化模块（位置优化、分时竞价、搜索词分析、预算分配）的执行
     } catch (error: any) {
       result.errors.push(`出价优化失败: ${error.message}`);
     }
@@ -1019,6 +1014,7 @@ async function executeBidOptimization(
 ): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
   const details: any[] = [];
   let adjustmentsCount = 0;
+  let safetyPausedCampaignCount = 0; // v244: 记录安全检查触发暂停的campaign数量
   
   // v122h: 计算广告组平均CVR、CPC、AOV作为贝叶斯先验数据
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
@@ -1113,18 +1109,13 @@ async function executeBidOptimization(
           reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
         });
 
-        // v232+v235: 紧急止损 - 如果安全检查建议暂停，则暂停整个优化目标
-        // 修复: 在独立函数executeBidOptimization中，通过返回特殊标记让调用方处理锁释放
-        try {
-          await db.updatePerformanceGroup(config.id, { autoOptimize: 0 });
-          const pauseMsg = `v232: 优化目标 "${config.name}" 已被安全系统自动暂停 - Campaign ${campaign.campaignName} 触发严重风险信号: ${safetyCheck.reason}`;
-          log.error(`[OptimizationTarget] ${pauseMsg}`);
-          details.push({ action: 'emergency_pause', reason: pauseMsg, campaignName: campaign.campaignName });
-          // 返回带有紧急暂停标记的结果，让调用方 executeOptimizationTarget 处理锁释放
-          return { executed: true, adjustmentsCount, details, emergencyPause: true, emergencyReason: pauseMsg };
-        } catch (autoPauseErr: any) {
-          log.error(`[OptimizationTarget] v232: 自动暂停优化目标失败:`, autoPauseErr.message);
-        }
+        // v244: 修复v232过度激进的紧急止损逻辑
+        // 原v232行为：单个campaign安全检查触发 → 暂停整个优化目标(autoOptimize=0)
+        // 问题：单个campaign的正常波动（如季节性变化、新campaign冷启动）会导致整个优化目标被关闭
+        // 修复：跳过该campaign的出价优化，但不暂停整个优化目标，让其他campaign继续正常优化
+        // 只有当超过50%的campaign都触发安全暂停时，才记录严重警告（但仍不自动关闭）
+        safetyPausedCampaignCount++;
+        log.warn(`[BidOptimization] v244: Campaign ${campaignLocalId} (${campaign.campaignName}) 安全检查触发，跳过该campaign的出价优化（不暂停整个优化目标）`);
 
         continue; // 跳过该campaign的竞价优化
       }
@@ -1462,6 +1453,19 @@ async function executeBidOptimization(
     }
   }
   
+  // v244: 汇总安全检查结果
+  if (safetyPausedCampaignCount > 0) {
+    const totalCampaigns = campaigns.length;
+    const pauseRatio = safetyPausedCampaignCount / totalCampaigns;
+    const summaryMsg = `v244: 优化目标"${config.name}" 安全检查汇总 - ${safetyPausedCampaignCount}/${totalCampaigns}个campaign触发安全暂停(${(pauseRatio * 100).toFixed(0)}%)，已跳过这些campaign的出价优化`;
+    if (pauseRatio > 0.5) {
+      log.error(`[BidOptimization] ${summaryMsg} - 超过50%campaign触发安全暂停，建议人工检查`);
+    } else {
+      log.warn(`[BidOptimization] ${summaryMsg}`);
+    }
+    details.push({ action: 'safety_summary', reason: summaryMsg, safetyPausedCount: safetyPausedCampaignCount, totalCampaigns, pauseRatio });
+  }
+
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
 

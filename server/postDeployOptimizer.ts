@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 243;
+export const SYSTEM_VERSION = 244;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -237,6 +237,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 243,
     description: 'v243: [死锁修复] — (1)生命周期判定优化: OR改为AND逻辑，避免老广告永久停留在launch阶段 (2)launch阶段bid间隔4h降为2h (3)模块执行时间恢复策略优化: 不再使用last_optimization_at回退填充，避免PostDeploy更新时间导致死锁 (4)PostDeploy强制初始化module_execution_times',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 244,
+    description: 'v244: [紧急修复] 修复v232安全检查过度激进导致优化目标被错误关闭 — (1)移除v232紧急止损逻辑: 单个campaign安全检查触发不再关闭整个优化目标(autoOptimize=0) (2)改为跳过该campaign继续处理其他campaign (3)移除v235的emergencyPause提前返回逻辑，其他优化模块不受影响 (4)添加安全暂停比例汇总日志 (5)部署后自动恢复所有被错误关闭的优化目标',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
@@ -899,7 +905,42 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   log.debug(`[PostDeployOptimizer] 受影响模块: ${affectedModules.join(', ')}`);
   log.info(`[PostDeployOptimizer] 纠正动作: ${correctionActions.join(', ')}`);
   
-  // 4. 获取所有活跃优化目标
+  // 4. v244: 部署前先恢复所有被v232安全检查错误关闭的优化目标
+  // 问题背景：v232的安全检查逻辑会因单个campaign的正常波动就关闭整个优化目标
+  // 修复：在每次部署时，自动检查并恢复所有status=active但autoOptimize=0的优化目标
+  try {
+    const database = await getDb();
+    if (database) {
+      const allGroups = await database
+        .select({ id: performanceGroups.id, name: performanceGroups.name, autoOptimize: performanceGroups.autoOptimize, status: performanceGroups.status })
+        .from(performanceGroups)
+        .where(and(
+          eq(performanceGroups.status, 'active'),
+          eq(performanceGroups.autoOptimize, 0)
+        ));
+      
+      if (allGroups.length > 0) {
+        log.warn(`[PostDeployOptimizer] v244: 发现 ${allGroups.length} 个活跃优化目标的autoOptimize被关闭，正在自动恢复...`);
+        for (const group of allGroups) {
+          // 检查该优化目标下是否有enabled状态的广告活动（v168的合理暂停不应被恢复）
+          const pgCampaigns = await db.getCampaignsByPerformanceGroupId(group.id);
+          const enabledCount = pgCampaigns.filter((c: any) => c.campaignStatus === 'enabled').length;
+          if (enabledCount > 0) {
+            await db.updatePerformanceGroup(group.id, { autoOptimize: 1 });
+            log.info(`[PostDeployOptimizer] v244: 已恢复优化目标 "${group.name}" (ID:${group.id}) 的自动优化 - 有${enabledCount}个enabled广告活动`);
+          } else {
+            log.info(`[PostDeployOptimizer] v244: 优化目标 "${group.name}" (ID:${group.id}) 下无enabled广告活动，保持关闭状态`);
+          }
+        }
+      } else {
+        log.info(`[PostDeployOptimizer] v244: 所有活跃优化目标的autoOptimize状态正常`);
+      }
+    }
+  } catch (restoreErr: any) {
+    log.error(`[PostDeployOptimizer] v244: 恢复优化目标状态失败:`, restoreErr.message);
+  }
+
+  // 5. 获取所有活跃优化目标（恢复后重新获取）
   const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
   const targets = await getEnabledOptimizationTargets();
   
