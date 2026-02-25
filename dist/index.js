@@ -367011,26 +367011,52 @@ var inviteCodeRouter = router({
 // server/routes/user.ts
 init_db2();
 init_drizzle_orm();
+var columnEnsured = false;
+async function ensurePreferencesColumn(db) {
+  if (columnEnsured) return;
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'preferences'
+      LIMIT 1
+    `);
+    if (!rows || !rows.COLUMN_NAME) {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
+      console.log("[User] preferences column added to users table");
+    }
+    columnEnsured = true;
+  } catch (error54) {
+    if (error54?.message?.includes("Duplicate column")) {
+      columnEnsured = true;
+    } else {
+      console.warn("[User] Failed to ensure preferences column:", error54?.message);
+      try {
+        await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
+        columnEnsured = true;
+      } catch {
+        throw error54;
+      }
+    }
+  }
+}
 var userRouter = router({
   // 获取用户偏好设置
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return {};
     try {
-      await db.execute(sql`
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSON DEFAULT NULL
-      `).catch(() => {
-      });
-      const [row] = await db.execute(
+      await ensurePreferencesColumn(db);
+      const rows = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
+      const row = Array.isArray(rows) ? rows[0] : rows?.rows?.[0];
       if (row && row.preferences) {
         const prefs = row.preferences;
         return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
       }
       return {};
     } catch (error54) {
-      console.warn("[User] Failed to get preferences:", error54);
+      console.warn("[User] Failed to get preferences:", error54?.message);
       return {};
     }
   }),
@@ -367042,26 +367068,26 @@ var userRouter = router({
     const db = await getDb();
     if (!db) return { success: false };
     try {
-      await db.execute(sql`
-          ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSON DEFAULT NULL
-        `).catch(() => {
-      });
-      const [row] = await db.execute(
+      await ensurePreferencesColumn(db);
+      const rows = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
+      const row = Array.isArray(rows) ? rows[0] : rows?.rows?.[0];
       let currentPrefs = {};
       if (row && row.preferences) {
         const prefs = row.preferences;
         currentPrefs = typeof prefs === "string" ? JSON.parse(prefs) : prefs;
       }
       currentPrefs[input.key] = input.value;
+      const prefsJson = JSON.stringify(currentPrefs);
       await db.execute(
-        sql`UPDATE users SET preferences = ${JSON.stringify(currentPrefs)} WHERE id = ${ctx.user.id}`
+        sql`UPDATE users SET preferences = CAST(${prefsJson} AS JSON) WHERE id = ${ctx.user.id}`
       );
+      console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
       return { success: true };
     } catch (error54) {
-      console.warn("[User] Failed to update preferences:", error54);
-      return { success: false };
+      console.error("[User] Failed to update preferences:", error54?.message, error54?.stack?.split("\n").slice(0, 3).join("\n"));
+      return { success: false, error: error54?.message };
     }
   })
 });
