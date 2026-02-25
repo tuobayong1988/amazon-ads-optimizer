@@ -14,11 +14,9 @@ async function ensurePreferencesColumn(db: any) {
   if (columnEnsured) return;
   
   try {
-    // 直接尝试查询 preferences 列，如果不存在会报错
     await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
     columnEnsured = true;
   } catch (error: any) {
-    // 列不存在，添加它
     try {
       await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
       console.log('[User] preferences column added to users table');
@@ -35,7 +33,7 @@ async function ensurePreferencesColumn(db: any) {
 }
 
 export const userRouter = router({
-  // 获取用户偏好设置
+  // 获取用户偏好设置 - 带调试信息
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return {};
@@ -43,25 +41,44 @@ export const userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       
-      // drizzle-orm/mysql2 的 db.execute() 返回 [rows, fields] 元组
-      const [rows] = await db.execute(
+      const result = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
-      ) as any;
+      );
       
-      const row = Array.isArray(rows) ? rows[0] : rows;
+      // 调试：返回原始结果结构
+      const debugInfo: any = {
+        resultType: typeof result,
+        isArray: Array.isArray(result),
+        length: Array.isArray(result) ? result.length : undefined,
+      };
       
-      if (row && row.preferences) {
-        const prefs = row.preferences;
-        return typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
+      // drizzle-orm/mysql2 返回 [rows, fields]
+      let rows: any;
+      if (Array.isArray(result) && result.length >= 1) {
+        rows = result[0]; // 第一个元素是rows数组
+        debugInfo.firstElementType = typeof rows;
+        debugInfo.firstElementIsArray = Array.isArray(rows);
+        if (Array.isArray(rows) && rows.length > 0) {
+          debugInfo.firstRow = JSON.stringify(rows[0]);
+          debugInfo.firstRowKeys = Object.keys(rows[0] || {});
+          const prefs = rows[0]?.preferences;
+          debugInfo.prefsType = typeof prefs;
+          debugInfo.prefsValue = typeof prefs === 'string' ? prefs.substring(0, 100) : JSON.stringify(prefs)?.substring(0, 100);
+          if (prefs) {
+            return typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
+          }
+        }
       }
-      return {};
+      
+      // 如果上面没有返回，返回调试信息
+      return { _debug: debugInfo };
     } catch (error: any) {
       console.warn('[User] Failed to get preferences:', error?.message);
-      return {};
+      return { _error: error?.message };
     }
   }),
 
-  // 更新用户偏好设置
+  // 更新用户偏好设置 - 带调试信息
   updatePreferences: protectedProcedure
     .input(z.object({
       key: z.string(),
@@ -74,12 +91,13 @@ export const userRouter = router({
       try {
         await ensurePreferencesColumn(db);
         
-        // 获取当前偏好 - 使用正确的 [rows, fields] 解构
-        const [rows] = await db.execute(
+        // 获取当前偏好
+        const result = await db.execute(
           sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
         ) as any;
         
-        const row = Array.isArray(rows) ? rows[0] : rows;
+        let rows = Array.isArray(result) && result.length >= 1 ? result[0] : result;
+        let row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         
         let currentPrefs: Record<string, any> = {};
         if (row && row.preferences) {
@@ -92,13 +110,27 @@ export const userRouter = router({
         
         const prefsJson = JSON.stringify(currentPrefs);
         
-        // 保存 - 使用MySQL的JSON类型兼容方式
+        // 保存
         await db.execute(
           sql`UPDATE users SET preferences = CAST(${prefsJson} AS JSON) WHERE id = ${ctx.user.id}`
         );
         
-        console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
-        return { success: true };
+        // 验证写入 - 立即读回
+        const verifyResult = await db.execute(
+          sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        ) as any;
+        let verifyRows = Array.isArray(verifyResult) && verifyResult.length >= 1 ? verifyResult[0] : verifyResult;
+        let verifyRow = Array.isArray(verifyRows) && verifyRows.length > 0 ? verifyRows[0] : null;
+        
+        return { 
+          success: true, 
+          _debug: {
+            wrote: prefsJson.substring(0, 100),
+            readBack: verifyRow?.preferences ? JSON.stringify(verifyRow.preferences).substring(0, 100) : 'null',
+            readBackType: typeof verifyRow?.preferences,
+            userId: ctx.user.id
+          }
+        };
       } catch (error: any) {
         console.error('[User] Failed to update preferences:', error?.message);
         return { success: false, error: error?.message };

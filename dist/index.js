@@ -367033,27 +367033,43 @@ async function ensurePreferencesColumn(db) {
   }
 }
 var userRouter = router({
-  // 获取用户偏好设置
+  // 获取用户偏好设置 - 带调试信息
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return {};
     try {
       await ensurePreferencesColumn(db);
-      const [rows] = await db.execute(
+      const result2 = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
-      const row = Array.isArray(rows) ? rows[0] : rows;
-      if (row && row.preferences) {
-        const prefs = row.preferences;
-        return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
+      const debugInfo = {
+        resultType: typeof result2,
+        isArray: Array.isArray(result2),
+        length: Array.isArray(result2) ? result2.length : void 0
+      };
+      let rows;
+      if (Array.isArray(result2) && result2.length >= 1) {
+        rows = result2[0];
+        debugInfo.firstElementType = typeof rows;
+        debugInfo.firstElementIsArray = Array.isArray(rows);
+        if (Array.isArray(rows) && rows.length > 0) {
+          debugInfo.firstRow = JSON.stringify(rows[0]);
+          debugInfo.firstRowKeys = Object.keys(rows[0] || {});
+          const prefs = rows[0]?.preferences;
+          debugInfo.prefsType = typeof prefs;
+          debugInfo.prefsValue = typeof prefs === "string" ? prefs.substring(0, 100) : JSON.stringify(prefs)?.substring(0, 100);
+          if (prefs) {
+            return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
+          }
+        }
       }
-      return {};
+      return { _debug: debugInfo };
     } catch (error54) {
       console.warn("[User] Failed to get preferences:", error54?.message);
-      return {};
+      return { _error: error54?.message };
     }
   }),
-  // 更新用户偏好设置
+  // 更新用户偏好设置 - 带调试信息
   updatePreferences: protectedProcedure.input(external_exports.object({
     key: external_exports.string(),
     value: external_exports.any()
@@ -367062,10 +367078,11 @@ var userRouter = router({
     if (!db) return { success: false };
     try {
       await ensurePreferencesColumn(db);
-      const [rows] = await db.execute(
+      const result2 = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
-      const row = Array.isArray(rows) ? rows[0] : rows;
+      let rows = Array.isArray(result2) && result2.length >= 1 ? result2[0] : result2;
+      let row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       let currentPrefs = {};
       if (row && row.preferences) {
         const prefs = row.preferences;
@@ -367076,8 +367093,20 @@ var userRouter = router({
       await db.execute(
         sql`UPDATE users SET preferences = CAST(${prefsJson} AS JSON) WHERE id = ${ctx.user.id}`
       );
-      console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
-      return { success: true };
+      const verifyResult = await db.execute(
+        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+      );
+      let verifyRows = Array.isArray(verifyResult) && verifyResult.length >= 1 ? verifyResult[0] : verifyResult;
+      let verifyRow = Array.isArray(verifyRows) && verifyRows.length > 0 ? verifyRows[0] : null;
+      return {
+        success: true,
+        _debug: {
+          wrote: prefsJson.substring(0, 100),
+          readBack: verifyRow?.preferences ? JSON.stringify(verifyRow.preferences).substring(0, 100) : "null",
+          readBackType: typeof verifyRow?.preferences,
+          userId: ctx.user.id
+        }
+      };
     } catch (error54) {
       console.error("[User] Failed to update preferences:", error54?.message);
       return { success: false, error: error54?.message };
