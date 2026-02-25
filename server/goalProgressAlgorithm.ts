@@ -3,18 +3,21 @@
  * 
  * v162: 全新的多维度加权评分系统
  * v164: 与v163渐进式+时间衰减逻辑完全对齐
+ * v235: 新增第6维度“NextGen算法效能”，与NextGen竞价编排器深度对齐
  *   - 核心指标使用时间衰减加权ACoS/ROAS（近期数据权重更高）
  *   - 趋势改善使用多时间窗口对比（7天 vs 30天 vs 60天）
  *   - 预算效率使用时间衰减加权日均花费
- *   - 新增"渐进式优化进度"子维度
- *   - 引入数据置信度修正
+ *   - 渐进式优化进度子维度
+ *   - 数据置信度修正
+ *   - NextGen算法效能：评估算法层级分布、正向率、置信度
  * 
- * 五大维度：
+ * 六大维度：
  * 1. 核心指标达成度 - 时间衰减加权ACoS/ROAS与目标值的对比
  * 2. 趋势改善度 - 多时间窗口渐进式改善评估
  * 3. 预算效率 - 时间衰减加权预算利用率
  * 4. 转化效率 - ROAS、CVR、CPC综合评估
- * 5. 渐进优化进度 - 优化是否在稳步接近目标（新增）
+ * 5. 渐进优化进度 - 优化是否在稳步接近目标
+ * 6. NextGen算法效能 - 算法层级分布、正向率、自我进化效果 (v235新增)
  */
 
 // ==================== 类型定义 ====================
@@ -115,6 +118,26 @@ export interface GoalProgressResult {
   level: 'excellent' | 'good' | 'fair' | 'poor';
 }
 
+/** v235: NextGen算法效能数据（从算法效果服务和自我进化引擎获取） */
+export interface AlgorithmEfficacyData {
+  /** 怰30天总优化操作数 */
+  totalOperations: number;
+  /** 正向率（优化后ACoS改善的比例） */
+  positiveRate: number;
+  /** 算法层级分布 */
+  tierDistribution: {
+    advanced: number;    // 高级算法（LinUCB/CQL）使用比例
+    ruleEngine: number;  // 规则引擎使用比例
+    conservative: number; // 保守策略使用比例
+  };
+  /** 平均置信度 */
+  avgConfidence: number;
+  /** 自我进化纠错数（近30天） */
+  evolutionCorrections: number;
+  /** 改善趋势: improving/stable/declining */
+  improvementTrend: string;
+}
+
 // ==================== 策略模板权重配置 ====================
 
 interface WeightConfig {
@@ -122,18 +145,20 @@ interface WeightConfig {
   trend: number;
   budgetEfficiency: number;
   conversionEfficiency: number;
-  gradualProgress: number;  // v164新增
+  gradualProgress: number;
+  algorithmEfficacy: number;  // v235新增: NextGen算法效能
 }
 
+// v235: 重新分配权重，给算法效能维度10%权重，从其他维度均匀扣减
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
-  'aggressive-growth': { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
-  'balanced':          { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
-  'profit-focused':    { coreMetric: 35, trend: 10, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
-  'seasonal-boost':    { coreMetric: 15, trend: 35, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
-  'brand-defense':     { coreMetric: 30, trend: 10, budgetEfficiency: 20, conversionEfficiency: 20, gradualProgress: 20 },
+  'aggressive-growth': { coreMetric: 18, trend: 27, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'balanced':          { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'profit-focused':    { coreMetric: 32, trend: 8, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'seasonal-boost':    { coreMetric: 13, trend: 32, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'brand-defense':     { coreMetric: 27, trend: 8, budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
 };
 
-const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 };
+const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 };
 
 function getWeights(strategyTemplateId: string | null): WeightConfig {
   if (!strategyTemplateId) return DEFAULT_WEIGHTS;
@@ -693,17 +718,79 @@ function calculateGradualProgressScore(
 
 // ==================== 主计算函数 ====================
 
+// ==================== 维度6: NextGen算法效能 (v235新增) ====================
+
+function calculateAlgorithmEfficacyScore(
+  algorithmData?: AlgorithmEfficacyData
+): { score: number; detail: string } {
+  if (!algorithmData || algorithmData.totalOperations === 0) {
+    return { score: 50, detail: '暂无算法执行数据，使用基础分' };
+  }
+  
+  let score = 0;
+  const details: string[] = [];
+  
+  // 1. 正向率评分（40分）— 优化后ACoS改善的比例
+  const posRate = algorithmData.positiveRate;
+  if (posRate >= 70) { score += 40; details.push(`正向率${posRate.toFixed(0)}%(优秀)`); }
+  else if (posRate >= 55) { score += 30; details.push(`正向率${posRate.toFixed(0)}%(良好)`); }
+  else if (posRate >= 40) { score += 20; details.push(`正向率${posRate.toFixed(0)}%(一般)`); }
+  else if (posRate >= 25) { score += 10; details.push(`正向率${posRate.toFixed(0)}%(偏低)`); }
+  else { score += 5; details.push(`正向率${posRate.toFixed(0)}%(待改善)`); }
+  
+  // 2. 算法层级分布评分（25分）— 高级算法使用比例越高越好
+  const { advanced, ruleEngine, conservative } = algorithmData.tierDistribution;
+  if (advanced >= 50) { score += 25; details.push(`高级算法${advanced}%`); }
+  else if (advanced >= 30) { score += 20; details.push(`高级算法${advanced}%`); }
+  else if (advanced >= 10) { score += 15; details.push(`高级算法${advanced}%`); }
+  else if (ruleEngine >= 70) { score += 12; details.push(`规则引擎主导${ruleEngine}%`); }
+  else { score += 8; details.push(`保守策略${conservative}%`); }
+  
+  // 3. 置信度评分（20分）— 算法对自己决策的信心
+  const conf = algorithmData.avgConfidence;
+  if (conf >= 0.7) { score += 20; }
+  else if (conf >= 0.5) { score += 15; }
+  else if (conf >= 0.3) { score += 10; }
+  else { score += 5; }
+  details.push(`置信度${(conf * 100).toFixed(0)}%`);
+  
+  // 4. 自我进化效果（15分）— 纠错数越少越好（说明算法已经很稳定）
+  const corrections = algorithmData.evolutionCorrections;
+  if (corrections === 0) { score += 15; details.push('无纠错(稳定)'); }
+  else if (corrections <= 3) { score += 12; details.push(`纠错${corrections}次`); }
+  else if (corrections <= 10) { score += 8; details.push(`纠错${corrections}次`); }
+  else { score += 4; details.push(`纠错${corrections}次(较多)`); }
+  
+  // 改善趋势加减分
+  if (algorithmData.improvementTrend === 'improving') {
+    score = Math.min(100, score + 5);
+    details.push('算法效果持续改善');
+  } else if (algorithmData.improvementTrend === 'declining') {
+    score = Math.max(5, score - 5);
+    details.push('算法效果有下滑趋势');
+  }
+  
+  return {
+    score: Math.min(100, Math.max(5, score)),
+    detail: details.join('，') || 'NextGen算法评估中'
+  };
+}
+
+// ==================== 主计算函数 ====================
+
 /**
  * 计算多维度目标达成度
  * 
  * v164: 新增timeWeighted和multiWindow参数，与渐进式+时间衰减逻辑对齐
+ * v235: 新增algorithmData参数，与NextGen竞价编排器深度对齐
  */
 export function calculateGoalProgress(
   config: GroupConfig,
   metrics: PerformanceMetrics,
   trendData?: TrendData,
   timeWeighted?: TimeWeightedMetrics,
-  multiWindow?: MultiWindowTrendData
+  multiWindow?: MultiWindowTrendData,
+  algorithmData?: AlgorithmEfficacyData
 ): GoalProgressResult {
   // 完全没有数据
   if (config.campaignCount === 0 && metrics.totalSpend < 0.01 && metrics.totalSales < 0.01) {
@@ -728,6 +815,7 @@ export function calculateGoalProgress(
   const budgetEff = calculateBudgetEfficiencyScore(config, metrics, timeWeighted);
   const convEff = calculateConversionEfficiencyScore(metrics, config, timeWeighted);
   const gradualProgress = calculateGradualProgressScore(config, metrics, timeWeighted, multiWindow);
+  const algEfficacy = calculateAlgorithmEfficacyScore(algorithmData);
   
   // 构建维度得分数组
   const dimensions: DimensionScore[] = [
@@ -770,6 +858,14 @@ export function calculateGoalProgress(
       weight: weights.gradualProgress,
       weighted: Math.round(gradualProgress.score * weights.gradualProgress / 100),
       detail: gradualProgress.detail,
+    },
+    {
+      name: 'algorithmEfficacy',
+      nameZh: '算法效能',
+      score: algEfficacy.score,
+      weight: weights.algorithmEfficacy,
+      weighted: Math.round(algEfficacy.score * weights.algorithmEfficacy / 100),
+      detail: algEfficacy.detail,
     },
   ];
   

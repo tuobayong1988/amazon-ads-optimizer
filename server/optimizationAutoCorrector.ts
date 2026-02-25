@@ -3325,6 +3325,19 @@ export function startAutoCorrector(): void {
       log.info('定时纠错扫描开始...');
       const result = await runAutoCorrection();
       log.warn(`定时纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+      
+      // v235: 纠错扫描后自动触发风险行动引擎评估
+      try {
+        const { executeRiskActions } = await import('./riskActionEngine');
+        const riskResult = await executeRiskActions();
+        if (riskResult.actionsTriggered > 0) {
+          log.warn(`v235 风险行动引擎: 触发${riskResult.actionsTriggered}个行动, ` +
+            `critical账户=${riskResult.accountRisks.filter(a => a.riskLevel === 'critical').length}, ` +
+            `同步健康=${riskResult.syncHealth.healthStatus}`);
+        }
+      } catch (riskErr: any) {
+        log.error(`v235 风险行动引擎执行失败: ${riskErr.message}`);
+      }
     } catch (err: any) {
       log.error('定时纠错扫描失败:', err.message);
     }

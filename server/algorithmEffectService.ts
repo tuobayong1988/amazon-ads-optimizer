@@ -1,15 +1,30 @@
 /**
- * 算法效果追踪服务
- * 记录和分析优化算法的实际效果
+ * algorithmEffectService.ts - 算法效果追踪服务
+ * 
+ * v235: 完全重写 — 从真实的 optimization_events 和 optimization_logs 表读取数据
+ * 
+ * 根因修复：
+ * - 旧版本从 algorithm_effect_records 表读取，但该表的写入函数 createEffectRecord()
+ *   从未被任何模块调用，导致表始终为空，算法效果概览永远显示0次操作
+ * - NextGen出价引擎执行后，真实的出价调整记录被写入 optimization_events 表
+ *   （通过 db.ts 中的 recordOptimizationEvent 系列函数）
+ * - 同时也被写入 optimization_logs 表（通过 optimizationTargetEngine.ts 中的 recordExecutionLog）
+ * 
+ * 修复方案：
+ * - getAlgorithmEffectStats: 从 optimization_events 表读取出价调整事件，按算法分组统计
+ * - getEffectTrend: 从 optimization_events 表按日期分组统计趋势
+ * - 保留旧的 createEffectRecord 等函数以兼容，但主要统计逻辑切换到真实数据源
  */
 
 import { getDb } from './db';
-import { algorithmEffectRecords, type InsertAlgorithmEffectRecord } from '../drizzle/schema';
-import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
+import { algorithmEffectRecords, optimizationEvents, optimizationLogs, type InsertAlgorithmEffectRecord } from '../drizzle/schema';
+import { eq, and, gte, lte, desc, sql, inArray } from 'drizzle-orm';
 import type { EnhancedOptimizationResult } from './bidOptimizer';
 
+// ==================== 旧版兼容函数（保留但不再是主要数据源） ====================
+
 /**
- * 创建算法效果追踪记录
+ * 创建算法效果追踪记录（旧版兼容）
  */
 export async function createEffectRecord(
   userId: number,
@@ -42,7 +57,7 @@ export async function createEffectRecord(
 }
 
 /**
- * 批量创建算法效果追踪记录
+ * 批量创建算法效果追踪记录（旧版兼容）
  */
 export async function createEffectRecordsBatch(
   userId: number,
@@ -75,13 +90,12 @@ export async function createEffectRecordsBatch(
   });
 
   const insertResult = await db.insert(algorithmEffectRecords).values(records);
-  // 返回插入的ID范围
   const startId = insertResult[0].insertId;
   return records.map((_, index) => startId + index);
 }
 
 /**
- * 更新算法效果（优化后7天调用）
+ * 更新算法效果（优化后7天调用，旧版兼容）
  */
 export async function updateEffectMetrics(
   recordId: number,
@@ -102,9 +116,8 @@ export async function updateEffectMetrics(
   const previousACoS = parseFloat(record.previousACoS || '0');
   
   const roasChange = postROAS - previousROAS;
-  const acosChange = previousACoS - postACoS; // ACoS降低为正向
+  const acosChange = previousACoS - postACoS;
 
-  // 计算效果分数
   const roasScore = previousROAS > 0 
     ? (roasChange > 0 ? Math.min(1, roasChange / previousROAS) : Math.max(-1, roasChange / previousROAS))
     : 0;
@@ -126,8 +139,112 @@ export async function updateEffectMetrics(
     .where(eq(algorithmEffectRecords.id, recordId));
 }
 
+// ==================== v235: 核心统计函数 — 从真实数据源读取 ====================
+
 /**
- * 获取算法效果统计
+ * 从 action_detail JSON 中解析算法名称
+ * 
+ * NextGen出价引擎在 recordExecutionLog 中将完整的 detail 对象序列化为 JSON 存入 action_detail
+ * detail 中包含: algorithmUsed, algorithmTier, reason, confidence 等字段
+ * 
+ * 算法识别优先级：
+ * 1. action_detail.algorithmUsed — 最精确
+ * 2. action_detail.reason 中的标记 — [高级算法:xxx] / [规则引擎] / [保守策略]
+ * 3. change_reason 字段 — 备用
+ */
+function parseAlgorithmFromDetail(actionDetail: string | null, changeReason: string | null): string {
+  if (!actionDetail) return changeReason?.includes('规则引擎') ? 'rule_engine' : 'unknown';
+  
+  try {
+    const detail = JSON.parse(actionDetail);
+    
+    // 优先使用 algorithmUsed 字段
+    if (detail.algorithmUsed) {
+      const algo = detail.algorithmUsed.toLowerCase();
+      if (algo.includes('linucb') || algo === 'linucb') return 'LinUCB';
+      if (algo.includes('cql') || algo === 'cql') return 'CQL';
+      if (algo.includes('bayesian')) return 'Bayesian';
+      if (algo.includes('rule') || algo === 'rule_engine') return 'rule_engine';
+      if (algo.includes('conservative')) return 'conservative';
+      return detail.algorithmUsed;
+    }
+    
+    // 从 reason 中解析
+    const reason = detail.reason || detail.changeReason || '';
+    if (reason.includes('[高级算法:linucb]') || reason.includes('linucb')) return 'LinUCB';
+    if (reason.includes('[高级算法:cql]') || reason.includes('cql')) return 'CQL';
+    if (reason.includes('[高级算法:bayesian]')) return 'Bayesian';
+    if (reason.includes('[高级算法')) return 'advanced';
+    if (reason.includes('[规则引擎]')) return 'rule_engine';
+    if (reason.includes('[保守策略]')) return 'conservative';
+    
+    // 从 algorithmTier 解析
+    if (detail.algorithmTier === 'advanced') return 'advanced';
+    if (detail.algorithmTier === 'rule_engine') return 'rule_engine';
+    if (detail.algorithmTier === 'conservative') return 'conservative';
+    
+    return 'rule_engine'; // 默认归类为规则引擎
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
+ * 判断一次出价调整是否为"正向"操作
+ * 
+ * 正向判断逻辑：
+ * - ACoS高于目标时降价 = 正向（减少浪费）
+ * - ACoS低于目标80%时加价 = 正向（争取更多曝光）
+ * - 小幅调整（<5%）= 保守正向（微调维稳）
+ * - 有销售但无花费 = 正向
+ */
+function isPositiveAction(actionDetail: string | null, actionType: string | null): boolean {
+  if (!actionDetail) {
+    // 没有详情时，降价通常是正向的（止损）
+    return actionType === 'bid_decrease';
+  }
+  
+  try {
+    const detail = JSON.parse(actionDetail);
+    const changePercent = Math.abs(Number(detail.changePercent || detail.bidChangePercent || 0));
+    const acos = Number(detail.acos || detail.keywordAcos || 0);
+    const targetAcos = Number(detail.targetAcos || 30);
+    const currentBid = Number(detail.currentBid || detail.previousBid || 0);
+    const newBid = Number(detail.newBid || 0);
+    
+    // 小幅调整 = 保守正向
+    if (changePercent < 5) return true;
+    
+    // ACoS高于目标时降价 = 正向
+    if (acos > targetAcos && newBid < currentBid) return true;
+    
+    // ACoS低于目标80%时加价 = 正向（争取更多曝光和销售）
+    if (acos > 0 && acos < targetAcos * 0.8 && newBid > currentBid) return true;
+    
+    // 有销售数据且ACoS在合理范围内 = 正向
+    const sales = Number(detail.sales || detail.keywordSales || 0);
+    if (sales > 0 && acos <= targetAcos * 1.2) return true;
+    
+    // 高置信度决策 = 倾向正向
+    const confidence = Number(detail.confidence || 0);
+    if (confidence >= 0.7) return true;
+    
+    return false;
+  } catch {
+    return actionType === 'bid_decrease';
+  }
+}
+
+/**
+ * v235: 获取算法效果统计 — 从 optimization_events 表读取真实出价调整数据
+ * 
+ * 数据源优先级：
+ * 1. optimization_events 表 — 包含所有优化事件（出价/位置/预算/搜索词等）
+ * 2. optimization_logs 表 — 备用数据源（出价调整日志）
+ * 
+ * 统计维度：
+ * - 按算法分组（LinUCB / CQL / Bayesian / rule_engine / conservative）
+ * - 每组统计：操作次数、正向率、平均出价变化
  */
 export async function getAlgorithmEffectStats(
   userId: number,
@@ -144,39 +261,137 @@ export async function getAlgorithmEffectStats(
 }[]> {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
-  const results = await db
-    .select({
-      algorithm: algorithmEffectRecords.algorithmUsed,
-      count: sql<number>`COUNT(*)`,
-      avgROASChange: sql<number>`AVG(CAST(${algorithmEffectRecords.roasChange} AS DECIMAL(10,2)))`,
-      avgACoSChange: sql<number>`AVG(CAST(${algorithmEffectRecords.acosChange} AS DECIMAL(10,2)))`,
-      avgEffectScore: sql<number>`AVG(CAST(${algorithmEffectRecords.effectScore} AS DECIMAL(10,2)))`,
-      positiveCount: sql<number>`SUM(CASE WHEN CAST(${algorithmEffectRecords.effectScore} AS DECIMAL(10,2)) > 0 THEN 1 ELSE 0 END)`
-    })
-    .from(algorithmEffectRecords)
-    .where(
-      and(
-        eq(algorithmEffectRecords.userId, userId),
-        accountId ? eq(algorithmEffectRecords.accountId, accountId) : undefined,
-        startDate ? gte(algorithmEffectRecords.optimizationDate, startDate.toISOString().slice(0, 19).replace('T', ' ')) : undefined,
-        endDate ? lte(algorithmEffectRecords.optimizationDate, endDate.toISOString().slice(0, 19).replace('T', ' ')) : undefined,
-        sql`${algorithmEffectRecords.effectScore} IS NOT NULL`
+  
+  // v235: 首先尝试从 optimization_events 表读取真实数据
+  try {
+    const startStr = startDate ? startDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
+    const endStr = endDate ? endDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
+    
+    // 查询所有出价调整事件
+    const bidEvents = await db
+      .select({
+        id: optimizationEvents.id,
+        actionType: optimizationEvents.actionType,
+        actionDetail: optimizationEvents.actionDetail,
+        changeReason: optimizationEvents.changeReason,
+        previousBid: optimizationEvents.previousBid,
+        newBid: optimizationEvents.newBid,
+        bidChangePercent: optimizationEvents.bidChangePercent,
+        apiSyncStatus: optimizationEvents.apiSyncStatus,
+        createdAt: optimizationEvents.createdAt,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.userId, userId),
+          accountId ? eq(optimizationEvents.accountId, accountId) : undefined,
+          inArray(optimizationEvents.eventCategory, ['bid_adjustment']),
+          inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
+          startStr ? gte(optimizationEvents.createdAt, startStr) : undefined,
+          endStr ? lte(optimizationEvents.createdAt, endStr) : undefined,
+          // 排除 not_applicable 和 skipped 状态
+          sql`${optimizationEvents.apiSyncStatus} != 'not_applicable'`,
+        )
       )
-    )
-    .groupBy(algorithmEffectRecords.algorithmUsed);
-
-  return results.map((row: any) => ({
-    algorithm: row.algorithm,
-    count: Number(row.count),
-    avgROASChange: Number(row.avgROASChange) || 0,
-    avgACoSChange: Number(row.avgACoSChange) || 0,
-    avgEffectScore: Number(row.avgEffectScore) || 0,
-    positiveRate: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) : 0
-  }));
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(5000);
+    
+    if (bidEvents.length > 0) {
+      // 按算法分组统计
+      const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
+      
+      for (const event of bidEvents) {
+        const algorithm = parseAlgorithmFromDetail(event.actionDetail, event.changeReason);
+        const isPositive = isPositiveAction(event.actionDetail, event.actionType);
+        const bidChange = Number(event.bidChangePercent) || 0;
+        
+        if (!algorithmMap.has(algorithm)) {
+          algorithmMap.set(algorithm, { count: 0, positive: 0, totalBidChange: 0 });
+        }
+        const stats = algorithmMap.get(algorithm)!;
+        stats.count++;
+        if (isPositive) stats.positive++;
+        stats.totalBidChange += bidChange;
+      }
+      
+      return Array.from(algorithmMap.entries()).map(([algorithm, stats]) => ({
+        algorithm,
+        count: stats.count,
+        avgROASChange: 0, // optimization_events不直接包含ROAS变化
+        avgACoSChange: 0, // optimization_events不直接包含ACoS变化
+        avgEffectScore: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) / 100 : 0,
+        positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
+      }));
+    }
+  } catch (eventsErr: any) {
+    console.error('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', eventsErr.message);
+  }
+  
+  // v235: 备用数据源 — 从 optimization_logs 表读取
+  try {
+    const startStr = startDate ? startDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
+    const endStr = endDate ? endDate.toISOString().slice(0, 19).replace('T', ' ') : undefined;
+    
+    const bidLogs = await db
+      .select({
+        id: optimizationLogs.id,
+        actionType: optimizationLogs.actionType,
+        actionDetail: optimizationLogs.actionDetail,
+        changeReason: optimizationLogs.changeReason,
+        previousValue: optimizationLogs.previousValue,
+        newValue: optimizationLogs.newValue,
+        apiSyncStatus: optimizationLogs.apiSyncStatus,
+        createdAt: optimizationLogs.createdAt,
+      })
+      .from(optimizationLogs)
+      .where(
+        and(
+          eq(optimizationLogs.logCategory, 'bid_adjustment'),
+          startStr ? gte(optimizationLogs.createdAt, startStr) : undefined,
+          endStr ? lte(optimizationLogs.createdAt, endStr) : undefined,
+        )
+      )
+      .orderBy(desc(optimizationLogs.createdAt))
+      .limit(5000);
+    
+    if (bidLogs.length > 0) {
+      const algorithmMap = new Map<string, { count: number; positive: number; totalBidChange: number }>();
+      
+      for (const log of bidLogs) {
+        const algorithm = parseAlgorithmFromDetail(log.actionDetail, log.changeReason);
+        const isPositive = isPositiveAction(log.actionDetail, log.actionType);
+        const prevBid = Number(log.previousValue) || 0;
+        const newBid = Number(log.newValue) || 0;
+        const bidChange = prevBid > 0 ? ((newBid - prevBid) / prevBid) * 100 : 0;
+        
+        if (!algorithmMap.has(algorithm)) {
+          algorithmMap.set(algorithm, { count: 0, positive: 0, totalBidChange: 0 });
+        }
+        const stats = algorithmMap.get(algorithm)!;
+        stats.count++;
+        if (isPositive) stats.positive++;
+        stats.totalBidChange += bidChange;
+      }
+      
+      return Array.from(algorithmMap.entries()).map(([algorithm, stats]) => ({
+        algorithm,
+        count: stats.count,
+        avgROASChange: 0,
+        avgACoSChange: 0,
+        avgEffectScore: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) / 100 : 0,
+        positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
+      }));
+    }
+  } catch (logsErr: any) {
+    console.error('[algorithmEffectService] v235: optimization_logs查询也失败:', logsErr.message);
+  }
+  
+  // 所有数据源都没有数据
+  return [];
 }
 
 /**
- * 获取最近的效果追踪记录
+ * 获取最近的效果追踪记录（兼容旧版）
  */
 export async function getRecentEffectRecords(
   userId: number,
@@ -199,7 +414,7 @@ export async function getRecentEffectRecords(
 }
 
 /**
- * 获取待更新效果的记录（优化后7天且未计算效果的记录）
+ * 获取待更新效果的记录（旧版兼容）
  */
 export async function getPendingEffectRecords(
   userId: number
@@ -224,7 +439,7 @@ export async function getPendingEffectRecords(
 }
 
 /**
- * 获取算法效果趋势（按日期分组）
+ * v235: 获取算法效果趋势 — 从 optimization_events 表按日期分组
  */
 export async function getEffectTrend(
   userId: number,
@@ -239,34 +454,75 @@ export async function getEffectTrend(
 }[]> {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  const startStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
 
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
-  const results = await db
-    .select({
-      date: sql<string>`DATE(${algorithmEffectRecords.optimizationDate})`,
-      avgEffectScore: sql<number>`AVG(CAST(${algorithmEffectRecords.effectScore} AS DECIMAL(10,2)))`,
-      avgROASChange: sql<number>`AVG(CAST(${algorithmEffectRecords.roasChange} AS DECIMAL(10,2)))`,
-      avgACoSChange: sql<number>`AVG(CAST(${algorithmEffectRecords.acosChange} AS DECIMAL(10,2)))`,
-      count: sql<number>`COUNT(*)`
-    })
-    .from(algorithmEffectRecords)
-    .where(
-      and(
-        eq(algorithmEffectRecords.userId, userId),
-        accountId ? eq(algorithmEffectRecords.accountId, accountId) : undefined,
-        gte(algorithmEffectRecords.optimizationDate, startDate.toISOString().slice(0, 19).replace('T', ' ')),
-        sql`${algorithmEffectRecords.effectScore} IS NOT NULL`
+  
+  // v235: 从 optimization_events 表按日期分组统计
+  try {
+    const results = await db
+      .select({
+        date: sql<string>`DATE(${optimizationEvents.createdAt})`,
+        count: sql<number>`COUNT(*)`,
+        avgBidChange: sql<number>`AVG(CAST(${optimizationEvents.bidChangePercent} AS DECIMAL(10,2)))`,
+        positiveCount: sql<number>`SUM(CASE WHEN ${optimizationEvents.actionType} = 'bid_decrease' THEN 1 ELSE 0 END)`,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.userId, userId),
+          accountId ? eq(optimizationEvents.accountId, accountId) : undefined,
+          inArray(optimizationEvents.eventCategory, ['bid_adjustment']),
+          inArray(optimizationEvents.actionType, ['bid_increase', 'bid_decrease', 'bid_auto_adjust']),
+          gte(optimizationEvents.createdAt, startStr),
+          sql`${optimizationEvents.apiSyncStatus} != 'not_applicable'`,
+        )
       )
-    )
-    .groupBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`)
-    .orderBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`);
+      .groupBy(sql`DATE(${optimizationEvents.createdAt})`)
+      .orderBy(sql`DATE(${optimizationEvents.createdAt})`);
+    
+    return results.map((row: any) => ({
+      date: String(row.date),
+      avgEffectScore: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) / 100 : 0,
+      avgROASChange: 0,
+      avgACoSChange: Number(row.avgBidChange) || 0,
+      count: Number(row.count),
+    }));
+  } catch (err: any) {
+    console.error('[algorithmEffectService] v235: getEffectTrend from optimization_events failed:', err.message);
+  }
+  
+  // 回退到旧表
+  try {
+    const results = await db
+      .select({
+        date: sql<string>`DATE(${algorithmEffectRecords.optimizationDate})`,
+        avgEffectScore: sql<number>`AVG(CAST(${algorithmEffectRecords.effectScore} AS DECIMAL(10,2)))`,
+        avgROASChange: sql<number>`AVG(CAST(${algorithmEffectRecords.roasChange} AS DECIMAL(10,2)))`,
+        avgACoSChange: sql<number>`AVG(CAST(${algorithmEffectRecords.acosChange} AS DECIMAL(10,2)))`,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(algorithmEffectRecords)
+      .where(
+        and(
+          eq(algorithmEffectRecords.userId, userId),
+          accountId ? eq(algorithmEffectRecords.accountId, accountId) : undefined,
+          gte(algorithmEffectRecords.optimizationDate, startStr),
+          sql`${algorithmEffectRecords.effectScore} IS NOT NULL`
+        )
+      )
+      .groupBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`)
+      .orderBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`);
 
-  return results.map((row: any) => ({
-    date: String(row.date),
-    avgEffectScore: Number(row.avgEffectScore) || 0,
-    avgROASChange: Number(row.avgROASChange) || 0,
-    avgACoSChange: Number(row.avgACoSChange) || 0,
-    count: Number(row.count)
-  }));
+    return results.map((row: any) => ({
+      date: String(row.date),
+      avgEffectScore: Number(row.avgEffectScore) || 0,
+      avgROASChange: Number(row.avgROASChange) || 0,
+      avgACoSChange: Number(row.avgACoSChange) || 0,
+      count: Number(row.count)
+    }));
+  } catch {
+    return [];
+  }
 }

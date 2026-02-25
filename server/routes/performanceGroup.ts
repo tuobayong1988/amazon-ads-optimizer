@@ -7,7 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as unifiedOptimizationEngine from '../unifiedOptimizationEngine';
-import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData, type TimeWeightedMetrics, type MultiWindowTrendData } from '../goalProgressAlgorithm';
+import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData, type TimeWeightedMetrics, type MultiWindowTrendData, type AlgorithmEfficacyData } from '../goalProgressAlgorithm';
 import * as advancedAnalyticsService from '../advancedAnalyticsService';
 import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
@@ -213,7 +213,16 @@ export const performanceGroupRouter = router({
               console.log(`[performanceGroup.list] Data fetch failed for group ${group.id}:`, dataErr);
             }
             
-            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow);
+            // v235: 获取NextGen算法效能数据
+            let algorithmData: AlgorithmEfficacyData | undefined;
+            try {
+              const { getAlgorithmEfficacyForTarget } = await import('../algorithmEfficacyService');
+              algorithmData = await getAlgorithmEfficacyForTarget(group.id);
+            } catch (algErr) {
+              // 算法效能数据获取失败不影响主流程
+            }
+            
+            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow, algorithmData);
           } catch (progressErr) {
             console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
           }

@@ -487,11 +487,35 @@ export async function executeOptimizationTarget(
     return true;
   };
   
+  // v235: 检查账户是否在紧急优化队列中（由riskActionEngine触发）
+  let emergencyMode = false;
+  try {
+    const { isAccountInEmergencyQueue, markEmergencyOptimizationProcessed } = await import('./riskActionEngine');
+    const emergencyCheck = isAccountInEmergencyQueue(config.accountId);
+    if (emergencyCheck.inQueue) {
+      emergencyMode = true;
+      log.info(`[OptimizationTarget] v235: 账户${config.accountId}在紧急优化队列中 (${emergencyCheck.type})，启用紧急优化模式`);
+      result.warnings.push(`v235: 紧急优化模式已启用 - ${emergencyCheck.type}`);
+      // 标记已处理
+      markEmergencyOptimizationProcessed(config.accountId);
+    }
+  } catch (riskErr: any) {
+    log.warn(`[OptimizationTarget] v235: 紧急优化检查异常: ${riskErr.message}`);
+  }
+
   // 1. 执行出价优化
   if (config.enableBidOptimization && shouldExecute('bid')) {
     try {
       const bidResults = await executeBidOptimization(config, campaigns, dryRun);
       result.bidOptimization = bidResults;
+      // v235: 处理紧急暂停标记（由executeBidOptimization安全检查触发）
+      if ((bidResults as any).emergencyPause) {
+        result.errors.push((bidResults as any).emergencyReason || 'Emergency pause triggered');
+        result.status = 'failed';
+        if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+        unregisterActiveTask(activeTaskId);
+        return result;
+      }
     } catch (error: any) {
       result.errors.push(`出价优化失败: ${error.message}`);
     }
@@ -992,7 +1016,7 @@ async function executeBidOptimization(
   config: OptimizationTargetConfig,
   campaigns: any[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string }> {
+): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
   const details: any[] = [];
   let adjustmentsCount = 0;
   
@@ -1089,17 +1113,15 @@ async function executeBidOptimization(
           reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
         });
 
-        // v232: 紧急止损 - 如果安全检查建议暂停，则暂停整个优化目标
+        // v232+v235: 紧急止损 - 如果安全检查建议暂停，则暂停整个优化目标
+        // 修复: 在独立函数executeBidOptimization中，通过返回特殊标记让调用方处理锁释放
         try {
           await db.updatePerformanceGroup(config.id, { autoOptimize: 0 });
           const pauseMsg = `v232: 优化目标 "${config.name}" 已被安全系统自动暂停 - Campaign ${campaign.campaignName} 触发严重风险信号: ${safetyCheck.reason}`;
           log.error(`[OptimizationTarget] ${pauseMsg}`);
-          result.errors.push(pauseMsg);
-          result.status = 'failed';
-          // 立即释放锁并返回，终止当前所有优化
-          if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
-          unregisterActiveTask(activeTaskId);
-          return result;
+          details.push({ action: 'emergency_pause', reason: pauseMsg, campaignName: campaign.campaignName });
+          // 返回带有紧急暂停标记的结果，让调用方 executeOptimizationTarget 处理锁释放
+          return { executed: true, adjustmentsCount, details, emergencyPause: true, emergencyReason: pauseMsg };
         } catch (autoPauseErr: any) {
           log.error(`[OptimizationTarget] v232: 自动暂停优化目标失败:`, autoPauseErr.message);
         }

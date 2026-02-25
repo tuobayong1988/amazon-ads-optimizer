@@ -747,15 +747,20 @@ function DashboardContent() {
     return { healthy, warning, critical, total: accountsData.length };
   }, [accountsData]);
   
-  // v233: 同步状态统计
+  // v235: 同步状态统计 — 修复同步成功率计算
+  // 根因: not_applicable 和 invalid_legacy 是不需要同步到Amazon的内部事件（如keyword_create失败记录），
+  // 不应计入同步成功率的分母。纠错监控页面已正确排除，首页需要对齐。
   const syncStats = useMemo(() => {
-    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0 };
+    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0, notApplicable: 0 };
     const dist = correctionDashboard.statusDistribution as any[];
-    const synced = dist.find((d: any) => d.api_sync_status === 'synced')?.count || 0;
-    const pending = dist.find((d: any) => d.api_sync_status === 'pending_sync')?.count || 0;
-    const failed = dist.find((d: any) => d.api_sync_status === 'failed')?.count || 0;
-    const total = dist.reduce((sum: number, d: any) => sum + Number(d.count), 0);
-    return { synced: Number(synced), pending: Number(pending), failed: Number(failed), total: Number(total) };
+    const synced = Number(dist.find((d: any) => d.api_sync_status === 'synced')?.count || 0);
+    const pending = Number(dist.find((d: any) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
+    const failed = Number(dist.find((d: any) => d.api_sync_status === 'failed')?.count || 0);
+    const notApplicable = Number(dist.find((d: any) => d.api_sync_status === 'not_applicable')?.count || 0)
+      + Number(dist.find((d: any) => d.api_sync_status === 'invalid_legacy')?.count || 0);
+    // v235: total只统计需要同步的事件（synced + pending + failed），排除not_applicable和invalid_legacy
+    const syncableTotal = synced + pending + failed;
+    return { synced, pending, failed, total: syncableTotal, notApplicable };
   }, [correctionDashboard]);
   
   // v233: 算法使用统计
@@ -955,9 +960,10 @@ function DashboardContent() {
                                     <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
                                     <Tooltip 
                                       contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                      formatter={(value: number, name: string) => {
-                                        if (name === 'ACoS') return [`${value.toFixed(1)}%`, name];
-                                        return [`$${value.toFixed(0)}`, name];
+                                      formatter={(value: number | undefined, name: string) => {
+                                        const v = value ?? 0;
+                                        if (name === 'ACoS') return [`${v.toFixed(1)}%`, name];
+                                        return [`$${v.toFixed(0)}`, name];
                                       }}
                                     />
                                     <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
@@ -994,7 +1000,7 @@ function DashboardContent() {
                                   </span>
                                 </div>
                               </div>
-                              <CardDescription>按ACoS从高到低排列，快速定位需要关注的账户</CardDescription>
+                              <CardDescription>按ACoS从高到低排列 — 高风险账户将自动触发NextGen算法紧急优化</CardDescription>
                             </CardHeader>
                             <CardContent>
                               <div className="space-y-3">
@@ -1010,7 +1016,8 @@ function DashboardContent() {
                                       <div className="flex items-center gap-2">
                                         <span className="font-semibold truncate">{account.name}</span>
                                         <Badge variant="outline" className="text-xs shrink-0">{account.marketplace}</Badge>
-                                        {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0">需关注</Badge>}
+                                        {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0 animate-pulse">紧急优化中</Badge>}
+                                        {account.status === 'warning' && <Badge variant="outline" className="text-xs shrink-0 border-yellow-500/50 text-yellow-400">自动监控</Badge>}
                                       </div>
                                       <div className="text-xs text-muted-foreground mt-0.5">
                                         花费 ${account.spend.toFixed(0)} · 销售 ${account.sales.toFixed(0)} · {account.orders}单
@@ -1047,6 +1054,16 @@ function DashboardContent() {
                               <CardTitle className="text-base flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 text-blue-500" />
                                 同步健康度
+                                {/* v235: 同步状态指示器 */}
+                                {syncStats.total > 0 && (
+                                  <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-medium ${
+                                    syncStats.failed > 0 ? 'bg-red-500/20 text-red-400' :
+                                    syncStats.pending > 0 ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-green-500/20 text-green-400'
+                                  }`}>
+                                    {syncStats.failed > 0 ? '需要关注' : syncStats.pending > 0 ? '同步中' : '全部同步'}
+                                  </span>
+                                )}
                               </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -1062,13 +1079,32 @@ function DashboardContent() {
                                 <span className="text-muted-foreground">同步失败</span>
                                 <span className={`font-semibold ${syncStats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{syncStats.failed.toLocaleString()}</span>
                               </div>
+                              {/* v235: 不适用事件数（内部操作，不需要同步到Amazon） */}
+                              {syncStats.notApplicable > 0 && (
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-muted-foreground">不适用</span>
+                                  <span className="font-semibold text-muted-foreground">{syncStats.notApplicable.toLocaleString()}</span>
+                                </div>
+                              )}
                               {syncStats.total > 0 && (
                                 <div>
                                   <div className="flex items-center justify-between text-xs mb-1">
                                     <span className="text-muted-foreground">同步成功率</span>
-                                    <span className="font-semibold">{((syncStats.synced / syncStats.total) * 100).toFixed(1)}%</span>
+                                    <span className={`font-semibold ${
+                                      syncStats.total > 0 && syncStats.synced === syncStats.total ? 'text-green-500' :
+                                      syncStats.failed > 0 ? 'text-red-500' : ''
+                                    }`}>{((syncStats.synced / syncStats.total) * 100).toFixed(1)}%</span>
                                   </div>
                                   <Progress value={(syncStats.synced / syncStats.total) * 100} className="h-2" />
+                                </div>
+                              )}
+                              {/* v235: 同步异常时显示自动纠错触发提示 */}
+                              {(syncStats.failed > 0 || syncStats.pending > 10) && (
+                                <div className="pt-2 border-t border-border/50">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                                    <span className="text-yellow-400">系统将自动触发纠错扫描以修复同步异常</span>
+                                  </div>
                                 </div>
                               )}
                               {correctionDashboard?.lastScan && (
