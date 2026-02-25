@@ -1,0 +1,531 @@
+/**
+ * optimizationMonitoringService.ts
+ * v239 - 自动化监控告警系统
+ * 
+ * 功能：
+ * 1. 提价/降价比例监控 — 当提价/降价比例超过3:1时自动告警
+ * 2. ACoS超标监控 — 当ACoS超标幅度超过50%时自动告警
+ * 3. 同步成功率监控 — 当同步成功率低于100%时自动告警
+ * 4. 算法健康度监控 — 检测算法是否正常运行
+ * 5. 版本一致性检查 — 确保SYSTEM_VERSION与部署版本一致
+ */
+
+import { getDb } from './db';
+import { optimizationEvents, optimizationLogs, adAccounts } from '../drizzle/schema';
+import { eq, gte, and, sql, desc } from 'drizzle-orm';
+
+// ============================================================
+// 告警级别和类型定义
+// ============================================================
+
+export type AlertSeverity = 'info' | 'warning' | 'critical';
+export type AlertCategory = 
+  | 'bid_ratio_imbalance'
+  | 'acos_overrun'
+  | 'sync_failure'
+  | 'algorithm_stall'
+  | 'version_mismatch'
+  | 'budget_overrun'
+  | 'zero_optimization';
+
+export interface MonitoringAlert {
+  id: string;
+  category: AlertCategory;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+  metric: string;
+  currentValue: number;
+  threshold: number;
+  recommendation: string;
+  timestamp: Date;
+  accountId?: number;
+  accountName?: string;
+}
+
+export interface MonitoringReport {
+  generatedAt: Date;
+  systemVersion: number;
+  alerts: MonitoringAlert[];
+  metrics: {
+    bidRaiseCount: number;
+    bidLowerCount: number;
+    bidRaiseToLowerRatio: number;
+    avgAcosOverrun: number;
+    syncSuccessRate: number;
+    optimizationCount30d: number;
+    positiveRate: number;
+    activeAlgorithms: string[];
+    highRiskAccounts: number;
+  };
+  healthScore: number; // 0-100
+  status: 'healthy' | 'warning' | 'critical';
+}
+
+// ============================================================
+// 告警阈值配置
+// ============================================================
+
+const ALERT_THRESHOLDS = {
+  // 提价/降价比例超过此值触发告警
+  bidRatioMax: 3.0,
+  // ACoS超标幅度超过此百分比触发告警（如目标30%，实际超过45%即超标50%）
+  acosOverrunPercent: 50,
+  // 同步成功率低于此值触发告警
+  syncSuccessRateMin: 100,
+  // 30天内优化操作为0触发告警
+  minOptimizationCount: 1,
+  // 正向率低于此值触发警告
+  minPositiveRate: 40,
+  // 单账户ACoS超过目标的此倍数触发严重告警
+  criticalAcosMultiplier: 2.0,
+};
+
+// ============================================================
+// 核心监控函数
+// ============================================================
+
+/**
+ * 生成完整的监控报告
+ */
+export async function generateMonitoringReport(teamId: number): Promise<MonitoringReport> {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const alerts: MonitoringAlert[] = [];
+  const db = await getDb();
+  if (!db) throw new Error('Database not available');
+
+  // 1. 检查提价/降价比例
+  const bidMetrics = await checkBidRatio(db, teamId, thirtyDaysAgo, alerts);
+
+  // 2. 检查ACoS超标情况
+  const acosMetrics = await checkAcosOverrun(db, teamId, alerts);
+
+  // 3. 检查同步成功率
+  const syncMetrics = await checkSyncHealth(db, teamId, alerts);
+
+  // 4. 检查算法运行状态
+  const algorithmMetrics = await checkAlgorithmHealth(db, teamId, thirtyDaysAgo, alerts);
+
+  // 5. 检查版本一致性
+  await checkVersionConsistency(alerts);
+
+  // 计算综合健康分
+  const healthScore = calculateHealthScore(alerts);
+  const status = healthScore >= 80 ? 'healthy' : healthScore >= 50 ? 'warning' : 'critical';
+
+  return {
+    generatedAt: now,
+    systemVersion: 239,
+    alerts,
+    metrics: {
+      bidRaiseCount: bidMetrics.raiseCount,
+      bidLowerCount: bidMetrics.lowerCount,
+      bidRaiseToLowerRatio: bidMetrics.ratio,
+      avgAcosOverrun: acosMetrics.avgOverrun,
+      syncSuccessRate: syncMetrics.successRate,
+      optimizationCount30d: algorithmMetrics.totalOps,
+      positiveRate: algorithmMetrics.positiveRate,
+      activeAlgorithms: algorithmMetrics.activeAlgorithms,
+      highRiskAccounts: acosMetrics.highRiskCount,
+    },
+    healthScore,
+    status,
+  };
+}
+
+/**
+ * 检查提价/降价比例
+ */
+async function checkBidRatio(
+  db: any,
+  teamId: number,
+  since: Date,
+  alerts: MonitoringAlert[]
+): Promise<{ raiseCount: number; lowerCount: number; ratio: number }> {
+  try {
+    const result = await db.select({
+      direction: optimizationEvents.direction,
+      count: sql<number>`count(*)`,
+    })
+    .from(optimizationEvents)
+    .where(
+      and(
+        eq(optimizationEvents.teamId, teamId),
+        gte(optimizationEvents.createdAt, since),
+        sql`${optimizationEvents.eventType} = 'bid_change'`
+      )
+    )
+    .groupBy(optimizationEvents.direction);
+
+    let raiseCount = 0;
+    let lowerCount = 0;
+    for (const row of result) {
+      if (row.direction === 'increase') raiseCount = Number(row.count);
+      if (row.direction === 'decrease') lowerCount = Number(row.count);
+    }
+
+    const ratio = lowerCount > 0 ? raiseCount / lowerCount : raiseCount > 0 ? Infinity : 1;
+
+    if (ratio > ALERT_THRESHOLDS.bidRatioMax) {
+      alerts.push({
+        id: `bid-ratio-${Date.now()}`,
+        category: 'bid_ratio_imbalance',
+        severity: ratio > 5 ? 'critical' : 'warning',
+        title: '提价/降价比例失衡',
+        message: `30天内提价${raiseCount}次，降价${lowerCount}次，比例${ratio.toFixed(1)}:1，超过安全阈值${ALERT_THRESHOLDS.bidRatioMax}:1`,
+        metric: 'bid_raise_lower_ratio',
+        currentValue: ratio,
+        threshold: ALERT_THRESHOLDS.bidRatioMax,
+        recommendation: '检查算法是否过度激进，考虑降低探索出价上限或切换到更保守的策略模板',
+        timestamp: new Date(),
+      });
+    }
+
+    return { raiseCount, lowerCount, ratio };
+  } catch (e) {
+    console.error('[MonitoringService] checkBidRatio error:', e);
+    return { raiseCount: 0, lowerCount: 0, ratio: 1 };
+  }
+}
+
+/**
+ * 检查ACoS超标情况
+ */
+async function checkAcosOverrun(
+  db: any,
+  teamId: number,
+  alerts: MonitoringAlert[]
+): Promise<{ avgOverrun: number; highRiskCount: number }> {
+  try {
+    // 查询所有活跃账户的ACoS和目标ACoS
+    const accounts = await db.select({
+      id: adAccounts.id,
+      name: adAccounts.accountName,
+      marketplace: adAccounts.marketplace,
+    })
+    .from(adAccounts)
+    .where(eq(adAccounts.teamId, teamId));
+
+    let totalOverrun = 0;
+    let highRiskCount = 0;
+    let accountCount = 0;
+
+    // 简化：通过optimization_logs获取最近的ACoS数据
+    for (const account of accounts) {
+      const latestLog = await db.select({
+        actualAcos: optimizationLogs.actualAcos,
+        targetAcos: optimizationLogs.targetAcos,
+      })
+      .from(optimizationLogs)
+      .where(eq(optimizationLogs.adAccountId, account.id))
+      .orderBy(desc(optimizationLogs.createdAt))
+      .limit(1);
+
+      if (latestLog.length > 0 && latestLog[0].targetAcos && latestLog[0].actualAcos) {
+        const target = Number(latestLog[0].targetAcos);
+        const actual = Number(latestLog[0].actualAcos);
+        if (target > 0) {
+          const overrunPercent = ((actual - target) / target) * 100;
+          totalOverrun += Math.max(0, overrunPercent);
+          accountCount++;
+
+          if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
+            highRiskCount++;
+            alerts.push({
+              id: `acos-overrun-${account.id}-${Date.now()}`,
+              category: 'acos_overrun',
+              severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? 'critical' : 'warning',
+              title: `${account.name} ${account.marketplace} ACoS严重超标`,
+              message: `实际ACoS ${actual.toFixed(1)}%，目标${target.toFixed(1)}%，超标${overrunPercent.toFixed(0)}%`,
+              metric: 'acos_overrun_percent',
+              currentValue: overrunPercent,
+              threshold: ALERT_THRESHOLDS.acosOverrunPercent,
+              recommendation: overrunPercent > 100
+                ? '建议暂停该账户的高ACoS广告活动，切换到"利润优先"策略'
+                : '建议降低目标ACoS或检查关键词质量',
+              timestamp: new Date(),
+              accountId: account.id,
+              accountName: `${account.name} ${account.marketplace}`,
+            });
+          }
+        }
+      }
+    }
+
+    const avgOverrun = accountCount > 0 ? totalOverrun / accountCount : 0;
+    return { avgOverrun, highRiskCount };
+  } catch (e) {
+    console.error('[MonitoringService] checkAcosOverrun error:', e);
+    return { avgOverrun: 0, highRiskCount: 0 };
+  }
+}
+
+/**
+ * 检查同步健康度
+ */
+async function checkSyncHealth(
+  db: any,
+  teamId: number,
+  alerts: MonitoringAlert[]
+): Promise<{ successRate: number }> {
+  try {
+    const result = await db.select({
+      status: optimizationEvents.apiSyncStatus,
+      count: sql<number>`count(*)`,
+    })
+    .from(optimizationEvents)
+    .where(
+      and(
+        eq(optimizationEvents.teamId, teamId),
+        sql`${optimizationEvents.apiSyncStatus} NOT IN ('not_applicable', 'invalid_legacy')`
+      )
+    )
+    .groupBy(optimizationEvents.apiSyncStatus);
+
+    let synced = 0;
+    let total = 0;
+    for (const row of result) {
+      const count = Number(row.count);
+      total += count;
+      if (row.status === 'synced') synced += count;
+    }
+
+    const successRate = total > 0 ? (synced / total) * 100 : 100;
+
+    if (successRate < ALERT_THRESHOLDS.syncSuccessRateMin) {
+      alerts.push({
+        id: `sync-health-${Date.now()}`,
+        category: 'sync_failure',
+        severity: successRate < 90 ? 'critical' : 'warning',
+        title: '同步成功率低于100%',
+        message: `同步成功率${successRate.toFixed(1)}%（${synced}/${total}），目标100%`,
+        metric: 'sync_success_rate',
+        currentValue: successRate,
+        threshold: ALERT_THRESHOLDS.syncSuccessRateMin,
+        recommendation: '检查Amazon API连接状态和失败事件的错误日志',
+        timestamp: new Date(),
+      });
+    }
+
+    return { successRate };
+  } catch (e) {
+    console.error('[MonitoringService] checkSyncHealth error:', e);
+    return { successRate: 100 };
+  }
+}
+
+/**
+ * 检查算法运行健康度
+ */
+async function checkAlgorithmHealth(
+  db: any,
+  teamId: number,
+  since: Date,
+  alerts: MonitoringAlert[]
+): Promise<{ totalOps: number; positiveRate: number; activeAlgorithms: string[] }> {
+  try {
+    // 查询30天内的优化操作总数
+    const opsResult = await db.select({
+      count: sql<number>`count(*)`,
+    })
+    .from(optimizationEvents)
+    .where(
+      and(
+        eq(optimizationEvents.teamId, teamId),
+        gte(optimizationEvents.createdAt, since),
+        sql`${optimizationEvents.eventType} = 'bid_change'`
+      )
+    );
+
+    const totalOps = Number(opsResult[0]?.count || 0);
+
+    // 查询正向操作（降低ACoS的操作）
+    const positiveResult = await db.select({
+      count: sql<number>`count(*)`,
+    })
+    .from(optimizationEvents)
+    .where(
+      and(
+        eq(optimizationEvents.teamId, teamId),
+        gte(optimizationEvents.createdAt, since),
+        sql`${optimizationEvents.eventType} = 'bid_change'`,
+        sql`${optimizationEvents.isPositive} = true`
+      )
+    );
+
+    const positiveCount = Number(positiveResult[0]?.count || 0);
+    const positiveRate = totalOps > 0 ? (positiveCount / totalOps) * 100 : 0;
+
+    // 查询使用的算法类型
+    const algorithmResult = await db.select({
+      algorithm: optimizationEvents.algorithmVersion,
+    })
+    .from(optimizationEvents)
+    .where(
+      and(
+        eq(optimizationEvents.teamId, teamId),
+        gte(optimizationEvents.createdAt, since),
+        sql`${optimizationEvents.algorithmVersion} IS NOT NULL`
+      )
+    )
+    .groupBy(optimizationEvents.algorithmVersion);
+
+    const activeAlgorithms = algorithmResult
+      .map(r => r.algorithm)
+      .filter((a): a is string => a !== null);
+
+    // 检查是否有优化操作
+    if (totalOps === 0) {
+      alerts.push({
+        id: `zero-optimization-${Date.now()}`,
+        category: 'zero_optimization',
+        severity: 'critical',
+        title: '30天内零优化操作',
+        message: '系统在过去30天内未执行任何出价调整操作',
+        metric: 'optimization_count_30d',
+        currentValue: 0,
+        threshold: ALERT_THRESHOLDS.minOptimizationCount,
+        recommendation: '检查优化调度器是否正常运行，确认优化目标是否已启用自动优化',
+        timestamp: new Date(),
+      });
+    }
+
+    // 检查正向率
+    if (totalOps > 0 && positiveRate < ALERT_THRESHOLDS.minPositiveRate) {
+      alerts.push({
+        id: `low-positive-rate-${Date.now()}`,
+        category: 'algorithm_stall',
+        severity: 'warning',
+        title: '算法正向率偏低',
+        message: `30天正向率${positiveRate.toFixed(1)}%，低于安全阈值${ALERT_THRESHOLDS.minPositiveRate}%`,
+        metric: 'positive_rate',
+        currentValue: positiveRate,
+        threshold: ALERT_THRESHOLDS.minPositiveRate,
+        recommendation: '检查算法参数配置，可能需要降低探索力度或调整安全边界',
+        timestamp: new Date(),
+      });
+    }
+
+    // 检查是否只有rule_engine在运行
+    if (activeAlgorithms.length <= 1 && totalOps > 50) {
+      alerts.push({
+        id: `single-algorithm-${Date.now()}`,
+        category: 'algorithm_stall',
+        severity: 'info',
+        title: '仅单一算法在运行',
+        message: `当前仅${activeAlgorithms[0] || 'rule_engine'}在运行，高级算法（sigmoid_curve, linucb, cql）尚未激活`,
+        metric: 'active_algorithm_count',
+        currentValue: activeAlgorithms.length,
+        threshold: 3,
+        recommendation: '随着数据积累，高级算法应逐步被metaLearningSelector激活。如一个月后仍未激活，需进一步降低冷启动门槛',
+        timestamp: new Date(),
+      });
+    }
+
+    return { totalOps, positiveRate, activeAlgorithms };
+  } catch (e) {
+    console.error('[MonitoringService] checkAlgorithmHealth error:', e);
+    return { totalOps: 0, positiveRate: 0, activeAlgorithms: [] };
+  }
+}
+
+/**
+ * 检查版本一致性
+ */
+async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void> {
+  try {
+    // 检查SYSTEM_VERSION是否与预期一致
+    const { SYSTEM_VERSION } = await import('./postDeployOptimizer');
+    const { SYSTEM_VERSION: UTIL_VERSION } = await import('./utils/systemVersion');
+
+    if (SYSTEM_VERSION !== UTIL_VERSION) {
+      alerts.push({
+        id: `version-mismatch-${Date.now()}`,
+        category: 'version_mismatch',
+        severity: 'critical',
+        title: 'SYSTEM_VERSION不一致',
+        message: `postDeployOptimizer.SYSTEM_VERSION=${SYSTEM_VERSION}，systemVersion.SYSTEM_VERSION=${UTIL_VERSION}`,
+        metric: 'version_consistency',
+        currentValue: 0,
+        threshold: 1,
+        recommendation: '立即同步两个文件中的SYSTEM_VERSION，确保版本号一致',
+        timestamp: new Date(),
+      });
+    }
+  } catch (e) {
+    // 版本检查失败不阻塞其他监控
+    console.warn('[MonitoringService] checkVersionConsistency error:', e);
+  }
+}
+
+/**
+ * 计算综合健康分 (0-100)
+ */
+function calculateHealthScore(alerts: MonitoringAlert[]): number {
+  let score = 100;
+
+  for (const alert of alerts) {
+    switch (alert.severity) {
+      case 'critical':
+        score -= 25;
+        break;
+      case 'warning':
+        score -= 10;
+        break;
+      case 'info':
+        score -= 3;
+        break;
+    }
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+/**
+ * 格式化监控报告为可读文本（用于日志输出）
+ */
+export function formatMonitoringReport(report: MonitoringReport): string {
+  const lines: string[] = [
+    `\n========== 系统监控报告 ==========`,
+    `生成时间: ${report.generatedAt.toISOString()}`,
+    `系统版本: v${report.systemVersion}`,
+    `健康评分: ${report.healthScore}/100 (${report.status.toUpperCase()})`,
+    ``,
+    `--- 核心指标 ---`,
+    `提价次数: ${report.metrics.bidRaiseCount}`,
+    `降价次数: ${report.metrics.bidLowerCount}`,
+    `提价/降价比: ${report.metrics.bidRaiseToLowerRatio.toFixed(2)}:1`,
+    `平均ACoS超标: ${report.metrics.avgAcosOverrun.toFixed(1)}%`,
+    `同步成功率: ${report.metrics.syncSuccessRate.toFixed(1)}%`,
+    `30天优化操作: ${report.metrics.optimizationCount30d}`,
+    `正向率: ${report.metrics.positiveRate.toFixed(1)}%`,
+    `活跃算法: ${report.metrics.activeAlgorithms.join(', ') || '无'}`,
+    `高风险账户: ${report.metrics.highRiskAccounts}`,
+  ];
+
+  if (report.alerts.length > 0) {
+    lines.push('', `--- 告警 (${report.alerts.length}) ---`);
+    for (const alert of report.alerts) {
+      const icon = alert.severity === 'critical' ? '🔴' : alert.severity === 'warning' ? '🟡' : '🔵';
+      lines.push(`${icon} [${alert.severity.toUpperCase()}] ${alert.title}`);
+      lines.push(`   ${alert.message}`);
+      lines.push(`   建议: ${alert.recommendation}`);
+    }
+  } else {
+    lines.push('', '✅ 无告警，系统运行正常');
+  }
+
+  lines.push(`\n====================================\n`);
+  return lines.join('\n');
+}
+
+/**
+ * 运行监控检查并输出报告（由定时任务调用）
+ */
+export async function runMonitoringCheck(teamId: number): Promise<MonitoringReport> {
+  console.log('[MonitoringService] Starting monitoring check for team', teamId);
+  const report = await generateMonitoringReport(teamId);
+  console.log(formatMonitoringReport(report));
+  return report;
+}

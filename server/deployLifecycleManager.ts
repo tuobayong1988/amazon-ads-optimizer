@@ -682,6 +682,25 @@ export async function orchestrateStartup(server: any): Promise<void> {
         }
       }
       
+      // 步骤4e: v239 运行系统监控检查
+      try {
+        log.info('[LifecycleManager] 运行系统监控检查...');
+        const { runMonitoringCheck, formatMonitoringReport } = await import('./optimizationMonitoringService');
+        const database = await getDb();
+        if (database) {
+          // 获取所有团队ID进行监控
+          const teams = await database.selectDistinct({ teamId: optimizationEvents.teamId }).from(optimizationEvents).limit(10);
+          for (const team of teams) {
+            if (team.teamId) {
+              const report = await runMonitoringCheck(team.teamId);
+              log.info(`[MonitoringService] 团队${team.teamId}: 健康评分${report.healthScore}/100 (${report.status}), ${report.alerts.length}个告警`);
+            }
+          }
+        }
+      } catch (monErr: any) {
+        log.warn(`[LifecycleManager] 监控检查失败（不影响系统运行）: ${monErr.message}`);
+      }
+
       log.debug(`\n[LifecycleManager] ========================================`);
       log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 启动协调完成，系统进入正常运行`);
       log.debug(`[LifecycleManager] ========================================\n`);

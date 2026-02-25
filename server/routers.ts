@@ -73,6 +73,7 @@ import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
+import { monitoringRouter } from './routes/monitoring';
 
 // ==================== 主路由组合 ====================
 
@@ -213,6 +214,7 @@ export const appRouter = router({
   mlOptimization: mlOptimizationRouter,
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
+  monitoring: monitoringRouter,
 });
 
 export type AppRouter = typeof appRouter;

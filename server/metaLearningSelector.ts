@@ -213,13 +213,13 @@ async function evaluateAlgorithms(
     reason: '基于规则的出价策略，始终可用',
   });
   
-  // 2. ucb: 需要至少10条RL日志
+  // 2. ucb: v239降低门槛 10→5条RL日志
   const ucbStat = stats.get('ucb')!;
   scores.push({
     algorithm: 'ucb',
-    score: totalRLLogs >= 10 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
-    eligible: totalRLLogs >= 10,
-    reason: totalRLLogs >= 10 ? 'UCB探索-利用策略' : `RL日志不足(${totalRLLogs}/10)`,
+    score: totalRLLogs >= 5 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
+    eligible: totalRLLogs >= 5,
+    reason: totalRLLogs >= 5 ? 'UCB探索-利用策略' : `RL日志不足(${totalRLLogs}/5)`,
   });
   
   // 3. linucb: 需要上下文特征
@@ -231,32 +231,32 @@ async function evaluateAlgorithms(
     reason: hasFeatures ? 'LinUCB上下文赌博机' : '缺少上下文特征',
   });
   
-  // 4. sigmoid_curve: 需要足够的历史出价数据
+  // 4. sigmoid_curve: v239降低门槛 20→10条历史出价数据
   const sigmoidStat = stats.get('sigmoid_curve')!;
   scores.push({
     algorithm: 'sigmoid_curve',
-    score: totalRLLogs >= 20 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
-    eligible: totalRLLogs >= 20,
-    reason: totalRLLogs >= 20 ? 'Sigmoid曲线利润最大化' : `历史数据不足(${totalRLLogs}/20)`,
+    score: totalRLLogs >= 10 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
+    eligible: totalRLLogs >= 10,
+    reason: totalRLLogs >= 10 ? 'Sigmoid曲线利润最大化' : `历史数据不足(${totalRLLogs}/10)`,
   });
   
-  // 5. cql: 需要大量RL日志
+  // 5. cql: v239降低门槛 50→30条RL日志
   const cqlStat = stats.get('cql')!;
   scores.push({
     algorithm: 'cql',
-    score: totalRLLogs >= 50 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
-    eligible: totalRLLogs >= 50,
-    reason: totalRLLogs >= 50 ? '离线强化学习CQL' : `RL日志不足(${totalRLLogs}/50)`,
+    score: totalRLLogs >= 30 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
+    eligible: totalRLLogs >= 30,
+    reason: totalRLLogs >= 30 ? '离线强化学习CQL' : `RL日志不足(${totalRLLogs}/30)`,
   });
   
-  // 6. ensemble: 需要至少3个算法可用
+  // 6. ensemble: v239降低门槛 3→2个算法可用
   const eligibleCount = scores.filter(s => s.eligible).length;
   const ensembleStat = stats.get('ensemble')!;
   scores.push({
     algorithm: 'ensemble',
-    score: eligibleCount >= 3 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.2 : 0,
-    eligible: eligibleCount >= 3,
-    reason: eligibleCount >= 3 ? '多算法加权融合' : `可用算法不足(${eligibleCount}/3)`,
+    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.2 : 0,
+    eligible: eligibleCount >= 2,
+    reason: eligibleCount >= 2 ? '多算法加权融合' : `可用算法不足(${eligibleCount}/2)`,
   });
   
   return scores;
