@@ -80247,9 +80247,18 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
   if (!dryRun && details.length > 0) {
     try {
       const accountId = config2.accountId;
+      const syncableDetails = details.filter((d5) => d5.keywordId && d5.newBid !== void 0 && d5.action !== "safety_pause");
+      const nonSyncableDetails = details.filter((d5) => !d5.keywordId || d5.newBid === void 0 || d5.action === "safety_pause");
+      if (nonSyncableDetails.length > 0) {
+        log16.info(`[BidOptimization] v224: ${nonSyncableDetails.length}\u6761\u975E\u51FA\u4EF7\u8C03\u6574\u8BB0\u5F55(safety_pause\u7B49)\u5DF2\u8DF3\u8FC7API\u540C\u6B65`);
+        for (const d5 of nonSyncableDetails) {
+          d5.apiSyncStatus = "not_applicable";
+          d5.apiSyncDetail = JSON.stringify({ status: "not_applicable", error: null, reason: "\u975E\u51FA\u4EF7\u8C03\u6574\u8BB0\u5F55(safety_pause)" });
+        }
+      }
       apiSyncResult = await syncBidAdjustmentsToAmazon(
         accountId,
-        details.map((d5) => ({
+        syncableDetails.map((d5) => ({
           keywordId: d5.keywordId,
           newBid: d5.newBid,
           campaignId: d5.amazonCampaignId,
@@ -80268,11 +80277,11 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
       if (apiSyncResult.errors.length > 0) {
         log16.error(`[BidOptimization] Amazon API\u540C\u6B65\u9519\u8BEF:`, apiSyncResult.errors.join("; "));
       }
-      const syncedDetails = details.filter((d5) => {
+      const syncedDetails = syncableDetails.filter((d5) => {
         const itemResult = apiSyncResult.itemResults?.get(d5.keywordId);
         return itemResult?.status === "synced";
       });
-      const skippedDetails = details.filter((d5) => {
+      const skippedDetails = syncableDetails.filter((d5) => {
         const itemResult = apiSyncResult.itemResults?.get(d5.keywordId);
         return itemResult?.status !== "synced";
       });
@@ -80350,6 +80359,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
     apiSyncStatus = "pending";
   }
   for (const detail of details) {
+    if (detail.apiSyncStatus === "not_applicable") continue;
     const itemResult = apiSyncResult.itemResults?.get(detail.keywordId);
     if (itemResult) {
       detail.apiSyncStatus = itemResult.status;

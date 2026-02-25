@@ -1262,9 +1262,21 @@ async function executeBidOptimization(
       // 在executeOptimizationTarget入口处统一执行，所有优化模块共享
       // 旧的v130/v138补偿同步代码已在v141中删除
       
+      // v224: 过滤掉safety_pause等非出价调整记录，它们没有keywordId和newBid字段
+      const syncableDetails = details.filter(d => d.keywordId && d.newBid !== undefined && d.action !== 'safety_pause');
+      const nonSyncableDetails = details.filter(d => !d.keywordId || d.newBid === undefined || d.action === 'safety_pause');
+      
+      if (nonSyncableDetails.length > 0) {
+        log.info(`[BidOptimization] v224: ${nonSyncableDetails.length}条非出价调整记录(safety_pause等)已跳过API同步`);
+        for (const d of nonSyncableDetails) {
+          d.apiSyncStatus = 'not_applicable';
+          d.apiSyncDetail = JSON.stringify({ status: 'not_applicable', error: null, reason: '非出价调整记录(safety_pause)' });
+        }
+      }
+      
       apiSyncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
         accountId,
-        details.map(d => ({
+        syncableDetails.map(d => ({
           keywordId: d.keywordId,
           newBid: d.newBid,
           campaignId: d.amazonCampaignId,
@@ -1288,11 +1300,12 @@ async function executeBidOptimization(
       
       // v148: API调用成功后，才更新本地数据库（先API后DB原则）
       // v148: 使用事务保护批量DB更新，确保原子性
-      const syncedDetails = details.filter(d => {
+      // v224: 只从可同步的details中过滤，避免safety_pause等非出价调整记录干扰
+      const syncedDetails = syncableDetails.filter(d => {
         const itemResult = apiSyncResult.itemResults?.get(d.keywordId);
         return itemResult?.status === 'synced';
       });
-      const skippedDetails = details.filter(d => {
+      const skippedDetails = syncableDetails.filter(d => {
         const itemResult = apiSyncResult.itemResults?.get(d.keywordId);
         return itemResult?.status !== 'synced';
       });
@@ -1387,7 +1400,9 @@ async function executeBidOptimization(
   }
   
   // v140: 将每条调整的独立同步状态附加到详情中（而非批量状态）
+  // v224: 跳过已在前面设置了apiSyncStatus的非出价调整记录(safety_pause等)
   for (const detail of details) {
+    if (detail.apiSyncStatus === 'not_applicable') continue; // v224: safety_pause等已处理
     const itemResult = apiSyncResult.itemResults?.get(detail.keywordId);
     if (itemResult) {
       // 使用该条目自身的同步状态
