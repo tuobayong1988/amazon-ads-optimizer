@@ -740,6 +740,48 @@ function MarketingPage() {
 // v234: 卡片ID定义
 const DEFAULT_CARD_ORDER = ['kpi-cards', 'trend-chart', 'account-risk', 'sync-health', 'algorithm-effect', 'order-trend', 'quick-actions'];
 
+// v251: 卡片尺寸类型定义 - full-width独占一行，compact并排显示
+const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
+  'kpi-cards': 'full',
+  'trend-chart': 'full',
+  'account-risk': 'full',
+  'sync-health': 'compact',
+  'algorithm-effect': 'compact',
+  'order-trend': 'compact',
+  'quick-actions': 'compact',
+};
+
+// v251: 将卡片按尺寸类型分组为渲染行
+// 连续的compact卡片会被合并到同一行的grid中
+function groupCardsIntoRows(cardOrder: string[]): { type: 'full' | 'compact-group'; cards: string[] }[] {
+  const rows: { type: 'full' | 'compact-group'; cards: string[] }[] = [];
+  let currentCompactGroup: string[] = [];
+  
+  for (const cardId of cardOrder) {
+    const sizeType = CARD_SIZE_TYPE[cardId] || 'full';
+    if (sizeType === 'full') {
+      // 先flush当前compact组
+      if (currentCompactGroup.length > 0) {
+        rows.push({ type: 'compact-group', cards: [...currentCompactGroup] });
+        currentCompactGroup = [];
+      }
+      rows.push({ type: 'full', cards: [cardId] });
+    } else {
+      currentCompactGroup.push(cardId);
+      // 最多3个compact卡片一行
+      if (currentCompactGroup.length >= 3) {
+        rows.push({ type: 'compact-group', cards: [...currentCompactGroup] });
+        currentCompactGroup = [];
+      }
+    }
+  }
+  // flush剩余的compact组
+  if (currentCompactGroup.length > 0) {
+    rows.push({ type: 'compact-group', cards: [...currentCompactGroup] });
+  }
+  return rows;
+}
+
 function DashboardContent() {
   const { user } = useAuth();
   // v233: 默认显示近7天而非"今天"，让数据有分析价值
@@ -986,23 +1028,28 @@ function DashboardContent() {
           </div>
         </div>
         
-        {/* v234: 拖拽卡片布局 */}
+        {/* v234: 拖拽卡片布局 / v251: 恢复合理的卡片尺寸布局 */}
         <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
           <Droppable droppableId="dashboard-cards">
             {(provided, snapshot) => (
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={`space-y-6 ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
+                className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
               >
-                {cardOrder.map((cardId, index) => (
+                {cardOrder.map((cardId, index) => {
+                  // v251: full-width卡片跨全列，compact卡片自然流入grid列
+                  const sizeType = CARD_SIZE_TYPE[cardId] || 'full';
+                  const isFullWidth = sizeType === 'full';
+                  
+                  return (
                   <Draggable key={cardId} draggableId={cardId} index={index}>
                     {(provided, snapshot) => (
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`group relative cursor-grab active:cursor-grabbing rounded-xl ${snapshot.isDragging ? 'z-50 opacity-90 shadow-2xl shadow-primary/20 scale-[1.01] ring-2 ring-primary/40' : 'hover:ring-1 hover:ring-border/50'} transition-all duration-200`}
+                        className={`group relative cursor-grab active:cursor-grabbing rounded-xl ${isFullWidth && !isMobile ? 'lg:col-span-3' : ''} ${snapshot.isDragging ? 'z-50 opacity-90 shadow-2xl shadow-primary/20 scale-[1.01] ring-2 ring-primary/40' : 'hover:ring-1 hover:ring-border/50'} transition-all duration-200`}
                       >
                         {/* 拖拽指示条 - hover时显示在卡片顶部 */}
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2 py-1.5 text-xs text-muted-foreground">
@@ -1190,7 +1237,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'sync-health' && (
-                          <Card>
+                          <Card className="h-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-base flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 text-blue-500" />
@@ -1267,7 +1314,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'algorithm-effect' && (
-                          <Card>
+                          <Card className="h-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-base flex items-center gap-2">
                                 <Brain className="w-4 h-4 text-purple-500" />
@@ -1316,7 +1363,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'order-trend' && (
-                          <Card>
+                          <Card className="h-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-lg">订单趋势</CardTitle>
                               <CardDescription>近{days}天每日订单量</CardDescription>
@@ -1344,7 +1391,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'quick-actions' && (
-                          <Card>
+                          <Card className="h-full">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-lg">快捷操作</CardTitle>
                               <CardDescription>常用功能入口</CardDescription>
@@ -1402,7 +1449,8 @@ function DashboardContent() {
                       </div>
                     )}
                   </Draggable>
-                ))}
+                  );
+                })}
                 {provided.placeholder}
               </div>
             )}
