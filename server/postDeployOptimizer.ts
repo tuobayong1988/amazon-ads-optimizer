@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 249;  // v249: 监控仪表盘SQL修复 + 优化事件字段补全
+export const SYSTEM_VERSION = 250;  // v250: 修复recordExecutionLog双写机制 + 日志缓冲区扩容
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -261,8 +261,14 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 249,
     description: 'v249: [监控修复] — (1)nextgen-monitor bidStats SQL查询条件修复: action_type过滤与recordExecutionLog写入值不匹配导致totalEvents始终为0 (2)optimization-events端点补全api_sync_status/keyword_text/previous_bid/new_bid字段 (3)增加API同步状态统计查询',
-    affectedModules: [],  // 仅监控修复，不需要重新执行优化模块
+    affectedModules: [],
     correctionActions: [],
+  },
+  {
+    version: 250,
+    description: 'v250: [架构修复] — (1)recordExecutionLog双写机制修复: 将直接insert(optimizationLogs)替换为createOptimizationLog()确保同时写入optimization_events表，修复前端和监控无法看到NextGen算法出价记录的问题 (2)日志缓冲区扩容: GLOBAL_BUF 1500→5000避免溢出',
+    affectedModules: ['bid'],  // 出价日志写入路径变更，需要重新执行以验证双写
+    correctionActions: ['rerun_optimization'],
   },
 ];
 

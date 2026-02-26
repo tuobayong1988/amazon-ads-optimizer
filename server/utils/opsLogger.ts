@@ -100,7 +100,8 @@ class RingBuf<T> {
 // ============================================================
 
 const CAT_BUF = 300;
-const GLOBAL_BUF = 1500;
+// v250: 扩容日志缓冲区从1500到5000，避免长时间运行后缓冲区溢出丢失日志
+const GLOBAL_BUF = 5000;
 const ALL_CATS: OpsCategory[] = ['migration', 'id-guard', 'optimization', 'sync', 'error', 'system'];
 
 class OpsCollector {

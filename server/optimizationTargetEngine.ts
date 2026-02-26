@@ -3442,23 +3442,21 @@ async function executeBidCoordination(
  * 记录执行日志
  */
 async function recordExecutionLog(result: OptimizationExecutionResult): Promise<void> {
-  const dbInstance = await db.getDb();
-  if (!dbInstance) return;
+  // v250: 修复架构级BUG — recordExecutionLog之前直接insert到optimizationLogs表，
+  // 绕过了createOptimizationLog()中的双写机制，导致optimization_events表缺失NextGen算法的出价记录。
+  // 现在统一使用db.createOptimizationLog()，确保每条日志同时写入optimization_logs和optimization_events。
   
   try {
-    const { optimizationLogs } = await import('../drizzle/schema');
     const now = new Date().toISOString();
     
-    // v140: 记录出价调整日志（每条日志使用该条目自身的同步状态）
+    // v140+v250: 记录出价调整日志（使用createOptimizationLog确保双写）
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
-      log.debug(`[recordExecutionLog] v140: 出价调整日志: details=${result.bidOptimization.details.length}`);
+      log.debug(`[recordExecutionLog] v250: 出价调整日志(双写): details=${result.bidOptimization.details.length}`);
       
       for (const detail of result.bidOptimization.details) {
-        // v140: 使用每条调整的独立同步状态（synced/failed/pending）
         const itemSyncStatus = detail.apiSyncStatus || 'pending';
         const itemSyncDetail = detail.apiSyncDetail || null;
         
-        // 解析单条同步详情中的错误信息
         let itemErrorMessage: string | null = null;
         if (itemSyncStatus === 'failed' && itemSyncDetail) {
           try {
@@ -3470,16 +3468,15 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         }
         
         try {
-          await dbInstance.insert(optimizationLogs).values({
+          await db.createOptimizationLog({
             performanceGroupId: result.targetId,
             performanceGroupName: result.targetName,
-            accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
+            accountId: result.accountId || detail.accountId || 0,
             logCategory: 'bid_adjustment',
             actionType: (detail.newBid ?? 0) > (detail.currentBid ?? 0) ? 'bid_increase' : 'bid_decrease',
             campaignId: detail.localCampaignId,
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(detail),
-            // v175+v230: 防御性校验，避免toFixed对undefined调用崩溃
             previousValue: `${(typeof detail.currentBid === 'number' ? detail.currentBid : 0).toFixed(2)}`,
             newValue: `${(typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2)}`,
             changeReason: detail.reason || `出价调整 ${detail.changePercent || '0'}%`,
@@ -3497,10 +3494,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // 记录位置调整日志（包含Amazon API同步状态）
+    // v250: 记录位置调整日志（使用createOptimizationLog确保双写）
     if (result.placementOptimization.executed && result.placementOptimization.adjustmentsCount > 0) {
       for (const detail of result.placementOptimization.details) {
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3522,11 +3519,11 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // 记录搜索词分析日志（否定词和新关键词，包含API同步状态）
+    // v250: 记录搜索词分析日志（使用createOptimizationLog确保双写）
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
         const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' : 'keyword_create';
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3548,10 +3545,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v134: 记录分时竞价日志（包含API同步状态）
+    // v250: 记录分时竞价日志（使用createOptimizationLog确保双写）
     if (result.daypartingOptimization.executed && result.daypartingOptimization.adjustmentsCount > 0) {
       for (const detail of result.daypartingOptimization.details) {
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3574,10 +3571,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v134: 记录预算分配日志（包含API同步状态）
+    // v250: 记录预算分配日志（使用createOptimizationLog确保双写）
     if (result.budgetAllocation.executed && result.budgetAllocation.adjustmentsCount > 0) {
       for (const detail of result.budgetAllocation.details) {
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3600,11 +3597,11 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v179: 记录分时预算日志
+    // v250: 记录分时预算日志（使用createOptimizationLog确保双写）
     if (result.daypartingBudgetOptimization?.executed && result.daypartingBudgetOptimization.adjustmentsCount > 0) {
       for (const detail of result.daypartingBudgetOptimization.details) {
         if (detail.error) continue;
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -3626,10 +3623,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // 记录投放词状态变更日志（包含API同步状态）
+    // v250: 记录投放词状态变更日志（使用createOptimizationLog确保双写）
     if (result.keywordStatusChanges.executed) {
       for (const detail of result.keywordStatusChanges.details) {
-        await dbInstance.insert(optimizationLogs).values({
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3651,11 +3648,11 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v135: 记录广告活动状态变更日志
+    // v250: 记录广告活动状态变更日志（使用createOptimizationLog确保双写）
     if (result.campaignStatusChanges.executed) {
       for (const detail of result.campaignStatusChanges.details) {
-        if (detail.error) continue; // 跳过错误记录
-        await dbInstance.insert(optimizationLogs).values({
+        if (detail.error) continue;
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3677,11 +3674,11 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v135: 记录广告组状态变更日志
+    // v250: 记录广告组状态变更日志（使用createOptimizationLog确保双写）
     if (result.adGroupStatusChanges.executed) {
       for (const detail of result.adGroupStatusChanges.details) {
-        if (detail.error) continue; // 跳过错误记录
-        await dbInstance.insert(optimizationLogs).values({
+        if (detail.error) continue;
+        await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
@@ -3703,11 +3700,12 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v139: 更新优化目标的 last_optimization_at 时间戳
+    // v139+v250: 更新优化目标的 last_optimization_at 时间戳
     try {
+      const dbInstance = await db.getDb();
       const { performanceGroups } = await import('../drizzle/schema');
       const { eq: eqOp } = await import('drizzle-orm');
-      await dbInstance.update(performanceGroups)
+      await dbInstance!.update(performanceGroups)
         .set({ lastOptimizationAt: new Date() } as any)
         .where(eqOp(performanceGroups.id, result.targetId));
       log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);

@@ -36743,7 +36743,7 @@ var init_opsLogger = __esm({
       }
     };
     CAT_BUF = 300;
-    GLOBAL_BUF = 1500;
+    GLOBAL_BUF = 5e3;
     ALL_CATS = ["migration", "id-guard", "optimization", "sync", "error", "system"];
     OpsCollector = class {
       catBufs = /* @__PURE__ */ new Map();
@@ -86210,13 +86210,10 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
   return { executed: true, campaignsCoordinated, circuitBreakerTriggered, details };
 }
 async function recordExecutionLog(result) {
-  const dbInstance = await getDb();
-  if (!dbInstance) return;
   try {
-    const { optimizationLogs: optimizationLogs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
     const now = (/* @__PURE__ */ new Date()).toISOString();
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
-      log19.debug(`[recordExecutionLog] v140: \u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7: details=${result.bidOptimization.details.length}`);
+      log19.debug(`[recordExecutionLog] v250: \u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7(\u53CC\u5199): details=${result.bidOptimization.details.length}`);
       for (const detail of result.bidOptimization.details) {
         const itemSyncStatus = detail.apiSyncStatus || "pending";
         const itemSyncDetail = detail.apiSyncDetail || null;
@@ -86230,17 +86227,15 @@ async function recordExecutionLog(result) {
           }
         }
         try {
-          await dbInstance.insert(optimizationLogs2).values({
+          await createOptimizationLog({
             performanceGroupId: result.targetId,
             performanceGroupName: result.targetName,
             accountId: result.accountId || detail.accountId || 0,
-            // v167: 优先使用result.accountId
             logCategory: "bid_adjustment",
             actionType: (detail.newBid ?? 0) > (detail.currentBid ?? 0) ? "bid_increase" : "bid_decrease",
             campaignId: detail.localCampaignId,
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(detail),
-            // v175+v230: 防御性校验，避免toFixed对undefined调用崩溃
             previousValue: `${(typeof detail.currentBid === "number" ? detail.currentBid : 0).toFixed(2)}`,
             newValue: `${(typeof detail.newBid === "number" ? detail.newBid : 0).toFixed(2)}`,
             changeReason: detail.reason || `\u51FA\u4EF7\u8C03\u6574 ${detail.changePercent || "0"}%`,
@@ -86259,7 +86254,7 @@ async function recordExecutionLog(result) {
     }
     if (result.placementOptimization.executed && result.placementOptimization.adjustmentsCount > 0) {
       for (const detail of result.placementOptimization.details) {
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86284,7 +86279,7 @@ async function recordExecutionLog(result) {
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
         const actionType = detail.action === "add_negative" ? "negative_keyword_add" : "keyword_create";
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86308,7 +86303,7 @@ async function recordExecutionLog(result) {
     }
     if (result.daypartingOptimization.executed && result.daypartingOptimization.adjustmentsCount > 0) {
       for (const detail of result.daypartingOptimization.details) {
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86333,7 +86328,7 @@ async function recordExecutionLog(result) {
     }
     if (result.budgetAllocation.executed && result.budgetAllocation.adjustmentsCount > 0) {
       for (const detail of result.budgetAllocation.details) {
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86359,7 +86354,7 @@ async function recordExecutionLog(result) {
     if (result.daypartingBudgetOptimization?.executed && result.daypartingBudgetOptimization.adjustmentsCount > 0) {
       for (const detail of result.daypartingBudgetOptimization.details) {
         if (detail.error) continue;
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86382,7 +86377,7 @@ async function recordExecutionLog(result) {
     }
     if (result.keywordStatusChanges.executed) {
       for (const detail of result.keywordStatusChanges.details) {
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86407,7 +86402,7 @@ async function recordExecutionLog(result) {
     if (result.campaignStatusChanges.executed) {
       for (const detail of result.campaignStatusChanges.details) {
         if (detail.error) continue;
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86432,7 +86427,7 @@ async function recordExecutionLog(result) {
     if (result.adGroupStatusChanges.executed) {
       for (const detail of result.adGroupStatusChanges.details) {
         if (detail.error) continue;
-        await dbInstance.insert(optimizationLogs2).values({
+        await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
@@ -86455,6 +86450,7 @@ async function recordExecutionLog(result) {
       }
     }
     try {
+      const dbInstance = await getDb();
       const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
@@ -158729,7 +158725,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 249;
+    SYSTEM_VERSION = 250;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -158927,8 +158923,14 @@ var init_postDeployOptimizer = __esm({
         version: 249,
         description: "v249: [\u76D1\u63A7\u4FEE\u590D] \u2014 (1)nextgen-monitor bidStats SQL\u67E5\u8BE2\u6761\u4EF6\u4FEE\u590D: action_type\u8FC7\u6EE4\u4E0ErecordExecutionLog\u5199\u5165\u503C\u4E0D\u5339\u914D\u5BFC\u81F4totalEvents\u59CB\u7EC8\u4E3A0 (2)optimization-events\u7AEF\u70B9\u8865\u5168api_sync_status/keyword_text/previous_bid/new_bid\u5B57\u6BB5 (3)\u589E\u52A0API\u540C\u6B65\u72B6\u6001\u7EDF\u8BA1\u67E5\u8BE2",
         affectedModules: [],
-        // 仅监控修复，不需要重新执行优化模块
         correctionActions: []
+      },
+      {
+        version: 250,
+        description: "v250: [\u67B6\u6784\u4FEE\u590D] \u2014 (1)recordExecutionLog\u53CC\u5199\u673A\u5236\u4FEE\u590D: \u5C06\u76F4\u63A5insert(optimizationLogs)\u66FF\u6362\u4E3AcreateOptimizationLog()\u786E\u4FDD\u540C\u65F6\u5199\u5165optimization_events\u8868\uFF0C\u4FEE\u590D\u524D\u7AEF\u548C\u76D1\u63A7\u65E0\u6CD5\u770B\u5230NextGen\u7B97\u6CD5\u51FA\u4EF7\u8BB0\u5F55\u7684\u95EE\u9898 (2)\u65E5\u5FD7\u7F13\u51B2\u533A\u6269\u5BB9: GLOBAL_BUF 1500\u21925000\u907F\u514D\u6EA2\u51FA",
+        affectedModules: ["bid"],
+        // 出价日志写入路径变更，需要重新执行以验证双写
+        correctionActions: ["rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -160389,7 +160391,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 249;
+    SYSTEM_VERSION2 = 250;
   }
 });
 
