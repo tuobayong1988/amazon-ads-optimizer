@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 250;  // v250: 修复recordExecutionLog双写机制 + 日志缓冲区扩容
+export const SYSTEM_VERSION = 251;  // v251: 真实AOV替代假设 + 否定词花费/客单价比率 + 归因延迟容忍 + 卡片布局修复
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -268,6 +268,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     version: 250,
     description: 'v250: [架构修复] — (1)recordExecutionLog双写机制修复: 将直接insert(optimizationLogs)替换为createOptimizationLog()确保同时写入optimization_events表，修复前端和监控无法看到NextGen算法出价记录的问题 (2)日志缓冲区扩容: GLOBAL_BUF 1500→5000避免溢出',
     affectedModules: ['bid'],  // 出价日志写入路径变更，需要重新执行以验证双写
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 251,
+    description: 'v251: [算法增强] — (1)NextGen规则引擎使用真实AOV(groupAvgAov)替代currentBid*30的粗暴假设，解决品类偏见问题 (2)否定词决策引入花费/客单价比率，解决高客单价产品的“假阳性”否定问题 (3)引入归因延迟容忍度(1.5x)避免误杀正在归因中的流量 (4)前端数据概览卡片布局修复',
+    affectedModules: ['bid', 'negative_keyword'],
     correctionActions: ['rerun_optimization'],
   },
 ];

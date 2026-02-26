@@ -228,14 +228,19 @@ function ruleEngineDecision(
   }
   
   // 场景3: 有点击但零订单 — 根据花费判断
+  // v251: 使用真实AOV替代粗暴假设，解决品类偏见问题
   // v238: 增强零转化场景的降价力度，避免持续烧钱
   if (orders === 0 && clicks > 0) {
     // 计算每次点击成本
     const cpc = spend / clicks;
-    // 如果花费已经超过目标ACOS对应的可接受花费，降低出价
-    // 假设平均客单价为当前出价的30倍（保守估计）
-    const estimatedAov = currentBid * 30;
-    const maxAcceptableSpend = estimatedAov * targetAcos;
+    // v251: 使用真实的广告组平均客单价(groupAvgAov)，而非 currentBid * 30 的粗暴假设
+    // 旧逻辑: estimatedAov = currentBid * 30 → 高客单价产品严重低估，低客单价产品可能高估
+    // 新逻辑: 优先使用真实AOV，fallback到$30（美国站中位数客单价）
+    const realAov = groupConfig.groupAvgAov || 30;
+    // v251: 引入归因延迟容忍度 — 亚马逊广告归因通常有24-48h延迟
+    // 对于零转化场景，给予1.5倍的花费容忍度，避免"误杀"正在归因中的流量
+    const attributionToleranceFactor = 1.5;
+    const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
     
     if (spend > maxAcceptableSpend) {
       // v238: 增强降价力度 — 花费超标越多降价越快，最大25%
@@ -244,7 +249,7 @@ function ruleEngineDecision(
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.50,
-        reason: `零转化高花费($${spend.toFixed(2)}, ${spendRatio.toFixed(1)}x超标): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        reason: `零转化高花费($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x超标): 降低${(reduceRatio * 100).toFixed(0)}%`,
       };
     }
     

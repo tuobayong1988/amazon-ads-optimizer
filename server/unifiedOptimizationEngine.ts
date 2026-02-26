@@ -695,7 +695,13 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
     }
   } else {
     // ========== CPC广告的否定词分析 ==========
-    // CPC广告判断标准：高点击但零转化
+    // v251: 引入花费/客单价比率，解决不同客单价产品的"假阳性"问题
+    // 先计算该广告活动的平均客单价
+    const campaignSales = Number(campaign.sales) || 0;
+    const campaignOrders = Number(campaign.orders) || 0;
+    const campaignAov = campaignOrders > 0 ? campaignSales / campaignOrders : 0;
+    const campaignTargetAcos = Number(campaign.targetAcos) || 30; // 默认30%
+    
     const poorKeywords = await db
       .select()
       .from(keywords)
@@ -707,25 +713,33 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       .limit(10);
     
     for (const kw of poorKeywords) {
-      decisions.push({
-        id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
-        type: 'negative_keyword',
-        targetType: 'keyword',
-        targetId: kw.id,
-        targetName: kw.keywordText || `关键词 ${kw.id}`,
-        currentValue: '正常投放',
-        suggestedValue: '添加为否定词',
-        expectedImpact: {
-          metric: '花费',
-          currentValue: Number(kw.spend) || 0,
-          expectedValue: 0,
-          changePercent: -100
-        },
-        confidence: 0.9,
-        reasoning: `[CPC] 该关键词已获得${kw.clicks}次点击但0转化，花费$${kw.spend}，建议添加为否定词`,
-        status: 'pending',
-        createdAt: new Date()
-      });
+      const kwSpend = Number(kw.spend) || 0;
+      // v251: 花费容忍线 = AOV × 目标ACoS × 1.5（归因延迟容忍）
+      const spendThreshold = campaignAov > 0 ? campaignAov * (campaignTargetAcos / 100) * 1.5 : 0;
+      const shouldNegate = campaignAov === 0 || kwSpend >= spendThreshold;
+      
+      if (shouldNegate) {
+        decisions.push({
+          id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
+          type: 'negative_keyword',
+          targetType: 'keyword',
+          targetId: kw.id,
+          targetName: kw.keywordText || `关键词 ${kw.id}`,
+          currentValue: '正常投放',
+          suggestedValue: '添加为否定词',
+          expectedImpact: {
+            metric: '花费',
+            currentValue: kwSpend,
+            expectedValue: 0,
+            changePercent: -100
+          },
+          confidence: 0.9,
+          reasoning: `[CPC] 该关键词已获得${kw.clicks}次点击但0转化，花费$${kwSpend.toFixed(2)}${campaignAov > 0 ? `(超过AOV容忍线$${spendThreshold.toFixed(2)})` : ''}，建议添加为否定词`,
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+      // 花费未超过容忍线的高点击无转化词不否定，继续观察
     }
   }
   

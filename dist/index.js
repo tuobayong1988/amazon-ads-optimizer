@@ -67705,15 +67705,16 @@ function ruleEngineDecision(target, groupConfig) {
   }
   if (orders === 0 && clicks > 0) {
     const cpc = spend / clicks;
-    const estimatedAov = currentBid * 30;
-    const maxAcceptableSpend = estimatedAov * targetAcos;
+    const realAov = groupConfig.groupAvgAov || 30;
+    const attributionToleranceFactor = 1.5;
+    const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
     if (spend > maxAcceptableSpend) {
       const spendRatio = spend / maxAcceptableSpend;
       const reduceRatio = Math.min(0.25, (spendRatio - 1) * 0.15);
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5,
-        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, ${spendRatio.toFixed(1)}x\u8D85\u6807): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x\u8D85\u6807): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
       };
     }
     if (clicks >= 10) {
@@ -71373,22 +71374,34 @@ function assessValueLevel(cvr, acos, orders, clicks, targetAcos) {
 function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel) {
   const { searchTerm, targetAcos, spend, sales } = data4;
   const cleanText = sanitizeAndValidateKeyword(searchTerm, "positive").sanitizedText || searchTerm;
-  if (clicks >= 15 && orders === 0) {
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
+  const spendExceeded = spend >= spendThreshold;
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
-      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}`,
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, \u8D85\u8FC7\u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)})`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
+    };
+  }
+  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316\u4F46\u82B1\u8D39\u672A\u8FBE\u5BA2\u5355\u4EF7\u5BB9\u5FCD\u7EBF: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, \u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)}), \u7EE7\u7EED\u89C2\u5BDF`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
     };
   }
   if (clicks >= 8 && clicks < 15 && orders === 0) {
     return {
       action: "MONITOR",
       targetValue: cleanText,
-      reason: `\u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u9700\u8981\u66F4\u591A\u6570\u636E`,
+      reason: `\u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}, \u9700\u8981\u66F4\u591A\u6570\u636E`,
       confidence: 0.5,
       dataMaturityLevel: dataMaturity,
       valueLevel: "unknown"
@@ -71455,15 +71468,27 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
 function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
   const { searchTerm, targetAcos, spend, sales } = data4;
   const aov = orders > 0 ? sales / orders : 0;
-  if (clicks >= 15 && orders === 0) {
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
+  const spendExceeded = spend >= spendThreshold;
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: searchTerm.trim(),
       negativeMatchType: "negative_exact",
-      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.9, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
+    };
+  }
+  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+    return {
+      action: "MONITOR",
+      targetValue: searchTerm.trim(),
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN\u4F46\u82B1\u8D39\u672A\u8FBE\u5BB9\u5FCD\u7EBF: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), \u7EE7\u7EED\u89C2\u5BDF`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
     };
   }
   if (orders >= 3 && acos <= targetAcos * 1.1 && (dataMaturity === "proven" || dataMaturity === "mature")) {
@@ -71502,28 +71527,41 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, val
   };
 }
 function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
-  const { searchTerm, spend } = data4;
+  const { searchTerm, spend, sales, targetAcos } = data4;
   const cleanText = sanitizeAndValidateKeyword(searchTerm, "negative_exact").sanitizedText || searchTerm;
-  if (clicks >= 15 && orders === 0) {
+  const aov = orders > 0 ? sales / orders : 0;
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.2 : 0;
+  const spendExceeded = aov === 0 || spend >= spendThreshold;
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
-      reason: `[\u81EA\u52A8\u5E7F\u544A] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      reason: `[\u81EA\u52A8\u5E7F\u544A] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
     };
   }
-  if (clicks >= 10 && orders === 0) {
+  if (clicks >= 10 && orders === 0 && spendExceeded) {
     return {
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
-      reason: `[\u81EA\u52A8\u5E7F\u544A] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      reason: `[\u81EA\u52A8\u5E7F\u544A] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.85, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
+    };
+  }
+  if (clicks >= 10 && orders === 0 && !spendExceeded) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `[\u81EA\u52A8\u5E7F\u544A] \u70B9\u51FB${clicks}\u6B21\u65E0\u8F6C\u5316\u4F46\u82B1\u8D39\u672A\u8FBE\u5BA2\u5355\u4EF7\u5BB9\u5FCD\u7EBF: \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), \u7EE7\u7EED\u89C2\u5BDF`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
     };
   }
   return {
@@ -158725,7 +158763,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 250;
+    SYSTEM_VERSION = 251;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -158930,6 +158968,12 @@ var init_postDeployOptimizer = __esm({
         description: "v250: [\u67B6\u6784\u4FEE\u590D] \u2014 (1)recordExecutionLog\u53CC\u5199\u673A\u5236\u4FEE\u590D: \u5C06\u76F4\u63A5insert(optimizationLogs)\u66FF\u6362\u4E3AcreateOptimizationLog()\u786E\u4FDD\u540C\u65F6\u5199\u5165optimization_events\u8868\uFF0C\u4FEE\u590D\u524D\u7AEF\u548C\u76D1\u63A7\u65E0\u6CD5\u770B\u5230NextGen\u7B97\u6CD5\u51FA\u4EF7\u8BB0\u5F55\u7684\u95EE\u9898 (2)\u65E5\u5FD7\u7F13\u51B2\u533A\u6269\u5BB9: GLOBAL_BUF 1500\u21925000\u907F\u514D\u6EA2\u51FA",
         affectedModules: ["bid"],
         // 出价日志写入路径变更，需要重新执行以验证双写
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 251,
+        description: "v251: [\u7B97\u6CD5\u589E\u5F3A] \u2014 (1)NextGen\u89C4\u5219\u5F15\u64CE\u4F7F\u7528\u771F\u5B9EAOV(groupAvgAov)\u66FF\u4EE3currentBid*30\u7684\u7C97\u66B4\u5047\u8BBE\uFF0C\u89E3\u51B3\u54C1\u7C7B\u504F\u89C1\u95EE\u9898 (2)\u5426\u5B9A\u8BCD\u51B3\u7B56\u5F15\u5165\u82B1\u8D39/\u5BA2\u5355\u4EF7\u6BD4\u7387\uFF0C\u89E3\u51B3\u9AD8\u5BA2\u5355\u4EF7\u4EA7\u54C1\u7684\u201C\u5047\u9633\u6027\u201D\u5426\u5B9A\u95EE\u9898 (3)\u5F15\u5165\u5F52\u56E0\u5EF6\u8FDF\u5BB9\u5FCD\u5EA6(1.5x)\u907F\u514D\u8BEF\u6740\u6B63\u5728\u5F52\u56E0\u4E2D\u7684\u6D41\u91CF (4)\u524D\u7AEF\u6570\u636E\u6982\u89C8\u5361\u7247\u5E03\u5C40\u4FEE\u590D",
+        affectedModules: ["bid", "negative_keyword"],
         correctionActions: ["rerun_optimization"]
       }
     ];
@@ -160391,7 +160435,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 250;
+    SYSTEM_VERSION2 = 251;
   }
 });
 
@@ -349610,31 +349654,40 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
       });
     }
   } else {
+    const campaignSales = Number(campaign.sales) || 0;
+    const campaignOrders = Number(campaign.orders) || 0;
+    const campaignAov = campaignOrders > 0 ? campaignSales / campaignOrders : 0;
+    const campaignTargetAcos = Number(campaign.targetAcos) || 30;
     const poorKeywords = await db.select().from(keywords).where(and(
       sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
       sql`${keywords.clicks} > 20`,
       sql`${keywords.orders} = 0`
     )).limit(10);
     for (const kw of poorKeywords) {
-      decisions.push({
-        id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
-        type: "negative_keyword",
-        targetType: "keyword",
-        targetId: kw.id,
-        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
-        currentValue: "\u6B63\u5E38\u6295\u653E",
-        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
-        expectedImpact: {
-          metric: "\u82B1\u8D39",
-          currentValue: Number(kw.spend) || 0,
-          expectedValue: 0,
-          changePercent: -100
-        },
-        confidence: 0.9,
-        reasoning: `[CPC] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${kw.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${kw.spend}\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
+      const kwSpend = Number(kw.spend) || 0;
+      const spendThreshold = campaignAov > 0 ? campaignAov * (campaignTargetAcos / 100) * 1.5 : 0;
+      const shouldNegate = campaignAov === 0 || kwSpend >= spendThreshold;
+      if (shouldNegate) {
+        decisions.push({
+          id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
+          type: "negative_keyword",
+          targetType: "keyword",
+          targetId: kw.id,
+          targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
+          currentValue: "\u6B63\u5E38\u6295\u653E",
+          suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
+          expectedImpact: {
+            metric: "\u82B1\u8D39",
+            currentValue: kwSpend,
+            expectedValue: 0,
+            changePercent: -100
+          },
+          confidence: 0.9,
+          reasoning: `[CPC] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${kw.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${kwSpend.toFixed(2)}${campaignAov > 0 ? `(\u8D85\u8FC7AOV\u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)})` : ""}\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
+          status: "pending",
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
     }
   }
   if (isVcpm) {

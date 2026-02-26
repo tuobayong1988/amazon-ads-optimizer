@@ -231,16 +231,36 @@ function decideKeywordTargeting(
   const cleanText = sanitizeAndValidateKeyword(searchTerm, 'positive').sanitizedText || searchTerm;
   
   // ===== 否定关键词决策 =====
-  // 高点击无转化 → 否定精确
-  if (clicks >= 15 && orders === 0) {
+  // v251: 引入花费/客单价比率，替代简单的点击数阈值
+  // 解决同行评论中指出的"假阳性"问题：
+  // - 高客单价产品($200+): 15次点击花$15远低于产品价格，不应否定
+  // - 低客单价产品($10): 15次点击花$15已超过产品价格，应该否定
+  // 新策略: 同时满足点击数阈值 AND 花费超过客单价×目标ACoS×1.5（归因延迟容忍）才否定
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend; // 归因延迟容忍1.5x
+  const spendExceeded = spend >= spendThreshold;
+  
+  // 高点击无转化 + 花费超过客单价容忍线 → 否定精确
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: 'CREATE_NEGATIVE_KEYWORD',
       targetValue: cleanText,
       negativeMatchType: 'negative_exact',
-      reason: `高点击无转化: ${clicks}次点击, 0订单, 花费$${spend.toFixed(2)}`,
+      reason: `高点击无转化: ${clicks}次点击, 0订单, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, 超过容忍线$${spendThreshold.toFixed(2)})`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity as any,
       valueLevel: 'negative',
+    };
+  }
+  
+  // 高点击无转化但花费未超过容忍线 → 继续观察（可能是高客单价产品）
+  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+    return {
+      action: 'MONITOR',
+      targetValue: cleanText,
+      reason: `高点击无转化但花费未达客单价容忍线: ${clicks}次点击, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, 容忍线$${spendThreshold.toFixed(2)}), 继续观察`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity as any,
+      valueLevel: 'unknown',
     };
   }
   
@@ -249,7 +269,7 @@ function decideKeywordTargeting(
     return {
       action: 'MONITOR',
       targetValue: cleanText,
-      reason: `中等点击无转化: ${clicks}次点击, 0订单, 需要更多数据`,
+      reason: `中等点击无转化: ${clicks}次点击, 0订单, 花费$${spend.toFixed(2)}, 需要更多数据`,
       confidence: 0.5,
       dataMaturityLevel: dataMaturity as any,
       valueLevel: 'unknown',
@@ -366,16 +386,32 @@ function decideAsinTargeting(
   const { searchTerm, targetAcos, spend, sales } = data;
   const aov = orders > 0 ? sales / orders : 0;
   
-  // 高点击无转化ASIN → 否定
-  if (clicks >= 15 && orders === 0) {
+  // v251: ASIN否定也引入花费/客单价比率
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
+  const spendExceeded = spend >= spendThreshold;
+  
+  // 高点击无转化ASIN + 花费超标 → 否定
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: 'CREATE_NEGATIVE_KEYWORD',
       targetValue: searchTerm.trim(),
       negativeMatchType: 'negative_exact',
-      reason: `高点击无转化ASIN: ${clicks}次点击, 花费$${spend.toFixed(2)}`,
+      reason: `高点击无转化ASIN: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}`,
       confidence: Math.min(0.90, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity as any,
       valueLevel: 'negative',
+    };
+  }
+  
+  // 高点击无转化ASIN但花费未超标 → 观察
+  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+    return {
+      action: 'MONITOR',
+      targetValue: searchTerm.trim(),
+      reason: `高点击无转化ASIN但花费未达容忍线: ${clicks}次点击, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), 继续观察`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity as any,
+      valueLevel: 'unknown',
     };
   }
   
@@ -444,32 +480,50 @@ function decideAutoTargetingAction(
   cvr: number, acos: number, orders: number, clicks: number,
   dataMaturity: string, valueLevel: string
 ): TargetingDecision {
-  const { searchTerm, spend } = data;
+  const { searchTerm, spend, sales, targetAcos } = data;
   const cleanText = sanitizeAndValidateKeyword(searchTerm, 'negative_exact').sanitizedText || searchTerm;
   
-  // 高点击无转化 → 否定精确
-  if (clicks >= 15 && orders === 0) {
+  // v251: 自动广告也引入花费/客单价比率，但阈值更低（自动广告更积极否定）
+  const aov = orders > 0 ? sales / orders : 0;
+  // 自动广告的花费容忍线较低（1.2x），因为无法精细控制匹配
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.2 : 0;
+  const spendExceeded = aov === 0 || spend >= spendThreshold; // 无AOV数据时回退到纯点击数逻辑
+  
+  // 高点击无转化 + 花费超标 → 否定精确
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
       action: 'CREATE_NEGATIVE_KEYWORD',
       targetValue: cleanText,
       negativeMatchType: 'negative_exact',
-      reason: `[自动广告] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}`,
+      reason: `[自动广告] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity as any,
       valueLevel: 'negative',
     };
   }
   
-  // 中等点击无转化 → 否定精确（自动广告更积极否定，因为无法精细控制）
-  if (clicks >= 10 && orders === 0) {
+  // 中等点击无转化 + 花费超标 → 否定精确（自动广告更积极）
+  if (clicks >= 10 && orders === 0 && spendExceeded) {
     return {
       action: 'CREATE_NEGATIVE_KEYWORD',
       targetValue: cleanText,
       negativeMatchType: 'negative_exact',
-      reason: `[自动广告] 中等点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}`,
+      reason: `[自动广告] 中等点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}`,
       confidence: Math.min(0.85, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity as any,
       valueLevel: 'negative',
+    };
+  }
+  
+  // 点击超过10但花费未超标 → 观察（可能是高客单价产品）
+  if (clicks >= 10 && orders === 0 && !spendExceeded) {
+    return {
+      action: 'MONITOR',
+      targetValue: cleanText,
+      reason: `[自动广告] 点击${clicks}次无转化但花费未达客单价容忍线: 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), 继续观察`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity as any,
+      valueLevel: 'unknown',
     };
   }
   

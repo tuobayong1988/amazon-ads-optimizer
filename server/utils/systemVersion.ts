@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 250;  // v250: 修复recordExecutionLog双写机制 + 日志缓冲区扩容
+export const SYSTEM_VERSION = 251;  // v251: 真实AOV替代假设 + 否定词花费/客单价比率 + 归因延迟容忍 + 卡片布局修复
