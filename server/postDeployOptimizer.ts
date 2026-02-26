@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 256;  // v256: RL智能双通道回填 + 自动冲突解决引擎 + 算法激活阈值优化
+export const SYSTEM_VERSION = 257;  // v257: 出价振荡根治 + 三通道RL回填 + 主动探索策略 + match_type回填 + 纠错关联追踪
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -304,6 +304,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     version: 256,
     description: 'v256: [全链路审计修复] — (1)RL智能双通道回填: 移除3h下限，实体级数据即时回填+扩展窗口到168h，解决重启冷启动瓶颈 (2)自动冲突解决引擎: 批量解决73K+积压pending冲突 (3)高级算法激活阈值优化: UCB 5→3, Sigmoid 10→5, CQL 30→15 (4)recordsSynced字段映射修复 (5)否定关键词同步提升到high层(30min→10min)',
     affectedModules: ['sync', 'bid', 'rl'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 257,
+    description: 'v257: [全链路优化升级] — (1)P0出价振荡根治: 4h冷却时间+24h最大调整次数+最小调整幅度阈值 (2)P0三通道RL回填: 新增通道C从optimization_events合成奖励 (3)P1主动探索策略: 多梯度探索(3-12%)+非hold扰动，加速高级算法激活 (4)P1 match_type历史数据回填 (5)P2纠错事件关联追踪+优化日志增强',
+    affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
 ];
@@ -998,6 +1004,17 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     }
   } catch (restoreErr: any) {
     log.error(`[PostDeployOptimizer] v244: 恢复优化目标状态失败:`, restoreErr.message);
+  }
+
+  // 4b. v257: match_type历史数据回填迁移
+  if (!lastVersion || lastVersion < 257) {
+    try {
+      const { backfillMatchType } = await import('./migrations/v257_backfill_match_type');
+      const matchTypeResult = await backfillMatchType();
+      log.info(`[PostDeployOptimizer] v257: match_type回填完成: updated=${matchTypeResult.updated}, errors=${matchTypeResult.errors}`);
+    } catch (migrationErr: any) {
+      log.error(`[PostDeployOptimizer] v257: match_type回填失败: ${migrationErr.message}`);
+    }
   }
 
   // 5. 获取所有活跃优化目标（恢复后重新获取）

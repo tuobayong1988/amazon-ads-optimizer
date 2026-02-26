@@ -356,19 +356,19 @@ async function captureStateSnapshot(
 }
 
 /**
- * v256: 延迟回填Reward（定时任务，每30分钟由nextGenMaintenance触发）
+ * v257: 延迟回填Reward（定时任务，每30分钟由nextGenMaintenance触发）
  * 
- * v256重大改进 — 解决RL冷启动瓶颈:
- * 1. 移除固定3小时下限，改为智能双通道回填策略
- * 2. 通道A（即时回填）: 对于有实体级绩效数据的日志，立即回填（无需等待3小时）
- * 3. 通道B（延迟回填）: 对于需要dailyPerformance归因的日志，保持3小时延迟
- * 4. 扩展上限到168小时（7天），确保系统重启后不丢失历史数据
- * 5. 系统重启后自动恢复：RL日志持久化在数据库中，不受进程重启影响
- *
- * v253改进:
- * 1. 移除limit(500)限制，确保每次回填完整处理所有待回填记录
- * 2. 增强零数据场景处理：当绩效数据全为0时，给予中性reward(0)而非负奖励
- * 3. 增加详细的回填统计日志，方便监控和诊断
+ * v257增强 — 三通道回填策略:
+ * 通道A（即时回填）: 对于有实体级绩效数据的日志，立即回填（无需等待3小时）
+ * 通道B（延迟回填）: 对于需要dailyPerformance归因的日志，保持3小时延迟
+ * 通道C（历史合成）: v257新增，当通道A/B均无数据时，从optimization_events中合成奖励
+ * 
+ * v256基础:
+ * 1. 移除固定3小时下限，改为智能多通道回填策略
+ * 2. 扩展上限到168小时（7天），确保系统重启后不丢失历史数据
+ * 3. 系统重启后自动恢复：RL日志持久化在数据库中，不受进程重启影响
+ * 4. 移除limit(500)限制，确保每次回填完整处理所有待回填记录
+ * 5. 增强零数据场景处理：当绩效数据全为0时，给予中性reward(0)而非负奖励
  */
 export async function backfillRewards(accountId: number): Promise<number> {
   const db = await getDbInstance();
@@ -488,6 +488,53 @@ export async function backfillRewards(accountId: number): Promise<number> {
           dataSource = 'campaign_daily';
         }
         
+        // v257: 通道C（历史合成）: 当通道A/B均无数据时，从optimization_events中合成奖励
+        // 这解决了冷启动场景：新关键词尚无绩效数据，但已有优化事件记录
+        if (dataSource === 'none' || (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0)) {
+          try {
+            const { optimizationEvents } = await import('../drizzle/schema');
+            const entityConditions = [
+              eq(optimizationEvents.accountId, log.accountId),
+              sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+              sql`${optimizationEvents.status} = 'success'`,
+              gte(optimizationEvents.createdAt, new Date(logDate.getTime() - 3600000).toISOString()),
+              lte(optimizationEvents.createdAt, new Date(logDate.getTime() + 48 * 3600000).toISOString()),
+            ];
+            if (log.keywordId) {
+              entityConditions.push(eq(optimizationEvents.keywordId, log.keywordId));
+            } else if (log.targetId) {
+              entityConditions.push(eq(optimizationEvents.targetId, log.targetId));
+            }
+            
+            const eventData = await db.select({
+              performanceData: optimizationEvents.performanceData,
+              previousBid: optimizationEvents.previousBid,
+              newBid: optimizationEvents.newBid,
+            }).from(optimizationEvents)
+              .where(and(...entityConditions))
+              .orderBy(sql`created_at DESC`)
+              .limit(1);
+            
+            if (eventData[0]?.performanceData) {
+              const perfData = typeof eventData[0].performanceData === 'string' 
+                ? JSON.parse(eventData[0].performanceData) 
+                : eventData[0].performanceData;
+              if (perfData) {
+                rewardImpressions = Number(perfData.impressions || perfData.stateImpressions) || 0;
+                rewardClicks = Number(perfData.clicks || perfData.stateClicks) || 0;
+                rewardOrders = Number(perfData.orders || perfData.stateOrders) || 0;
+                rewardSpend = Number(perfData.spend || perfData.stateSpend) || 0;
+                rewardSales = Number(perfData.sales || perfData.stateSales) || 0;
+                if (rewardImpressions > 0 || rewardClicks > 0) {
+                  dataSource = 'optimization_events_synthesis';
+                }
+              }
+            }
+          } catch (synthErr) {
+            // 历史合成失败不影响主流程
+          }
+        }
+        
         // v253: 增强零数据场景处理
         // 当绩效数据全为0时（新关键词或数据尚未同步），给予中性reward(0)
         // 而非负奖励，避免对新关键词的探索行为产生不当惩罚
@@ -536,7 +583,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
       }
     }
     
-    rlLog.info(`[backfillRewards] 账户${accountId}: v256回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 即时通道=${immediateFilledCount}, 零数据中性回填=${skippedNoData}`);
+    rlLog.info(`[backfillRewards] 账户${accountId}: v257三通道回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 即时通道A=${immediateFilledCount}, 零数据中性回填=${skippedNoData}`);
     return filledCount;
     
   } catch (error: any) {

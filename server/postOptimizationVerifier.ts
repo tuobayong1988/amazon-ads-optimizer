@@ -1045,7 +1045,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
           .set({
             resolutionStatus: 'resolved',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            resolutionNotes: 'v256: 自动解决 - 以亚马逊实际数据为准 (use_remote)',
+            resolutionNotes: 'v257: 自动解决 - 以亚马逊实际数据为准 (use_remote)',
           } as any)
           .where(inArray(syncConflicts.id, batch));
       }
@@ -1060,17 +1060,17 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
           .set({
             resolutionStatus: 'ignored',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            resolutionNotes: 'v256: 自动忽略 - 远程实体不存在',
+            resolutionNotes: 'v257: 自动忽略 - 远程实体不存在',
           } as any)
           .where(inArray(syncConflicts.id, batch));
       }
       ignored = autoIgnoreIds.length;
     }
     
-    log.info(`v256: 自动冲突解决完成 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
+    log.info(`v257: 自动冲突解决完成 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
     
   } catch (error: any) {
-    log.error(`v256: 自动冲突解决失败 accountId=${accountId}: ${error.message}`);
+    log.error(`v257: 自动冲突解决失败 accountId=${accountId}: ${error.message}`);
   }
   
   return { resolved, ignored, skipped };

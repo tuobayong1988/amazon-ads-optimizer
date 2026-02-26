@@ -49,6 +49,118 @@ import * as timeDecayService from './timeDecayWeightedDataService';
 
 const log = createModuleLogger('NextGen');
 
+// ==================== v257: 出价冷却时间配置 ====================
+
+/**
+ * v257: 出价振荡防护配置
+ * 
+ * 问题根因：规则引擎降价 → AutoCorrector纠错拉回 → 规则引擎再降价，形成恶性循环
+ * 解决方案：引入冷却时间（Cool-down Period）和最小调整幅度（Minimum Adjustment Threshold）
+ * 
+ * 冷却时间：同一关键词在指定时间窗口内不再重复调整
+ * 最小调整幅度：忽略微小的、无意义的出价变动，减少不必要的API调用
+ */
+const BID_COOLDOWN_CONFIG = {
+  /** 冷却时间窗口（小时）：同一关键词在此时间内最多调整一次 */
+  cooldownHours: 4,
+  /** 最小调整幅度（百分比）：低于此幅度的调整将被忽略 */
+  minAdjustmentPercent: 0.02,  // 2%
+  /** 最小调整绝对值（美元）：低于此金额的调整将被忽略 */
+  minAdjustmentAbsolute: 0.02, // $0.02
+  /** 24小时内最大调整次数：超过此次数的关键词进入强制冷却 */
+  maxAdjustmentsPerDay: 3,
+};
+
+/**
+ * v257: 检查关键词是否在冷却期内
+ * 
+ * 查询optimization_events表，判断该关键词最近是否已经被调整过
+ * 如果在冷却期内，返回true（应跳过调整）
+ * 如果24小时内调整次数超过阈值，也返回true
+ */
+async function isInCooldownPeriod(
+  accountId: number,
+  keywordId?: number,
+  targetId?: number
+): Promise<{ inCooldown: boolean; reason: string; recentAdjustments: number }> {
+  if (!keywordId && !targetId) return { inCooldown: false, reason: '', recentAdjustments: 0 };
+  
+  try {
+    const db = await getDb();
+    if (!db) return { inCooldown: false, reason: '', recentAdjustments: 0 };
+    
+    const { optimizationEvents } = await import('../drizzle/schema');
+    const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp } = await import('drizzle-orm');
+    
+    // 查询24小时内的出价调整次数和最近一次调整时间
+    const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
+    const cooldownCutoff = new Date(Date.now() - BID_COOLDOWN_CONFIG.cooldownHours * 3600000).toISOString();
+    
+    const conditions = [
+      eqOp(optimizationEvents.accountId, accountId),
+      sqlOp`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+      sqlOp`${optimizationEvents.status} = 'success'`,
+      gteOp(optimizationEvents.createdAt, hoursAgo24),
+    ];
+    
+    if (keywordId) {
+      conditions.push(eqOp(optimizationEvents.keywordId, keywordId));
+    } else if (targetId) {
+      conditions.push(eqOp(optimizationEvents.targetId, targetId));
+    }
+    
+    const recentEvents = await db.select({
+      id: optimizationEvents.id,
+      createdAt: optimizationEvents.createdAt,
+    }).from(optimizationEvents)
+      .where(andOp(...conditions))
+      .orderBy(sqlOp`created_at DESC`)
+      .limit(10);
+    
+    const recentAdjustments = recentEvents.length;
+    
+    // 检查1: 24小时内调整次数超过阈值
+    if (recentAdjustments >= BID_COOLDOWN_CONFIG.maxAdjustmentsPerDay) {
+      return {
+        inCooldown: true,
+        reason: `24h内已调整${recentAdjustments}次(上限${BID_COOLDOWN_CONFIG.maxAdjustmentsPerDay}次)`,
+        recentAdjustments,
+      };
+    }
+    
+    // 检查2: 最近一次调整是否在冷却期内
+    if (recentEvents.length > 0) {
+      const lastAdjustTime = new Date(recentEvents[0].createdAt as string);
+      if (lastAdjustTime.getTime() > new Date(cooldownCutoff).getTime()) {
+        const hoursAgo = ((Date.now() - lastAdjustTime.getTime()) / 3600000).toFixed(1);
+        return {
+          inCooldown: true,
+          reason: `距上次调整仅${hoursAgo}h(冷却期${BID_COOLDOWN_CONFIG.cooldownHours}h)`,
+          recentAdjustments,
+        };
+      }
+    }
+    
+    return { inCooldown: false, reason: '', recentAdjustments };
+  } catch (error: any) {
+    // 冷却检查失败不阻塞出价流程
+    log.warn(`[CooldownCheck] 冷却检查异常: ${error.message}`);
+    return { inCooldown: false, reason: '', recentAdjustments: 0 };
+  }
+}
+
+/**
+ * v257: 检查调整幅度是否达到最小阈值
+ * 避免微小的、无意义的出价变动产生不必要的API调用和振荡
+ */
+function meetsMinimumAdjustment(currentBid: number, newBid: number): boolean {
+  const absoluteDiff = Math.abs(newBid - currentBid);
+  const percentDiff = currentBid > 0 ? absoluteDiff / currentBid : 0;
+  
+  return absoluteDiff >= BID_COOLDOWN_CONFIG.minAdjustmentAbsolute &&
+         percentDiff >= BID_COOLDOWN_CONFIG.minAdjustmentPercent;
+}
+
 // ==================== 类型定义 ====================
 
 export interface NextGenBidResult {
@@ -479,42 +591,96 @@ export async function calculateNextGenBid(
     log.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${advancedError.message}`);
   }
   
+  // ===== v257: 出价冷却时间检查 =====
+  // 在规则引擎执行前检查冷却期，避免出价振荡
+  const cooldownResult = await isInCooldownPeriod(
+    accountId,
+    target.type === 'keyword' ? target.id : undefined,
+    target.type === 'product_target' ? target.id : undefined
+  );
+  
+  if (cooldownResult.inCooldown) {
+    log.info(`[NextGenOrchestrator] v257冷却保护: target=${target.id}, ${cooldownResult.reason}`);
+    return buildResult(target, target.currentBid, 'cooldown_hold', 0.5,
+      `[冷却保护] ${cooldownResult.reason}: 维持当前出价避免振荡`, 'rule_engine');
+  }
+  
   // ===== 第2层：规则引擎 =====
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
     let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
     let finalReason = ruleResult.reason;
     
-    // v242: RL冷启动探索策略（增强版）
-    // 精度感知调整已减少了大部分hold，但对于"数据不足"场景和"零转化但花费可控"场景，
-    // 规则引擎仍会返回维持不变。探索策略确保这些场景也能产生RL训练数据。
-    // 安全保障：探索幅度限制在±3-5%，且受safetyValidate约束
+    // v257: 最小调整幅度检查 — 忽略微小的无意义变动
+    if (!meetsMinimumAdjustment(target.currentBid, safeBid)) {
+      safeBid = target.currentBid;
+      finalReason += ' | v257: 调整幅度低于最小阈值，维持不变';
+    }
+    
+    // v257: 增强型主动探索策略 — 加速高级算法数据积累
+    // 目标：产生多样化的成功/失败数据，打破“数据不足→无法激活→永远数据不足”的死锁
+    // 策略：
+    //   1. 提高探索率到30%，确保更多关键词产生RL训练数据
+    //   2. 引入多梯度探索：小幅度(3-5%)、中幅度(5-8%)、大幅度(8-12%)
+    //   3. 对于非“hold”的调整也有概率叠加探索扰动，增加数据多样性
+    // 安全保障：所有探索受safetyValidate约束，且受冷却时间保护
     const isEffectivelyHold = Math.abs(safeBid - target.currentBid) <= 0.005;
-    if (isEffectivelyHold && target.currentBid > 0.05) {
-      const entityId = target.id;
-      const hourSeed = Math.floor(Date.now() / (4 * 3600000)); // 每4小时一个种子
-      const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
-      const EXPLORATION_RATE = 25; // v242: 提高到25%，因为精度感知已减少hold数量，此处探索更具针对性
-      
-      if (explorationHash < EXPLORATION_RATE) {
-        const directionHash = ((entityId * 1103515245 + hourSeed) >>> 0) % 100;
-        // v242: 探索幅度也要精度感知，确保产生有效调整
-        const minExplorationRatio = target.currentBid > 0 ? 0.02 / target.currentBid : 0.03;
-        const explorationRatio = Math.max(minExplorationRatio, 0.03 + (explorationHash / 100) * 0.02);
-        
-        let explorationBid: number;
-        if (directionHash < 50) {
-          explorationBid = target.currentBid * (1 + explorationRatio);
-        } else {
-          explorationBid = target.currentBid * (1 - explorationRatio);
-        }
-        
-        safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
-        finalReason += ` | RL探索: ${directionHash < 50 ? '上探' : '下探'}${(explorationRatio * 100).toFixed(1)}%`;
-        log.info(`[NextGenOrchestrator] RL冷启动探索: target=${target.id}, ` +
-          `方向=${directionHash < 50 ? '上探' : '下探'}, 幅度=${(explorationRatio * 100).toFixed(1)}%, ` +
-          `$${target.currentBid.toFixed(2)} → $${safeBid.toFixed(2)}`);
+    const entityId = target.id;
+    const hourSeed = Math.floor(Date.now() / (4 * 3600000)); // 每4小时一个种子
+    const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
+    
+    // v257: 主动探索分两种场景
+    // 场景A: hold状态 — 30%概率触发探索
+    // 场景B: 非hold状态 — 10%概率叠加微小扰动，增加数据多样性
+    const EXPLORATION_RATE_HOLD = 30;
+    const EXPLORATION_RATE_ACTIVE = 10;
+    
+    const shouldExplore = isEffectivelyHold 
+      ? (explorationHash < EXPLORATION_RATE_HOLD && target.currentBid > 0.05)
+      : (explorationHash < EXPLORATION_RATE_ACTIVE);
+    
+    if (shouldExplore) {
+      const directionHash = ((entityId * 1103515245 + hourSeed) >>> 0) % 100;
+      // v257: 多梯度探索 — 根据哈希值分配不同幅度
+      const gradientHash = ((entityId * 6364136223846793005n + BigInt(hourSeed)) % 100n);
+      const gradientVal = Number(gradientHash < 0n ? -gradientHash : gradientHash);
+      let explorationRatio: number;
+      if (gradientVal < 50) {
+        // 50%概率: 小幅度探索 3-5%
+        explorationRatio = 0.03 + (gradientVal / 50) * 0.02;
+      } else if (gradientVal < 80) {
+        // 30%概率: 中幅度探索 5-8%
+        explorationRatio = 0.05 + ((gradientVal - 50) / 30) * 0.03;
+      } else {
+        // 20%概率: 大幅度探索 8-12%
+        explorationRatio = 0.08 + ((gradientVal - 80) / 20) * 0.04;
       }
+      
+      // 精度保障: 确保探索幅度超过最小有效值
+      const minExplorationRatio = target.currentBid > 0 ? 0.02 / target.currentBid : 0.03;
+      explorationRatio = Math.max(minExplorationRatio, explorationRatio);
+      
+      let explorationBid: number;
+      if (isEffectivelyHold) {
+        // hold场景: 完全由探索决定方向
+        explorationBid = directionHash < 50 
+          ? target.currentBid * (1 + explorationRatio)
+          : target.currentBid * (1 - explorationRatio);
+      } else {
+        // 非hold场景: 在规则引擎结果上叠加微小扰动
+        const perturbRatio = explorationRatio * 0.3; // 扰动幅度为探索幅度的30%
+        explorationBid = directionHash < 50 
+          ? safeBid * (1 + perturbRatio)
+          : safeBid * (1 - perturbRatio);
+      }
+      
+      safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
+      const exploreType = isEffectivelyHold ? 'RL探索' : 'RL扰动';
+      const exploreDir = directionHash < 50 ? '上探' : '下探';
+      finalReason += ` | v257${exploreType}: ${exploreDir}${(explorationRatio * 100).toFixed(1)}%`;
+      log.info(`[NextGenOrchestrator] v257主动探索: target=${target.id}, ` +
+        `类型=${exploreType}, 方向=${exploreDir}, 幅度=${(explorationRatio * 100).toFixed(1)}%, ` +
+        `$${target.currentBid.toFixed(2)} → $${safeBid.toFixed(2)}`);
     }
     
     // v252: 规则引擎也记录RL数据（修复: 传递campaignId确保正确粒度）

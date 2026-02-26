@@ -651,7 +651,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
             .set({ bid: String(actualTargetBid) })
             .where(eq(keywords.id, row.keyword_id));
           
-          // 记录纠错事件
+          // v257: 记录纠错事件，并关联原始优化事件
           await logCorrectionEvent(database, {
             accountId,
             eventCategory: 'bid_adjustment',
@@ -663,6 +663,8 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
             previousBid: String(row.current_bid),
             newBid: String(actualTargetBid),
             changeReason: `[AutoCorrector] 出价不一致纠正: 纠正到$${actualTargetBid.toFixed(2)}, 当前$${row.current_bid}${row.max_bid ? ` (max_bid=$${row.max_bid})` : ''}`,
+            sourceEventId: row.event_id,
+            correctionType: 'bid_mismatch',
           });
         }
       }
@@ -1726,6 +1728,8 @@ async function logCorrectionEvent(database: any, data: {
   actionType: string;
   keywordId?: number;
   keywordText?: string;
+  targetId?: number;
+  targetName?: string;
   campaignId?: number;
   campaignName?: string;
   previousBid?: string;
@@ -1733,14 +1737,32 @@ async function logCorrectionEvent(database: any, data: {
   previousValue?: string;
   newValue?: string;
   changeReason: string;
+  /** v257: 关联的原始优化事件ID */
+  sourceEventId?: number;
+  /** v257: 纠错类型分类 */
+  correctionType?: string;
 }): Promise<void> {
   try {
+    // v257: 通过actionDetail存储关联信息，无需修改schema
+    const actionDetailJson = JSON.stringify({
+      correctorVersion: 'AutoCorrector_v257',
+      correctionType: data.correctionType || 'bid_mismatch',
+      sourceEventId: data.sourceEventId || null,
+      correctedAt: new Date().toISOString(),
+      // 关联链: 原始优化事件 → 纠错事件
+      traceChain: data.sourceEventId 
+        ? `optimization_event#${data.sourceEventId} -> auto_correction` 
+        : 'standalone_correction',
+    });
+    
     await database.insert(optimizationEvents).values({
       accountId: data.accountId,
       eventCategory: data.eventCategory,
       actionType: data.actionType,
       keywordId: data.keywordId,
       keywordText: data.keywordText,
+      targetId: data.targetId,
+      targetName: data.targetName,
       campaignId: data.campaignId,
       campaignName: data.campaignName,
       previousBid: data.previousBid,
@@ -1748,14 +1770,15 @@ async function logCorrectionEvent(database: any, data: {
       previousValue: data.previousValue,
       newValue: data.newValue,
       changeReason: data.changeReason,
+      actionDetail: actionDetailJson,
       status: 'success',
       apiSyncStatus: 'synced',
       apiSyncedAt: new Date(),
-      algorithmVersion: 'AutoCorrector_v167',
+      algorithmVersion: 'AutoCorrector_v257',
       createdAt: new Date(),
     });
   } catch (error: any) {
-    log.warn(`v178: 记录纠错事件失败: ${error.message}`);
+    log.warn(`v257: 记录纠错事件失败: ${error.message}`);
   }
 }
 
