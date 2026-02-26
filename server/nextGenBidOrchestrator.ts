@@ -387,11 +387,13 @@ export async function calculateNextGenBid(
     if (isAdvancedAlgorithm && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
       
-      // 异步记录RL数据
+      // v252: 异步记录RL数据（修复: 传递campaignId确保captureStateSnapshot获取正确粒度的数据）
       recordBidAction({
         accountId,
         keywordId,
         targetId,
+        campaignId: (target as any).amazonCampaignId || undefined,
+        adGroupId: (target as any).adGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -448,13 +450,15 @@ export async function calculateNextGenBid(
       }
     }
     
-    // 规则引擎也记录RL数据（用于未来训练高级算法）
+    // v252: 规则引擎也记录RL数据（修复: 传递campaignId确保正确粒度）
     const keywordId = target.type === 'keyword' ? target.id : undefined;
     const targetId = target.type === 'product_target' ? target.id : undefined;
     recordBidAction({
       accountId,
       keywordId,
       targetId,
+      campaignId: (target as any).amazonCampaignId || undefined,
+      adGroupId: (target as any).adGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',

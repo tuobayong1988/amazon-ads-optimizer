@@ -201,7 +201,17 @@ export async function recordBidAction(action: BidAction): Promise<void> {
 }
 
 /**
- * 捕获当前状态快照
+ * v252: 捕获当前状态快照
+ * 
+ * 修复: 优先使用关键词/商品定向级别的绩效数据，而非账户/Campaign级别汇总
+ * 根因: 之前当campaignId为空时，SQL条件退化为`1=1`，导致查询整个账户的
+ *       dailyPerformance汇总数据，所有关键词共享相同的state特征，
+ *       RL模型无法区分不同关键词的表现差异
+ * 
+ * 修复策略:
+ *   1. 优先从keywords/productTargets表直接获取实体级别的绩效数据（最精确）
+ *   2. 仅在实体级别数据不可用时，回退到campaign级别的dailyPerformance
+ *   3. 最后回退到账户级别（保持向后兼容）
  */
 async function captureStateSnapshot(
   db: any,
@@ -210,42 +220,126 @@ async function captureStateSnapshot(
   targetId?: number,
   campaignId?: string
 ): Promise<StateSnapshot> {
-  const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-  const today = new Date().toISOString().split('T')[0];
-  
-  // 获取当前bid
   let currentBid = 0;
+  let impressions = 0;
+  let clicks = 0;
+  let orders = 0;
+  let spend = 0;
+  let sales = 0;
+  let dataSource = 'none';
+  
+  // ===== 策略1: 从关键词/商品定向表直接获取实体级别数据（最精确） =====
   if (keywordId) {
-    const kw = await db.select({ bid: keywords.bid }).from(keywords)
+    const kwResults = await db.select({
+      bid: keywords.bid,
+      impressions: keywords.impressions,
+      clicks: keywords.clicks,
+      orders: keywords.orders,
+      spend: keywords.spend,
+      sales: keywords.sales,
+    }).from(keywords)
       .where(eq(keywords.id, keywordId)).limit(1);
-    currentBid = kw[0] ? Number(kw[0].bid) : 0;
+    
+    if (kwResults[0]) {
+      currentBid = Number(kwResults[0].bid) || 0;
+      impressions = Number(kwResults[0].impressions) || 0;
+      clicks = Number(kwResults[0].clicks) || 0;
+      orders = Number(kwResults[0].orders) || 0;
+      spend = Number(kwResults[0].spend) || 0;
+      sales = Number(kwResults[0].sales) || 0;
+      dataSource = 'keyword_entity';
+    }
   } else if (targetId) {
-    const tgt = await db.select({ bid: productTargets.bid }).from(productTargets)
+    const tgtResults = await db.select({
+      bid: productTargets.bid,
+      impressions: productTargets.impressions,
+      clicks: productTargets.clicks,
+      orders: productTargets.orders,
+      spend: productTargets.spend,
+      sales: productTargets.sales,
+    }).from(productTargets)
       .where(eq(productTargets.id, targetId)).limit(1);
-    currentBid = tgt[0] ? Number(tgt[0].bid) : 0;
+    
+    if (tgtResults[0]) {
+      currentBid = Number(tgtResults[0].bid) || 0;
+      impressions = Number(tgtResults[0].impressions) || 0;
+      clicks = Number(tgtResults[0].clicks) || 0;
+      orders = Number(tgtResults[0].orders) || 0;
+      spend = Number(tgtResults[0].spend) || 0;
+      sales = Number(tgtResults[0].sales) || 0;
+      dataSource = 'product_target_entity';
+    }
   }
   
-  // 获取最近7天的聚合绩效
-  const perfResults = await db.select({
-    totalImpressions: sql<number>`SUM(impressions)`,
-    totalClicks: sql<number>`SUM(clicks)`,
-    totalOrders: sql<number>`SUM(orders)`,
-    totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
-    totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
-  }).from(dailyPerformance)
-    .where(and(
-      eq(dailyPerformance.accountId, accountId),
-      campaignId ? eq(dailyPerformance.campaignId, campaignId) : sql`1=1`,
-      gte(dailyPerformance.date, days7Ago),
-      lte(dailyPerformance.date, today)
-    ));
+  // ===== 策略2: 实体级别数据不可用时，回退到campaign级别的dailyPerformance =====
+  if (dataSource === 'none' && campaignId) {
+    const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    
+    const perfResults = await db.select({
+      totalImpressions: sql<number>`SUM(impressions)`,
+      totalClicks: sql<number>`SUM(clicks)`,
+      totalOrders: sql<number>`SUM(orders)`,
+      totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
+      totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
+    }).from(dailyPerformance)
+      .where(and(
+        eq(dailyPerformance.accountId, accountId),
+        eq(dailyPerformance.campaignId, campaignId),
+        gte(dailyPerformance.date, days7Ago),
+        lte(dailyPerformance.date, today)
+      ));
+    
+    const perf = perfResults[0] || {};
+    impressions = Number(perf.totalImpressions) || 0;
+    clicks = Number(perf.totalClicks) || 0;
+    orders = Number(perf.totalOrders) || 0;
+    spend = Number(perf.totalSpend) || 0;
+    sales = Number(perf.totalSales) || 0;
+    dataSource = 'campaign_daily';
+    
+    // 如果策略1没有获取到bid，尝试从关键词/定向表获取
+    if (currentBid === 0) {
+      if (keywordId) {
+        const kw = await db.select({ bid: keywords.bid }).from(keywords)
+          .where(eq(keywords.id, keywordId)).limit(1);
+        currentBid = kw[0] ? Number(kw[0].bid) : 0;
+      } else if (targetId) {
+        const tgt = await db.select({ bid: productTargets.bid }).from(productTargets)
+          .where(eq(productTargets.id, targetId)).limit(1);
+        currentBid = tgt[0] ? Number(tgt[0].bid) : 0;
+      }
+    }
+  }
   
-  const perf = perfResults[0] || {};
-  const impressions = Number(perf.totalImpressions) || 0;
-  const clicks = Number(perf.totalClicks) || 0;
-  const orders = Number(perf.totalOrders) || 0;
-  const spend = Number(perf.totalSpend) || 0;
-  const sales = Number(perf.totalSales) || 0;
+  // ===== 策略3: 最后回退到账户级别（仅在无campaignId时） =====
+  if (dataSource === 'none') {
+    const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0];
+    
+    const perfResults = await db.select({
+      totalImpressions: sql<number>`SUM(impressions)`,
+      totalClicks: sql<number>`SUM(clicks)`,
+      totalOrders: sql<number>`SUM(orders)`,
+      totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
+      totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
+    }).from(dailyPerformance)
+      .where(and(
+        eq(dailyPerformance.accountId, accountId),
+        gte(dailyPerformance.date, days7Ago),
+        lte(dailyPerformance.date, today)
+      ));
+    
+    const perf = perfResults[0] || {};
+    impressions = Number(perf.totalImpressions) || 0;
+    clicks = Number(perf.totalClicks) || 0;
+    orders = Number(perf.totalOrders) || 0;
+    spend = Number(perf.totalSpend) || 0;
+    sales = Number(perf.totalSales) || 0;
+    dataSource = 'account_fallback';
+    
+    rlLog.warn(`[captureStateSnapshot] v252: 使用账户级别回退数据 accountId=${accountId}, keywordId=${keywordId}, targetId=${targetId} (无campaignId)`);
+  }
   
   return {
     bid: currentBid,

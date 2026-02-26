@@ -1103,4 +1103,70 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
   }
 });
 
+// v251: RL诊断端点 - 排查Reward回填问题
+router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: 'DB not available' });
+    
+    const now = new Date();
+    const hoursAgo3 = new Date(now.getTime() - 3 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    const hoursAgo96 = new Date(now.getTime() - 96 * 3600000).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    
+    // 1. 总体统计
+    const totalStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as filled,
+        SUM(CASE WHEN reward_filled_at IS NULL THEN 1 ELSE 0 END) as pending,
+        MIN(created_at) as earliest,
+        MAX(created_at) as latest
+      FROM rl_training_logs
+    `));
+    
+    // 2. 按accountId分布
+    const accountDist = await db.execute(sql.raw(`
+      SELECT 
+        accountId,
+        COUNT(*) as total,
+        SUM(CASE WHEN reward_filled_at IS NULL AND created_at <= '${hoursAgo3}' AND created_at >= '${hoursAgo96}' THEN 1 ELSE 0 END) as in_backfill_window,
+        SUM(CASE WHEN created_at > '${hoursAgo3}' THEN 1 ELSE 0 END) as too_new,
+        SUM(CASE WHEN created_at < '${hoursAgo96}' THEN 1 ELSE 0 END) as too_old,
+        MIN(created_at) as earliest,
+        MAX(created_at) as latest
+      FROM rl_training_logs
+      WHERE reward_filled_at IS NULL
+      GROUP BY account_id
+    `));
+    
+    // 3. 时间分布
+    const timeDist = await db.execute(sql.raw(`
+      SELECT 
+        DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_bucket,
+        COUNT(*) as cnt,
+        SUM(CASE WHEN reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as filled
+      FROM rl_training_logs
+      GROUP BY hour_bucket
+      ORDER BY hour_bucket DESC
+      LIMIT 30
+    `));
+    
+    const extractRows = (result: any) => {
+      if (Array.isArray(result) && Array.isArray(result[0])) return result[0];
+      if (Array.isArray(result)) return result;
+      return [result];
+    };
+    
+    res.json({
+      diagnosticTime: now.toISOString(),
+      backfillWindow: { from: hoursAgo96, to: hoursAgo3 },
+      totalStats: extractRows(totalStats),
+      accountDistribution: extractRows(accountDist),
+      timeDistribution: extractRows(timeDist),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

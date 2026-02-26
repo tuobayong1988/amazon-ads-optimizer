@@ -56903,34 +56903,105 @@ async function recordBidAction(action) {
   }
 }
 async function captureStateSnapshot(db, accountId, keywordId, targetId, campaignId) {
-  const days7Ago = new Date(Date.now() - 7 * 864e5).toISOString().split("T")[0];
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   let currentBid = 0;
+  let impressions = 0;
+  let clicks = 0;
+  let orders = 0;
+  let spend = 0;
+  let sales = 0;
+  let dataSource = "none";
   if (keywordId) {
-    const kw = await db.select({ bid: keywords.bid }).from(keywords).where(eq(keywords.id, keywordId)).limit(1);
-    currentBid = kw[0] ? Number(kw[0].bid) : 0;
+    const kwResults = await db.select({
+      bid: keywords.bid,
+      impressions: keywords.impressions,
+      clicks: keywords.clicks,
+      orders: keywords.orders,
+      spend: keywords.spend,
+      sales: keywords.sales
+    }).from(keywords).where(eq(keywords.id, keywordId)).limit(1);
+    if (kwResults[0]) {
+      currentBid = Number(kwResults[0].bid) || 0;
+      impressions = Number(kwResults[0].impressions) || 0;
+      clicks = Number(kwResults[0].clicks) || 0;
+      orders = Number(kwResults[0].orders) || 0;
+      spend = Number(kwResults[0].spend) || 0;
+      sales = Number(kwResults[0].sales) || 0;
+      dataSource = "keyword_entity";
+    }
   } else if (targetId) {
-    const tgt = await db.select({ bid: productTargets.bid }).from(productTargets).where(eq(productTargets.id, targetId)).limit(1);
-    currentBid = tgt[0] ? Number(tgt[0].bid) : 0;
+    const tgtResults = await db.select({
+      bid: productTargets.bid,
+      impressions: productTargets.impressions,
+      clicks: productTargets.clicks,
+      orders: productTargets.orders,
+      spend: productTargets.spend,
+      sales: productTargets.sales
+    }).from(productTargets).where(eq(productTargets.id, targetId)).limit(1);
+    if (tgtResults[0]) {
+      currentBid = Number(tgtResults[0].bid) || 0;
+      impressions = Number(tgtResults[0].impressions) || 0;
+      clicks = Number(tgtResults[0].clicks) || 0;
+      orders = Number(tgtResults[0].orders) || 0;
+      spend = Number(tgtResults[0].spend) || 0;
+      sales = Number(tgtResults[0].sales) || 0;
+      dataSource = "product_target_entity";
+    }
   }
-  const perfResults = await db.select({
-    totalImpressions: sql`SUM(impressions)`,
-    totalClicks: sql`SUM(clicks)`,
-    totalOrders: sql`SUM(orders)`,
-    totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
-    totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
-  }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId),
-    campaignId ? eq(dailyPerformance.campaignId, campaignId) : sql`1=1`,
-    gte(dailyPerformance.date, days7Ago),
-    lte(dailyPerformance.date, today)
-  ));
-  const perf = perfResults[0] || {};
-  const impressions = Number(perf.totalImpressions) || 0;
-  const clicks = Number(perf.totalClicks) || 0;
-  const orders = Number(perf.totalOrders) || 0;
-  const spend = Number(perf.totalSpend) || 0;
-  const sales = Number(perf.totalSales) || 0;
+  if (dataSource === "none" && campaignId) {
+    const days7Ago = new Date(Date.now() - 7 * 864e5).toISOString().split("T")[0];
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const perfResults = await db.select({
+      totalImpressions: sql`SUM(impressions)`,
+      totalClicks: sql`SUM(clicks)`,
+      totalOrders: sql`SUM(orders)`,
+      totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
+      totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
+    }).from(dailyPerformance).where(and(
+      eq(dailyPerformance.accountId, accountId),
+      eq(dailyPerformance.campaignId, campaignId),
+      gte(dailyPerformance.date, days7Ago),
+      lte(dailyPerformance.date, today)
+    ));
+    const perf = perfResults[0] || {};
+    impressions = Number(perf.totalImpressions) || 0;
+    clicks = Number(perf.totalClicks) || 0;
+    orders = Number(perf.totalOrders) || 0;
+    spend = Number(perf.totalSpend) || 0;
+    sales = Number(perf.totalSales) || 0;
+    dataSource = "campaign_daily";
+    if (currentBid === 0) {
+      if (keywordId) {
+        const kw = await db.select({ bid: keywords.bid }).from(keywords).where(eq(keywords.id, keywordId)).limit(1);
+        currentBid = kw[0] ? Number(kw[0].bid) : 0;
+      } else if (targetId) {
+        const tgt = await db.select({ bid: productTargets.bid }).from(productTargets).where(eq(productTargets.id, targetId)).limit(1);
+        currentBid = tgt[0] ? Number(tgt[0].bid) : 0;
+      }
+    }
+  }
+  if (dataSource === "none") {
+    const days7Ago = new Date(Date.now() - 7 * 864e5).toISOString().split("T")[0];
+    const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    const perfResults = await db.select({
+      totalImpressions: sql`SUM(impressions)`,
+      totalClicks: sql`SUM(clicks)`,
+      totalOrders: sql`SUM(orders)`,
+      totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
+      totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
+    }).from(dailyPerformance).where(and(
+      eq(dailyPerformance.accountId, accountId),
+      gte(dailyPerformance.date, days7Ago),
+      lte(dailyPerformance.date, today)
+    ));
+    const perf = perfResults[0] || {};
+    impressions = Number(perf.totalImpressions) || 0;
+    clicks = Number(perf.totalClicks) || 0;
+    orders = Number(perf.totalOrders) || 0;
+    spend = Number(perf.totalSpend) || 0;
+    sales = Number(perf.totalSales) || 0;
+    dataSource = "account_fallback";
+    rlLog.warn(`[captureStateSnapshot] v252: \u4F7F\u7528\u8D26\u6237\u7EA7\u522B\u56DE\u9000\u6570\u636E accountId=${accountId}, keywordId=${keywordId}, targetId=${targetId} (\u65E0campaignId)`);
+  }
   return {
     bid: currentBid,
     impressions,
@@ -67806,6 +67877,8 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
         accountId,
         keywordId,
         targetId,
+        campaignId: target.amazonCampaignId || void 0,
+        adGroupId: target.adGroupId || void 0,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === "linucb" ? "linucb" : metaDecision.selectedAlgorithm === "cql" ? "cql" : "rule_based"
@@ -67854,6 +67927,8 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       accountId,
       keywordId,
       targetId,
+      campaignId: target.amazonCampaignId || void 0,
+      adGroupId: target.adGroupId || void 0,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: "rule_based"
@@ -378166,6 +378241,61 @@ router3.get("/nextgen-monitor", opsAuth, async (req, res) => {
         message: l6.message
       })),
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/rl-diagnostics", opsAuth, async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "DB not available" });
+    const now = /* @__PURE__ */ new Date();
+    const hoursAgo3 = new Date(now.getTime() - 3 * 36e5).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+    const hoursAgo96 = new Date(now.getTime() - 96 * 36e5).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
+    const totalStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as filled,
+        SUM(CASE WHEN reward_filled_at IS NULL THEN 1 ELSE 0 END) as pending,
+        MIN(created_at) as earliest,
+        MAX(created_at) as latest
+      FROM rl_training_logs
+    `));
+    const accountDist = await db.execute(sql.raw(`
+      SELECT 
+        accountId,
+        COUNT(*) as total,
+        SUM(CASE WHEN reward_filled_at IS NULL AND created_at <= '${hoursAgo3}' AND created_at >= '${hoursAgo96}' THEN 1 ELSE 0 END) as in_backfill_window,
+        SUM(CASE WHEN created_at > '${hoursAgo3}' THEN 1 ELSE 0 END) as too_new,
+        SUM(CASE WHEN created_at < '${hoursAgo96}' THEN 1 ELSE 0 END) as too_old,
+        MIN(created_at) as earliest,
+        MAX(created_at) as latest
+      FROM rl_training_logs
+      WHERE reward_filled_at IS NULL
+      GROUP BY account_id
+    `));
+    const timeDist = await db.execute(sql.raw(`
+      SELECT 
+        DATE_FORMAT(created_at, '%Y-%m-%d %H:00') as hour_bucket,
+        COUNT(*) as cnt,
+        SUM(CASE WHEN reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as filled
+      FROM rl_training_logs
+      GROUP BY hour_bucket
+      ORDER BY hour_bucket DESC
+      LIMIT 30
+    `));
+    const extractRows = (result) => {
+      if (Array.isArray(result) && Array.isArray(result[0])) return result[0];
+      if (Array.isArray(result)) return result;
+      return [result];
+    };
+    res.json({
+      diagnosticTime: now.toISOString(),
+      backfillWindow: { from: hoursAgo96, to: hoursAgo3 },
+      totalStats: extractRows(totalStats),
+      accountDistribution: extractRows(accountDist),
+      timeDistribution: extractRows(timeDist)
     });
   } catch (e6) {
     res.status(500).json({ error: e6.message });
