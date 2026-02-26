@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 257;  // v257: 出价振荡根治 + 三通道RL回填 + 主动探索策略 + match_type回填 + 纠错关联追踪
+export const SYSTEM_VERSION = 258;  // v258: ACoS死亡螺旋根治(归因延迟+熔断+多维度决策) + 高级算法激活(零门槛UCB+强制探索) + 统一出价仲裁 + 日志可读性增强

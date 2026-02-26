@@ -5071,6 +5071,10 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       sourceTable: 'optimization_logs',
       sourceId: logId,
       executedAt: data.executedAt,
+      // v258: 写入结构化归因和护栏信息
+      reasonDetails: (data as any).reasonDetails || undefined,
+      guardrailInfo: (data as any).guardrailInfo || undefined,
+      relatedEventId: (data as any).relatedEventId || undefined,
     });
     log.info(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {

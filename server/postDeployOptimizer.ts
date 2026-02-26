@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 257;  // v257: 出价振荡根治 + 三通道RL回填 + 主动探索策略 + match_type回填 + 纠错关联追踪
+export const SYSTEM_VERSION = 258;  // v258: ACoS死亡螺旋根治 + 高级算法激活 + 统一出价仲裁 + 日志可读性增强
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -309,6 +309,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 257,
     description: 'v257: [全链路优化升级] — (1)P0出价振荡根治: 4h冷却时间+24h最大调整次数+最小调整幅度阈值 (2)P0三通道RL回填: 新增通道C从optimization_events合成奖励 (3)P1主动探索策略: 多梯度探索(3-12%)+非hold扰动，加速高级算法激活 (4)P1 match_type历史数据回填 (5)P2纠错事件关联追踪+优化日志增强 (6)v257.1热修复: systemVersion.ts版本号同步+数据库连接池增强配置+JWT认证降级策略',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 258,
+    description: 'v258: [P0核心算法重构] — (1)P0-ACoS死亡螺旋根治: 归因延迟保护(点击<5强制观察)+降价熔断(7天累计30%上限/连续3次强hold/最低40%保护)+多维度决策(CTR辅助判断)+降价力度上限(15%/25%) (2)P0-高级算法激活: UCB零门槛始终可用+LinUCB/Sigmoid降至1-2条+待回填日志计入 (3)P1-统一出价仲裁: 纠正前检查更新决策+冷却/熔断保护期跳过 (4)P1-日志可读性: 新增reason_details/guardrail_info/related_event_id字段+前端护栏机制可视化',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
@@ -1014,6 +1020,17 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       log.info(`[PostDeployOptimizer] v257: match_type回填完成: updated=${matchTypeResult.updated}, errors=${matchTypeResult.errors}`);
     } catch (migrationErr: any) {
       log.error(`[PostDeployOptimizer] v257: match_type回填失败: ${migrationErr.message}`);
+    }
+  }
+
+  // 4c. v258: optimization_events表新增字段迁移
+  if (!lastVersion || lastVersion < 258) {
+    try {
+      const { addLogFields } = await import('./migrations/v258_add_log_fields');
+      const logFieldsResult = await addLogFields();
+      log.info(`[PostDeployOptimizer] v258: 日志字段迁移完成: ${JSON.stringify(logFieldsResult)}`);
+    } catch (migrationErr: any) {
+      log.error(`[PostDeployOptimizer] v258: 日志字段迁移失败: ${migrationErr.message}`);
     }
   }
 

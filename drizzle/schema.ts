@@ -3498,6 +3498,14 @@ export const optimizationEvents = mysqlTable("optimization_events", {
   sourceTable: varchar("source_table", { length: 64 }),
   sourceId: int("source_id"),
   
+  // === v258: 增强优化日志可读性 ===
+  // reason_details: 结构化的调整归因详情，包含触发规则、核心数据、算法选择等
+  reasonDetails: json("reason_details"),
+  // guardrail_info: 护栏机制介入信息，包含冷却、熔断、仲裁等护栏状态
+  guardrailInfo: json("guardrail_info"),
+  // related_event_id: 关联的原始优化事件ID（用于纠错、回滚等场景）
+  relatedEventId: int("related_event_id"),
+  
   // === 时间戳 ===
   createdAt: datetime("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
   executedAt: datetime("executed_at", { mode: 'string' }),

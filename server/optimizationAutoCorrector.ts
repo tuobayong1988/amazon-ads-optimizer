@@ -585,10 +585,69 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    log.info(`v204: 账户${accountId} (${currencyCode}) 发现${rows.length}条出价不一致需要纠正 (bidTolerance=${bidTolerance.toFixed(3)})`);
+    log.info(`v258: 账户${accountId} (${currencyCode}) 发现${rows.length}条出价不一致候选项 (bidTolerance=${bidTolerance.toFixed(3)})`);
+    
+    // ===== v258: 统一出价仲裁机制 =====
+    // 核心改进：在纠正前检查是否有更新的优化决策
+    // 如果rule_engine已经做出了新的决策（包括冷却保持、熔断保持等），
+    // 则以最新决策为准，不再将出价纠正回旧值
+    // 这解决了：rule_engine降价 → 数据同步更新bid → AutoCorrector误判为“不一致”拉回 的恶性循环
+    const arbitratedRows: any[] = [];
+    let arbitrationSkipped = 0;
+    
+    for (const row of rows) {
+      // 检查该keyword是否有比当前参考事件更新的优化决策
+      const newerDecisionQuery = sql`
+        SELECT id, new_bid, change_reason, created_at 
+        FROM optimization_events 
+        WHERE keyword_id = ${row.keyword_id}
+          AND event_category = 'bid_adjustment'
+          AND status = 'success'
+          AND id > ${row.event_id}
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      const newerResult = await database.execute(newerDecisionQuery);
+      const newerRows = (newerResult as any)[0] || newerResult;
+      
+      if (Array.isArray(newerRows) && newerRows.length > 0) {
+        const newerDecision = newerRows[0];
+        // 存在更新的决策，跳过纠正
+        log.info(`v258仲裁: 跳过keyword=${row.keyword_id}的纠正, ` +
+          `原参考事件#${row.event_id}(bid=$${row.expected_bid}), ` +
+          `更新决策事件#${newerDecision.id}(bid=$${newerDecision.new_bid}, ${newerDecision.change_reason?.substring(0, 80)})`);
+        arbitrationSkipped++;
+        continue;
+      }
+      
+      // 检查是否在冷却期内（v257冷却保护或v258熔断保护已经决定维持出价）
+      const recentHoldQuery = sql`
+        SELECT id, change_reason FROM optimization_events 
+        WHERE keyword_id = ${row.keyword_id}
+          AND event_category = 'bid_adjustment'
+          AND created_at > DATE_SUB(NOW(), INTERVAL 4 HOUR)
+          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%')
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      const holdResult = await database.execute(recentHoldQuery);
+      const holdRows = (holdResult as any)[0] || holdResult;
+      
+      if (Array.isArray(holdRows) && holdRows.length > 0) {
+        log.info(`v258仲裁: 跳过keyword=${row.keyword_id}的纠正, 当前处于冷却/熔断保护期`);
+        arbitrationSkipped++;
+        continue;
+      }
+      
+      arbitratedRows.push(row);
+    }
+    
+    log.info(`v258仲裁结果: 账户${accountId} 原始${rows.length}条, 仲裁跳过${arbitrationSkipped}条, 实际纠正${arbitratedRows.length}条`);
+    
+    if (arbitratedRows.length === 0) return results;
     
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
-    const correctionItems = rows.map((row: any) => {
+    const correctionItems = arbitratedRows.map((row: any) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
       
@@ -627,7 +686,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       // v172: 使用correctionItems中的实际纠正值（已受max_bid限制）
       const correctionMap = new Map(correctionItems.map((item: any) => [item.keywordId, item.newBid]));
       
-      for (const row of rows) {
+      for (const row of arbitratedRows) {
         const actualTargetBid = correctionMap.get(row.keyword_id);
         if (actualTargetBid === undefined) continue; // 该关键词已被过滤（max_bid限制后无需纠正）
         
@@ -670,7 +729,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       }
     } catch (apiError: any) {
       log.error(`v178: 账户${accountId} 出价纠正API调用失败: ${apiError.message}`);
-      for (const row of rows) {
+      for (const row of arbitratedRows) {
         results.push({
           type: 'bid_mismatch',
           accountId,

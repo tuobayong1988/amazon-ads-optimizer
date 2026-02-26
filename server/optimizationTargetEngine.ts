@@ -1204,6 +1204,9 @@ async function executeBidOptimization(
             algorithmUsed: nextGenResult.algorithmUsed,
             confidenceScore: nextGenResult.confidence,
             algorithmTier: nextGenResult.algorithmTier,
+            // v258: 传递结构化归因和护栏信息
+            reasonDetails: nextGenResult.reasonDetails,
+            guardrailInfo: nextGenResult.guardrailInfo,
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -1276,6 +1279,9 @@ async function executeBidOptimization(
             algorithmUsed: nextGenResult.algorithmUsed,
             confidenceScore: nextGenResult.confidence,
             algorithmTier: nextGenResult.algorithmTier,
+            // v258: 传递结构化归因和护栏信息
+            reasonDetails: nextGenResult.reasonDetails,
+            guardrailInfo: nextGenResult.guardrailInfo,
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -3491,7 +3497,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             errorMessage: itemErrorMessage,
             createdAt: now,
             executedAt: now,
-          });
+            // v258: 传递结构化归因和护栏信息
+            reasonDetails: detail.reasonDetails ? JSON.stringify(detail.reasonDetails) : undefined,
+            guardrailInfo: detail.guardrailInfo ? JSON.stringify(detail.guardrailInfo) : undefined,
+          } as any);
         } catch (insertError: any) {
           log.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }

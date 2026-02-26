@@ -49,16 +49,17 @@ import * as timeDecayService from './timeDecayWeightedDataService';
 
 const log = createModuleLogger('NextGen');
 
-// ==================== v257: 出价冷却时间配置 ====================
+// ==================== v258: 出价安全护栏配置 ====================
 
 /**
- * v257: 出价振荡防护配置
+ * v258: 出价安全护栏配置（整合v257冷却机制 + v258降价熔断）
  * 
- * 问题根因：规则引擎降价 → AutoCorrector纠错拉回 → 规则引擎再降价，形成恶性循环
- * 解决方案：引入冷却时间（Cool-down Period）和最小调整幅度（Minimum Adjustment Threshold）
- * 
- * 冷却时间：同一关键词在指定时间窗口内不再重复调整
- * 最小调整幅度：忽略微小的、无意义的出价变动，减少不必要的API调用
+ * v257问题回顾：冷却机制未能根治振荡，64.1%的出价被回滚
+ * v258解决方案：
+ *   1. 保留冷却时间和最小调整幅度
+ *   2. 新增降价熔断机制：防止"死亡螺旋"式连续降价
+ *   3. 新增累计降价追踪：7天内累计降幅不超过30%
+ *   4. 新增连续降价计数：连续3次降价后强制hold
  */
 const BID_COOLDOWN_CONFIG = {
   /** 冷却时间窗口（小时）：同一关键词在此时间内最多调整一次 */
@@ -69,6 +70,31 @@ const BID_COOLDOWN_CONFIG = {
   minAdjustmentAbsolute: 0.02, // $0.02
   /** 24小时内最大调整次数：超过此次数的关键词进入强制冷却 */
   maxAdjustmentsPerDay: 3,
+};
+
+/**
+ * v258: 降价熔断配置
+ * 
+ * 问题根因：LERUCCI US账户ACoS从30%飙升到122.7%
+ * 原因：rule_engine持续降价 → 曝光减少 → 点击减少 → 转化更少 → ACoS更高 → 继续降价
+ * 形成"死亡螺旋"（Death Spiral）
+ * 
+ * 解决方案：多层降价保护
+ *   Layer 1: 7天累计降幅上限（防止渐进式过度降价）
+ *   Layer 2: 连续降价次数限制（防止单方向持续降价）
+ *   Layer 3: 最低出价保护（防止出价降到无效水平）
+ */
+const BID_CIRCUIT_BREAKER_CONFIG = {
+  /** 7天内累计降价幅度上限（百分比）：超过此值触发熔断 */
+  maxCumulativeDecreasePercent7d: 0.30, // 30%
+  /** 连续降价次数上限：超过此值强制hold一个周期 */
+  maxConsecutiveDecreases: 3,
+  /** 最低出价保护：出价不得低于初始出价的此比例 */
+  minBidFloorRatio: 0.40, // 不低于初始出价的40%
+  /** 归因延迟保护窗口（小时）：最近N小时内的数据权重降低 */
+  attributionDelayHours: 48,
+  /** 归因延迟数据权重折扣：最近48h内数据的权重 */
+  recentDataWeightDiscount: 0.6,
 };
 
 /**
@@ -161,6 +187,127 @@ function meetsMinimumAdjustment(currentBid: number, newBid: number): boolean {
          percentDiff >= BID_COOLDOWN_CONFIG.minAdjustmentPercent;
 }
 
+/**
+ * v258: 降价熔断检查
+ * 
+ * 多层保护机制，防止"死亡螺旋"式连续降价：
+ * 1. 检查7天内累计降幅是否超过30%
+ * 2. 检查是否连续3次降价
+ * 3. 检查出价是否低于初始出价的40%
+ * 
+ * 返回: { tripped: boolean, reason: string, guardrailInfo: object }
+ */
+async function checkCircuitBreaker(
+  accountId: number,
+  keywordId?: number,
+  targetId?: number,
+  currentBid?: number,
+  proposedBid?: number
+): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, any> }> {
+  if (!keywordId && !targetId) return { tripped: false, reason: '', guardrailInfo: {} };
+  if (!proposedBid || !currentBid || proposedBid >= currentBid) {
+    // 只对降价操作进行熔断检查
+    return { tripped: false, reason: '', guardrailInfo: {} };
+  }
+  
+  try {
+    const db = await getDb();
+    if (!db) return { tripped: false, reason: '', guardrailInfo: {} };
+    
+    const { optimizationEvents } = await import('../drizzle/schema');
+    const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp, desc: descOp } = await import('drizzle-orm');
+    
+    // 查询7天内的所有出价调整事件
+    const daysAgo7 = new Date(Date.now() - 7 * 24 * 3600000).toISOString();
+    
+    const conditions = [
+      eqOp(optimizationEvents.accountId, accountId),
+      sqlOp`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+      sqlOp`${optimizationEvents.status} = 'success'`,
+      gteOp(optimizationEvents.createdAt, daysAgo7),
+    ];
+    
+    if (keywordId) {
+      conditions.push(eqOp(optimizationEvents.keywordId, keywordId));
+    } else if (targetId) {
+      conditions.push(eqOp(optimizationEvents.targetId, targetId));
+    }
+    
+    const recentEvents = await db.select({
+      id: optimizationEvents.id,
+      previousBid: optimizationEvents.previousBid,
+      newBid: optimizationEvents.newBid,
+      createdAt: optimizationEvents.createdAt,
+    }).from(optimizationEvents)
+      .where(andOp(...conditions))
+      .orderBy(sqlOp`created_at DESC`)
+      .limit(20);
+    
+    const guardrailInfo: Record<string, any> = {
+      recentEventsCount: recentEvents.length,
+      circuitBreakerConfig: BID_CIRCUIT_BREAKER_CONFIG,
+    };
+    
+    if (recentEvents.length === 0) {
+      return { tripped: false, reason: '', guardrailInfo };
+    }
+    
+    // === Layer 1: 7天累计降幅检查 ===
+    // 找到7天前的初始出价（最早事件的previousBid）
+    const oldestEvent = recentEvents[recentEvents.length - 1];
+    const initialBid = parseFloat(String(oldestEvent.previousBid)) || currentBid;
+    const cumulativeDecrease = initialBid > 0 ? (initialBid - (proposedBid || currentBid)) / initialBid : 0;
+    guardrailInfo.initialBid7d = initialBid;
+    guardrailInfo.cumulativeDecrease7d = cumulativeDecrease;
+    
+    if (cumulativeDecrease > BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d) {
+      return {
+        tripped: true,
+        reason: `[v258熔断-累计降幅] 7天累计降幅${(cumulativeDecrease * 100).toFixed(1)}%超过上限${(BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d * 100)}%: 初始$${initialBid.toFixed(2)}→当前$${currentBid?.toFixed(2)}→拟调$${proposedBid?.toFixed(2)}`,
+        guardrailInfo,
+      };
+    }
+    
+    // === Layer 2: 连续降价次数检查 ===
+    let consecutiveDecreases = 0;
+    for (const evt of recentEvents) {
+      const prevBid = parseFloat(String(evt.previousBid)) || 0;
+      const newBid = parseFloat(String(evt.newBid)) || 0;
+      if (newBid < prevBid - 0.005) {
+        consecutiveDecreases++;
+      } else {
+        break; // 一旦遇到非降价操作，停止计数
+      }
+    }
+    guardrailInfo.consecutiveDecreases = consecutiveDecreases;
+    
+    if (consecutiveDecreases >= BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases) {
+      return {
+        tripped: true,
+        reason: `[v258熔断-连续降价] 已连续${consecutiveDecreases}次降价(上限${BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases}次): 强制hold一个周期以观察效果`,
+        guardrailInfo,
+      };
+    }
+    
+    // === Layer 3: 最低出价保护 ===
+    const bidFloor = initialBid * BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio;
+    guardrailInfo.bidFloor = bidFloor;
+    
+    if (proposedBid < bidFloor) {
+      return {
+        tripped: true,
+        reason: `[v258熔断-最低保护] 拟调出价$${proposedBid.toFixed(2)}低于保护底线$${bidFloor.toFixed(2)}(初始$${initialBid.toFixed(2)}×${(BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio * 100)}%)`,
+        guardrailInfo,
+      };
+    }
+    
+    return { tripped: false, reason: '', guardrailInfo };
+  } catch (error: any) {
+    log.warn(`[CircuitBreaker] 熔断检查异常: ${error.message}`);
+    return { tripped: false, reason: '', guardrailInfo: {} };
+  }
+}
+
 // ==================== 类型定义 ====================
 
 export interface NextGenBidResult {
@@ -178,6 +325,32 @@ export interface NextGenBidResult {
   algorithmTier: 'advanced' | 'rule_engine' | 'conservative';
   /** GTO博弈论修正系数（v236新增） */
   gtoModifier?: GTOModifier;
+  /** v258: 结构化调整归因详情 */
+  reasonDetails?: {
+    triggerRule: string;         // 触发的规则/场景
+    coreMetrics: {               // 核心数据指标
+      acos?: number;
+      targetAcos?: number;
+      clicks?: number;
+      impressions?: number;
+      ctr?: number;
+      spend?: number;
+      sales?: number;
+      orders?: number;
+    };
+    algorithmChoice: string;     // 算法选择说明
+    dataConfidence?: number;     // 数据置信度
+    trendSignal?: string;        // 趋势信号
+  };
+  /** v258: 护栏机制介入信息 */
+  guardrailInfo?: {
+    cooldownActive: boolean;     // 冷却保护是否激活
+    circuitBreakerTripped: boolean; // 熔断是否触发
+    arbitrationApplied: boolean; // 仲裁是否介入
+    minAdjustmentFiltered: boolean; // 最小调整幅度过滤
+    maxBidCapped: boolean;       // 最高出价限制
+    details?: string;            // 护栏详情说明
+  };
 }
 
 export interface SafetyConfig {
@@ -342,15 +515,17 @@ function ruleEngineDecision(
   }
   
   // 场景3: 有点击但零订单 — 根据花费判断
-  // v251: 使用真实AOV替代粗暴假设，解决品类偏见问题
-  // v238: 增强零转化场景的降价力度，避免持续烧钱
-  // v254: 引入趋势感知 — 趋势improving时增加归因容忍度，declining时更果断降价
+  // v258: 重构归因延迟保护，引入多维度决策和降价力度上限
+  // 核心改进：
+  //   1. 归因延迟保护窗口：最近48h内的数据权重打折，避免对未归因数据反应过激
+  //   2. 多维度决策：综合CTR、趋势、花费比例、点击数等多个因素
+  //   3. 降价力度上限：单次降价不超过15%（原来最大可达25%）
+  //   4. 保护期：点击数少于5次时强制维持观察，等待更多数据
   if (orders === 0 && clicks > 0) {
-    // 计算每次点击成本
     const cpc = spend / clicks;
-    // v251: 使用真实的广告组平均客单价(groupAvgAov)，而非 currentBid * 30 的粗暴假设
     const realAov = groupConfig.groupAvgAov || 30;
-    // v254: 趋势感知归因容忍度 — 趋势improving时给予更多容忍（可能订单正在归因中）
+    
+    // v258: 趋势感知（保留v254逻辑）
     let zeroConvTrendDir: 'improving' | 'stable' | 'declining' = 'stable';
     let zeroConvTrendStr = 0;
     const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
@@ -365,32 +540,51 @@ function ruleEngineDecision(
         zeroConvTrendStr = twMetrics.trendSignal.strength;
       } catch { /* 趋势计算失败不影响核心决策 */ }
     }
-    // v251: 引入归因延迟容忍度 — 亚马逊广告归因通常有24-48h延迟
-    // v254: 趋势improving时容忍度提升到20%，declining时容忍度降低到10%
-    const baseTolerance = 1.5;
-    const attributionToleranceFactor = zeroConvTrendDir === 'improving' ? baseTolerance * (1 + zeroConvTrendStr * 0.20) :
-                                       zeroConvTrendDir === 'declining' ? baseTolerance * (1 - zeroConvTrendStr * 0.10) : baseTolerance;
     const zeroConvTrendLabel = zeroConvTrendDir !== 'stable' ? `, 趋势=${zeroConvTrendDir}` : '';
-    const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
     
-    if (spend > maxAcceptableSpend) {
-      // v238: 增强降价力度 — 花费超标越多降价越快，最大25%
-      const spendRatio = spend / maxAcceptableSpend;
-      const reduceRatio = Math.min(0.25, (spendRatio - 1) * 0.15);
+    // v258: 归因延迟保护 — 点击数少于5次时强制观察
+    // 亚马逊广告归因延迟24-48h，少量点击时订单可能尚未归因
+    if (clicks < 5) {
       return {
-        bid: currentBid * (1 - reduceRatio),
-        confidence: 0.50,
-        reason: `零转化高花费($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x超标${zeroConvTrendLabel}): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        bid: currentBid,
+        confidence: 0.35,
+        reason: `零转化但点击不足(${clicks}次, $${spend.toFixed(2)}${zeroConvTrendLabel}): v258归因延迟保护，维持观察等待更多数据`,
       };
     }
     
-    // v238: 即使花费在可接受范围内，如果点击数较多(>=10)仍无转化，也应小幅降价
+    // v258: 增强归因延迟容忍度 — 提升基础容忍系数到2.0（原1.5）
+    // 趋势improving时进一步提升，declining时适度降低
+    const baseTolerance = 2.0; // v258: 从1.5提升到2.0，给予更多归因时间
+    const attributionToleranceFactor = zeroConvTrendDir === 'improving' ? baseTolerance * (1 + zeroConvTrendStr * 0.25) :
+                                       zeroConvTrendDir === 'declining' ? baseTolerance * (1 - zeroConvTrendStr * 0.15) : baseTolerance;
+    const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
+    
+    // v258: 多维度决策 — CTR作为辅助判断依据
+    const ctr = impressions > 0 ? clicks / impressions : 0;
+    const isHighCtr = ctr > 0.008; // CTR > 0.8% 表明关键词相关性好
+    
+    if (spend > maxAcceptableSpend) {
+      // v258: 降价力度上限从25%降低到15%，防止过度降价引发死亡螺旋
+      const spendRatio = spend / maxAcceptableSpend;
+      // v258: 高CTR关键词降价更保守（相关性好的词值得保留）
+      const maxReduce = isHighCtr ? 0.10 : 0.15;
+      const reduceRatio = Math.min(maxReduce, (spendRatio - 1) * 0.10);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.45,
+        reason: `零转化高花费($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x超标, CTR=${(ctr * 100).toFixed(2)}%${zeroConvTrendLabel}): v258温和降低${(reduceRatio * 100).toFixed(0)}%(上限${(maxReduce * 100)}%)`,
+      };
+    }
+    
+    // v258: 点击数较多但花费未超标 — 更保守的降价策略
     if (clicks >= 10) {
-      const reduceRatio = Math.min(0.10, clicks / 200);
+      // v258: 降价上限从10%降低到7%，高CTR时仅降5%
+      const maxReduce = isHighCtr ? 0.05 : 0.07;
+      const reduceRatio = Math.min(maxReduce, clicks / 300);
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.40,
-        reason: `零转化${clicks}次点击($${spend.toFixed(2)}${zeroConvTrendLabel}): 小幅降低${(reduceRatio * 100).toFixed(0)}%`,
+        reason: `零转化${clicks}次点击($${spend.toFixed(2)}, CTR=${(ctr * 100).toFixed(2)}%${zeroConvTrendLabel}): v258温和降低${(reduceRatio * 100).toFixed(1)}%`,
       };
     }
     
@@ -398,7 +592,7 @@ function ruleEngineDecision(
     return {
       bid: currentBid,
       confidence: 0.4,
-      reason: `零转化但花费可控($${spend.toFixed(2)}, ${clicks}次点击): 维持出价观察`,
+      reason: `零转化但花费可控($${spend.toFixed(2)}, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%): 维持出价观察`,
     };
   }
   
@@ -491,17 +685,21 @@ function ruleEngineDecision(
       };
     } else {
       // ACOS严重超标
-      // v232: ACOS严重超标时，启用紧急降价策略
-      // v253: 数据置信度高时更果断降价，低时保守降价避免误杀
-      // v254: 趋势declining时加速降价止损，improving时减缓降价（给好转机会）
-      const baseReduceRatio = (acosRatio - 1) * 0.25;
-      const rawReduceRatio = acosRatio > 3 ? Math.min(0.50, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+      // v258: 降低紧急降价力度上限，防止死亡螺旋
+      // 原来：acosRatio>3时最大降50%，其他最大降35%
+      // v258：统一上限降低到25%，并增加CTR保护因子
+      const ctr = impressions > 0 ? clicks / impressions : 0;
+      const isHighCtr = ctr > 0.008;
+      // v258: 高CTR关键词即使ACoS超标也要保守降价（相关性好，可能是归因延迟导致）
+      const maxReduceLimit = isHighCtr ? 0.15 : 0.25;
+      const baseReduceRatio = (acosRatio - 1) * 0.20; // v258: 从0.25降低到0.20
+      const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
 
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%`,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v258降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
       };
     }
   }
@@ -615,6 +813,27 @@ export async function calculateNextGenBid(
     if (!meetsMinimumAdjustment(target.currentBid, safeBid)) {
       safeBid = target.currentBid;
       finalReason += ' | v257: 调整幅度低于最小阈值，维持不变';
+    }
+    
+    // ===== v258: 降价熔断检查 =====
+    // 在规则引擎做出降价决策后，检查是否触发熔断保护
+    // 防止"死亡螺旋"：持续降价 → 曝光减少 → ACoS更高 → 继续降价
+    if (safeBid < target.currentBid - 0.005) {
+      const keywordId = target.type === 'keyword' ? target.id : undefined;
+      const targetIdForCB = target.type === 'product_target' ? target.id : undefined;
+      const cbResult = await checkCircuitBreaker(accountId, keywordId, targetIdForCB, target.currentBid, safeBid);
+      
+      if (cbResult.tripped) {
+        log.warn(`[NextGenOrchestrator] v258降价熔断触发: target=${target.id}, ${cbResult.reason}`);
+        safeBid = target.currentBid; // 熔断触发时强制hold
+        finalReason += ` | ${cbResult.reason}`;
+        // 将护栏信息附加到reason中，便于日志分析
+        finalReason += ` | guardrail: ${JSON.stringify({
+          consecutiveDecreases: cbResult.guardrailInfo.consecutiveDecreases,
+          cumulativeDecrease7d: cbResult.guardrailInfo.cumulativeDecrease7d,
+          initialBid7d: cbResult.guardrailInfo.initialBid7d,
+        })}`;
+      }
     }
     
     // v257: 增强型主动探索策略 — 加速高级算法数据积累
@@ -731,6 +950,33 @@ function buildResult(
     actionType = newBid > target.currentBid ? 'increase' : 'decrease';
   }
   
+  // v258: 构建结构化归因详情
+  const reasonDetails = {
+    triggerRule: tier === 'advanced' ? `高级算法:${algorithmUsed}` :
+                 tier === 'conservative' ? '保守策略:算法异常兆底' :
+                 algorithmUsed === 'cooldown_hold' ? '冷却保护:维持出价' :
+                 `规则引擎:${reason.split(':')[0]?.replace('[\u89c4\u5219\u5f15\u64ce] ', '') || algorithmUsed}`,
+    coreMetrics: {
+      clicks: (target as any).clicks,
+      impressions: (target as any).impressions,
+      spend: (target as any).spend,
+      sales: (target as any).sales,
+      orders: (target as any).orders,
+    },
+    algorithmChoice: `${tier}/${algorithmUsed}`,
+    dataConfidence: confidence,
+  };
+  
+  // v258: 构建护栏信息
+  const guardrailInfo = {
+    cooldownActive: algorithmUsed === 'cooldown_hold',
+    circuitBreakerTripped: reason.includes('熔断') || reason.includes('circuit_breaker'),
+    arbitrationApplied: false,
+    minAdjustmentFiltered: reason.includes('调整幅度低于最小阈值'),
+    maxBidCapped: reason.includes('max_bid'),
+    details: reason.includes('guardrail') ? reason.split('guardrail:')[1]?.trim() : undefined,
+  };
+  
   return {
     targetId: target.id,
     targetType: target.type,
@@ -743,6 +989,8 @@ function buildResult(
     confidence,
     metaDecision,
     algorithmTier: tier,
+    reasonDetails,
+    guardrailInfo,
   };
 }
 

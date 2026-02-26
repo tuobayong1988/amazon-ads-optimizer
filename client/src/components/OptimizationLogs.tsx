@@ -68,6 +68,10 @@ import {
   ShoppingCart,
   CircleDollarSign,
   BarChart3,
+  AlertTriangle,
+  Filter,
+  ArrowUpCircle,
+  Scale,
 } from "lucide-react";
 
 // ==================== 算法层级配置 ====================
@@ -401,6 +405,58 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           <Progress value={pct} className={`h-1.5 ${progressColor}`} />
         </div>
         <span className={`text-xs font-mono ${color} shrink-0`}>{pct}%</span>
+      </div>
+    );
+  };
+
+  // ==================== v258: 护栏机制信息展示 ====================
+  const renderGuardrailInfo = (actionDetail: any) => {
+    const gi = actionDetail?.guardrailInfo;
+    if (!gi) return null;
+    const hasGuardrail = gi.cooldownActive || gi.circuitBreakerTripped || gi.arbitrationApplied || gi.minAdjustmentFiltered || gi.maxBidCapped;
+    if (!hasGuardrail) return null;
+    
+    return (
+      <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/20 rounded-lg p-3 border border-amber-700/40 mt-2">
+        <div className="flex items-center gap-1.5 mb-2">
+          <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-xs font-medium text-amber-400">护栏机制</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {gi.cooldownActive && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-blue-500/10 border border-blue-500/20">
+              <Clock className="w-3 h-3 text-blue-400" />
+              <span className="text-[11px] text-blue-400">冷却保护已激活</span>
+            </div>
+          )}
+          {gi.circuitBreakerTripped && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 border border-red-500/20">
+              <AlertTriangle className="w-3 h-3 text-red-400" />
+              <span className="text-[11px] text-red-400">降价熔断触发</span>
+            </div>
+          )}
+          {gi.arbitrationApplied && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-purple-500/10 border border-purple-500/20">
+              <Scale className="w-3 h-3 text-purple-400" />
+              <span className="text-[11px] text-purple-400">仲裁介入</span>
+            </div>
+          )}
+          {gi.minAdjustmentFiltered && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20">
+              <Filter className="w-3 h-3 text-gray-400" />
+              <span className="text-[11px] text-gray-400">最小调整过滤</span>
+            </div>
+          )}
+          {gi.maxBidCapped && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-orange-500/10 border border-orange-500/20">
+              <ArrowUpCircle className="w-3 h-3 text-orange-400" />
+              <span className="text-[11px] text-orange-400">最高出价限制</span>
+            </div>
+          )}
+        </div>
+        {gi.details && (
+          <p className="text-[11px] text-amber-300/70 mt-2">{gi.details}</p>
+        )}
       </div>
     );
   };
@@ -831,6 +887,8 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                     
                     {/* 决策上下文面板 */}
                     {renderDecisionContext(actionDetail)}
+                    {/* v258: 护栏机制信息 */}
+                    {renderGuardrailInfo(actionDetail)}
                   </div>
                 </div>
                 <Separator />

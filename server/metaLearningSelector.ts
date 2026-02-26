@@ -204,6 +204,16 @@ async function evaluateAlgorithms(
   // 获取Thompson Sampling统计
   const stats = await getAlgorithmStats(accountId);
   
+  // v258: 同时统计未回填的RL日志（包含已记录但未回填reward的）
+  // 这些日志表明系统已经在产生数据，只是还未完成reward回填
+  const totalRLLogsIncPending = await db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(rlTrainingLogs)
+    .where(eq(rlTrainingLogs.accountId, accountId));
+  const pendingRLLogs = Number(totalRLLogsIncPending[0]?.count) || 0;
+  
+  log.info(`[MetaLearning] v258算法评估: 账户${accountId}, RL日志(已回填)=${totalRLLogs}, RL日志(含待回填)=${pendingRLLogs}, 特征缓存=${hasFeatures}`);
+  
   // 1. rule_based: 始终可用
   const rbStat = stats.get('rule_based')!;
   scores.push({
@@ -213,52 +223,60 @@ async function evaluateAlgorithms(
     reason: '基于规则的出价策略，始终可用',
   });
   
-  // 2. ucb: v256降低门槛 5→3条RL日志，配合即时回填通道加速激活
+  // 2. ucb: v258降低门槛 3→0，始终可用
+  // UCB是基础的探索-利用算法，不需要预先的RL数据就能工作
+  // 它可以在运行过程中自行积累数据
   const ucbStat = stats.get('ucb')!;
   scores.push({
     algorithm: 'ucb',
-    score: totalRLLogs >= 3 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
-    eligible: totalRLLogs >= 3,
-    reason: totalRLLogs >= 3 ? 'UCB探索-利用策略' : `RL日志不足(${totalRLLogs}/3)`,
+    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.05,
+    eligible: true, // v258: 始终可用
+    reason: 'UCB探索-利用策略(始终可用)',
   });
   
-  // 3. linucb: v256降低门槛 — 需要上下文特征且至少3条RL日志
+  // 3. linucb: v258降低门槛 3→1，只需要特征缓存和至少1条RL日志
+  // 包含待回填的日志也算，因为LinUCB可以在线学习
   const linucbStat = stats.get('linucb')!;
-  const linucbEligible = hasFeatures && totalRLLogs >= 3;
+  const linucbEligible = hasFeatures && pendingRLLogs >= 1;
   scores.push({
     algorithm: 'linucb',
-    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.1 : 0,
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.15 : 0,
     eligible: linucbEligible,
-    reason: linucbEligible ? 'LinUCB上下文赌博机' : (!hasFeatures ? '缺少上下文特征' : `RL日志不足(${totalRLLogs}/3)`),
+    reason: linucbEligible ? 'LinUCB上下文赌博机' : (!hasFeatures ? '缺少上下文特征' : `RL日志不足(${pendingRLLogs}/1)`),
   });
   
-  // 4. sigmoid_curve: v256降低门槛 10→5条历史出价数据
+  // 4. sigmoid_curve: v258降低门槛 5→2，包含待回填日志
   const sigmoidStat = stats.get('sigmoid_curve')!;
+  const sigmoidEligible = pendingRLLogs >= 2;
   scores.push({
     algorithm: 'sigmoid_curve',
-    score: totalRLLogs >= 5 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
-    eligible: totalRLLogs >= 5,
-    reason: totalRLLogs >= 5 ? 'Sigmoid曲线利润最大化' : `历史数据不足(${totalRLLogs}/5)`,
+    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.10 : 0,
+    eligible: sigmoidEligible,
+    reason: sigmoidEligible ? 'Sigmoid曲线利润最大化' : `历史数据不足(${pendingRLLogs}/2)`,
   });
   
-  // 5. cql: v256降低门槛 30→15条RL日志，配合即时回填加速激活
+  // 5. cql: v258降低门槛 15→5，包含待回填日志
+  // CQL是离线强化学习，需要更多数据但不需要很多
   const cqlStat = stats.get('cql')!;
+  const cqlEligible = pendingRLLogs >= 5;
   scores.push({
     algorithm: 'cql',
-    score: totalRLLogs >= 15 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
-    eligible: totalRLLogs >= 15,
-    reason: totalRLLogs >= 15 ? '离线强化学习CQL' : `RL日志不足(${totalRLLogs}/15)`,
+    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.20 : 0,
+    eligible: cqlEligible,
+    reason: cqlEligible ? '离线强化学习CQL' : `RL日志不足(${pendingRLLogs}/5)`,
   });
   
-  // 6. ensemble: v239降低门槛 3→2个算法可用
+  // 6. ensemble: v258降低门槛 2个算法可用（由于ucb始终可用，只需再有1个即可）
   const eligibleCount = scores.filter(s => s.eligible).length;
   const ensembleStat = stats.get('ensemble')!;
   scores.push({
     algorithm: 'ensemble',
-    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.2 : 0,
-    eligible: eligibleCount >= 2,
-    reason: eligibleCount >= 2 ? '多算法加权融合' : `可用算法不足(${eligibleCount}/2)`,
+    score: eligibleCount >= 3 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.25 : 0,
+    eligible: eligibleCount >= 3, // v258: 需要至少3个算法可用才启用融合
+    reason: eligibleCount >= 3 ? '多算法加权融合' : `可用算法不足(${eligibleCount}/3)`,
   });
+  
+  log.info(`[MetaLearning] v258算法资格: ${scores.filter(s => s.eligible).map(s => s.algorithm).join(', ')} (共${eligibleCount}个可用)`);
   
   return scores;
 }
