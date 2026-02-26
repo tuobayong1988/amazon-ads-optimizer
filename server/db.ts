@@ -1,5 +1,6 @@
 import { eq, and, desc, gte, lte, sql, isNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from 'mysql2/promise';
 import { 
   InsertUser, users, 
   adAccounts, InsertAdAccount, AdAccount,
@@ -47,14 +48,55 @@ import { registerDbQueryProviders } from './utils/dbQueryProvider';
 const log = createModuleLogger('Database');
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
+let _lastHealthCheck = 0;
+const HEALTH_CHECK_INTERVAL = 60_000; // 60秒检查一次连接健康
 
+/**
+ * v257.1: 增强数据库连接管理
+ * - 显式连接池配置（超时、重连、连接限制）
+ * - 定期健康检查，自动重建失效连接
+ * - 防止504 Gateway Timeout
+ */
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!process.env.DATABASE_URL) return null;
+  
+  // 定期健康检查：如果连接池存在但可能已失效，验证连接
+  const now = Date.now();
+  if (_db && _pool && (now - _lastHealthCheck > HEALTH_CHECK_INTERVAL)) {
     try {
-      _db = drizzle(process.env.DATABASE_URL, { casing: 'camelCase' });
+      const conn = await _pool.getConnection();
+      await conn.ping();
+      conn.release();
+      _lastHealthCheck = now;
+    } catch (error) {
+      log.warn("[Database] 连接健康检查失败，重建连接池:", error);
+      try { await _pool.end(); } catch (e) { /* ignore */ }
+      _db = null;
+      _pool = null;
+    }
+  }
+  
+  if (!_db) {
+    try {
+      // v257.1: 使用显式连接池配置，防止连接超时
+      _pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        waitForConnections: true,
+        connectionLimit: 10,
+        maxIdle: 5,
+        idleTimeout: 60_000,       // 空闲连接60秒后释放
+        connectTimeout: 10_000,    // 连接超时10秒
+        enableKeepAlive: true,     // 保持连接活跃
+        keepAliveInitialDelay: 30_000, // 30秒发送keepalive
+      });
+      _db = drizzle(_pool, { casing: 'camelCase' });
+      _lastHealthCheck = Date.now();
+      log.info("[Database] 连接池已建立 (v257.1增强配置)");
     } catch (error) {
       log.warn("[Database] Failed to connect:", error);
       _db = null;
+      _pool = null;
     }
   }
   return _db;

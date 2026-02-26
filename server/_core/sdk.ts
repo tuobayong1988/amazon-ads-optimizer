@@ -270,29 +270,57 @@ class SDKServer {
         const decoded = jwt.default.verify(token, secret) as any;
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
+          // v257.1: 添加超时保护，防止数据库查询导致504
           const { sql } = await import('drizzle-orm');
           const { getDb } = await import('../db');
-          const localDb = await getDb();
-          if (!localDb) throw new Error('Database not available');
-          const result = await localDb.execute(sql`
-            SELECT tm.*, o.name as organization_name 
-            FROM team_members tm 
-            LEFT JOIN organizations o ON tm.organization_id = o.id 
-            WHERE tm.id = ${decoded.userId}
-          `);
-          const rows = (result as any)[0];
-          if (rows && rows.length > 0) {
-            const localUser = rows[0];
-            // Return as User type with required fields
+          
+          const dbQueryWithTimeout = async (timeoutMs: number = 8000) => {
+            const localDb = await getDb();
+            if (!localDb) throw new Error('Database not available');
+            
+            const timeoutPromise = new Promise<never>((_, reject) => 
+              setTimeout(() => reject(new Error('DB query timeout')), timeoutMs)
+            );
+            
+            return Promise.race([
+              localDb.execute(sql`
+                SELECT tm.*, o.name as organization_name 
+                FROM team_members tm 
+                LEFT JOIN organizations o ON tm.organization_id = o.id 
+                WHERE tm.id = ${decoded.userId}
+              `),
+              timeoutPromise
+            ]);
+          };
+          
+          try {
+            const result = await dbQueryWithTimeout();
+            const rows = (result as any)[0];
+            if (rows && rows.length > 0) {
+              const localUser = rows[0];
+              return {
+                id: localUser.id,
+                openId: `local_${localUser.id}`,
+                name: localUser.name,
+                email: localUser.email,
+                loginMethod: 'local',
+                lastSignedIn: localUser.last_login_at,
+                organizationId: localUser.organization_id,
+                role: localUser.role,
+              } as any;
+            }
+          } catch (dbError: any) {
+            console.error('[Auth] JWT DB query failed:', dbError.message);
+            // v257.1: 数据库查询失败时，从 JWT payload 构建基本用户信息（降级策略）
             return {
-              id: localUser.id,
-              openId: `local_${localUser.id}`,
-              name: localUser.name,
-              email: localUser.email,
+              id: decoded.userId,
+              openId: `local_${decoded.userId}`,
+              name: decoded.name || 'User',
+              email: decoded.username || '',
               loginMethod: 'local',
-              lastSignedIn: localUser.last_login_at,
-              organizationId: localUser.organization_id,
-              role: localUser.role,
+              lastSignedIn: new Date().toISOString(),
+              organizationId: decoded.organizationId || 1,
+              role: 'user',
             } as any;
           }
         }

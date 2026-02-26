@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 256;  // v256: RL智能双通道回填 + 自动冲突解决引擎 + 算法激活阈值优化 + recordsSynced修复 + 否定关键词同步提速
+export const SYSTEM_VERSION = 257;  // v257: 出价振荡根治 + 三通道RL回填 + 主动探索策略 + match_type回填 + 纠错关联追踪
