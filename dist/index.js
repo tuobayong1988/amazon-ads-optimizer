@@ -67798,7 +67798,28 @@ function ruleEngineDecision(target, groupConfig) {
   if (orders === 0 && clicks > 0) {
     const cpc = spend / clicks;
     const realAov = groupConfig.groupAvgAov || 30;
-    const attributionToleranceFactor = 1.5;
+    let zeroConvTrendDir = "stable";
+    let zeroConvTrendStr = 0;
+    const dailyData = target.dailyData;
+    if (dailyData && dailyData.length >= 7) {
+      try {
+        const rawData = dailyData.map((d5) => ({
+          date: d5.date instanceof Date ? d5.date.toISOString() : String(d5.date),
+          impressions: 0,
+          clicks: d5.clicks || 0,
+          spend: d5.spend || 0,
+          sales: d5.sales || 0,
+          orders: d5.orders || 0
+        }));
+        const twMetrics = calculateTimeWeightedMetrics(rawData);
+        zeroConvTrendDir = twMetrics.trendSignal.direction;
+        zeroConvTrendStr = twMetrics.trendSignal.strength;
+      } catch {
+      }
+    }
+    const baseTolerance = 1.5;
+    const attributionToleranceFactor = zeroConvTrendDir === "improving" ? baseTolerance * (1 + zeroConvTrendStr * 0.2) : zeroConvTrendDir === "declining" ? baseTolerance * (1 - zeroConvTrendStr * 0.1) : baseTolerance;
+    const zeroConvTrendLabel = zeroConvTrendDir !== "stable" ? `, \u8D8B\u52BF=${zeroConvTrendDir}` : "";
     const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
     if (spend > maxAcceptableSpend) {
       const spendRatio = spend / maxAcceptableSpend;
@@ -67806,7 +67827,7 @@ function ruleEngineDecision(target, groupConfig) {
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5,
-        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x\u8D85\u6807): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        reason: `\u96F6\u8F6C\u5316\u9AD8\u82B1\u8D39($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x\u8D85\u6807${zeroConvTrendLabel}): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
       };
     }
     if (clicks >= 10) {
@@ -67814,7 +67835,7 @@ function ruleEngineDecision(target, groupConfig) {
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.4,
-        reason: `\u96F6\u8F6C\u5316${clicks}\u6B21\u70B9\u51FB($${spend.toFixed(2)}): \u5C0F\u5E45\u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        reason: `\u96F6\u8F6C\u5316${clicks}\u6B21\u70B9\u51FB($${spend.toFixed(2)}${zeroConvTrendLabel}): \u5C0F\u5E45\u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
       };
     }
     return {
@@ -67830,42 +67851,64 @@ function ruleEngineDecision(target, groupConfig) {
     const ctr = impressions > 0 ? clicks / impressions : 0;
     const ctrBonus = ctr > 0.01 ? 1.1 : ctr > 5e-3 ? 1.05 : 1;
     const ctrPenalty = ctr < 2e-3 && impressions > 200 ? 0.85 : 1;
+    let trendDirection = "stable";
+    let trendStrength = 0;
+    const dailyData = target.dailyData;
+    if (dailyData && dailyData.length >= 7) {
+      try {
+        const rawData = dailyData.map((d5) => ({
+          date: d5.date instanceof Date ? d5.date.toISOString() : String(d5.date),
+          impressions: 0,
+          clicks: d5.clicks || 0,
+          spend: d5.spend || 0,
+          sales: d5.sales || 0,
+          orders: d5.orders || 0
+        }));
+        const twMetrics = calculateTimeWeightedMetrics(rawData);
+        trendDirection = twMetrics.trendSignal.direction;
+        trendStrength = twMetrics.trendSignal.strength;
+      } catch {
+      }
+    }
+    const trendBoostFactor = trendDirection === "improving" ? 1 + trendStrength * 0.15 : trendDirection === "declining" ? 1 - trendStrength * 0.1 : 1;
+    const trendReduceFactor = trendDirection === "declining" ? 1 + trendStrength * 0.15 : trendDirection === "improving" ? 1 - trendStrength * 0.1 : 1;
+    const trendLabel = trendDirection !== "stable" ? `, \u8D8B\u52BF=${trendDirection}(${(trendStrength * 100).toFixed(0)}%)` : "";
     if (acosRatio < 0.7) {
       const rawBoostRatio = Math.min(0.2, (1 - acosRatio) * 0.25);
-      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus;
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
         bid: currentBid * (1 + boostRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS\u4F18\u79C0(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%): \u63D0\u5347${(boostRatio * 100).toFixed(1)}%(\u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%)`
+        reason: `ACOS\u4F18\u79C0(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): \u63D0\u5347${(boostRatio * 100).toFixed(1)}%(\u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%)`
       };
     } else if (acosRatio <= 1) {
       const rawAdjustRatio = (1 - acosRatio) * 0.15;
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseAdjustRatio = rawAdjustRatio > 1e-3 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
-      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus;
+      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.55 + dataConfidence * 0.15,
-        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
+        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB${trendLabel}): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else if (acosRatio <= 1.5) {
       const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseReduceRatio = rawReduceRatio > 1e-3 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
-      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty;
+      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.15,
-        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
+        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else {
       const baseReduceRatio = (acosRatio - 1) * 0.25;
       const rawReduceRatio = acosRatio > 3 ? Math.min(0.5, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
-      const reduceRatio = rawReduceRatio * dataConfidence;
+      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, \u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%`
+        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, \u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%${trendLabel}): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%`
       };
     }
   }
@@ -68156,6 +68199,7 @@ var init_nextGenBidOrchestrator = __esm({
     init_keywordGraphService();
     init_logger2();
     init_gtoIntegrationOrchestrator();
+    init_timeDecayWeightedDataService();
     log10 = createModuleLogger("NextGen");
     DEFAULT_SAFETY = {
       maxBidChangePercent: 0.3,
@@ -75076,7 +75120,7 @@ var init_amazonAdsApi = __esm({
               groupBy: ["asin"],
               columns: [
                 // 基础信息 - 根据Excel文档SP Purchased Product sheet
-                "date",
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
                 "campaignId",
                 "campaignName",
                 // Excel: campaignName - 广告系列名称
@@ -75196,16 +75240,14 @@ var init_amazonAdsApi = __esm({
               adProduct: "SPONSORED_PRODUCTS",
               groupBy: ["adGroup"],
               columns: [
-                "date",
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为spAdGroup
                 "campaignId",
                 "campaignName",
                 "adGroupId",
                 "adGroupName",
                 "impressions",
                 "clicks",
-                "clickThroughRate",
                 "cost",
-                "costPerClick",
                 "sales7d",
                 "purchases7d",
                 "unitsSoldClicks7d",
@@ -75214,7 +75256,7 @@ var init_amazonAdsApi = __esm({
                 "salesOtherSku7d",
                 "unitsSoldOtherSku7d"
               ],
-              reportTypeId: "spCampaigns",
+              reportTypeId: "spAdGroup",
               timeUnit: "SUMMARY",
               format: "GZIP_JSON"
             }
@@ -75247,16 +75289,14 @@ var init_amazonAdsApi = __esm({
               adProduct: "SPONSORED_BRANDS",
               groupBy: ["adGroup"],
               columns: [
-                "date",
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sbAdGroup
                 "campaignId",
                 "campaignName",
                 "adGroupId",
                 "adGroupName",
                 "impressions",
                 "clicks",
-                "clickThroughRate",
                 "cost",
-                "costPerClick",
                 "salesClicks14d",
                 "purchasesClicks14d",
                 "unitsSoldClicks14d",
@@ -75264,7 +75304,7 @@ var init_amazonAdsApi = __esm({
                 "attributedSalesNewToBrand14d",
                 "attributedOrdersNewToBrand14d"
               ],
-              reportTypeId: "sbCampaigns",
+              reportTypeId: "sbAdGroup",
               timeUnit: "SUMMARY",
               format: "GZIP_JSON"
             }
@@ -75297,26 +75337,21 @@ var init_amazonAdsApi = __esm({
               adProduct: "SPONSORED_DISPLAY",
               groupBy: ["adGroup"],
               columns: [
-                "date",
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sdAdGroup
                 "campaignId",
                 "campaignName",
                 "adGroupId",
                 "adGroupName",
                 "impressions",
                 "clicks",
-                "clickThroughRate",
                 "cost",
-                "costPerClick",
-                "sales14d",
-                "purchases14d",
-                "unitsSoldClicks14d",
-                "dpv14d",
-                "viewAttributedSales14d",
-                "viewAttributedUnitsOrdered14d",
-                "attributedOrdersNewToBrand14d",
-                "attributedSalesNewToBrand14d"
+                "sales",
+                "purchases",
+                "unitsSold",
+                "newToBrandPurchases",
+                "newToBrandSales"
               ],
-              reportTypeId: "sdCampaigns",
+              reportTypeId: "sdAdGroup",
               timeUnit: "SUMMARY",
               format: "GZIP_JSON"
             }
@@ -75537,7 +75572,7 @@ var init_amazonAdsApi = __esm({
               groupBy: ["matchedTarget"],
               columns: [
                 // 基础信息 - 根据Excel文档SD Matchd Target sheet
-                "date",
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
                 "campaignId",
                 "campaignName",
                 // Excel: campaignName - 广告系列名称
@@ -77339,7 +77374,12 @@ var init_amazonAdsApi = __esm({
             nextToken = response.data.nextToken;
             log13.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
           } catch (error54) {
-            log13.error("[SB API] Error fetching SB negative keywords:", error54.message);
+            const statusCode = error54.response?.status;
+            if (statusCode === 403) {
+              log13.warn("[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions");
+            } else {
+              log13.error("[SB API] Error fetching SB negative keywords:", error54.message);
+            }
             break;
           }
         } while (nextToken);
@@ -77376,7 +77416,12 @@ var init_amazonAdsApi = __esm({
             nextToken = response.data.nextToken;
             log13.debug(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
           } catch (error54) {
-            log13.error("[SB API] Error fetching SB negative targets:", error54.message);
+            const statusCode = error54.response?.status;
+            if (statusCode === 403) {
+              log13.warn("[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions");
+            } else {
+              log13.error("[SB API] Error fetching SB negative targets:", error54.message);
+            }
             break;
           }
         } while (nextToken);
@@ -84534,6 +84579,10 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           const keyword = keywords9.find((k5) => k5.id === nextGenResult.targetId);
           details.push({
             keywordId: nextGenResult.targetId,
+            amazonKeywordId: keyword?.keywordId || "",
+            // v255: 传入真正的Amazon keyword ID，修复PostOptVerifier验证失败
+            adGroupId: keyword?.adGroupId,
+            // v255: 传入adGroupId用于PostOptVerifier精确回查
             keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${nextGenResult.targetId}`,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -84599,6 +84648,10 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
             // v230: 保持向后兼容，商品定向也用keywordId字段传递本地ID
             productTargetId: nextGenResult.targetId,
             // v230: 新增显式的productTargetId字段
+            amazonKeywordId: target?.targetId || "",
+            // v255: 传入真正的Amazon target ID，修复PostOptVerifier验证失败
+            adGroupId: target?.adGroupId,
+            // v255: 传入adGroupId用于PostOptVerifier精确回查
             keywordText: target?.targetText || target?.targetValue || `\u5546\u54C1\u5B9A\u5411 ${nextGenResult.targetId}`,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -158867,7 +158920,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 253;
+    SYSTEM_VERSION = 255;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159084,6 +159137,24 @@ var init_postDeployOptimizer = __esm({
         version: 252,
         description: "v252: [RL\u6570\u636E\u8D28\u91CF\u4FEE\u590D+UI\u589E\u5F3A] \u2014 (1)captureStateSnapshot\u4FEE\u590D: \u4F18\u5148\u4F7F\u7528\u5173\u952E\u8BCD/\u5546\u54C1\u5B9A\u5411\u7EA7\u522B\u7684\u7EE9\u6548\u6570\u636E\uFF0C\u800C\u975E\u8D26\u6237\u7EA7\u522B\u6C47\u603B (2)recordBidAction\u4FEE\u590D: \u4F20\u9012campaignId\u548CadGroupId\u786E\u4FDD\u6B63\u786E\u7C92\u5EA6 (3)OptimizationLogs\u7EC4\u4EF6\u589E\u5F3A: \u7B97\u6CD5\u7C7B\u578B\u53EF\u89C6\u5316\u5FBD\u7AE0+\u51B3\u7B56\u4E0A\u4E0B\u6587\u5C55\u5F00\u9762\u677F+\u7F6E\u4FE1\u5EA6\u8FDB\u5EA6\u6761+\u5F52\u56E0\u4FDD\u62A4\u6307\u793A\u5668 (4)AlgorithmEffectDashboard\u589E\u5F3A: \u7B97\u6CD5\u5C42\u7EA7\u5206\u5E03\u5361\u7247+\u7B97\u6CD5\u5C42\u7EA7\u5206\u6790Tab+\u771F\u5B9E\u6570\u636E\u8BA1\u7B97\u66FF\u4EE3\u786C\u7F16\u7801 (5)RL\u8BCA\u65AD\u7AEF\u70B9: \u65B0\u589E/ops/rl-diagnostics\u7528\u4E8E\u76D1\u63A7Reward\u56DE\u586B\u72B6\u6001",
         affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 253,
+        description: "v253: [\u5BA1\u8BA1\u4FEE\u590D] \u2014 (1)RL\u8BCA\u65ADSQL Bug\u4FEE\u590D: accountId\u5B57\u6BB5\u4E0D\u4E00\u81F4 (2)backfillRewards\u589E\u5F3A: \u79FB\u9664limit\u9650\u5236+\u96F6\u6570\u636E\u573A\u666F\u5904\u7406 (3)\u89C4\u5219\u5F15\u64CE\u4E2A\u6027\u5316: \u6570\u636E\u7F6E\u4FE1\u5EA6\u56E0\u5B50+CTR\u76F8\u5173\u6027\u611F\u77E5 (4)UI\u540C\u6B65\u72B6\u6001\u4FEE\u590D: \u533A\u5206\u5386\u53F2\u8BB0\u5F55\u548C\u771F\u6B63\u5F85\u540C\u6B65",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 254,
+        description: "v254: [\u8D8B\u52BF\u611F\u77E5\u4F18\u5316] \u2014 (1)\u89C4\u5219\u5F15\u64CE\u8D8B\u52BF\u611F\u77E5: \u5229\u7528dailyData\u8BA1\u7B97\u8FD1\u671F\u8868\u73B0\u8D8B\u52BF(improving/stable/declining) (2)\u63D0\u4EF7\u573A\u666F: \u8D8B\u52BFimproving\u65F6\u52A0\u901F\u63D0\u4EF7\uFF0Cdeclining\u65F6\u51CF\u7F13 (3)\u964D\u4EF7\u573A\u666F: \u8D8B\u52BFdeclining\u65F6\u52A0\u901F\u6B62\u635F\uFF0Cimproving\u65F6\u51CF\u7F13\u907F\u514D\u8BEF\u6740 (4)\u96F6\u8F6C\u5316\u573A\u666F: \u8D8B\u52BFimproving\u65F6\u589E\u52A0\u5F52\u56E0\u5BB9\u5FCD\u5EA6",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 255,
+        description: "v255: [\u6307\u4EE4\u786E\u8BA4+\u62A5\u544AAPI\u4FEE\u590D] \u2014 (1)PostOptVerifier: \u4FEE\u590DamazonKeywordId Bug\uFF0C\u4F7F\u7528\u771F\u6B63\u7684Amazon ID\u800C\u975E\u672C\u5730\u81EA\u589EID (2)SD/SP/SB\u62A5\u544AAPI: \u4FEE\u590D5\u4E2Adate+SUMMARY\u51B2\u7A81\u548CreportTypeId\u9519\u8BEF (3)SB Negative API: 403\u9519\u8BEF\u964D\u7EA7\u4E3AWARN",
+        affectedModules: ["sync", "bid"],
         correctionActions: ["rerun_optimization"]
       }
     ];
@@ -160545,7 +160616,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 253;
+    SYSTEM_VERSION2 = 255;
   }
 });
 
