@@ -158838,7 +158838,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 251;
+    SYSTEM_VERSION = 252;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159049,6 +159049,12 @@ var init_postDeployOptimizer = __esm({
         version: 251,
         description: "v251: [\u7B97\u6CD5\u589E\u5F3A] \u2014 (1)NextGen\u89C4\u5219\u5F15\u64CE\u4F7F\u7528\u771F\u5B9EAOV(groupAvgAov)\u66FF\u4EE3currentBid*30\u7684\u7C97\u66B4\u5047\u8BBE\uFF0C\u89E3\u51B3\u54C1\u7C7B\u504F\u89C1\u95EE\u9898 (2)\u5426\u5B9A\u8BCD\u51B3\u7B56\u5F15\u5165\u82B1\u8D39/\u5BA2\u5355\u4EF7\u6BD4\u7387\uFF0C\u89E3\u51B3\u9AD8\u5BA2\u5355\u4EF7\u4EA7\u54C1\u7684\u201C\u5047\u9633\u6027\u201D\u5426\u5B9A\u95EE\u9898 (3)\u5F15\u5165\u5F52\u56E0\u5EF6\u8FDF\u5BB9\u5FCD\u5EA6(1.5x)\u907F\u514D\u8BEF\u6740\u6B63\u5728\u5F52\u56E0\u4E2D\u7684\u6D41\u91CF (4)\u524D\u7AEF\u6570\u636E\u6982\u89C8\u5361\u7247\u5E03\u5C40\u4FEE\u590D",
         affectedModules: ["bid", "negative_keyword"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 252,
+        description: "v252: [RL\u6570\u636E\u8D28\u91CF\u4FEE\u590D+UI\u589E\u5F3A] \u2014 (1)captureStateSnapshot\u4FEE\u590D: \u4F18\u5148\u4F7F\u7528\u5173\u952E\u8BCD/\u5546\u54C1\u5B9A\u5411\u7EA7\u522B\u7684\u7EE9\u6548\u6570\u636E\uFF0C\u800C\u975E\u8D26\u6237\u7EA7\u522B\u6C47\u603B (2)recordBidAction\u4FEE\u590D: \u4F20\u9012campaignId\u548CadGroupId\u786E\u4FDD\u6B63\u786E\u7C92\u5EA6 (3)OptimizationLogs\u7EC4\u4EF6\u589E\u5F3A: \u7B97\u6CD5\u7C7B\u578B\u53EF\u89C6\u5316\u5FBD\u7AE0+\u51B3\u7B56\u4E0A\u4E0B\u6587\u5C55\u5F00\u9762\u677F+\u7F6E\u4FE1\u5EA6\u8FDB\u5EA6\u6761+\u5F52\u56E0\u4FDD\u62A4\u6307\u793A\u5668 (4)AlgorithmEffectDashboard\u589E\u5F3A: \u7B97\u6CD5\u5C42\u7EA7\u5206\u5E03\u5361\u7247+\u7B97\u6CD5\u5C42\u7EA7\u5206\u6790Tab+\u771F\u5B9E\u6570\u636E\u8BA1\u7B97\u66FF\u4EE3\u786C\u7F16\u7801 (5)RL\u8BCA\u65AD\u7AEF\u70B9: \u65B0\u589E/ops/rl-diagnostics\u7528\u4E8E\u76D1\u63A7Reward\u56DE\u586B\u72B6\u6001",
+        affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }
     ];

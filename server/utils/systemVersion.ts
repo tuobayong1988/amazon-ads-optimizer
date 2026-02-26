@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 251;  // v251: 真实AOV替代假设 + 否定词花费/客单价比率 + 归因延迟容忍 + 卡片布局修复
+export const SYSTEM_VERSION = 252;  // v252: 修复RL数据记录粒度Bug + captureStateSnapshot关键词级别数据 + recordBidAction传递campaignId + UI决策上下文增强
