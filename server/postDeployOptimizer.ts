@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 253;  // v253: 审计修复 - RL Reward回填机制修复 + 规则引擎个性化增强 + UI同步状态修复
+export const SYSTEM_VERSION = 254;  // v254: 趋势感知优化 - 规则引擎引入近期表现趋势因子，避免误杀正在好转的关键词
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -279,6 +279,18 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 252,
     description: 'v252: [RL数据质量修复+UI增强] — (1)captureStateSnapshot修复: 优先使用关键词/商品定向级别的绩效数据，而非账户级别汇总 (2)recordBidAction修复: 传递campaignId和adGroupId确保正确粒度 (3)OptimizationLogs组件增强: 算法类型可视化徽章+决策上下文展开面板+置信度进度条+归因保护指示器 (4)AlgorithmEffectDashboard增强: 算法层级分布卡片+算法层级分析Tab+真实数据计算替代硬编码 (5)RL诊断端点: 新增/ops/rl-diagnostics用于监控Reward回填状态',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 253,
+    description: 'v253: [审计修复] — (1)RL诊断SQL Bug修复: accountId字段不一致 (2)backfillRewards增强: 移除limit限制+零数据场景处理 (3)规则引擎个性化: 数据置信度因子+CTR相关性感知 (4)UI同步状态修复: 区分历史记录和真正待同步',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 254,
+    description: 'v254: [趋势感知优化] — (1)规则引擎趋势感知: 利用dailyData计算近期表现趋势(improving/stable/declining) (2)提价场景: 趋势improving时加速提价，declining时减缓 (3)降价场景: 趋势declining时加速止损，improving时减缓避免误杀 (4)零转化场景: 趋势improving时增加归因容忍度',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },

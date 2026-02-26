@@ -44,6 +44,7 @@ import { buildKeywordGraph, discoverOpportunities, discoverNegativeCandidates } 
 import type { OptimizationTarget, PerformanceGroupConfig } from "./bidOptimizer";
 import { createModuleLogger } from './utils/logger';
 import { batchCalculateGTOModifiers, type GTOModifier, type GTOBatchContext } from './gtoIntegrationOrchestrator';
+import * as timeDecayService from './timeDecayWeightedDataService';
 
 const log = createModuleLogger('NextGen');
 
@@ -230,16 +231,33 @@ function ruleEngineDecision(
   // 场景3: 有点击但零订单 — 根据花费判断
   // v251: 使用真实AOV替代粗暴假设，解决品类偏见问题
   // v238: 增强零转化场景的降价力度，避免持续烧钱
+  // v254: 引入趋势感知 — 趋势improving时增加归因容忍度，declining时更果断降价
   if (orders === 0 && clicks > 0) {
     // 计算每次点击成本
     const cpc = spend / clicks;
     // v251: 使用真实的广告组平均客单价(groupAvgAov)，而非 currentBid * 30 的粗暴假设
-    // 旧逻辑: estimatedAov = currentBid * 30 → 高客单价产品严重低估，低客单价产品可能高估
-    // 新逻辑: 优先使用真实AOV，fallback到$30（美国站中位数客单价）
     const realAov = groupConfig.groupAvgAov || 30;
+    // v254: 趋势感知归因容忍度 — 趋势improving时给予更多容忍（可能订单正在归因中）
+    let zeroConvTrendDir: 'improving' | 'stable' | 'declining' = 'stable';
+    let zeroConvTrendStr = 0;
+    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    if (dailyData && dailyData.length >= 7) {
+      try {
+        const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
+          date: d.date instanceof Date ? d.date.toISOString() : String(d.date),
+          impressions: 0, clicks: d.clicks || 0, spend: d.spend || 0, sales: d.sales || 0, orders: d.orders || 0,
+        }));
+        const twMetrics = timeDecayService.calculateTimeWeightedMetrics(rawData);
+        zeroConvTrendDir = twMetrics.trendSignal.direction;
+        zeroConvTrendStr = twMetrics.trendSignal.strength;
+      } catch { /* 趋势计算失败不影响核心决策 */ }
+    }
     // v251: 引入归因延迟容忍度 — 亚马逊广告归因通常有24-48h延迟
-    // 对于零转化场景，给予1.5倍的花费容忍度，避免"误杀"正在归因中的流量
-    const attributionToleranceFactor = 1.5;
+    // v254: 趋势improving时容忍度提升到20%，declining时容忍度降低到10%
+    const baseTolerance = 1.5;
+    const attributionToleranceFactor = zeroConvTrendDir === 'improving' ? baseTolerance * (1 + zeroConvTrendStr * 0.20) :
+                                       zeroConvTrendDir === 'declining' ? baseTolerance * (1 - zeroConvTrendStr * 0.10) : baseTolerance;
+    const zeroConvTrendLabel = zeroConvTrendDir !== 'stable' ? `, 趋势=${zeroConvTrendDir}` : '';
     const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;
     
     if (spend > maxAcceptableSpend) {
@@ -249,7 +267,7 @@ function ruleEngineDecision(
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.50,
-        reason: `零转化高花费($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x超标): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        reason: `零转化高花费($${spend.toFixed(2)}, AOV=$${realAov.toFixed(0)}, ${spendRatio.toFixed(1)}x超标${zeroConvTrendLabel}): 降低${(reduceRatio * 100).toFixed(0)}%`,
       };
     }
     
@@ -259,7 +277,7 @@ function ruleEngineDecision(
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.40,
-        reason: `零转化${clicks}次点击($${spend.toFixed(2)}): 小幅降低${(reduceRatio * 100).toFixed(0)}%`,
+        reason: `零转化${clicks}次点击($${spend.toFixed(2)}${zeroConvTrendLabel}): 小幅降低${(reduceRatio * 100).toFixed(0)}%`,
       };
     }
     
@@ -273,6 +291,7 @@ function ruleEngineDecision(
   
   // 场景4: 有订单 — 基于ACOS进行精确调整
   // v253: 引入数据置信度因子和CTR相关性感知，实现个性化调整
+  // v254: 引入趋势感知 — 近期表现趋势影响调整方向和力度
   if (orders > 0 && sales > 0) {
     const actualAcos = spend / sales;
     const acosRatio = actualAcos / targetAcos;
@@ -288,15 +307,48 @@ function ruleEngineDecision(
     // 低CTR表明相关性差，应更保守
     const ctrPenalty = ctr < 0.002 && impressions > 200 ? 0.85 : 1.0;
     
+    // v254: 趋势感知因子 — 利用dailyData计算近期表现趋势
+    // improving: 对提价加速、对降价减缓（避免误杀正在好转的关键词）
+    // declining: 对降价加速、对提价减缓（更果断止损）
+    // stable: 不做额外调整
+    let trendDirection: 'improving' | 'stable' | 'declining' = 'stable';
+    let trendStrength = 0;
+    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    if (dailyData && dailyData.length >= 7) {
+      try {
+        const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
+          date: d.date instanceof Date ? d.date.toISOString() : String(d.date),
+          impressions: 0,
+          clicks: d.clicks || 0,
+          spend: d.spend || 0,
+          sales: d.sales || 0,
+          orders: d.orders || 0,
+        }));
+        const twMetrics = timeDecayService.calculateTimeWeightedMetrics(rawData);
+        trendDirection = twMetrics.trendSignal.direction;
+        trendStrength = twMetrics.trendSignal.strength;
+      } catch {
+        // 趋势计算失败不影响核心决策
+      }
+    }
+    // 趋势修正因子：improving时提价放大/降价缩小，declining时反之
+    // 最大影响幅度±15%，由trendStrength(0-1)控制实际影响
+    const trendBoostFactor = trendDirection === 'improving' ? 1 + trendStrength * 0.15 :
+                             trendDirection === 'declining' ? 1 - trendStrength * 0.10 : 1.0;
+    const trendReduceFactor = trendDirection === 'declining' ? 1 + trendStrength * 0.15 :
+                              trendDirection === 'improving' ? 1 - trendStrength * 0.10 : 1.0;
+    const trendLabel = trendDirection !== 'stable' ? `, 趋势=${trendDirection}(${(trendStrength * 100).toFixed(0)}%)` : '';
+    
     if (acosRatio < 0.7) {
       // ACOS远低于目标，有提升空间
       // v253: 数据量小时保守提价，避免少量订单的偶然性导致过度提价
+      // v254: 趋势improving时加速提价，declining时减缓提价
       const rawBoostRatio = Math.min(0.20, (1 - acosRatio) * 0.25);
-      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus;
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
         bid: currentBid * (1 + boostRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%): 提升${(boostRatio * 100).toFixed(1)}%(置信度${(dataConfidence * 100).toFixed(0)}%)`,
+        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 提升${(boostRatio * 100).toFixed(1)}%(置信度${(dataConfidence * 100).toFixed(0)}%)`,
       };
     } else if (acosRatio <= 1.0) {
       // v242: ACOS在目标范围内 — 精度感知微调
@@ -304,11 +356,12 @@ function ruleEngineDecision(
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseAdjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
       // v253: 应用数据置信度和CTR修正
-      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus;
+      // v254: ACOS达标场景的微调也受趋势影响
+      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.55 + dataConfidence * 0.15,
-        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击): 微调${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
+        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击${trendLabel}): 微调${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else if (acosRatio <= 1.5) {
       // v242: ACOS略高于目标 — 精度感知降价
@@ -316,24 +369,26 @@ function ruleEngineDecision(
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
       const baseReduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
       // v253: 低CTR时更积极地降价，高CTR时保守降价（相关性好的词值得保留）
-      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty;
+      // v254: 趋势declining时加速降价，improving时减缓降价（正在好转的词不急于降价）
+      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.15,
-        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
+        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else {
       // ACOS严重超标
       // v232: ACOS严重超标时，启用紧急降价策略
       // v253: 数据置信度高时更果断降价，低时保守降价避免误杀
+      // v254: 趋势declining时加速降价止损，improving时减缓降价（给好转机会）
       const baseReduceRatio = (acosRatio - 1) * 0.25;
       const rawReduceRatio = acosRatio > 3 ? Math.min(0.50, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
-      const reduceRatio = rawReduceRatio * dataConfidence;
+      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
 
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, 置信度${(dataConfidence * 100).toFixed(0)}%): 降低${(reduceRatio * 100).toFixed(1)}%`,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%`,
       };
     }
   }

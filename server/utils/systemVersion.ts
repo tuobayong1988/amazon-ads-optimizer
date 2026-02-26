@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 253;  // v253: 审计修复 - RL Reward回填机制修复 + 规则引擎个性化增强 + UI同步状态修复
+export const SYSTEM_VERSION = 254;  // v254: 趋势感知优化 - 规则引擎引入近期表现趋势因子，避免误杀正在好转的关键词
