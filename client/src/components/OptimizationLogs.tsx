@@ -1,11 +1,12 @@
 /**
- * OptimizationLogs - 优化日志组件 v134
+ * OptimizationLogs - 优化日志组件 v135
  * 展示优化目标的完整操作日志，包含：
  * - 具体关键词/商品定向名称（摘要行直接显示）
  * - 出价变化（旧价 → 新价）
  * - 调整原因
  * - Amazon API同步状态（是否已传递到亚马逊执行）
  * - 完整执行链路：本地决策 → API调用 → Amazon确认
+ * - v135: 算法类型可视化、决策上下文面板、置信度进度条、归因保护指示器、AOV计算展示
  */
 
 import { useState, useMemo } from "react";
@@ -16,6 +17,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
 import { safeParseDate, safeToLocaleString } from '../lib/safeDate';
 import {
@@ -43,7 +51,119 @@ import {
   ExternalLink,
   Tag,
   Package,
+  Brain,
+  BrainCircuit,
+  Cpu,
+  ShieldCheck,
+  ShieldAlert,
+  Gauge,
+  Zap,
+  Activity,
+  Lightbulb,
+  Sparkles,
+  Eye,
+  Info,
+  FlaskConical,
+  Workflow,
+  ShoppingCart,
+  CircleDollarSign,
+  BarChart3,
 } from "lucide-react";
+
+// ==================== 算法层级配置 ====================
+const ALGORITHM_TIER_CONFIG: Record<string, { label: string; icon: typeof Brain; color: string; bgColor: string; description: string }> = {
+  advanced: {
+    label: '高级算法',
+    icon: BrainCircuit,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/15 border-purple-500/30',
+    description: '使用UCB/贝叶斯等高级统计算法，基于充分数据做出最优决策',
+  },
+  rule_engine: {
+    label: '规则引擎',
+    icon: Workflow,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/15 border-blue-500/30',
+    description: '基于真实AOV和归因保护的智能规则引擎，适用于数据量中等的场景',
+  },
+  conservative: {
+    label: '保守策略',
+    icon: ShieldCheck,
+    color: 'text-amber-400',
+    bgColor: 'bg-amber-500/15 border-amber-500/30',
+    description: '数据不足时采用保守策略，小幅调整以降低风险',
+  },
+};
+
+// ==================== 决策上下文解析器 ====================
+interface DecisionContext {
+  aovValue?: number;
+  spendRatio?: number;
+  actualAcos?: number;
+  targetAcos?: number;
+  isZeroImpression?: boolean;
+  isZeroClick?: boolean;
+  isZeroConversion?: boolean;
+  isHighSpend?: boolean;
+  isExploration?: boolean;
+  isAttributionProtected?: boolean;
+  acosStatus?: 'excellent' | 'on_target' | 'over_target' | 'critical';
+  impressionCount?: number;
+  clickCount?: number;
+  spendAmount?: number;
+  boostPercent?: number;
+  reducePercent?: number;
+}
+
+function parseDecisionContext(reason: string | undefined): DecisionContext {
+  if (!reason) return {};
+  const ctx: DecisionContext = {};
+
+  // 解析AOV
+  const aovMatch = reason.match(/AOV=\$?([\d.]+)/i);
+  if (aovMatch) ctx.aovValue = parseFloat(aovMatch[1]);
+
+  // 解析花费比率
+  const spendRatioMatch = reason.match(/([\d.]+)x超标/);
+  if (spendRatioMatch) ctx.spendRatio = parseFloat(spendRatioMatch[1]);
+
+  // 解析ACOS
+  const acosMatch = reason.match(/ACOS[优秀达标超标]?\(([\d.]+)%\s*(?:vs\s*目标([\d.]+)%)?/);
+  if (acosMatch) {
+    ctx.actualAcos = parseFloat(acosMatch[1]);
+    if (acosMatch[2]) ctx.targetAcos = parseFloat(acosMatch[2]);
+  }
+
+  // 解析花费金额
+  const spendMatch = reason.match(/\$(\d+\.?\d*)/);
+  if (spendMatch) ctx.spendAmount = parseFloat(spendMatch[1]);
+
+  // 解析曝光量
+  const impressionMatch = reason.match(/(\d+)次/);
+  if (impressionMatch) ctx.impressionCount = parseInt(impressionMatch[1]);
+
+  // 解析提升/降低百分比
+  const boostMatch = reason.match(/提升(\d+)%/);
+  if (boostMatch) ctx.boostPercent = parseInt(boostMatch[1]);
+  const reduceMatch = reason.match(/降低(\d+)%/);
+  if (reduceMatch) ctx.reducePercent = parseInt(reduceMatch[1]);
+
+  // 判断场景类型
+  ctx.isZeroImpression = reason.includes('零曝光');
+  ctx.isZeroClick = reason.includes('零点击');
+  ctx.isZeroConversion = reason.includes('零转化');
+  ctx.isHighSpend = reason.includes('高花费') || reason.includes('超标');
+  ctx.isExploration = reason.includes('探索') || reason.includes('曝光数据');
+  ctx.isAttributionProtected = reason.includes('归因') || reason.includes('容忍');
+
+  // 判断ACOS状态
+  if (reason.includes('ACOS优秀')) ctx.acosStatus = 'excellent';
+  else if (reason.includes('ACOS达标') || reason.includes('微调')) ctx.acosStatus = 'on_target';
+  else if (reason.includes('ACOS超标') || reason.includes('超标')) ctx.acosStatus = 'over_target';
+  else if (reason.includes('严重超标')) ctx.acosStatus = 'critical';
+
+  return ctx;
+}
 
 // 日志分类配置
 const LOG_CATEGORIES = {
@@ -212,6 +332,207 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     return null;
   };
 
+  // ==================== v135: 算法层级徽章 ====================
+  const renderAlgorithmTierBadge = (actionDetail: any, compact: boolean = false) => {
+    if (!actionDetail?.algorithmTier) return null;
+    const tierConfig = ALGORITHM_TIER_CONFIG[actionDetail.algorithmTier];
+    if (!tierConfig) return null;
+    const TierIcon = tierConfig.icon;
+
+    if (compact) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] ${tierConfig.bgColor} ${tierConfig.color}`}>
+                <TierIcon className="w-3 h-3" />
+                <span className="hidden sm:inline">{tierConfig.label}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              <p className="text-xs">{tierConfig.description}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return (
+      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border ${tierConfig.bgColor} ${tierConfig.color}`}>
+        <TierIcon className="w-3.5 h-3.5" />
+        <span className="text-xs font-medium">{tierConfig.label}</span>
+      </div>
+    );
+  };
+
+  // ==================== v135: 置信度可视化 ====================
+  const renderConfidenceBar = (confidence: number | undefined, compact: boolean = false) => {
+    if (confidence === undefined || confidence === null) return null;
+    const pct = Math.round(confidence * 100);
+    let color = 'text-red-400';
+    let progressColor = '[&>[data-slot=progress-indicator]]:bg-red-400';
+    if (pct >= 70) {
+      color = 'text-green-400';
+      progressColor = '[&>[data-slot=progress-indicator]]:bg-green-400';
+    } else if (pct >= 40) {
+      color = 'text-yellow-400';
+      progressColor = '[&>[data-slot=progress-indicator]]:bg-yellow-400';
+    }
+
+    if (compact) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`text-[10px] font-mono ${color}`}>{pct}%</span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">算法置信度: {pct}%</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-2 min-w-[120px]">
+        <Gauge className={`w-3.5 h-3.5 ${color} shrink-0`} />
+        <div className="flex-1">
+          <Progress value={pct} className={`h-1.5 ${progressColor}`} />
+        </div>
+        <span className={`text-xs font-mono ${color} shrink-0`}>{pct}%</span>
+      </div>
+    );
+  };
+
+  // ==================== v135: 决策上下文面板 ====================
+  const renderDecisionContext = (actionDetail: any) => {
+    if (!actionDetail?.reason) return null;
+    const ctx = parseDecisionContext(actionDetail.reason);
+    const hasContext = ctx.aovValue || ctx.spendRatio || ctx.actualAcos || ctx.isZeroImpression || 
+                       ctx.isZeroClick || ctx.isZeroConversion || ctx.isExploration;
+    if (!hasContext) return null;
+
+    return (
+      <div className="bg-gradient-to-r from-slate-900/50 to-slate-800/30 rounded-lg p-3 border border-slate-700/50">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-xs font-medium text-amber-400">决策上下文</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {/* 场景标签 */}
+          {ctx.isExploration && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/20">
+              <Eye className="w-3 h-3 text-cyan-400" />
+              <span className="text-[11px] text-cyan-400">探索阶段</span>
+            </div>
+          )}
+          {ctx.isZeroImpression && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-500/10 border border-gray-500/20">
+              <Eye className="w-3 h-3 text-gray-400" />
+              <span className="text-[11px] text-gray-400">零曝光</span>
+            </div>
+          )}
+          {ctx.isZeroClick && !ctx.isZeroImpression && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-orange-500/10 border border-orange-500/20">
+              <Activity className="w-3 h-3 text-orange-400" />
+              <span className="text-[11px] text-orange-400">零点击</span>
+            </div>
+          )}
+          {ctx.isZeroConversion && !ctx.isZeroClick && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 border border-red-500/20">
+              <ShoppingCart className="w-3 h-3 text-red-400" />
+              <span className="text-[11px] text-red-400">零转化</span>
+            </div>
+          )}
+          {ctx.isHighSpend && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 border border-red-500/20">
+              <CircleDollarSign className="w-3 h-3 text-red-400" />
+              <span className="text-[11px] text-red-400">
+                高花费{ctx.spendRatio ? ` (${ctx.spendRatio.toFixed(1)}x)` : ''}
+              </span>
+            </div>
+          )}
+
+          {/* AOV信息 */}
+          {ctx.aovValue && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20">
+              <ShoppingCart className="w-3 h-3 text-emerald-400" />
+              <span className="text-[11px] text-emerald-400">AOV: ${ctx.aovValue.toFixed(0)}</span>
+            </div>
+          )}
+
+          {/* ACOS状态 */}
+          {ctx.acosStatus && (
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded border ${
+              ctx.acosStatus === 'excellent' ? 'bg-green-500/10 border-green-500/20' :
+              ctx.acosStatus === 'on_target' ? 'bg-blue-500/10 border-blue-500/20' :
+              ctx.acosStatus === 'over_target' ? 'bg-orange-500/10 border-orange-500/20' :
+              'bg-red-500/10 border-red-500/20'
+            }`}>
+              <BarChart3 className={`w-3 h-3 ${
+                ctx.acosStatus === 'excellent' ? 'text-green-400' :
+                ctx.acosStatus === 'on_target' ? 'text-blue-400' :
+                ctx.acosStatus === 'over_target' ? 'text-orange-400' :
+                'text-red-400'
+              }`} />
+              <span className={`text-[11px] ${
+                ctx.acosStatus === 'excellent' ? 'text-green-400' :
+                ctx.acosStatus === 'on_target' ? 'text-blue-400' :
+                ctx.acosStatus === 'over_target' ? 'text-orange-400' :
+                'text-red-400'
+              }`}>
+                {ctx.acosStatus === 'excellent' ? 'ACOS优秀' :
+                 ctx.acosStatus === 'on_target' ? 'ACOS达标' :
+                 ctx.acosStatus === 'over_target' ? 'ACOS超标' : 'ACOS严重超标'}
+                {ctx.actualAcos ? ` ${ctx.actualAcos.toFixed(1)}%` : ''}
+                {ctx.targetAcos ? ` / 目标${ctx.targetAcos.toFixed(1)}%` : ''}
+              </span>
+            </div>
+          )}
+
+          {/* 归因保护 */}
+          {ctx.isAttributionProtected && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-violet-500/10 border border-violet-500/20">
+              <ShieldCheck className="w-3 h-3 text-violet-400" />
+              <span className="text-[11px] text-violet-400">归因保护</span>
+            </div>
+          )}
+
+          {/* 花费金额 */}
+          {ctx.spendAmount && ctx.spendAmount > 0 && !ctx.aovValue && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-500/10 border border-slate-500/20">
+              <DollarSign className="w-3 h-3 text-slate-400" />
+              <span className="text-[11px] text-slate-400">花费: ${ctx.spendAmount.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ==================== v135: 归因保护指示器（摘要行） ====================
+  const renderAttributionProtectionBadge = (actionDetail: any) => {
+    if (!actionDetail?.reason) return null;
+    const ctx = parseDecisionContext(actionDetail.reason);
+    if (!ctx.isAttributionProtected) return null;
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-violet-500/10 border border-violet-500/20">
+              <ShieldCheck className="w-3 h-3 text-violet-400" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-xs">归因保护已启用：考虑Amazon广告归因延迟（7-14天），对花费判断增加1.5x容忍因子</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   // 渲染API同步状态徽章
   const renderApiSyncBadge = (log: any) => {
     const syncStatus = log.apiSyncStatus || (log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment' ? 'pending' : 'not_applicable');
@@ -246,7 +567,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     return (
       <div className="flex items-center gap-1 mt-2">
         {steps.map((step, idx) => {
-          const StepIcon = step.icon;
           const isLast = idx === steps.length - 1;
           let stepColor = 'text-gray-500';
           let dotColor = 'bg-gray-500';
@@ -355,6 +675,8 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               </Badge>
               <StatusIcon className={`w-4 h-4 ${statusConfig.color} shrink-0`} />
               {renderApiSyncBadge(log)}
+              {/* v135: 算法层级徽章 - 移动端 */}
+              {renderAlgorithmTierBadge(actionDetail, true)}
             </div>
             
             {/* 关键词名称 - 移动端 */}
@@ -366,8 +688,10 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
             
             {/* 出价变更 - 移动端 */}
             {(log.previousValue || log.newValue) && (
-              <div className="pl-6">
+              <div className="pl-6 flex items-center gap-1.5">
                 {renderBidChange(log, true)}
+                {/* v135: 置信度 - 移动端 */}
+                {renderConfidenceBar(actionDetail?.confidenceScore, true)}
               </div>
             )}
             
@@ -412,11 +736,20 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                 {actionConfig.label}
               </Badge>
               
+              {/* v135: 算法层级徽章 - PC端 */}
+              {renderAlgorithmTierBadge(actionDetail, true)}
+              
               {/* 关键词/目标名称 - 直接在摘要行显示 */}
               {renderTargetTag(log)}
               
               {/* 出价变更摘要 */}
               {renderBidChange(log)}
+              
+              {/* v135: 置信度 - PC端摘要 */}
+              {renderConfidenceBar(actionDetail?.confidenceScore, true)}
+              
+              {/* v135: 归因保护指示器 */}
+              {renderAttributionProtectionBadge(actionDetail)}
               
               {/* Amazon同步状态 */}
               {renderApiSyncBadge(log)}
@@ -448,6 +781,43 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
         {/* 展开的详情 */}
         {isExpanded && (
           <div className="border-t bg-muted/30 p-4 space-y-4">
+            {/* v135: 算法与决策概览 */}
+            {actionDetail && (actionDetail.algorithmUsed || actionDetail.algorithmTier) && (
+              <>
+                <div>
+                  <p className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                    <Brain className="w-4 h-4 text-purple-400" />
+                    算法与决策
+                  </p>
+                  <div className="bg-background rounded-lg p-3 space-y-3">
+                    {/* 算法层级和名称 */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {renderAlgorithmTierBadge(actionDetail)}
+                      {actionDetail.algorithmUsed && (
+                        <div className="flex items-center gap-1.5">
+                          <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">算法:</span>
+                          <Badge variant="outline" className="text-xs font-mono">{actionDetail.algorithmUsed}</Badge>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* 置信度进度条 */}
+                    {actionDetail.confidenceScore !== undefined && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground shrink-0">置信度:</span>
+                        {renderConfidenceBar(actionDetail.confidenceScore)}
+                      </div>
+                    )}
+                    
+                    {/* 决策上下文面板 */}
+                    {renderDecisionContext(actionDetail)}
+                  </div>
+                </div>
+                <Separator />
+              </>
+            )}
+            
             {/* 执行链路 */}
             <div>
               <p className="text-sm font-medium mb-2">执行链路</p>
@@ -592,24 +962,6 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   </div>
                 )}
                 
-                {/* 算法信息 */}
-                {actionDetail && actionDetail.algorithmUsed && (
-                  <div className="text-sm flex gap-4 flex-wrap">
-                    <span className="flex items-center gap-1">
-                      <span className="text-muted-foreground">算法: </span>
-                      <Badge variant="outline" className="text-xs">{actionDetail.algorithmUsed}</Badge>
-                    </span>
-                    {actionDetail.confidenceScore !== undefined && (
-                      <span className="flex items-center gap-1">
-                        <span className="text-muted-foreground">置信度: </span>
-                        <span className={actionDetail.confidenceScore > 0.7 ? 'text-green-400' : actionDetail.confidenceScore > 0.4 ? 'text-yellow-400' : 'text-red-400'}>
-                          {(actionDetail.confidenceScore * 100).toFixed(0)}%
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                )}
-                
                 {/* 搜索词信息（用于搜索词收割/否定词日志） */}
                 {actionDetail && actionDetail.searchTerm && (
                   <div className="text-sm">
@@ -724,7 +1076,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                     
                     {/* 绩效数据（广告活动/广告组状态变更时显示） */}
                     {(actionDetail.entityType === 'campaign' || actionDetail.entityType === 'adGroup') && (
-                      <div className="flex gap-4 flex-wrap text-xs">
+                      <div className="flex gap-4 flex-wrap text-xs mt-1">
                         {actionDetail.spend !== undefined && (
                           <span>
                             <span className="text-muted-foreground">花费: </span>

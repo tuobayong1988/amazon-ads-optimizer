@@ -5,11 +5,36 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip as ReTooltip,
+  TooltipContent as ReTooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { trpc } from "@/lib/trpc";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, ComposedChart, Area } from "recharts";
-import { TrendingUp, TrendingDown, Target, DollarSign, Percent, Activity, ArrowUpRight, ArrowDownRight, Clock, CheckCircle, XCircle, RefreshCw, Calendar, Zap } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, ComposedChart, Area, PieChart, Pie, Cell } from "recharts";
+import {
+  TrendingUp, TrendingDown, Target, DollarSign, Percent, Activity,
+  ArrowUpRight, ArrowDownRight, Clock, CheckCircle, XCircle, RefreshCw,
+  Calendar, Zap, Brain, BrainCircuit, Workflow, ShieldCheck, Cpu, Gauge,
+  ShoppingCart, Eye, Lightbulb, Info,
+} from "lucide-react";
 import { format, subDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
+
+// 算法层级颜色配置
+const TIER_COLORS = {
+  advanced: { fill: '#8B5CF6', label: '高级算法', icon: BrainCircuit, desc: 'UCB/贝叶斯等统计算法' },
+  rule_engine: { fill: '#3B82F6', label: '规则引擎', icon: Workflow, desc: '基于真实AOV的智能规则' },
+  conservative: { fill: '#F59E0B', label: '保守策略', icon: ShieldCheck, desc: '数据不足时的安全策略' },
+  LinUCB: { fill: '#A855F7', label: 'LinUCB', icon: Brain, desc: '线性上置信界算法' },
+  CQL: { fill: '#EC4899', label: 'CQL', icon: Cpu, desc: '保守Q学习离线RL' },
+  Bayesian: { fill: '#14B8A6', label: '贝叶斯', icon: Gauge, desc: '贝叶斯优化' },
+  unknown: { fill: '#6B7280', label: '未知', icon: Info, desc: '' },
+};
+
+const PIE_COLORS = ['#8B5CF6', '#3B82F6', '#F59E0B', '#A855F7', '#EC4899', '#14B8A6', '#6B7280', '#EF4444', '#10B981'];
 
 export default function AlgorithmEffectDashboard() {
   const [timeRange, setTimeRange] = useState("30");
@@ -63,6 +88,22 @@ export default function AlgorithmEffectDashboard() {
     }
   );
 
+  // v135: 获取算法效果统计（按算法分组）
+  const { data: algorithmEffectStats } = trpc.algorithmEffect.getStats.useQuery(
+    {
+      accountId: selectedAccount === "all" ? undefined : parseInt(selectedAccount),
+      days: parseInt(timeRange)
+    }
+  );
+
+  // v135: 获取算法效果趋势
+  const { data: algorithmEffectTrend } = trpc.algorithmEffect.getTrend.useQuery(
+    {
+      accountId: selectedAccount === "all" ? undefined : parseInt(selectedAccount),
+      days: parseInt(timeRange)
+    }
+  );
+
   // 计算统计数据
   const autoCount = (byTypeAnalysis || []).filter((t: any) => t.adjustmentType?.startsWith('auto')).reduce((sum: number, t: any) => sum + (t.count || 0), 0);
   const manualCount = (byTypeAnalysis || []).filter((t: any) => t.adjustmentType === 'manual').reduce((sum: number, t: any) => sum + (t.count || 0), 0);
@@ -77,6 +118,53 @@ export default function AlgorithmEffectDashboard() {
     avgProfitIncrease: algorithmPerformance?.totalEstimatedProfit || 0
   };
 
+  // v135: 算法层级分布数据
+  const algorithmDistribution = useMemo(() => {
+    if (!algorithmEffectStats || algorithmEffectStats.length === 0) return [];
+    
+    // 按算法层级归类
+    const tierMap = new Map<string, { count: number; positiveRate: number; algorithms: string[] }>();
+    
+    for (const stat of algorithmEffectStats) {
+      const algo = stat.algorithm;
+      let tier = 'unknown';
+      if (algo === 'LinUCB' || algo === 'CQL' || algo === 'Bayesian' || algo === 'advanced') tier = 'advanced';
+      else if (algo === 'rule_engine' || algo.includes('RuleEngine')) tier = 'rule_engine';
+      else if (algo === 'conservative') tier = 'conservative';
+      else tier = algo; // 保留原始名称
+      
+      if (!tierMap.has(tier)) {
+        tierMap.set(tier, { count: 0, positiveRate: 0, algorithms: [] });
+      }
+      const entry = tierMap.get(tier)!;
+      entry.count += stat.count;
+      entry.positiveRate = (entry.positiveRate * (entry.algorithms.length) + stat.positiveRate) / (entry.algorithms.length + 1);
+      entry.algorithms.push(algo);
+    }
+    
+    return Array.from(tierMap.entries()).map(([tier, data]) => ({
+      tier,
+      name: (TIER_COLORS as any)[tier]?.label || tier,
+      count: data.count,
+      positiveRate: Math.round(data.positiveRate),
+      algorithms: data.algorithms,
+      fill: (TIER_COLORS as any)[tier]?.fill || '#6B7280',
+    })).sort((a, b) => b.count - a.count);
+  }, [algorithmEffectStats]);
+
+  // 算法详细统计
+  const algorithmDetailStats = useMemo(() => {
+    if (!algorithmEffectStats || algorithmEffectStats.length === 0) return [];
+    return algorithmEffectStats.map((stat: any) => ({
+      algorithm: stat.algorithm,
+      count: stat.count,
+      positiveRate: stat.positiveRate,
+      avgEffectScore: stat.avgEffectScore,
+      label: (TIER_COLORS as any)[stat.algorithm]?.label || stat.algorithm,
+      fill: (TIER_COLORS as any)[stat.algorithm]?.fill || '#6B7280',
+    })).sort((a: any, b: any) => b.count - a.count);
+  }, [algorithmEffectStats]);
+
   // v187: 使用真实API数据替代模拟的ACoS趋势数据
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
     { days: parseInt(timeRange), timeRange: 'custom' },
@@ -87,10 +175,28 @@ export default function AlgorithmEffectDashboard() {
     return trendData.map((d: any) => ({
       date: d.date,
       actualAcos: d.acos ? d.acos.toFixed(1) : '0',
-      targetAcos: 30, // 将来可从绩效组目标中获取
-      beforeOptimization: null // 无对比数据时不显示
+      targetAcos: 30,
+      beforeOptimization: null
     }));
   }, [trendData]);
+
+  // v135: 从真实趋势数据计算统计指标
+  const acosTrendStats = useMemo(() => {
+    if (!acosTrendData || acosTrendData.length === 0) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
+    const acosValues = acosTrendData.map((d: any) => parseFloat(d.actualAcos) || 0).filter((v: number) => v > 0);
+    if (acosValues.length < 2) return { avgChange: 0, daysOnTarget: 0, targetRate: 0 };
+    
+    const firstHalf = acosValues.slice(0, Math.floor(acosValues.length / 2));
+    const secondHalf = acosValues.slice(Math.floor(acosValues.length / 2));
+    const firstAvg = firstHalf.reduce((a: number, b: number) => a + b, 0) / firstHalf.length;
+    const secondAvg = secondHalf.reduce((a: number, b: number) => a + b, 0) / secondHalf.length;
+    const avgChange = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
+    
+    const daysOnTarget = acosValues.filter((v: number) => v <= 30).length;
+    const targetRate = acosValues.length > 0 ? (daysOnTarget / acosValues.length * 100) : 0;
+    
+    return { avgChange: Math.round(avgChange * 10) / 10, daysOnTarget, targetRate: Math.round(targetRate * 10) / 10 };
+  }, [acosTrendData]);
 
   // 使用真实API数据生成调整分布
   const adjustmentDistribution = {
@@ -116,6 +222,9 @@ export default function AlgorithmEffectDashboard() {
       { metric: '每次点击成本 ($)', before: (algorithmPerformance as any).avgCpcBefore || 0, after: (algorithmPerformance as any).avgCpcAfter || 0 },
     ].filter(item => item.before > 0 || item.after > 0);
   }, [algorithmPerformance]);
+
+  // v135: 计算总调整中各层级占比（用于核心指标卡片迷你图）
+  const totalAlgoCount = algorithmDistribution.reduce((sum, d) => sum + d.count, 0);
 
   return (
     <DashboardLayout>
@@ -224,20 +333,34 @@ export default function AlgorithmEffectDashboard() {
             </CardContent>
           </Card>
 
+          {/* v135: 算法层级分布迷你卡片 */}
           <Card className="bg-gradient-to-br from-orange-900/50 to-orange-800/30 border-orange-700/50">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-300">预估利润提升</p>
-                  <p className="text-3xl font-bold text-white mt-1">
-                    ${stats.avgProfitIncrease.toFixed(0)}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    基于算法预测的累计利润
-                  </p>
+                <div className="flex-1">
+                  <p className="text-sm text-orange-300">算法层级分布</p>
+                  {totalAlgoCount > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      {algorithmDistribution.slice(0, 3).map((d) => {
+                        const pct = totalAlgoCount > 0 ? Math.round(d.count / totalAlgoCount * 100) : 0;
+                        return (
+                          <div key={d.tier} className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
+                            <span className="text-xs text-gray-300 w-14 shrink-0">{d.name}</span>
+                            <div className="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: d.fill }} />
+                            </div>
+                            <span className="text-xs text-gray-400 w-8 text-right">{pct}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-2xl font-bold text-white mt-1">-</p>
+                  )}
                 </div>
-                <div className="p-3 bg-orange-500/20 rounded-full">
-                  <DollarSign className="h-6 w-6 text-orange-400" />
+                <div className="p-3 bg-orange-500/20 rounded-full shrink-0">
+                  <Brain className="h-6 w-6 text-orange-400" />
                 </div>
               </div>
             </CardContent>
@@ -248,6 +371,7 @@ export default function AlgorithmEffectDashboard() {
         <Tabs defaultValue="acos-trend" className="space-y-4">
           <TabsList className="bg-gray-800">
             <TabsTrigger value="acos-trend">ACoS变化趋势</TabsTrigger>
+            <TabsTrigger value="algorithm-distribution">算法层级分析</TabsTrigger>
             <TabsTrigger value="effect-comparison">优化前后对比</TabsTrigger>
             <TabsTrigger value="adjustment-distribution">调整分布</TabsTrigger>
             <TabsTrigger value="execution-history">执行历史</TabsTrigger>
@@ -302,22 +426,150 @@ export default function AlgorithmEffectDashboard() {
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
+                {/* v135: 使用真实计算数据替代硬编码 */}
                 <div className="mt-4 grid grid-cols-3 gap-4">
                   <div className="bg-gray-700/50 rounded-lg p-4">
-                    <p className="text-sm text-gray-400">平均ACoS降低</p>
-                    <p className="text-2xl font-bold text-green-400">-12.3%</p>
+                    <p className="text-sm text-gray-400">ACoS变化趋势</p>
+                    <p className={`text-2xl font-bold ${acosTrendStats.avgChange <= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {acosTrendStats.avgChange > 0 ? '+' : ''}{acosTrendStats.avgChange}%
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">前半段 vs 后半段均值对比</p>
                   </div>
                   <div className="bg-gray-700/50 rounded-lg p-4">
                     <p className="text-sm text-gray-400">达标天数</p>
-                    <p className="text-2xl font-bold text-blue-400">23天</p>
+                    <p className="text-2xl font-bold text-blue-400">{acosTrendStats.daysOnTarget}天</p>
+                    <p className="text-xs text-gray-500 mt-1">ACoS ≤ 30%的天数</p>
                   </div>
                   <div className="bg-gray-700/50 rounded-lg p-4">
                     <p className="text-sm text-gray-400">目标达成率</p>
-                    <p className="text-2xl font-bold text-purple-400">76.7%</p>
+                    <p className="text-2xl font-bold text-purple-400">{acosTrendStats.targetRate}%</p>
+                    <p className="text-xs text-gray-500 mt-1">达标天数占比</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* v135: 算法层级分析 - 新增Tab */}
+          <TabsContent value="algorithm-distribution">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 饼图 */}
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Brain className="h-5 w-5 text-purple-400" />
+                    算法层级分布
+                  </CardTitle>
+                  <CardDescription>
+                    各算法层级在出价调整中的使用占比
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {algorithmDistribution.length > 0 ? (
+                    <>
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={algorithmDistribution}
+                              dataKey="count"
+                              nameKey="name"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={100}
+                              innerRadius={50}
+                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              labelLine={{ stroke: '#9CA3AF' }}
+                            >
+                              {algorithmDistribution.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151" }}
+                              formatter={(value: number, name: string) => [`${value} 次`, name]}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {algorithmDistribution.map((d) => {
+                          const pct = totalAlgoCount > 0 ? (d.count / totalAlgoCount * 100).toFixed(1) : '0';
+                          return (
+                            <div key={d.tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.fill }} />
+                                <span className="text-sm text-white">{d.name}</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm text-gray-400">{d.count} 次</span>
+                                <span className="text-sm font-medium text-white">{pct}%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-gray-400">
+                      <Brain className="h-12 w-12 mb-3 opacity-30" />
+                      <p>暂无算法分布数据</p>
+                      <p className="text-xs mt-1">请选择具体账户查看</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 算法详细统计表 */}
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <Cpu className="h-5 w-5 text-blue-400" />
+                    算法效果详情
+                  </CardTitle>
+                  <CardDescription>
+                    各算法的调整次数和正向调整率
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {algorithmDetailStats.length > 0 ? (
+                    <div className="space-y-3">
+                      {algorithmDetailStats.map((stat: any) => (
+                        <div key={stat.algorithm} className="p-3 rounded-lg bg-gray-700/30 border border-gray-700/50">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stat.fill }} />
+                              <span className="text-sm font-medium text-white">{stat.label}</span>
+                              <Badge variant="outline" className="text-[10px] border-gray-600 text-gray-400">
+                                {stat.algorithm}
+                              </Badge>
+                            </div>
+                            <span className="text-sm text-gray-400">{stat.count} 次调整</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500 shrink-0">正向率</span>
+                            <div className="flex-1">
+                              <Progress
+                                value={stat.positiveRate}
+                                className="h-2 [&>[data-slot=progress-indicator]]:bg-green-400"
+                              />
+                            </div>
+                            <span className={`text-xs font-mono ${stat.positiveRate >= 60 ? 'text-green-400' : stat.positiveRate >= 40 ? 'text-yellow-400' : 'text-red-400'}`}>
+                              {stat.positiveRate}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[300px] text-gray-400">
+                      <Cpu className="h-12 w-12 mb-3 opacity-30" />
+                      <p>暂无算法效果数据</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* 优化前后对比 */}
@@ -346,35 +598,33 @@ export default function AlgorithmEffectDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+                {/* v135: 使用真实数据计算对比指标 */}
                 <div className="mt-4 grid grid-cols-4 gap-4">
-                  <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-                    <p className="text-sm text-gray-400">ACoS变化</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <ArrowDownRight className="h-4 w-4 text-green-400" />
-                      <span className="text-xl font-bold text-green-400">-23%</span>
+                  {effectComparisonData.length > 0 ? (
+                    effectComparisonData.map((item) => {
+                      const change = item.before > 0 ? ((item.after - item.before) / item.before * 100) : 0;
+                      const isPositive = item.metric.includes('ACoS') || item.metric.includes('成本') ? change < 0 : change > 0;
+                      return (
+                        <div key={item.metric} className="bg-gray-700/50 rounded-lg p-4 text-center">
+                          <p className="text-sm text-gray-400">{item.metric}变化</p>
+                          <div className="flex items-center justify-center gap-1 mt-1">
+                            {isPositive ? (
+                              <ArrowDownRight className="h-4 w-4 text-green-400" />
+                            ) : (
+                              <ArrowUpRight className="h-4 w-4 text-red-400" />
+                            )}
+                            <span className={`text-xl font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                              {change > 0 ? '+' : ''}{change.toFixed(0)}%
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-4 text-center py-4 text-gray-400">
+                      暂无对比数据
                     </div>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-                    <p className="text-sm text-gray-400">ROAS变化</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <ArrowUpRight className="h-4 w-4 text-green-400" />
-                      <span className="text-xl font-bold text-green-400">+35%</span>
-                    </div>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-                    <p className="text-sm text-gray-400">销售额变化</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <ArrowUpRight className="h-4 w-4 text-green-400" />
-                      <span className="text-xl font-bold text-green-400">+18%</span>
-                    </div>
-                  </div>
-                  <div className="bg-gray-700/50 rounded-lg p-4 text-center">
-                    <p className="text-sm text-gray-400">花费变化</p>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <ArrowDownRight className="h-4 w-4 text-green-400" />
-                      <span className="text-xl font-bold text-green-400">-8%</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -552,6 +802,3 @@ export default function AlgorithmEffectDashboard() {
     </DashboardLayout>
   );
 }
-
-// v187: 已删除generateAcosTrendData、generateAdjustmentDistribution、generateEffectComparisonData模拟数据生成器
-// 所有数据均通过真实API获取（trpc.adAccount.getDailyTrend / trpc.algorithmOptimization.*）
