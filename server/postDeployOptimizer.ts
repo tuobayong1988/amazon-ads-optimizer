@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 252;  // v252: 修复RL数据记录粒度Bug + captureStateSnapshot关键词级别数据 + recordBidAction传递campaignId + UI决策上下文增强
+export const SYSTEM_VERSION = 253;  // v253: 审计修复 - RL Reward回填机制修复 + 规则引擎个性化增强 + UI同步状态修复
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行

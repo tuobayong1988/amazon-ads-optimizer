@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 252;  // v252: 修复RL数据记录粒度Bug + captureStateSnapshot关键词级别数据 + recordBidAction传递campaignId + UI决策上下文增强
+export const SYSTEM_VERSION = 253;  // v253: 审计修复 - RL Reward回填机制修复 + 规则引擎个性化增强 + UI同步状态修复
