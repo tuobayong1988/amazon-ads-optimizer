@@ -356,22 +356,28 @@ async function captureStateSnapshot(
 }
 
 /**
- * 延迟回填Reward（定时任务，每天执行一次）
- * 查找24-72小时前的State-Action记录，用后续绩效数据计算Reward
+ * v253: 延迟回填Reward（定时任务，每30分钟由nextGenMaintenance触发）
+ * 查找3-96小时前的State-Action记录，用后续绩效数据计算Reward
+ * 
+ * v253改进:
+ * 1. 移除limit(500)限制，确保每次回填完整处理所有待回填记录
+ * 2. 增强零数据场景处理：当绩效数据全为0时，给予中性reward(0)而非负奖励
+ * 3. 增加详细的回填统计日志，方便监控和诊断
  */
 export async function backfillRewards(accountId: number): Promise<number> {
   const db = await getDbInstance();
   let filledCount = 0;
+  let skippedNoData = 0;
   
   try {
     // v248: 进一步缩短回填下限 6h → 3h，打破RL冷启动死锁
-    // 根因: 6h下限导致所有RL日志reward始终为0，高级算法永远不能eligible
     // Amazon广告数据通常在2-4小时后可用，3小时是更积极的安全下限
     // 上限保持96小时，避免因系统重启导致的回填空窗
     const hoursAgo96 = new Date(Date.now() - 96 * 3600000).toISOString();
     const hoursAgo3 = new Date(Date.now() - 3 * 3600000).toISOString();
     rlLog.info(`[backfillRewards] 账户${accountId}: 查找3-96h内未回填的RL日志...`);
     
+    // v253: 移除limit(500)限制，确保完整处理所有待回填记录
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -387,8 +393,9 @@ export async function backfillRewards(accountId: number): Promise<number> {
         isNull(rlTrainingLogs.rewardFilledAt),
         gte(rlTrainingLogs.createdAt, hoursAgo96),
         lte(rlTrainingLogs.createdAt, hoursAgo3)
-      ))
-      .limit(500);
+      ));
+    
+    rlLog.info(`[backfillRewards] 账户${accountId}: 找到${pendingLogs.length}条待回填记录`);
     
     for (const log of pendingLogs) {
       try {
@@ -402,6 +409,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         let rewardOrders = 0;
         let rewardSpend = 0;
         let rewardSales = 0;
+        let dataSource = 'none';
         
         if (log.keywordId) {
           // 关键词级别归因：直接从keywords表获取绩效数据
@@ -419,9 +427,10 @@ export async function backfillRewards(accountId: number): Promise<number> {
             rewardOrders = Number(kwPerf[0].orders) || 0;
             rewardSpend = Number(kwPerf[0].spend) || 0;
             rewardSales = Number(kwPerf[0].sales) || 0;
+            dataSource = 'keyword';
           }
         } else if (log.targetId) {
-          // 商品定向级别归因：从productTargets表获取绩效数据
+          // 商品定向级别归因：仏productTargets表获取绩效数据
           const tgtPerf = await db.select({
             impressions: productTargets.impressions,
             clicks: productTargets.clicks,
@@ -436,6 +445,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
             rewardOrders = Number(tgtPerf[0].orders) || 0;
             rewardSpend = Number(tgtPerf[0].spend) || 0;
             rewardSales = Number(tgtPerf[0].sales) || 0;
+            dataSource = 'product_target';
           }
         } else {
           // 回退到Campaign级别（仅在无关键词/定向ID时）
@@ -459,6 +469,29 @@ export async function backfillRewards(accountId: number): Promise<number> {
           rewardOrders = Number(perf.totalOrders) || 0;
           rewardSpend = Number(perf.totalSpend) || 0;
           rewardSales = Number(perf.totalSales) || 0;
+          dataSource = 'campaign_daily';
+        }
+        
+        // v253: 增强零数据场景处理
+        // 当绩效数据全为0时（新关键词或数据尚未同步），给予中性reward(0)
+        // 而非负奖励，避免对新关键词的探索行为产生不当惩罚
+        if (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
+          skippedNoData++;
+          // 仍然回填，但reward设为0（中性），避免这些记录反复被查询
+          await db.update(rlTrainingLogs)
+            .set({
+              reward: '0',
+              rewardImpressions: 0,
+              rewardClicks: 0,
+              rewardOrders: 0,
+              rewardSpend: '0',
+              rewardSales: '0',
+              rewardProfit: '0',
+              rewardFilledAt: new Date().toISOString(),
+            })
+            .where(eq(rlTrainingLogs.id, log.id));
+          filledCount++;
+          continue;
         }
         
         // v230: 使用归一化的Reward计算，避免不同规模关键词的绝对利润差异过大
@@ -486,7 +519,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
       }
     }
     
-    rlLog.info(`[backfillRewards] 账户${accountId}: 回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}`);
+    rlLog.info(`[backfillRewards] 账户${accountId}: 回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 零数据中性回填=${skippedNoData}`);
     return filledCount;
     
   } catch (error: any) {

@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import {
   TrendingUp, DollarSign, Activity,
-  CheckCircle, RefreshCw, Clock, Zap, Info,
+  CheckCircle, RefreshCw, Clock, Zap, Info, XCircle,
 } from "lucide-react";
 
 interface TargetAlgorithmEffectPanelProps {
@@ -190,9 +190,17 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                     </p>
                   </div>
                   <div className="text-right">
-                    <Badge variant={record.syncedToAmazon ? "default" : "secondary"} className="text-xs">
-                      {record.syncedToAmazon ? (
+                    <Badge variant={
+                      // v253: 修复同步状态显示 — 使用apiSyncStatus字段，正确处理null值
+                      (record.apiSyncStatus === 'synced' || record.syncedToAmazon) ? "default" : 
+                      record.apiSyncStatus === 'failed' ? "destructive" : "secondary"
+                    } className="text-xs">
+                      {(record.apiSyncStatus === 'synced' || record.syncedToAmazon) ? (
                         <><CheckCircle className="w-3 h-3 mr-1" />已同步</>
+                      ) : record.apiSyncStatus === 'failed' ? (
+                        <><XCircle className="w-3 h-3 mr-1" />同步失败</>
+                      ) : !record.apiSyncStatus ? (
+                        <><Info className="w-3 h-3 mr-1" />无状态</>
                       ) : (
                         <><Clock className="w-3 h-3 mr-1" />待同步</>
                       )}

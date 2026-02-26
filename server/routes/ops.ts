@@ -1125,6 +1125,8 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
     `));
     
     // 2. 按accountId分布
+    // v253: 修复SQL Bug — SELECT和GROUP BY中的字段名必须一致
+    // 数据库实际列名为 accountId（camelCase，见migration 0030），之前 GROUP BY 使用了 account_id 导致查询失败
     const accountDist = await db.execute(sql.raw(`
       SELECT 
         accountId,
@@ -1136,7 +1138,7 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
         MAX(created_at) as latest
       FROM rl_training_logs
       WHERE reward_filled_at IS NULL
-      GROUP BY account_id
+      GROUP BY accountId
     `));
     
     // 3. 时间分布

@@ -57019,6 +57019,7 @@ async function captureStateSnapshot(db, accountId, keywordId, targetId, campaign
 async function backfillRewards(accountId) {
   const db = await getDbInstance3();
   let filledCount = 0;
+  let skippedNoData = 0;
   try {
     const hoursAgo96 = new Date(Date.now() - 96 * 36e5).toISOString();
     const hoursAgo3 = new Date(Date.now() - 3 * 36e5).toISOString();
@@ -57037,7 +57038,8 @@ async function backfillRewards(accountId) {
       isNull(rlTrainingLogs.rewardFilledAt),
       gte(rlTrainingLogs.createdAt, hoursAgo96),
       lte(rlTrainingLogs.createdAt, hoursAgo3)
-    )).limit(500);
+    ));
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u627E\u5230${pendingLogs.length}\u6761\u5F85\u56DE\u586B\u8BB0\u5F55`);
     for (const log40 of pendingLogs) {
       try {
         const logDate = new Date(log40.createdAt);
@@ -57048,6 +57050,7 @@ async function backfillRewards(accountId) {
         let rewardOrders = 0;
         let rewardSpend = 0;
         let rewardSales = 0;
+        let dataSource = "none";
         if (log40.keywordId) {
           const kwPerf = await db.select({
             impressions: keywords.impressions,
@@ -57062,6 +57065,7 @@ async function backfillRewards(accountId) {
             rewardOrders = Number(kwPerf[0].orders) || 0;
             rewardSpend = Number(kwPerf[0].spend) || 0;
             rewardSales = Number(kwPerf[0].sales) || 0;
+            dataSource = "keyword";
           }
         } else if (log40.targetId) {
           const tgtPerf = await db.select({
@@ -57077,6 +57081,7 @@ async function backfillRewards(accountId) {
             rewardOrders = Number(tgtPerf[0].orders) || 0;
             rewardSpend = Number(tgtPerf[0].spend) || 0;
             rewardSales = Number(tgtPerf[0].sales) || 0;
+            dataSource = "product_target";
           }
         } else {
           const afterPerf = await db.select({
@@ -57097,6 +57102,22 @@ async function backfillRewards(accountId) {
           rewardOrders = Number(perf.totalOrders) || 0;
           rewardSpend = Number(perf.totalSpend) || 0;
           rewardSales = Number(perf.totalSales) || 0;
+          dataSource = "campaign_daily";
+        }
+        if (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
+          skippedNoData++;
+          await db.update(rlTrainingLogs).set({
+            reward: "0",
+            rewardImpressions: 0,
+            rewardClicks: 0,
+            rewardOrders: 0,
+            rewardSpend: "0",
+            rewardSales: "0",
+            rewardProfit: "0",
+            rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
+          }).where(eq(rlTrainingLogs.id, log40.id));
+          filledCount++;
+          continue;
         }
         const rewardProfit = rewardSales - rewardSpend;
         const bidDelta = Number(log40.actionBidAfter) - Number(log40.actionBidBefore);
@@ -57116,7 +57137,7 @@ async function backfillRewards(accountId) {
         console.error(`[RLDataRecorder] Failed to fill reward for log ${log40.id}:`, e6);
       }
     }
-    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}`);
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u96F6\u6570\u636E\u4E2D\u6027\u56DE\u586B=${skippedNoData}`);
     return filledCount;
   } catch (error54) {
     rlLog.error(`[backfillRewards] \u8D26\u6237${accountId}\u56DE\u586B\u5F02\u5E38: ${error54.message}`);
@@ -67805,38 +67826,46 @@ function ruleEngineDecision(target, groupConfig) {
   if (orders > 0 && sales > 0) {
     const actualAcos = spend / sales;
     const acosRatio = actualAcos / targetAcos;
+    const dataConfidence = clicks < 5 ? 0.5 : clicks < 20 ? 0.5 + (clicks - 5) * 0.023 : Math.min(1, 0.85 + (clicks - 20) * 3e-3);
+    const ctr = impressions > 0 ? clicks / impressions : 0;
+    const ctrBonus = ctr > 0.01 ? 1.1 : ctr > 5e-3 ? 1.05 : 1;
+    const ctrPenalty = ctr < 2e-3 && impressions > 200 ? 0.85 : 1;
     if (acosRatio < 0.7) {
-      const boostRatio = Math.min(0.2, (1 - acosRatio) * 0.25);
+      const rawBoostRatio = Math.min(0.2, (1 - acosRatio) * 0.25);
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus;
       return {
         bid: currentBid * (1 + boostRatio),
-        confidence: 0.7,
-        reason: `ACOS\u4F18\u79C0(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%): \u63D0\u5347${(boostRatio * 100).toFixed(0)}%`
+        confidence: 0.5 + dataConfidence * 0.2,
+        reason: `ACOS\u4F18\u79C0(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%): \u63D0\u5347${(boostRatio * 100).toFixed(1)}%(\u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%)`
       };
     } else if (acosRatio <= 1) {
       const rawAdjustRatio = (1 - acosRatio) * 0.15;
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
-      const adjustRatio = rawAdjustRatio > 1e-3 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
+      const baseAdjustRatio = rawAdjustRatio > 1e-3 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
+      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus;
       return {
         bid: currentBid * (1 + adjustRatio),
-        confidence: 0.65,
-        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
+        confidence: 0.55 + dataConfidence * 0.15,
+        reason: `ACOS\u8FBE\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB): \u5FAE\u8C03${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else if (acosRatio <= 1.5) {
       const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
-      const reduceRatio = rawReduceRatio > 1e-3 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
+      const baseReduceRatio = rawReduceRatio > 1e-3 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
+      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty;
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.6,
-        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
+        confidence: 0.5 + dataConfidence * 0.15,
+        reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
     } else {
       const baseReduceRatio = (acosRatio - 1) * 0.25;
-      const reduceRatio = acosRatio > 3 ? Math.min(0.5, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+      const rawReduceRatio = acosRatio > 3 ? Math.min(0.5, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+      const reduceRatio = rawReduceRatio * dataConfidence;
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.7,
-        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(0)}%`
+        confidence: 0.5 + dataConfidence * 0.2,
+        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, \u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%`
       };
     }
   }
@@ -160516,7 +160545,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 251;
+    SYSTEM_VERSION2 = 252;
   }
 });
 
@@ -378279,7 +378308,7 @@ router3.get("/rl-diagnostics", opsAuth, async (req, res) => {
         MAX(created_at) as latest
       FROM rl_training_logs
       WHERE reward_filled_at IS NULL
-      GROUP BY account_id
+      GROUP BY accountId
     `));
     const timeDist = await db.execute(sql.raw(`
       SELECT 

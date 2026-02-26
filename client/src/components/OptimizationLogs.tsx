@@ -534,8 +534,21 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 渲染API同步状态徽章
+  // v253: 修复 null 值处理 — 区分“功能上线前的历史记录”和“真正待同步”
   const renderApiSyncBadge = (log: any) => {
-    const syncStatus = log.apiSyncStatus || (log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment' ? 'pending' : 'not_applicable');
+    let syncStatus = log.apiSyncStatus;
+    if (!syncStatus) {
+      // apiSyncStatus为null时，检查是否为API操作类型
+      const isApiAction = log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment';
+      if (!isApiAction) {
+        syncStatus = 'not_applicable';
+      } else {
+        // v253: 检查日志创建时间 — 如果是24小时前的旧记录且无apiSyncStatus，说明是功能上线前的历史数据
+        const logTime = log.createdAt ? new Date(log.createdAt).getTime() : 0;
+        const hoursAgo24 = Date.now() - 24 * 3600000;
+        syncStatus = logTime < hoursAgo24 ? 'not_applicable' : 'pending';
+      }
+    }
     const config = API_SYNC_STATUS_CONFIG[syncStatus] || API_SYNC_STATUS_CONFIG.pending;
     const SyncIcon = config.icon;
     
@@ -548,8 +561,14 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   };
 
   // 渲染执行链路
+  // v253: 同样修复 null 值处理
   const renderExecutionPipeline = (log: any) => {
-    const syncStatus = log.apiSyncStatus || 'pending';
+    let syncStatus = log.apiSyncStatus;
+    if (!syncStatus) {
+      const logTime = log.createdAt ? new Date(log.createdAt).getTime() : 0;
+      const hoursAgo24 = Date.now() - 24 * 3600000;
+      syncStatus = logTime < hoursAgo24 ? 'not_applicable' : 'pending';
+    }
     const isApiAction = ['bid_adjustment', 'placement_adjustment', 'optimization_settings'].includes(log.logCategory) ||
       ['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'placement_adjust', 'target_pause', 'target_enable',
        'campaign_pause', 'campaign_enable', 'adgroup_pause', 'adgroup_enable', 'negative_keyword_add',

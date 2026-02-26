@@ -272,57 +272,68 @@ function ruleEngineDecision(
   }
   
   // 场景4: 有订单 — 基于ACOS进行精确调整
+  // v253: 引入数据置信度因子和CTR相关性感知，实现个性化调整
   if (orders > 0 && sales > 0) {
     const actualAcos = spend / sales;
     const acosRatio = actualAcos / targetAcos;
     
+    // v253: 数据置信度因子 — 数据量越大，调整幅度越接近理论值；数据量小时保守调整
+    // clicks < 5: 保守因子 0.5 | clicks 5-20: 中等因子 0.5-0.85 | clicks > 20: 充分因子 0.85-1.0
+    const dataConfidence = clicks < 5 ? 0.5 : clicks < 20 ? 0.5 + (clicks - 5) * 0.023 : Math.min(1.0, 0.85 + (clicks - 20) * 0.003);
+    
+    // v253: CTR相关性感知 — 高CTR表明关键词相关性好，值得更积极的投入
+    const ctr = impressions > 0 ? clicks / impressions : 0;
+    // 行业平均CTR约为0.3%-0.5%，超过1%属于优秀
+    const ctrBonus = ctr > 0.01 ? 1.1 : ctr > 0.005 ? 1.05 : 1.0;
+    // 低CTR表明相关性差，应更保守
+    const ctrPenalty = ctr < 0.002 && impressions > 200 ? 0.85 : 1.0;
+    
     if (acosRatio < 0.7) {
       // ACOS远低于目标，有提升空间
-      const boostRatio = Math.min(0.20, (1 - acosRatio) * 0.25);
+      // v253: 数据量小时保守提价，避免少量订单的偶然性导致过度提价
+      const rawBoostRatio = Math.min(0.20, (1 - acosRatio) * 0.25);
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus;
       return {
         bid: currentBid * (1 + boostRatio),
-        confidence: 0.7,
-        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%): 提升${(boostRatio * 100).toFixed(0)}%`,
+        confidence: 0.5 + dataConfidence * 0.2,
+        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%): 提升${(boostRatio * 100).toFixed(1)}%(置信度${(dataConfidence * 100).toFixed(0)}%)`,
       };
     } else if (acosRatio <= 1.0) {
       // v242: ACOS在目标范围内 — 精度感知微调
-      // 核心问题：当adjustRatio很小时（如1.5%），对低出价关键词（如$0.50），
-      // 调整后$0.5075四舍五入为$0.51，差异$0.01被hold阈值吃掉。
-      // 解决方案：引入"最小有效调整量"机制
       const rawAdjustRatio = (1 - acosRatio) * 0.15;
-      // 计算最小有效调整量：至少产生$0.01的差异（即超过hold阈值$0.005）
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
-      // 如果原始调整比例太小但不为零，放大到最小有效值
-      const adjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
+      const baseAdjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
+      // v253: 应用数据置信度和CTR修正
+      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus;
       return {
         bid: currentBid * (1 + adjustRatio),
-        confidence: 0.65,
-        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%): 微调${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
+        confidence: 0.55 + dataConfidence * 0.15,
+        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击): 微调${(adjustRatio * 100).toFixed(1)}%${rawAdjustRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else if (acosRatio <= 1.5) {
       // v242: ACOS略高于目标 — 精度感知降价
       const rawReduceRatio = Math.min(0.15, (acosRatio - 1) * 0.25);
-      // 同样应用最小有效调整量机制
       const minEffectiveRatio = currentBid > 0 ? 0.02 / currentBid : 0.03;
-      const reduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
+      const baseReduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
+      // v253: 低CTR时更积极地降价，高CTR时保守降价（相关性好的词值得保留）
+      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty;
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.6,
-        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
+        confidence: 0.5 + dataConfidence * 0.15,
+        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
     } else {
       // ACOS严重超标
-            // v232: ACOS严重超标时，启用紧急降价策略
-      // 1. 基础降价幅度提高到35%
-      // 2. ACOS超出目标越多，降价越快（系数从0.15提高到0.25）
-      // 3. 对于亏损极度严重的情况(ACOS > 3*目标)，启用最大50%的降价护栏
+      // v232: ACOS严重超标时，启用紧急降价策略
+      // v253: 数据置信度高时更果断降价，低时保守降价避免误杀
       const baseReduceRatio = (acosRatio - 1) * 0.25;
-      const reduceRatio = acosRatio > 3 ? Math.min(0.50, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+      const rawReduceRatio = acosRatio > 3 ? Math.min(0.50, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+      const reduceRatio = rawReduceRatio * dataConfidence;
 
       return {
         bid: currentBid * (1 - reduceRatio),
-        confidence: 0.7,
-        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%`,
+        confidence: 0.5 + dataConfidence * 0.2,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, 置信度${(dataConfidence * 100).toFixed(0)}%): 降低${(reduceRatio * 100).toFixed(1)}%`,
       };
     }
   }
