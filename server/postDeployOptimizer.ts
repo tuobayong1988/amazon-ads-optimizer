@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 251;  // v251: 真实AOV替代假设 + 否定词花费/客单价比率 + 归因延迟容忍 + 卡片布局修复
+export const SYSTEM_VERSION = 252;  // v252: 修复RL数据记录粒度Bug + captureStateSnapshot关键词级别数据 + recordBidAction传递campaignId + UI决策上下文增强
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -274,6 +274,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     version: 251,
     description: 'v251: [算法增强] — (1)NextGen规则引擎使用真实AOV(groupAvgAov)替代currentBid*30的粗暴假设，解决品类偏见问题 (2)否定词决策引入花费/客单价比率，解决高客单价产品的“假阳性”否定问题 (3)引入归因延迟容忍度(1.5x)避免误杀正在归因中的流量 (4)前端数据概览卡片布局修复',
     affectedModules: ['bid', 'negative_keyword'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 252,
+    description: 'v252: [RL数据质量修复+UI增强] — (1)captureStateSnapshot修复: 优先使用关键词/商品定向级别的绩效数据，而非账户级别汇总 (2)recordBidAction修复: 传递campaignId和adGroupId确保正确粒度 (3)OptimizationLogs组件增强: 算法类型可视化徽章+决策上下文展开面板+置信度进度条+归因保护指示器 (4)AlgorithmEffectDashboard增强: 算法层级分布卡片+算法层级分析Tab+真实数据计算替代硬编码 (5)RL诊断端点: 新增/ops/rl-diagnostics用于监控Reward回填状态',
+    affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
 ];
