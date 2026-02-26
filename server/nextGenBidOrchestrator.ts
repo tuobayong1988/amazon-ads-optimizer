@@ -41,6 +41,7 @@ import { trainCQL } from "./offlineRLService";
 import { selectBestAlgorithm, backfillAlgorithmResults, type MetaDecision } from "./metaLearningSelector";
 import { optimizeBudgetPortfolio } from "./budgetPortfolioOptimizer";
 import { buildKeywordGraph, discoverOpportunities, discoverNegativeCandidates } from "./keywordGraphService";
+import { autoResolveConflicts } from "./postOptimizationVerifier";
 import type { OptimizationTarget, PerformanceGroupConfig } from "./bidOptimizer";
 import { createModuleLogger } from './utils/logger';
 import { batchCalculateGTOModifiers, type GTOModifier, type GTOBatchContext } from './gtoIntegrationOrchestrator';
@@ -740,10 +741,20 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.error(`[NextGenMaintenance] 算法结果回填失败: ${err.message}`);
   }
   
+  // 6. v256: 自动解决积压的sync_conflicts
+  let conflictsResult = { resolved: 0, ignored: 0, skipped: 0 };
+  try {
+    log.info(`[NextGenMaintenance] 开始自动冲突解决`);
+    conflictsResult = await autoResolveConflicts(accountId);
+  } catch (err: any) {
+    log.error(`[NextGenMaintenance] 自动冲突解决失败: ${err.message}`);
+  }
+  
   log.info(`[NextGenMaintenance] 维护完成(账户${accountId}): ` +
     `特征=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, ` +
     `Reward=${results.rewardsBackfilled}, 因果=${results.causalAnalysis.analyzed}, ` +
-    `算法回填=${results.algorithmResultsBackfilled}`);
+    `算法回填=${results.algorithmResultsBackfilled}, ` +
+    `冲突解决=${conflictsResult.resolved}+${conflictsResult.ignored}`);
   
   return results;
 }

@@ -655,7 +655,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_negative_keywords',
     name: 'SP否定关键词',
-    tier: 'medium',  // v248: 从 full 提升到 medium，提高同步频率（60min→30min）
+    tier: 'high',  // v256: 从 medium 提升到 high，确保否定关键词及时同步（30min→10min）
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeKeywords();
@@ -668,7 +668,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sb_negative_keywords',
     name: 'SB否定关键词',
-    tier: 'medium',  // v248: 从 full 提升到 medium
+    tier: 'high',  // v256: 从 medium 提升到 high
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeKeywords();
@@ -681,7 +681,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sp_negative_targets',
     name: 'SP否定商品定位',
-    tier: 'medium',  // v248: 从 full 提升到 medium
+    tier: 'high',  // v256: 从 medium 提升到 high
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeProductTargets();
@@ -694,7 +694,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'sb_negative_targets',
     name: 'SB否定商品定位',
-    tier: 'medium',  // v248: 从 full 提升到 medium
+    tier: 'high',  // v256: 从 medium 提升到 high
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeTargets();
@@ -1510,6 +1510,10 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           performanceSynced: safeNum(accountResult.stepResults['performance_today']?.synced) +
             safeNum(accountResult.stepResults['performance_7d']?.synced) +
             safeNum(accountResult.stepResults['performance_14d']?.synced),
+          // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
+          recordsSynced: Object.values(accountResult.stepResults).reduce(
+            (total: number, step: any) => total + safeNum(step?.synced), 0
+          ),
         } as any);
       } catch (insertErr: any) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${insertErr.message}`);

@@ -25714,10 +25714,10 @@ var init_subquery = __esm({
     init_entity();
     Subquery = class {
       static [entityKind] = "Subquery";
-      constructor(sql14, fields, alias2, isWith = false, usedTables = []) {
+      constructor(sql15, fields, alias2, isWith = false, usedTables = []) {
         this._ = {
           brand: "Subquery",
-          sql: sql14,
+          sql: sql15,
           selectedFields: fields,
           alias: alias2,
           isWith,
@@ -31812,8 +31812,8 @@ var init_db = __esm({
 });
 
 // node_modules/drizzle-orm/cache/core/cache.js
-async function hashQuery(sql14, params) {
-  const dataToHash = `${sql14}-${JSON.stringify(params)}`;
+async function hashQuery(sql15, params) {
+  const dataToHash = `${sql15}-${JSON.stringify(params)}`;
   const encoder2 = new TextEncoder();
   const data4 = encoder2.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data4);
@@ -37066,11 +37066,11 @@ async function preloadCampaignIdCache(adGroupIds) {
     const db = await queryDb();
     if (!db) return;
     const { adGroups: adGroups4 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-    const { inArray: inArray16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { inArray: inArray15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const results = await db.select({
       id: adGroups4.id,
       campaignId: adGroups4.campaignId
-    }).from(adGroups4).where(inArray16(adGroups4.id, uncachedIds));
+    }).from(adGroups4).where(inArray15(adGroups4.id, uncachedIds));
     for (const row of results) {
       if (row.campaignId && isValidAmazonId(row.campaignId)) {
         setCachedCampaignId(row.id, row.campaignId);
@@ -48675,8 +48675,8 @@ var require_gte = __commonJS({
   "node_modules/jsonwebtoken/node_modules/semver/functions/gte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var gte22 = (a4, b6, loose) => compare2(a4, b6, loose) >= 0;
-    module2.exports = gte22;
+    var gte23 = (a4, b6, loose) => compare2(a4, b6, loose) >= 0;
+    module2.exports = gte23;
   }
 });
 
@@ -48685,8 +48685,8 @@ var require_lte = __commonJS({
   "node_modules/jsonwebtoken/node_modules/semver/functions/lte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var lte23 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
-    module2.exports = lte23;
+    var lte24 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
+    module2.exports = lte24;
   }
 });
 
@@ -48697,9 +48697,9 @@ var require_cmp = __commonJS({
     var eq7 = require_eq();
     var neq = require_neq();
     var gt5 = require_gt();
-    var gte22 = require_gte();
+    var gte23 = require_gte();
     var lt5 = require_lt();
-    var lte23 = require_lte();
+    var lte24 = require_lte();
     var cmp = (a4, op7, b6, loose) => {
       switch (op7) {
         case "===":
@@ -48727,11 +48727,11 @@ var require_cmp = __commonJS({
         case ">":
           return gt5(a4, b6, loose);
         case ">=":
-          return gte22(a4, b6, loose);
+          return gte23(a4, b6, loose);
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte23(a4, b6, loose);
+          return lte24(a4, b6, loose);
         default:
           throw new TypeError(`Invalid operator: ${op7}`);
       }
@@ -49485,8 +49485,8 @@ var require_outside = __commonJS({
     var satisfies = require_satisfies();
     var gt5 = require_gt();
     var lt5 = require_lt();
-    var lte23 = require_lte();
-    var gte22 = require_gte();
+    var lte24 = require_lte();
+    var gte23 = require_gte();
     var outside = (version5, range8, hilo, options) => {
       version5 = new SemVer(version5, options);
       range8 = new Range(range8, options);
@@ -49494,14 +49494,14 @@ var require_outside = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte23;
+          ltefn = lte24;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
           gtfn = lt5;
-          ltefn = gte22;
+          ltefn = gte23;
           ltfn = gt5;
           comp = "<";
           ecomp = "<=";
@@ -49816,8 +49816,8 @@ var require_semver2 = __commonJS({
     var lt5 = require_lt();
     var eq7 = require_eq();
     var neq = require_neq();
-    var gte22 = require_gte();
-    var lte23 = require_lte();
+    var gte23 = require_gte();
+    var lte24 = require_lte();
     var cmp = require_cmp();
     var coerce2 = require_coerce();
     var Comparator = require_comparator();
@@ -49854,8 +49854,8 @@ var require_semver2 = __commonJS({
       lt: lt5,
       eq: eq7,
       neq,
-      gte: gte22,
-      lte: lte23,
+      gte: gte23,
+      lte: lte24,
       cmp,
       coerce: coerce2,
       Comparator,
@@ -53569,11 +53569,11 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
         const errorSummary = result.errors.slice(0, 3).join("; ");
-        await dbInstance.execute(sql14`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+        await dbInstance.execute(sql15`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
       log7.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
@@ -54059,8 +54059,8 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
           if (dbInstance) {
-            const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-            await dbInstance.execute(sql14`
+            const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql15`
               INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
               VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
             `);
@@ -57020,10 +57020,10 @@ async function backfillRewards(accountId) {
   const db = await getDbInstance3();
   let filledCount = 0;
   let skippedNoData = 0;
+  let immediateFilledCount = 0;
   try {
-    const hoursAgo96 = new Date(Date.now() - 96 * 36e5).toISOString();
-    const hoursAgo3 = new Date(Date.now() - 3 * 36e5).toISOString();
-    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u67E5\u627E3-96h\u5185\u672A\u56DE\u586B\u7684RL\u65E5\u5FD7...`);
+    const hoursAgo168 = new Date(Date.now() - 168 * 36e5).toISOString();
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u67E5\u627E168h\u5185\u672A\u56DE\u586B\u7684RL\u65E5\u5FD7\uFF08v256\u667A\u80FD\u53CC\u901A\u9053\uFF09...`);
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -57036,13 +57036,13 @@ async function backfillRewards(accountId) {
     }).from(rlTrainingLogs).where(and(
       eq(rlTrainingLogs.accountId, accountId),
       isNull(rlTrainingLogs.rewardFilledAt),
-      gte(rlTrainingLogs.createdAt, hoursAgo96),
-      lte(rlTrainingLogs.createdAt, hoursAgo3)
+      gte(rlTrainingLogs.createdAt, hoursAgo168)
     ));
     rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u627E\u5230${pendingLogs.length}\u6761\u5F85\u56DE\u586B\u8BB0\u5F55`);
     for (const log40 of pendingLogs) {
       try {
         const logDate = new Date(log40.createdAt);
+        const logAgeHours = (Date.now() - logDate.getTime()) / 36e5;
         const nextDay = new Date(logDate.getTime() + 864e5).toISOString().split("T")[0];
         const twoDaysLater = new Date(logDate.getTime() + 2 * 864e5).toISOString().split("T")[0];
         let rewardImpressions = 0;
@@ -57051,6 +57051,7 @@ async function backfillRewards(accountId) {
         let rewardSpend = 0;
         let rewardSales = 0;
         let dataSource = "none";
+        let usedImmediateChannel = false;
         if (log40.keywordId) {
           const kwPerf = await db.select({
             impressions: keywords.impressions,
@@ -57066,6 +57067,7 @@ async function backfillRewards(accountId) {
             rewardSpend = Number(kwPerf[0].spend) || 0;
             rewardSales = Number(kwPerf[0].sales) || 0;
             dataSource = "keyword";
+            usedImmediateChannel = true;
           }
         } else if (log40.targetId) {
           const tgtPerf = await db.select({
@@ -57082,8 +57084,13 @@ async function backfillRewards(accountId) {
             rewardSpend = Number(tgtPerf[0].spend) || 0;
             rewardSales = Number(tgtPerf[0].sales) || 0;
             dataSource = "product_target";
+            usedImmediateChannel = true;
           }
-        } else {
+        }
+        if (dataSource === "none") {
+          if (logAgeHours < 3) {
+            continue;
+          }
           const afterPerf = await db.select({
             totalImpressions: sql`SUM(impressions)`,
             totalClicks: sql`SUM(clicks)`,
@@ -57132,12 +57139,13 @@ async function backfillRewards(accountId) {
           rewardProfit: String(rewardProfit),
           rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
         }).where(eq(rlTrainingLogs.id, log40.id));
+        if (usedImmediateChannel) immediateFilledCount++;
         filledCount++;
       } catch (e6) {
         console.error(`[RLDataRecorder] Failed to fill reward for log ${log40.id}:`, e6);
       }
     }
-    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u96F6\u6570\u636E\u4E2D\u6027\u56DE\u586B=${skippedNoData}`);
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: v256\u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u5373\u65F6\u901A\u9053=${immediateFilledCount}, \u96F6\u6570\u636E\u4E2D\u6027\u56DE\u586B=${skippedNoData}`);
     return filledCount;
   } catch (error54) {
     rlLog.error(`[backfillRewards] \u8D26\u6237${accountId}\u56DE\u586B\u5F02\u5E38: ${error54.message}`);
@@ -58486,30 +58494,31 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const ucbStat = stats.get("ucb");
   scores.push({
     algorithm: "ucb",
-    score: totalRLLogs >= 5 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
-    eligible: totalRLLogs >= 5,
-    reason: totalRLLogs >= 5 ? "UCB\u63A2\u7D22-\u5229\u7528\u7B56\u7565" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${totalRLLogs}/5)`
+    score: totalRLLogs >= 3 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
+    eligible: totalRLLogs >= 3,
+    reason: totalRLLogs >= 3 ? "UCB\u63A2\u7D22-\u5229\u7528\u7B56\u7565" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${totalRLLogs}/3)`
   });
   const linucbStat = stats.get("linucb");
+  const linucbEligible = hasFeatures && totalRLLogs >= 3;
   scores.push({
     algorithm: "linucb",
-    score: hasFeatures ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.1 : 0,
-    eligible: hasFeatures,
-    reason: hasFeatures ? "LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A" : "\u7F3A\u5C11\u4E0A\u4E0B\u6587\u7279\u5F81"
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.1 : 0,
+    eligible: linucbEligible,
+    reason: linucbEligible ? "LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A" : !hasFeatures ? "\u7F3A\u5C11\u4E0A\u4E0B\u6587\u7279\u5F81" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${totalRLLogs}/3)`
   });
   const sigmoidStat = stats.get("sigmoid_curve");
   scores.push({
     algorithm: "sigmoid_curve",
-    score: totalRLLogs >= 10 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
-    eligible: totalRLLogs >= 10,
-    reason: totalRLLogs >= 10 ? "Sigmoid\u66F2\u7EBF\u5229\u6DA6\u6700\u5927\u5316" : `\u5386\u53F2\u6570\u636E\u4E0D\u8DB3(${totalRLLogs}/10)`
+    score: totalRLLogs >= 5 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
+    eligible: totalRLLogs >= 5,
+    reason: totalRLLogs >= 5 ? "Sigmoid\u66F2\u7EBF\u5229\u6DA6\u6700\u5927\u5316" : `\u5386\u53F2\u6570\u636E\u4E0D\u8DB3(${totalRLLogs}/5)`
   });
   const cqlStat = stats.get("cql");
   scores.push({
     algorithm: "cql",
-    score: totalRLLogs >= 30 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
-    eligible: totalRLLogs >= 30,
-    reason: totalRLLogs >= 30 ? "\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${totalRLLogs}/30)`
+    score: totalRLLogs >= 15 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
+    eligible: totalRLLogs >= 15,
+    reason: totalRLLogs >= 15 ? "\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${totalRLLogs}/15)`
   });
   const eligibleCount = scores.filter((s4) => s4.eligible).length;
   const ensembleStat = stats.get("ensemble");
@@ -66880,6 +66889,641 @@ var init_keywordGraphService = __esm({
   }
 });
 
+// server/postOptimizationVerifier.ts
+function generateTaskId(accountId, type) {
+  return `verify_${accountId}_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+function scheduleBidVerification(accountId, adjustments) {
+  if (adjustments.length === 0) return "";
+  const items = adjustments.map((adj) => ({
+    type: "bid_adjustment",
+    localId: adj.localKeywordId,
+    amazonId: adj.amazonKeywordId,
+    expectedValue: adj.expectedBid,
+    context: {
+      campaignId: adj.campaignId,
+      adGroupId: adj.adGroupId,
+      accountId,
+      fieldName: adj.isProductTarget ? "product_target_bid" : "keyword_bid"
+    }
+  }));
+  return scheduleVerificationTask(accountId, items);
+}
+function scheduleBudgetVerification(accountId, adjustments) {
+  if (adjustments.length === 0) return "";
+  const items = adjustments.map((adj) => ({
+    type: "budget_adjustment",
+    localId: adj.localCampaignId,
+    amazonId: adj.amazonCampaignId,
+    expectedValue: adj.expectedBudget,
+    context: { accountId }
+  }));
+  return scheduleVerificationTask(accountId, items);
+}
+function schedulePlacementVerification(accountId, adjustments) {
+  if (adjustments.length === 0) return "";
+  const items = adjustments.map((adj) => ({
+    type: "placement_adjustment",
+    localId: adj.localCampaignId,
+    amazonId: adj.amazonCampaignId,
+    expectedValue: {
+      topOfSearch: adj.expectedTopOfSearch,
+      productPage: adj.expectedProductPage
+    },
+    context: { accountId }
+  }));
+  return scheduleVerificationTask(accountId, items);
+}
+function scheduleNegativeKeywordVerification(accountId, negativeKeywords8) {
+  if (negativeKeywords8.length === 0) return "";
+  const items = negativeKeywords8.map((nk) => ({
+    type: "negative_keyword",
+    localId: nk.localId,
+    amazonId: nk.amazonKeywordId || "",
+    expectedValue: { keywordText: nk.keywordText, matchType: nk.matchType },
+    context: {
+      campaignId: nk.campaignId,
+      adGroupId: nk.adGroupId,
+      accountId
+    }
+  }));
+  return scheduleVerificationTask(accountId, items);
+}
+function scheduleKeywordStatusVerification(accountId, changes) {
+  if (changes.length === 0) return "";
+  const items = changes.map((ch) => ({
+    type: "keyword_status",
+    localId: ch.localKeywordId,
+    amazonId: ch.amazonKeywordId,
+    expectedValue: ch.expectedState,
+    context: {
+      adGroupId: ch.adGroupId,
+      accountId
+    }
+  }));
+  return scheduleVerificationTask(accountId, items);
+}
+function scheduleVerificationTask(accountId, items) {
+  const taskId = generateTaskId(accountId, items[0]?.type || "mixed");
+  const task = {
+    id: taskId,
+    accountId,
+    items,
+    createdAt: /* @__PURE__ */ new Date(),
+    attempt: 1,
+    maxAttempts: 3,
+    scheduledAt: new Date(Date.now() + VERIFICATION_DELAYS.firstAttempt * 1e3)
+  };
+  pendingTasks.set(taskId, task);
+  const timer = setTimeout(async () => {
+    await executeVerificationTask(taskId);
+  }, VERIFICATION_DELAYS.firstAttempt * 1e3);
+  activeTimers.set(taskId, timer);
+  log9.info(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
+  return taskId;
+}
+async function executeVerificationTask(taskId) {
+  const task = pendingTasks.get(taskId);
+  if (!task) {
+    log9.warn(`\u4EFB\u52A1 ${taskId} \u4E0D\u5B58\u5728\uFF0C\u53EF\u80FD\u5DF2\u88AB\u53D6\u6D88`);
+    return;
+  }
+  log9.info(`v166: \u5F00\u59CB\u6267\u884C\u9A8C\u8BC1\u4EFB\u52A1 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
+  try {
+    const syncService = await getAmazonSyncService2(task.accountId);
+    if (!syncService) {
+      log9.error(`\u65E0\u6CD5\u83B7\u53D6accountId=${task.accountId}\u7684API\u5BA2\u6237\u7AEF\uFF0C\u8DF3\u8FC7\u9A8C\u8BC1`);
+      cleanupTask(taskId);
+      return;
+    }
+    const resultsByType = /* @__PURE__ */ new Map();
+    const itemsByType = groupItemsByType(task.items);
+    for (const [type, items] of itemsByType.entries()) {
+      const results = await verifyByType(syncService, type, items);
+      resultsByType.set(type, results);
+    }
+    const allResults = Array.from(resultsByType.values()).flat();
+    const confirmed = allResults.filter((r5) => r5.status === "confirmed");
+    const conflicts = allResults.filter((r5) => r5.status === "conflict");
+    const notFound = allResults.filter((r5) => r5.status === "not_found");
+    const errors = allResults.filter((r5) => r5.status === "error");
+    log9.warn(`v166: \u9A8C\u8BC1\u7ED3\u679C taskId=${taskId} \u2014 \u786E\u8BA4=${confirmed.length}, \u51B2\u7A81=${conflicts.length}, \u672A\u627E\u5230=${notFound.length}, \u9519\u8BEF=${errors.length}`);
+    if (confirmed.length > 0) {
+      await applyConfirmedResults(confirmed);
+    }
+    if (conflicts.length > 0) {
+      await handleConflicts(conflicts);
+    }
+    const unresolved = [...notFound, ...errors];
+    if (unresolved.length > 0 && task.attempt < task.maxAttempts) {
+      task.attempt++;
+      task.items = unresolved.map((r5) => r5.item);
+      const delayKey = task.attempt === 2 ? "secondAttempt" : "thirdAttempt";
+      const delay = VERIFICATION_DELAYS[delayKey];
+      task.scheduledAt = new Date(Date.now() + delay * 1e3);
+      const timer = setTimeout(async () => {
+        await executeVerificationTask(taskId);
+      }, delay * 1e3);
+      activeTimers.set(taskId, timer);
+      log9.info(`v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay}\u79D2\u540E\u6267\u884C`);
+    } else {
+      if (unresolved.length > 0) {
+        log9.warn(`v166: ${unresolved.length}\u9879\u5728${task.maxAttempts}\u8F6E\u9A8C\u8BC1\u540E\u4ECD\u672A\u89E3\u51B3\uFF0C\u4FDD\u6301pending_confirmation\u72B6\u6001\u7B49\u5F85\u5B9A\u65F6\u540C\u6B65`);
+      }
+      cleanupTask(taskId);
+    }
+  } catch (error54) {
+    log9.error(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u6267\u884C\u5F02\u5E38 taskId=${taskId}:`, error54.message);
+    if (task.attempt < task.maxAttempts) {
+      task.attempt++;
+      const delay = VERIFICATION_DELAYS.thirdAttempt;
+      const timer = setTimeout(async () => {
+        await executeVerificationTask(taskId);
+      }, delay * 1e3);
+      activeTimers.set(taskId, timer);
+    } else {
+      cleanupTask(taskId);
+    }
+  }
+}
+function groupItemsByType(items) {
+  const grouped = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    const existing = grouped.get(item.type) || [];
+    existing.push(item);
+    grouped.set(item.type, existing);
+  }
+  return grouped;
+}
+async function verifyByType(syncService, type, items) {
+  switch (type) {
+    case "bid_adjustment":
+      return verifyBidAdjustments(syncService, items);
+    case "budget_adjustment":
+      return verifyBudgetAdjustments(syncService, items);
+    case "placement_adjustment":
+      return verifyPlacementAdjustments(syncService, items);
+    case "negative_keyword":
+      return verifyNegativeKeywords(syncService, items);
+    case "keyword_status":
+      return verifyKeywordStatus(syncService, items);
+    case "search_term_migration":
+      return verifyBidAdjustments(syncService, items);
+    // 搜索词迁移后的新关键词也通过bid验证
+    default:
+      log9.warn(`\u672A\u77E5\u9A8C\u8BC1\u7C7B\u578B: ${type}`);
+      return items.map((item) => ({ item, status: "error", message: `\u672A\u77E5\u7C7B\u578B: ${type}` }));
+  }
+}
+async function verifyBidAdjustments(syncService, items) {
+  const results = [];
+  const byAdGroup = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    const adGroupId = item.context?.adGroupId || 0;
+    const existing = byAdGroup.get(adGroupId) || [];
+    existing.push(item);
+    byAdGroup.set(adGroupId, existing);
+  }
+  for (const [adGroupId, groupItems] of byAdGroup.entries()) {
+    try {
+      const isProductTarget = groupItems[0]?.context?.fieldName === "product_target_bid";
+      let amazonItems;
+      if (isProductTarget) {
+        amazonItems = await syncService.client.listSpProductTargets(adGroupId || void 0);
+      } else {
+        amazonItems = await syncService.client.listSpKeywords(adGroupId || void 0);
+      }
+      const amazonBidMap = /* @__PURE__ */ new Map();
+      for (const apiItem of amazonItems) {
+        const id = String(isProductTarget ? apiItem.targetId : apiItem.keywordId);
+        amazonBidMap.set(id, apiItem.bid);
+      }
+      for (const item of groupItems) {
+        const actualBid = amazonBidMap.get(item.amazonId);
+        if (actualBid === void 0) {
+          results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230ID=${item.amazonId}` });
+          continue;
+        }
+        const expectedBid = Number(item.expectedValue);
+        const tolerance = 0.01;
+        if (Math.abs(actualBid - expectedBid) <= tolerance) {
+          results.push({ item, status: "confirmed", actualValue: actualBid });
+        } else {
+          results.push({
+            item,
+            status: "conflict",
+            actualValue: actualBid,
+            message: `\u671F\u671B\u51FA\u4EF7=$${expectedBid.toFixed(2)}, Amazon\u5B9E\u9645=$${actualBid.toFixed(2)}`
+          });
+        }
+      }
+    } catch (error54) {
+      log9.error(`\u51FA\u4EF7\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
+      for (const item of groupItems) {
+        results.push({ item, status: "error", message: error54.message });
+      }
+    }
+  }
+  return results;
+}
+async function verifyBudgetAdjustments(syncService, items) {
+  const results = [];
+  try {
+    const amazonCampaigns = await syncService.client.listSpCampaigns();
+    const amazonBudgetMap = /* @__PURE__ */ new Map();
+    for (const campaign of amazonCampaigns) {
+      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget);
+    }
+    for (const item of items) {
+      const actualBudget = amazonBudgetMap.get(item.amazonId);
+      if (actualBudget === void 0) {
+        results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230campaignId=${item.amazonId}` });
+        continue;
+      }
+      const expectedBudget = Number(item.expectedValue);
+      const tolerance = 0.01;
+      if (Math.abs(actualBudget - expectedBudget) <= tolerance) {
+        results.push({ item, status: "confirmed", actualValue: actualBudget });
+      } else {
+        results.push({
+          item,
+          status: "conflict",
+          actualValue: actualBudget,
+          message: `\u671F\u671B\u9884\u7B97=$${expectedBudget.toFixed(2)}, Amazon\u5B9E\u9645=$${actualBudget.toFixed(2)}`
+        });
+      }
+    }
+  } catch (error54) {
+    log9.error(`\u9884\u7B97\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
+    for (const item of items) {
+      results.push({ item, status: "error", message: error54.message });
+    }
+  }
+  return results;
+}
+async function verifyPlacementAdjustments(syncService, items) {
+  const results = [];
+  try {
+    const amazonCampaigns = await syncService.client.listSpCampaigns();
+    const amazonPlacementMap = /* @__PURE__ */ new Map();
+    for (const campaign of amazonCampaigns) {
+      const adjustments = campaign.bidding?.adjustments || [];
+      let topOfSearch = 0, productPage = 0;
+      for (const adj of adjustments) {
+        if (adj.predicate === "placementTop") topOfSearch = adj.percentage;
+        if (adj.predicate === "placementProductPage") productPage = adj.percentage;
+      }
+      amazonPlacementMap.set(String(campaign.campaignId), { topOfSearch, productPage });
+    }
+    for (const item of items) {
+      const actual = amazonPlacementMap.get(item.amazonId);
+      if (!actual) {
+        results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230campaignId=${item.amazonId}` });
+        continue;
+      }
+      const expected = item.expectedValue;
+      let isMatch2 = true;
+      const mismatches = [];
+      if (expected.topOfSearch !== void 0 && Math.abs(actual.topOfSearch - expected.topOfSearch) > 1) {
+        isMatch2 = false;
+        mismatches.push(`\u641C\u7D22\u9876\u90E8: \u671F\u671B=${expected.topOfSearch}%, \u5B9E\u9645=${actual.topOfSearch}%`);
+      }
+      if (expected.productPage !== void 0 && Math.abs(actual.productPage - expected.productPage) > 1) {
+        isMatch2 = false;
+        mismatches.push(`\u5546\u54C1\u9875\u9762: \u671F\u671B=${expected.productPage}%, \u5B9E\u9645=${actual.productPage}%`);
+      }
+      if (isMatch2) {
+        results.push({ item, status: "confirmed", actualValue: actual });
+      } else {
+        results.push({
+          item,
+          status: "conflict",
+          actualValue: actual,
+          message: mismatches.join("; ")
+        });
+      }
+    }
+  } catch (error54) {
+    log9.error(`\u4F4D\u7F6E\u503E\u659C\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
+    for (const item of items) {
+      results.push({ item, status: "error", message: error54.message });
+    }
+  }
+  return results;
+}
+async function verifyNegativeKeywords(syncService, items) {
+  const results = [];
+  const byCampaign = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    const campaignId = item.context?.campaignId || 0;
+    const existing = byCampaign.get(campaignId) || [];
+    existing.push(item);
+    byCampaign.set(campaignId, existing);
+  }
+  for (const [campaignId, groupItems] of byCampaign.entries()) {
+    try {
+      const amazonNegatives = await syncService.client.listSpCampaignNegativeKeywords(campaignId || void 0);
+      const amazonNegMap = /* @__PURE__ */ new Map();
+      for (const neg of amazonNegatives) {
+        const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
+        amazonNegMap.set(key, neg);
+      }
+      const adGroupIds = new Set(groupItems.map((i4) => i4.context?.adGroupId).filter(Boolean));
+      for (const adGroupId of adGroupIds) {
+        try {
+          const adGroupNegatives = await syncService.client.listSpNegativeKeywords(adGroupId);
+          for (const neg of adGroupNegatives) {
+            const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
+            amazonNegMap.set(key, neg);
+          }
+        } catch (e6) {
+          log9.warn(`\u67E5\u8BE2adGroup ${adGroupId} \u5426\u5B9A\u5173\u952E\u8BCD\u5931\u8D25: ${e6.message}`);
+        }
+      }
+      for (const item of groupItems) {
+        const expected = item.expectedValue;
+        const key = `${expected.keywordText}_${expected.matchType}`.toLowerCase();
+        const found4 = amazonNegMap.get(key);
+        if (found4) {
+          results.push({ item, status: "confirmed", actualValue: found4 });
+        } else {
+          results.push({
+            item,
+            status: "not_found",
+            message: `\u5426\u8BCD "${expected.keywordText}" (${expected.matchType}) \u5728Amazon\u4E2D\u672A\u627E\u5230`
+          });
+        }
+      }
+    } catch (error54) {
+      log9.error(`\u5426\u8BCD\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 campaignId=${campaignId}:`, error54.message);
+      for (const item of groupItems) {
+        results.push({ item, status: "error", message: error54.message });
+      }
+    }
+  }
+  return results;
+}
+async function verifyKeywordStatus(syncService, items) {
+  const results = [];
+  const byAdGroup = /* @__PURE__ */ new Map();
+  for (const item of items) {
+    const adGroupId = item.context?.adGroupId || 0;
+    const existing = byAdGroup.get(adGroupId) || [];
+    existing.push(item);
+    byAdGroup.set(adGroupId, existing);
+  }
+  for (const [adGroupId, groupItems] of byAdGroup.entries()) {
+    try {
+      const amazonKeywords = await syncService.client.listSpKeywords(adGroupId || void 0);
+      const amazonStateMap = /* @__PURE__ */ new Map();
+      for (const kw of amazonKeywords) {
+        amazonStateMap.set(String(kw.keywordId), kw.state);
+      }
+      for (const item of groupItems) {
+        const actualState = amazonStateMap.get(item.amazonId);
+        if (actualState === void 0) {
+          results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230keywordId=${item.amazonId}` });
+          continue;
+        }
+        if (actualState.toLowerCase() === String(item.expectedValue).toLowerCase()) {
+          results.push({ item, status: "confirmed", actualValue: actualState });
+        } else {
+          results.push({
+            item,
+            status: "conflict",
+            actualValue: actualState,
+            message: `\u671F\u671B\u72B6\u6001=${item.expectedValue}, Amazon\u5B9E\u9645=${actualState}`
+          });
+        }
+      }
+    } catch (error54) {
+      log9.error(`\u72B6\u6001\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
+      for (const item of groupItems) {
+        results.push({ item, status: "error", message: error54.message });
+      }
+    }
+  }
+  return results;
+}
+async function applyConfirmedResults(results) {
+  const dbConn = await getDb();
+  if (!dbConn) {
+    log9.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u65E0\u6CD5\u56DE\u586B\u786E\u8BA4\u7ED3\u679C");
+    return;
+  }
+  try {
+    await dbConn.transaction(async (tx) => {
+      for (const result of results) {
+        const { item } = result;
+        switch (item.type) {
+          case "bid_adjustment":
+          case "search_term_migration": {
+            if (item.context?.fieldName === "product_target_bid") {
+              log9.debug(`v166: \u2705 \u5546\u54C1\u5B9A\u4F4D ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+            } else {
+              await tx.update(keywords).set({
+                bid: String(result.actualValue),
+                pendingBid: null,
+                bidSyncStatus: "synced"
+              }).where(eq(keywords.id, item.localId));
+              log9.debug(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+            }
+            break;
+          }
+          case "budget_adjustment": {
+            await tx.update(campaigns).set({
+              dailyBudget: String(result.actualValue),
+              pendingBudget: null,
+              budgetSyncStatus: "synced",
+              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            }).where(eq(campaigns.id, item.localId));
+            log9.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u9884\u7B97\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+            break;
+          }
+          case "placement_adjustment": {
+            const updateData = {
+              placementSyncStatus: "synced",
+              pendingPlacementTop: null,
+              pendingPlacementProduct: null,
+              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            };
+            if (result.actualValue?.topOfSearch !== void 0) {
+              updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
+            }
+            if (result.actualValue?.productPage !== void 0) {
+              updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
+            }
+            await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
+            log9.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u4F4D\u7F6E\u503E\u659C\u5DF2\u786E\u8BA4: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
+            break;
+          }
+          case "negative_keyword": {
+            if (result.actualValue?.keywordId) {
+              log9.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon (amazonId=${result.actualValue.keywordId})`);
+            } else {
+              log9.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon`);
+            }
+            break;
+          }
+          case "keyword_status": {
+            log9.info(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u72B6\u6001\u5DF2\u786E\u8BA4: ${result.actualValue}`);
+            break;
+          }
+        }
+      }
+    });
+    log9.info(`v166: \u4E8B\u52A1\u56DE\u586B\u5B8C\u6210, ${results.length}\u9879\u5DF2\u786E\u8BA4\u5E76\u66F4\u65B0`);
+  } catch (error54) {
+    log9.error(`v166: \u4E8B\u52A1\u56DE\u586B\u5931\u8D25:`, error54.message);
+  }
+}
+async function handleConflicts(results) {
+  const dbConn = await getDb();
+  if (!dbConn) return;
+  try {
+    await dbConn.transaction(async (tx) => {
+      for (const result of results) {
+        const { item } = result;
+        switch (item.type) {
+          case "bid_adjustment": {
+            if (item.context?.fieldName !== "product_target_bid") {
+              await tx.update(keywords).set({
+                bid: String(result.actualValue),
+                pendingBid: null,
+                bidSyncStatus: "conflict"
+              }).where(eq(keywords.id, item.localId));
+            }
+            log9.warn(`v166: \u26A0\uFE0F \u51FA\u4EF7\u51B2\u7A81 keyword=${item.localId}: ${result.message}`);
+            break;
+          }
+          case "budget_adjustment": {
+            await tx.update(campaigns).set({
+              dailyBudget: String(result.actualValue),
+              pendingBudget: null,
+              budgetSyncStatus: "conflict",
+              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            }).where(eq(campaigns.id, item.localId));
+            log9.warn(`v166: \u26A0\uFE0F \u9884\u7B97\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
+            break;
+          }
+          case "placement_adjustment": {
+            const updateData = {
+              placementSyncStatus: "conflict",
+              pendingPlacementTop: null,
+              pendingPlacementProduct: null,
+              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            };
+            if (result.actualValue?.topOfSearch !== void 0) {
+              updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
+            }
+            if (result.actualValue?.productPage !== void 0) {
+              updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
+            }
+            await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
+            log9.warn(`v166: \u26A0\uFE0F \u4F4D\u7F6E\u503E\u659C\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
+            break;
+          }
+          default: {
+            log9.warn(`v166: \u26A0\uFE0F ${item.type}\u51B2\u7A81 id=${item.localId}: ${result.message}`);
+          }
+        }
+      }
+    });
+    log9.warn(`v166: ${results.length}\u9879\u51B2\u7A81\u5DF2\u5904\u7406\uFF08\u4EE5Amazon\u5B9E\u9645\u503C\u4E3A\u51C6\uFF09`);
+  } catch (error54) {
+    log9.error(`v166: \u51B2\u7A81\u5904\u7406\u4E8B\u52A1\u5931\u8D25:`, error54.message);
+  }
+}
+function cleanupTask(taskId) {
+  pendingTasks.delete(taskId);
+  const timer = activeTimers.get(taskId);
+  if (timer) {
+    clearTimeout(timer);
+    activeTimers.delete(taskId);
+  }
+}
+async function autoResolveConflicts(accountId) {
+  const dbConn = await getDb();
+  if (!dbConn) return { resolved: 0, ignored: 0, skipped: 0 };
+  let resolved = 0;
+  let ignored = 0;
+  let skipped = 0;
+  try {
+    const pendingConflicts = await dbConn.select({
+      id: syncConflicts.id,
+      conflictType: syncConflicts.conflictType,
+      suggestedResolution: syncConflicts.suggestedResolution,
+      entityType: syncConflicts.entityType,
+      entityId: syncConflicts.entityId
+    }).from(syncConflicts).where(and(
+      eq(syncConflicts.accountId, accountId),
+      eq(syncConflicts.resolutionStatus, "pending")
+    )).limit(2e3);
+    if (pendingConflicts.length === 0) return { resolved: 0, ignored: 0, skipped: 0 };
+    const autoResolveIds = [];
+    const autoIgnoreIds = [];
+    for (const conflict of pendingConflicts) {
+      if (conflict.conflictType === "data_mismatch" && conflict.suggestedResolution === "use_remote") {
+        autoResolveIds.push(conflict.id);
+      } else if (conflict.conflictType === "missing_remote") {
+        autoIgnoreIds.push(conflict.id);
+      } else if (conflict.conflictType === "status_conflict" && conflict.suggestedResolution === "use_remote") {
+        autoResolveIds.push(conflict.id);
+      } else {
+        skipped++;
+      }
+    }
+    if (autoResolveIds.length > 0) {
+      for (let i4 = 0; i4 < autoResolveIds.length; i4 += 500) {
+        const batch = autoResolveIds.slice(i4, i4 + 500);
+        await dbConn.update(syncConflicts).set({
+          resolutionStatus: "resolved",
+          resolvedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " "),
+          resolutionNotes: "v256: \u81EA\u52A8\u89E3\u51B3 - \u4EE5\u4E9A\u9A6C\u900A\u5B9E\u9645\u6570\u636E\u4E3A\u51C6 (use_remote)"
+        }).where(inArray(syncConflicts.id, batch));
+      }
+      resolved = autoResolveIds.length;
+    }
+    if (autoIgnoreIds.length > 0) {
+      for (let i4 = 0; i4 < autoIgnoreIds.length; i4 += 500) {
+        const batch = autoIgnoreIds.slice(i4, i4 + 500);
+        await dbConn.update(syncConflicts).set({
+          resolutionStatus: "ignored",
+          resolvedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " "),
+          resolutionNotes: "v256: \u81EA\u52A8\u5FFD\u7565 - \u8FDC\u7A0B\u5B9E\u4F53\u4E0D\u5B58\u5728"
+        }).where(inArray(syncConflicts.id, batch));
+      }
+      ignored = autoIgnoreIds.length;
+    }
+    log9.info(`v256: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
+  } catch (error54) {
+    log9.error(`v256: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25 accountId=${accountId}: ${error54.message}`);
+  }
+  return { resolved, ignored, skipped };
+}
+var log9, pendingTasks, activeTimers, VERIFICATION_DELAYS;
+var init_postOptimizationVerifier = __esm({
+  "server/postOptimizationVerifier.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    init_amazonApiHelper();
+    init_logger2();
+    log9 = createModuleLogger("PostOptVerifier");
+    pendingTasks = /* @__PURE__ */ new Map();
+    activeTimers = /* @__PURE__ */ new Map();
+    VERIFICATION_DELAYS = {
+      /** 首次验证延迟：给Amazon 45秒处理时间 */
+      firstAttempt: 45,
+      /** 第二次验证延迟：3分钟后 */
+      secondAttempt: 180,
+      /** 第三次验证延迟：10分钟后 */
+      thirdAttempt: 600
+    };
+  }
+});
+
 // server/gtoDynamicEVEngine.ts
 function calculateEV(target, groupConfig) {
   const { currentBid, impressions, clicks, spend, sales, orders } = target;
@@ -67549,7 +68193,7 @@ function batchCalculateGTOModifiers(targets, groupConfig, context) {
       );
       results.set(target.id, modifier);
     } catch (err2) {
-      log9.warn(`[GTO] \u8BA1\u7B97\u4FEE\u6B63\u7CFB\u6570\u5931\u8D25(target=${target.id}): ${err2.message}`);
+      log10.warn(`[GTO] \u8BA1\u7B97\u4FEE\u6B63\u7CFB\u6570\u5931\u8D25(target=${target.id}): ${err2.message}`);
       results.set(target.id, buildNeutralModifier(target, competitionProfile));
     }
   }
@@ -67558,9 +68202,9 @@ function batchCalculateGTOModifiers(targets, groupConfig, context) {
   const raises = modifiers.filter((m4) => m4.compositeModifier > 1.05).length;
   const folds = modifiers.filter((m4) => m4.compositeModifier < 0.95).length;
   const holds = modifiers.length - raises - folds;
-  log9.info(`[GTO] \u6279\u91CF\u4FEE\u6B63\u5B8C\u6210: ${targets.length}\u4E2A\u76EE\u6807, \u5E73\u5747\u4FEE\u6B63=${avgModifier.toFixed(3)}, \u52A0\u6CE8=${raises}, \u5F03\u724C=${folds}, \u7EF4\u6301=${holds}, \u7EC4\u5408\u5065\u5EB7\u5EA6=${portfolioAnalysis.portfolioHealthScore}/100`);
+  log10.info(`[GTO] \u6279\u91CF\u4FEE\u6B63\u5B8C\u6210: ${targets.length}\u4E2A\u76EE\u6807, \u5E73\u5747\u4FEE\u6B63=${avgModifier.toFixed(3)}, \u52A0\u6CE8=${raises}, \u5F03\u724C=${folds}, \u7EF4\u6301=${holds}, \u7EC4\u5408\u5065\u5EB7\u5EA6=${portfolioAnalysis.portfolioHealthScore}/100`);
   if (portfolioAnalysis.imbalanceWarnings.length > 0) {
-    log9.warn(`[GTO] \u7EC4\u5408\u5931\u8861\u8B66\u544A: ${portfolioAnalysis.imbalanceWarnings.join("; ")}`);
+    log10.warn(`[GTO] \u7EC4\u5408\u5931\u8861\u8B66\u544A: ${portfolioAnalysis.imbalanceWarnings.join("; ")}`);
   }
   return results;
 }
@@ -67674,7 +68318,7 @@ function buildSyncCompetitionProfile(avgCpc, totalImpressions, currentHour) {
     reasoning
   };
 }
-var log9, ENGINE_WEIGHTS, GTO_MIN_MODIFIER, GTO_MAX_MODIFIER;
+var log10, ENGINE_WEIGHTS, GTO_MIN_MODIFIER, GTO_MAX_MODIFIER;
 var init_gtoIntegrationOrchestrator = __esm({
   "server/gtoIntegrationOrchestrator.ts"() {
     "use strict";
@@ -67684,7 +68328,7 @@ var init_gtoIntegrationOrchestrator = __esm({
     init_gtoOpportunityWindowEngine();
     init_gtoKeywordPortfolioBalancer();
     init_logger2();
-    log9 = createModuleLogger("GTO");
+    log10 = createModuleLogger("GTO");
     ENGINE_WEIGHTS = {
       ev: 0.25,
       // EV引擎权重最高 — 直接影响盈亏
@@ -67954,7 +68598,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === "linucb" ? "linucb" : metaDecision.selectedAlgorithm === "cql" ? "cql" : "rule_based"
-      }).catch((err2) => log10.error("[NextGenOrchestrator] RL recording error:", err2));
+      }).catch((err2) => log11.error("[NextGenOrchestrator] RL recording error:", err2));
       return buildResult(
         target,
         safeBid,
@@ -67966,7 +68610,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       );
     }
   } catch (advancedError) {
-    log10.warn(`[NextGenOrchestrator] \u9AD8\u7EA7\u7B97\u6CD5\u5F02\u5E38(target=${target.id}), \u964D\u7EA7\u5230\u89C4\u5219\u5F15\u64CE: ${advancedError.message}`);
+    log11.warn(`[NextGenOrchestrator] \u9AD8\u7EA7\u7B97\u6CD5\u5F02\u5E38(target=${target.id}), \u964D\u7EA7\u5230\u89C4\u5219\u5F15\u64CE: ${advancedError.message}`);
   }
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
@@ -67990,7 +68634,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
         }
         safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
         finalReason += ` | RL\u63A2\u7D22: ${directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2"}${(explorationRatio * 100).toFixed(1)}%`;
-        log10.info(`[NextGenOrchestrator] RL\u51B7\u542F\u52A8\u63A2\u7D22: target=${target.id}, \u65B9\u5411=${directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2"}, \u5E45\u5EA6=${(explorationRatio * 100).toFixed(1)}%, $${target.currentBid.toFixed(2)} \u2192 $${safeBid.toFixed(2)}`);
+        log11.info(`[NextGenOrchestrator] RL\u51B7\u542F\u52A8\u63A2\u7D22: target=${target.id}, \u65B9\u5411=${directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2"}, \u5E45\u5EA6=${(explorationRatio * 100).toFixed(1)}%, $${target.currentBid.toFixed(2)} \u2192 $${safeBid.toFixed(2)}`);
       }
     }
     const keywordId = target.type === "keyword" ? target.id : void 0;
@@ -68004,7 +68648,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: "rule_based"
-    }).catch((err2) => log10.error("[NextGenOrchestrator] RL recording error:", err2));
+    }).catch((err2) => log11.error("[NextGenOrchestrator] RL recording error:", err2));
     return buildResult(
       target,
       safeBid,
@@ -68014,7 +68658,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       "rule_engine"
     );
   } catch (ruleError) {
-    log10.error(`[NextGenOrchestrator] \u89C4\u5219\u5F15\u64CE\u5F02\u5E38(target=${target.id}): ${ruleError.message}`);
+    log11.error(`[NextGenOrchestrator] \u89C4\u5219\u5F15\u64CE\u5F02\u5E38(target=${target.id}): ${ruleError.message}`);
   }
   return buildResult(
     target,
@@ -68071,9 +68715,9 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
       // 估算毕业率
     };
     gtoModifiers = batchCalculateGTOModifiers(targets, groupConfig, gtoContext);
-    log10.info(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5DF2\u542F\u7528: ${gtoModifiers.size}\u4E2A\u76EE\u6807\u83B7\u5F97\u4FEE\u6B63\u7CFB\u6570`);
+    log11.info(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5DF2\u542F\u7528: ${gtoModifiers.size}\u4E2A\u76EE\u6807\u83B7\u5F97\u4FEE\u6B63\u7CFB\u6570`);
   } catch (gtoError) {
-    log10.warn(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${gtoError.message}`);
+    log11.warn(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${gtoError.message}`);
   }
   const results = [];
   for (const target of targets) {
@@ -68102,7 +68746,7 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
   const conservative = results.filter((r5) => r5.algorithmTier === "conservative").length;
   const changed = results.filter((r5) => r5.actionType !== "hold").length;
   const gtoApplied = results.filter((r5) => r5.gtoModifier && r5.gtoModifier.compositeModifier !== 1).length;
-  log10.info(`[NextGenOrchestrator] \u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}`);
+  log11.info(`[NextGenOrchestrator] \u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}`);
   return results;
 }
 async function executeNextGenMaintenanceTasks(accountId) {
@@ -68114,77 +68758,84 @@ async function executeNextGenMaintenanceTasks(accountId) {
     algorithmResultsBackfilled: 0
   };
   try {
-    log10.info(`[NextGenMaintenance] \u5F00\u59CB\u7279\u5F81\u63D0\u53D6: \u8D26\u6237${accountId}`);
+    log11.info(`[NextGenMaintenance] \u5F00\u59CB\u7279\u5F81\u63D0\u53D6: \u8D26\u6237${accountId}`);
     results.featuresCached = await batchExtractAndCacheFeatures(accountId);
   } catch (err2) {
-    log10.error(`[NextGenMaintenance] \u7279\u5F81\u63D0\u53D6\u5931\u8D25: ${err2.message}`);
+    log11.error(`[NextGenMaintenance] \u7279\u5F81\u63D0\u53D6\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log10.info(`[NextGenMaintenance] \u5F00\u59CBSigmoid\u66F2\u7EBF\u62DF\u5408`);
+    log11.info(`[NextGenMaintenance] \u5F00\u59CBSigmoid\u66F2\u7EBF\u62DF\u5408`);
     results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
   } catch (err2) {
-    log10.error(`[NextGenMaintenance] Sigmoid\u62DF\u5408\u5931\u8D25: ${err2.message}`);
+    log11.error(`[NextGenMaintenance] Sigmoid\u62DF\u5408\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log10.info(`[NextGenMaintenance] \u5F00\u59CBReward\u56DE\u586B`);
+    log11.info(`[NextGenMaintenance] \u5F00\u59CBReward\u56DE\u586B`);
     results.rewardsBackfilled = await backfillRewards(accountId);
   } catch (err2) {
-    log10.error(`[NextGenMaintenance] Reward\u56DE\u586B\u5931\u8D25: ${err2.message}`);
+    log11.error(`[NextGenMaintenance] Reward\u56DE\u586B\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log10.info(`[NextGenMaintenance] \u5F00\u59CB\u56E0\u679C\u63A8\u65AD\u5206\u6790`);
+    log11.info(`[NextGenMaintenance] \u5F00\u59CB\u56E0\u679C\u63A8\u65AD\u5206\u6790`);
     results.causalAnalysis = await batchCausalAnalysis(accountId);
   } catch (err2) {
-    log10.error(`[NextGenMaintenance] \u56E0\u679C\u5206\u6790\u5931\u8D25: ${err2.message}`);
+    log11.error(`[NextGenMaintenance] \u56E0\u679C\u5206\u6790\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log10.info(`[NextGenMaintenance] \u5F00\u59CB\u7B97\u6CD5\u7ED3\u679C\u56DE\u586B`);
+    log11.info(`[NextGenMaintenance] \u5F00\u59CB\u7B97\u6CD5\u7ED3\u679C\u56DE\u586B`);
     results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
   } catch (err2) {
-    log10.error(`[NextGenMaintenance] \u7B97\u6CD5\u7ED3\u679C\u56DE\u586B\u5931\u8D25: ${err2.message}`);
+    log11.error(`[NextGenMaintenance] \u7B97\u6CD5\u7ED3\u679C\u56DE\u586B\u5931\u8D25: ${err2.message}`);
   }
-  log10.info(`[NextGenMaintenance] \u7EF4\u62A4\u5B8C\u6210(\u8D26\u6237${accountId}): \u7279\u5F81=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, Reward=${results.rewardsBackfilled}, \u56E0\u679C=${results.causalAnalysis.analyzed}, \u7B97\u6CD5\u56DE\u586B=${results.algorithmResultsBackfilled}`);
+  let conflictsResult = { resolved: 0, ignored: 0, skipped: 0 };
+  try {
+    log11.info(`[NextGenMaintenance] \u5F00\u59CB\u81EA\u52A8\u51B2\u7A81\u89E3\u51B3`);
+    conflictsResult = await autoResolveConflicts(accountId);
+  } catch (err2) {
+    log11.error(`[NextGenMaintenance] \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25: ${err2.message}`);
+  }
+  log11.info(`[NextGenMaintenance] \u7EF4\u62A4\u5B8C\u6210(\u8D26\u6237${accountId}): \u7279\u5F81=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, Reward=${results.rewardsBackfilled}, \u56E0\u679C=${results.causalAnalysis.analyzed}, \u7B97\u6CD5\u56DE\u586B=${results.algorithmResultsBackfilled}, \u51B2\u7A81\u89E3\u51B3=${conflictsResult.resolved}+${conflictsResult.ignored}`);
   return results;
 }
 async function executeModelTraining(accountId) {
   try {
-    log10.info(`[NextGenTraining] \u5F00\u59CBCQL\u6A21\u578B\u8BAD\u7EC3: \u8D26\u6237${accountId}`);
+    log11.info(`[NextGenTraining] \u5F00\u59CBCQL\u6A21\u578B\u8BAD\u7EC3: \u8D26\u6237${accountId}`);
     await trainCQL(accountId);
-    log10.info(`[NextGenTraining] CQL\u8BAD\u7EC3\u5B8C\u6210: \u8D26\u6237${accountId}`);
+    log11.info(`[NextGenTraining] CQL\u8BAD\u7EC3\u5B8C\u6210: \u8D26\u6237${accountId}`);
   } catch (error54) {
-    log10.error(`[NextGenTraining] CQL\u8BAD\u7EC3\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log11.error(`[NextGenTraining] CQL\u8BAD\u7EC3\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function executeBudgetOptimization(accountId) {
   try {
-    log10.info(`[NextGenBudget] \u5F00\u59CB\u9884\u7B97\u7EC4\u5408\u4F18\u5316: \u8D26\u6237${accountId}`);
+    log11.info(`[NextGenBudget] \u5F00\u59CB\u9884\u7B97\u7EC4\u5408\u4F18\u5316: \u8D26\u6237${accountId}`);
     const result = await optimizeBudgetPortfolio(accountId);
     if (result) {
-      log10.info(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5B8C\u6210: ${result.allocations.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8, \u9884\u671F\u5229\u6DA6=$${result.expectedTotalProfit.toFixed(2)}`);
+      log11.info(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5B8C\u6210: ${result.allocations.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8, \u9884\u671F\u5229\u6DA6=$${result.expectedTotalProfit.toFixed(2)}`);
     }
   } catch (error54) {
-    log10.error(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log11.error(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function executeKeywordGraphAnalysis(accountId) {
   try {
-    log10.info(`[NextGenKeyword] \u5F00\u59CB\u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790: \u8D26\u6237${accountId}`);
+    log11.info(`[NextGenKeyword] \u5F00\u59CB\u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790: \u8D26\u6237${accountId}`);
     await buildKeywordGraph(accountId);
     const opportunities = await discoverOpportunities(accountId);
     const negatives = await discoverNegativeCandidates(accountId);
-    log10.info(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5B8C\u6210: ${opportunities.length}\u4E2A\u6269\u5C55\u673A\u4F1A, ${negatives.length}\u4E2A\u5426\u5B9A\u8BCD\u5019\u9009`);
+    log11.info(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5B8C\u6210: ${opportunities.length}\u4E2A\u6269\u5C55\u673A\u4F1A, ${negatives.length}\u4E2A\u5426\u5B9A\u8BCD\u5019\u9009`);
   } catch (error54) {
-    log10.error(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log11.error(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function updateLinUCBFromReward(accountId, armType, context, reward) {
   try {
     await updateArm(accountId, armType, context, reward);
   } catch (error54) {
-    log10.error(`[NextGenOrchestrator] LinUCB\u66F4\u65B0\u5931\u8D25: ${error54.message}`);
+    log11.error(`[NextGenOrchestrator] LinUCB\u66F4\u65B0\u5931\u8D25: ${error54.message}`);
   }
 }
-var log10, DEFAULT_SAFETY;
+var log11, DEFAULT_SAFETY;
 var init_nextGenBidOrchestrator = __esm({
   "server/nextGenBidOrchestrator.ts"() {
     "use strict";
@@ -68197,10 +68848,11 @@ var init_nextGenBidOrchestrator = __esm({
     init_metaLearningSelector();
     init_budgetPortfolioOptimizer();
     init_keywordGraphService();
+    init_postOptimizationVerifier();
     init_logger2();
     init_gtoIntegrationOrchestrator();
     init_timeDecayWeightedDataService();
-    log10 = createModuleLogger("NextGen");
+    log11 = createModuleLogger("NextGen");
     DEFAULT_SAFETY = {
       maxBidChangePercent: 0.3,
       minBid: 0.02,
@@ -68230,9 +68882,9 @@ function acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup) {
   const lock = accountModuleLocks[lockKey];
   if (lock.locked) {
     if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
-      log11.warn(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
+      log12.warn(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
     } else {
-      log11.info(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
+      log12.info(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
       return false;
     }
   }
@@ -68250,12 +68902,12 @@ function releaseAccountOptimizationLock(accountId, moduleGroup) {
     accountModuleLocks[lockKey].lockedAt = null;
   }
 }
-var log11, accountModuleLocks;
+var log12, accountModuleLocks;
 var init_lockManager = __esm({
   "server/utils/lockManager.ts"() {
     "use strict";
     init_logger2();
-    log11 = createModuleLogger("LockManager");
+    log12 = createModuleLogger("LockManager");
     accountModuleLocks = {};
   }
 });
@@ -70846,582 +71498,6 @@ var init_multiDimComboAnalyzer = __esm({
     "use strict";
     init_drizzle_orm();
     init_schema2();
-  }
-});
-
-// server/postOptimizationVerifier.ts
-function generateTaskId(accountId, type) {
-  return `verify_${accountId}_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-function scheduleBidVerification(accountId, adjustments) {
-  if (adjustments.length === 0) return "";
-  const items = adjustments.map((adj) => ({
-    type: "bid_adjustment",
-    localId: adj.localKeywordId,
-    amazonId: adj.amazonKeywordId,
-    expectedValue: adj.expectedBid,
-    context: {
-      campaignId: adj.campaignId,
-      adGroupId: adj.adGroupId,
-      accountId,
-      fieldName: adj.isProductTarget ? "product_target_bid" : "keyword_bid"
-    }
-  }));
-  return scheduleVerificationTask(accountId, items);
-}
-function scheduleBudgetVerification(accountId, adjustments) {
-  if (adjustments.length === 0) return "";
-  const items = adjustments.map((adj) => ({
-    type: "budget_adjustment",
-    localId: adj.localCampaignId,
-    amazonId: adj.amazonCampaignId,
-    expectedValue: adj.expectedBudget,
-    context: { accountId }
-  }));
-  return scheduleVerificationTask(accountId, items);
-}
-function schedulePlacementVerification(accountId, adjustments) {
-  if (adjustments.length === 0) return "";
-  const items = adjustments.map((adj) => ({
-    type: "placement_adjustment",
-    localId: adj.localCampaignId,
-    amazonId: adj.amazonCampaignId,
-    expectedValue: {
-      topOfSearch: adj.expectedTopOfSearch,
-      productPage: adj.expectedProductPage
-    },
-    context: { accountId }
-  }));
-  return scheduleVerificationTask(accountId, items);
-}
-function scheduleNegativeKeywordVerification(accountId, negativeKeywords8) {
-  if (negativeKeywords8.length === 0) return "";
-  const items = negativeKeywords8.map((nk) => ({
-    type: "negative_keyword",
-    localId: nk.localId,
-    amazonId: nk.amazonKeywordId || "",
-    expectedValue: { keywordText: nk.keywordText, matchType: nk.matchType },
-    context: {
-      campaignId: nk.campaignId,
-      adGroupId: nk.adGroupId,
-      accountId
-    }
-  }));
-  return scheduleVerificationTask(accountId, items);
-}
-function scheduleKeywordStatusVerification(accountId, changes) {
-  if (changes.length === 0) return "";
-  const items = changes.map((ch) => ({
-    type: "keyword_status",
-    localId: ch.localKeywordId,
-    amazonId: ch.amazonKeywordId,
-    expectedValue: ch.expectedState,
-    context: {
-      adGroupId: ch.adGroupId,
-      accountId
-    }
-  }));
-  return scheduleVerificationTask(accountId, items);
-}
-function scheduleVerificationTask(accountId, items) {
-  const taskId = generateTaskId(accountId, items[0]?.type || "mixed");
-  const task = {
-    id: taskId,
-    accountId,
-    items,
-    createdAt: /* @__PURE__ */ new Date(),
-    attempt: 1,
-    maxAttempts: 3,
-    scheduledAt: new Date(Date.now() + VERIFICATION_DELAYS.firstAttempt * 1e3)
-  };
-  pendingTasks.set(taskId, task);
-  const timer = setTimeout(async () => {
-    await executeVerificationTask(taskId);
-  }, VERIFICATION_DELAYS.firstAttempt * 1e3);
-  activeTimers.set(taskId, timer);
-  log12.info(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
-  return taskId;
-}
-async function executeVerificationTask(taskId) {
-  const task = pendingTasks.get(taskId);
-  if (!task) {
-    log12.warn(`\u4EFB\u52A1 ${taskId} \u4E0D\u5B58\u5728\uFF0C\u53EF\u80FD\u5DF2\u88AB\u53D6\u6D88`);
-    return;
-  }
-  log12.info(`v166: \u5F00\u59CB\u6267\u884C\u9A8C\u8BC1\u4EFB\u52A1 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
-  try {
-    const syncService = await getAmazonSyncService2(task.accountId);
-    if (!syncService) {
-      log12.error(`\u65E0\u6CD5\u83B7\u53D6accountId=${task.accountId}\u7684API\u5BA2\u6237\u7AEF\uFF0C\u8DF3\u8FC7\u9A8C\u8BC1`);
-      cleanupTask(taskId);
-      return;
-    }
-    const resultsByType = /* @__PURE__ */ new Map();
-    const itemsByType = groupItemsByType(task.items);
-    for (const [type, items] of itemsByType.entries()) {
-      const results = await verifyByType(syncService, type, items);
-      resultsByType.set(type, results);
-    }
-    const allResults = Array.from(resultsByType.values()).flat();
-    const confirmed = allResults.filter((r5) => r5.status === "confirmed");
-    const conflicts = allResults.filter((r5) => r5.status === "conflict");
-    const notFound = allResults.filter((r5) => r5.status === "not_found");
-    const errors = allResults.filter((r5) => r5.status === "error");
-    log12.warn(`v166: \u9A8C\u8BC1\u7ED3\u679C taskId=${taskId} \u2014 \u786E\u8BA4=${confirmed.length}, \u51B2\u7A81=${conflicts.length}, \u672A\u627E\u5230=${notFound.length}, \u9519\u8BEF=${errors.length}`);
-    if (confirmed.length > 0) {
-      await applyConfirmedResults(confirmed);
-    }
-    if (conflicts.length > 0) {
-      await handleConflicts(conflicts);
-    }
-    const unresolved = [...notFound, ...errors];
-    if (unresolved.length > 0 && task.attempt < task.maxAttempts) {
-      task.attempt++;
-      task.items = unresolved.map((r5) => r5.item);
-      const delayKey = task.attempt === 2 ? "secondAttempt" : "thirdAttempt";
-      const delay = VERIFICATION_DELAYS[delayKey];
-      task.scheduledAt = new Date(Date.now() + delay * 1e3);
-      const timer = setTimeout(async () => {
-        await executeVerificationTask(taskId);
-      }, delay * 1e3);
-      activeTimers.set(taskId, timer);
-      log12.info(`v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay}\u79D2\u540E\u6267\u884C`);
-    } else {
-      if (unresolved.length > 0) {
-        log12.warn(`v166: ${unresolved.length}\u9879\u5728${task.maxAttempts}\u8F6E\u9A8C\u8BC1\u540E\u4ECD\u672A\u89E3\u51B3\uFF0C\u4FDD\u6301pending_confirmation\u72B6\u6001\u7B49\u5F85\u5B9A\u65F6\u540C\u6B65`);
-      }
-      cleanupTask(taskId);
-    }
-  } catch (error54) {
-    log12.error(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u6267\u884C\u5F02\u5E38 taskId=${taskId}:`, error54.message);
-    if (task.attempt < task.maxAttempts) {
-      task.attempt++;
-      const delay = VERIFICATION_DELAYS.thirdAttempt;
-      const timer = setTimeout(async () => {
-        await executeVerificationTask(taskId);
-      }, delay * 1e3);
-      activeTimers.set(taskId, timer);
-    } else {
-      cleanupTask(taskId);
-    }
-  }
-}
-function groupItemsByType(items) {
-  const grouped = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    const existing = grouped.get(item.type) || [];
-    existing.push(item);
-    grouped.set(item.type, existing);
-  }
-  return grouped;
-}
-async function verifyByType(syncService, type, items) {
-  switch (type) {
-    case "bid_adjustment":
-      return verifyBidAdjustments(syncService, items);
-    case "budget_adjustment":
-      return verifyBudgetAdjustments(syncService, items);
-    case "placement_adjustment":
-      return verifyPlacementAdjustments(syncService, items);
-    case "negative_keyword":
-      return verifyNegativeKeywords(syncService, items);
-    case "keyword_status":
-      return verifyKeywordStatus(syncService, items);
-    case "search_term_migration":
-      return verifyBidAdjustments(syncService, items);
-    // 搜索词迁移后的新关键词也通过bid验证
-    default:
-      log12.warn(`\u672A\u77E5\u9A8C\u8BC1\u7C7B\u578B: ${type}`);
-      return items.map((item) => ({ item, status: "error", message: `\u672A\u77E5\u7C7B\u578B: ${type}` }));
-  }
-}
-async function verifyBidAdjustments(syncService, items) {
-  const results = [];
-  const byAdGroup = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    const adGroupId = item.context?.adGroupId || 0;
-    const existing = byAdGroup.get(adGroupId) || [];
-    existing.push(item);
-    byAdGroup.set(adGroupId, existing);
-  }
-  for (const [adGroupId, groupItems] of byAdGroup.entries()) {
-    try {
-      const isProductTarget = groupItems[0]?.context?.fieldName === "product_target_bid";
-      let amazonItems;
-      if (isProductTarget) {
-        amazonItems = await syncService.client.listSpProductTargets(adGroupId || void 0);
-      } else {
-        amazonItems = await syncService.client.listSpKeywords(adGroupId || void 0);
-      }
-      const amazonBidMap = /* @__PURE__ */ new Map();
-      for (const apiItem of amazonItems) {
-        const id = String(isProductTarget ? apiItem.targetId : apiItem.keywordId);
-        amazonBidMap.set(id, apiItem.bid);
-      }
-      for (const item of groupItems) {
-        const actualBid = amazonBidMap.get(item.amazonId);
-        if (actualBid === void 0) {
-          results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230ID=${item.amazonId}` });
-          continue;
-        }
-        const expectedBid = Number(item.expectedValue);
-        const tolerance = 0.01;
-        if (Math.abs(actualBid - expectedBid) <= tolerance) {
-          results.push({ item, status: "confirmed", actualValue: actualBid });
-        } else {
-          results.push({
-            item,
-            status: "conflict",
-            actualValue: actualBid,
-            message: `\u671F\u671B\u51FA\u4EF7=$${expectedBid.toFixed(2)}, Amazon\u5B9E\u9645=$${actualBid.toFixed(2)}`
-          });
-        }
-      }
-    } catch (error54) {
-      log12.error(`\u51FA\u4EF7\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
-      for (const item of groupItems) {
-        results.push({ item, status: "error", message: error54.message });
-      }
-    }
-  }
-  return results;
-}
-async function verifyBudgetAdjustments(syncService, items) {
-  const results = [];
-  try {
-    const amazonCampaigns = await syncService.client.listSpCampaigns();
-    const amazonBudgetMap = /* @__PURE__ */ new Map();
-    for (const campaign of amazonCampaigns) {
-      amazonBudgetMap.set(String(campaign.campaignId), campaign.dailyBudget);
-    }
-    for (const item of items) {
-      const actualBudget = amazonBudgetMap.get(item.amazonId);
-      if (actualBudget === void 0) {
-        results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230campaignId=${item.amazonId}` });
-        continue;
-      }
-      const expectedBudget = Number(item.expectedValue);
-      const tolerance = 0.01;
-      if (Math.abs(actualBudget - expectedBudget) <= tolerance) {
-        results.push({ item, status: "confirmed", actualValue: actualBudget });
-      } else {
-        results.push({
-          item,
-          status: "conflict",
-          actualValue: actualBudget,
-          message: `\u671F\u671B\u9884\u7B97=$${expectedBudget.toFixed(2)}, Amazon\u5B9E\u9645=$${actualBudget.toFixed(2)}`
-        });
-      }
-    }
-  } catch (error54) {
-    log12.error(`\u9884\u7B97\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
-    for (const item of items) {
-      results.push({ item, status: "error", message: error54.message });
-    }
-  }
-  return results;
-}
-async function verifyPlacementAdjustments(syncService, items) {
-  const results = [];
-  try {
-    const amazonCampaigns = await syncService.client.listSpCampaigns();
-    const amazonPlacementMap = /* @__PURE__ */ new Map();
-    for (const campaign of amazonCampaigns) {
-      const adjustments = campaign.bidding?.adjustments || [];
-      let topOfSearch = 0, productPage = 0;
-      for (const adj of adjustments) {
-        if (adj.predicate === "placementTop") topOfSearch = adj.percentage;
-        if (adj.predicate === "placementProductPage") productPage = adj.percentage;
-      }
-      amazonPlacementMap.set(String(campaign.campaignId), { topOfSearch, productPage });
-    }
-    for (const item of items) {
-      const actual = amazonPlacementMap.get(item.amazonId);
-      if (!actual) {
-        results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230campaignId=${item.amazonId}` });
-        continue;
-      }
-      const expected = item.expectedValue;
-      let isMatch2 = true;
-      const mismatches = [];
-      if (expected.topOfSearch !== void 0 && Math.abs(actual.topOfSearch - expected.topOfSearch) > 1) {
-        isMatch2 = false;
-        mismatches.push(`\u641C\u7D22\u9876\u90E8: \u671F\u671B=${expected.topOfSearch}%, \u5B9E\u9645=${actual.topOfSearch}%`);
-      }
-      if (expected.productPage !== void 0 && Math.abs(actual.productPage - expected.productPage) > 1) {
-        isMatch2 = false;
-        mismatches.push(`\u5546\u54C1\u9875\u9762: \u671F\u671B=${expected.productPage}%, \u5B9E\u9645=${actual.productPage}%`);
-      }
-      if (isMatch2) {
-        results.push({ item, status: "confirmed", actualValue: actual });
-      } else {
-        results.push({
-          item,
-          status: "conflict",
-          actualValue: actual,
-          message: mismatches.join("; ")
-        });
-      }
-    }
-  } catch (error54) {
-    log12.error(`\u4F4D\u7F6E\u503E\u659C\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
-    for (const item of items) {
-      results.push({ item, status: "error", message: error54.message });
-    }
-  }
-  return results;
-}
-async function verifyNegativeKeywords(syncService, items) {
-  const results = [];
-  const byCampaign = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    const campaignId = item.context?.campaignId || 0;
-    const existing = byCampaign.get(campaignId) || [];
-    existing.push(item);
-    byCampaign.set(campaignId, existing);
-  }
-  for (const [campaignId, groupItems] of byCampaign.entries()) {
-    try {
-      const amazonNegatives = await syncService.client.listSpCampaignNegativeKeywords(campaignId || void 0);
-      const amazonNegMap = /* @__PURE__ */ new Map();
-      for (const neg of amazonNegatives) {
-        const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
-        amazonNegMap.set(key, neg);
-      }
-      const adGroupIds = new Set(groupItems.map((i4) => i4.context?.adGroupId).filter(Boolean));
-      for (const adGroupId of adGroupIds) {
-        try {
-          const adGroupNegatives = await syncService.client.listSpNegativeKeywords(adGroupId);
-          for (const neg of adGroupNegatives) {
-            const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
-            amazonNegMap.set(key, neg);
-          }
-        } catch (e6) {
-          log12.warn(`\u67E5\u8BE2adGroup ${adGroupId} \u5426\u5B9A\u5173\u952E\u8BCD\u5931\u8D25: ${e6.message}`);
-        }
-      }
-      for (const item of groupItems) {
-        const expected = item.expectedValue;
-        const key = `${expected.keywordText}_${expected.matchType}`.toLowerCase();
-        const found4 = amazonNegMap.get(key);
-        if (found4) {
-          results.push({ item, status: "confirmed", actualValue: found4 });
-        } else {
-          results.push({
-            item,
-            status: "not_found",
-            message: `\u5426\u8BCD "${expected.keywordText}" (${expected.matchType}) \u5728Amazon\u4E2D\u672A\u627E\u5230`
-          });
-        }
-      }
-    } catch (error54) {
-      log12.error(`\u5426\u8BCD\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 campaignId=${campaignId}:`, error54.message);
-      for (const item of groupItems) {
-        results.push({ item, status: "error", message: error54.message });
-      }
-    }
-  }
-  return results;
-}
-async function verifyKeywordStatus(syncService, items) {
-  const results = [];
-  const byAdGroup = /* @__PURE__ */ new Map();
-  for (const item of items) {
-    const adGroupId = item.context?.adGroupId || 0;
-    const existing = byAdGroup.get(adGroupId) || [];
-    existing.push(item);
-    byAdGroup.set(adGroupId, existing);
-  }
-  for (const [adGroupId, groupItems] of byAdGroup.entries()) {
-    try {
-      const amazonKeywords = await syncService.client.listSpKeywords(adGroupId || void 0);
-      const amazonStateMap = /* @__PURE__ */ new Map();
-      for (const kw of amazonKeywords) {
-        amazonStateMap.set(String(kw.keywordId), kw.state);
-      }
-      for (const item of groupItems) {
-        const actualState = amazonStateMap.get(item.amazonId);
-        if (actualState === void 0) {
-          results.push({ item, status: "not_found", message: `Amazon\u4E2D\u672A\u627E\u5230keywordId=${item.amazonId}` });
-          continue;
-        }
-        if (actualState.toLowerCase() === String(item.expectedValue).toLowerCase()) {
-          results.push({ item, status: "confirmed", actualValue: actualState });
-        } else {
-          results.push({
-            item,
-            status: "conflict",
-            actualValue: actualState,
-            message: `\u671F\u671B\u72B6\u6001=${item.expectedValue}, Amazon\u5B9E\u9645=${actualState}`
-          });
-        }
-      }
-    } catch (error54) {
-      log12.error(`\u72B6\u6001\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
-      for (const item of groupItems) {
-        results.push({ item, status: "error", message: error54.message });
-      }
-    }
-  }
-  return results;
-}
-async function applyConfirmedResults(results) {
-  const dbConn = await getDb();
-  if (!dbConn) {
-    log12.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u65E0\u6CD5\u56DE\u586B\u786E\u8BA4\u7ED3\u679C");
-    return;
-  }
-  try {
-    await dbConn.transaction(async (tx) => {
-      for (const result of results) {
-        const { item } = result;
-        switch (item.type) {
-          case "bid_adjustment":
-          case "search_term_migration": {
-            if (item.context?.fieldName === "product_target_bid") {
-              log12.debug(`v166: \u2705 \u5546\u54C1\u5B9A\u4F4D ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
-            } else {
-              await tx.update(keywords).set({
-                bid: String(result.actualValue),
-                pendingBid: null,
-                bidSyncStatus: "synced"
-              }).where(eq(keywords.id, item.localId));
-              log12.debug(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
-            }
-            break;
-          }
-          case "budget_adjustment": {
-            await tx.update(campaigns).set({
-              dailyBudget: String(result.actualValue),
-              pendingBudget: null,
-              budgetSyncStatus: "synced",
-              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            }).where(eq(campaigns.id, item.localId));
-            log12.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u9884\u7B97\u5DF2\u786E\u8BA4: $${result.actualValue}`);
-            break;
-          }
-          case "placement_adjustment": {
-            const updateData = {
-              placementSyncStatus: "synced",
-              pendingPlacementTop: null,
-              pendingPlacementProduct: null,
-              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            };
-            if (result.actualValue?.topOfSearch !== void 0) {
-              updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
-            }
-            if (result.actualValue?.productPage !== void 0) {
-              updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
-            }
-            await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
-            log12.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u4F4D\u7F6E\u503E\u659C\u5DF2\u786E\u8BA4: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
-            break;
-          }
-          case "negative_keyword": {
-            if (result.actualValue?.keywordId) {
-              log12.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon (amazonId=${result.actualValue.keywordId})`);
-            } else {
-              log12.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon`);
-            }
-            break;
-          }
-          case "keyword_status": {
-            log12.info(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u72B6\u6001\u5DF2\u786E\u8BA4: ${result.actualValue}`);
-            break;
-          }
-        }
-      }
-    });
-    log12.info(`v166: \u4E8B\u52A1\u56DE\u586B\u5B8C\u6210, ${results.length}\u9879\u5DF2\u786E\u8BA4\u5E76\u66F4\u65B0`);
-  } catch (error54) {
-    log12.error(`v166: \u4E8B\u52A1\u56DE\u586B\u5931\u8D25:`, error54.message);
-  }
-}
-async function handleConflicts(results) {
-  const dbConn = await getDb();
-  if (!dbConn) return;
-  try {
-    await dbConn.transaction(async (tx) => {
-      for (const result of results) {
-        const { item } = result;
-        switch (item.type) {
-          case "bid_adjustment": {
-            if (item.context?.fieldName !== "product_target_bid") {
-              await tx.update(keywords).set({
-                bid: String(result.actualValue),
-                pendingBid: null,
-                bidSyncStatus: "conflict"
-              }).where(eq(keywords.id, item.localId));
-            }
-            log12.warn(`v166: \u26A0\uFE0F \u51FA\u4EF7\u51B2\u7A81 keyword=${item.localId}: ${result.message}`);
-            break;
-          }
-          case "budget_adjustment": {
-            await tx.update(campaigns).set({
-              dailyBudget: String(result.actualValue),
-              pendingBudget: null,
-              budgetSyncStatus: "conflict",
-              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            }).where(eq(campaigns.id, item.localId));
-            log12.warn(`v166: \u26A0\uFE0F \u9884\u7B97\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
-            break;
-          }
-          case "placement_adjustment": {
-            const updateData = {
-              placementSyncStatus: "conflict",
-              pendingPlacementTop: null,
-              pendingPlacementProduct: null,
-              lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            };
-            if (result.actualValue?.topOfSearch !== void 0) {
-              updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
-            }
-            if (result.actualValue?.productPage !== void 0) {
-              updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
-            }
-            await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
-            log12.warn(`v166: \u26A0\uFE0F \u4F4D\u7F6E\u503E\u659C\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
-            break;
-          }
-          default: {
-            log12.warn(`v166: \u26A0\uFE0F ${item.type}\u51B2\u7A81 id=${item.localId}: ${result.message}`);
-          }
-        }
-      }
-    });
-    log12.warn(`v166: ${results.length}\u9879\u51B2\u7A81\u5DF2\u5904\u7406\uFF08\u4EE5Amazon\u5B9E\u9645\u503C\u4E3A\u51C6\uFF09`);
-  } catch (error54) {
-    log12.error(`v166: \u51B2\u7A81\u5904\u7406\u4E8B\u52A1\u5931\u8D25:`, error54.message);
-  }
-}
-function cleanupTask(taskId) {
-  pendingTasks.delete(taskId);
-  const timer = activeTimers.get(taskId);
-  if (timer) {
-    clearTimeout(timer);
-    activeTimers.delete(taskId);
-  }
-}
-var log12, pendingTasks, activeTimers, VERIFICATION_DELAYS;
-var init_postOptimizationVerifier = __esm({
-  "server/postOptimizationVerifier.ts"() {
-    "use strict";
-    init_db2();
-    init_schema2();
-    init_drizzle_orm();
-    init_amazonApiHelper();
-    init_logger2();
-    log12 = createModuleLogger("PostOptVerifier");
-    pendingTasks = /* @__PURE__ */ new Map();
-    activeTimers = /* @__PURE__ */ new Map();
-    VERIFICATION_DELAYS = {
-      /** 首次验证延迟：给Amazon 45秒处理时间 */
-      firstAttempt: 45,
-      /** 第二次验证延迟：3分钟后 */
-      secondAttempt: 180,
-      /** 第三次验证延迟：10分钟后 */
-      thirdAttempt: 600
-    };
   }
 });
 
@@ -78847,7 +78923,12 @@ async function recordBatchSyncResult(batchResult) {
           adGroupsSynced: safeNum(accountResult.stepResults["sp_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sb_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sd_ad_groups"]?.synced),
           keywordsSynced: safeNum(accountResult.stepResults["sp_keywords"]?.synced) + safeNum(accountResult.stepResults["sb_keywords"]?.synced),
           targetsSynced: safeNum(accountResult.stepResults["sp_product_targets"]?.synced) + safeNum(accountResult.stepResults["sb_product_targets"]?.synced) + safeNum(accountResult.stepResults["sd_product_targets"]?.synced),
-          performanceSynced: safeNum(accountResult.stepResults["performance_today"]?.synced) + safeNum(accountResult.stepResults["performance_7d"]?.synced) + safeNum(accountResult.stepResults["performance_14d"]?.synced)
+          performanceSynced: safeNum(accountResult.stepResults["performance_today"]?.synced) + safeNum(accountResult.stepResults["performance_7d"]?.synced) + safeNum(accountResult.stepResults["performance_14d"]?.synced),
+          // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
+          recordsSynced: Object.values(accountResult.stepResults).reduce(
+            (total, step) => total + safeNum(step?.synced),
+            0
+          )
         });
       } catch (insertErr) {
         log15.warn(`[UnifiedSync] \u8BB0\u5F55\u8D26\u6237 ${accountResult.accountId} \u540C\u6B65\u7ED3\u679C\u5931\u8D25: ${insertErr.message}`);
@@ -79220,8 +79301,8 @@ var init_unifiedSyncEngine = __esm({
       {
         id: "sp_negative_keywords",
         name: "SP\u5426\u5B9A\u5173\u952E\u8BCD",
-        tier: "medium",
-        // v248: 从 full 提升到 medium，提高同步频率（60min→30min）
+        tier: "high",
+        // v256: 从 medium 提升到 high，确保否定关键词及时同步（30min→10min）
         execute: async (service, ctx) => {
           try {
             const result = await service.syncSpNegativeKeywords();
@@ -79234,8 +79315,8 @@ var init_unifiedSyncEngine = __esm({
       {
         id: "sb_negative_keywords",
         name: "SB\u5426\u5B9A\u5173\u952E\u8BCD",
-        tier: "medium",
-        // v248: 从 full 提升到 medium
+        tier: "high",
+        // v256: 从 medium 提升到 high
         execute: async (service, ctx) => {
           try {
             const result = await service.syncSbNegativeKeywords();
@@ -79248,8 +79329,8 @@ var init_unifiedSyncEngine = __esm({
       {
         id: "sp_negative_targets",
         name: "SP\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D",
-        tier: "medium",
-        // v248: 从 full 提升到 medium
+        tier: "high",
+        // v256: 从 medium 提升到 high
         execute: async (service, ctx) => {
           try {
             const result = await service.syncSpNegativeProductTargets();
@@ -79262,8 +79343,8 @@ var init_unifiedSyncEngine = __esm({
       {
         id: "sb_negative_targets",
         name: "SB\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D",
-        tier: "medium",
-        // v248: 从 full 提升到 medium
+        tier: "high",
+        // v256: 从 medium 提升到 high
         execute: async (service, ctx) => {
           try {
             const result = await service.syncSbNegativeTargets();
@@ -82063,8 +82144,8 @@ async function persistRiskAlert(accountId, alertType, severity, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql15`
       INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
       VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
     `);
@@ -82076,8 +82157,8 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return false;
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [existing] = await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [existing] = await dbInstance.execute(sql15`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
       LIMIT 1
@@ -82086,7 +82167,7 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
       log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u6709\u672A\u5904\u7406\u7684${actionType}\u4EFB\u52A1\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5165\u961F`);
       return true;
     }
-    await dbInstance.execute(sql14`
+    await dbInstance.execute(sql15`
       INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
       VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
     `);
@@ -82179,9 +82260,9 @@ async function assessSyncHealth() {
     };
   }
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const [statusStats] = await dbInstance.execute(
-      sql14`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+      sql15`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     );
     const dist = statusStats || [];
     const synced = Number(dist.find((d5) => d5.api_sync_status === "synced")?.count || 0);
@@ -82326,8 +82407,8 @@ async function isAccountInEmergencyQueue(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { inQueue: false };
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql15`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
       ORDER BY createdAt DESC LIMIT 1
@@ -82345,8 +82426,8 @@ async function markEmergencyOptimizationProcessed(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql15`
       UPDATE emergency_optimization_queue 
       SET processed = 1, processedAt = NOW()
       WHERE accountId = ${accountId} AND processed = 0
@@ -82360,8 +82441,8 @@ async function getPendingEmergencyAccounts() {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql15`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
       ORDER BY 
@@ -82379,8 +82460,8 @@ async function cleanupProcessedEntries() {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [result] = await dbInstance.execute(sql14`
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [result] = await dbInstance.execute(sql15`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
@@ -154753,7 +154834,7 @@ var init_sqsConsumerService = __esm({
       async upsertKeywordPlacementHourlyData(params) {
         const { keywordPlacementHourlyPerformance: keywordPlacementHourlyPerformance2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
-        const { eq: eq7, and: and10, sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, and: and9, sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const dbConn = await getDb2();
         if (!dbConn) return;
         let hour2 = 0;
@@ -154784,11 +154865,11 @@ var init_sqsConsumerService = __esm({
         if (!localKeywordId && !localTargetId) {
           return;
         }
-        const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and10(
+        const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and9(
           eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
           eq7(keywordPlacementHourlyPerformance2.campaignId, String(params.campaignId)),
-          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql14`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
-          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql14`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
+          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql15`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
+          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql15`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
           eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
           eq7(keywordPlacementHourlyPerformance2.date, params.date),
           eq7(keywordPlacementHourlyPerformance2.hour, hour2)
@@ -158920,7 +159001,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 255;
+    SYSTEM_VERSION = 256;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159155,6 +159236,12 @@ var init_postDeployOptimizer = __esm({
         version: 255,
         description: "v255: [\u6307\u4EE4\u786E\u8BA4+\u62A5\u544AAPI\u4FEE\u590D] \u2014 (1)PostOptVerifier: \u4FEE\u590DamazonKeywordId Bug\uFF0C\u4F7F\u7528\u771F\u6B63\u7684Amazon ID\u800C\u975E\u672C\u5730\u81EA\u589EID (2)SD/SP/SB\u62A5\u544AAPI: \u4FEE\u590D5\u4E2Adate+SUMMARY\u51B2\u7A81\u548CreportTypeId\u9519\u8BEF (3)SB Negative API: 403\u9519\u8BEF\u964D\u7EA7\u4E3AWARN",
         affectedModules: ["sync", "bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 256,
+        description: "v256: [\u5168\u94FE\u8DEF\u5BA1\u8BA1\u4FEE\u590D] \u2014 (1)RL\u667A\u80FD\u53CC\u901A\u9053\u56DE\u586B: \u79FB\u96643h\u4E0B\u9650\uFF0C\u5B9E\u4F53\u7EA7\u6570\u636E\u5373\u65F6\u56DE\u586B+\u6269\u5C55\u7A97\u53E3\u5230168h\uFF0C\u89E3\u51B3\u91CD\u542F\u51B7\u542F\u52A8\u74F6\u9888 (2)\u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5F15\u64CE: \u6279\u91CF\u89E3\u51B373K+\u79EF\u538Bpending\u51B2\u7A81 (3)\u9AD8\u7EA7\u7B97\u6CD5\u6FC0\u6D3B\u9608\u503C\u4F18\u5316: UCB 5\u21923, Sigmoid 10\u21925, CQL 30\u219215 (4)recordsSynced\u5B57\u6BB5\u6620\u5C04\u4FEE\u590D (5)\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u63D0\u5347\u5230high\u5C42(30min\u219210min)",
+        affectedModules: ["sync", "bid", "rl"],
         correctionActions: ["rerun_optimization"]
       }
     ];
@@ -160616,7 +160703,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 255;
+    SYSTEM_VERSION2 = 256;
   }
 });
 
@@ -298469,12 +298556,12 @@ var require_semver3 = __commonJS({
     function neq(a4, b6, loose) {
       return compare2(a4, b6, loose) !== 0;
     }
-    exports2.gte = gte22;
-    function gte22(a4, b6, loose) {
+    exports2.gte = gte23;
+    function gte23(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte23;
-    function lte23(a4, b6, loose) {
+    exports2.lte = lte24;
+    function lte24(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -298501,11 +298588,11 @@ var require_semver3 = __commonJS({
         case ">":
           return gt5(a4, b6, loose);
         case ">=":
-          return gte22(a4, b6, loose);
+          return gte23(a4, b6, loose);
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte23(a4, b6, loose);
+          return lte24(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op7);
       }
@@ -299039,14 +299126,14 @@ var require_semver3 = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte23;
+          ltefn = lte24;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
           gtfn = lt5;
-          ltefn = gte22;
+          ltefn = gte23;
           ltfn = gt5;
           comp = "<";
           ecomp = "<=";
@@ -307189,12 +307276,12 @@ var require_semver4 = __commonJS({
     function neq(a4, b6, loose) {
       return compare2(a4, b6, loose) !== 0;
     }
-    exports2.gte = gte22;
-    function gte22(a4, b6, loose) {
+    exports2.gte = gte23;
+    function gte23(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte23;
-    function lte23(a4, b6, loose) {
+    exports2.lte = lte24;
+    function lte24(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -307221,11 +307308,11 @@ var require_semver4 = __commonJS({
         case ">":
           return gt5(a4, b6, loose);
         case ">=":
-          return gte22(a4, b6, loose);
+          return gte23(a4, b6, loose);
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte23(a4, b6, loose);
+          return lte24(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op7);
       }
@@ -307759,14 +307846,14 @@ var require_semver4 = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte23;
+          ltefn = lte24;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
           gtfn = lt5;
-          ltefn = gte22;
+          ltefn = gte23;
           ltfn = gt5;
           comp = "<";
           ecomp = "<=";
@@ -336274,11 +336361,11 @@ var SDKServer = class {
         const secret = process.env.JWT_SECRET || "default-secret-key";
         const decoded = jwt3.default.verify(token, secret);
         if (decoded && decoded.userId) {
-          const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const localDb = await getDb2();
           if (!localDb) throw new Error("Database not available");
-          const result = await localDb.execute(sql14`
+          const result = await localDb.execute(sql15`
             SELECT tm.*, o.name as organization_name 
             FROM team_members tm 
             LEFT JOIN organizations o ON tm.organization_id = o.id 
@@ -353266,13 +353353,13 @@ var keywordRouter = router({
         const dbInstance = await getDb();
         if (dbInstance) {
           const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { eq: eq7, inArray: inArray15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const kwDetails = await dbInstance.select({
             kwId: keywordsTable.id,
             adGroupId: keywordsTable.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray16(keywordsTable.id, results.map((r5) => r5.id)));
+          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray15(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -353321,13 +353408,13 @@ var keywordRouter = router({
       const dbInstance = await getDb();
       if (dbInstance) {
         const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, inArray: inArray15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const kwDetails = await dbInstance.select({
           kwId: keywordsTable.id,
           adGroupId: keywordsTable.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray16(keywordsTable.id, input.ids));
+        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray15(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -353526,13 +353613,13 @@ var productTargetRouter = router({
         const dbInstance = await getDb();
         if (dbInstance) {
           const { productTargets: productTargets4, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { eq: eq7, inArray: inArray15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const ptDetails = await dbInstance.select({
             ptId: productTargets4.id,
             adGroupId: productTargets4.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray16(productTargets4.id, results.map((r5) => r5.id)));
+          }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray15(productTargets4.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -353573,13 +353660,13 @@ var productTargetRouter = router({
       const dbInstance = await getDb();
       if (dbInstance) {
         const { productTargets: productTargets4, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, inArray: inArray15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const ptDetails = await dbInstance.select({
           ptId: productTargets4.id,
           adGroupId: productTargets4.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray16(productTargets4.id, input.ids));
+        }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray15(productTargets4.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -368631,11 +368718,11 @@ var postDeployRouter = router({
   getDeployHistory: publicProcedure.query(async () => {
     const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
     const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-    const { desc: desc21, and: and10, eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { desc: desc21, and: and9, eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const database = await getDb2();
     if (!database) return [];
     const events = await database.select().from(optimizationEvents7).where(
-      and10(
+      and9(
         eq7(optimizationEvents7.eventCategory, "settings_change"),
         eq7(optimizationEvents7.actionType, "settings_update"),
         sql`JSON_EXTRACT(${optimizationEvents7.actionDetail}, '$.type') IN ('system_deploy', 'target_reoptimized')`

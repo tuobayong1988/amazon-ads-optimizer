@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 255;  // v255: 指令确认修复 + 报告API修复 + SB权限降级
+export const SYSTEM_VERSION = 256;  // v256: RL智能双通道回填 + 自动冲突解决引擎 + 算法激活阈值优化 + recordsSynced修复 + 否定关键词同步提速

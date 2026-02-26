@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 255;  // v255: 指令确认修复 + 报告API修复 + SB权限降级
+export const SYSTEM_VERSION = 256;  // v256: RL智能双通道回填 + 自动冲突解决引擎 + 算法激活阈值优化
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -298,6 +298,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     version: 255,
     description: 'v255: [指令确认+报告API修复] — (1)PostOptVerifier: 修复amazonKeywordId Bug，使用真正的Amazon ID而非本地自增ID (2)SD/SP/SB报告API: 修复5个date+SUMMARY冲突和reportTypeId错误 (3)SB Negative API: 403错误降级为WARN',
     affectedModules: ['sync', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 256,
+    description: 'v256: [全链路审计修复] — (1)RL智能双通道回填: 移除3h下限，实体级数据即时回填+扩展窗口到168h，解决重启冷启动瓶颈 (2)自动冲突解决引擎: 批量解决73K+积压pending冲突 (3)高级算法激活阈值优化: UCB 5→3, Sigmoid 10→5, CQL 30→15 (4)recordsSynced字段映射修复 (5)否定关键词同步提升到high层(30min→10min)',
+    affectedModules: ['sync', 'bid', 'rl'],
     correctionActions: ['rerun_optimization'],
   },
 ];

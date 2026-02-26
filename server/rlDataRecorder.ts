@@ -356,9 +356,15 @@ async function captureStateSnapshot(
 }
 
 /**
- * v253: 延迟回填Reward（定时任务，每30分钟由nextGenMaintenance触发）
- * 查找3-96小时前的State-Action记录，用后续绩效数据计算Reward
+ * v256: 延迟回填Reward（定时任务，每30分钟由nextGenMaintenance触发）
  * 
+ * v256重大改进 — 解决RL冷启动瓶颈:
+ * 1. 移除固定3小时下限，改为智能双通道回填策略
+ * 2. 通道A（即时回填）: 对于有实体级绩效数据的日志，立即回填（无需等待3小时）
+ * 3. 通道B（延迟回填）: 对于需要dailyPerformance归因的日志，保持3小时延迟
+ * 4. 扩展上限到168小时（7天），确保系统重启后不丢失历史数据
+ * 5. 系统重启后自动恢复：RL日志持久化在数据库中，不受进程重启影响
+ *
  * v253改进:
  * 1. 移除limit(500)限制，确保每次回填完整处理所有待回填记录
  * 2. 增强零数据场景处理：当绩效数据全为0时，给予中性reward(0)而非负奖励
@@ -368,16 +374,15 @@ export async function backfillRewards(accountId: number): Promise<number> {
   const db = await getDbInstance();
   let filledCount = 0;
   let skippedNoData = 0;
+  let immediateFilledCount = 0;
   
   try {
-    // v248: 进一步缩短回填下限 6h → 3h，打破RL冷启动死锁
-    // Amazon广告数据通常在2-4小时后可用，3小时是更积极的安全下限
-    // 上限保持96小时，避免因系统重启导致的回填空窗
-    const hoursAgo96 = new Date(Date.now() - 96 * 3600000).toISOString();
-    const hoursAgo3 = new Date(Date.now() - 3 * 3600000).toISOString();
-    rlLog.info(`[backfillRewards] 账户${accountId}: 查找3-96h内未回填的RL日志...`);
+    // v256: 扩展回填窗口到168小时（7天），确保系统重启/部署后不丢失历史RL数据
+    // 移除3小时下限 — 改为在回填逻辑中智能判断数据可用性
+    const hoursAgo168 = new Date(Date.now() - 168 * 3600000).toISOString();
+    rlLog.info(`[backfillRewards] 账户${accountId}: 查找168h内未回填的RL日志（v256智能双通道）...`);
     
-    // v253: 移除limit(500)限制，确保完整处理所有待回填记录
+    // v256: 查找所有168小时内未回填的记录（不再有下限限制）
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -391,8 +396,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
       .where(and(
         eq(rlTrainingLogs.accountId, accountId),
         isNull(rlTrainingLogs.rewardFilledAt),
-        gte(rlTrainingLogs.createdAt, hoursAgo96),
-        lte(rlTrainingLogs.createdAt, hoursAgo3)
+        gte(rlTrainingLogs.createdAt, hoursAgo168)
       ));
     
     rlLog.info(`[backfillRewards] 账户${accountId}: 找到${pendingLogs.length}条待回填记录`);
@@ -400,19 +404,22 @@ export async function backfillRewards(accountId: number): Promise<number> {
     for (const log of pendingLogs) {
       try {
         const logDate = new Date(log.createdAt as string);
+        const logAgeHours = (Date.now() - logDate.getTime()) / 3600000;
         const nextDay = new Date(logDate.getTime() + 86400000).toISOString().split('T')[0];
         const twoDaysLater = new Date(logDate.getTime() + 2 * 86400000).toISOString().split('T')[0];
         
-        // v230: 修复归因粒度 - 优先使用关键词/商品定向级别的绩效数据，而非整个Campaign级别
+        // v256: 智能双通道回填策略
         let rewardImpressions = 0;
         let rewardClicks = 0;
         let rewardOrders = 0;
         let rewardSpend = 0;
         let rewardSales = 0;
         let dataSource = 'none';
+        let usedImmediateChannel = false;
         
         if (log.keywordId) {
-          // 关键词级别归因：直接从keywords表获取绩效数据
+          // 通道A（即时回填）: 关键词级别归因 — 直接从keywords表获取实时绩效数据
+          // 无需等待3小时，因为keywords表的数据在每次同步时就会更新
           const kwPerf = await db.select({
             impressions: keywords.impressions,
             clicks: keywords.clicks,
@@ -428,9 +435,10 @@ export async function backfillRewards(accountId: number): Promise<number> {
             rewardSpend = Number(kwPerf[0].spend) || 0;
             rewardSales = Number(kwPerf[0].sales) || 0;
             dataSource = 'keyword';
+            usedImmediateChannel = true;
           }
         } else if (log.targetId) {
-          // 商品定向级别归因：仏productTargets表获取绩效数据
+          // 通道A（即时回填）: 商品定向级别归因
           const tgtPerf = await db.select({
             impressions: productTargets.impressions,
             clicks: productTargets.clicks,
@@ -446,9 +454,17 @@ export async function backfillRewards(accountId: number): Promise<number> {
             rewardSpend = Number(tgtPerf[0].spend) || 0;
             rewardSales = Number(tgtPerf[0].sales) || 0;
             dataSource = 'product_target';
+            usedImmediateChannel = true;
           }
-        } else {
-          // 回退到Campaign级别（仅在无关键词/定向ID时）
+        }
+        
+        // 通道B（延迟回填）: 当实体级数据不可用时，回退到Campaign级别
+        // 但需要等待至少3小时，因为dailyPerformance数据有延迟
+        if (dataSource === 'none') {
+          if (logAgeHours < 3) {
+            // 日志太新且无实体级数据，跳过等待下次回填
+            continue;
+          }
           const afterPerf = await db.select({
             totalImpressions: sql<number>`SUM(impressions)`,
             totalClicks: sql<number>`SUM(clicks)`,
@@ -513,13 +529,14 @@ export async function backfillRewards(accountId: number): Promise<number> {
           })
           .where(eq(rlTrainingLogs.id, log.id));
         
+        if (usedImmediateChannel) immediateFilledCount++;
         filledCount++;
       } catch (e) {
         console.error(`[RLDataRecorder] Failed to fill reward for log ${log.id}:`, e);
       }
     }
     
-    rlLog.info(`[backfillRewards] 账户${accountId}: 回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 零数据中性回填=${skippedNoData}`);
+    rlLog.info(`[backfillRewards] 账户${accountId}: v256回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 即时通道=${immediateFilledCount}, 零数据中性回填=${skippedNoData}`);
     return filledCount;
     
   } catch (error: any) {

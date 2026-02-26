@@ -23,8 +23,8 @@
  */
 
 import { getDb } from './db';
-import { keywords, campaigns, negativeKeywords } from '../drizzle/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { keywords, campaigns, negativeKeywords, syncConflicts } from '../drizzle/schema';
+import { eq, and, inArray, sql, gte, lte } from 'drizzle-orm';
 import { getAmazonSyncService } from './services/amazonApiHelper';
 import { createModuleLogger } from './utils/logger';
 
@@ -975,4 +975,103 @@ export function cancelTasksForAccount(accountId: number): number {
     log.debug(`v166: 已取消accountId=${accountId}的${cancelled}个验证任务`);
   }
   return cancelled;
+}
+
+// ============================================================
+// v256: 自动冲突解决引擎
+// ============================================================
+
+/**
+ * v256: 自动批量解决 sync_conflicts 中的 pending 冲突
+ * 
+ * 解决策略:
+ * 1. suggested_resolution='use_remote' 的 data_mismatch 冲突 → 自动解决（以亚马逊数据为准）
+ * 2. missing_remote 冲突 → 自动忽略（本地数据已删除或不再存在）
+ * 3. status_conflict 冲突 → 自动解决（以亚马逊状态为准）
+ * 4. 其他冲突 → 保留为 pending，等待手动处理
+ * 
+ * 每次最多处理 2000 条，避免单次事务过大
+ * 由 nextGenMaintenance 定时触发（每30分钟）
+ */
+export async function autoResolveConflicts(accountId: number): Promise<{ resolved: number; ignored: number; skipped: number }> {
+  const dbConn = await getDb();
+  if (!dbConn) return { resolved: 0, ignored: 0, skipped: 0 };
+  
+  let resolved = 0;
+  let ignored = 0;
+  let skipped = 0;
+  
+  try {
+    // 查找待处理的冲突（最多2000条）
+    const pendingConflicts = await dbConn.select({
+      id: syncConflicts.id,
+      conflictType: syncConflicts.conflictType,
+      suggestedResolution: syncConflicts.suggestedResolution,
+      entityType: syncConflicts.entityType,
+      entityId: syncConflicts.entityId,
+    }).from(syncConflicts)
+      .where(and(
+        eq(syncConflicts.accountId, accountId),
+        eq(syncConflicts.resolutionStatus, 'pending')
+      ))
+      .limit(2000);
+    
+    if (pendingConflicts.length === 0) return { resolved: 0, ignored: 0, skipped: 0 };
+    
+    const autoResolveIds: number[] = [];
+    const autoIgnoreIds: number[] = [];
+    
+    for (const conflict of pendingConflicts) {
+      if (conflict.conflictType === 'data_mismatch' && conflict.suggestedResolution === 'use_remote') {
+        // 数据不匹配且建议使用远程数据 → 自动解决
+        autoResolveIds.push(conflict.id);
+      } else if (conflict.conflictType === 'missing_remote') {
+        // 远程不存在 → 自动忽略
+        autoIgnoreIds.push(conflict.id);
+      } else if (conflict.conflictType === 'status_conflict' && conflict.suggestedResolution === 'use_remote') {
+        // 状态冲突且建议使用远程 → 自动解决
+        autoResolveIds.push(conflict.id);
+      } else {
+        skipped++;
+      }
+    }
+    
+    // 批量更新为 resolved
+    if (autoResolveIds.length > 0) {
+      // 分批处理，每批500条
+      for (let i = 0; i < autoResolveIds.length; i += 500) {
+        const batch = autoResolveIds.slice(i, i + 500);
+        await dbConn.update(syncConflicts)
+          .set({
+            resolutionStatus: 'resolved',
+            resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            resolutionNotes: 'v256: 自动解决 - 以亚马逊实际数据为准 (use_remote)',
+          } as any)
+          .where(inArray(syncConflicts.id, batch));
+      }
+      resolved = autoResolveIds.length;
+    }
+    
+    // 批量更新为 ignored
+    if (autoIgnoreIds.length > 0) {
+      for (let i = 0; i < autoIgnoreIds.length; i += 500) {
+        const batch = autoIgnoreIds.slice(i, i + 500);
+        await dbConn.update(syncConflicts)
+          .set({
+            resolutionStatus: 'ignored',
+            resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            resolutionNotes: 'v256: 自动忽略 - 远程实体不存在',
+          } as any)
+          .where(inArray(syncConflicts.id, batch));
+      }
+      ignored = autoIgnoreIds.length;
+    }
+    
+    log.info(`v256: 自动冲突解决完成 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
+    
+  } catch (error: any) {
+    log.error(`v256: 自动冲突解决失败 accountId=${accountId}: ${error.message}`);
+  }
+  
+  return { resolved, ignored, skipped };
 }

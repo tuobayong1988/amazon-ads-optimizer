@@ -213,40 +213,41 @@ async function evaluateAlgorithms(
     reason: '基于规则的出价策略，始终可用',
   });
   
-  // 2. ucb: v239降低门槛 10→5条RL日志
+  // 2. ucb: v256降低门槛 5→3条RL日志，配合即时回填通道加速激活
   const ucbStat = stats.get('ucb')!;
   scores.push({
     algorithm: 'ucb',
-    score: totalRLLogs >= 5 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
-    eligible: totalRLLogs >= 5,
-    reason: totalRLLogs >= 5 ? 'UCB探索-利用策略' : `RL日志不足(${totalRLLogs}/5)`,
+    score: totalRLLogs >= 3 ? betaSample(ucbStat.alphaParam, ucbStat.betaParam) : 0,
+    eligible: totalRLLogs >= 3,
+    reason: totalRLLogs >= 3 ? 'UCB探索-利用策略' : `RL日志不足(${totalRLLogs}/3)`,
   });
   
-  // 3. linucb: 需要上下文特征
+  // 3. linucb: v256降低门槛 — 需要上下文特征且至少3条RL日志
   const linucbStat = stats.get('linucb')!;
+  const linucbEligible = hasFeatures && totalRLLogs >= 3;
   scores.push({
     algorithm: 'linucb',
-    score: hasFeatures ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.1 : 0,
-    eligible: hasFeatures,
-    reason: hasFeatures ? 'LinUCB上下文赌博机' : '缺少上下文特征',
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.1 : 0,
+    eligible: linucbEligible,
+    reason: linucbEligible ? 'LinUCB上下文赌博机' : (!hasFeatures ? '缺少上下文特征' : `RL日志不足(${totalRLLogs}/3)`),
   });
   
-  // 4. sigmoid_curve: v239降低门槛 20→10条历史出价数据
+  // 4. sigmoid_curve: v256降低门槛 10→5条历史出价数据
   const sigmoidStat = stats.get('sigmoid_curve')!;
   scores.push({
     algorithm: 'sigmoid_curve',
-    score: totalRLLogs >= 10 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
-    eligible: totalRLLogs >= 10,
-    reason: totalRLLogs >= 10 ? 'Sigmoid曲线利润最大化' : `历史数据不足(${totalRLLogs}/10)`,
+    score: totalRLLogs >= 5 ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.05 : 0,
+    eligible: totalRLLogs >= 5,
+    reason: totalRLLogs >= 5 ? 'Sigmoid曲线利润最大化' : `历史数据不足(${totalRLLogs}/5)`,
   });
   
-  // 5. cql: v239降低门槛 50→30条RL日志
+  // 5. cql: v256降低门槛 30→15条RL日志，配合即时回填加速激活
   const cqlStat = stats.get('cql')!;
   scores.push({
     algorithm: 'cql',
-    score: totalRLLogs >= 30 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
-    eligible: totalRLLogs >= 30,
-    reason: totalRLLogs >= 30 ? '离线强化学习CQL' : `RL日志不足(${totalRLLogs}/30)`,
+    score: totalRLLogs >= 15 ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.15 : 0,
+    eligible: totalRLLogs >= 15,
+    reason: totalRLLogs >= 15 ? '离线强化学习CQL' : `RL日志不足(${totalRLLogs}/15)`,
   });
   
   // 6. ensemble: v239降低门槛 3→2个算法可用
