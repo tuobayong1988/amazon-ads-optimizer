@@ -1191,6 +1191,8 @@ async function executeBidOptimization(
           const keyword = keywords.find(k => k.id === nextGenResult.targetId);
           details.push({
             keywordId: nextGenResult.targetId,
+            amazonKeywordId: keyword?.keywordId || '', // v255: 传入真正的Amazon keyword ID，修复PostOptVerifier验证失败
+            adGroupId: keyword?.adGroupId, // v255: 传入adGroupId用于PostOptVerifier精确回查
             keywordText: keyword?.keywordText || `关键词 ${nextGenResult.targetId}`,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -1260,6 +1262,8 @@ async function executeBidOptimization(
           details.push({
             keywordId: nextGenResult.targetId, // v230: 保持向后兼容，商品定向也用keywordId字段传递本地ID
             productTargetId: nextGenResult.targetId, // v230: 新增显式的productTargetId字段
+            amazonKeywordId: target?.targetId || '', // v255: 传入真正的Amazon target ID，修复PostOptVerifier验证失败
+            adGroupId: target?.adGroupId, // v255: 传入adGroupId用于PostOptVerifier精确回查
             keywordText: target?.targetText || target?.targetValue || `商品定向 ${nextGenResult.targetId}`,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,

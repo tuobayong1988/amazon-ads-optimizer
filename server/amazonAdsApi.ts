@@ -1805,7 +1805,7 @@ export class AmazonAdsApiClient {
           groupBy: ['asin'],
           columns: [
             // 基础信息 - 根据Excel文档SP Purchased Product sheet
-            'date',
+            // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
             'campaignId',
             'campaignName',                      // Excel: campaignName - 广告系列名称
             'adGroupId',
@@ -1925,16 +1925,14 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['adGroup'],
           columns: [
-            'date',
+            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为spAdGroup
             'campaignId',
             'campaignName',
             'adGroupId',
             'adGroupName',
             'impressions',
             'clicks',
-            'clickThroughRate',
             'cost',
-            'costPerClick',
             'sales7d',
             'purchases7d',
             'unitsSoldClicks7d',
@@ -1943,7 +1941,7 @@ export class AmazonAdsApiClient {
             'salesOtherSku7d',
             'unitsSoldOtherSku7d'
           ],
-          reportTypeId: 'spCampaigns',
+          reportTypeId: 'spAdGroup',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -1983,16 +1981,14 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_BRANDS',
           groupBy: ['adGroup'],
           columns: [
-            'date',
+            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sbAdGroup
             'campaignId',
             'campaignName',
             'adGroupId',
             'adGroupName',
             'impressions',
             'clicks',
-            'clickThroughRate',
             'cost',
-            'costPerClick',
             'salesClicks14d',
             'purchasesClicks14d',
             'unitsSoldClicks14d',
@@ -2000,7 +1996,7 @@ export class AmazonAdsApiClient {
             'attributedSalesNewToBrand14d',
             'attributedOrdersNewToBrand14d'
           ],
-          reportTypeId: 'sbCampaigns',
+          reportTypeId: 'sbAdGroup',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -2040,26 +2036,21 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_DISPLAY',
           groupBy: ['adGroup'],
           columns: [
-            'date',
+            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sdAdGroup
             'campaignId',
             'campaignName',
             'adGroupId',
             'adGroupName',
             'impressions',
             'clicks',
-            'clickThroughRate',
             'cost',
-            'costPerClick',
-            'sales14d',
-            'purchases14d',
-            'unitsSoldClicks14d',
-            'dpv14d',
-            'viewAttributedSales14d',
-            'viewAttributedUnitsOrdered14d',
-            'attributedOrdersNewToBrand14d',
-            'attributedSalesNewToBrand14d'
+            'sales',
+            'purchases',
+            'unitsSold',
+            'newToBrandPurchases',
+            'newToBrandSales'
           ],
-          reportTypeId: 'sdCampaigns',
+          reportTypeId: 'sdAdGroup',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -2257,7 +2248,7 @@ export class AmazonAdsApiClient {
           groupBy: ['matchedTarget'],
           columns: [
             // 基础信息 - 根据Excel文档SD Matchd Target sheet
-            'date',
+            // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
             'campaignId',
             'campaignName',                      // Excel: campaignName - 广告系列名称
             'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
@@ -4248,7 +4239,13 @@ export class AmazonAdsApiClient {
         nextToken = response.data.nextToken;
         log.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
       } catch (error: any) {
-        log.error('[SB API] Error fetching SB negative keywords:', error.message);
+        // v255: 403是Amazon权限限制，降级为WARN而非ERROR
+        const statusCode = error.response?.status;
+        if (statusCode === 403) {
+          log.warn('[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions');
+        } else {
+          log.error('[SB API] Error fetching SB negative keywords:', error.message);
+        }
         break;
       }
     } while (nextToken);
@@ -4289,7 +4286,13 @@ export class AmazonAdsApiClient {
         nextToken = response.data.nextToken;
         log.debug(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
       } catch (error: any) {
-        log.error('[SB API] Error fetching SB negative targets:', error.message);
+        // v255: 403是Amazon权限限制，降级为WARN而非ERROR
+        const statusCode = error.response?.status;
+        if (statusCode === 403) {
+          log.warn('[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions');
+        } else {
+          log.error('[SB API] Error fetching SB negative targets:', error.message);
+        }
         break;
       }
     } while (nextToken);

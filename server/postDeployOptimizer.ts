@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 254;  // v254: 趋势感知优化 - 规则引擎引入近期表现趋势因子，避免误杀正在好转的关键词
+export const SYSTEM_VERSION = 255;  // v255: 指令确认修复 + 报告API修复 + SB权限降级
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -292,6 +292,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     version: 254,
     description: 'v254: [趋势感知优化] — (1)规则引擎趋势感知: 利用dailyData计算近期表现趋势(improving/stable/declining) (2)提价场景: 趋势improving时加速提价，declining时减缓 (3)降价场景: 趋势declining时加速止损，improving时减缓避免误杀 (4)零转化场景: 趋势improving时增加归因容忍度',
     affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 255,
+    description: 'v255: [指令确认+报告API修复] — (1)PostOptVerifier: 修复amazonKeywordId Bug，使用真正的Amazon ID而非本地自增ID (2)SD/SP/SB报告API: 修复5个date+SUMMARY冲突和reportTypeId错误 (3)SB Negative API: 403错误降级为WARN',
+    affectedModules: ['sync', 'bid'],
     correctionActions: ['rerun_optimization'],
   },
 ];
