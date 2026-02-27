@@ -237,74 +237,98 @@ async function evaluateAlgorithms(
   
   log.info(`[MetaLearning] v259算法评估: 账户${accountId}, RL日志(已回填)=${totalRLLogs}, RL日志(含待回填)=${pendingRLLogs}, 历史事件=${totalHistoryEvents}, 合成数据量=${syntheticDataCount}, 特征缓存=${hasFeatures}`);
   
-  // v266 P1-2: 重新调整算法评分体系，提升高级算法激活率
-  // 核心策略: 
-  //   1. 进一步降低rule_based基础分，迫使系统更多使用高级算法
-  //   2. 提高LinUCB和Ensemble的基础分，使其有更大概率被选中
-  //   3. 引入“探索预算”机制：每天至少20%的决策强制使用高级算法
+  // v267 P1-2: 渐进式算法激活策略 — 目标激活率>30%
+  // 核心策略:
+  //   1. 基于系统运行时长和数据积累量动态调整探索比例
+  //   2. 引入算法表现反馈循环：表现好的算法获得更高权重
+  //   3. 每天至少30%的决策强制使用高级算法（从20%提升到30%）
+  //   4. 引入“算法轮转”机制：确保每个算法都有最低探索机会
   
-  // v266: 探索预算机制 — 确保每天至少20%的决策使用高级算法
   const hourOfDay = new Date().getHours();
-  const isExplorationSlot = (hourOfDay % 5 === 0) || (hourOfDay % 5 === 1); // 每5小时中有2小时是探索时段(40%)
-  const explorationBoost = isExplorationSlot ? 0.15 : 0; // 探索时段额外加分
+  const dayOfWeek = new Date().getDay();
   
-  // 1. rule_based: v266进一步降低基础分
+  // v267: 动态探索预算 — 基于数据量调整探索比例
+  // 数据少时探索多(50%)，数据多时探索少(20%)，但永远不低于20%
+  const dataMaturity = Math.min(1, syntheticDataCount / 50); // 0-1: 数据成熟度
+  const explorationRate = Math.max(0.30, 0.50 - dataMaturity * 0.30); // 30%-50%
+  
+  // v267: 算法轮转机制 — 确保每个算法都有最低探索机会
+  // 每天的不同时段偏向不同算法，确保全面覆盖
+  const algorithmRotation = hourOfDay % 6; // 0-5循环
+  const isExplorationSlot = Math.random() < explorationRate;
+  const explorationBoost = isExplorationSlot ? 0.20 : 0; // v267: 从0.15提升到0.20
+  
+  // v267: 算法表现反馈乘数 — 基于Thompson Sampling的历史表现动态调整
+  const getPerformanceMultiplier = (stat: any) => {
+    const successRate = stat.alphaParam / (stat.alphaParam + stat.betaParam);
+    // 表现好的算法获得额外加成，但不超过15%
+    return 1 + Math.max(0, (successRate - 0.5)) * 0.30;
+  };
+  
+  // 1. rule_based: v267进一步降低基础分，强制系统向高级算法迁移
   const rbStat = stats.get('rule_based')!;
+  const rbPenalty = isExplorationSlot ? 0.60 : 0.75; // v267: 从0.70-0.80降至0.60-0.75
   scores.push({
     algorithm: 'rule_based',
-    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * (isExplorationSlot ? 0.70 : 0.80), // v266: 从0.85降至0.70-0.80
+    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * rbPenalty,
     eligible: true,
     reason: '基于规则的出价策略（兆底）',
   });
   
-  // 2. ucb: 保持强制优先
+  // 2. ucb: v267增加表现反馈
   const ucbStat = stats.get('ucb')!;
   scores.push({
     algorithm: 'ucb',
-    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.30,
+    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.30 * getPerformanceMultiplier(ucbStat),
     eligible: true,
     reason: 'UCB探索-利用策略(强制优先)',
   });
   
-  // 3. linucb: v266提升基础分并放宽激活条件
+  // 3. linucb: v267进一步放宽激活条件，添加轮转加成
   const linucbStat = stats.get('linucb')!;
   const linucbEligible = hasFeatures || syntheticPendingCount >= 1;
+  const linucbRotationBoost = algorithmRotation === 0 || algorithmRotation === 3 ? 0.10 : 0; // 轮转加成
   scores.push({
     algorithm: 'linucb',
-    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * (1.35 + explorationBoost) : 0, // v266: 从1.20提升到1.35+
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * (1.40 + explorationBoost + linucbRotationBoost) * getPerformanceMultiplier(linucbStat) : 0,
     eligible: linucbEligible,
     reason: linucbEligible ? `LinUCB上下文赌博机(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/1)`,
   });
   
-  // 4. sigmoid_curve: v266提升基础分
+  // 4. sigmoid_curve: v267添加轮转加成
   const sigmoidStat = stats.get('sigmoid_curve')!;
   const sigmoidEligible = syntheticPendingCount >= 2;
+  const sigmoidRotationBoost = algorithmRotation === 1 || algorithmRotation === 4 ? 0.10 : 0;
   scores.push({
     algorithm: 'sigmoid_curve',
-    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * (1.25 + explorationBoost) : 0, // v266: 从1.15提升到1.25+
+    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * (1.30 + explorationBoost + sigmoidRotationBoost) * getPerformanceMultiplier(sigmoidStat) : 0,
     eligible: sigmoidEligible,
     reason: sigmoidEligible ? `Sigmoid曲线利润最大化(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/2)`,
   });
   
-  // 5. cql: v266降低激活门槛从5到3
+  // 5. cql: v267进一步降低激活门槛到2，添加轮转加成
   const cqlStat = stats.get('cql')!;
-  const cqlEligible = syntheticPendingCount >= 3; // v266: 从5降至3
+  const cqlEligible = syntheticPendingCount >= 2; // v267: 从3降至2
+  const cqlRotationBoost = algorithmRotation === 2 || algorithmRotation === 5 ? 0.10 : 0;
   scores.push({
     algorithm: 'cql',
-    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * (1.30 + explorationBoost) : 0, // v266: 从1.25提升到1.30+
+    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * (1.35 + explorationBoost + cqlRotationBoost) * getPerformanceMultiplier(cqlStat) : 0,
     eligible: cqlEligible,
-    reason: cqlEligible ? `离线强化学习CQL(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/3)`,
+    reason: cqlEligible ? `离线强化学习CQL(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/2)`,
   });
   
-  // 6. ensemble: v266提升融合模式的基础分，使其成为首选
+  // 6. ensemble: v267提升融合模式为最高优先级
   const eligibleCount = scores.filter(s => s.eligible).length;
   const ensembleStat = stats.get('ensemble')!;
   scores.push({
     algorithm: 'ensemble',
-    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * (1.40 + explorationBoost) : 0, // v266: 从1.30提升到1.40+
+    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * (1.50 + explorationBoost) * getPerformanceMultiplier(ensembleStat) : 0, // v267: 从1.40提升到1.50
     eligible: eligibleCount >= 2,
     reason: eligibleCount >= 2 ? `多算法融合(可用${eligibleCount}个)` : `可用算法不足(${eligibleCount}/2)`,
   });
+  
+  log.info(`[MetaLearning] v267算法评估: 探索率=${(explorationRate*100).toFixed(0)}%, 数据成熟度=${(dataMaturity*100).toFixed(0)}%, 轮转槽=${algorithmRotation}, 探索槽=${isExplorationSlot}`);
+  log.info(`[MetaLearning] v267算法得分: ${scores.map(s => `${s.algorithm}=${s.score.toFixed(3)}`).join(', ')}`);
   
   log.info(`[MetaLearning] v259算法资格: ${scores.filter(s => s.eligible).map(s => s.algorithm).join(', ')} (共${eligibleCount}个可用)`);
   

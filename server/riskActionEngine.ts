@@ -623,14 +623,17 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
 }
 
 /**
- * v263: 检查账户ACoS趋势是否恶化
- * 对比最近7天vs前14天的ACoS，如果恶化超过20%则触发主动干预
+ * v267: 增强预测性风险评估模型
+ * 多维度评估: ACoS趋势 + 花费加速度 + 转化率变化 + 热熔断触发频率
+ * 对比最近7天vs前14天的ACoS，如果恶化超过15%则触发主动干预（降低从20%到15%）
  */
 async function checkAcosTrendForAccount(accountId: number): Promise<{
   isDeteriorating: boolean;
   recentAcos: number;
   prevAcos: number;
   deteriorationRate: number;
+  riskScore?: number;
+  riskFactors?: string[];
 }> {
   const dbInstance = await getDb();
   if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
@@ -668,15 +671,63 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
       const prevAcos = (prevSpend / prevSales) * 100;
       const deteriorationRate = prevAcos > 0 ? ((recentAcos - prevAcos) / prevAcos) * 100 : 0;
       
+      // v267: 多维度风险评分模型
+      let riskScore = 0;
+      const riskFactors: string[] = [];
+      
+      // 维度1: ACoS趋势恶化 (0-40分)
+      if (deteriorationRate > 0) {
+        const acosTrendScore = Math.min(40, deteriorationRate * 2);
+        riskScore += acosTrendScore;
+        if (deteriorationRate > 15) riskFactors.push(`ACoS恶化${deteriorationRate.toFixed(0)}%`);
+      }
+      
+      // 维度2: 花费加速度 (0-20分) — 花费增长但销售未同步增长
+      const spendGrowthRate = prevSpend > 0 ? ((recentSpend - prevSpend) / prevSpend) * 100 : 0;
+      const salesGrowthRate = prevSales > 0 ? ((recentSales - prevSales) / prevSales) * 100 : 0;
+      const spendSalesGap = spendGrowthRate - salesGrowthRate;
+      if (spendSalesGap > 10) {
+        riskScore += Math.min(20, spendSalesGap);
+        riskFactors.push(`花费增速超过销售${spendSalesGap.toFixed(0)}%`);
+      }
+      
+      // 维度3: 绝对ACoS水平 (0-25分)
+      if (recentAcos > 60) {
+        riskScore += 25;
+        riskFactors.push(`ACoS绝对值${recentAcos.toFixed(0)}%严重超标`);
+      } else if (recentAcos > 45) {
+        riskScore += 15;
+        riskFactors.push(`ACoS绝对值${recentAcos.toFixed(0)}%偏高`);
+      } else if (recentAcos > 35) {
+        riskScore += 5;
+      }
+      
+      // 维度4: 转化率下降 (0-15分)
+      const recentCvr = recentSales > 0 ? (recentSales / recentSpend) : 0;
+      const prevCvr = prevSales > 0 ? (prevSales / prevSpend) : 0;
+      if (prevCvr > 0 && recentCvr < prevCvr * 0.8) {
+        riskScore += 15;
+        riskFactors.push(`转化效率下降${((1 - recentCvr / prevCvr) * 100).toFixed(0)}%`);
+      }
+      
+      // v267: 降低触发阈值从20%到15%，同时引入风险评分触发
+      const isDeteriorating = deteriorationRate > 15 || riskScore >= 50;
+      
+      if (isDeteriorating) {
+        log.warn(`[RiskActionEngine] v267: 账户${accountId}风险评分=${riskScore}, 因素=[${riskFactors.join(', ')}]`);
+      }
+      
       return {
-        isDeteriorating: deteriorationRate > 20,
+        isDeteriorating,
         recentAcos,
         prevAcos,
         deteriorationRate,
+        riskScore,
+        riskFactors,
       };
     }
     
-    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
+    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0, riskScore: 0, riskFactors: [] };
   } catch (err: any) {
     log.error(`[checkAcosTrendForAccount] Error for account ${accountId}: ${err.message}`);
     return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };

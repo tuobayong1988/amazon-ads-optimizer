@@ -1028,6 +1028,49 @@ async function executeBidOptimization(
   const groupAvgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0.80;
   const groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
   
+  // v267 P3-3: 多品类自适应 — 从campaign名称和产品定向中推断品类
+  // 品类信息会影响ruleEngineDecision中的提价/降价幅度和metaLearningSelector中的算法选择
+  let inferredCategory = 'default';
+  try {
+    // 从campaign名称和优化目标名称推断品类
+    const nameHints = (config.name || '').toLowerCase();
+    const categoryKeywords: Record<string, string[]> = {
+      'electronics': ['electronic', 'gadget', 'device', 'tech', 'phone', 'tablet', 'laptop', 'computer', 'camera', 'headphone', 'speaker', 'charger', 'cable', 'adapter'],
+      'clothing': ['clothing', 'apparel', 'fashion', 'shirt', 'dress', 'pants', 'jacket', 'shoes', 'sneaker', 'boot', 'sock', 'underwear', 'hat', 'scarf'],
+      'beauty': ['beauty', 'skincare', 'makeup', 'cosmetic', 'serum', 'cream', 'lotion', 'shampoo', 'conditioner', 'perfume', 'fragrance'],
+      'health': ['health', 'supplement', 'vitamin', 'protein', 'fitness', 'wellness', 'medical', 'mask', 'sanitizer'],
+      'home_kitchen': ['home', 'kitchen', 'furniture', 'decor', 'appliance', 'cookware', 'bedding', 'towel', 'curtain', 'rug', 'mat', 'storage', 'organizer'],
+      'sports_outdoors': ['sport', 'outdoor', 'camping', 'hiking', 'fishing', 'yoga', 'gym', 'exercise', 'bike', 'golf', 'running'],
+      'toys_games': ['toy', 'game', 'puzzle', 'lego', 'doll', 'action figure', 'board game', 'card game', 'kids'],
+      'baby': ['baby', 'infant', 'toddler', 'diaper', 'stroller', 'crib', 'pacifier', 'bottle', 'nursing'],
+      'pet_supplies': ['pet', 'dog', 'cat', 'fish', 'bird', 'aquarium', 'leash', 'collar', 'treat', 'food pet'],
+      'grocery': ['grocery', 'food', 'snack', 'beverage', 'coffee', 'tea', 'organic', 'gluten', 'vegan'],
+      'luxury': ['luxury', 'premium', 'designer', 'gold', 'silver', 'diamond', 'jewelry', 'watch', 'handbag'],
+    };
+    for (const [cat, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(kw => nameHints.includes(kw))) {
+        inferredCategory = cat;
+        break;
+      }
+    }
+    if (inferredCategory === 'default') {
+      // 尝试从Campaign名称中推断
+      for (const campaign of campaigns) {
+        const campName = (campaign.campaignName || '').toLowerCase();
+        for (const [cat, keywords] of Object.entries(categoryKeywords)) {
+          if (keywords.some(kw => campName.includes(kw))) {
+            inferredCategory = cat;
+            break;
+          }
+        }
+        if (inferredCategory !== 'default') break;
+      }
+    }
+    log.info(`[BidOptimization] v267 P3-3: 品类推断结果=${inferredCategory} (优化目标: ${config.name})`);
+  } catch (catErr: any) {
+    log.warn(`[BidOptimization] v267 P3-3: 品类推断失败: ${catErr.message}`);
+  }
+
   const bidConfig: bidOptimizer.PerformanceGroupConfig = {
     optimizationGoal: config.optimizationGoal,
     // v170: 传入策略模板名称，用于策略感知的参数差异化
@@ -1039,6 +1082,8 @@ async function executeBidOptimization(
     groupAvgCvr,
     groupAvgCpc,
     groupAvgAov,
+    // v267 P3-3: 多品类自适应
+    productCategory: inferredCategory,
   };
   
   // v164: 从自我进化引擎获取自适应参数，注入到bidConfig中
@@ -1831,9 +1876,33 @@ async function executeDaypartingOptimization(
               adjustment.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
             }
           } catch (apiError: any) {
-            adjustment.apiSyncStatus = 'failed';
-            adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log.error(`[DaypartingOptimization] API同步失败 (kw ${keyword.keywordText}):`, apiError.message);
+            // v267 P2-1: 分时竞价失败自动重试一次
+            try {
+              await new Promise(r => setTimeout(r, 2000)); // 等待2秒后重试
+              const retryResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+                config.accountId,
+                [{
+                  keywordId: keyword.id,
+                  newBid: adjustedBid,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
+                  reason: `v267分时竞价重试: ${reasonParts.join(' × ')}`,
+                  isProductTarget: false,
+                }]
+              );
+              if (retryResult.success > 0) {
+                adjustmentsCount++;
+                adjustment.apiSyncStatus = 'synced';
+                log.info(`[DaypartingOptimization] v267 重试成功 (kw ${keyword.keywordText})`);
+              } else {
+                adjustment.apiSyncStatus = 'failed';
+                adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message, retryFailed: true });
+              }
+            } catch (retryError: any) {
+              adjustment.apiSyncStatus = 'failed';
+              adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message, retryError: retryError.message });
+              log.error(`[DaypartingOptimization] v267 重试也失败 (kw ${keyword.keywordText}):`, retryError.message);
+            }
           }
         }
       }

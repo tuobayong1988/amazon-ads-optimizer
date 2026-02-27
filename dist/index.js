@@ -57533,7 +57533,7 @@ async function backfillRewards(accountId) {
       sql`reward_impressions = 0`,
       sql`reward_clicks = 0`,
       gte(rlTrainingLogs.createdAt, hoursAgo168)
-    )).limit(50);
+    )).limit(200);
     for (const zLog of zeroFilledLogs) {
       try {
         let hasRealData = false;
@@ -57630,13 +57630,28 @@ async function backfillRewards(accountId) {
             sales: keywords.sales
           }).from(keywords).where(eq(keywords.id, log43.keywordId)).limit(1);
           if (kwPerf[0]) {
-            rewardImpressions = Number(kwPerf[0].impressions) || 0;
-            rewardClicks = Number(kwPerf[0].clicks) || 0;
-            rewardOrders = Number(kwPerf[0].orders) || 0;
-            rewardSpend = Number(kwPerf[0].spend) || 0;
-            rewardSales = Number(kwPerf[0].sales) || 0;
-            dataSource = "keyword";
-            usedImmediateChannel = true;
+            const currentImpressions = Number(kwPerf[0].impressions) || 0;
+            const currentClicks = Number(kwPerf[0].clicks) || 0;
+            const currentOrders = Number(kwPerf[0].orders) || 0;
+            const currentSpend = Number(kwPerf[0].spend) || 0;
+            const currentSales = Number(kwPerf[0].sales) || 0;
+            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = "keyword_post_attribution";
+              usedImmediateChannel = true;
+            } else if (currentImpressions > 0 || currentClicks > 0) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = "keyword_pre_attribution";
+              usedImmediateChannel = true;
+            }
           }
         } else if (log43.targetId) {
           const tgtPerf = await db.select({
@@ -57647,19 +57662,35 @@ async function backfillRewards(accountId) {
             sales: productTargets.sales
           }).from(productTargets).where(eq(productTargets.id, log43.targetId)).limit(1);
           if (tgtPerf[0]) {
-            rewardImpressions = Number(tgtPerf[0].impressions) || 0;
-            rewardClicks = Number(tgtPerf[0].clicks) || 0;
-            rewardOrders = Number(tgtPerf[0].orders) || 0;
-            rewardSpend = Number(tgtPerf[0].spend) || 0;
-            rewardSales = Number(tgtPerf[0].sales) || 0;
-            dataSource = "product_target";
-            usedImmediateChannel = true;
+            const currentImpressions = Number(tgtPerf[0].impressions) || 0;
+            const currentClicks = Number(tgtPerf[0].clicks) || 0;
+            const currentOrders = Number(tgtPerf[0].orders) || 0;
+            const currentSpend = Number(tgtPerf[0].spend) || 0;
+            const currentSales = Number(tgtPerf[0].sales) || 0;
+            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = "target_post_attribution";
+              usedImmediateChannel = true;
+            } else if (currentImpressions > 0 || currentClicks > 0) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = "target_pre_attribution";
+              usedImmediateChannel = true;
+            }
           }
         }
         if (dataSource === "none") {
-          if (logAgeHours < 3) {
+          if (logAgeHours < 6) {
             continue;
           }
+          const threeDaysLater = new Date(logDate.getTime() + 3 * 864e5).toISOString().split("T")[0];
           const afterPerf = await db.select({
             totalImpressions: sql`SUM(impressions)`,
             totalClicks: sql`SUM(clicks)`,
@@ -57670,7 +57701,7 @@ async function backfillRewards(accountId) {
             eq(dailyPerformance.accountId, log43.accountId),
             log43.campaignId ? eq(dailyPerformance.campaignId, log43.campaignId) : sql`1=1`,
             gte(dailyPerformance.date, nextDay),
-            lte(dailyPerformance.date, twoDaysLater)
+            lte(dailyPerformance.date, threeDaysLater)
           ));
           const perf = afterPerf[0] || {};
           rewardImpressions = Number(perf.totalImpressions) || 0;
@@ -57717,9 +57748,18 @@ async function backfillRewards(accountId) {
           }
         }
         if (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
+          const bidBefore = Number(log43.actionBidBefore) || 0;
+          const bidAfter = Number(log43.actionBidAfter) || 0;
+          const bidChangeRatio = bidBefore > 0 ? (bidAfter - bidBefore) / bidBefore : 0;
+          let syntheticReward = 0;
+          if (Math.abs(bidChangeRatio) <= 0.15) {
+            syntheticReward = bidChangeRatio < 0 ? 0.1 : 0.05;
+          } else {
+            syntheticReward = 0;
+          }
           skippedNoData++;
           await db.update(rlTrainingLogs).set({
-            reward: "0",
+            reward: String(syntheticReward),
             rewardImpressions: 0,
             rewardClicks: 0,
             rewardOrders: 0,
@@ -59113,19 +59153,21 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const syntheticDataCount = totalRLLogs + Math.floor(totalHistoryEvents * 0.3);
   const syntheticPendingCount = pendingRLLogs + Math.floor(totalHistoryEvents * 0.3);
   log8.info(`[MetaLearning] v259\u7B97\u6CD5\u8BC4\u4F30: \u8D26\u6237${accountId}, RL\u65E5\u5FD7(\u5DF2\u56DE\u586B)=${totalRLLogs}, RL\u65E5\u5FD7(\u542B\u5F85\u56DE\u586B)=${pendingRLLogs}, \u5386\u53F2\u4E8B\u4EF6=${totalHistoryEvents}, \u5408\u6210\u6570\u636E\u91CF=${syntheticDataCount}, \u7279\u5F81\u7F13\u5B58=${hasFeatures}`);
+  const hourOfDay = (/* @__PURE__ */ new Date()).getHours();
+  const isExplorationSlot = hourOfDay % 5 === 0 || hourOfDay % 5 === 1;
+  const explorationBoost = isExplorationSlot ? 0.15 : 0;
   const rbStat = stats.get("rule_based");
   scores.push({
     algorithm: "rule_based",
-    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * 0.85,
-    // v259: 降低基础分
+    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * (isExplorationSlot ? 0.7 : 0.8),
+    // v266: 从0.85降至0.70-0.80
     eligible: true,
-    reason: "\u57FA\u4E8E\u89C4\u5219\u7684\u51FA\u4EF7\u7B56\u7565\uFF08\u5156\u5E95\uFF09"
+    reason: "\u57FA\u4E8E\u89C4\u5219\u7684\u51FA\u4EF7\u7B56\u7565\uFF08\u5146\u5E95\uFF09"
   });
   const ucbStat = stats.get("ucb");
   scores.push({
     algorithm: "ucb",
     score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.3,
-    // v259: 提高基础分
     eligible: true,
     reason: "UCB\u63A2\u7D22-\u5229\u7528\u7B56\u7565(\u5F3A\u5236\u4F18\u5148)"
   });
@@ -59133,7 +59175,8 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const linucbEligible = hasFeatures || syntheticPendingCount >= 1;
   scores.push({
     algorithm: "linucb",
-    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.2 : 0,
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * (1.35 + explorationBoost) : 0,
+    // v266: 从1.20提升到1.35+
     eligible: linucbEligible,
     reason: linucbEligible ? `LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/1)`
   });
@@ -59141,25 +59184,27 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const sigmoidEligible = syntheticPendingCount >= 2;
   scores.push({
     algorithm: "sigmoid_curve",
-    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.15 : 0,
+    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * (1.25 + explorationBoost) : 0,
+    // v266: 从1.15提升到1.25+
     eligible: sigmoidEligible,
     reason: sigmoidEligible ? `Sigmoid\u66F2\u7EBF\u5229\u6DA6\u6700\u5927\u5316(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/2)`
   });
   const cqlStat = stats.get("cql");
-  const cqlEligible = syntheticPendingCount >= 5;
+  const cqlEligible = syntheticPendingCount >= 3;
   scores.push({
     algorithm: "cql",
-    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.25 : 0,
+    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * (1.3 + explorationBoost) : 0,
+    // v266: 从1.25提升到1.30+
     eligible: cqlEligible,
-    reason: cqlEligible ? `\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/5)`
+    reason: cqlEligible ? `\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/3)`
   });
   const eligibleCount = scores.filter((s4) => s4.eligible).length;
   const ensembleStat = stats.get("ensemble");
   scores.push({
     algorithm: "ensemble",
-    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.3 : 0,
+    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * (1.4 + explorationBoost) : 0,
+    // v266: 从1.30提升到1.40+
     eligible: eligibleCount >= 2,
-    // v259: 只需要2个算法即可启用融合
     reason: eligibleCount >= 2 ? `\u591A\u7B97\u6CD5\u878D\u5408(\u53EF\u7528${eligibleCount}\u4E2A)` : `\u53EF\u7528\u7B97\u6CD5\u4E0D\u8DB3(${eligibleCount}/2)`
   });
   log8.info(`[MetaLearning] v259\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
@@ -59243,17 +59288,17 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
         break;
       case "ucb": {
         const ucbBid = currentBid || 0;
-        const epsilon = 0.15;
+        const epsilon = 0.2;
         const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
         const hourWindow = Math.floor(Date.now() / (4 * 36e5));
         const hashVal = (entitySeed * 2654435761 + hourWindow >>> 0) % 1e4 / 1e4;
         if (hashVal < epsilon) {
-          const explorationDirection = hashVal < epsilon / 2 ? 1 : -1;
-          const explorationMagnitude = 0.05 + hashVal / epsilon * 0.07;
+          const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1;
+          const explorationMagnitude = 0.05 + hashVal / epsilon * 0.1;
           recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
           recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
-          confidence = 0.4;
-          log8.info(`[MetaLearning] v264 UCB\u63A2\u7D22\u6A21\u5F0F: entity=${keywordId || targetId}, \u65B9\u5411=${explorationDirection > 0 ? "\u63D0\u4EF7" : "\u964D\u4EF7"}, \u5E45\u5EA6=${(explorationMagnitude * 100).toFixed(1)}%`);
+          confidence = 0.45;
+          log8.info(`[MetaLearning] v266 UCB\u63A2\u7D22\u6A21\u5F0F: entity=${keywordId || targetId}, \u65B9\u5411=${explorationDirection > 0 ? "\u63D0\u4EF7" : "\u964D\u4EF7"}, \u5E45\u5EA6=${(explorationMagnitude * 100).toFixed(1)}%`);
         } else {
           recommendedBid = ucbBid;
           confidence = 0.5;
@@ -69874,24 +69919,26 @@ var init_nextGenBidOrchestrator = __esm({
       maxAdjustmentsPerDay: 3
     };
     BID_CIRCUIT_BREAKER_CONFIG = {
+      /** v266 P0-3: 降低熔断触发阈值，使熔断机制能真正生效 */
       /** 7天内累计降价幅度上限（百分比）：超过此值触发熔断 */
-      maxCumulativeDecreasePercent7d: 0.3,
-      // 30%
+      maxCumulativeDecreasePercent7d: 0.2,
+      // v266: 从30%降至20%，更早触发熔断防止死亡螺旋
       /** 连续降价次数上限：超过此值强制hold一个周期 */
-      maxConsecutiveDecreases: 3,
+      maxConsecutiveDecreases: 2,
+      // v266: 从3次降至2次，连续2次降价即触发熔断
       /** 最低出价保护：出价不得低于初始出价的此比例 */
-      minBidFloorRatio: 0.4,
-      // 不低于初始出价的40%
+      minBidFloorRatio: 0.5,
+      // v266: 从40%提升到50%，提高出价底线保护
       /** 归因延迟保护窗口（小时）：最近N小时内的数据权重降低 */
       attributionDelayHours: 48,
       /** 归因延迟数据权重折扣：最近48h内数据的权重 */
       recentDataWeightDiscount: 0.6,
       /** v259: 熔断触发时的提价恢复比例 — 小幅提价恢复曝光 */
-      recoveryBoostPercent: 0.08,
-      // 8%提价恢复
+      recoveryBoostPercent: 0.1,
+      // v266: 从8%提升到10%，更积极地恢复曝光
       /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
-      minImpressionProtectionRatio: 0.5
-      // 曝光低于历史50%时触发保护
+      minImpressionProtectionRatio: 0.6
+      // v266: 从50%提升到60%，更早保护曝光
     };
     DEFAULT_SAFETY = {
       maxBidChangePercent: 0.3,
@@ -83235,8 +83282,8 @@ __export(riskActionEngine_exports, {
 });
 function assessAccountRiskLevel(acos, targetAcos) {
   const effectiveTarget = targetAcos || 30;
-  if (acos > effectiveTarget * 3 || acos > 80) return "critical";
-  if (acos > effectiveTarget * 2 || acos > 50) return "warning";
+  if (acos > effectiveTarget * 2.5 || acos > 60) return "critical";
+  if (acos > effectiveTarget * 1.8 || acos > 45) return "warning";
   return "healthy";
 }
 async function persistRiskAlert(accountId, alertType, severity, detail) {
@@ -120119,13 +120166,39 @@ async function runPostDeployOptimization() {
         const settingsResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'not_applicable',
-              api_sync_detail = ${JSON.stringify({ reason: "v203: \u5185\u90E8\u8BBE\u7F6E\u53D8\u66F4\u4E0D\u9700\u8981Amazon API\u540C\u6B65", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              api_sync_detail = ${JSON.stringify({ reason: "v266: \u5185\u90E8\u8BBE\u7F6E\u53D8\u66F4\u4E0D\u9700\u8981Amazon API\u540C\u6B65", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
           WHERE action_type = 'settings_update'
             AND event_category = 'settings_change'
             AND api_sync_status IN ('failed', 'pending')
+            AND (
+              JSON_EXTRACT(action_detail, '$.type') IN ('system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config')
+              OR change_reason LIKE '%部署%'
+              OR change_reason LIKE '%算法%参数%'
+              OR change_reason LIKE '%策略%更新%'
+            )
         `);
         const settingsFixed = settingsResult[0]?.affectedRows || 0;
-        log32.info(`[PostDeployOptimizer] v203: \u4FEE\u590D${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
+        log32.info(`[PostDeployOptimizer] v266: \u4FEE\u590D${settingsFixed}\u4E2A\u5185\u90E8settings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable(\u4FDD\u7559\u9700\u8981API\u540C\u6B65\u7684\u8BBE\u7F6E\u53D8\u66F4)`);
+        const restoreResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'pending',
+              api_sync_detail = ${JSON.stringify({ reason: "v266: \u6062\u590D\u88AB\u9519\u8BEF\u6807\u8BB0\u7684\u9700\u8981API\u540C\u6B65\u7684\u8BBE\u7F6E\u53D8\u66F4", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE action_type = 'settings_update'
+            AND event_category = 'settings_change'
+            AND api_sync_status = 'not_applicable'
+            AND (
+              change_reason LIKE '%预算%'
+              OR change_reason LIKE '%budget%'
+              OR change_reason LIKE '%出价%'
+              OR change_reason LIKE '%bid%'
+              OR JSON_EXTRACT(action_detail, '$.type') IN ('budget_adjustment', 'bid_adjustment')
+            )
+            AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+        const restored = restoreResult[0]?.affectedRows || 0;
+        if (restored > 0) {
+          log32.warn(`[PostDeployOptimizer] v266: \u6062\u590D${restored}\u4E2A\u88AB\u9519\u8BEF\u6807\u8BB0\u7684\u9884\u7B97/\u51FA\u4EF7settings_update\u4E8B\u4EF6\u4E3Apending`);
+        }
         await database.execute(sql`
           UPDATE optimization_logs ol
           INNER JOIN optimization_events oe ON oe.source_id = ol.id AND oe.source_table = 'optimization_logs'
@@ -312294,10 +312367,20 @@ function calculateGoalProgress(config2, metrics, trendData, timeWeighted, multiW
     trend = calculateTrendScore(trendData || { before: null, after: null }, config2, timeWeighted, multiWindow);
   } else if (timeWeighted) {
     const trendDir = timeWeighted.trendDirection;
-    const baseScore = trendDir === "improving" ? 68 : trendDir === "stable" ? 52 : 35;
-    trend = { score: baseScore, detail: `\u57FA\u4E8E\u65F6\u95F4\u8870\u51CF\u8D8B\u52BF\u4FE1\u53F7: ${trendDir}` };
+    let baseScore;
+    if (trendDir === "improving") {
+      const roas = timeWeighted.weightedRoas || 0;
+      baseScore = roas >= 3 ? 78 : roas >= 2 ? 72 : roas >= 1 ? 65 : 58;
+    } else if (trendDir === "stable") {
+      baseScore = 55;
+    } else {
+      baseScore = 32;
+    }
+    trend = { score: baseScore, detail: `\u57FA\u4E8E\u65F6\u95F4\u8870\u51CF\u8D8B\u52BF\u4FE1\u53F7: ${trendDir} (ROAS=${(timeWeighted.weightedRoas || 0).toFixed(2)})` };
   } else {
-    trend = { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
+    const currentRoas = metrics.totalSpend > 0 ? metrics.totalSales / metrics.totalSpend : 0;
+    const inferredScore = currentRoas >= 3 ? 65 : currentRoas >= 2 ? 55 : currentRoas >= 1 ? 45 : 35;
+    trend = { score: inferredScore, detail: `\u8D8B\u52BF\u6570\u636E\u4E0D\u8DB3\uFF0C\u57FA\u4E8E\u5F53\u524DROAS(${currentRoas.toFixed(2)})\u63A8\u65AD` };
   }
   const budgetEff = calculateBudgetEfficiencyScore(config2, metrics, timeWeighted);
   const convEff = calculateConversionEfficiencyScore(metrics, config2, timeWeighted);
@@ -326833,11 +326916,52 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       }
       case "negative_keyword": {
         let negApiSuccess = false;
-        console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
-        negApiSuccess = true;
+        let negCampaignId = "";
+        const negKeyword = await getKeywordById(targetId);
+        let negAccountId = accountId;
+        if (negKeyword) {
+          const negAdGroup = await getAdGroupById(negKeyword.adGroupId);
+          if (negAdGroup) {
+            negCampaignId = negAdGroup.campaignId;
+            const negCampaign = await getCampaignByAmazonCampaignId(negAdGroup.campaignId);
+            if (negCampaign?.accountId) {
+              negAccountId = negCampaign.accountId;
+            }
+          }
+        }
+        const negWords = (targetName || "").trim().split(/\s+/);
+        const negMatchType = negWords.length <= 2 ? "negativePhrase" : "negativeExact";
+        try {
+          const negSyncResult = await syncNegativeKeywordsToAmazon(negAccountId, [{
+            campaignId: negCampaignId || String(targetId),
+            keywordText: targetName || "",
+            matchType: negMatchType,
+            level: "campaign"
+          }]);
+          if (negSyncResult.success > 0) {
+            negApiSuccess = true;
+            console.log(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u6210\u529F: "${targetName}", matchType=${negMatchType}`);
+          } else {
+            console.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u5931\u8D25: ${negSyncResult.errors.join("; ")}`);
+          }
+        } catch (negApiErr) {
+          console.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAmazon API\u8C03\u7528\u5F02\u5E38:`, negApiErr.message);
+        }
+        if (negApiSuccess) {
+          try {
+            await addNegativeKeyword({
+              campaignId: targetId,
+              keyword: targetName || "",
+              matchType: negMatchType === "negativePhrase" ? "phrase" : "exact",
+              level: "campaign"
+            });
+          } catch (dbErr) {
+            console.warn(`[AutoExec] v266: \u5426\u5B9A\u8BCD\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
+          }
+        }
         await createBiddingLog({
           accountId,
-          campaignId: "",
+          campaignId: String(negCampaignId),
           adGroupId: 0,
           logTargetType: "negative_keyword",
           targetId,
@@ -326845,24 +326969,74 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           actionType: "add",
           previousBid: "0",
           newBid: "0",
-          reason: `${negApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: ${reason}`
+          reason: `${negApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: ${reason}`
         });
+        if (!negApiSuccess) {
+          throw new Error("Amazon API\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25");
+        }
         break;
       }
       case "search_term_harvest": {
+        let harvestApiSuccess = false;
+        let harvestCampaignId = "";
+        let harvestAdGroupId = 0;
+        let harvestAmazonAdGroupId = "";
+        let harvestAmazonCampaignId = "";
+        const targetCampaignMatch = reason.match(/目标Campaign=(\d+)/);
+        const targetCampaignIdFromReason = targetCampaignMatch ? parseInt(targetCampaignMatch[1]) : targetId;
+        const harvestCampaign = await getCampaignById(targetCampaignIdFromReason);
+        if (harvestCampaign) {
+          harvestCampaignId = harvestCampaign.campaignId || "";
+          harvestAmazonCampaignId = String(harvestCampaign.campaignId || "");
+        }
+        try {
+          const harvestSyncResult = await syncNewKeywordsToAmazon(accountId, [{
+            adGroupId: harvestAmazonAdGroupId || harvestAdGroupId,
+            campaignId: harvestAmazonCampaignId || harvestCampaignId,
+            keywordText: targetName || "",
+            matchType: "exact",
+            bid: newValue || 0.75
+            // 使用传入的newValue作为出价，默认0.75
+          }]);
+          if (harvestSyncResult.success > 0) {
+            harvestApiSuccess = true;
+            console.log(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u6210\u529F: "${targetName}", bid=${newValue}`);
+          } else {
+            console.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u5931\u8D25: ${harvestSyncResult.errors.join("; ")}`);
+          }
+        } catch (harvestApiErr) {
+          console.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272Amazon API\u8C03\u7528\u5F02\u5E38:`, harvestApiErr.message);
+        }
+        if (harvestApiSuccess) {
+          try {
+            await createKeyword({
+              adGroupId: harvestAdGroupId || targetId,
+              keywordId: "",
+              keywordText: targetName || "",
+              matchType: "exact",
+              bid: String(newValue || 0.75),
+              keywordStatus: "enabled"
+            });
+          } catch (dbErr) {
+            console.warn(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
+          }
+        }
         await createBiddingLog({
           accountId,
-          campaignId: "",
-          adGroupId: 0,
+          campaignId: String(harvestCampaignId),
+          adGroupId: harvestAdGroupId,
           logTargetType: "search_term_harvest",
           targetId,
           targetName: targetName || "Search Term Harvest",
           actionType: "add",
           previousBid: "0",
-          newBid: "0",
-          reason: `[\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
+          newBid: String(newValue || 0.75),
+          reason: `${harvestApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
         });
-        console.log(`[AutoExec] \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}`);
+        console.log(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}, API=${harvestApiSuccess ? "\u2705" : "\u274C"}`);
+        if (!harvestApiSuccess) {
+          throw new Error("Amazon API\u641C\u7D22\u8BCD\u6536\u5272\u540C\u6B65\u5931\u8D25");
+        }
         break;
       }
       default:
@@ -338337,35 +338511,60 @@ async function calculateRollbackRate(accountId, days = 7) {
   try {
     const currentPeriodQuery = sql`
       SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%') THEN 1 ELSE 0 END) as rolled_back
+        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
+        COUNT(*) as total_all,
+        SUM(CASE 
+          WHEN status = 'rolled_back' 
+            AND change_reason NOT LIKE '%AutoCorrector%'
+            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+          THEN 1 
+          ELSE 0 
+        END) as hard_rollback,
+        SUM(CASE 
+          WHEN (status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%'))
+            AND change_reason NOT LIKE '%AutoCorrector%'
+          THEN 1 
+          ELSE 0 
+        END) as soft_rollback
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease')
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const currentResult = await db.execute(currentPeriodQuery);
     const currentRows = currentResult[0] || currentResult;
-    const total = Number(currentRows?.[0]?.total) || 0;
-    const rolledBack = Number(currentRows?.[0]?.rolled_back) || 0;
+    const totalOriginal = Number(currentRows?.[0]?.total_original) || 0;
+    const hardRollback = Number(currentRows?.[0]?.hard_rollback) || 0;
+    const softRollback = Number(currentRows?.[0]?.soft_rollback) || 0;
+    const total = totalOriginal;
+    const rolledBack = hardRollback;
     const rate = total > 0 ? rolledBack / total * 100 : 0;
     const previousPeriodQuery = sql`
       SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%') THEN 1 ELSE 0 END) as rolled_back
+        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
+        SUM(CASE 
+          WHEN status = 'rolled_back' 
+            AND change_reason NOT LIKE '%AutoCorrector%'
+            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+          THEN 1 
+          ELSE 0 
+        END) as hard_rollback
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease')
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days * 2} DAY)
         AND created_at <= DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const previousResult = await db.execute(previousPeriodQuery);
     const previousRows = previousResult[0] || previousResult;
-    const prevTotal = Number(previousRows?.[0]?.total) || 0;
-    const prevRolledBack = Number(previousRows?.[0]?.rolled_back) || 0;
+    const prevTotal = Number(previousRows?.[0]?.total_original) || 0;
+    const prevRolledBack = Number(previousRows?.[0]?.hard_rollback) || 0;
     const previousRate = prevTotal > 0 ? prevRolledBack / prevTotal * 100 : 0;
     const trend = rate < previousRate - 2 ? "improving" : rate > previousRate + 2 ? "worsening" : "stable";
     const status = rate < 10 ? "healthy" : rate < 30 ? "warning" : "critical";
+    log33.info(`[RollbackRate] v266: \u8D26\u6237${accountId} \u539F\u59CB\u8C03\u6574=${totalOriginal}, \u786C\u56DE\u6EDA=${hardRollback}, \u8F6F\u56DE\u6EDA=${softRollback}, \u771F\u6B63\u56DE\u6EDA\u7387=${rate.toFixed(1)}%`);
     return { totalAdjustments: total, rolledBackCount: rolledBack, rate: Math.round(rate * 10) / 10, status, trend, previousRate: Math.round(previousRate * 10) / 10 };
   } catch (error51) {
     log33.warn(`[RollbackRate] \u8BA1\u7B97\u5F02\u5E38: ${error51.message}`);

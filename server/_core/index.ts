@@ -18,6 +18,7 @@ import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo } from '../deployLifecycleManager';
 import { isShuttingDown } from '../utils/taskLifecycle';
 import { ensureNextGenTables } from '../nextGenMigration';
+import { startObservabilityService } from '../observabilityService';
 import { runAutoDbMigration } from '../dbAutoMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
@@ -226,6 +227,10 @@ async function startServer() {
       console.log('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
     }
     
+    // v267 P2-3: 启动统一可观测性服务
+    startObservabilityService();
+    console.log('[Observability] v267: 统一可观测性服务已启动 - 指标收集/告警/健康摘要');
+
     // 启动异步报告任务调度器
     reportJobScheduler.start();
     console.log('[ReportJobScheduler] 异步报告任务调度器已启动');

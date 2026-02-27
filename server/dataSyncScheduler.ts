@@ -997,7 +997,8 @@ type OptimizationTaskType =
   | 'weekly_report'
   | 'nextgen_maintenance'
   | 'nextgen_model_training'
-  | 'nextgen_budget_optimization';
+  | 'nextgen_budget_optimization'
+  | 'ab_test_metrics';  // v267 P2-2: A/B测试每日指标收集
 
 interface OptimizationScheduleConfig {
   type: OptimizationTaskType;
@@ -1114,6 +1115,7 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
   nextgen_maintenance: null,
   nextgen_model_training: null,
   nextgen_budget_optimization: null,
+  ab_test_metrics: null,  // v267 P2-2
 };
 
 // v122: 执行锁 - 防止同一任务重复执行
@@ -1513,7 +1515,49 @@ export async function startOptimizationScheduler(): Promise<void> {
       await executeOptimizationTask('nextgen_budget_optimization');
     }
   }, 60 * 60 * 1000);
-  log.info(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱已启动，执行时间: 每日凌晨2:00`);
+  log.info(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱已启动，执行时间: 每日凌昨2:00`);
+  
+  // v267 P2-2: A/B测试每日指标收集和自动分析 - 每日凌昨3:00执行
+  optimizationIntervals.ab_test_metrics = setInterval(async () => {
+    const now = new Date();
+    const localHour = getLocalHour(now, 'US');
+    if (localHour === 3 && shouldExecuteThisHour('ab_test_metrics')) {
+      try {
+        const abTestService = await import('./abTestService');
+        const db = await import('./db');
+        // 获取所有活跃账户
+        const accounts = await db.getActiveAccounts();
+        for (const account of accounts) {
+          const tests = await abTestService.getABTests(account.id);
+          const activeTests = tests.filter((t: any) => t.status === 'running');
+          for (const test of activeTests) {
+            try {
+              // 收集每日指标
+              await abTestService.recordDailyMetrics(test.id);
+              // 检查是否已达到统计显著性
+              const analysis = await abTestService.analyzeABTestResults(test.id);
+              if (analysis.isSignificant) {
+                log.info(`[ABTestScheduler] v267: 测试${test.id}已达到统计显著性! 胜者: ${analysis.winner}, p值: ${analysis.pValue}`);
+              }
+              // 检查是否超时（超过30天自动完成）
+              const startDate = new Date(test.startDate);
+              const daysSinceStart = (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+              if (daysSinceStart > 30) {
+                await abTestService.completeABTest(test.id);
+                log.info(`[ABTestScheduler] v267: 测试${test.id}超过30天，自动完成`);
+              }
+            } catch (testErr: any) {
+              log.warn(`[ABTestScheduler] v267: 处理测试${test.id}失败: ${testErr.message}`);
+            }
+          }
+        }
+        log.info(`[ABTestScheduler] v267: A/B测试每日指标收集完成`);
+      } catch (err: any) {
+        log.error(`[ABTestScheduler] v267: A/B测试调度失败: ${err.message}`);
+      }
+    }
+  }, 60 * 60 * 1000);
+  log.info(`[OptimizationScheduler] v267: A/B测试指标收集已启动，执行时间: 每日凌昨3:00`);
 }
 
 /**
@@ -1820,6 +1864,15 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           }
           
           log.info(`[OptimizationScheduler] 预算分配完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          
+          // v267 P3-2: 执行边际效益驱动的预算自动执行
+          try {
+            const { checkAndExecutePendingTasks } = await import('./budgetAutoExecutionService');
+            const autoExecResult = await checkAndExecutePendingTasks();
+            log.info(`[OptimizationScheduler] v267: 预算自动执行完成: 执行=${autoExecResult.executedCount}, 跳过=${autoExecResult.skippedCount}, 失败=${autoExecResult.failedCount}`);
+          } catch (autoExecErr: any) {
+            log.error(`[OptimizationScheduler] v267: 预算自动执行失败:`, autoExecErr.message);
+          }
         } catch (budgetError: any) {
           log.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
         }

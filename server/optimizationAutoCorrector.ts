@@ -1263,8 +1263,12 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
         let success = false;
         const actionType = event.actionType || '';
         
-        // 根据actionType决定重试方式
-        if (actionType.includes('budget') && event.campaignId && event.newValue) {
+        // v267: 根据actionType和actionDetail决定重试方式，覆盖所有settings_update类型
+        const detail = event.actionDetail ? JSON.parse(event.actionDetail || '{}') : {};
+        const detailType = detail.type || '';
+        
+        // 1. 预算类型的settings_update
+        if ((actionType.includes('budget') || detailType === 'budget_adjustment') && event.campaignId && event.newValue) {
           const campRows = await database
             .select({ campaignId: campaigns.campaignId })
             .from(campaigns)
@@ -1275,14 +1279,57 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
             const syncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
               accountId,
               String(campRows[0].campaignId),
-              // v175: 移除$符号后解析预算值
               Math.round(parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, ''))),
               `[自动纠错] 重试设置变更`
             );
             success = !!syncResult;
           }
         }
-        // 其他设置变更类型可以在这里扩展
+        // 2. v267: 出价类型的settings_update
+        else if ((actionType.includes('bid') || detailType === 'bid_adjustment') && event.campaignId && event.newValue) {
+          // 从actionDetail中提取关键词ID和出价信息
+          const kwId = detail.keywordId || detail.targetId;
+          if (kwId) {
+            const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+              accountId,
+              [{ keywordId: kwId, newBid: parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, '')) }]
+            );
+            success = syncResult.success > 0;
+          }
+        }
+        // 3. v267: 位置倾斜类型的settings_update
+        else if ((actionType.includes('placement') || detailType === 'placement_adjustment') && event.campaignId) {
+          const campRows = await database
+            .select({ campaignId: campaigns.campaignId })
+            .from(campaigns)
+            .where(eq(campaigns.id, event.campaignId))
+            .limit(1);
+          
+          if (campRows.length > 0) {
+            const placementValue = parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, ''));
+            const placementType = detail.placementType || 'top';
+            const syncResult = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
+              accountId,
+              String(campRows[0].campaignId),
+              placementType,
+              placementValue,
+              `[自动纠错] 重试位置倾斜变更`
+            );
+            success = !!syncResult;
+          }
+        }
+        // 4. v267: 内部设置变更(system_deploy等)标记为not_applicable
+        else if (['system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config'].includes(detailType)) {
+          // 这些是内部事件，不需要Amazon API同步
+          await database
+            .update(optimizationEvents)
+            .set({ 
+              apiSyncStatus: 'not_applicable',
+              apiSyncDetail: JSON.stringify({ reason: 'v267: 内部设置变更自动标记', fixedAt: new Date().toISOString() }),
+            })
+            .where(eq(optimizationEvents.id, event.id));
+          success = true; // 标记为处理成功
+        }
         
         results.push({
           type: 'settings_retry',
@@ -2021,35 +2068,49 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
     // 5. 生成告警信息
     const alerts: string[] = [];
     
-    if (bidSyncRate < 80) {
-      alerts.push(`⚠️ 出价同步率低于80%: ${bidSyncRate.toFixed(1)}%`);
+    // v267: A级系统标准 — 同步率目标100%，告警阈值提高到95%
+    const settingsSyncRate = getTypeSyncRate('settings_update');
+    const searchTermSyncRate = getTypeSyncRate('search_term_harvest');
+    const placementSyncRate = getTypeSyncRate('placement_adjust');
+    
+    if (bidSyncRate < 95) {
+      alerts.push(`⚠️ 出价同步率低于95%: ${bidSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (budgetSyncRate < 80) {
-      alerts.push(`⚠️ 预算同步率低于80%: ${budgetSyncRate.toFixed(1)}%`);
+    if (budgetSyncRate < 95) {
+      alerts.push(`⚠️ 预算同步率低于95%: ${budgetSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (negativeKeywordSyncRate < 70) {
-      alerts.push(`⚠️ 否定词同步率低于70%: ${negativeKeywordSyncRate.toFixed(1)}%`);
+    if (negativeKeywordSyncRate < 90) {
+      alerts.push(`⚠️ 否定词同步率低于90%: ${negativeKeywordSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (keywordCreateSyncRate < 70) {
-      alerts.push(`⚠️ 关键词创建同步率低于70%: ${keywordCreateSyncRate.toFixed(1)}%`);
+    if (keywordCreateSyncRate < 90) {
+      alerts.push(`⚠️ 关键词创建同步率低于90%: ${keywordCreateSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (pending > 100) {
-      alerts.push(`🚨 待处理任务积压: ${pending}个任务等待处理`);
+    if (settingsSyncRate < 90) {
+      alerts.push(`⚠️ 设置变更同步率低于90%: ${settingsSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (failed > 50) {
-      alerts.push(`🚨 失败任务过多: ${failed}个任务失败`);
+    if (searchTermSyncRate < 90) {
+      alerts.push(`⚠️ 搜索词收割同步率低于90%: ${searchTermSyncRate.toFixed(1)}% (目标100%)`);
     }
-    if (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10) {
-      alerts.push(`❗ 纠错成功率低于50%: ${correctionSuccessRate.toFixed(1)}% (${scanResult.totalCorrected}/${scanResult.totalIssuesFound})`);
+    if (placementSyncRate < 90) {
+      alerts.push(`⚠️ 位置倾斜同步率低于90%: ${placementSyncRate.toFixed(1)}% (目标100%)`);
+    }
+    if (pending > 20) {
+      alerts.push(`🚨 待处理任务积压: ${pending}个任务等待处理 (目标0)`);
+    }
+    if (failed > 10) {
+      alerts.push(`🚨 失败任务过多: ${failed}个任务失败 (目标0)`);
+    }
+    if (correctionSuccessRate < 80 && scanResult.totalIssuesFound > 5) {
+      alerts.push(`❗ 纠错成功率低于80%: ${correctionSuccessRate.toFixed(1)}% (${scanResult.totalCorrected}/${scanResult.totalIssuesFound})`);
     }
     
-    // 6. 确定健康度等级
+    // 6. v267: 确定健康度等级 — A级标准
     let level: SyncHealthLevel = 'healthy';
-    if (overallSyncRate < 60 || (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10)) {
+    if (overallSyncRate < 70 || (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10)) {
       level = 'emergency';
-    } else if (overallSyncRate < 80 || failed > 100) {
+    } else if (overallSyncRate < 90 || failed > 50) {
       level = 'critical';
-    } else if (overallSyncRate < 95 || pending > 50 || alerts.length > 0) {
+    } else if (overallSyncRate < 98 || pending > 10 || alerts.length > 0) {
       level = 'warning';
     }
     

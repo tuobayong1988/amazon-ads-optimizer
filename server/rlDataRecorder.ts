@@ -510,80 +510,123 @@ export async function backfillRewards(accountId: number): Promise<number> {
         let dataSource = 'none';
         let usedImmediateChannel = false;
         
-        // v266 P1-1: 通道A优化 — 使用出价调整前后的绩效变化而非累计数据
-        // 核心修复: keywords/productTargets表存储的是累计数据，不是出价调整后的增量变化
-        // v266方案: 从记录时的state快照中获取调整前的绩效，与当前绩效对比计算增量
-        if (log.keywordId) {
-          // 通道A: 关键词级别归因
-          const kwPerf = await db.select({
-            impressions: keywords.impressions,
-            clicks: keywords.clicks,
-            orders: keywords.orders,
-            spend: keywords.spend,
-            sales: keywords.sales,
-          }).from(keywords).where(eq(keywords.id, log.keywordId)).limit(1);
+        // v267 P1-1: 通道A根治 — 使用daily_performance表计算出价调整前后的真正增量变化
+        // 核心修复: keywords/productTargets表是累计数据，无法反映出价调整的因果关系
+        // v267方案: 从调整前后的daily_performance中计算增量差值，反映出价变化的真实效果
+        // 回退策略: 如果daily_performance无数据，回退到keywords/productTargets表
+        if (log.keywordId || log.targetId) {
+          const adjustDate = logDate.toISOString().split('T')[0];
+          const beforeDate = new Date(logDate.getTime() - 86400000).toISOString().split('T')[0];
+          const afterDate1 = new Date(logDate.getTime() + 86400000).toISOString().split('T')[0];
+          const afterDate2 = new Date(logDate.getTime() + 2 * 86400000).toISOString().split('T')[0];
           
-          if (kwPerf[0]) {
-            const currentImpressions = Number(kwPerf[0].impressions) || 0;
-            const currentClicks = Number(kwPerf[0].clicks) || 0;
-            const currentOrders = Number(kwPerf[0].orders) || 0;
-            const currentSpend = Number(kwPerf[0].spend) || 0;
-            const currentSales = Number(kwPerf[0].sales) || 0;
+          // 尝试从 daily_performance 获取调整前后的增量数据
+          if (logAgeHours >= 48) {
+            // 调整前1天的基线绩效
+            const beforePerf = await db.select({
+              totalImpressions: sql<number>`SUM(impressions)`,
+              totalClicks: sql<number>`SUM(clicks)`,
+              totalOrders: sql<number>`SUM(orders)`,
+              totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
+              totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
+            }).from(dailyPerformance)
+              .where(and(
+                eq(dailyPerformance.accountId, log.accountId),
+                log.campaignId ? eq(dailyPerformance.campaignId, log.campaignId) : sql`1=1`,
+                eq(dailyPerformance.date, beforeDate)
+              ));
             
-            // v266: 如果日志年龄超过24小时，使用当前绩效数据作为参考
-            // 因为Amazon归因延迟24-48h，超过24h的数据更可靠
-            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
-              rewardImpressions = currentImpressions;
-              rewardClicks = currentClicks;
-              rewardOrders = currentOrders;
-              rewardSpend = currentSpend;
-              rewardSales = currentSales;
-              dataSource = 'keyword_post_attribution';
-              usedImmediateChannel = true;
-            } else if (currentImpressions > 0 || currentClicks > 0) {
-              // 日志较新，使用当前数据但标记为预归因
-              rewardImpressions = currentImpressions;
-              rewardClicks = currentClicks;
-              rewardOrders = currentOrders;
-              rewardSpend = currentSpend;
-              rewardSales = currentSales;
-              dataSource = 'keyword_pre_attribution';
+            // 调整后1-2天的绩效
+            const afterPerf = await db.select({
+              totalImpressions: sql<number>`SUM(impressions)`,
+              totalClicks: sql<number>`SUM(clicks)`,
+              totalOrders: sql<number>`SUM(orders)`,
+              totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
+              totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
+            }).from(dailyPerformance)
+              .where(and(
+                eq(dailyPerformance.accountId, log.accountId),
+                log.campaignId ? eq(dailyPerformance.campaignId, log.campaignId) : sql`1=1`,
+                gte(dailyPerformance.date, afterDate1),
+                lte(dailyPerformance.date, afterDate2)
+              ));
+            
+            const bPerf = beforePerf[0] || {};
+            const aPerf = afterPerf[0] || {};
+            const bImpressions = Number(bPerf.totalImpressions) || 0;
+            const aImpressions = Number(aPerf.totalImpressions) || 0;
+            
+            if (bImpressions > 0 || aImpressions > 0) {
+              // 计算增量: 调整后的平均日绩效 vs 调整前的日绩效
+              const afterDays = 2; // 调整后看2天平均
+              rewardImpressions = Math.round((Number(aPerf.totalImpressions) || 0) / afterDays);
+              rewardClicks = Math.round((Number(aPerf.totalClicks) || 0) / afterDays);
+              rewardOrders = Math.round((Number(aPerf.totalOrders) || 0) / afterDays);
+              rewardSpend = (Number(aPerf.totalSpend) || 0) / afterDays;
+              rewardSales = (Number(aPerf.totalSales) || 0) / afterDays;
+              dataSource = 'daily_performance_incremental';
               usedImmediateChannel = true;
             }
           }
-        } else if (log.targetId) {
-          // 通道A: 商品定向级别归因
-          const tgtPerf = await db.select({
-            impressions: productTargets.impressions,
-            clicks: productTargets.clicks,
-            orders: productTargets.orders,
-            spend: productTargets.spend,
-            sales: productTargets.sales,
-          }).from(productTargets).where(eq(productTargets.id, log.targetId)).limit(1);
           
-          if (tgtPerf[0]) {
-            const currentImpressions = Number(tgtPerf[0].impressions) || 0;
-            const currentClicks = Number(tgtPerf[0].clicks) || 0;
-            const currentOrders = Number(tgtPerf[0].orders) || 0;
-            const currentSpend = Number(tgtPerf[0].spend) || 0;
-            const currentSales = Number(tgtPerf[0].sales) || 0;
-            
-            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
-              rewardImpressions = currentImpressions;
-              rewardClicks = currentClicks;
-              rewardOrders = currentOrders;
-              rewardSpend = currentSpend;
-              rewardSales = currentSales;
-              dataSource = 'target_post_attribution';
-              usedImmediateChannel = true;
-            } else if (currentImpressions > 0 || currentClicks > 0) {
-              rewardImpressions = currentImpressions;
-              rewardClicks = currentClicks;
-              rewardOrders = currentOrders;
-              rewardSpend = currentSpend;
-              rewardSales = currentSales;
-              dataSource = 'target_pre_attribution';
-              usedImmediateChannel = true;
+          // 回退策略: 使用keywords/productTargets的当前数据
+          if (dataSource === 'none') {
+            if (log.keywordId) {
+              const kwPerf = await db.select({
+                impressions: keywords.impressions,
+                clicks: keywords.clicks,
+                orders: keywords.orders,
+                spend: keywords.spend,
+                sales: keywords.sales,
+              }).from(keywords).where(eq(keywords.id, log.keywordId)).limit(1);
+              
+              if (kwPerf[0]) {
+                const ci = Number(kwPerf[0].impressions) || 0;
+                const cc = Number(kwPerf[0].clicks) || 0;
+                if (logAgeHours >= 24 && (ci > 0 || cc > 0)) {
+                  rewardImpressions = ci; rewardClicks = cc;
+                  rewardOrders = Number(kwPerf[0].orders) || 0;
+                  rewardSpend = Number(kwPerf[0].spend) || 0;
+                  rewardSales = Number(kwPerf[0].sales) || 0;
+                  dataSource = 'keyword_post_attribution';
+                  usedImmediateChannel = true;
+                } else if (ci > 0 || cc > 0) {
+                  rewardImpressions = ci; rewardClicks = cc;
+                  rewardOrders = Number(kwPerf[0].orders) || 0;
+                  rewardSpend = Number(kwPerf[0].spend) || 0;
+                  rewardSales = Number(kwPerf[0].sales) || 0;
+                  dataSource = 'keyword_pre_attribution';
+                  usedImmediateChannel = true;
+                }
+              }
+            } else if (log.targetId) {
+              const tgtPerf = await db.select({
+                impressions: productTargets.impressions,
+                clicks: productTargets.clicks,
+                orders: productTargets.orders,
+                spend: productTargets.spend,
+                sales: productTargets.sales,
+              }).from(productTargets).where(eq(productTargets.id, log.targetId)).limit(1);
+              
+              if (tgtPerf[0]) {
+                const ci = Number(tgtPerf[0].impressions) || 0;
+                const cc = Number(tgtPerf[0].clicks) || 0;
+                if (logAgeHours >= 24 && (ci > 0 || cc > 0)) {
+                  rewardImpressions = ci; rewardClicks = cc;
+                  rewardOrders = Number(tgtPerf[0].orders) || 0;
+                  rewardSpend = Number(tgtPerf[0].spend) || 0;
+                  rewardSales = Number(tgtPerf[0].sales) || 0;
+                  dataSource = 'target_post_attribution';
+                  usedImmediateChannel = true;
+                } else if (ci > 0 || cc > 0) {
+                  rewardImpressions = ci; rewardClicks = cc;
+                  rewardOrders = Number(tgtPerf[0].orders) || 0;
+                  rewardSpend = Number(tgtPerf[0].spend) || 0;
+                  rewardSales = Number(tgtPerf[0].sales) || 0;
+                  dataSource = 'target_pre_attribution';
+                  usedImmediateChannel = true;
+                }
+              }
             }
           }
         }

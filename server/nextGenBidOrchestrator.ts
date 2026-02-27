@@ -62,8 +62,8 @@ const log = createModuleLogger('NextGen');
  *   4. 新增连续降价计数：连续3次降价后强制hold
  */
 const BID_COOLDOWN_CONFIG = {
-  /** 冷却时间窗口（小时）：同一关键词在此时间内最多调整一次 */
-  cooldownHours: 4,
+  /** v267: 冷却时间窗口（小时）：同一关键词在此时间内最多调整一次，从4h延长到6h减少振荡 */
+  cooldownHours: 6,
   /** 最小调整幅度（百分比）：低于此幅度的调整将被忽略 */
   minAdjustmentPercent: 0.02,  // 2%
   /** 最小调整绝对值（美元）：低于此金额的调整将被忽略 */
@@ -101,6 +101,74 @@ const BID_CIRCUIT_BREAKER_CONFIG = {
   /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
   minImpressionProtectionRatio: 0.60, // v266: 从50%提升到60%，更早保护曝光
 };
+
+/**
+ * v267: 检查出价方向一致性 — 检测振荡模式
+ * 
+ * 查询最近3次出价调整的方向，如果出现“升-降-升”或“降-升-降”的振荡模式，
+ * 强制hold一个周期，等待数据稳定后再做决策。
+ * 这是根治回滚率高的核心机制。
+ */
+async function checkBidDirectionConsistency(
+  accountId: number,
+  keywordId?: number,
+  targetId?: number
+): Promise<{ isOscillating: boolean; reason: string }> {
+  if (!keywordId && !targetId) return { isOscillating: false, reason: '' };
+  
+  try {
+    const db = await getDb();
+    if (!db) return { isOscillating: false, reason: '' };
+    
+    const { sql } = await import('drizzle-orm');
+    const entityCondition = keywordId 
+      ? sql`entity_id = ${keywordId} AND entity_type = 'keyword'`
+      : sql`entity_id = ${targetId} AND entity_type = 'product_target'`;
+    
+    // 查询最近3次出价调整的方向
+    const [rows] = await db.execute(sql`
+      SELECT action_type, new_value, previous_value, created_at
+      FROM optimization_events
+      WHERE account_id = ${accountId}
+        AND ${entityCondition}
+        AND event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease')
+        AND created_at > DATE_SUB(NOW(), INTERVAL 72 HOUR)
+      ORDER BY created_at DESC
+      LIMIT 4
+    `) as any;
+    
+    if (!rows || rows.length < 3) return { isOscillating: false, reason: '' };
+    
+    // 检测方向序列: 如果最近3次中方向交替变化，则为振荡
+    const directions = rows.slice(0, 3).map((r: any) => r.action_type === 'bid_increase' ? 'up' : 'down');
+    
+    // 振荡模式: 升-降-升 或 降-升-降
+    const isOscillating = (
+      (directions[0] !== directions[1] && directions[1] !== directions[2]) ||
+      // 或者4次调整中方向变化超过2次
+      (rows.length >= 4 && (() => {
+        const dirs4 = rows.slice(0, 4).map((r: any) => r.action_type === 'bid_increase' ? 'up' : 'down');
+        let changes = 0;
+        for (let i = 1; i < dirs4.length; i++) {
+          if (dirs4[i] !== dirs4[i-1]) changes++;
+        }
+        return changes >= 2;
+      })())
+    );
+    
+    if (isOscillating) {
+      return {
+        isOscillating: true,
+        reason: `72h内出价方向序列=[${directions.join('→')}]，检测到振荡模式`,
+      };
+    }
+    
+    return { isOscillating: false, reason: '' };
+  } catch (err: any) {
+    return { isOscillating: false, reason: '' };
+  }
+}
 
 /**
  * v257: 检查关键词是否在冷却期内
@@ -463,10 +531,27 @@ function ruleEngineDecision(
   const orders = target.orders || 0;
   
   // 提取ACOS目标
-  // v231: 防御性转换 — 即使上层已转换，此处仍做兖底检查
+  // v231: 防御性转换 — 即使上层已转换，此处仍做兑底检查
   const rawAcos = groupConfig.targetAcos || 0.30;
   const targetAcos = rawAcos > 1 ? rawAcos / 100 : rawAcos;
   const maxBid = groupConfig.maxBid || 10.00;
+  
+  // v267 P3-3: 多品类自适应 — 根据品类弹性系数调整提价/降价幅度
+  // 高弹性品类(electronics=1.2): 出价变化对曝光影响大，调整幅度可以更大
+  // 低弹性品类(grocery=0.4): 出价变化对曝光影响小，调整幅度应更保守
+  const categoryElasticity = (() => {
+    const cat = groupConfig.productCategory || 'default';
+    const ELASTICITY: Record<string, number> = {
+      'electronics': 1.2, 'computers': 1.1, 'cell_phones': 1.15, 'video_games': 1.0,
+      'home_kitchen': 0.85, 'sports_outdoors': 0.8, 'toys_games': 0.9, 'clothing': 0.75,
+      'beauty': 0.7, 'health': 0.65, 'baby': 0.5, 'pet_supplies': 0.55,
+      'grocery': 0.4, 'luxury': 0.3, 'default': 0.8,
+    };
+    return ELASTICITY[cat] || ELASTICITY['default'];
+  })();
+  // 弹性修正因子：弹性>0.8时放大调整幅度，弹性<0.8时缩小调整幅度
+  // 范围限制在0.7-1.3，避免极端品类导致过度调整
+  const elasticityModifier = Math.max(0.7, Math.min(1.3, categoryElasticity / 0.8));
   
   // v259: 最低曝光保护机制
   // 核心逻辑：当曝光量大幅下降时，说明出价可能已经降得太低，应暂停所有降价并尝试提价恢复
@@ -513,7 +598,9 @@ function ruleEngineDecision(
     }
     
     // 新关键词或长期零曝光，适度提升出价以获取曝光
-    const boostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.10); // v230: 5%~15%确定性提升
+    // v267 P3-3: 品类弹性修正 — 高弹性品类提价更积极，低弹性品类更保守
+    const baseBoostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.10);
+    const boostRatio = baseBoostRatio * elasticityModifier; // v267: 品类弹性修正
     const newBid = currentBid * (1 + boostRatio);
     // v238: 提价后也不能超过探索上限
     const cappedBid = Math.min(newBid, explorationCeiling, maxBid);
@@ -537,7 +624,9 @@ function ruleEngineDecision(
         };
       }
       // 曝光不足，可能需要更多数据
-      const boostRatio = Math.min(0.10, 0.03 + deterministicHash(entityId, 2) * 0.07);
+      // v267 P3-3: 品类弹性修正
+      const baseBoostRatio = Math.min(0.10, 0.03 + deterministicHash(entityId, 2) * 0.07);
+      const boostRatio = baseBoostRatio * elasticityModifier;
       const newBid = Math.min(currentBid * (1 + boostRatio), lowClickCeiling);
       return {
         bid: newBid,
@@ -546,7 +635,9 @@ function ruleEngineDecision(
       };
     } else {
       // 曝光充足但无点击，可能相关性差，降低出价
-      const reduceRatio = Math.min(0.15, 0.05 + (impressions / 1000) * 0.10);
+      // v267 P3-3: 品类弹性修正
+      const baseReduceRatio = Math.min(0.15, 0.05 + (impressions / 1000) * 0.10);
+      const reduceRatio = baseReduceRatio * elasticityModifier;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5,
@@ -705,8 +796,8 @@ function ruleEngineDecision(
                               0.10;                              // 保守
       
       const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.30);
-      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
-      const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85); // 上限为maxBid的85%
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor * elasticityModifier; // v267 P3-3: 品类弹性修正
+      const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85); // 上限为maxBid皅85%
       const qualityLabel = isHighCtr && isHighCvr ? '明星词' : isHighCtr ? '高流量' : isHighCvr ? '高转化' : '保守';
       return {
         bid: newBid,
@@ -720,7 +811,7 @@ function ruleEngineDecision(
       // v260: 高CVR时允许更大提价幅度
       const dynamicMaxBoost = isHighCvr ? 0.22 : 0.15;
       const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.25);
-      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor * elasticityModifier; // v267 P3-3
       return {
         bid: currentBid * (1 + boostRatio),
         confidence: 0.5 + dataConfidence * 0.2,
@@ -733,7 +824,7 @@ function ruleEngineDecision(
       const baseAdjustRatio = rawAdjustRatio > 0.001 ? Math.max(rawAdjustRatio, minEffectiveRatio) : rawAdjustRatio;
       // v253: 应用数据置信度和CTR修正
       // v254: ACOS达标场景的微调也受趋势影响
-      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus * trendBoostFactor;
+      const adjustRatio = baseAdjustRatio * dataConfidence * ctrBonus * trendBoostFactor * elasticityModifier; // v267 P3-3
       return {
         bid: currentBid * (1 + adjustRatio),
         confidence: 0.55 + dataConfidence * 0.15,
@@ -746,7 +837,7 @@ function ruleEngineDecision(
       const baseReduceRatio = rawReduceRatio > 0.001 ? Math.max(rawReduceRatio, minEffectiveRatio) : rawReduceRatio;
       // v253: 低CTR时更积极地降价，高CTR时保守降价（相关性好的词值得保留）
       // v254: 趋势declining时加速降价，improving时减缓降价（正在好转的词不急于降价）
-      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
+      const reduceRatio = baseReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor * elasticityModifier; // v267 P3-3
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.15,
@@ -758,7 +849,7 @@ function ruleEngineDecision(
       const maxReduceLimit = isHighCtr ? 0.10 : 0.18;
       const baseReduceRatio = (acosRatio - 1) * 0.18;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
-      const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
+      const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor * elasticityModifier; // v267 P3-3
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.15,
@@ -772,7 +863,7 @@ function ruleEngineDecision(
       const maxReduceLimit = isHighCtr ? 0.12 : 0.20;
       const baseReduceRatio = (acosRatio - 1) * 0.15; // v259: 从0.20进一步降低到0.15
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
-      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
+      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier; // v267 P3-3
 
       return {
         bid: currentBid * (1 - reduceRatio),
@@ -813,12 +904,28 @@ export async function calculateNextGenBid(
   const rawTargetAcos = groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos;
   const normalizedTargetAcos = rawTargetAcos > 1 ? rawTargetAcos / 100 : rawTargetAcos;
   
+  // v267 P1-3: 自我进化引擎集成 — 读取进化引擎注入的自适应参数
+  // 进化引擎通过 _evolvedMaxChangePercent/_evolvedMaxDecreasePercent/_confidenceMultiplier 注入参数
+  // 这些参数基于历史优化效果动态调整，使系统能够自我学习和进化
+  const evolvedMaxIncrease = (groupConfig as any)._evolvedMaxChangePercent;
+  const evolvedMaxDecrease = (groupConfig as any)._evolvedMaxDecreasePercent;
+  const evolvedConfidenceMultiplier = (groupConfig as any)._confidenceMultiplier || 1.0;
+  
+  // 使用进化参数覆盖默认安全配置（如果可用）
+  const effectiveMaxChange = evolvedMaxIncrease 
+    ? Math.min(evolvedMaxIncrease, 0.50) // 安全上限50%
+    : DEFAULT_SAFETY.maxBidChangePercent;
+  
   const safetyConfig: SafetyConfig = {
-    maxBidChangePercent: DEFAULT_SAFETY.maxBidChangePercent,
+    maxBidChangePercent: effectiveMaxChange,
     minBid: DEFAULT_SAFETY.minBid,
     maxBid: groupConfig.maxBid || DEFAULT_SAFETY.maxBid,
     targetAcos: normalizedTargetAcos,
   };
+  
+  if (evolvedMaxIncrease) {
+    log.info(`[NextGenBid] v267 自我进化参数已激活: maxIncrease=${(evolvedMaxIncrease*100).toFixed(0)}%, maxDecrease=${(evolvedMaxDecrease*100).toFixed(0)}%, confidenceMultiplier=${evolvedConfidenceMultiplier.toFixed(2)}`);
+  }
   
   // v231: 创建标准化的groupConfig副本，确保所有内部函数使用正确的小数形式targetAcos
   const normalizedConfig: PerformanceGroupConfig = {
@@ -853,7 +960,9 @@ export async function calculateNextGenBid(
         default: return 0.30;
       }
     })();
-    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > dynamicConfidenceThreshold;
+    // v267 P1-3: 应用进化引擎的置信度乘数 — 历史表现好时降低门槛，表现差时提高门槛
+    const evolvedThreshold = dynamicConfidenceThreshold * (1 / evolvedConfidenceMultiplier);
+    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > evolvedThreshold;
     
     if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
@@ -895,6 +1004,24 @@ export async function calculateNextGenBid(
     log.info(`[NextGenOrchestrator] v257冷却保护: target=${target.id}, ${cooldownResult.reason}`);
     return buildResult(target, target.currentBid, 'cooldown_hold', 0.5,
       `[冷却保护] ${cooldownResult.reason}: 维持当前出价避免振荡`, 'rule_engine');
+  }
+  
+  // ===== v267: 出价方向一致性检查 =====
+  // 核心思路：如果最近3次调整中有“先降后升”或“先升后降”的振荡模式，强制hold一个周期
+  // 这是导致回滚率高的核心原因：算法在“降价”和“熔断提价恢复”之间振荡
+  try {
+    const directionCheck = await checkBidDirectionConsistency(
+      accountId,
+      target.type === 'keyword' ? target.id : undefined,
+      target.type === 'product_target' ? target.id : undefined
+    );
+    if (directionCheck.isOscillating) {
+      log.info(`[NextGenOrchestrator] v267方向一致性保护: target=${target.id}, ${directionCheck.reason}`);
+      return buildResult(target, target.currentBid, 'direction_hold', 0.5,
+        `[v267方向保护] ${directionCheck.reason}: 检测到出价振荡模式，强制hold等待数据稳定`, 'rule_engine');
+    }
+  } catch (dirErr: any) {
+    log.warn(`[NextGenOrchestrator] v267方向检查异常: ${dirErr.message}`);
   }
   
   // ===== 第2层：规则引擎 =====

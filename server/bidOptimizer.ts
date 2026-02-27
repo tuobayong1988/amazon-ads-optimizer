@@ -70,6 +70,8 @@ export interface PerformanceGroupConfig {
   groupAvgCpc?: number;
   // 专家建议新增：平均订单价值
   groupAvgAov?: number;
+  // v267 P3-3: 多品类自适应 — 品类信息用于调整出价策略参数
+  productCategory?: string;
 }
 
 /**
