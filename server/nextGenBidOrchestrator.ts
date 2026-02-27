@@ -834,11 +834,27 @@ export async function calculateNextGenBid(
       accountId, keywordId, targetId, undefined, target.currentBid
     );
     
-    // 只有当高级算法（非rule_based/ucb）给出了有效结果时，才使用它
+    // v264: 高级算法判断逻辑增强
+    // 1. 非rule_based/ucb的算法始终视为高级算法
+    // 2. UCB探索模式（confidence=0.4且bid与currentBid不同）也视为有效决策
     const isAdvancedAlgorithm = !['rule_based', 'ucb'].includes(metaDecision.selectedAlgorithm);
-    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > 0.3;
+    const isUcbExploration = metaDecision.selectedAlgorithm === 'ucb' 
+      && Math.abs(metaDecision.confidence - 0.4) < 0.01
+      && Math.abs(metaDecision.recommendedBid - target.currentBid) > 0.005;
+    // v264: P1-2 动态confidence门槛
+    // 冷启动算法(linucb/cql新启用)降低门槛鼓励探索，成熟算法(ensemble)提高门槛要求更高置信度
+    const dynamicConfidenceThreshold = (() => {
+      switch (metaDecision.selectedAlgorithm) {
+        case 'ensemble': return 0.35;     // 融合算法要求更高置信度
+        case 'cql': return 0.25;          // CQL冷启动期降低门槛鼓励探索
+        case 'linucb': return 0.25;       // LinUCB冷启动期降低门槛鼓励探索
+        case 'sigmoid_curve': return 0.30; // Sigmoid需要中等置信度
+        default: return 0.30;
+      }
+    })();
+    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > dynamicConfidenceThreshold;
     
-    if (isAdvancedAlgorithm && hasValidBid) {
+    if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
       
       // v252: 异步记录RL数据（修复: 传递campaignId确保captureStateSnapshot获取正确粒度的数据）
