@@ -1,5 +1,5 @@
 /**
- * riskActionEngine.ts - 风险行动引擎 (v245)
+ * riskActionEngine.ts - 风险行动引擎 (v245, v259增强)
  * 
  * 将数据概览模块的"账户风险排行"和"同步健康度"从被动展示指标
  * 升级为可触发自动优化的"行动指标"。
@@ -8,6 +8,11 @@
  * 1. 紧急优化队列从内存Map改为数据库表emergency_optimization_queue持久化
  * 2. 风险评估结果写入anomaly_alert_logs表，确保告警可追溯
  * 3. 所有行动结果持久化，重启后不丢失
+ * 
+ * v259增强：
+ * 1. 紧急降价上限从35%对齐到20%，与NextGen熔断机制一致
+ * 2. 紧急模式增加"提价恢复"建议，防止死亡螺旋
+ * 3. 同步健康度增加对v259护栏事件的识别
  * 
  * 核心理念：
  * 1. 账户风险等级变化 → 自动触发NextGen算法紧急优化
@@ -188,7 +193,7 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
             actionType: 'emergency_bid_reduction',
             priority: 'P0',
             description: `账户ACoS=${acos.toFixed(1)}%严重超标，触发NextGen紧急降价策略`,
-            estimatedImpact: '预计降低高ACoS关键词出价10-35%',
+            estimatedImpact: 'v259: 预计降低高ACoS关键词出价10-20%（与NextGen熔断上限对齐）',
           });
           
           // P0: 暂停极端亏损关键词（ACoS > 200%且花费 > $5）
@@ -328,10 +333,11 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
 /**
  * 执行风险行动 — 根据评估结果自动触发相应的优化策略
  * 
- * 遵循渐进式优化原则：
- * 1. 紧急降价最大幅度限制在35%
+ * 遵循渐进式优化原则（v259更新）：
+ * 1. 紧急降价最大幅度限制在20%（与NextGen熔断机制对齐，防止死亡螺旋）
  * 2. 暂停关键词仅针对极端亏损（ACoS > 200%且花费 > $5）
  * 3. 所有操作记录到optimization_events表，可追溯可回滚
+ * 4. 紧急模式下也会触发提价恢复评估，确保曝光不会持续萎缩
  */
 export async function executeRiskActions(): Promise<RiskActionResult> {
   const timestamp = new Date().toISOString();

@@ -539,9 +539,12 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     const currencyCode = await getAccountCurrencyCode(accountId);
     const bidTolerance = getBidTolerance(currencyCode);
     
-    // v178: 查找最近成功同步的出价调整，但keyword当前bid与调整后的bid不一致
-    // v178: 排除AutoCorrector自身产生的纠正事件（避免纠正循环）
-    // 同时JOIN performance_groups获取max_bid，确保纠正值不超过max_bid红线
+    // v259: 重构纠错器时序逻辑 — 优化优先原则
+    // 核心改进：
+    //   1. 只纠正“真正的API同步失败”，而不是“优化器的新决策”
+    //   2. 引入“最新决策优先”原则：如果优化器已经做出了更新的决策，以最新决策为准
+    //   3. 缩小时间窗口从3天到1天，减少与优化器冲突的概率
+    //   4. 排除所有护栏机制产生的事件（冷却、熔断、提价恢复）
     const mismatchQuery = sql`
       SELECT 
         oe.id as event_id,
@@ -564,9 +567,13 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         AND oe.event_category = 'bid_adjustment'
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
-        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)
         AND k.keywordId IS NOT NULL
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%熔断%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%冷却保护%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%提价恢复%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%曝光保护%')
         AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
@@ -585,7 +592,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    log.info(`v258: 账户${accountId} (${currencyCode}) 发现${rows.length}条出价不一致候选项 (bidTolerance=${bidTolerance.toFixed(3)})`);
+    log.info(`v259: 账户${accountId} (${currencyCode}) 发现${rows.length}条出价不一致候选项 (bidTolerance=${bidTolerance.toFixed(3)}, 时间窗口=1天)`);
     
     // ===== v258: 统一出价仲裁机制 =====
     // 核心改进：在纠正前检查是否有更新的优化决策
@@ -620,13 +627,13 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         continue;
       }
       
-      // 检查是否在冷却期内（v257冷却保护或v258熔断保护已经决定维持出价）
+      // v259: 增强护栏事件检测 — 排除所有护栏机制产生的事件
       const recentHoldQuery = sql`
         SELECT id, change_reason FROM optimization_events 
         WHERE keyword_id = ${row.keyword_id}
           AND event_category = 'bid_adjustment'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 4 HOUR)
-          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%')
+          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%recovery%')
         ORDER BY id DESC
         LIMIT 1
       `;

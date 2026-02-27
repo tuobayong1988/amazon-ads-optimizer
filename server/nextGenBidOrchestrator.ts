@@ -95,6 +95,10 @@ const BID_CIRCUIT_BREAKER_CONFIG = {
   attributionDelayHours: 48,
   /** 归因延迟数据权重折扣：最近48h内数据的权重 */
   recentDataWeightDiscount: 0.6,
+  /** v259: 熔断触发时的提价恢复比例 — 小幅提价恢复曝光 */
+  recoveryBoostPercent: 0.08, // 8%提价恢复
+  /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
+  minImpressionProtectionRatio: 0.50, // 曝光低于历史50%时触发保护
 };
 
 /**
@@ -261,9 +265,14 @@ async function checkCircuitBreaker(
     guardrailInfo.cumulativeDecrease7d = cumulativeDecrease;
     
     if (cumulativeDecrease > BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d) {
+      // v259: 熔断触发时不再简单hold，而是执行提价恢复
+      // 核心逻辑：累计降幅超限说明出价已经降得太多，需要小幅提价恢复曝光
+      const recoveryBid = (currentBid || 0) * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      guardrailInfo.recoveryMode = 'cumulative_decrease_recovery';
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258熔断-累计降幅] 7天累计降幅${(cumulativeDecrease * 100).toFixed(1)}%超过上限${(BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d * 100)}%: 初始$${initialBid.toFixed(2)}→当前$${currentBid?.toFixed(2)}→拟调$${proposedBid?.toFixed(2)}`,
+        reason: `[v259熔断-提价恢复] 7天累计降幅${(cumulativeDecrease * 100).toFixed(1)}%超过上限${(BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d * 100)}%: 初始$${initialBid.toFixed(2)}→当前$${currentBid?.toFixed(2)}, 执行${(BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 100)}%提价恢复→$${recoveryBid.toFixed(2)}`,
         guardrailInfo,
       };
     }
@@ -282,9 +291,13 @@ async function checkCircuitBreaker(
     guardrailInfo.consecutiveDecreases = consecutiveDecreases;
     
     if (consecutiveDecreases >= BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases) {
+      // v259: 连续降价触发时也执行提价恢复
+      const recoveryBid = (currentBid || 0) * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5); // 连续降价场景用一半的恢复幅度
+      guardrailInfo.recoveryMode = 'consecutive_decrease_recovery';
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258熔断-连续降价] 已连续${consecutiveDecreases}次降价(上限${BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases}次): 强制hold一个周期以观察效果`,
+        reason: `[v259熔断-提价恢复] 已连续${consecutiveDecreases}次降价(上限${BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases}次): 执行${(BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 50)}%提价恢复→$${recoveryBid.toFixed(2)}`,
         guardrailInfo,
       };
     }
@@ -294,9 +307,13 @@ async function checkCircuitBreaker(
     guardrailInfo.bidFloor = bidFloor;
     
     if (proposedBid < bidFloor) {
+      // v259: 最低保护触发时，将出价拉回到底线并小幅提升
+      const recoveryBid = bidFloor * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5);
+      guardrailInfo.recoveryMode = 'bid_floor_recovery';
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258熔断-最低保护] 拟调出价$${proposedBid.toFixed(2)}低于保护底线$${bidFloor.toFixed(2)}(初始$${initialBid.toFixed(2)}×${(BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio * 100)}%)`,
+        reason: `[v259熔断-底线恢复] 拟调出价$${proposedBid.toFixed(2)}低于保护底线$${bidFloor.toFixed(2)}: 恢复到$${recoveryBid.toFixed(2)}`,
         guardrailInfo,
       };
     }
@@ -445,10 +462,33 @@ function ruleEngineDecision(
   const orders = target.orders || 0;
   
   // 提取ACOS目标
-  // v231: 防御性转换 — 即使上层已转换，此处仍做兜底检查
+  // v231: 防御性转换 — 即使上层已转换，此处仍做兖底检查
   const rawAcos = groupConfig.targetAcos || 0.30;
   const targetAcos = rawAcos > 1 ? rawAcos / 100 : rawAcos;
   const maxBid = groupConfig.maxBid || 10.00;
+  
+  // v259: 最低曝光保护机制
+  // 核心逻辑：当曝光量大幅下降时，说明出价可能已经降得太低，应暂停所有降价并尝试提价恢复
+  // 使用dailyData对比近期曝光与历史基线
+  const dailyDataForImpression = (target as any).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
+  if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
+    const recent3d = dailyDataForImpression.slice(-3);
+    const earlier4d = dailyDataForImpression.slice(-7, -3);
+    const recentAvgImpressions = recent3d.reduce((sum, d) => sum + ((d as any).impressions || 0), 0) / Math.max(recent3d.length, 1);
+    const earlierAvgImpressions = earlier4d.reduce((sum, d) => sum + ((d as any).impressions || 0), 0) / Math.max(earlier4d.length, 1);
+    
+    if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
+      // 曝光大幅下降，触发提价恢复
+      const recoveryBoost = Math.min(0.10, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      const recoveryBid = currentBid * (1 + recoveryBoost);
+      const impressionDropPct = ((1 - recentAvgImpressions / earlierAvgImpressions) * 100).toFixed(0);
+      return {
+        bid: recoveryBid,
+        confidence: 0.55,
+        reason: `[v259曝光保护] 近期曝光均值${recentAvgImpressions.toFixed(0)}较历史基线${earlierAvgImpressions.toFixed(0)}下降${impressionDropPct}%: 暂停降价并提价${(recoveryBoost * 100).toFixed(0)}%恢复曝光`,
+      };
+    }
+  }
   
   // v230: 确定性哈希函数，替代Math.random()，确保相同关键词在相同条件下产生相同的调整比例
   const deterministicHash = (id: number, seed: number = 0): number => {
@@ -646,7 +686,18 @@ function ruleEngineDecision(
                               trendDirection === 'improving' ? 1 - trendStrength * 0.10 : 1.0;
     const trendLabel = trendDirection !== 'stable' ? `, 趋势=${trendDirection}(${(trendStrength * 100).toFixed(0)}%)` : '';
     
-    if (acosRatio < 0.7) {
+    if (acosRatio < 0.5) {
+      // v259: ACOS极其优秀（低于目标50%）— 这是明星关键词，积极提价获取更多流量
+      // 双向出价核心：高投产词应该获得更多曝光机会
+      const rawBoostRatio = Math.min(0.25, (1 - acosRatio) * 0.30);
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
+      const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85); // 上限为maxBid的85%
+      return {
+        bid: newBid,
+        confidence: 0.65 + dataConfidence * 0.2,
+        reason: `[v259双向出价] ACOS极优(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 积极提升${(boostRatio * 100).toFixed(1)}%争取更多流量`,
+      };
+    } else if (acosRatio < 0.7) {
       // ACOS远低于目标，有提升空间
       // v253: 数据量小时保守提价，避免少量订单的偶然性导致过度提价
       // v254: 趋势improving时加速提价，declining时减缓提价
@@ -683,23 +734,32 @@ function ruleEngineDecision(
         confidence: 0.5 + dataConfidence * 0.15,
         reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 降低${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? '(精度放大)' : ''}`,
       };
-    } else {
-      // ACOS严重超标
-      // v258: 降低紧急降价力度上限，防止死亡螺旋
-      // 原来：acosRatio>3时最大降50%，其他最大降35%
-      // v258：统一上限降低到25%，并增加CTR保护因子
-      const ctr = impressions > 0 ? clicks / impressions : 0;
+    } else if (acosRatio <= 2.0) {
+      // v259: ACOS超标但在2倍以内 — 温和降价，避免过度反应
       const isHighCtr = ctr > 0.008;
-      // v258: 高CTR关键词即使ACoS超标也要保守降价（相关性好，可能是归因延迟导致）
-      const maxReduceLimit = isHighCtr ? 0.15 : 0.25;
-      const baseReduceRatio = (acosRatio - 1) * 0.20; // v258: 从0.25降低到0.20
+      const maxReduceLimit = isHighCtr ? 0.10 : 0.18;
+      const baseReduceRatio = (acosRatio - 1) * 0.18;
+      const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
+      const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.5 + dataConfidence * 0.15,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v259温和降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+      };
+    } else {
+      // v259: ACOS严重超标（>2倍）— 果断但有限降价
+      // 核心改进：即使严重超标也不超过20%降幅，防止死亡螺旋
+      const isHighCtr = ctr > 0.008;
+      // v259: 高CTR关键词降价更保守（相关性好，可能是归因延迟导致）
+      const maxReduceLimit = isHighCtr ? 0.12 : 0.20;
+      const baseReduceRatio = (acosRatio - 1) * 0.15; // v259: 从0.20进一步降低到0.15
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
 
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v258降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+        reason: `ACOS严重超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v259降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
       };
     }
   }
@@ -824,14 +884,23 @@ export async function calculateNextGenBid(
       const cbResult = await checkCircuitBreaker(accountId, keywordId, targetIdForCB, target.currentBid, safeBid);
       
       if (cbResult.tripped) {
-        log.warn(`[NextGenOrchestrator] v258降价熔断触发: target=${target.id}, ${cbResult.reason}`);
-        safeBid = target.currentBid; // 熔断触发时强制hold
-        finalReason += ` | ${cbResult.reason}`;
+        log.warn(`[NextGenOrchestrator] v259熔断提价恢复: target=${target.id}, ${cbResult.reason}`);
+        // v259: 熔断触发时执行提价恢复，而不是简单hold
+        // 核心逻辑：死亡螺旋的根因是出价降得太低导致曝光消失，必须主动提价恢复
+        if (cbResult.guardrailInfo.recoveryBid && cbResult.guardrailInfo.recoveryBid > target.currentBid) {
+          safeBid = safetyValidate(target.currentBid, cbResult.guardrailInfo.recoveryBid, safetyConfig, maxBidLimit);
+          finalReason = `[v259提价恢复] ${cbResult.reason}`;
+        } else {
+          safeBid = target.currentBid; // 安全回退: 维持当前出价
+          finalReason += ` | ${cbResult.reason}`;
+        }
         // 将护栏信息附加到reason中，便于日志分析
         finalReason += ` | guardrail: ${JSON.stringify({
           consecutiveDecreases: cbResult.guardrailInfo.consecutiveDecreases,
           cumulativeDecrease7d: cbResult.guardrailInfo.cumulativeDecrease7d,
           initialBid7d: cbResult.guardrailInfo.initialBid7d,
+          recoveryMode: cbResult.guardrailInfo.recoveryMode,
+          recoveryBid: cbResult.guardrailInfo.recoveryBid,
         })}`;
       }
     }
@@ -967,13 +1036,17 @@ function buildResult(
     dataConfidence: confidence,
   };
   
-  // v258: 构建护栏信息
+  // v258+v259: 构建护栏信息
   const guardrailInfo = {
     cooldownActive: algorithmUsed === 'cooldown_hold',
     circuitBreakerTripped: reason.includes('熔断') || reason.includes('circuit_breaker'),
     arbitrationApplied: false,
     minAdjustmentFiltered: reason.includes('调整幅度低于最小阈值'),
     maxBidCapped: reason.includes('max_bid'),
+    // v259新增护栏标识
+    bidRecoveryTriggered: reason.includes('提价恢复') || reason.includes('recovery_bid') || reason.includes('熔断提价'),
+    exposureProtectionActive: reason.includes('曝光保护') || reason.includes('exposure_protection') || reason.includes('曝光大幅下降'),
+    bidirectionalBid: actionType === 'increase' && (reason.includes('ACOS极优') || reason.includes('ACOS优秀') || reason.includes('双向出价')),
     details: reason.includes('guardrail') ? reason.split('guardrail:')[1]?.trim() : undefined,
   };
   

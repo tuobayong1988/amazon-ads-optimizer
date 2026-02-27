@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 258;  // v258: ACoS死亡螺旋根治 + 高级算法激活 + 统一出价仲裁 + 日志可读性增强
+export const SYSTEM_VERSION = 259;  // v259: 提价恢复+曝光保护+纠错器时序重构+强制UCB激活+RL回填修复+双向出价+护栏可视化增强
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -315,6 +315,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 258,
     description: 'v258: [P0核心算法重构] — (1)P0-ACoS死亡螺旋根治: 归因延迟保护(点击<5强制观察)+降价熔断(7天累计30%上限/连续3次强hold/最低40%保护)+多维度决策(CTR辅助判断)+降价力度上限(15%/25%) (2)P0-高级算法激活: UCB零门槛始终可用+LinUCB/Sigmoid降至1-2条+待回填日志计入 (3)P1-统一出价仲裁: 纠正前检查更新决策+冷却/熔断保护期跳过 (4)P1-日志可读性: 新增reason_details/guardrail_info/related_event_id字段+前端护栏机制可视化',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 259,
+    description: 'v259: [全链路智能升级] — (1)P0-切断ACoS死亡螺旋: 熔断触发时主动提价8%恢复曝光+最低曝光保护(近3天曝光低于基线50%时暂停降价并提价)+底线恢复机制 (2)P0-根治出价回滚: 纠错器时间窗口从3天缩小到1天+SQL层排除护栏事件+仲裁检查窗口扩大到8小时 (3)P1-强制激活UCB: 历史数据合成绕过回填链路+UCB基础分1.30+rule_based降分0.85+Ensemble降至2算法 (4)P1-RL回填修复: 零数据重试机制+回填健康检查报告 (5)P1-双向出价: ACOS极优场景积极提价25%+超标降价上限收紧到20% (6)P2-数据展示一致性: riskActionEngine降价上限对齐+护栏可视化增强(提价恢复/曝光保护/双向出价标识)',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },

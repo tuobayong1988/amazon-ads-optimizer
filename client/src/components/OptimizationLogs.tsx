@@ -413,7 +413,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   const renderGuardrailInfo = (actionDetail: any) => {
     const gi = actionDetail?.guardrailInfo;
     if (!gi) return null;
-    const hasGuardrail = gi.cooldownActive || gi.circuitBreakerTripped || gi.arbitrationApplied || gi.minAdjustmentFiltered || gi.maxBidCapped;
+    const hasGuardrail = gi.cooldownActive || gi.circuitBreakerTripped || gi.arbitrationApplied || gi.minAdjustmentFiltered || gi.maxBidCapped || gi.bidRecoveryTriggered || gi.exposureProtectionActive || gi.bidirectionalBid;
     if (!hasGuardrail) return null;
     
     return (
@@ -451,6 +451,24 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-orange-500/10 border border-orange-500/20">
               <ArrowUpCircle className="w-3 h-3 text-orange-400" />
               <span className="text-[11px] text-orange-400">最高出价限制</span>
+            </div>
+          )}
+          {gi.bidRecoveryTriggered && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20">
+              <ArrowUpCircle className="w-3 h-3 text-emerald-400" />
+              <span className="text-[11px] text-emerald-400">v259 提价恢复</span>
+            </div>
+          )}
+          {gi.exposureProtectionActive && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/20">
+              <ShieldCheck className="w-3 h-3 text-cyan-400" />
+              <span className="text-[11px] text-cyan-400">v259 曝光保护</span>
+            </div>
+          )}
+          {gi.bidirectionalBid && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/10 border border-indigo-500/20">
+              <TrendingUp className="w-3 h-3 text-indigo-400" />
+              <span className="text-[11px] text-indigo-400">v259 双向出价</span>
             </div>
           )}
         </div>

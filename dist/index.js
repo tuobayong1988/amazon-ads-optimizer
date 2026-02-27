@@ -57071,9 +57071,85 @@ async function backfillRewards(accountId) {
   let filledCount = 0;
   let skippedNoData = 0;
   let immediateFilledCount = 0;
+  let retriedFromZero = 0;
+  let channelCSuccess = 0;
   try {
     const hoursAgo168 = new Date(Date.now() - 168 * 36e5).toISOString();
-    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u67E5\u627E168h\u5185\u672A\u56DE\u586B\u7684RL\u65E5\u5FD7\uFF08v256\u667A\u80FD\u53CC\u901A\u9053\uFF09...`);
+    const zeroFilledLogs = await db.select({
+      id: rlTrainingLogs.id,
+      keywordId: rlTrainingLogs.keywordId,
+      targetId: rlTrainingLogs.targetId,
+      campaignId: rlTrainingLogs.campaignId,
+      accountId: rlTrainingLogs.accountId,
+      actionBidAfter: rlTrainingLogs.actionBidAfter,
+      actionBidBefore: rlTrainingLogs.actionBidBefore,
+      createdAt: rlTrainingLogs.createdAt
+    }).from(rlTrainingLogs).where(and(
+      eq(rlTrainingLogs.accountId, accountId),
+      sql`reward = '0'`,
+      sql`reward_impressions = 0`,
+      sql`reward_clicks = 0`,
+      gte(rlTrainingLogs.createdAt, hoursAgo168)
+    )).limit(50);
+    for (const zLog of zeroFilledLogs) {
+      try {
+        let hasRealData = false;
+        let ri2 = 0, rc = 0, ro = 0, rsp = 0, rsa = 0;
+        if (zLog.keywordId) {
+          const kwPerf = await db.select({
+            impressions: keywords.impressions,
+            clicks: keywords.clicks,
+            orders: keywords.orders,
+            spend: keywords.spend,
+            sales: keywords.sales
+          }).from(keywords).where(eq(keywords.id, zLog.keywordId)).limit(1);
+          if (kwPerf[0] && (Number(kwPerf[0].impressions) > 0 || Number(kwPerf[0].clicks) > 0)) {
+            ri2 = Number(kwPerf[0].impressions) || 0;
+            rc = Number(kwPerf[0].clicks) || 0;
+            ro = Number(kwPerf[0].orders) || 0;
+            rsp = Number(kwPerf[0].spend) || 0;
+            rsa = Number(kwPerf[0].sales) || 0;
+            hasRealData = true;
+          }
+        } else if (zLog.targetId) {
+          const tgtPerf = await db.select({
+            impressions: productTargets.impressions,
+            clicks: productTargets.clicks,
+            orders: productTargets.orders,
+            spend: productTargets.spend,
+            sales: productTargets.sales
+          }).from(productTargets).where(eq(productTargets.id, zLog.targetId)).limit(1);
+          if (tgtPerf[0] && (Number(tgtPerf[0].impressions) > 0 || Number(tgtPerf[0].clicks) > 0)) {
+            ri2 = Number(tgtPerf[0].impressions) || 0;
+            rc = Number(tgtPerf[0].clicks) || 0;
+            ro = Number(tgtPerf[0].orders) || 0;
+            rsp = Number(tgtPerf[0].spend) || 0;
+            rsa = Number(tgtPerf[0].sales) || 0;
+            hasRealData = true;
+          }
+        }
+        if (hasRealData) {
+          const profit = rsa - rsp;
+          const reward = rsp > 0 ? profit / rsp : profit;
+          await db.update(rlTrainingLogs).set({
+            reward: String(reward),
+            rewardImpressions: ri2,
+            rewardClicks: rc,
+            rewardOrders: ro,
+            rewardSpend: String(rsp),
+            rewardSales: String(rsa),
+            rewardProfit: String(profit),
+            rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
+          }).where(eq(rlTrainingLogs.id, zLog.id));
+          retriedFromZero++;
+        }
+      } catch (retryErr) {
+      }
+    }
+    if (retriedFromZero > 0) {
+      rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: v259\u96F6\u6570\u636E\u91CD\u8BD5\u6210\u529F ${retriedFromZero}/${zeroFilledLogs.length}\u6761`);
+    }
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u67E5\u627E168h\u5185\u672A\u56DE\u586B\u7684RL\u65E5\u5FD7\uFF08v259\u589E\u5F3A\u4E09\u901A\u9053+\u91CD\u8BD5\uFF09...`);
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -57231,7 +57307,11 @@ async function backfillRewards(accountId) {
         console.error(`[RLDataRecorder] Failed to fill reward for log ${log42.id}:`, e6);
       }
     }
-    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: v257\u4E09\u901A\u9053\u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u5373\u65F6\u901A\u9053A=${immediateFilledCount}, \u96F6\u6570\u636E\u4E2D\u6027\u56DE\u586B=${skippedNoData}`);
+    rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: v259\u589E\u5F3A\u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u5373\u65F6\u901A\u9053A=${immediateFilledCount}, \u96F6\u6570\u636E\u4E2D\u6027=${skippedNoData}, \u96F6\u6570\u636E\u91CD\u8BD5\u6210\u529F=${retriedFromZero}`);
+    const totalProcessed = filledCount + skippedNoData;
+    const realDataRate = totalProcessed > 0 ? ((filledCount - skippedNoData) / totalProcessed * 100).toFixed(1) : "0";
+    const channelARate = totalProcessed > 0 ? (immediateFilledCount / totalProcessed * 100).toFixed(1) : "0";
+    rlLog.info(`[backfillRewards] v259\u5065\u5EB7\u68C0\u67E5: \u771F\u5B9E\u6570\u636E\u7387=${realDataRate}%, \u901A\u9053A\u6210\u529F\u7387=${channelARate}%, \u96F6\u6570\u636E\u91CD\u8BD5=${retriedFromZero}\u6761`);
     return filledCount;
   } catch (error54) {
     rlLog.error(`[backfillRewards] \u8D26\u6237${accountId}\u56DE\u586B\u5F02\u5E38: ${error54.message}`);
@@ -58574,56 +58654,68 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
     count: sql`COUNT(*)`
   }).from(rlTrainingLogs).where(eq(rlTrainingLogs.accountId, accountId));
   const pendingRLLogs = Number(totalRLLogsIncPending[0]?.count) || 0;
-  log8.info(`[MetaLearning] v258\u7B97\u6CD5\u8BC4\u4F30: \u8D26\u6237${accountId}, RL\u65E5\u5FD7(\u5DF2\u56DE\u586B)=${totalRLLogs}, RL\u65E5\u5FD7(\u542B\u5F85\u56DE\u586B)=${pendingRLLogs}, \u7279\u5F81\u7F13\u5B58=${hasFeatures}`);
+  const historyEventCount = await db.select({
+    count: sql`COUNT(*)`
+  }).from(sql`optimization_events`).where(and(
+    sql`account_id = ${accountId}`,
+    sql`event_category = 'bid_adjustment'`,
+    sql`status = 'success'`,
+    sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
+  ));
+  const totalHistoryEvents = Number(historyEventCount[0]?.count) || 0;
+  const syntheticDataCount = totalRLLogs + Math.floor(totalHistoryEvents * 0.3);
+  const syntheticPendingCount = pendingRLLogs + Math.floor(totalHistoryEvents * 0.3);
+  log8.info(`[MetaLearning] v259\u7B97\u6CD5\u8BC4\u4F30: \u8D26\u6237${accountId}, RL\u65E5\u5FD7(\u5DF2\u56DE\u586B)=${totalRLLogs}, RL\u65E5\u5FD7(\u542B\u5F85\u56DE\u586B)=${pendingRLLogs}, \u5386\u53F2\u4E8B\u4EF6=${totalHistoryEvents}, \u5408\u6210\u6570\u636E\u91CF=${syntheticDataCount}, \u7279\u5F81\u7F13\u5B58=${hasFeatures}`);
   const rbStat = stats.get("rule_based");
   scores.push({
     algorithm: "rule_based",
-    score: betaSample(rbStat.alphaParam, rbStat.betaParam),
+    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * 0.85,
+    // v259: 降低基础分
     eligible: true,
-    reason: "\u57FA\u4E8E\u89C4\u5219\u7684\u51FA\u4EF7\u7B56\u7565\uFF0C\u59CB\u7EC8\u53EF\u7528"
+    reason: "\u57FA\u4E8E\u89C4\u5219\u7684\u51FA\u4EF7\u7B56\u7565\uFF08\u5156\u5E95\uFF09"
   });
   const ucbStat = stats.get("ucb");
   scores.push({
     algorithm: "ucb",
-    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.05,
+    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.3,
+    // v259: 提高基础分
     eligible: true,
-    // v258: 始终可用
-    reason: "UCB\u63A2\u7D22-\u5229\u7528\u7B56\u7565(\u59CB\u7EC8\u53EF\u7528)"
+    reason: "UCB\u63A2\u7D22-\u5229\u7528\u7B56\u7565(\u5F3A\u5236\u4F18\u5148)"
   });
   const linucbStat = stats.get("linucb");
-  const linucbEligible = hasFeatures && pendingRLLogs >= 1;
+  const linucbEligible = hasFeatures || syntheticPendingCount >= 1;
   scores.push({
     algorithm: "linucb",
-    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.15 : 0,
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.2 : 0,
     eligible: linucbEligible,
-    reason: linucbEligible ? "LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A" : !hasFeatures ? "\u7F3A\u5C11\u4E0A\u4E0B\u6587\u7279\u5F81" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${pendingRLLogs}/1)`
+    reason: linucbEligible ? `LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/1)`
   });
   const sigmoidStat = stats.get("sigmoid_curve");
-  const sigmoidEligible = pendingRLLogs >= 2;
+  const sigmoidEligible = syntheticPendingCount >= 2;
   scores.push({
     algorithm: "sigmoid_curve",
-    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.1 : 0,
+    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.15 : 0,
     eligible: sigmoidEligible,
-    reason: sigmoidEligible ? "Sigmoid\u66F2\u7EBF\u5229\u6DA6\u6700\u5927\u5316" : `\u5386\u53F2\u6570\u636E\u4E0D\u8DB3(${pendingRLLogs}/2)`
+    reason: sigmoidEligible ? `Sigmoid\u66F2\u7EBF\u5229\u6DA6\u6700\u5927\u5316(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/2)`
   });
   const cqlStat = stats.get("cql");
-  const cqlEligible = pendingRLLogs >= 5;
+  const cqlEligible = syntheticPendingCount >= 5;
   scores.push({
     algorithm: "cql",
-    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.2 : 0,
+    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.25 : 0,
     eligible: cqlEligible,
-    reason: cqlEligible ? "\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL" : `RL\u65E5\u5FD7\u4E0D\u8DB3(${pendingRLLogs}/5)`
+    reason: cqlEligible ? `\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60CQL(\u5408\u6210\u6570\u636E=${syntheticPendingCount})` : `\u6570\u636E\u4E0D\u8DB3(\u5408\u6210=${syntheticPendingCount}/5)`
   });
   const eligibleCount = scores.filter((s4) => s4.eligible).length;
   const ensembleStat = stats.get("ensemble");
   scores.push({
     algorithm: "ensemble",
-    score: eligibleCount >= 3 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.25 : 0,
-    eligible: eligibleCount >= 3,
-    // v258: 需要至少3个算法可用才启用融合
-    reason: eligibleCount >= 3 ? "\u591A\u7B97\u6CD5\u52A0\u6743\u878D\u5408" : `\u53EF\u7528\u7B97\u6CD5\u4E0D\u8DB3(${eligibleCount}/3)`
+    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.3 : 0,
+    eligible: eligibleCount >= 2,
+    // v259: 只需要2个算法即可启用融合
+    reason: eligibleCount >= 2 ? `\u591A\u7B97\u6CD5\u878D\u5408(\u53EF\u7528${eligibleCount}\u4E2A)` : `\u53EF\u7528\u7B97\u6CD5\u4E0D\u8DB3(${eligibleCount}/2)`
   });
-  log8.info(`[MetaLearning] v258\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
+  log8.info(`[MetaLearning] v259\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
   return scores;
 }
 async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, currentBid) {
@@ -68550,9 +68642,12 @@ async function checkCircuitBreaker(accountId, keywordId, targetId, currentBid, p
     guardrailInfo.initialBid7d = initialBid;
     guardrailInfo.cumulativeDecrease7d = cumulativeDecrease;
     if (cumulativeDecrease > BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d) {
+      const recoveryBid = (currentBid || 0) * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      guardrailInfo.recoveryMode = "cumulative_decrease_recovery";
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258\u7194\u65AD-\u7D2F\u8BA1\u964D\u5E45] 7\u5929\u7D2F\u8BA1\u964D\u5E45${(cumulativeDecrease * 100).toFixed(1)}%\u8D85\u8FC7\u4E0A\u9650${BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d * 100}%: \u521D\u59CB$${initialBid.toFixed(2)}\u2192\u5F53\u524D$${currentBid?.toFixed(2)}\u2192\u62DF\u8C03$${proposedBid?.toFixed(2)}`,
+        reason: `[v259\u7194\u65AD-\u63D0\u4EF7\u6062\u590D] 7\u5929\u7D2F\u8BA1\u964D\u5E45${(cumulativeDecrease * 100).toFixed(1)}%\u8D85\u8FC7\u4E0A\u9650${BID_CIRCUIT_BREAKER_CONFIG.maxCumulativeDecreasePercent7d * 100}%: \u521D\u59CB$${initialBid.toFixed(2)}\u2192\u5F53\u524D$${currentBid?.toFixed(2)}, \u6267\u884C${BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 100}%\u63D0\u4EF7\u6062\u590D\u2192$${recoveryBid.toFixed(2)}`,
         guardrailInfo
       };
     }
@@ -68568,18 +68663,24 @@ async function checkCircuitBreaker(accountId, keywordId, targetId, currentBid, p
     }
     guardrailInfo.consecutiveDecreases = consecutiveDecreases;
     if (consecutiveDecreases >= BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases) {
+      const recoveryBid = (currentBid || 0) * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5);
+      guardrailInfo.recoveryMode = "consecutive_decrease_recovery";
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258\u7194\u65AD-\u8FDE\u7EED\u964D\u4EF7] \u5DF2\u8FDE\u7EED${consecutiveDecreases}\u6B21\u964D\u4EF7(\u4E0A\u9650${BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases}\u6B21): \u5F3A\u5236hold\u4E00\u4E2A\u5468\u671F\u4EE5\u89C2\u5BDF\u6548\u679C`,
+        reason: `[v259\u7194\u65AD-\u63D0\u4EF7\u6062\u590D] \u5DF2\u8FDE\u7EED${consecutiveDecreases}\u6B21\u964D\u4EF7(\u4E0A\u9650${BID_CIRCUIT_BREAKER_CONFIG.maxConsecutiveDecreases}\u6B21): \u6267\u884C${BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 50}%\u63D0\u4EF7\u6062\u590D\u2192$${recoveryBid.toFixed(2)}`,
         guardrailInfo
       };
     }
     const bidFloor = initialBid * BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio;
     guardrailInfo.bidFloor = bidFloor;
     if (proposedBid < bidFloor) {
+      const recoveryBid = bidFloor * (1 + BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent * 0.5);
+      guardrailInfo.recoveryMode = "bid_floor_recovery";
+      guardrailInfo.recoveryBid = recoveryBid;
       return {
         tripped: true,
-        reason: `[v258\u7194\u65AD-\u6700\u4F4E\u4FDD\u62A4] \u62DF\u8C03\u51FA\u4EF7$${proposedBid.toFixed(2)}\u4F4E\u4E8E\u4FDD\u62A4\u5E95\u7EBF$${bidFloor.toFixed(2)}(\u521D\u59CB$${initialBid.toFixed(2)}\xD7${BID_CIRCUIT_BREAKER_CONFIG.minBidFloorRatio * 100}%)`,
+        reason: `[v259\u7194\u65AD-\u5E95\u7EBF\u6062\u590D] \u62DF\u8C03\u51FA\u4EF7$${proposedBid.toFixed(2)}\u4F4E\u4E8E\u4FDD\u62A4\u5E95\u7EBF$${bidFloor.toFixed(2)}: \u6062\u590D\u5230$${recoveryBid.toFixed(2)}`,
         guardrailInfo
       };
     }
@@ -68620,6 +68721,23 @@ function ruleEngineDecision(target, groupConfig) {
   const rawAcos = groupConfig.targetAcos || 0.3;
   const targetAcos = rawAcos > 1 ? rawAcos / 100 : rawAcos;
   const maxBid = groupConfig.maxBid || 10;
+  const dailyDataForImpression = target.dailyData;
+  if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
+    const recent3d = dailyDataForImpression.slice(-3);
+    const earlier4d = dailyDataForImpression.slice(-7, -3);
+    const recentAvgImpressions = recent3d.reduce((sum2, d5) => sum2 + (d5.impressions || 0), 0) / Math.max(recent3d.length, 1);
+    const earlierAvgImpressions = earlier4d.reduce((sum2, d5) => sum2 + (d5.impressions || 0), 0) / Math.max(earlier4d.length, 1);
+    if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
+      const recoveryBoost = Math.min(0.1, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      const recoveryBid = currentBid * (1 + recoveryBoost);
+      const impressionDropPct = ((1 - recentAvgImpressions / earlierAvgImpressions) * 100).toFixed(0);
+      return {
+        bid: recoveryBid,
+        confidence: 0.55,
+        reason: `[v259\u66DD\u5149\u4FDD\u62A4] \u8FD1\u671F\u66DD\u5149\u5747\u503C${recentAvgImpressions.toFixed(0)}\u8F83\u5386\u53F2\u57FA\u7EBF${earlierAvgImpressions.toFixed(0)}\u4E0B\u964D${impressionDropPct}%: \u6682\u505C\u964D\u4EF7\u5E76\u63D0\u4EF7${(recoveryBoost * 100).toFixed(0)}%\u6062\u590D\u66DD\u5149`
+      };
+    }
+  }
   const deterministicHash = (id, seed = 0) => {
     let h6 = (id * 2654435761 + seed >>> 0) % 1e4;
     return h6 / 1e4;
@@ -68758,7 +68876,16 @@ function ruleEngineDecision(target, groupConfig) {
     const trendBoostFactor = trendDirection === "improving" ? 1 + trendStrength * 0.15 : trendDirection === "declining" ? 1 - trendStrength * 0.1 : 1;
     const trendReduceFactor = trendDirection === "declining" ? 1 + trendStrength * 0.15 : trendDirection === "improving" ? 1 - trendStrength * 0.1 : 1;
     const trendLabel = trendDirection !== "stable" ? `, \u8D8B\u52BF=${trendDirection}(${(trendStrength * 100).toFixed(0)}%)` : "";
-    if (acosRatio < 0.7) {
+    if (acosRatio < 0.5) {
+      const rawBoostRatio = Math.min(0.25, (1 - acosRatio) * 0.3);
+      const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
+      const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85);
+      return {
+        bid: newBid,
+        confidence: 0.65 + dataConfidence * 0.2,
+        reason: `[v259\u53CC\u5411\u51FA\u4EF7] ACOS\u6781\u4F18(${(actualAcos * 100).toFixed(1)}% vs \u76EE\u6807${(targetAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): \u79EF\u6781\u63D0\u5347${(boostRatio * 100).toFixed(1)}%\u4E89\u53D6\u66F4\u591A\u6D41\u91CF`
+      };
+    } else if (acosRatio < 0.7) {
       const rawBoostRatio = Math.min(0.2, (1 - acosRatio) * 0.25);
       const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
@@ -68786,17 +68913,27 @@ function ruleEngineDecision(target, groupConfig) {
         confidence: 0.5 + dataConfidence * 0.15,
         reason: `ACOS\u504F\u9AD8(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): \u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%${rawReduceRatio < minEffectiveRatio ? "(\u7CBE\u5EA6\u653E\u5927)" : ""}`
       };
+    } else if (acosRatio <= 2) {
+      const isHighCtr = ctr > 8e-3;
+      const maxReduceLimit = isHighCtr ? 0.1 : 0.18;
+      const baseReduceRatio = (acosRatio - 1) * 0.18;
+      const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
+      const reduceRatio = rawReduceRatio * dataConfidence * ctrPenalty * trendReduceFactor;
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.5 + dataConfidence * 0.15,
+        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v259\u6E29\u548C\u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%(\u4E0A\u9650${maxReduceLimit * 100}%)`
+      };
     } else {
-      const ctr2 = impressions > 0 ? clicks / impressions : 0;
-      const isHighCtr = ctr2 > 8e-3;
-      const maxReduceLimit = isHighCtr ? 0.15 : 0.25;
-      const baseReduceRatio = (acosRatio - 1) * 0.2;
+      const isHighCtr = ctr > 8e-3;
+      const maxReduceLimit = isHighCtr ? 0.12 : 0.2;
+      const baseReduceRatio = (acosRatio - 1) * 0.15;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
       const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor;
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr2 * 100).toFixed(2)}%, \u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v258\u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%(\u4E0A\u9650${maxReduceLimit * 100}%)`
+        reason: `ACOS\u4E25\u91CD\u8D85\u6807(${(actualAcos * 100).toFixed(1)}%, ${clicks}\u6B21\u70B9\u51FB, CTR=${(ctr * 100).toFixed(2)}%, \u7F6E\u4FE1\u5EA6${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v259\u964D\u4F4E${(reduceRatio * 100).toFixed(1)}%(\u4E0A\u9650${maxReduceLimit * 100}%)`
       };
     }
   }
@@ -68885,13 +69022,20 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       const targetIdForCB = target.type === "product_target" ? target.id : void 0;
       const cbResult = await checkCircuitBreaker(accountId, keywordId2, targetIdForCB, target.currentBid, safeBid);
       if (cbResult.tripped) {
-        log11.warn(`[NextGenOrchestrator] v258\u964D\u4EF7\u7194\u65AD\u89E6\u53D1: target=${target.id}, ${cbResult.reason}`);
-        safeBid = target.currentBid;
-        finalReason += ` | ${cbResult.reason}`;
+        log11.warn(`[NextGenOrchestrator] v259\u7194\u65AD\u63D0\u4EF7\u6062\u590D: target=${target.id}, ${cbResult.reason}`);
+        if (cbResult.guardrailInfo.recoveryBid && cbResult.guardrailInfo.recoveryBid > target.currentBid) {
+          safeBid = safetyValidate(target.currentBid, cbResult.guardrailInfo.recoveryBid, safetyConfig, maxBidLimit);
+          finalReason = `[v259\u63D0\u4EF7\u6062\u590D] ${cbResult.reason}`;
+        } else {
+          safeBid = target.currentBid;
+          finalReason += ` | ${cbResult.reason}`;
+        }
         finalReason += ` | guardrail: ${JSON.stringify({
           consecutiveDecreases: cbResult.guardrailInfo.consecutiveDecreases,
           cumulativeDecrease7d: cbResult.guardrailInfo.cumulativeDecrease7d,
-          initialBid7d: cbResult.guardrailInfo.initialBid7d
+          initialBid7d: cbResult.guardrailInfo.initialBid7d,
+          recoveryMode: cbResult.guardrailInfo.recoveryMode,
+          recoveryBid: cbResult.guardrailInfo.recoveryBid
         })}`;
       }
     }
@@ -68985,6 +69129,10 @@ function buildResult(target, newBid, algorithmUsed, confidence, reason, tier, me
     arbitrationApplied: false,
     minAdjustmentFiltered: reason.includes("\u8C03\u6574\u5E45\u5EA6\u4F4E\u4E8E\u6700\u5C0F\u9608\u503C"),
     maxBidCapped: reason.includes("max_bid"),
+    // v259新增护栏标识
+    bidRecoveryTriggered: reason.includes("\u63D0\u4EF7\u6062\u590D") || reason.includes("recovery_bid") || reason.includes("\u7194\u65AD\u63D0\u4EF7"),
+    exposureProtectionActive: reason.includes("\u66DD\u5149\u4FDD\u62A4") || reason.includes("exposure_protection") || reason.includes("\u66DD\u5149\u5927\u5E45\u4E0B\u964D"),
+    bidirectionalBid: actionType === "increase" && (reason.includes("ACOS\u6781\u4F18") || reason.includes("ACOS\u4F18\u79C0") || reason.includes("\u53CC\u5411\u51FA\u4EF7")),
     details: reason.includes("guardrail") ? reason.split("guardrail:")[1]?.trim() : void 0
   };
   return {
@@ -69192,7 +69340,13 @@ var init_nextGenBidOrchestrator = __esm({
       /** 归因延迟保护窗口（小时）：最近N小时内的数据权重降低 */
       attributionDelayHours: 48,
       /** 归因延迟数据权重折扣：最近48h内数据的权重 */
-      recentDataWeightDiscount: 0.6
+      recentDataWeightDiscount: 0.6,
+      /** v259: 熔断触发时的提价恢复比例 — 小幅提价恢复曝光 */
+      recoveryBoostPercent: 0.08,
+      // 8%提价恢复
+      /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
+      minImpressionProtectionRatio: 0.5
+      // 曝光低于历史50%时触发保护
     };
     DEFAULT_SAFETY = {
       maxBidChangePercent: 0.3,
@@ -80178,9 +80332,13 @@ async function correctBidMismatches(database, accountId) {
         AND oe.event_category = 'bid_adjustment'
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
-        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)
         AND k.keywordId IS NOT NULL
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%熔断%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%冷却保护%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%提价恢复%')
+        AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%曝光保护%')
         AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
@@ -80196,7 +80354,7 @@ async function correctBidMismatches(database, accountId) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    log16.info(`v258: \u8D26\u6237${accountId} (${currencyCode}) \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u5019\u9009\u9879 (bidTolerance=${bidTolerance.toFixed(3)})`);
+    log16.info(`v259: \u8D26\u6237${accountId} (${currencyCode}) \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u5019\u9009\u9879 (bidTolerance=${bidTolerance.toFixed(3)}, \u65F6\u95F4\u7A97\u53E3=1\u5929)`);
     const arbitratedRows = [];
     let arbitrationSkipped = 0;
     for (const row of rows) {
@@ -80222,8 +80380,8 @@ async function correctBidMismatches(database, accountId) {
         SELECT id, change_reason FROM optimization_events 
         WHERE keyword_id = ${row.keyword_id}
           AND event_category = 'bid_adjustment'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 4 HOUR)
-          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%')
+          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+          AND (change_reason LIKE '%冷却保护%' OR change_reason LIKE '%熔断%' OR change_reason LIKE '%提价恢复%' OR change_reason LIKE '%曝光保护%' OR change_reason LIKE '%cooldown%' OR change_reason LIKE '%circuit_breaker%' OR change_reason LIKE '%recovery%')
         ORDER BY id DESC
         LIMIT 1
       `;
@@ -82597,7 +82755,7 @@ async function assessAccountRisks() {
             actionType: "emergency_bid_reduction",
             priority: "P0",
             description: `\u8D26\u6237ACoS=${acos.toFixed(1)}%\u4E25\u91CD\u8D85\u6807\uFF0C\u89E6\u53D1NextGen\u7D27\u6025\u964D\u4EF7\u7B56\u7565`,
-            estimatedImpact: "\u9884\u8BA1\u964D\u4F4E\u9AD8ACoS\u5173\u952E\u8BCD\u51FA\u4EF710-35%"
+            estimatedImpact: "v259: \u9884\u8BA1\u964D\u4F4E\u9AD8ACoS\u5173\u952E\u8BCD\u51FA\u4EF710-20%\uFF08\u4E0ENextGen\u7194\u65AD\u4E0A\u9650\u5BF9\u9F50\uFF09"
           });
           actions.push({
             actionType: "pause_extreme_loss",
@@ -159543,7 +159701,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log32 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 258;
+    SYSTEM_VERSION = 259;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159795,6 +159953,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 258,
         description: "v258: [P0\u6838\u5FC3\u7B97\u6CD5\u91CD\u6784] \u2014 (1)P0-ACoS\u6B7B\u4EA1\u87BA\u65CB\u6839\u6CBB: \u5F52\u56E0\u5EF6\u8FDF\u4FDD\u62A4(\u70B9\u51FB<5\u5F3A\u5236\u89C2\u5BDF)+\u964D\u4EF7\u7194\u65AD(7\u5929\u7D2F\u8BA130%\u4E0A\u9650/\u8FDE\u7EED3\u6B21\u5F3Ahold/\u6700\u4F4E40%\u4FDD\u62A4)+\u591A\u7EF4\u5EA6\u51B3\u7B56(CTR\u8F85\u52A9\u5224\u65AD)+\u964D\u4EF7\u529B\u5EA6\u4E0A\u9650(15%/25%) (2)P0-\u9AD8\u7EA7\u7B97\u6CD5\u6FC0\u6D3B: UCB\u96F6\u95E8\u69DB\u59CB\u7EC8\u53EF\u7528+LinUCB/Sigmoid\u964D\u81F31-2\u6761+\u5F85\u56DE\u586B\u65E5\u5FD7\u8BA1\u5165 (3)P1-\u7EDF\u4E00\u51FA\u4EF7\u4EF2\u88C1: \u7EA0\u6B63\u524D\u68C0\u67E5\u66F4\u65B0\u51B3\u7B56+\u51B7\u5374/\u7194\u65AD\u4FDD\u62A4\u671F\u8DF3\u8FC7 (4)P1-\u65E5\u5FD7\u53EF\u8BFB\u6027: \u65B0\u589Ereason_details/guardrail_info/related_event_id\u5B57\u6BB5+\u524D\u7AEF\u62A4\u680F\u673A\u5236\u53EF\u89C6\u5316",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 259,
+        description: "v259: [\u5168\u94FE\u8DEF\u667A\u80FD\u5347\u7EA7] \u2014 (1)P0-\u5207\u65ADACoS\u6B7B\u4EA1\u87BA\u65CB: \u7194\u65AD\u89E6\u53D1\u65F6\u4E3B\u52A8\u63D0\u4EF78%\u6062\u590D\u66DD\u5149+\u6700\u4F4E\u66DD\u5149\u4FDD\u62A4(\u8FD13\u5929\u66DD\u5149\u4F4E\u4E8E\u57FA\u7EBF50%\u65F6\u6682\u505C\u964D\u4EF7\u5E76\u63D0\u4EF7)+\u5E95\u7EBF\u6062\u590D\u673A\u5236 (2)P0-\u6839\u6CBB\u51FA\u4EF7\u56DE\u6EDA: \u7EA0\u9519\u5668\u65F6\u95F4\u7A97\u53E3\u4ECE3\u5929\u7F29\u5C0F\u52301\u5929+SQL\u5C42\u6392\u9664\u62A4\u680F\u4E8B\u4EF6+\u4EF2\u88C1\u68C0\u67E5\u7A97\u53E3\u6269\u5927\u52308\u5C0F\u65F6 (3)P1-\u5F3A\u5236\u6FC0\u6D3BUCB: \u5386\u53F2\u6570\u636E\u5408\u6210\u7ED5\u8FC7\u56DE\u586B\u94FE\u8DEF+UCB\u57FA\u7840\u52061.30+rule_based\u964D\u52060.85+Ensemble\u964D\u81F32\u7B97\u6CD5 (4)P1-RL\u56DE\u586B\u4FEE\u590D: \u96F6\u6570\u636E\u91CD\u8BD5\u673A\u5236+\u56DE\u586B\u5065\u5EB7\u68C0\u67E5\u62A5\u544A (5)P1-\u53CC\u5411\u51FA\u4EF7: ACOS\u6781\u4F18\u573A\u666F\u79EF\u6781\u63D0\u4EF725%+\u8D85\u6807\u964D\u4EF7\u4E0A\u9650\u6536\u7D27\u523020% (6)P2-\u6570\u636E\u5C55\u793A\u4E00\u81F4\u6027: riskActionEngine\u964D\u4EF7\u4E0A\u9650\u5BF9\u9F50+\u62A4\u680F\u53EF\u89C6\u5316\u589E\u5F3A(\u63D0\u4EF7\u6062\u590D/\u66DD\u5149\u4FDD\u62A4/\u53CC\u5411\u51FA\u4EF7\u6807\u8BC6)",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }
@@ -161257,7 +161421,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 258;
+    SYSTEM_VERSION2 = 259;
   }
 });
 

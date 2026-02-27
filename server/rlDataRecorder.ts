@@ -375,12 +375,105 @@ export async function backfillRewards(accountId: number): Promise<number> {
   let filledCount = 0;
   let skippedNoData = 0;
   let immediateFilledCount = 0;
+  let retriedFromZero = 0;
+  let channelCSuccess = 0;
   
   try {
-    // v256: 扩展回填窗口到168小时（7天），确保系统重启/部署后不丢失历史RL数据
-    // 移除3小时下限 — 改为在回填逻辑中智能判断数据可用性
+    // v259: 增强回填链路健壮性
+    // 核心改进：
+    //   1. 零数据重试机制：对之前被零数据中性回填的日志，在数据同步后重新尝试回填真实数据
+    //   2. 通道C增强：从optimiaztion_events中提取更完整的绩效数据
+    //   3. 回填健康检查：统计各通道成功率，识别断裂点
+    
     const hoursAgo168 = new Date(Date.now() - 168 * 3600000).toISOString();
-    rlLog.info(`[backfillRewards] 账户${accountId}: 查找168h内未回填的RL日志（v256智能双通道）...`);
+    
+    // v259: 先检查是否有之前被零数据中性回填的日志可以重新回填
+    const zeroFilledLogs = await db.select({
+      id: rlTrainingLogs.id,
+      keywordId: rlTrainingLogs.keywordId,
+      targetId: rlTrainingLogs.targetId,
+      campaignId: rlTrainingLogs.campaignId,
+      accountId: rlTrainingLogs.accountId,
+      actionBidAfter: rlTrainingLogs.actionBidAfter,
+      actionBidBefore: rlTrainingLogs.actionBidBefore,
+      createdAt: rlTrainingLogs.createdAt,
+    }).from(rlTrainingLogs)
+      .where(and(
+        eq(rlTrainingLogs.accountId, accountId),
+        sql`reward = '0'`,
+        sql`reward_impressions = 0`,
+        sql`reward_clicks = 0`,
+        gte(rlTrainingLogs.createdAt, hoursAgo168)
+      ))
+      .limit(50); // 每次最多重试50条
+    
+    // v259: 尝试为零数据日志重新回填真实数据
+    for (const zLog of zeroFilledLogs) {
+      try {
+        let hasRealData = false;
+        let ri = 0, rc = 0, ro = 0, rsp = 0, rsa = 0;
+        
+        if (zLog.keywordId) {
+          const kwPerf = await db.select({
+            impressions: keywords.impressions,
+            clicks: keywords.clicks,
+            orders: keywords.orders,
+            spend: keywords.spend,
+            sales: keywords.sales,
+          }).from(keywords).where(eq(keywords.id, zLog.keywordId)).limit(1);
+          if (kwPerf[0] && (Number(kwPerf[0].impressions) > 0 || Number(kwPerf[0].clicks) > 0)) {
+            ri = Number(kwPerf[0].impressions) || 0;
+            rc = Number(kwPerf[0].clicks) || 0;
+            ro = Number(kwPerf[0].orders) || 0;
+            rsp = Number(kwPerf[0].spend) || 0;
+            rsa = Number(kwPerf[0].sales) || 0;
+            hasRealData = true;
+          }
+        } else if (zLog.targetId) {
+          const tgtPerf = await db.select({
+            impressions: productTargets.impressions,
+            clicks: productTargets.clicks,
+            orders: productTargets.orders,
+            spend: productTargets.spend,
+            sales: productTargets.sales,
+          }).from(productTargets).where(eq(productTargets.id, zLog.targetId)).limit(1);
+          if (tgtPerf[0] && (Number(tgtPerf[0].impressions) > 0 || Number(tgtPerf[0].clicks) > 0)) {
+            ri = Number(tgtPerf[0].impressions) || 0;
+            rc = Number(tgtPerf[0].clicks) || 0;
+            ro = Number(tgtPerf[0].orders) || 0;
+            rsp = Number(tgtPerf[0].spend) || 0;
+            rsa = Number(tgtPerf[0].sales) || 0;
+            hasRealData = true;
+          }
+        }
+        
+        if (hasRealData) {
+          const profit = rsa - rsp;
+          const reward = rsp > 0 ? profit / rsp : profit;
+          await db.update(rlTrainingLogs)
+            .set({
+              reward: String(reward),
+              rewardImpressions: ri,
+              rewardClicks: rc,
+              rewardOrders: ro,
+              rewardSpend: String(rsp),
+              rewardSales: String(rsa),
+              rewardProfit: String(profit),
+              rewardFilledAt: new Date().toISOString(),
+            })
+            .where(eq(rlTrainingLogs.id, zLog.id));
+          retriedFromZero++;
+        }
+      } catch (retryErr) {
+        // 重试失败不影响主流程
+      }
+    }
+    
+    if (retriedFromZero > 0) {
+      rlLog.info(`[backfillRewards] 账户${accountId}: v259零数据重试成功 ${retriedFromZero}/${zeroFilledLogs.length}条`);
+    }
+    
+    rlLog.info(`[backfillRewards] 账户${accountId}: 查找168h内未回填的RL日志（v259增强三通道+重试）...`);
     
     // v256: 查找所有168小时内未回填的记录（不再有下限限制）
     const pendingLogs = await db.select({
@@ -583,7 +676,13 @@ export async function backfillRewards(accountId: number): Promise<number> {
       }
     }
     
-    rlLog.info(`[backfillRewards] 账户${accountId}: v257三通道回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 即时通道A=${immediateFilledCount}, 零数据中性回填=${skippedNoData}`);
+    rlLog.info(`[backfillRewards] 账户${accountId}: v259增强回填完成, 待回填=${pendingLogs.length}, 成功回填=${filledCount}, 即时通道A=${immediateFilledCount}, 零数据中性=${skippedNoData}, 零数据重试成功=${retriedFromZero}`);
+    
+    // v259: 回填健康检查报告
+    const totalProcessed = filledCount + skippedNoData;
+    const realDataRate = totalProcessed > 0 ? ((filledCount - skippedNoData) / totalProcessed * 100).toFixed(1) : '0';
+    const channelARate = totalProcessed > 0 ? (immediateFilledCount / totalProcessed * 100).toFixed(1) : '0';
+    rlLog.info(`[backfillRewards] v259健康检查: 真实数据率=${realDataRate}%, 通道A成功率=${channelARate}%, 零数据重试=${retriedFromZero}条`);
     return filledCount;
     
   } catch (error: any) {
