@@ -1074,7 +1074,7 @@ function DashboardContent() {
               <div
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
+                className={`grid gap-6 items-stretch ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
               >
                 {cardOrder.map((cardId, index) => {
                   // v251: full-width卡片跨全列，compact卡片自然流入grid列
@@ -1163,7 +1163,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'system-health' && healthMetrics?.success && healthMetrics.metrics && (
-                          <Card>
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <div className="flex items-center justify-between">
                                 <div>
@@ -1178,7 +1178,7 @@ function DashboardContent() {
                                 </Badge>
                               </div>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-1">
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {/* 回滚率 */}
                                 <div className={`p-4 rounded-lg border ${
@@ -1336,7 +1336,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'trend-chart' && (
-                          <Card>
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <div className="flex items-center justify-between">
                                 <div>
@@ -1350,7 +1350,7 @@ function DashboardContent() {
                                 </div>
                               </div>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-1">
                               <div className={isMobile ? 'h-[280px]' : 'h-[360px]'}>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <ComposedChart data={combinedChartData}>
@@ -1378,7 +1378,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'account-risk' && (
-                          <Card>
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <div className="flex items-center justify-between">
                                 <CardTitle className="text-lg flex items-center gap-2">
@@ -1402,7 +1402,7 @@ function DashboardContent() {
                               </div>
                               <CardDescription>按ACoS从高到低排列 — 高风险账户将自动触发NextGen算法紧急优化</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-1">
                               <div className="space-y-3">
                                 {accountsData.map((account, idx) => (
                                   <div 
@@ -1449,7 +1449,7 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'sync-health' && (
-                          <Card className="h-full">
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-base flex items-center gap-2">
                                 <RefreshCw className="w-4 h-4 text-blue-500" />
@@ -1466,7 +1466,7 @@ function DashboardContent() {
                                 )}
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
+                            <CardContent className="flex-1 space-y-3">
                               <div className="flex items-center justify-between text-sm">
                                 <span className="text-muted-foreground">已同步</span>
                                 <span className="font-semibold text-green-500">{syncStats.synced.toLocaleString()}</span>
@@ -1526,14 +1526,14 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'algorithm-effect' && (
-                          <Card className="h-full">
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-base flex items-center gap-2">
                                 <Brain className="w-4 h-4 text-purple-500" />
                                 算法效果概览
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
+                            <CardContent className="flex-1 space-y-3">
                               <div className="flex items-center justify-between text-sm">
                                 <span className="text-muted-foreground">30天优化操作</span>
                                 <span className="font-semibold">{algorithmSummary.totalOps.toLocaleString()} 次</span>
@@ -1575,12 +1575,12 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'order-trend' && (
-                          <Card className="h-full">
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-lg">订单趋势</CardTitle>
                               <CardDescription>近{days}天每日订单量</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-1">
                               <div className="h-[200px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                   <AreaChart data={chartData}>
@@ -1603,12 +1603,12 @@ function DashboardContent() {
                         )}
                         
                         {cardId === 'quick-actions' && (
-                          <Card className="h-full">
+                          <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <CardTitle className="text-lg">快捷操作</CardTitle>
                               <CardDescription>常用功能入口</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-1">
                               <div className="grid grid-cols-2 gap-3">
                                 <Link href="/strategy-center">
                                   <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
