@@ -82,13 +82,40 @@ export interface RiskActionResult {
 // ==================== 风险等级判定 ====================
 
 /**
- * 判定账户风险等级 — 与前端listWithPerformance保持一致
- * 但增加了更细粒度的阈值判断
+ * v264: P2-1 风险分层响应机制
+ * 基于目标ACoS的动态风险评估，而非硬编码绝对值
+ * - critical: ACoS > 目标的3倍 或 ACoS > 80%
+ * - warning: ACoS > 目标的2倍 或 ACoS > 50%
+ * - healthy: 其他
  */
-function assessAccountRiskLevel(acos: number): 'critical' | 'warning' | 'healthy' {
-  if (acos > 50) return 'critical';
-  if (acos > 35) return 'warning';
+function assessAccountRiskLevel(acos: number, targetAcos?: number): 'critical' | 'warning' | 'healthy' {
+  const effectiveTarget = targetAcos || 30; // 默认目标ACoS 30%
+  // 绝对门槛 + 相对目标门槛，取更严格的结果
+  if (acos > effectiveTarget * 3 || acos > 80) return 'critical';
+  if (acos > effectiveTarget * 2 || acos > 50) return 'warning';
   return 'healthy';
+}
+
+/**
+ * v264: 风险等级对应的响应策略配置
+ */
+interface RiskResponseStrategy {
+  bidReductionPercent: number;   // 出价降低比例
+  pauseThresholdAcos: number;    // 暂停门槛 ACoS
+  pauseThresholdSpend: number;   // 暂停门槛 花费
+  scanInterval: 'immediate' | '4h' | '12h'; // 扫描间隔
+}
+
+function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy'): RiskResponseStrategy {
+  switch (riskLevel) {
+    case 'critical':
+      return { bidReductionPercent: 0.20, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: 'immediate' };
+    case 'warning':
+      return { bidReductionPercent: 0.10, pauseThresholdAcos: 300, pauseThresholdSpend: 10, scanInterval: '4h' };
+    case 'healthy':
+    default:
+      return { bidReductionPercent: 0, pauseThresholdAcos: 500, pauseThresholdSpend: 20, scanInterval: '12h' };
+  }
 }
 
 // ==================== 数据库持久化辅助函数 ====================
