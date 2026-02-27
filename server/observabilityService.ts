@@ -12,8 +12,8 @@
  * - 实时触发critical告警
  */
 
-import { db } from './db';
-import { optimization_events, accounts } from '@shared/schema';
+import { getDb } from './db';
+import { optimizationEvents } from '../drizzle/schema';
 import { eq, sql, and, gte, lte, desc, count, isNull, not } from 'drizzle-orm';
 import { sendNotification, sendBatchAlerts, analyzeHealthMetrics, defaultNotificationConfig } from './notificationService';
 import { getSystemHealthMetrics } from './systemHealthMetricsService';
@@ -86,14 +86,14 @@ async function collectSyncMetrics(now: Date): Promise<SystemMetricSnapshot> {
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   
   // 统计各类型同步状态
-  const syncStats = await db.select({
-    apiSyncStatus: optimization_events.apiSyncStatus,
-    operationType: optimization_events.operationType,
+  const syncStats = await (await getDb()).select({
+    apiSyncStatus: optimizationEvents.apiSyncStatus,
+    operationType: optimizationEvents.operationType,
     cnt: count()
   })
-  .from(optimization_events)
-  .where(gte(optimization_events.executedAt, oneHourAgo))
-  .groupBy(optimization_events.apiSyncStatus, optimization_events.operationType);
+  .from(optimizationEvents)
+  .where(gte(optimizationEvents.executedAt, oneHourAgo))
+  .groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.operationType);
   
   let totalSynced = 0, totalPending = 0, totalFailed = 0, totalNA = 0;
   const typeBreakdown: Record<string, { synced: number; pending: number; failed: number }> = {};
@@ -140,13 +140,13 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   
   // 最近1小时的优化事件统计
-  const hourlyStats = await db.select({
-    status: optimization_events.status,
+  const hourlyStats = await (await getDb()).select({
+    status: optimizationEvents.status,
     cnt: count()
   })
-  .from(optimization_events)
-  .where(gte(optimization_events.executedAt, oneHourAgo))
-  .groupBy(optimization_events.status);
+  .from(optimizationEvents)
+  .where(gte(optimizationEvents.executedAt, oneHourAgo))
+  .groupBy(optimizationEvents.status);
   
   let hourlyExecuted = 0, hourlyFailed = 0, hourlyRolledBack = 0;
   for (const row of hourlyStats) {
@@ -157,13 +157,13 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
   }
   
   // 最近24小时的优化事件统计
-  const dailyStats = await db.select({
-    status: optimization_events.status,
+  const dailyStats = await (await getDb()).select({
+    status: optimizationEvents.status,
     cnt: count()
   })
-  .from(optimization_events)
-  .where(gte(optimization_events.executedAt, oneDayAgo))
-  .groupBy(optimization_events.status);
+  .from(optimizationEvents)
+  .where(gte(optimizationEvents.executedAt, oneDayAgo))
+  .groupBy(optimizationEvents.status);
   
   let dailyExecuted = 0, dailyFailed = 0, dailyRolledBack = 0;
   for (const row of dailyStats) {
@@ -196,16 +196,16 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   
   // 计算API调用成功率
-  const apiStats = await db.select({
-    apiSyncStatus: optimization_events.apiSyncStatus,
+  const apiStats = await (await getDb()).select({
+    apiSyncStatus: optimizationEvents.apiSyncStatus,
     cnt: count()
   })
-  .from(optimization_events)
+  .from(optimizationEvents)
   .where(and(
-    gte(optimization_events.executedAt, oneDayAgo),
-    not(eq(optimization_events.apiSyncStatus, 'not_applicable'))
+    gte(optimizationEvents.executedAt, oneDayAgo),
+    not(eq(optimizationEvents.apiSyncStatus, 'not_applicable'))
   ))
-  .groupBy(optimization_events.apiSyncStatus);
+  .groupBy(optimizationEvents.apiSyncStatus);
   
   let apiSuccess = 0, apiFailed = 0, apiPending = 0;
   for (const row of apiStats) {
