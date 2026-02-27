@@ -757,6 +757,24 @@ const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
   'quick-actions': 'compact',
 };
 
+// v261: 算法名称中文映射表 - 将英文算法标识符翻译为用户友好的中文名称
+const ALGORITHM_NAME_CN: Record<string, string> = {
+  'rule_engine': '规则引擎',
+  'conservative': '保守策略',
+  'cooldown_hold': '冷却保持',
+  'auto_corrector': '自动纠错',
+  'auto_correction': '自动纠错',
+  'advanced': '高级算法',
+  'cql': 'CQL强化学习',
+  'sigmoid_curve': 'Sigmoid曲线',
+  'linucb': 'LinUCB赌博机',
+  'ucb': 'UCB探索',
+  'ensemble': '多算法融合',
+  'unknown': '未知',
+  'rule_based': '规则驱动',
+};
+const getAlgorithmNameCN = (name: string): string => ALGORITHM_NAME_CN[name] || name;
+
 // v251: 将卡片按尺寸类型分组为渲染行
 // 连续的compact卡片会被合并到同一行的grid中
 function groupCardsIntoRows(cardOrder: string[]): { type: 'full' | 'compact-group'; cards: string[] }[] {
@@ -1210,7 +1228,7 @@ function DashboardContent() {
                                     {healthMetrics.metrics.algorithmActivation.advancedRate.toFixed(1)}%
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    {Object.entries(healthMetrics.metrics.algorithmActivation.algorithmRates || {}).map(([name, rate]) => `${name}: ${(rate as number).toFixed(0)}%`).join(', ') || '无数据'}
+                                    {Object.entries(healthMetrics.metrics.algorithmActivation.algorithmRates || {}).map(([name, rate]) => `${getAlgorithmNameCN(name)}: ${(rate as number).toFixed(0)}%`).join(', ') || '无数据'}
                                   </div>
                                 </div>
                                 {/* ACoS趋势 */}
@@ -1526,14 +1544,14 @@ function DashboardContent() {
                               </div>
                               <div className="flex items-center justify-between text-sm">
                                 <span className="text-muted-foreground">最优算法</span>
-                                <Badge variant="outline" className="text-xs">{algorithmSummary.bestAlgorithm}</Badge>
+                                <Badge variant="outline" className="text-xs">{getAlgorithmNameCN(algorithmSummary.bestAlgorithm)}</Badge>
                               </div>
                               {algorithmSummary.algorithms.length > 0 && (
                                 <div className="pt-2 border-t border-border/50 space-y-2">
                                   <div className="text-xs text-muted-foreground">各算法表现</div>
                                   {algorithmSummary.algorithms.map((alg) => (
                                     <div key={alg.algorithm} className="flex items-center gap-2">
-                                      <span className="text-xs w-24 truncate" title={alg.algorithm}>{alg.algorithm}</span>
+                                      <span className="text-xs w-24 truncate" title={getAlgorithmNameCN(alg.algorithm)}>{getAlgorithmNameCN(alg.algorithm)}</span>
                                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                         <div 
                                           className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
