@@ -739,6 +739,11 @@ function MarketingPage() {
 // v233: 重新设计的运营作战指挥中心（登录后显示）
 // v234: 卡片ID定义
 const DEFAULT_CARD_ORDER = ['kpi-cards', 'quick-actions', 'sync-health', 'algorithm-effect', 'system-health', 'account-risk', 'order-trend', 'trend-chart'];
+// v261 布局说明: compact卡片连续排列以实现3列并排
+// 第1行: kpi-cards (full)
+// 第2行: quick-actions | sync-health | algorithm-effect (compact x3)
+// 第3行: system-health | account-risk | order-trend (compact x3)
+// 第4行: trend-chart (full)
 
 // v251: 卡片尺寸类型定义 - full-width独占一行，compact并排显示
 const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
