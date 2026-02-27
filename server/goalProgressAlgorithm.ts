@@ -18,7 +18,7 @@
  * 4. 转化效率 - ROAS、CVR、CPC综合评估
  * 5. 渐进优化进度 - 优化是否在稳步接近目标
  * 6. NextGen算法效能 - 算法层级分布、正向率、自我进化效果 (v235新增)
- * 7. 利润健康度 - 广告利润、利润ROAS、盈亏平衡ACoS (v271新增)
+ * 7. 广告效率 - ACOS健康度、ROAS表现、花费效率 (v272重构)
  */
 
 // ==================== 类型定义 ====================
@@ -148,13 +148,13 @@ interface WeightConfig {
   conversionEfficiency: number;
   gradualProgress: number;
   algorithmEfficacy: number;  // v235新增: NextGen算法效能
-  profitHealth: number;       // v271新增: 利润健康度
+  profitHealth: number;       // v272重构: 广告效率（基于ACOS/ROAS等广告原生指标）
 }
 
 // v235: 重新分配权重，给算法效能维度10%权重，从其他维度均匀扣减
 // v270 P1-2: 补齐全部11个策略模板的权重配置，消除缺失策略回退DEFAULT_WEIGHTS的问题
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
-  // v271: 所有策略模板重新分配权重，给利润健康度维度分配权重，从其他维度均匀扣减
+  // v272: 所有策略模板重新分配权重，给广告效率维度分配权重，从其他维度均匀扣减
   'aggressive-growth':  { coreMetric: 14, trend: 25, budgetEfficiency: 5,  conversionEfficiency: 16, gradualProgress: 20, algorithmEfficacy: 10, profitHealth: 10 },
   'balanced':           { coreMetric: 20, trend: 16, budgetEfficiency: 11, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8,  profitHealth: 12 },
   'profit-focused':     { coreMetric: 25, trend: 6,  budgetEfficiency: 10, conversionEfficiency: 12, gradualProgress: 15, algorithmEfficacy: 7,  profitHealth: 25 },
@@ -816,7 +816,7 @@ function calculateGradualProgressScore(
 
 // ==================== 主计算函数 ====================
 
-// ==================== 维度7: 利润健康度 (v271新增) ====================
+// ==================== 维度7: 广告效率 (v272重构 - 基于广告原生指标) ====================
 
 /**
  * v272 (修正版): 广告投放效率评分
@@ -1059,7 +1059,7 @@ export function calculateGoalProgress(
     },
     {
       name: 'profitHealth',
-      nameZh: '利润健康',
+      nameZh: '广告效率',
       score: profitHealth.score,
       weight: weights.profitHealth,
       weighted: Math.round(profitHealth.score * weights.profitHealth / 100),
