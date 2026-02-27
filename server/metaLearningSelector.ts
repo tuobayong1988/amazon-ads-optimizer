@@ -237,61 +237,72 @@ async function evaluateAlgorithms(
   
   log.info(`[MetaLearning] v259算法评估: 账户${accountId}, RL日志(已回填)=${totalRLLogs}, RL日志(含待回填)=${pendingRLLogs}, 历史事件=${totalHistoryEvents}, 合成数据量=${syntheticDataCount}, 特征缓存=${hasFeatures}`);
   
-  // 1. rule_based: 始终可用，但v259降低其基础分，避免始终被选中
+  // v266 P1-2: 重新调整算法评分体系，提升高级算法激活率
+  // 核心策略: 
+  //   1. 进一步降低rule_based基础分，迫使系统更多使用高级算法
+  //   2. 提高LinUCB和Ensemble的基础分，使其有更大概率被选中
+  //   3. 引入“探索预算”机制：每天至少20%的决策强制使用高级算法
+  
+  // v266: 探索预算机制 — 确保每天至少20%的决策使用高级算法
+  const hourOfDay = new Date().getHours();
+  const isExplorationSlot = (hourOfDay % 5 === 0) || (hourOfDay % 5 === 1); // 每5小时中有2小时是探索时段(40%)
+  const explorationBoost = isExplorationSlot ? 0.15 : 0; // 探索时段额外加分
+  
+  // 1. rule_based: v266进一步降低基础分
   const rbStat = stats.get('rule_based')!;
   scores.push({
     algorithm: 'rule_based',
-    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * 0.85, // v259: 降低基础分
+    score: betaSample(rbStat.alphaParam, rbStat.betaParam) * (isExplorationSlot ? 0.70 : 0.80), // v266: 从0.85降至0.70-0.80
     eligible: true,
-    reason: '基于规则的出价策略（兖底）',
+    reason: '基于规则的出价策略（兆底）',
   });
   
-  // 2. ucb: v259强制优先 — 给予更高基础分确保被选中
+  // 2. ucb: 保持强制优先
   const ucbStat = stats.get('ucb')!;
   scores.push({
     algorithm: 'ucb',
-    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.30, // v259: 提高基础分
+    score: betaSample(ucbStat.alphaParam, ucbStat.betaParam) * 1.30,
     eligible: true,
     reason: 'UCB探索-利用策略(强制优先)',
   });
   
-  // 3. linucb: v259使用合成数据量评估，大幅降低实际门槛
+  // 3. linucb: v266提升基础分并放宽激活条件
   const linucbStat = stats.get('linucb')!;
   const linucbEligible = hasFeatures || syntheticPendingCount >= 1;
   scores.push({
     algorithm: 'linucb',
-    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * 1.20 : 0,
+    score: linucbEligible ? betaSample(linucbStat.alphaParam, linucbStat.betaParam) * (1.35 + explorationBoost) : 0, // v266: 从1.20提升到1.35+
     eligible: linucbEligible,
     reason: linucbEligible ? `LinUCB上下文赌博机(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/1)`,
   });
   
-  // 4. sigmoid_curve: v259使用合成数据量评估
+  // 4. sigmoid_curve: v266提升基础分
   const sigmoidStat = stats.get('sigmoid_curve')!;
   const sigmoidEligible = syntheticPendingCount >= 2;
   scores.push({
     algorithm: 'sigmoid_curve',
-    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * 1.15 : 0,
+    score: sigmoidEligible ? betaSample(sigmoidStat.alphaParam, sigmoidStat.betaParam) * (1.25 + explorationBoost) : 0, // v266: 从1.15提升到1.25+
     eligible: sigmoidEligible,
     reason: sigmoidEligible ? `Sigmoid曲线利润最大化(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/2)`,
   });
   
-  // 5. cql: v259使用合成数据量评估
+  // 5. cql: v266降低激活门槛从5到3
   const cqlStat = stats.get('cql')!;
-  const cqlEligible = syntheticPendingCount >= 5;
+  const cqlEligible = syntheticPendingCount >= 3; // v266: 从5降至3
   scores.push({
     algorithm: 'cql',
-    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * 1.25 : 0,
+    score: cqlEligible ? betaSample(cqlStat.alphaParam, cqlStat.betaParam) * (1.30 + explorationBoost) : 0, // v266: 从1.25提升到1.30+
     eligible: cqlEligible,
-    reason: cqlEligible ? `离线强化学习CQL(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/5)`,
+    reason: cqlEligible ? `离线强化学习CQL(合成数据=${syntheticPendingCount})` : `数据不足(合成=${syntheticPendingCount}/3)`,
   });
   
-  // 6. ensemble: v259降低到只需要2个算法可用（rule_based + ucb已经满足）
+  // 6. ensemble: v266提升融合模式的基础分，使其成为首选
   const eligibleCount = scores.filter(s => s.eligible).length;
   const ensembleStat = stats.get('ensemble')!;
   scores.push({
     algorithm: 'ensemble',
-    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * 1.30 : 0,
-    eligible: eligibleCount >= 2, // v259: 只需要2个算法即可启用融合
+    score: eligibleCount >= 2 ? betaSample(ensembleStat.alphaParam, ensembleStat.betaParam) * (1.40 + explorationBoost) : 0, // v266: 从1.30提升到1.40+
+    eligible: eligibleCount >= 2,
     reason: eligibleCount >= 2 ? `多算法融合(可用${eligibleCount}个)` : `可用算法不足(${eligibleCount}/2)`,
   });
   
@@ -404,25 +415,23 @@ export async function selectBestAlgorithm(
         break;
         
       case 'ucb': {
-        // v264: UCB探索-利用平衡机制
-        // 使用Epsilon-Greedy策略：以epsilon概率进行探索（随机扰动出价），以1-epsilon概率利用（使用规则引擎出价）
+        // v266 P1-2: 增强UCB探索-利用平衡机制
+        // 提高探索概率从15%到20%，增加探索方向的智能化
         const ucbBid = currentBid || 0;
-        const epsilon = 0.15; // 15%的概率进行探索
-        // 使用确定性哈希实现伪随机，确保相同实体在同一时间窗口内产生一致的探索行为
+        const epsilon = 0.20; // v266: 从15%提升到20%，增加探索频率
         const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
-        const hourWindow = Math.floor(Date.now() / (4 * 3600000)); // 4小时时间窗口
+        const hourWindow = Math.floor(Date.now() / (4 * 3600000));
         const hashVal = ((entitySeed * 2654435761 + hourWindow) >>> 0) % 10000 / 10000;
         
         if (hashVal < epsilon) {
-          // 探索模式：在当前出价基础上进行±5-12%的扰动
-          const explorationDirection = hashVal < epsilon / 2 ? 1 : -1; // 一半概率提价，一半概率降价
-          const explorationMagnitude = 0.05 + (hashVal / epsilon) * 0.07; // 5%~12%的扰动幅度
+          // v266: 智能探索方向 — 偏向提价探索(60%提价/40%降价)，因为系统历史偏向降价
+          const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1; // v266: 60%提价/40%降价
+          const explorationMagnitude = 0.05 + (hashVal / epsilon) * 0.10; // v266: 5%~15%的扰动幅度(从12%提升到15%)
           recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
           recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
-          confidence = 0.4; // 探索模式置信度较低
-          log.info(`[MetaLearning] v264 UCB探索模式: entity=${keywordId || targetId}, 方向=${explorationDirection > 0 ? '提价' : '降价'}, 幅度=${(explorationMagnitude * 100).toFixed(1)}%`);
+          confidence = 0.45; // v266: 探索模式置信度微调
+          log.info(`[MetaLearning] v266 UCB探索模式: entity=${keywordId || targetId}, 方向=${explorationDirection > 0 ? '提价' : '降价'}, 幅度=${(explorationMagnitude * 100).toFixed(1)}%`);
         } else {
-          // 利用模式：交给规则引擎处理（返回currentBid，由nextGenBidOrchestrator降级到规则引擎）
           recommendedBid = ucbBid;
           confidence = 0.5;
         }

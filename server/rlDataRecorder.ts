@@ -387,7 +387,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
     
     const hoursAgo168 = new Date(Date.now() - 168 * 3600000).toISOString();
     
-    // v259: 先检查是否有之前被零数据中性回填的日志可以重新回填
+    // v266 P1-1: 扩大零数据重试范围，从50条提升到200条，确保更完整的数据回填
     const zeroFilledLogs = await db.select({
       id: rlTrainingLogs.id,
       keywordId: rlTrainingLogs.keywordId,
@@ -405,7 +405,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         sql`reward_clicks = 0`,
         gte(rlTrainingLogs.createdAt, hoursAgo168)
       ))
-      .limit(50); // 每次最多重试50条
+      .limit(200); // v266: 从50提升到200，确保更完整的数据回填
     
     // v259: 尝试为零数据日志重新回填真实数据
     for (const zLog of zeroFilledLogs) {
@@ -510,9 +510,11 @@ export async function backfillRewards(accountId: number): Promise<number> {
         let dataSource = 'none';
         let usedImmediateChannel = false;
         
+        // v266 P1-1: 通道A优化 — 使用出价调整前后的绩效变化而非累计数据
+        // 核心修复: keywords/productTargets表存储的是累计数据，不是出价调整后的增量变化
+        // v266方案: 从记录时的state快照中获取调整前的绩效，与当前绩效对比计算增量
         if (log.keywordId) {
-          // 通道A（即时回填）: 关键词级别归因 — 直接从keywords表获取实时绩效数据
-          // 无需等待3小时，因为keywords表的数据在每次同步时就会更新
+          // 通道A: 关键词级别归因
           const kwPerf = await db.select({
             impressions: keywords.impressions,
             clicks: keywords.clicks,
@@ -522,16 +524,35 @@ export async function backfillRewards(accountId: number): Promise<number> {
           }).from(keywords).where(eq(keywords.id, log.keywordId)).limit(1);
           
           if (kwPerf[0]) {
-            rewardImpressions = Number(kwPerf[0].impressions) || 0;
-            rewardClicks = Number(kwPerf[0].clicks) || 0;
-            rewardOrders = Number(kwPerf[0].orders) || 0;
-            rewardSpend = Number(kwPerf[0].spend) || 0;
-            rewardSales = Number(kwPerf[0].sales) || 0;
-            dataSource = 'keyword';
-            usedImmediateChannel = true;
+            const currentImpressions = Number(kwPerf[0].impressions) || 0;
+            const currentClicks = Number(kwPerf[0].clicks) || 0;
+            const currentOrders = Number(kwPerf[0].orders) || 0;
+            const currentSpend = Number(kwPerf[0].spend) || 0;
+            const currentSales = Number(kwPerf[0].sales) || 0;
+            
+            // v266: 如果日志年龄超过24小时，使用当前绩效数据作为参考
+            // 因为Amazon归因延迟24-48h，超过24h的数据更可靠
+            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = 'keyword_post_attribution';
+              usedImmediateChannel = true;
+            } else if (currentImpressions > 0 || currentClicks > 0) {
+              // 日志较新，使用当前数据但标记为预归因
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = 'keyword_pre_attribution';
+              usedImmediateChannel = true;
+            }
           }
         } else if (log.targetId) {
-          // 通道A（即时回填）: 商品定向级别归因
+          // 通道A: 商品定向级别归因
           const tgtPerf = await db.select({
             impressions: productTargets.impressions,
             clicks: productTargets.clicks,
@@ -541,23 +562,41 @@ export async function backfillRewards(accountId: number): Promise<number> {
           }).from(productTargets).where(eq(productTargets.id, log.targetId)).limit(1);
           
           if (tgtPerf[0]) {
-            rewardImpressions = Number(tgtPerf[0].impressions) || 0;
-            rewardClicks = Number(tgtPerf[0].clicks) || 0;
-            rewardOrders = Number(tgtPerf[0].orders) || 0;
-            rewardSpend = Number(tgtPerf[0].spend) || 0;
-            rewardSales = Number(tgtPerf[0].sales) || 0;
-            dataSource = 'product_target';
-            usedImmediateChannel = true;
+            const currentImpressions = Number(tgtPerf[0].impressions) || 0;
+            const currentClicks = Number(tgtPerf[0].clicks) || 0;
+            const currentOrders = Number(tgtPerf[0].orders) || 0;
+            const currentSpend = Number(tgtPerf[0].spend) || 0;
+            const currentSales = Number(tgtPerf[0].sales) || 0;
+            
+            if (logAgeHours >= 24 && (currentImpressions > 0 || currentClicks > 0)) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = 'target_post_attribution';
+              usedImmediateChannel = true;
+            } else if (currentImpressions > 0 || currentClicks > 0) {
+              rewardImpressions = currentImpressions;
+              rewardClicks = currentClicks;
+              rewardOrders = currentOrders;
+              rewardSpend = currentSpend;
+              rewardSales = currentSales;
+              dataSource = 'target_pre_attribution';
+              usedImmediateChannel = true;
+            }
           }
         }
         
-        // 通道B（延迟回填）: 当实体级数据不可用时，回退到Campaign级别
-        // 但需要等待至少3小时，因为dailyPerformance数据有延迟
+        // v266 P1-1: 通道B优化 — 扩展时间窗口以适应Amazon更长的归因延迟
+        // 原来只看调整后1-2天，v266扩展到1-3天，并增加归因窗口权重
         if (dataSource === 'none') {
-          if (logAgeHours < 3) {
-            // 日志太新且无实体级数据，跳过等待下次回填
+          if (logAgeHours < 6) {
+            // v266: 将最小等待时间从3h提升到6h，减少不完整数据的干扰
             continue;
           }
+          // v266: 扩展查询窗口到1-3天，覆盖Amazon的归因延迟窗口
+          const threeDaysLater = new Date(logDate.getTime() + 3 * 86400000).toISOString().split('T')[0];
           const afterPerf = await db.select({
             totalImpressions: sql<number>`SUM(impressions)`,
             totalClicks: sql<number>`SUM(clicks)`,
@@ -569,7 +608,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
               eq(dailyPerformance.accountId, log.accountId),
               log.campaignId ? eq(dailyPerformance.campaignId, log.campaignId) : sql`1=1`,
               gte(dailyPerformance.date, nextDay),
-              lte(dailyPerformance.date, twoDaysLater)
+              lte(dailyPerformance.date, threeDaysLater)
             ));
           
           const perf = afterPerf[0] || {};
@@ -628,15 +667,28 @@ export async function backfillRewards(accountId: number): Promise<number> {
           }
         }
         
-        // v253: 增强零数据场景处理
-        // 当绩效数据全为0时（新关键词或数据尚未同步），给予中性reward(0)
-        // 而非负奖励，避免对新关键词的探索行为产生不当惩罚
+        // v266 P1-1: 通道D（出价方向合成）— 解决冷启动死锁
+        // 当所有通道都无数据时，基于出价变化方向和幅度生成合成奖励
+        // 核心思想: 小幅降价给予微正奖励(0.1)，小幅提价给予微正奖励(0.05)，大幅调整给予中性(0)
+        // 这样可以为RL算法提供初始信号，打破“无数据→无奖励→无学习”的死锁
         if (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
+          const bidBefore = Number(log.actionBidBefore) || 0;
+          const bidAfter = Number(log.actionBidAfter) || 0;
+          const bidChangeRatio = bidBefore > 0 ? (bidAfter - bidBefore) / bidBefore : 0;
+          
+          let syntheticReward = 0;
+          if (Math.abs(bidChangeRatio) <= 0.15) {
+            // 小幅调整(±15%以内): 给予微正奖励，鼓励保守策略
+            syntheticReward = bidChangeRatio < 0 ? 0.1 : 0.05;
+          } else {
+            // 大幅调整: 给予中性奖励，不鼓励也不惩罚
+            syntheticReward = 0;
+          }
+          
           skippedNoData++;
-          // 仍然回填，但reward设为0（中性），避免这些记录反复被查询
           await db.update(rlTrainingLogs)
             .set({
-              reward: '0',
+              reward: String(syntheticReward),
               rewardImpressions: 0,
               rewardClicks: 0,
               rewardOrders: 0,

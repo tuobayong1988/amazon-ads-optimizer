@@ -733,13 +733,66 @@ export async function executeOptimization(
       }
 
       case 'negative_keyword': {
-        // ✅ 否定关键词添加 - 通过Amazon API回传
+        // ✅ v266 P0-1: 否定关键词添加 - 直接通过Amazon API同步
+        // 修复: 之前错误地假设"已在searchTermHarvester中处理"，实际上通过automationEngine路径的否定词从未调用API
         let negApiSuccess = false;
-        console.log(`[AutoExec] 否定关键词添加: target=${targetName}, 已通过searchTermHarvester模块处理`);
-        negApiSuccess = true; // 否定关键词的实际API调用在searchTermHarvester中完成
+        let negCampaignId: string | number = '';
+        
+        // 获取关键词信息以确定campaign
+        const negKeyword = await db.getKeywordById(targetId);
+        let negAccountId = accountId;
+        
+        if (negKeyword) {
+          const negAdGroup = await db.getAdGroupById(negKeyword.adGroupId);
+          if (negAdGroup) {
+            negCampaignId = negAdGroup.campaignId;
+            const negCampaign = await db.getCampaignByAmazonCampaignId(negAdGroup.campaignId);
+            if (negCampaign?.accountId) {
+              negAccountId = negCampaign.accountId;
+            }
+          }
+        }
+        
+        // 确定否定匹配类型: 单词/双词用negativePhrase，多词用negativeExact
+        const negWords = (targetName || '').trim().split(/\s+/);
+        const negMatchType = negWords.length <= 2 ? 'negativePhrase' : 'negativeExact';
+        
+        try {
+          // 通过amazonApiHelper同步否定词到Amazon
+          const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(negAccountId, [{
+            campaignId: negCampaignId || String(targetId),
+            keywordText: targetName || '',
+            matchType: negMatchType as 'negativeExact' | 'negativePhrase',
+            level: 'campaign',
+          }]);
+          
+          if (negSyncResult.success > 0) {
+            negApiSuccess = true;
+            console.log(`[AutoExec] v266: 否定关键词API同步成功: "${targetName}", matchType=${negMatchType}`);
+          } else {
+            console.error(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
+          }
+        } catch (negApiErr: any) {
+          console.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, negApiErr.message);
+        }
+        
+        // 先API后DB原则: 只有API成功才写入本地DB
+        if (negApiSuccess) {
+          try {
+            await db.addNegativeKeyword({
+              campaignId: targetId,
+              keyword: targetName || '',
+              matchType: negMatchType === 'negativePhrase' ? 'phrase' : 'exact',
+              level: 'campaign',
+            });
+          } catch (dbErr: any) {
+            console.warn(`[AutoExec] v266: 否定词本地DB写入失败(API已成功): ${dbErr.message}`);
+          }
+        }
+        
         await db.createBiddingLog({
           accountId,
-          campaignId: '',
+          campaignId: String(negCampaignId),
           adGroupId: 0,
           logTargetType: 'negative_keyword',
           targetId,
@@ -747,26 +800,89 @@ export async function executeOptimization(
           actionType: 'add',
           previousBid: '0',
           newBid: '0',
-          reason: `${negApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 否定关键词添加: ${reason}`,
+          reason: `${negApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 否定关键词添加: ${reason}`,
         });
+        
+        if (!negApiSuccess) {
+          throw new Error('Amazon API否定关键词同步失败');
+        }
         break;
       }
 
       case 'search_term_harvest': {
-        // ✅ 搜索词收割 - 已通过searchTermHarvester模块处理
+        // ✅ v266 P0-1: 搜索词收割 - 直接通过Amazon API创建新关键词
+        // 修复: 之前错误地假设"已在searchTermHarvester中处理"，实际上通过automationEngine路径的收割从未调用API
+        let harvestApiSuccess = false;
+        let harvestCampaignId: string | number = '';
+        let harvestAdGroupId: number = 0;
+        let harvestAmazonAdGroupId: string = '';
+        let harvestAmazonCampaignId: string = '';
+        
+        // 从reason中解析目标campaign和adGroup信息
+        // reason格式通常包含: "源Campaign=X → 目标Campaign=Y"
+        const targetCampaignMatch = reason.match(/目标Campaign=(\d+)/);
+        const targetCampaignIdFromReason = targetCampaignMatch ? parseInt(targetCampaignMatch[1]) : targetId;
+        
+        // 获取目标campaign的Amazon ID
+        const harvestCampaign = await db.getCampaignById(targetCampaignIdFromReason);
+        if (harvestCampaign) {
+          harvestCampaignId = harvestCampaign.campaignId || '';
+          harvestAmazonCampaignId = String(harvestCampaign.campaignId || '');
+        }
+        
+        try {
+          // 通过amazonApiHelper创建新关键词到Amazon
+          const harvestSyncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
+            adGroupId: harvestAmazonAdGroupId || harvestAdGroupId,
+            campaignId: harvestAmazonCampaignId || harvestCampaignId,
+            keywordText: targetName || '',
+            matchType: 'exact',
+            bid: newValue || 0.75, // 使用传入的newValue作为出价，默认0.75
+          }]);
+          
+          if (harvestSyncResult.success > 0) {
+            harvestApiSuccess = true;
+            console.log(`[AutoExec] v266: 搜索词收割API同步成功: "${targetName}", bid=${newValue}`);
+          } else {
+            console.error(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
+          }
+        } catch (harvestApiErr: any) {
+          console.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, harvestApiErr.message);
+        }
+        
+        // 先API后DB原则: 只有API成功才写入本地DB
+        if (harvestApiSuccess) {
+          try {
+            await db.createKeyword({
+              adGroupId: harvestAdGroupId || targetId,
+              keywordId: '',
+              keywordText: targetName || '',
+              matchType: 'exact',
+              bid: String(newValue || 0.75),
+              keywordStatus: 'enabled',
+            });
+          } catch (dbErr: any) {
+            console.warn(`[AutoExec] v266: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
+          }
+        }
+        
         await db.createBiddingLog({
           accountId,
-          campaignId: '',
-          adGroupId: 0,
+          campaignId: String(harvestCampaignId),
+          adGroupId: harvestAdGroupId,
           logTargetType: 'search_term_harvest',
           targetId,
           targetName: targetName || 'Search Term Harvest',
           actionType: 'add',
           previousBid: '0',
-          newBid: '0',
-          reason: `[自动执行] 搜索词收割: ${reason}`,
+          newBid: String(newValue || 0.75),
+          reason: `${harvestApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 搜索词收割: ${reason}`,
         });
-        console.log(`[AutoExec] 搜索词收割执行: target=${targetName}`);
+        
+        console.log(`[AutoExec] v266: 搜索词收割执行: target=${targetName}, API=${harvestApiSuccess ? '✅' : '❌'}`);
+        if (!harvestApiSuccess) {
+          throw new Error('Amazon API搜索词收割同步失败');
+        }
         break;
       }
 

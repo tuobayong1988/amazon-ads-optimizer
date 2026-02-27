@@ -85,20 +85,21 @@ const BID_COOLDOWN_CONFIG = {
  *   Layer 3: 最低出价保护（防止出价降到无效水平）
  */
 const BID_CIRCUIT_BREAKER_CONFIG = {
+  /** v266 P0-3: 降低熔断触发阈值，使熔断机制能真正生效 */
   /** 7天内累计降价幅度上限（百分比）：超过此值触发熔断 */
-  maxCumulativeDecreasePercent7d: 0.30, // 30%
+  maxCumulativeDecreasePercent7d: 0.20, // v266: 从30%降至20%，更早触发熔断防止死亡螺旋
   /** 连续降价次数上限：超过此值强制hold一个周期 */
-  maxConsecutiveDecreases: 3,
+  maxConsecutiveDecreases: 2, // v266: 从3次降至2次，连续2次降价即触发熔断
   /** 最低出价保护：出价不得低于初始出价的此比例 */
-  minBidFloorRatio: 0.40, // 不低于初始出价的40%
+  minBidFloorRatio: 0.50, // v266: 从40%提升到50%，提高出价底线保护
   /** 归因延迟保护窗口（小时）：最近N小时内的数据权重降低 */
   attributionDelayHours: 48,
   /** 归因延迟数据权重折扣：最近48h内数据的权重 */
   recentDataWeightDiscount: 0.6,
   /** v259: 熔断触发时的提价恢复比例 — 小幅提价恢复曝光 */
-  recoveryBoostPercent: 0.08, // 8%提价恢复
+  recoveryBoostPercent: 0.10, // v266: 从8%提升到10%，更积极地恢复曝光
   /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
-  minImpressionProtectionRatio: 0.50, // 曝光低于历史50%时触发保护
+  minImpressionProtectionRatio: 0.60, // v266: 从50%提升到60%，更早保护曝光
 };
 
 /**

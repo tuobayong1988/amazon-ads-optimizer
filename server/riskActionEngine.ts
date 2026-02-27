@@ -90,9 +90,11 @@ export interface RiskActionResult {
  */
 function assessAccountRiskLevel(acos: number, targetAcos?: number): 'critical' | 'warning' | 'healthy' {
   const effectiveTarget = targetAcos || 30; // 默认目标ACoS 30%
-  // 绝对门槛 + 相对目标门槛，取更严格的结果
-  if (acos > effectiveTarget * 3 || acos > 80) return 'critical';
-  if (acos > effectiveTarget * 2 || acos > 50) return 'warning';
+  // v266 P0-3: 降低critical触发门槛，使紧急干预更早生效
+  // 原来: critical > 3x目标 || > 80%  → 现在: > 2.5x目标 || > 60%
+  // 原来: warning > 2x目标 || > 50%  → 现在: > 1.8x目标 || > 45%
+  if (acos > effectiveTarget * 2.5 || acos > 60) return 'critical';
+  if (acos > effectiveTarget * 1.8 || acos > 45) return 'warning';
   return 'healthy';
 }
 
@@ -109,9 +111,13 @@ interface RiskResponseStrategy {
 function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy'): RiskResponseStrategy {
   switch (riskLevel) {
     case 'critical':
-      return { bidReductionPercent: 0.20, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: 'immediate' };
+      // v266 P0-3: 增强critical响应策略
+      // 降价幅度从20%提升到25%，更积极地控制花费
+      // 暂停门槛从200%降至150%，花费门槛从$5降至$3，更早暂停亏损关键词
+      return { bidReductionPercent: 0.25, pauseThresholdAcos: 150, pauseThresholdSpend: 3, scanInterval: 'immediate' };
     case 'warning':
-      return { bidReductionPercent: 0.10, pauseThresholdAcos: 300, pauseThresholdSpend: 10, scanInterval: '4h' };
+      // v266: warning也需要更积极的响应
+      return { bidReductionPercent: 0.15, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: '4h' };
     case 'healthy':
     default:
       return { bidReductionPercent: 0, pauseThresholdAcos: 500, pauseThresholdSpend: 20, scanInterval: '12h' };

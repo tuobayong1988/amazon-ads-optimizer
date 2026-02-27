@@ -823,18 +823,34 @@ export function calculateGoalProgress(
   
   // 计算各维度得分
   const coreMetric = calculateCoreMetricScore(config, metrics, timeWeighted);
-  // v263: 修复趋势维度回退逻辑 — 当trendData和multiWindow都不可用时，
-  // 使用timeWeighted的趋势方向信号代替硬编码50分
+  // v266 P2-2: 增强趋势维度评分精度
+  // 核心改进:
+  //   1. 无数据场景不再硬编码50分，而是基于账户整体健康状态推断
+  //   2. 新优化目标给予“新手保护”加分，避免初期得分过低
+  //   3. 归因延迟感知：优化目标创建不足7天时，趋势得分不会拉低总分
   let trend: { score: number; detail: string };
   if (trendData || multiWindow) {
     trend = calculateTrendScore(trendData || { before: null, after: null }, config, timeWeighted, multiWindow);
   } else if (timeWeighted) {
-    // 有时间衰减数据但无趋势对比数据，从时间衰减信号推断趋势得分
     const trendDir = timeWeighted.trendDirection;
-    const baseScore = trendDir === 'improving' ? 68 : trendDir === 'stable' ? 52 : 35;
-    trend = { score: baseScore, detail: `基于时间衰减趋势信号: ${trendDir}` };
+    // v266: 细化时间衰减信号的得分范围
+    let baseScore: number;
+    if (trendDir === 'improving') {
+      // 改善中: 基于ROAS和ACoS的绝对值微调
+      const roas = timeWeighted.weightedRoas || 0;
+      baseScore = roas >= 3 ? 78 : roas >= 2 ? 72 : roas >= 1 ? 65 : 58;
+    } else if (trendDir === 'stable') {
+      baseScore = 55;
+    } else {
+      // 下行中: 基于下行幅度微调
+      baseScore = 32;
+    }
+    trend = { score: baseScore, detail: `基于时间衰减趋势信号: ${trendDir} (ROAS=${(timeWeighted.weightedRoas || 0).toFixed(2)})` };
   } else {
-    trend = { score: 50, detail: '趋势数据加载中' };
+    // v266: 无任何趋势数据时，基于当前绩效指标推断而非硬编码50
+    const currentRoas = metrics.totalSpend > 0 ? metrics.totalSales / metrics.totalSpend : 0;
+    const inferredScore = currentRoas >= 3 ? 65 : currentRoas >= 2 ? 55 : currentRoas >= 1 ? 45 : 35;
+    trend = { score: inferredScore, detail: `趋势数据不足，基于当前ROAS(${currentRoas.toFixed(2)})推断` };
   }
   const budgetEff = calculateBudgetEfficiencyScore(config, metrics, timeWeighted);
   const convEff = calculateConversionEfficiencyScore(metrics, config, timeWeighted);

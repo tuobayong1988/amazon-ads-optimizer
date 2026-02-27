@@ -925,18 +925,47 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     try {
       const database = await getDb();
       if (database) {
-        // 修复1: 所有settings_update + settings_change事件都不需要Amazon API同步
-        // 这些是系统内部的设置变更记录（策略更新、算法参数调整、部署版本记录等）
+        // v266 P0-1: 修复过于宽泛的not_applicable标记
+        // 只将真正的内部设置变更(system_deploy, target_reoptimized, algorithm_config等)标记为not_applicable
+        // 保留需要API同步的设置变更(budget, bid相关)的pending/failed状态
         const settingsResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'not_applicable',
-              api_sync_detail = ${JSON.stringify({ reason: 'v203: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
+              api_sync_detail = ${JSON.stringify({ reason: 'v266: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
           WHERE action_type = 'settings_update'
             AND event_category = 'settings_change'
             AND api_sync_status IN ('failed', 'pending')
+            AND (
+              JSON_EXTRACT(action_detail, '$.type') IN ('system_deploy', 'target_reoptimized', 'algorithm_config', 'strategy_update', 'system_config')
+              OR change_reason LIKE '%部署%'
+              OR change_reason LIKE '%算法%参数%'
+              OR change_reason LIKE '%策略%更新%'
+            )
         `);
         const settingsFixed = (settingsResult as any)[0]?.affectedRows || 0;
-        log.info(`[PostDeployOptimizer] v203: 修复${settingsFixed}个settings_update事件状态为not_applicable`);
+        log.info(`[PostDeployOptimizer] v266: 修复${settingsFixed}个内部settings_update事件状态为not_applicable(保留需要API同步的设置变更)`);
+        
+        // v266: 将之前被错误标记为not_applicable的预算/出价相关settings_update事件恢复为pending，以便重试同步
+        const restoreResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'pending',
+              api_sync_detail = ${JSON.stringify({ reason: 'v266: 恢复被错误标记的需要API同步的设置变更', fixedAt: new Date().toISOString() })}
+          WHERE action_type = 'settings_update'
+            AND event_category = 'settings_change'
+            AND api_sync_status = 'not_applicable'
+            AND (
+              change_reason LIKE '%预算%'
+              OR change_reason LIKE '%budget%'
+              OR change_reason LIKE '%出价%'
+              OR change_reason LIKE '%bid%'
+              OR JSON_EXTRACT(action_detail, '$.type') IN ('budget_adjustment', 'bid_adjustment')
+            )
+            AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+        const restored = (restoreResult as any)[0]?.affectedRows || 0;
+        if (restored > 0) {
+          log.warn(`[PostDeployOptimizer] v266: 恢复${restored}个被错误标记的预算/出价settings_update事件为pending`);
+        }
         
         // 修夌2: 同步修夌optimization_logs表
         await database.execute(sql`

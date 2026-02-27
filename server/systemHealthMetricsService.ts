@@ -102,13 +102,17 @@ export interface SystemHealthMetrics {
 // ==================== 核心计算函数 ====================
 
 /**
- * 计算回滚率
+ * 计算回滚率 (v266 P0-2 优化)
  * 
- * 回滚率 = 被纠错器回滚的出价调整数 / 总出价调整数
+ * v266优化: 区分"被动回滚"(算法冲突导致的真正回滚)和"主动纠正"(纠错器的正常微调)
+ * 
+ * 真正回滚率 = 被动回滚数 / 总出价调整数
+ * 广义回滚率 = (被动回滚 + 主动纠正) / 总出价调整数
  * 
  * 判断标准:
- * - 在optimization_events中，status='rolled_back'的事件被视为回滚
- * - 同时也检查change_reason中包含'AutoCorrector'的事件（纠错器修正）
+ * - status='rolled_back' 且 change_reason包含'回滚'或'rollback' → 被动回滚(算法冲突)
+ * - status='rolled_back' 且 change_reason包含'AutoCorrector'和'纠正' → 主动纠正(正常行为)
+ * - 主动纠正中调整幅度<15%的视为"微调"，不计入回滚率
  */
 async function calculateRollbackRate(
   accountId: number,
@@ -121,42 +125,74 @@ async function calculateRollbackRate(
 
   try {
     // 当前周期: 最近N天
+    // v266: 精细化回滚率计算
+    // 1. 总调整数: 只计算真正的出价调整(bid_increase/bid_decrease)，排除纠错器自身的调整
+    // 2. 被动回滚: status='rolled_back' 且调整幅度>=15%(排除纠错器微调)
+    // 3. 排除纠错器自身产生的事件，避免重复计数
     const currentPeriodQuery = sql`
       SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%') THEN 1 ELSE 0 END) as rolled_back
+        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
+        COUNT(*) as total_all,
+        SUM(CASE 
+          WHEN status = 'rolled_back' 
+            AND change_reason NOT LIKE '%AutoCorrector%'
+            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+          THEN 1 
+          ELSE 0 
+        END) as hard_rollback,
+        SUM(CASE 
+          WHEN (status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%'))
+            AND change_reason NOT LIKE '%AutoCorrector%'
+          THEN 1 
+          ELSE 0 
+        END) as soft_rollback
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease')
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const currentResult = await db.execute(currentPeriodQuery);
     const currentRows = (currentResult as any)[0] || currentResult;
-    const total = Number(currentRows?.[0]?.total) || 0;
-    const rolledBack = Number(currentRows?.[0]?.rolled_back) || 0;
+    const totalOriginal = Number(currentRows?.[0]?.total_original) || 0;
+    const hardRollback = Number(currentRows?.[0]?.hard_rollback) || 0;
+    const softRollback = Number(currentRows?.[0]?.soft_rollback) || 0;
+    
+    // v266: 使用“真正回滚率”作为主指标，排除纠错器正常微调
+    const total = totalOriginal;
+    const rolledBack = hardRollback;
     const rate = total > 0 ? (rolledBack / total) * 100 : 0;
 
     // 前一周期: N天前到2N天前
     const previousPeriodQuery = sql`
       SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'rolled_back' OR (change_reason LIKE '%AutoCorrector%' AND change_reason LIKE '%纠正%') THEN 1 ELSE 0 END) as rolled_back
+        COUNT(CASE WHEN change_reason NOT LIKE '%AutoCorrector%' THEN 1 END) as total_original,
+        SUM(CASE 
+          WHEN status = 'rolled_back' 
+            AND change_reason NOT LIKE '%AutoCorrector%'
+            AND ABS(CAST(new_value AS DECIMAL(10,4)) - CAST(previous_value AS DECIMAL(10,4))) / NULLIF(CAST(previous_value AS DECIMAL(10,4)), 0) >= 0.15
+          THEN 1 
+          ELSE 0 
+        END) as hard_rollback
       FROM optimization_events
       WHERE account_id = ${accountId}
         AND event_category = 'bid_adjustment'
+        AND action_type IN ('bid_increase', 'bid_decrease')
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days * 2} DAY)
         AND created_at <= DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const previousResult = await db.execute(previousPeriodQuery);
     const previousRows = (previousResult as any)[0] || previousResult;
-    const prevTotal = Number(previousRows?.[0]?.total) || 0;
-    const prevRolledBack = Number(previousRows?.[0]?.rolled_back) || 0;
+    const prevTotal = Number(previousRows?.[0]?.total_original) || 0;
+    const prevRolledBack = Number(previousRows?.[0]?.hard_rollback) || 0;
     const previousRate = prevTotal > 0 ? (prevRolledBack / prevTotal) * 100 : 0;
 
     // 判断趋势
     const trend = rate < previousRate - 2 ? 'improving' : rate > previousRate + 2 ? 'worsening' : 'stable';
     // 判断健康状态
     const status = rate < 10 ? 'healthy' : rate < 30 ? 'warning' : 'critical';
+    
+    log.info(`[RollbackRate] v266: 账户${accountId} 原始调整=${totalOriginal}, 硬回滚=${hardRollback}, 软回滚=${softRollback}, 真正回滚率=${rate.toFixed(1)}%`);
 
     return { totalAdjustments: total, rolledBackCount: rolledBack, rate: Math.round(rate * 10) / 10, status, trend, previousRate: Math.round(previousRate * 10) / 10 };
   } catch (error: any) {
