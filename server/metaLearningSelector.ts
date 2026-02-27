@@ -403,8 +403,33 @@ export async function selectBestAlgorithm(
         }
         break;
         
+      case 'ucb': {
+        // v264: UCB探索-利用平衡机制
+        // 使用Epsilon-Greedy策略：以epsilon概率进行探索（随机扰动出价），以1-epsilon概率利用（使用规则引擎出价）
+        const ucbBid = currentBid || 0;
+        const epsilon = 0.15; // 15%的概率进行探索
+        // 使用确定性哈希实现伪随机，确保相同实体在同一时间窗口内产生一致的探索行为
+        const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
+        const hourWindow = Math.floor(Date.now() / (4 * 3600000)); // 4小时时间窗口
+        const hashVal = ((entitySeed * 2654435761 + hourWindow) >>> 0) % 10000 / 10000;
+        
+        if (hashVal < epsilon) {
+          // 探索模式：在当前出价基础上进行±5-12%的扰动
+          const explorationDirection = hashVal < epsilon / 2 ? 1 : -1; // 一半概率提价，一半概率降价
+          const explorationMagnitude = 0.05 + (hashVal / epsilon) * 0.07; // 5%~12%的扰动幅度
+          recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
+          recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
+          confidence = 0.4; // 探索模式置信度较低
+          log.info(`[MetaLearning] v264 UCB探索模式: entity=${keywordId || targetId}, 方向=${explorationDirection > 0 ? '提价' : '降价'}, 幅度=${(explorationMagnitude * 100).toFixed(1)}%`);
+        } else {
+          // 利用模式：交给规则引擎处理（返回currentBid，由nextGenBidOrchestrator降级到规则引擎）
+          recommendedBid = ucbBid;
+          confidence = 0.5;
+        }
+        break;
+      }
+      
       case 'rule_based':
-      case 'ucb':
       default:
         // 使用现有系统的出价逻辑
         recommendedBid = currentBid || 0;

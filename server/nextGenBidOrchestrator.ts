@@ -834,11 +834,16 @@ export async function calculateNextGenBid(
       accountId, keywordId, targetId, undefined, target.currentBid
     );
     
-    // 只有当高级算法（非rule_based/ucb）给出了有效结果时，才使用它
+    // v264: 高级算法判断逻辑增强
+    // 1. 非rule_based/ucb的算法始终视为高级算法
+    // 2. UCB探索模式（confidence=0.4且bid与currentBid不同）也视为有效决策
     const isAdvancedAlgorithm = !['rule_based', 'ucb'].includes(metaDecision.selectedAlgorithm);
+    const isUcbExploration = metaDecision.selectedAlgorithm === 'ucb' 
+      && Math.abs(metaDecision.confidence - 0.4) < 0.01
+      && Math.abs(metaDecision.recommendedBid - target.currentBid) > 0.005;
     const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > 0.3;
     
-    if (isAdvancedAlgorithm && hasValidBid) {
+    if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
       
       // v252: 异步记录RL数据（修复: 传递campaignId确保captureStateSnapshot获取正确粒度的数据）
