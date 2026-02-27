@@ -1,12 +1,15 @@
 /**
- * ProfitObservabilityPanel.tsx - v272 P2
- * 利润健康度和算法可观测性展示组件
+ * ProfitObservabilityPanel.tsx - v272 (修正版)
+ * 广告投放效率与算法可观测性展示组件
+ * 
+ * 设计原则：
+ *   完全基于广告原生指标（ACOS、ROAS、花费、销售额、订单数量）展示，
+ *   不涉及任何商品成本(COGS)或利润率等需要卖家提供的敏感数据。
  * 
  * 功能:
- * 1. 利润健康度评分展示 (7维评分中的利润维度)
+ * 1. 广告投放效率评分展示 (7维评分中的广告效率维度)
  * 2. 算法决策追踪可视化
  * 3. 权重自学习状态展示
- * 4. 系统配置快速查看
  */
 
 import { useState, useEffect } from 'react';
@@ -26,12 +29,14 @@ import {
   BarChart3,
   Eye,
   Zap,
-  AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Target,
+  ShoppingCart,
+  MousePointer
 } from 'lucide-react';
 
-// 利润健康度数据类型
-interface ProfitHealthData {
+// 广告效率数据类型
+interface AdEfficiencyData {
   overallScore: number;
   dimensions: {
     name: string;
@@ -39,12 +44,17 @@ interface ProfitHealthData {
     weight: number;
     trend: 'up' | 'down' | 'stable';
   }[];
-  estimatedProfit: {
-    revenue: number;
+  adMetrics: {
+    adSales: number;
     adSpend: number;
-    estimatedCogs: number;
-    estimatedProfit: number;
-    profitMargin: number;
+    acos: number;
+    roas: number;
+    orders: number;
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    cvr: number;
+    cpc: number;
   };
 }
 
@@ -94,60 +104,71 @@ function getTrendIcon(trend: 'up' | 'down' | 'stable') {
   return <Activity className="h-3 w-3 text-gray-400" />;
 }
 
+function getAcosColor(acos: number): string {
+  if (acos <= 15) return 'text-green-600';
+  if (acos <= 25) return 'text-yellow-600';
+  if (acos <= 35) return 'text-orange-600';
+  return 'text-red-600';
+}
+
+function getRoasColor(roas: number): string {
+  if (roas >= 5) return 'text-green-600';
+  if (roas >= 3) return 'text-yellow-600';
+  if (roas >= 1.5) return 'text-orange-600';
+  return 'text-red-600';
+}
+
 export default function ProfitObservabilityPanel() {
-  const [activeTab, setActiveTab] = useState('profit');
+  const [activeTab, setActiveTab] = useState('efficiency');
   const [loading, setLoading] = useState(false);
-  const [profitData, setProfitData] = useState<ProfitHealthData | null>(null);
+  const [efficiencyData, setEfficiencyData] = useState<AdEfficiencyData | null>(null);
   const [decisions, setDecisions] = useState<AlgorithmDecisionTrace[]>([]);
   const [weightStatus, setWeightStatus] = useState<WeightTuningStatus | null>(null);
 
-  // 获取利润健康度数据
-  const fetchProfitData = async () => {
+  // 获取广告效率数据
+  const fetchEfficiencyData = async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/system-config/observability/dashboard');
       if (response.ok) {
         const data = await response.json();
-        // 从可观测性数据中提取利润相关信息
-        setProfitData({
-          overallScore: data.profitScore || 65,
+        setEfficiencyData({
+          overallScore: data.efficiencyScore || data.profitScore || 65,
           dimensions: [
-            { name: 'ACOS达标率', score: data.acosScore || 72, weight: 25, trend: 'up' },
-            { name: 'ROAS达标率', score: data.roasScore || 68, weight: 20, trend: 'stable' },
-            { name: '预算利用率', score: data.budgetScore || 78, weight: 15, trend: 'up' },
-            { name: '转化率趋势', score: data.conversionScore || 61, weight: 15, trend: 'down' },
-            { name: '点击成本效率', score: data.cpcScore || 70, weight: 10, trend: 'stable' },
-            { name: '曝光增长率', score: data.impressionScore || 55, weight: 10, trend: 'up' },
-            { name: '利润健康度', score: data.profitHealthScore || 58, weight: 5, trend: 'stable' },
+            { name: 'ACOS达标率', score: data.acosScore || 72, weight: 35, trend: 'up' },
+            { name: 'ROAS表现', score: data.roasScore || 68, weight: 25, trend: 'stable' },
+            { name: '转化效率', score: data.conversionScore || 61, weight: 20, trend: 'down' },
+            { name: '花费效率', score: data.spendEfficiencyScore || 70, weight: 10, trend: 'stable' },
+            { name: '规模效益', score: data.scaleScore || 55, weight: 10, trend: 'up' },
           ],
-          estimatedProfit: {
-            revenue: data.totalRevenue || 0,
+          adMetrics: {
+            adSales: data.totalRevenue || data.totalAdSales || 0,
             adSpend: data.totalAdSpend || 0,
-            estimatedCogs: data.estimatedCogs || 0,
-            estimatedProfit: data.estimatedProfit || 0,
-            profitMargin: data.profitMargin || 0,
+            acos: data.avgAcos || 0,
+            roas: data.avgRoas || 0,
+            orders: data.totalOrders || 0,
+            clicks: data.totalClicks || 0,
+            impressions: data.totalImpressions || 0,
+            ctr: data.avgCtr || 0,
+            cvr: data.avgCvr || 0,
+            cpc: data.avgCpc || 0,
           }
         });
       }
     } catch (err) {
       // 使用默认数据
-      setProfitData({
+      setEfficiencyData({
         overallScore: 65,
         dimensions: [
-          { name: 'ACOS达标率', score: 72, weight: 25, trend: 'up' },
-          { name: 'ROAS达标率', score: 68, weight: 20, trend: 'stable' },
-          { name: '预算利用率', score: 78, weight: 15, trend: 'up' },
-          { name: '转化率趋势', score: 61, weight: 15, trend: 'down' },
-          { name: '点击成本效率', score: 70, weight: 10, trend: 'stable' },
-          { name: '曝光增长率', score: 55, weight: 10, trend: 'up' },
-          { name: '利润健康度', score: 58, weight: 5, trend: 'stable' },
+          { name: 'ACOS达标率', score: 72, weight: 35, trend: 'up' },
+          { name: 'ROAS表现', score: 68, weight: 25, trend: 'stable' },
+          { name: '转化效率', score: 61, weight: 20, trend: 'down' },
+          { name: '花费效率', score: 70, weight: 10, trend: 'stable' },
+          { name: '规模效益', score: 55, weight: 10, trend: 'up' },
         ],
-        estimatedProfit: {
-          revenue: 0,
-          adSpend: 0,
-          estimatedCogs: 0,
-          estimatedProfit: 0,
-          profitMargin: 0,
+        adMetrics: {
+          adSales: 0, adSpend: 0, acos: 0, roas: 0,
+          orders: 0, clicks: 0, impressions: 0, ctr: 0, cvr: 0, cpc: 0,
         }
       });
     }
@@ -181,13 +202,13 @@ export default function ProfitObservabilityPanel() {
   };
 
   useEffect(() => {
-    fetchProfitData();
+    fetchEfficiencyData();
     fetchDecisions();
     fetchWeightStatus();
   }, []);
 
   const handleRefresh = () => {
-    fetchProfitData();
+    fetchEfficiencyData();
     fetchDecisions();
     fetchWeightStatus();
   };
@@ -198,10 +219,10 @@ export default function ProfitObservabilityPanel() {
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Eye className="h-5 w-5 text-purple-500" />
-            v272 利润与算法可观测性
+            广告效率与算法可观测性
           </h3>
           <p className="text-sm text-muted-foreground">
-            利润健康度评估、算法决策追踪、权重自学习状态
+            基于ACOS、ROAS、花费、订单等广告核心指标的投放效率评估
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
@@ -212,9 +233,9 @@ export default function ProfitObservabilityPanel() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="profit" className="flex items-center gap-1">
-            <DollarSign className="h-3.5 w-3.5" />
-            利润健康度
+          <TabsTrigger value="efficiency" className="flex items-center gap-1">
+            <Target className="h-3.5 w-3.5" />
+            广告效率
           </TabsTrigger>
           <TabsTrigger value="algorithm" className="flex items-center gap-1">
             <Brain className="h-3.5 w-3.5" />
@@ -226,33 +247,33 @@ export default function ProfitObservabilityPanel() {
           </TabsTrigger>
         </TabsList>
 
-        {/* 利润健康度 Tab */}
-        <TabsContent value="profit" className="space-y-4">
-          {profitData && (
+        {/* 广告效率 Tab */}
+        <TabsContent value="efficiency" className="space-y-4">
+          {efficiencyData && (
             <>
               {/* 总体评分卡片 */}
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">7维综合评分</CardTitle>
-                    <Badge className={getScoreBadge(profitData.overallScore).variant}>
-                      {getScoreBadge(profitData.overallScore).label}
+                    <CardTitle className="text-base">广告投放效率综合评分</CardTitle>
+                    <Badge className={getScoreBadge(efficiencyData.overallScore).variant}>
+                      {getScoreBadge(efficiencyData.overallScore).label}
                     </Badge>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 mb-4">
-                    <div className={`text-4xl font-bold ${getScoreColor(profitData.overallScore)}`}>
-                      {profitData.overallScore}
+                    <div className={`text-4xl font-bold ${getScoreColor(efficiencyData.overallScore)}`}>
+                      {efficiencyData.overallScore}
                     </div>
                     <div className="flex-1">
-                      <Progress value={profitData.overallScore} className="h-3" />
+                      <Progress value={efficiencyData.overallScore} className="h-3" />
                     </div>
                   </div>
                   
                   {/* 各维度评分 */}
                   <div className="space-y-2">
-                    {profitData.dimensions.map((dim, idx) => (
+                    {efficiencyData.dimensions.map((dim, idx) => (
                       <div key={idx} className="flex items-center gap-2 text-sm">
                         <span className="w-24 text-muted-foreground">{dim.name}</span>
                         <div className="flex-1">
@@ -271,50 +292,102 @@ export default function ProfitObservabilityPanel() {
                 </CardContent>
               </Card>
 
-              {/* 利润估算卡片 */}
+              {/* 广告核心指标卡片 */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-green-500" />
-                    利润估算 (v272)
+                    <BarChart3 className="h-4 w-4 text-blue-500" />
+                    广告核心指标
                   </CardTitle>
-                  <CardDescription>基于多数据源融合的利润评估</CardDescription>
+                  <CardDescription>基于广告原生数据的投放效果概览</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* ACOS */}
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">广告收入</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Target className="h-3 w-3" /> ACOS
+                      </p>
+                      <p className={`text-lg font-semibold ${getAcosColor(efficiencyData.adMetrics.acos)}`}>
+                        {efficiencyData.adMetrics.acos > 0 ? `${efficiencyData.adMetrics.acos.toFixed(1)}%` : '--'}
+                      </p>
+                    </div>
+                    {/* ROAS */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" /> ROAS
+                      </p>
+                      <p className={`text-lg font-semibold ${getRoasColor(efficiencyData.adMetrics.roas)}`}>
+                        {efficiencyData.adMetrics.roas > 0 ? `${efficiencyData.adMetrics.roas.toFixed(2)}x` : '--'}
+                      </p>
+                    </div>
+                    {/* 广告销售额 */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" /> 广告销售额
+                      </p>
                       <p className="text-lg font-semibold text-green-600">
-                        ${profitData.estimatedProfit.revenue.toLocaleString()}
+                        {efficiencyData.adMetrics.adSales > 0 ? `$${efficiencyData.adMetrics.adSales.toLocaleString()}` : '--'}
                       </p>
                     </div>
+                    {/* 广告花费 */}
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">广告花费</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <DollarSign className="h-3 w-3" /> 广告花费
+                      </p>
                       <p className="text-lg font-semibold text-red-600">
-                        ${profitData.estimatedProfit.adSpend.toLocaleString()}
+                        {efficiencyData.adMetrics.adSpend > 0 ? `$${efficiencyData.adMetrics.adSpend.toLocaleString()}` : '--'}
                       </p>
                     </div>
+                    {/* 订单数量 */}
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">预估成本(COGS)</p>
-                      <p className="text-lg font-semibold text-orange-600">
-                        ${profitData.estimatedProfit.estimatedCogs.toLocaleString()}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <ShoppingCart className="h-3 w-3" /> 广告订单
+                      </p>
+                      <p className="text-lg font-semibold">
+                        {efficiencyData.adMetrics.orders > 0 ? efficiencyData.adMetrics.orders.toLocaleString() : '--'}
                       </p>
                     </div>
+                    {/* 点击量 */}
                     <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">预估利润</p>
-                      <p className={`text-lg font-semibold ${profitData.estimatedProfit.estimatedProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${profitData.estimatedProfit.estimatedProfit.toLocaleString()}
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <MousePointer className="h-3 w-3" /> 点击量
+                      </p>
+                      <p className="text-lg font-semibold">
+                        {efficiencyData.adMetrics.clicks > 0 ? efficiencyData.adMetrics.clicks.toLocaleString() : '--'}
+                      </p>
+                    </div>
+                    {/* CTR */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">CTR (点击率)</p>
+                      <p className="text-lg font-semibold">
+                        {efficiencyData.adMetrics.ctr > 0 ? `${efficiencyData.adMetrics.ctr.toFixed(2)}%` : '--'}
+                      </p>
+                    </div>
+                    {/* CVR */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">CVR (转化率)</p>
+                      <p className="text-lg font-semibold">
+                        {efficiencyData.adMetrics.cvr > 0 ? `${efficiencyData.adMetrics.cvr.toFixed(1)}%` : '--'}
                       </p>
                     </div>
                   </div>
-                  {profitData.estimatedProfit.profitMargin > 0 && (
-                    <div className="mt-3 pt-3 border-t">
+                  
+                  {/* 投产净值 */}
+                  {efficiencyData.adMetrics.adSales > 0 && efficiencyData.adMetrics.adSpend > 0 && (
+                    <div className="mt-4 pt-4 border-t">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">利润率</span>
-                        <span className={`text-sm font-semibold ${profitData.estimatedProfit.profitMargin >= 20 ? 'text-green-600' : 'text-orange-600'}`}>
-                          {profitData.estimatedProfit.profitMargin.toFixed(1)}%
+                        <span className="text-sm text-muted-foreground">广告投产净值 (销售额 - 花费)</span>
+                        <span className={`text-sm font-semibold ${
+                          efficiencyData.adMetrics.adSales - efficiencyData.adMetrics.adSpend >= 0 
+                            ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          ${(efficiencyData.adMetrics.adSales - efficiencyData.adMetrics.adSpend).toLocaleString()}
                         </span>
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        广告投产净值 = 广告销售额 - 广告花费，反映广告投放的直接回报
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -329,7 +402,7 @@ export default function ProfitObservabilityPanel() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Brain className="h-4 w-4 text-blue-500" />
-                最近算法决策 (v272 可观测性)
+                最近算法决策
               </CardTitle>
               <CardDescription>
                 实时追踪每次出价优化的算法选择、融合模式和置信度
@@ -388,10 +461,10 @@ export default function ProfitObservabilityPanel() {
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Settings className="h-4 w-4 text-orange-500" />
-                权重自学习状态 (v272)
+                权重自学习状态
               </CardTitle>
               <CardDescription>
-                基于历史优化效果自动调整7维评分权重
+                基于历史优化效果自动调整评分维度权重
               </CardDescription>
             </CardHeader>
             <CardContent>

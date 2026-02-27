@@ -819,52 +819,60 @@ function calculateGradualProgressScore(
 // ==================== 维度7: 利润健康度 (v271新增) ====================
 
 /**
- * v271 P1-1: 默认利润评分（当未提供外部利润数据时，基于广告指标估算）
- * 使用行业基准利润率30%作为默认值
+ * v272 (修正版): 广告投放效率评分
+ * 
+ * 完全基于广告原生指标（ACOS、ROAS、花费、销售额）评估广告投放效率，
+ * 不涉及任何商品成本(COGS)或利润率假设。
+ * 
+ * 对于亚马逊卖家而言，ACOS和ROAS就是最核心的广告效果衡量指标。
  */
 function calculateDefaultProfitScore(metrics: PerformanceMetrics): { score: number; detail: string } {
   if (metrics.totalSpend < 0.01 || metrics.totalSales < 0.01) {
-    return { score: 0, detail: '数据不足，无法评估利润健康度' };
+    return { score: 0, detail: '数据不足，无法评估广告投放效率' };
   }
   
-  const DEFAULT_MARGIN = 0.30; // 行业基准利润率30%
-  const grossProfit = metrics.totalSales * DEFAULT_MARGIN;
-  const adProfit = grossProfit - metrics.totalSpend;
-  const profitRoas = metrics.totalSpend > 0 ? grossProfit / metrics.totalSpend : 0;
-  const breakEvenAcos = DEFAULT_MARGIN * 100; // 30%
-  const actualAcos = metrics.avgAcos;
+  const roas = metrics.totalSpend > 0 ? metrics.totalSales / metrics.totalSpend : 0;
+  const actualAcos = metrics.avgAcos; // 实际ACOS百分比
+  const adNetValue = metrics.totalSales - metrics.totalSpend; // 广告投产净值
   
   let score = 0;
   
-  // ProfitROAS评分（60%权重）
-  if (profitRoas >= 3.0) score += 60;
-  else if (profitRoas >= 2.0) score += 50 + (profitRoas - 2.0) * 10;
-  else if (profitRoas >= 1.5) score += 40 + (profitRoas - 1.5) * 20;
-  else if (profitRoas >= 1.0) score += 25 + (profitRoas - 1.0) * 30;
-  else if (profitRoas >= 0.5) score += 10 + (profitRoas - 0.5) * 30;
-  else score += profitRoas * 20;
+  // 1. ROAS表现评分（40%权重）— 亚马逊卖家最核心的投产比指标
+  // 行业基准: ROAS >= 4x 优秀, >= 2.5x 良好, >= 1.5x 一般
+  if (roas >= 7.0) score += 40;
+  else if (roas >= 5.0) score += 35 + (roas - 5.0) / 2.0 * 5;
+  else if (roas >= 4.0) score += 30 + (roas - 4.0) * 5;
+  else if (roas >= 2.5) score += 20 + (roas - 2.5) / 1.5 * 10;
+  else if (roas >= 1.5) score += 10 + (roas - 1.5) * 10;
+  else if (roas >= 1.0) score += 4 + (roas - 1.0) * 12;
+  else score += roas * 4;
   
-  // ACoS vs 盈亏平衡ACoS评分（25%权重）
+  // 2. ACOS表现评分（35%权重）— 广告花费占销售额比例
+  // 行业基准: ACOS <= 15% 优秀, <= 25% 良好, <= 35% 一般
   if (actualAcos <= 0) score += 0;
-  else if (actualAcos <= breakEvenAcos * 0.5) score += 25;
-  else if (actualAcos <= breakEvenAcos * 0.8) score += 20;
-  else if (actualAcos <= breakEvenAcos) score += 15;
-  else if (actualAcos <= breakEvenAcos * 1.2) score += 8;
-  else score += Math.max(0, 5 - (actualAcos - breakEvenAcos * 1.2) / 10);
+  else if (actualAcos <= 10) score += 35;
+  else if (actualAcos <= 15) score += 30 + (15 - actualAcos) / 5 * 5;
+  else if (actualAcos <= 25) score += 20 + (25 - actualAcos) / 10 * 10;
+  else if (actualAcos <= 35) score += 10 + (35 - actualAcos) / 10 * 10;
+  else if (actualAcos <= 50) score += 3 + (50 - actualAcos) / 15 * 7;
+  else score += Math.max(0, 3 - (actualAcos - 50) / 20 * 3);
   
-  // 规模效益评分（15%权重）
-  if (metrics.totalSpend >= 100 && profitRoas >= 1.0) score += 15;
-  else if (metrics.totalSpend >= 50 && profitRoas >= 1.0) score += 12;
-  else if (metrics.totalSpend >= 10 && profitRoas >= 1.0) score += 8;
-  else if (profitRoas >= 1.0) score += 5;
+  // 3. 花费规模与效率评分（25%权重）— 有足够花费才有统计意义
+  if (metrics.totalSpend >= 200 && roas >= 2.5) score += 25;
+  else if (metrics.totalSpend >= 100 && roas >= 2.0) score += 20;
+  else if (metrics.totalSpend >= 50 && roas >= 1.5) score += 15;
+  else if (metrics.totalSpend >= 20 && roas >= 1.0) score += 10;
+  else if (metrics.totalSpend >= 10) score += 5;
   else score += 2;
   
   score = Math.min(100, Math.max(0, Math.round(score)));
   
-  const profitStatus = adProfit > 0 ? '盈利' : '亏损';
+  const efficiencyStatus = adNetValue > 0 ? '正向' : '负向';
   return {
     score,
-    detail: `行业基准估算(${(DEFAULT_MARGIN * 100).toFixed(0)}%利润率): 广告${profitStatus}$${Math.abs(adProfit).toFixed(2)}, 利润ROAS=${profitRoas.toFixed(2)}, 盈亏平衡ACoS=${breakEvenAcos.toFixed(0)}%`,
+    detail: `广告效率评估: ROAS=${roas.toFixed(2)}x, ACOS=${actualAcos.toFixed(1)}%, ` +
+      `花费$${metrics.totalSpend.toFixed(2)}, 销售$${metrics.totalSales.toFixed(2)}, ` +
+      `投产净值${efficiencyStatus}$${Math.abs(adNetValue).toFixed(2)}`,
   };
 }
 
