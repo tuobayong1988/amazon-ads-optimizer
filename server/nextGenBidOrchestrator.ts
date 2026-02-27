@@ -687,26 +687,43 @@ function ruleEngineDecision(
     const trendLabel = trendDirection !== 'stable' ? `, 趋势=${trendDirection}(${(trendStrength * 100).toFixed(0)}%)` : '';
     
     if (acosRatio < 0.5) {
-      // v259: ACOS极其优秀（低于目标50%）— 这是明星关键词，积极提价获取更多流量
-      // 双向出价核心：高投产词应该获得更多曝光机会
-      const rawBoostRatio = Math.min(0.25, (1 - acosRatio) * 0.30);
+      // v260: 动态提价模型 — 基于CTR和CVR精细化调整提价幅度
+      // v259固定25%上限 → v260根据关键词质量动态调整:
+      //   - 高CTR(>1%) + 高CVR(>5%): 最大提价30% (明星关键词)
+      //   - 高CTR + 低CVR: 最大提价15% (流量好但转化待提升)
+      //   - 低CTR + 高CVR: 最大提价20% (转化好但需要更多曝光)
+      //   - 低CTR + 低CVR: 最大提价10% (保守提价)
+      const cvr = clicks > 0 ? orders / clicks : 0;
+      const isHighCtr = ctr > 0.01; // CTR > 1%
+      const isHighCvr = cvr > 0.05;  // CVR > 5%
+      
+      // v260: 动态提价上限
+      const dynamicMaxBoost = isHighCtr && isHighCvr ? 0.30 :  // 明星词
+                              isHighCtr && !isHighCvr ? 0.15 :  // 流量好转化低
+                              !isHighCtr && isHighCvr ? 0.20 :  // 转化好曝光低
+                              0.10;                              // 保守
+      
+      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.30);
       const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
       const newBid = Math.min(currentBid * (1 + boostRatio), maxBid * 0.85); // 上限为maxBid的85%
+      const qualityLabel = isHighCtr && isHighCvr ? '明星词' : isHighCtr ? '高流量' : isHighCvr ? '高转化' : '保守';
       return {
         bid: newBid,
         confidence: 0.65 + dataConfidence * 0.2,
-        reason: `[v259双向出价] ACOS极优(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 积极提升${(boostRatio * 100).toFixed(1)}%争取更多流量`,
+        reason: `[v260动态提价] ACOS极优(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, CVR=${(cvr * 100).toFixed(1)}%${trendLabel}): ${qualityLabel}提升${(boostRatio * 100).toFixed(1)}%(上限${(dynamicMaxBoost * 100)}%)`,
       };
     } else if (acosRatio < 0.7) {
-      // ACOS远低于目标，有提升空间
-      // v253: 数据量小时保守提价，避免少量订单的偶然性导致过度提价
-      // v254: 趋势improving时加速提价，declining时减缓提价
-      const rawBoostRatio = Math.min(0.20, (1 - acosRatio) * 0.25);
+      // v260: ACOS优秀场景也引入CVR感知的动态提价
+      const cvr = clicks > 0 ? orders / clicks : 0;
+      const isHighCvr = cvr > 0.05;
+      // v260: 高CVR时允许更大提价幅度
+      const dynamicMaxBoost = isHighCvr ? 0.22 : 0.15;
+      const rawBoostRatio = Math.min(dynamicMaxBoost, (1 - acosRatio) * 0.25);
       const boostRatio = rawBoostRatio * dataConfidence * ctrBonus * trendBoostFactor;
       return {
         bid: currentBid * (1 + boostRatio),
         confidence: 0.5 + dataConfidence * 0.2,
-        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): 提升${(boostRatio * 100).toFixed(1)}%(置信度${(dataConfidence * 100).toFixed(0)}%)`,
+        reason: `[v260] ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, CVR=${(cvr * 100).toFixed(1)}%${trendLabel}): 提升${(boostRatio * 100).toFixed(1)}%(上限${(dynamicMaxBoost * 100)}%, 置信度${(dataConfidence * 100).toFixed(0)}%)`,
       };
     } else if (acosRatio <= 1.0) {
       // v242: ACOS在目标范围内 — 精度感知微调

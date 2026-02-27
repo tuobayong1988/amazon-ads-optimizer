@@ -28,7 +28,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Globe,
-  MapPin
+  MapPin,
+  Shield,
+  Cpu,
+  RotateCcw,
+  HeartPulse
 } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
@@ -452,6 +456,12 @@ export default function Dashboard() {
 
   // 是否显示归因调整后的数据
   const [showAdjustedData, setShowAdjustedData] = useState(true);
+
+  // v260: 获取系统健康核心指标（回滚率 + 算法激活率）
+  const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
+    { accountId: accountId!, days: 7 },
+    { enabled: !!accountId, refetchInterval: 5 * 60 * 1000 } // 每5分钟自动刷新
+  );
   
   // (kpiDateRange 已移动到上方使用前)
 
@@ -728,6 +738,217 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
+        )}
+
+        {/* v260: 系统健康核心指标 */}
+        {healthMetrics?.success && healthMetrics.metrics && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <HeartPulse className="w-5 h-5 text-red-500" />
+                    系统健康监控
+                  </CardTitle>
+                  <CardDescription>核心优化指标实时状态 (7天窗口)</CardDescription>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  v260
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 回滚率 */}
+                <div className={`p-4 rounded-lg border ${
+                  healthMetrics.metrics.rollbackRate.status === 'healthy' 
+                    ? 'bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20' 
+                    : healthMetrics.metrics.rollbackRate.status === 'warning'
+                    ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
+                    : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${
+                      healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'bg-green-500/20' :
+                      healthMetrics.metrics.rollbackRate.status === 'warning' ? 'bg-yellow-500/20' : 'bg-red-500/20'
+                    }`}>
+                      <RotateCcw className={`w-5 h-5 ${
+                        healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'text-green-400' :
+                        healthMetrics.metrics.rollbackRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums">
+                        {healthMetrics.metrics.rollbackRate.rate.toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-muted-foreground">回滚率</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-dashed flex justify-between text-xs text-muted-foreground">
+                    <span>目标: &lt;10%</span>
+                    <span className={`flex items-center gap-1 ${
+                      healthMetrics.metrics.rollbackRate.trend === 'improving' ? 'text-green-500' :
+                      healthMetrics.metrics.rollbackRate.trend === 'worsening' ? 'text-red-500' : ''
+                    }`}>
+                      {healthMetrics.metrics.rollbackRate.trend === 'improving' ? <TrendingDown className="w-3 h-3" /> :
+                       healthMetrics.metrics.rollbackRate.trend === 'worsening' ? <TrendingUp className="w-3 h-3" /> : null}
+                      {healthMetrics.metrics.rollbackRate.trend === 'improving' ? '改善中' :
+                       healthMetrics.metrics.rollbackRate.trend === 'worsening' ? '恶化中' : '稳定'}
+                      (前期: {healthMetrics.metrics.rollbackRate.previousRate.toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 算法激活率 */}
+                <div className={`p-4 rounded-lg border ${
+                  healthMetrics.metrics.algorithmActivation.status === 'healthy'
+                    ? 'bg-gradient-to-br from-blue-500/10 to-transparent border-blue-500/20'
+                    : healthMetrics.metrics.algorithmActivation.status === 'warning'
+                    ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
+                    : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${
+                      healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'bg-blue-500/20' :
+                      healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500/20' : 'bg-red-500/20'
+                    }`}>
+                      <Cpu className={`w-5 h-5 ${
+                        healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'text-blue-400' :
+                        healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums">
+                        {healthMetrics.metrics.algorithmActivation.advancedRate.toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-muted-foreground">高级算法激活率</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-dashed text-xs text-muted-foreground">
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(healthMetrics.metrics.algorithmActivation.algorithmRates)
+                        .sort(([,a], [,b]) => (b as number) - (a as number))
+                        .slice(0, 4)
+                        .map(([alg, rate]) => (
+                          <Badge key={alg} variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {alg}: {(rate as number).toFixed(0)}%
+                          </Badge>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ACoS趋势 */}
+                <div className={`p-4 rounded-lg border ${
+                  healthMetrics.metrics.acosTrend.deathSpiralDetected
+                    ? 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
+                    : healthMetrics.metrics.acosTrend.direction === 'improving'
+                    ? 'bg-gradient-to-br from-green-500/10 to-transparent border-green-500/20'
+                    : healthMetrics.metrics.acosTrend.direction === 'worsening'
+                    ? 'bg-gradient-to-br from-orange-500/10 to-transparent border-orange-500/20'
+                    : 'bg-gradient-to-br from-slate-500/10 to-transparent border-slate-500/20'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${
+                      healthMetrics.metrics.acosTrend.deathSpiralDetected ? 'bg-red-500/20' :
+                      healthMetrics.metrics.acosTrend.direction === 'improving' ? 'bg-green-500/20' :
+                      healthMetrics.metrics.acosTrend.direction === 'worsening' ? 'bg-orange-500/20' : 'bg-slate-500/20'
+                    }`}>
+                      <Activity className={`w-5 h-5 ${
+                        healthMetrics.metrics.acosTrend.deathSpiralDetected ? 'text-red-400' :
+                        healthMetrics.metrics.acosTrend.direction === 'improving' ? 'text-green-400' :
+                        healthMetrics.metrics.acosTrend.direction === 'worsening' ? 'text-orange-400' : 'text-slate-400'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums">
+                        {healthMetrics.metrics.acosTrend.currentAcos.toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-muted-foreground">ACoS趋势</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-dashed text-xs text-muted-foreground">
+                    {healthMetrics.metrics.acosTrend.deathSpiralDetected ? (
+                      <span className="text-red-500 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        死亡螺旋风险!
+                      </span>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span>7天前: {healthMetrics.metrics.acosTrend.acos7dAgo.toFixed(1)}%</span>
+                        <span className={`${
+                          healthMetrics.metrics.acosTrend.changePoints < 0 ? 'text-green-500' :
+                          healthMetrics.metrics.acosTrend.changePoints > 0 ? 'text-red-500' : ''
+                        }`}>
+                          {healthMetrics.metrics.acosTrend.changePoints > 0 ? '+' : ''}
+                          {healthMetrics.metrics.acosTrend.changePoints.toFixed(1)}pp
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 熔断触发率 */}
+                <div className={`p-4 rounded-lg border ${
+                  healthMetrics.metrics.circuitBreakerRate.rate < 5
+                    ? 'bg-gradient-to-br from-emerald-500/10 to-transparent border-emerald-500/20'
+                    : healthMetrics.metrics.circuitBreakerRate.rate < 15
+                    ? 'bg-gradient-to-br from-yellow-500/10 to-transparent border-yellow-500/20'
+                    : 'bg-gradient-to-br from-red-500/10 to-transparent border-red-500/20'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${
+                      healthMetrics.metrics.circuitBreakerRate.rate < 5 ? 'bg-emerald-500/20' :
+                      healthMetrics.metrics.circuitBreakerRate.rate < 15 ? 'bg-yellow-500/20' : 'bg-red-500/20'
+                    }`}>
+                      <Shield className={`w-5 h-5 ${
+                        healthMetrics.metrics.circuitBreakerRate.rate < 5 ? 'text-emerald-400' :
+                        healthMetrics.metrics.circuitBreakerRate.rate < 15 ? 'text-yellow-400' : 'text-red-400'
+                      }`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums">
+                        {healthMetrics.metrics.circuitBreakerRate.rate.toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-muted-foreground">熔断触发率</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-dashed text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>触发: {healthMetrics.metrics.circuitBreakerRate.trippedCount}次</span>
+                      <span>总决策: {healthMetrics.metrics.circuitBreakerRate.totalDecisions}次</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 提价操作分析摘要 */}
+              {healthMetrics.metrics.bidIncreaseAnalysis.totalIncreases > 0 && (
+                <div className="mt-4 p-3 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm font-medium">提价操作分析 (14天)</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground text-xs">提价次数</p>
+                      <p className="font-semibold">{healthMetrics.metrics.bidIncreaseAnalysis.totalIncreases}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">平均幅度</p>
+                      <p className="font-semibold">{healthMetrics.metrics.bidIncreaseAnalysis.avgIncreasePercent.toFixed(1)}%</p>
+                    </div>
+                    {healthMetrics.metrics.bidIncreaseAnalysis.byScenario.slice(0, 2).map((s) => (
+                      <div key={s.scenario}>
+                        <p className="text-muted-foreground text-xs truncate" title={s.scenario}>{s.scenario}</p>
+                        <p className="font-semibold">{s.count}次 ({s.avgPercent}%)</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* 区域数据对比 - 移动到头部 */}

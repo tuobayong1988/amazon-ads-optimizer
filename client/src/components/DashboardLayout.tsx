@@ -382,6 +382,25 @@ function DashboardLayoutContent({
           </div>
         </div>
         <main className={`flex-1 ${isMobile ? 'p-4 pb-20' : 'p-6'}`}>{children}</main>
+        
+        {/* 网站底部公司信息 */}
+        <footer className="border-t bg-background/50 px-6 py-4">
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-foreground/70">Shenzhen Yipin Mingxuan Technology Co., Ltd.</span>
+                <span>深圳一品名轩科技有限公司</span>
+              </div>
+              <div className="flex flex-col sm:items-end gap-1">
+                <span>深圳市龙岗区坂田街道岗头社区新围仔五和大道4004号名筑大厦608</span>
+                <a href="mailto:vip@ppcopt.com" className="hover:text-foreground transition-colors">vip@ppcopt.com</a>
+              </div>
+            </div>
+            <div className="text-center pt-2 border-t border-border/50">
+              <span>&copy; {new Date().getFullYear()} Shenzhen Yipin Mingxuan Technology Co., Ltd. All rights reserved.</span>
+            </div>
+          </div>
+        </footer>
       </SidebarInset>
       
       {/* 移动端底部导航栏 */}

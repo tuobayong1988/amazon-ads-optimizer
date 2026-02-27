@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 259;  // v259: 提价恢复+曝光保护+纠错器时序重构+强制UCB激活+RL回填修复+双向出价+护栏可视化增强
+export const SYSTEM_VERSION = 260;  // v260: 公司信息Footer+P0系统健康监控API+P1动态提价模型(CTR/CVR感知)+P2仪表盘增强(回滚率+算法激活率+ACoS趋势+熔断率)
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -321,6 +321,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 259,
     description: 'v259: [全链路智能升级] — (1)P0-切断ACoS死亡螺旋: 熔断触发时主动提价8%恢复曝光+最低曝光保护(近3天曝光低于基线50%时暂停降价并提价)+底线恢复机制 (2)P0-根治出价回滚: 纠错器时间窗口从3天缩小到1天+SQL层排除护栏事件+仲裁检查窗口扩大到8小时 (3)P1-强制激活UCB: 历史数据合成绕过回填链路+UCB基础分1.30+rule_based降分0.85+Ensemble降至2算法 (4)P1-RL回填修复: 零数据重试机制+回填健康检查报告 (5)P1-双向出价: ACOS极优场景积极提价25%+超标降价上限收紧到20% (6)P2-数据展示一致性: riskActionEngine降价上限对齐+护栏可视化增强(提价恢复/曝光保护/双向出价标识)',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 260,
+    description: 'v260: [持续监控+动态提价+仪表盘增强] — (1)P0-系统健康监控API: 回滚率/算法激活率/ACoS趋势/熔断触发率/提价分析实时计算 (2)P1-动态提价模型: 基于CTR+CVR精细化调整提价幅度(明星词30%/高流量15%/高转化20%/保守10%) (3)P2-仪表盘增强: 前端新增回滚率+算法激活率+ACoS趋势+熔断触发率四大健康指标卡片 (4)网站底部公司信息: 深圳一品名轩科技有限公司',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
