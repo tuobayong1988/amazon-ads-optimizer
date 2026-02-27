@@ -732,6 +732,65 @@ export async function executeOptimization(
         break;
       }
 
+      case 'dayparting': {
+        // ✅ v271 P2: 分时策略执行链路补全
+        // 之前 dayparting 虽然在 enabledTypes 中注册，但在 executeOptimization 中没有 case 处理
+        // 导致所有分时策略调整都落入 default 分支，仅打印日志而不执行
+        // v271: 分时策略通过调整广告活动的日预算和出价乘数实现
+        let daypartingApiSuccess = false;
+        const dpCampaign = await db.getCampaignById(targetId);
+        if (dpCampaign?.accountId && dpCampaign.campaignId) {
+          try {
+            const dpCredentials = await db.getAmazonApiCredentials(dpCampaign.accountId);
+            if (dpCredentials) {
+              const { AmazonSyncService: DpSyncSvc } = await import('./amazonSyncService');
+              const dpAccountInfo = await db.getAdAccountById(dpCampaign.accountId);
+              const dpSvc = await DpSyncSvc.createFromCredentials(
+                {
+                  clientId: dpCredentials.clientId,
+                  clientSecret: dpCredentials.clientSecret,
+                  refreshToken: dpCredentials.refreshToken,
+                  profileId: dpCredentials.profileId,
+                  region: dpCredentials.region as 'NA' | 'EU' | 'FE',
+                },
+                dpCampaign.accountId,
+                0,
+                dpAccountInfo?.marketplace || 'US'
+              );
+              // 分时策略通过调整日预算实现（newValue为调整后的日预算）
+              await dpSvc.client.updateSpCampaign(
+                parseInt(dpCampaign.campaignId),
+                { dailyBudget: newValue } as any
+              );
+              daypartingApiSuccess = true;
+            }
+          } catch (dpApiErr: any) {
+            console.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, dpApiErr.message);
+          }
+        }
+        // v271: 先API后DB原则
+        if (daypartingApiSuccess) {
+          await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
+        }
+        await db.createBiddingLog({
+          accountId,
+          campaignId: String(targetId),
+          adGroupId: 0,
+          logTargetType: 'dayparting',
+          targetId,
+          targetName: targetName || `Campaign ${targetId} Dayparting`,
+          actionType: newValue > currentValue ? 'increase' : 'decrease',
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${daypartingApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 分时策略调整: ${reason}`,
+        });
+        console.log(`[AutoExec] v271: 分时策略: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${daypartingApiSuccess ? '✅' : '❌'}`);
+        if (!daypartingApiSuccess) {
+          throw new Error('Amazon API分时策略同步失败');
+        }
+        break;
+      }
+
       case 'negative_keyword': {
         // ✅ v266 P0-1: 否定关键词添加 - 直接通过Amazon API同步
         // 修复: 之前错误地假设"已在searchTermHarvester中处理"，实际上通过automationEngine路径的否定词从未调用API

@@ -962,8 +962,10 @@ export async function calculateNextGenBid(
     const keywordId = target.type === 'keyword' ? target.id : undefined;
     const targetId = target.type === 'product_target' ? target.id : undefined;
     
+    // v271 P1-2: 传递策略模板以支持策略级别的算法配置
     const metaDecision = await selectBestAlgorithm(
-      accountId, keywordId, targetId, undefined, target.currentBid
+      accountId, keywordId, targetId, undefined, target.currentBid,
+      normalizedConfig.strategyTemplate || null
     );
     
     // v264: 高级算法判断逻辑增强

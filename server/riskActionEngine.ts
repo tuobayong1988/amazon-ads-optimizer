@@ -478,6 +478,30 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
             detail: `账户${account.accountName}已标记暂停极端亏损关键词(已持久化到DB)`,
           });
         }
+        
+        // v271 P2: budget_cap_reduction 执行链路补全
+        if (action.actionType === 'budget_cap_reduction') {
+          const result = await markAccountForEmergencyOptimization(account.accountId, 'budget_cap_reduction', action.priority, action.description);
+          actionsTriggered++;
+          actionResults.push({
+            actionType: 'budget_cap_reduction',
+            accountId: account.accountId,
+            success: result,
+            detail: `账户${account.accountName}(ACoS=${account.currentAcos.toFixed(1)}%)已标记预算调降(已持久化到DB)`,
+          });
+        }
+        
+        // v271 P2: dayparting_restriction 执行链路补全
+        if (action.actionType === 'dayparting_restriction') {
+          const result = await markAccountForEmergencyOptimization(account.accountId, 'dayparting_restriction', action.priority, action.description);
+          actionsTriggered++;
+          actionResults.push({
+            actionType: 'dayparting_restriction',
+            accountId: account.accountId,
+            success: result,
+            detail: `账户${account.accountName}已标记分时段限制投放(已持久化到DB)`,
+          });
+        }
       } catch (err: any) {
         actionResults.push({
           actionType: action.actionType,

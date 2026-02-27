@@ -11,13 +11,14 @@
  *   - 数据置信度修正
  *   - NextGen算法效能：评估算法层级分布、正向率、置信度
  * 
- * 六大维度：
+ * 七大维度：
  * 1. 核心指标达成度 - 时间衰减加权ACoS/ROAS与目标值的对比
  * 2. 趋势改善度 - 多时间窗口渐进式改善评估
  * 3. 预算效率 - 时间衰减加权预算利用率
  * 4. 转化效率 - ROAS、CVR、CPC综合评估
  * 5. 渐进优化进度 - 优化是否在稳步接近目标
  * 6. NextGen算法效能 - 算法层级分布、正向率、自我进化效果 (v235新增)
+ * 7. 利润健康度 - 广告利润、利润ROAS、盈亏平衡ACoS (v271新增)
  */
 
 // ==================== 类型定义 ====================
@@ -147,33 +148,34 @@ interface WeightConfig {
   conversionEfficiency: number;
   gradualProgress: number;
   algorithmEfficacy: number;  // v235新增: NextGen算法效能
+  profitHealth: number;       // v271新增: 利润健康度
 }
 
 // v235: 重新分配权重，给算法效能维度10%权重，从其他维度均匀扣减
 // v270 P1-2: 补齐全部11个策略模板的权重配置，消除缺失策略回退DEFAULT_WEIGHTS的问题
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
-  // v268 P0-2: 激进增长策略进一步降低预算效率权重，允许为探索新机会保留预算
-  'aggressive-growth':  { coreMetric: 16, trend: 28, budgetEfficiency: 5,  conversionEfficiency: 18, gradualProgress: 22, algorithmEfficacy: 11 },
-  'balanced':           { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'profit-focused':     { coreMetric: 32, trend: 8,  budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'seasonal-boost':     { coreMetric: 13, trend: 32, budgetEfficiency: 8,  conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'brand-defense':      { coreMetric: 27, trend: 8,  budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  // v270 P1-2: 以下6个策略模板之前缺失权重配置，导致回退到DEFAULT_WEIGHTS，评分维度与策略目标不匹配
+  // v271: 所有策略模板重新分配权重，给利润健康度维度分配权重，从其他维度均匀扣减
+  'aggressive-growth':  { coreMetric: 14, trend: 25, budgetEfficiency: 5,  conversionEfficiency: 16, gradualProgress: 20, algorithmEfficacy: 10, profitHealth: 10 },
+  'balanced':           { coreMetric: 20, trend: 16, budgetEfficiency: 11, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8,  profitHealth: 12 },
+  'profit-focused':     { coreMetric: 25, trend: 6,  budgetEfficiency: 10, conversionEfficiency: 12, gradualProgress: 15, algorithmEfficacy: 7,  profitHealth: 25 },
+  'seasonal-boost':     { coreMetric: 12, trend: 28, budgetEfficiency: 7,  conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8,  profitHealth: 12 },
+  'brand-defense':      { coreMetric: 24, trend: 7,  budgetEfficiency: 16, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8,  profitHealth: 12 },
+  // v270 P1-2 + v271: 以下6个策略模板已补齐权重配置，并加入利润维度
   // 清仓策略: 重点关注趋势和预算效率，确保快速消耗库存且不过度亏损
-  'inventory-clearance': { coreMetric: 12, trend: 30, budgetEfficiency: 8,  conversionEfficiency: 20, gradualProgress: 18, algorithmEfficacy: 12 },
+  'inventory-clearance': { coreMetric: 10, trend: 26, budgetEfficiency: 7,  conversionEfficiency: 18, gradualProgress: 16, algorithmEfficacy: 10, profitHealth: 13 },
   // 竞争攻击策略: 重点关注趋势和渐进优化，允许短期高花费换取市场份额
-  'competitor-attack':   { coreMetric: 10, trend: 25, budgetEfficiency: 5,  conversionEfficiency: 15, gradualProgress: 30, algorithmEfficacy: 15 },
+  'competitor-attack':   { coreMetric: 9,  trend: 22, budgetEfficiency: 5,  conversionEfficiency: 13, gradualProgress: 27, algorithmEfficacy: 13, profitHealth: 11 },
   // 市场扩张策略: 重点关注趋势和算法效能，允许探索新市场的不确定性
-  'market-expansion':    { coreMetric: 12, trend: 28, budgetEfficiency: 5,  conversionEfficiency: 15, gradualProgress: 25, algorithmEfficacy: 15 },
+  'market-expansion':    { coreMetric: 10, trend: 25, budgetEfficiency: 5,  conversionEfficiency: 13, gradualProgress: 22, algorithmEfficacy: 13, profitHealth: 12 },
   // 季节性模式策略: 重点关注核心指标和趋势，利用季节性波动最大化收益
-  'seasonal-pattern':    { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 15, gradualProgress: 15, algorithmEfficacy: 10 },
+  'seasonal-pattern':    { coreMetric: 18, trend: 26, budgetEfficiency: 8,  conversionEfficiency: 13, gradualProgress: 13, algorithmEfficacy: 8,  profitHealth: 14 },
   // 下滑管理策略: 重点关注核心指标和预算效率，优先止损和成本控制
-  'decline-management':  { coreMetric: 30, trend: 12, budgetEfficiency: 20, conversionEfficiency: 18, gradualProgress: 12, algorithmEfficacy: 8 },
+  'decline-management':  { coreMetric: 25, trend: 10, budgetEfficiency: 16, conversionEfficiency: 15, gradualProgress: 10, algorithmEfficacy: 6,  profitHealth: 18 },
   // 紧急响应策略: 重点关注核心指标和预算效率，最大化止损速度
-  'emergency-response':  { coreMetric: 35, trend: 5,  budgetEfficiency: 25, conversionEfficiency: 15, gradualProgress: 10, algorithmEfficacy: 10 },
+  'emergency-response':  { coreMetric: 30, trend: 5,  budgetEfficiency: 20, conversionEfficiency: 12, gradualProgress: 8,  algorithmEfficacy: 8,  profitHealth: 17 },
 };
 
-const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 };
+const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 20, trend: 16, budgetEfficiency: 11, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8, profitHealth: 12 };
 
 function getWeights(strategyTemplateId: string | null): WeightConfig {
   if (!strategyTemplateId) return DEFAULT_WEIGHTS;
@@ -801,6 +803,58 @@ function calculateGradualProgressScore(
 
 // ==================== 主计算函数 ====================
 
+// ==================== 维度7: 利润健康度 (v271新增) ====================
+
+/**
+ * v271 P1-1: 默认利润评分（当未提供外部利润数据时，基于广告指标估算）
+ * 使用行业基准利润率30%作为默认值
+ */
+function calculateDefaultProfitScore(metrics: PerformanceMetrics): { score: number; detail: string } {
+  if (metrics.totalSpend < 0.01 || metrics.totalSales < 0.01) {
+    return { score: 0, detail: '数据不足，无法评估利润健康度' };
+  }
+  
+  const DEFAULT_MARGIN = 0.30; // 行业基准利润率30%
+  const grossProfit = metrics.totalSales * DEFAULT_MARGIN;
+  const adProfit = grossProfit - metrics.totalSpend;
+  const profitRoas = metrics.totalSpend > 0 ? grossProfit / metrics.totalSpend : 0;
+  const breakEvenAcos = DEFAULT_MARGIN * 100; // 30%
+  const actualAcos = metrics.avgAcos;
+  
+  let score = 0;
+  
+  // ProfitROAS评分（60%权重）
+  if (profitRoas >= 3.0) score += 60;
+  else if (profitRoas >= 2.0) score += 50 + (profitRoas - 2.0) * 10;
+  else if (profitRoas >= 1.5) score += 40 + (profitRoas - 1.5) * 20;
+  else if (profitRoas >= 1.0) score += 25 + (profitRoas - 1.0) * 30;
+  else if (profitRoas >= 0.5) score += 10 + (profitRoas - 0.5) * 30;
+  else score += profitRoas * 20;
+  
+  // ACoS vs 盈亏平衡ACoS评分（25%权重）
+  if (actualAcos <= 0) score += 0;
+  else if (actualAcos <= breakEvenAcos * 0.5) score += 25;
+  else if (actualAcos <= breakEvenAcos * 0.8) score += 20;
+  else if (actualAcos <= breakEvenAcos) score += 15;
+  else if (actualAcos <= breakEvenAcos * 1.2) score += 8;
+  else score += Math.max(0, 5 - (actualAcos - breakEvenAcos * 1.2) / 10);
+  
+  // 规模效益评分（15%权重）
+  if (metrics.totalSpend >= 100 && profitRoas >= 1.0) score += 15;
+  else if (metrics.totalSpend >= 50 && profitRoas >= 1.0) score += 12;
+  else if (metrics.totalSpend >= 10 && profitRoas >= 1.0) score += 8;
+  else if (profitRoas >= 1.0) score += 5;
+  else score += 2;
+  
+  score = Math.min(100, Math.max(0, Math.round(score)));
+  
+  const profitStatus = adProfit > 0 ? '盈利' : '亏损';
+  return {
+    score,
+    detail: `行业基准估算(${(DEFAULT_MARGIN * 100).toFixed(0)}%利润率): 广告${profitStatus}$${Math.abs(adProfit).toFixed(2)}, 利润ROAS=${profitRoas.toFixed(2)}, 盈亏平衡ACoS=${breakEvenAcos.toFixed(0)}%`,
+  };
+}
+
 // ==================== 维度6: NextGen算法效能 (v235新增) ====================
 
 function calculateAlgorithmEfficacyScore(
@@ -873,7 +927,8 @@ export function calculateGoalProgress(
   trendData?: TrendData,
   timeWeighted?: TimeWeightedMetrics,
   multiWindow?: MultiWindowTrendData,
-  algorithmData?: AlgorithmEfficacyData
+  algorithmData?: AlgorithmEfficacyData,
+  profitData?: { profitHealthScore: number; detail: string }
 ): GoalProgressResult {
   // 完全没有数据
   if (config.campaignCount === 0 && metrics.totalSpend < 0.01 && metrics.totalSales < 0.01) {
@@ -926,6 +981,11 @@ export function calculateGoalProgress(
   const gradualProgress = calculateGradualProgressScore(config, metrics, timeWeighted, multiWindow);
   const algEfficacy = calculateAlgorithmEfficacyScore(algorithmData);
   
+  // v271 P1-1: 第7维度 - 利润健康度
+  const profitHealth = profitData 
+    ? { score: profitData.profitHealthScore, detail: profitData.detail }
+    : calculateDefaultProfitScore(metrics);
+  
   // 构建维度得分数组
   const dimensions: DimensionScore[] = [
     {
@@ -975,6 +1035,14 @@ export function calculateGoalProgress(
       weight: weights.algorithmEfficacy,
       weighted: Math.round(algEfficacy.score * weights.algorithmEfficacy / 100),
       detail: algEfficacy.detail,
+    },
+    {
+      name: 'profitHealth',
+      nameZh: '利润健康',
+      score: profitHealth.score,
+      weight: weights.profitHealth,
+      weighted: Math.round(profitHealth.score * weights.profitHealth / 100),
+      detail: profitHealth.detail,
     },
   ];
   

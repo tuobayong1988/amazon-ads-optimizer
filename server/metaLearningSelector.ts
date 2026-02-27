@@ -32,6 +32,8 @@ import {
   type SigmoidOptimalBid,
 } from "./sigmoidCurveFitter";
 import { createModuleLogger } from './utils/logger';
+import { getExperimentConfigForCampaign } from './abTestIntegration';
+import { getCascadeConfig, calculateStrategyExplorationRate, getExplorationConfig } from './algorithmConfigService';
 
 const log = createModuleLogger('MetaLearning');
 
@@ -482,7 +484,8 @@ export async function selectBestAlgorithm(
   keywordId?: number,
   targetId?: number,
   campaignId?: string,
-  currentBid?: number
+  currentBid?: number,
+  strategyTemplateId?: string | null  // v271 P1-2: 策略模板级别的算法配置
 ): Promise<MetaDecision> {
   const scores = await evaluateAlgorithms(accountId, keywordId, targetId, campaignId, currentBid);
   
@@ -503,11 +506,48 @@ export async function selectBestAlgorithm(
   let selectedAlgorithmName = top1.algorithm;
   
   // v270 P0: Cascade Ensemble判定
-  // 当top2存在且与top1分差 < 15%时，执行两个算法并按置信度加权融合
-  const FUSION_THRESHOLD = 0.15; // 15%分差阈值
-  const shouldFuse = top2 && top1.score > 0 && 
-    ((top1.score - top2.score) / top1.score) < FUSION_THRESHOLD &&
-    top2.algorithm !== 'rule_based'; // 不与rule_based融合
+  // 当top2存在且与top1分差 < FUSION_THRESHOLD时，执行两个算法并按置信度加权融合
+  // v271 P1-2: 融合阈值参数化，支持策略模板级别配置 + A/B测试实验覆盖
+  // 优先级: A/B实验 > 策略模板配置 > 全局默认
+  const cascadeConfig = getCascadeConfig(strategyTemplateId);
+  let FUSION_THRESHOLD = cascadeConfig.fusionThreshold; // v271: 从策略模板配置获取
+  let cascadeEnabled = cascadeConfig.enabled;
+  let forceAlgorithmMode: 'single' | 'cascade_ensemble' | null = null;
+  
+  // v271: 检查该campaign是否在A/B测试实验中
+  if (campaignId) {
+    try {
+      const experimentConfig = await getExperimentConfigForCampaign(accountId, campaignId);
+      if (experimentConfig) {
+        const { variantType, config, testId } = experimentConfig;
+        log.info(`[MetaLearning] v271 A/B实验: campaign=${campaignId} 在实验${testId}的${variantType}组`);
+        
+        // 覆盖融合阈值
+        if (config.fusionThreshold !== undefined) {
+          FUSION_THRESHOLD = config.fusionThreshold;
+          log.info(`[MetaLearning] v271 A/B实验: 融合阈值覆盖为 ${(FUSION_THRESHOLD * 100).toFixed(0)}%`);
+        }
+        
+        // 强制算法模式
+        if (config.algorithmMode) {
+          forceAlgorithmMode = config.algorithmMode;
+          log.info(`[MetaLearning] v271 A/B实验: 强制算法模式为 ${forceAlgorithmMode}`);
+        }
+      }
+    } catch (expError) {
+      log.warn(`[MetaLearning] v271 A/B实验配置查询失败，使用默认配置:`, expError);
+    }
+  }
+  
+  // v271 P1-2: shouldFuse判定加入cascadeEnabled检查
+  const shouldFuse = (
+    forceAlgorithmMode === 'cascade_ensemble' || // v271: A/B实验强制融合
+    (cascadeEnabled && // v271: 策略模板级别的cascade开关
+     forceAlgorithmMode !== 'single' && // v271: A/B实验强制单一模式时不融合
+     top2 && top1.score > 0 && 
+     ((top1.score - top2.score) / top1.score) < FUSION_THRESHOLD &&
+     top2.algorithm !== 'rule_based')
+  ) && top2 !== undefined; // 确保top2存在
   
   try {
     if (shouldFuse) {
@@ -541,7 +581,9 @@ export async function selectBestAlgorithm(
         recommendedBid = fusionBids.reduce((s, b) => s + b.bid * b.confidence, 0) / totalConf;
         // 融合后的置信度取加权平均，并给予融合奖励（多算法一致性提升置信度）
         const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
-        const consensusBonus = bidDivergence < 0.10 ? 0.10 : bidDivergence < 0.20 ? 0.05 : 0; // 出价越接近，置信度奖励越高
+        // v271 P1-2: 共识奖励阈值从策略模板配置获取
+        const { consensusBonus: cbConfig } = cascadeConfig;
+        const consensusBonus = bidDivergence < cbConfig.highThreshold ? cbConfig.highBonus : bidDivergence < cbConfig.mediumThreshold ? cbConfig.mediumBonus : 0;
         confidence = Math.min(0.95, (totalConf / fusionBids.length) + consensusBonus);
         selectedAlgorithmName = 'ensemble' as AlgorithmType; // 融合模式记录为ensemble
         fusionDetail = `Cascade融合: ${fusionBids.map(b => `${b.algorithm}($${b.bid.toFixed(2)},conf=${b.confidence.toFixed(2)})`).join(' + ')} → $${recommendedBid.toFixed(2)}, 分歧度=${(bidDivergence*100).toFixed(1)}%, 共识奖励=${(consensusBonus*100).toFixed(0)}%`;
@@ -571,7 +613,7 @@ export async function selectBestAlgorithm(
       sigmoidDecision = result.sigmoid;
       fusionDetail = `Single模式: ${top1.algorithm}(得分=${top1.score.toFixed(3)})`;
       if (top2) {
-        fusionDetail += `, 次选${top2.algorithm}(分差=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}% > 15%阈值)`;
+        fusionDetail += `, 次选${top2.algorithm}(分差=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}% > ${(FUSION_THRESHOLD * 100).toFixed(0)}%阈值)`;
       }
     }
   } catch (error) {
