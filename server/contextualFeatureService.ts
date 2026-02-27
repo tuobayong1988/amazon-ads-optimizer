@@ -482,33 +482,67 @@ export async function getCachedFeatureVector(
   }
   
   if (cached && cached.length > 0) {
-    const c = cached[0];
-    return {
-      accountId: c.accountId,
-      keywordId: c.keywordId ?? undefined,
-      targetId: c.targetId ?? undefined,
-      campaignId: c.campaignId ?? undefined,
-      adGroupId: c.adGroupId ?? undefined,
-      hourOfDay: c.hourOfDay ?? new Date().getHours(),
-      dayOfWeek: c.dayOfWeek ?? new Date().getDay(),
-      isHoliday: c.isHoliday ?? 0,
-      estimatedCompetition: Number(c.estimatedCompetition) || 0,
-      cpcVolatility7d: Number(c.cpcVolatility7d) || 0,
-      ctrVolatility7d: Number(c.ctrVolatility7d) || 0,
-      impressionShare: Number(c.impressionShare) || 0.5,
-      avgCpc7d: Number(c.avgCpc7d) || 0,
-      avgCtr7d: Number(c.avgCtr7d) || 0,
-      avgCvr7d: Number(c.avgCvr7d) || 0,
-      weightedAcos14d: Number(c.weightedAcos14d) || 0,
-      impressionTrend7d: Number(c.impressionTrend7d) || 0,
-      clickTrend7d: Number(c.clickTrend7d) || 0,
-      orderTrend7d: Number(c.orderTrend7d) || 0,
-      spendTrend7d: Number(c.spendTrend7d) || 0,
-      weightedCvr14d: Number(c.weightedCvr14d) || 0,
-      weightedRoas14d: Number(c.weightedRoas14d) || 0,
-    };
+    return parseCachedFeature(cached[0]);
   }
   
-  // 缓存不存在，实时计算
+  // v264: P2-3 缓存TTL优化 — 当天缓存不存在时，接受昨天的缓存（24h宽限期）
+  // 避免缓存任务延迟执行导致高级算法因缺少特征而降级
+  const yesterday = new Date(Date.now() - 24 * 3600000).toISOString().split('T')[0];
+  let staleCache;
+  if (keywordId) {
+    staleCache = await db.select().from(contextualFeatures)
+      .where(and(
+        eq(contextualFeatures.accountId, accountId),
+        eq(contextualFeatures.keywordId, keywordId),
+        eq(contextualFeatures.snapshotDate, yesterday)
+      ))
+      .limit(1);
+  } else if (targetId) {
+    staleCache = await db.select().from(contextualFeatures)
+      .where(and(
+        eq(contextualFeatures.accountId, accountId),
+        eq(contextualFeatures.targetId, targetId),
+        eq(contextualFeatures.snapshotDate, yesterday)
+      ))
+      .limit(1);
+  }
+  
+  if (staleCache && staleCache.length > 0) {
+    // 使用昨天的缓存但更新时间相关特征
+    const feature = parseCachedFeature(staleCache[0]);
+    feature.hourOfDay = new Date().getHours();
+    feature.dayOfWeek = new Date().getDay();
+    return feature;
+  }
+  
+  // 缓存完全不存在，实时计算
   return extractFeatureVector(accountId, keywordId, targetId, campaignId);
+}
+
+/** v264: 解析缓存特征向量的辅助函数 */
+function parseCachedFeature(c: any): ContextFeatureVector {
+  return {
+    accountId: c.accountId,
+    keywordId: c.keywordId ?? undefined,
+    targetId: c.targetId ?? undefined,
+    campaignId: c.campaignId ?? undefined,
+    adGroupId: c.adGroupId ?? undefined,
+    hourOfDay: c.hourOfDay ?? new Date().getHours(),
+    dayOfWeek: c.dayOfWeek ?? new Date().getDay(),
+    isHoliday: c.isHoliday ?? 0,
+    estimatedCompetition: Number(c.estimatedCompetition) || 0,
+    cpcVolatility7d: Number(c.cpcVolatility7d) || 0,
+    ctrVolatility7d: Number(c.ctrVolatility7d) || 0,
+    impressionShare: Number(c.impressionShare) || 0.5,
+    avgCpc7d: Number(c.avgCpc7d) || 0,
+    avgCtr7d: Number(c.avgCtr7d) || 0,
+    avgCvr7d: Number(c.avgCvr7d) || 0,
+    weightedAcos14d: Number(c.weightedAcos14d) || 0,
+    impressionTrend7d: Number(c.impressionTrend7d) || 0,
+    clickTrend7d: Number(c.clickTrend7d) || 0,
+    orderTrend7d: Number(c.orderTrend7d) || 0,
+    spendTrend7d: Number(c.spendTrend7d) || 0,
+    weightedCvr14d: Number(c.weightedCvr14d) || 0,
+    weightedRoas14d: Number(c.weightedRoas14d) || 0,
+  };
 }
