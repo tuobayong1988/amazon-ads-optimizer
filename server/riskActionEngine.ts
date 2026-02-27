@@ -1,5 +1,5 @@
 /**
- * riskActionEngine.ts - 风险行动引擎 (v245, v259增强)
+ * riskActionEngine.ts - 风险行动引擎 (v245, v259增强, v263主动预防)
  * 
  * 将数据概览模块的"账户风险排行"和"同步健康度"从被动展示指标
  * 升级为可触发自动优化的"行动指标"。
@@ -49,7 +49,7 @@ export interface AccountRiskAssessment {
 }
 
 export interface RiskAction {
-  actionType: 'emergency_bid_reduction' | 'pause_extreme_loss' | 'nextgen_reevaluate' | 'trigger_correction_scan' | 'accelerate_sync';
+  actionType: 'emergency_bid_reduction' | 'pause_extreme_loss' | 'nextgen_reevaluate' | 'trigger_correction_scan' | 'accelerate_sync' | 'assign_unmanaged_campaigns' | 'proactive_acos_intervention';
   priority: 'P0' | 'P1' | 'P2';
   description: string;
   targetEntityCount?: number;
@@ -413,6 +413,45 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
     }
   }
   
+  // v263: 5. 检测未分配广告活动并生成分配建议
+  try {
+    const unassignedResult = await detectAndReportUnassignedCampaigns();
+    if (unassignedResult.unassignedCount > 0) {
+      actionsTriggered++;
+      actionResults.push({
+        actionType: 'assign_unmanaged_campaigns',
+        success: true,
+        detail: `检测到${unassignedResult.unassignedCount}个未分配广告活动，日均预算$${unassignedResult.totalDailyBudget.toFixed(2)}，已记录到告警日志`,
+      });
+    }
+  } catch (err: any) {
+    log.error(`[RiskActionEngine] 未分配广告活动检测失败: ${err.message}`);
+  }
+
+  // v263: 6. 主动ACoS趋势预警 — 对warning账户检查趋势是否恶化
+  for (const account of warningAccounts) {
+    try {
+      const trendCheck = await checkAcosTrendForAccount(account.accountId);
+      if (trendCheck.isDeteriorating) {
+        actionsTriggered++;
+        const result = await markAccountForEmergencyOptimization(
+          account.accountId,
+          'proactive_acos_intervention',
+          'P1',
+          `ACoS趋势恶化预警: 近7天ACoS ${trendCheck.recentAcos.toFixed(1)}% vs 前14天 ${trendCheck.prevAcos.toFixed(1)}%，恶化${trendCheck.deteriorationRate.toFixed(0)}%`
+        );
+        actionResults.push({
+          actionType: 'proactive_acos_intervention',
+          accountId: account.accountId,
+          success: result,
+          detail: `账户${account.accountName} ACoS趋势恶化${trendCheck.deteriorationRate.toFixed(0)}%，已触发主动干预`,
+        });
+      }
+    } catch (err: any) {
+      log.error(`[RiskActionEngine] 账户${account.accountId}趋势检查失败: ${err.message}`);
+    }
+  }
+
   log.info(`[RiskActionEngine] 风险行动执行完成: 触发${actionsTriggered}个行动`);
   
   return {
@@ -514,6 +553,100 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
   } catch (err: any) {
     log.error(`[getPendingEmergencyAccounts] 查询失败: ${err.message}`);
     return [];
+  }
+}
+
+// ==================== v263: 主动预防机制 ====================
+
+/**
+ * v263: 检测未分配到优化目标的广告活动并记录告警
+ */
+async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: number; totalDailyBudget: number }> {
+  try {
+    const unassigned = await db.getUnassignedCampaigns();
+    const activeCampaigns = unassigned.filter((c: any) => c.campaignStatus === 'enabled');
+    
+    if (activeCampaigns.length > 0) {
+      const totalBudget = activeCampaigns.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
+      
+      log.warn(`[RiskActionEngine] v263: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
+      
+      // 记录到anomaly_alert_logs
+      await persistRiskAlert(
+        0,
+        'unassigned_campaigns',
+        activeCampaigns.length > 50 ? 'high' : 'medium',
+        `${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}，这些广告活动不会被任何算法优化`
+      );
+      
+      return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget };
+    }
+    
+    return { unassignedCount: 0, totalDailyBudget: 0 };
+  } catch (err: any) {
+    log.error(`[detectAndReportUnassignedCampaigns] Error: ${err.message}`);
+    return { unassignedCount: 0, totalDailyBudget: 0 };
+  }
+}
+
+/**
+ * v263: 检查账户ACoS趋势是否恶化
+ * 对比最近7天vs前14天的ACoS，如果恶化超过20%则触发主动干预
+ */
+async function checkAcosTrendForAccount(accountId: number): Promise<{
+  isDeteriorating: boolean;
+  recentAcos: number;
+  prevAcos: number;
+  deteriorationRate: number;
+}> {
+  const dbInstance = await getDb();
+  if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
+  
+  try {
+    const { sql } = await import('drizzle-orm');
+    
+    const [recentRows] = await dbInstance.execute(sql`
+      SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+             SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+      FROM daily_performance
+      WHERE account_id = ${accountId}
+        AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    `) as any;
+    
+    const [prevRows] = await dbInstance.execute(sql`
+      SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+             SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+      FROM daily_performance
+      WHERE account_id = ${accountId}
+        AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
+        AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    `) as any;
+    
+    const recent = recentRows?.[0] || recentRows;
+    const prev = prevRows?.[0] || prevRows;
+    
+    const recentSpend = Number(recent?.total_spend) || 0;
+    const recentSales = Number(recent?.total_sales) || 0;
+    const prevSpend = Number(prev?.total_spend) || 0;
+    const prevSales = Number(prev?.total_sales) || 0;
+    
+    if (recentSales > 0 && prevSales > 0) {
+      const recentAcos = (recentSpend / recentSales) * 100;
+      const prevAcos = (prevSpend / prevSales) * 100;
+      const deteriorationRate = prevAcos > 0 ? ((recentAcos - prevAcos) / prevAcos) * 100 : 0;
+      
+      return {
+        isDeteriorating: deteriorationRate > 20,
+        recentAcos,
+        prevAcos,
+        deteriorationRate,
+      };
+    }
+    
+    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
+  } catch (err: any) {
+    log.error(`[checkAcosTrendForAccount] Error for account ${accountId}: ${err.message}`);
+    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   }
 }
 
