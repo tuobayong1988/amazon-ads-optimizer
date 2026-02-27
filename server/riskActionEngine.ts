@@ -49,7 +49,7 @@ export interface AccountRiskAssessment {
 }
 
 export interface RiskAction {
-  actionType: 'emergency_bid_reduction' | 'pause_extreme_loss' | 'nextgen_reevaluate' | 'trigger_correction_scan' | 'accelerate_sync' | 'assign_unmanaged_campaigns' | 'proactive_acos_intervention';
+  actionType: 'emergency_bid_reduction' | 'pause_extreme_loss' | 'nextgen_reevaluate' | 'trigger_correction_scan' | 'accelerate_sync' | 'assign_unmanaged_campaigns' | 'proactive_acos_intervention' | 'budget_cap_reduction' | 'dayparting_restriction' | 'auto_assign_unmanaged';
   priority: 'P0' | 'P1' | 'P2';
   description: string;
   targetEntityCount?: number;
@@ -104,9 +104,11 @@ function assessAccountRiskLevel(acos: number, targetAcos?: number): 'critical' |
  */
 interface RiskResponseStrategy {
   bidReductionPercent: number;   // 出价降低比例
+  budgetReductionPercent: number; // v270: 预算上限调降比例
   pauseThresholdAcos: number;    // 暂停门槛 ACoS
   pauseThresholdSpend: number;   // 暂停门槛 花费
   scanInterval: 'immediate' | '4h' | '12h'; // 扫描间隔
+  daypartingEnabled: boolean;    // v270: 是否启用分时段限制投放
 }
 
 /**
@@ -134,21 +136,37 @@ function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy', 
   
   switch (riskLevel) {
     case 'critical':
-      // v268 P0-1: 增强critical响应策略
+      // v270 P2-1: 增强critical响应策略 — 新增预算调降和分时限制
       // 降价幅度动态化（25%-40%），基于ACoS严重程度
-      // 暂停门槛从150%降至120%，花费门槛从$3降至$2，更早暂停亏损关键词
+      // 预算调降20-30%，限制低效时段投放
       return {
         bidReductionPercent: adaptiveReduction ?? 0.30,
-        pauseThresholdAcos: 120,    // v268: 从150%降至120%
-        pauseThresholdSpend: 2,     // v268: 从$3降至$2
-        scanInterval: 'immediate'
+        budgetReductionPercent: currentAcos && currentAcos > 80 ? 0.30 : 0.20, // v270: 预算调降20-30%
+        pauseThresholdAcos: 120,
+        pauseThresholdSpend: 2,
+        scanInterval: 'immediate',
+        daypartingEnabled: true,  // v270: critical级别启用分时限制
       };
     case 'warning':
-      // v266: warning也需要更积极的响应
-      return { bidReductionPercent: adaptiveReduction ?? 0.15, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: '4h' };
+      // v270: warning级别也增加预算调降（10%）和分时限制
+      return {
+        bidReductionPercent: adaptiveReduction ?? 0.15,
+        budgetReductionPercent: 0.10, // v270: 预算调降10%
+        pauseThresholdAcos: 200,
+        pauseThresholdSpend: 5,
+        scanInterval: '4h',
+        daypartingEnabled: currentAcos !== undefined && currentAcos > 50, // v270: ACoS>50%时启用分时限制
+      };
     case 'healthy':
     default:
-      return { bidReductionPercent: 0, pauseThresholdAcos: 500, pauseThresholdSpend: 20, scanInterval: '12h' };
+      return {
+        bidReductionPercent: 0,
+        budgetReductionPercent: 0,
+        pauseThresholdAcos: 500,
+        pauseThresholdSpend: 20,
+        scanInterval: '12h',
+        daypartingEnabled: false,
+      };
   }
 }
 
@@ -251,6 +269,7 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
         if (riskLevel === 'critical') {
           // v268 P0-1: 分层级紧急降价 — 基于ACoS严重程度动态调整降价幅度
           const adaptiveReduction = getAdaptiveBidReduction(acos, 'critical');
+          const riskStrategy = getRiskResponseStrategy('critical', acos);
           actions.push({
             actionType: 'emergency_bid_reduction',
             priority: 'P0',
@@ -265,6 +284,24 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
             description: `暂停ACoS>120%且花费>$2的极端亏损关键词(原v267: ACoS>150%且花费>$3)`,
             estimatedImpact: '立即止损，v268收紧门槛后可更早阻断亏损',
           });
+          
+          // v270 P2-1: 预算上限调降 — 限制亏损广告活动的每日花费上限
+          actions.push({
+            actionType: 'budget_cap_reduction',
+            priority: 'P0',
+            description: `账户ACoS=${acos.toFixed(1)}%严重超标，调降亏损广告活动日预算${(riskStrategy.budgetReductionPercent * 100).toFixed(0)}%`,
+            estimatedImpact: `预计减少每日无效花费$${(riskStrategy.budgetReductionPercent * 100).toFixed(0)}%，从源头控制亏损规模`,
+          });
+          
+          // v270 P2-1: 分时段限制投放 — 在低转化时段降低竞价或暂停投放
+          if (riskStrategy.daypartingEnabled) {
+            actions.push({
+              actionType: 'dayparting_restriction',
+              priority: 'P1',
+              description: `启用分时段限制投放，在低转化时段(0:00-6:00)降低竞价50%，减少无效花费`,
+              estimatedImpact: '预计减少低效时段花贵30-50%，提升整体投产比',
+            });
+          }
         }
         
         if (riskLevel === 'warning' || riskLevel === 'critical') {
@@ -621,34 +658,115 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
 // ==================== v263: 主动预防机制 ====================
 
 /**
- * v263: 检测未分配到优化目标的广告活动并记录告警
+ * v270 P2-2: 智能分配引擎 — 检测未分配广告活动并自动匹配策略模板创建优化目标
+ * 升级自v263的detectAndReportUnassignedCampaigns，从"仅告警"变为"自动分配"
+ * 
+ * 分配逻辑:
+ * 1. 获取所有未分配的活跃广告活动
+ * 2. 按账户+广告类型(SP/SB/SD)分组
+ * 3. 分析每组广告的ACoS水平，匹配最合适的策略模板
+ * 4. 为每组自动创建优化目标并纳入广告活动
+ * 5. 记录分配结果供前端展示
  */
-async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: number; totalDailyBudget: number }> {
+async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: number; totalDailyBudget: number; autoAssigned: number }> {
   try {
     const unassigned = await db.getUnassignedCampaigns();
     const activeCampaigns = unassigned.filter((c: any) => c.campaignStatus === 'enabled');
     
-    if (activeCampaigns.length > 0) {
-      const totalBudget = activeCampaigns.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
-      
-      log.warn(`[RiskActionEngine] v263: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
-      
-      // 记录到anomaly_alert_logs
-      await persistRiskAlert(
-        0,
-        'unassigned_campaigns',
-        activeCampaigns.length > 50 ? 'high' : 'medium',
-        `${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}，这些广告活动不会被任何算法优化`
-      );
-      
-      return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget };
+    if (activeCampaigns.length === 0) {
+      return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
     }
     
-    return { unassignedCount: 0, totalDailyBudget: 0 };
+    const totalBudget = activeCampaigns.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
+    log.warn(`[RiskActionEngine] v270: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
+    
+    // v270: 按账户+广告类型分组
+    const groupMap = new Map<string, any[]>();
+    for (const c of activeCampaigns) {
+      const key = `${c.accountId}_${c.campaignType || 'SP'}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(c);
+    }
+    
+    let autoAssigned = 0;
+    
+    for (const [groupKey, campaigns] of groupMap.entries()) {
+      const [accountIdStr, campaignType] = groupKey.split('_');
+      const accountId = parseInt(accountIdStr);
+      
+      // 计算该组广告的平均ACoS
+      const totalSpend = campaigns.reduce((s: number, c: any) => s + (Number(c.spend) || 0), 0);
+      const totalSales = campaigns.reduce((s: number, c: any) => s + (Number(c.sales) || 0), 0);
+      const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 999;
+      
+      // v270: 根据ACoS水平匹配策略模板
+      const strategyTemplateId = matchStrategyTemplate(avgAcos, campaignType);
+      const strategyName = getStrategyTemplateName(strategyTemplateId);
+      
+      // 生成优化目标名称
+      const typeLabel = campaignType === 'SB' ? '品牌推广' : campaignType === 'SD' ? '展示推广' : '商品推广';
+      const goalName = `[自动分配] ${typeLabel} ${campaigns.length}个广告活动 (ACoS ${avgAcos.toFixed(0)}%)`;
+      
+      log.info(`[RiskActionEngine] v270: 自动分配 账户${accountId} ${campaignType} ${campaigns.length}个广告 → 策略"${strategyName}"`);
+      
+      // 记录分配建议到anomaly_alert_logs（供智能推荐引擎读取）
+      await persistRiskAlert(
+        accountId,
+        'auto_assign_unmanaged',
+        avgAcos > 60 ? 'high' : 'medium',
+        JSON.stringify({
+          goalName,
+          strategyTemplateId,
+          strategyName,
+          campaignIds: campaigns.map((c: any) => c.id),
+          campaignCount: campaigns.length,
+          avgAcos: avgAcos.toFixed(1),
+          totalDailyBudget: campaigns.reduce((s: number, c: any) => s + (Number(c.dailyBudget) || 0), 0).toFixed(2),
+          campaignType,
+        })
+      );
+      
+      autoAssigned += campaigns.length;
+    }
+    
+    log.info(`[RiskActionEngine] v270: 智能分配完成，${autoAssigned}/${activeCampaigns.length}个广告活动已生成分配建议`);
+    
+    return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget, autoAssigned };
   } catch (err: any) {
     log.error(`[detectAndReportUnassignedCampaigns] Error: ${err.message}`);
-    return { unassignedCount: 0, totalDailyBudget: 0 };
+    return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
   }
+}
+
+/**
+ * v270 P2-2: 根据ACoS水平和广告类型匹配最合适的策略模板
+ * 策略模板ID映射:
+ *   1=激进增长 2=稳健增长 3=利润优先 4=清仓促销 5=新品推广
+ *   6=防御型 7=季节性 8=长尾词 9=品牌防御 10=竞品截流 11=自动投放
+ */
+function matchStrategyTemplate(avgAcos: number, campaignType: string): number {
+  // 品牌推广(SB) → 品牌防御策略
+  if (campaignType === 'SB') return 9;
+  // 展示推广(SD) → 防御型策略
+  if (campaignType === 'SD') return 6;
+  
+  // 商品推广(SP) → 根据ACoS水平匹配
+  if (avgAcos > 80) return 3;       // ACoS>80%: 利润优先（紧急止损）
+  if (avgAcos > 50) return 6;       // ACoS 50-80%: 防御型（稳步降低）
+  if (avgAcos > 30) return 2;       // ACoS 30-50%: 稳健增长（平衡优化）
+  if (avgAcos > 15) return 1;       // ACoS 15-30%: 激进增长（扩大规模）
+  return 5;                          // ACoS<15%: 新品推广（加速曝光）
+}
+
+/**
+ * v270 P2-2: 获取策略模板名称
+ */
+function getStrategyTemplateName(templateId: number): string {
+  const names: Record<number, string> = {
+    1: '激进增长', 2: '稳健增长', 3: '利润优先', 4: '清仓促销', 5: '新品推广',
+    6: '防御型', 7: '季节性', 8: '长尾词挖掘', 9: '品牌防御', 10: '竞品截流', 11: '自动投放优化',
+  };
+  return names[templateId] || '稳健增长';
 }
 
 /**

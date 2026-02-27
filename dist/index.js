@@ -60425,15 +60425,27 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const hourOfDay = (/* @__PURE__ */ new Date()).getHours();
   const dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
   const dataMaturity = Math.min(1, syntheticDataCount / 30);
-  const explorationRate = Math.max(0.4, 0.6 - dataMaturity * 0.3);
+  const baseExplorationRate = Math.max(0.35, 0.6 - dataMaturity * 0.25);
+  const hoursAgo24 = new Date(Date.now() - 24 * 36e5).toISOString();
+  const recentDataCount = await db.select({ count: sql`COUNT(*)` }).from(rlTrainingLogs).where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24)));
+  const hasRecentData = Number(recentDataCount[0]?.count) > 0;
+  const dataFreshnessFactor = hasRecentData ? 1.15 : 0.85;
+  const getConsecutiveFailures = (stat) => {
+    if (stat.totalTrials < 3) return 0;
+    const failRate = stat.betaParam / (stat.alphaParam + stat.betaParam);
+    return failRate > 0.75 ? 0.2 : failRate > 0.6 ? 0.1 : 0;
+  };
+  const explorationRate = Math.min(0.65, Math.max(0.3, baseExplorationRate * dataFreshnessFactor));
   const halfHourSlot = Math.floor(Date.now() / (30 * 60 * 1e3));
   const algorithmRotation = halfHourSlot % 6;
   const isExplorationSlot = Math.random() < explorationRate;
   const explorationBoost = isExplorationSlot ? 0.25 : 0;
   const getPerformanceMultiplier = (stat) => {
     const successRate = stat.alphaParam / (stat.alphaParam + stat.betaParam);
-    return 1 + Math.max(0, successRate - 0.5) * 0.3;
+    const decay = getConsecutiveFailures(stat);
+    return Math.max(0.7, 1 + Math.max(0, successRate - 0.5) * 0.3 - decay);
   };
+  log8.info(`[MetaLearning] v270\u63A2\u7D22\u81EA\u9002\u5E94: \u57FA\u7840\u7387=${(baseExplorationRate * 100).toFixed(0)}%, \u65B0\u9C9C\u5EA6=${dataFreshnessFactor.toFixed(2)}, \u6700\u7EC8\u7387=${(explorationRate * 100).toFixed(0)}%, \u6700\u8FD124h\u6570\u636E=${hasRecentData}`);
   const rbStat = stats.get("rule_based");
   const rbPenalty = isExplorationSlot ? 0.45 : 0.6;
   scores.push({
@@ -60491,119 +60503,191 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   log8.info(`[MetaLearning] v259\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
   return scores;
 }
+async function executeAlgorithm(algorithm, accountId, keywordId, targetId, campaignId, currentBid) {
+  let bid = currentBid || 0;
+  let conf = 0;
+  let linucb;
+  let cql;
+  let sigmoid2;
+  switch (algorithm) {
+    case "linucb":
+      linucb = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid) || void 0;
+      if (linucb) {
+        bid = linucb.recommendedBid;
+        conf = linucb.confidence;
+      }
+      break;
+    case "cql": {
+      const context = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
+      const cqlDec = await makeCQLBidDecision(accountId, context, currentBid || 0) || void 0;
+      if (cqlDec) {
+        bid = cqlDec.recommendedBid;
+        conf = cqlDec.confidence;
+        cql = cqlDec;
+      }
+      break;
+    }
+    case "sigmoid_curve":
+      if (keywordId || targetId) {
+        const entityType = keywordId ? "keyword" : "target";
+        const entityId = keywordId || targetId || 0;
+        const params = await fitAndCacheSigmoidForEntity(accountId, entityType, entityId, campaignId || "");
+        if (params && params.r2 > 0.3) {
+          sigmoid2 = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
+          bid = sigmoid2.optimalBid;
+          conf = sigmoid2.confidence;
+        }
+      }
+      break;
+    case "ensemble": {
+      const bids = [];
+      const linDec = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid);
+      if (linDec) {
+        bids.push({ bid: linDec.recommendedBid, weight: linDec.confidence });
+        linucb = linDec;
+      }
+      const ctx = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
+      const cqlD = await makeCQLBidDecision(accountId, ctx, currentBid || 0);
+      if (cqlD) {
+        bids.push({ bid: cqlD.recommendedBid, weight: cqlD.confidence });
+        cql = cqlD;
+      }
+      try {
+        const { fitAndCacheSigmoidForEntity: fitSig, calculateSigmoidOptimalBid: calcSig } = await Promise.resolve().then(() => (init_sigmoidCurveFitter(), sigmoidCurveFitter_exports));
+        const eId = keywordId || targetId || 0;
+        const eType = keywordId ? "keyword" : "target";
+        const sigP = await fitSig(accountId, eType, eId, String(campaignId));
+        if (sigP && sigP.r2 > 0.5) {
+          const avgCtr = Number(ctx?.avgCtr7d || 0.02);
+          const avgCvr = Number(ctx?.avgCvr7d || 0.05);
+          const aov = avgCvr > 0 ? Number(ctx?.weightedRoas14d || 3) * Number(ctx?.avgCpc7d || 1) / avgCvr : 25;
+          const sigR = calcSig(sigP, avgCtr, avgCvr, aov, 0.7);
+          if (sigR.optimalBid > 0) {
+            const sigConf = Math.min(0.9, sigP.r2);
+            bids.push({ bid: sigR.optimalBid, weight: sigConf });
+            sigmoid2 = { recommendedBid: sigR.optimalBid, confidence: sigConf };
+          }
+        }
+      } catch {
+      }
+      if (bids.length > 0) {
+        const tw = bids.reduce((s4, b6) => s4 + b6.weight, 0);
+        bid = bids.reduce((s4, b6) => s4 + b6.bid * b6.weight, 0) / tw;
+        conf = tw / bids.length;
+      }
+      break;
+    }
+    case "ucb": {
+      const ucbBid = currentBid || 0;
+      const epsilon = 0.2;
+      const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
+      const hourWindow = Math.floor(Date.now() / (4 * 36e5));
+      const hashVal = (entitySeed * 2654435761 + hourWindow >>> 0) % 1e4 / 1e4;
+      if (hashVal < epsilon) {
+        const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1;
+        const explorationMagnitude = 0.05 + hashVal / epsilon * 0.1;
+        bid = ucbBid * (1 + explorationDirection * explorationMagnitude);
+        bid = Math.max(0.02, Math.round(bid * 100) / 100);
+        conf = 0.45;
+      } else {
+        bid = ucbBid;
+        conf = 0.5;
+      }
+      break;
+    }
+    case "rule_based":
+    default:
+      bid = currentBid || 0;
+      conf = 0.5;
+      break;
+  }
+  return { bid, confidence: conf, linucb, cql, sigmoid: sigmoid2 };
+}
 async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, currentBid) {
   const scores = await evaluateAlgorithms(accountId, keywordId, targetId, campaignId, currentBid);
   const eligibleScores = scores.filter((s4) => s4.eligible);
   eligibleScores.sort((a4, b6) => b6.score - a4.score);
-  const selected = eligibleScores[0] || scores.find((s4) => s4.algorithm === "rule_based");
+  const top1 = eligibleScores[0] || scores.find((s4) => s4.algorithm === "rule_based");
+  const top2 = eligibleScores[1];
   let recommendedBid = currentBid || 0;
   let confidence = 0;
   let linucbDecision;
   let cqlDecision;
   let sigmoidDecision;
+  let fusionMode = "single";
+  let fusionDetail = "";
+  let selectedAlgorithmName = top1.algorithm;
+  const FUSION_THRESHOLD = 0.15;
+  const shouldFuse = top2 && top1.score > 0 && (top1.score - top2.score) / top1.score < FUSION_THRESHOLD && top2.algorithm !== "rule_based";
   try {
-    switch (selected.algorithm) {
-      case "linucb":
-        linucbDecision = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid) || void 0;
-        if (linucbDecision) {
-          recommendedBid = linucbDecision.recommendedBid;
-          confidence = linucbDecision.confidence;
-        }
-        break;
-      case "cql":
-        const context = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
-        cqlDecision = await makeCQLBidDecision(accountId, context, currentBid || 0) || void 0;
-        if (cqlDecision) {
-          recommendedBid = cqlDecision.recommendedBid;
-          confidence = cqlDecision.confidence;
-        }
-        break;
-      case "sigmoid_curve":
-        if (keywordId || targetId) {
-          const entityType = keywordId ? "keyword" : "target";
-          const entityId = keywordId || targetId || 0;
-          const params = await fitAndCacheSigmoidForEntity(accountId, entityType, entityId, campaignId || "");
-          if (params && params.r2 > 0.3) {
-            sigmoidDecision = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
-            recommendedBid = sigmoidDecision.optimalBid;
-            confidence = sigmoidDecision.confidence;
-          }
-        }
-        break;
-      case "ensemble":
-        const bids = [];
-        const linDecision = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid);
-        if (linDecision) {
-          bids.push({ bid: linDecision.recommendedBid, weight: linDecision.confidence });
-          linucbDecision = linDecision;
-        }
-        const ctx = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
-        const cqlDec = await makeCQLBidDecision(accountId, ctx, currentBid || 0);
-        if (cqlDec) {
-          bids.push({ bid: cqlDec.recommendedBid, weight: cqlDec.confidence });
-          cqlDecision = cqlDec;
-        }
-        try {
-          const { fitAndCacheSigmoidForEntity: fitAndCacheSigmoidForEntity2, calculateSigmoidOptimalBid: calculateSigmoidOptimalBid2 } = await Promise.resolve().then(() => (init_sigmoidCurveFitter(), sigmoidCurveFitter_exports));
-          const entityId = keywordId || targetId || 0;
-          const entityType = keywordId ? "keyword" : "target";
-          const sigParams = await fitAndCacheSigmoidForEntity2(accountId, entityType, entityId, String(campaignId));
-          if (sigParams && sigParams.r2 > 0.5) {
-            const avgCtr = Number(ctx?.avgCtr7d || 0.02);
-            const avgCvr = Number(ctx?.avgCvr7d || 0.05);
-            const aov = avgCvr > 0 ? Number(ctx?.weightedRoas14d || 3) * Number(ctx?.avgCpc7d || 1) / avgCvr : 25;
-            const sigResult = calculateSigmoidOptimalBid2(sigParams, avgCtr, avgCvr, aov, 0.7);
-            if (sigResult.optimalBid > 0) {
-              const sigConfidence = Math.min(0.9, sigParams.r2);
-              bids.push({ bid: sigResult.optimalBid, weight: sigConfidence });
-              sigmoidDecision = { recommendedBid: sigResult.optimalBid, confidence: sigConfidence };
-            }
-          }
-        } catch (sigErr) {
-        }
-        if (bids.length > 0) {
-          const totalWeight = bids.reduce((sum2, b6) => sum2 + b6.weight, 0);
-          recommendedBid = bids.reduce((sum2, b6) => sum2 + b6.bid * b6.weight, 0) / totalWeight;
-          confidence = totalWeight / bids.length;
-        }
-        break;
-      case "ucb": {
-        const ucbBid = currentBid || 0;
-        const epsilon = 0.2;
-        const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
-        const hourWindow = Math.floor(Date.now() / (4 * 36e5));
-        const hashVal = (entitySeed * 2654435761 + hourWindow >>> 0) % 1e4 / 1e4;
-        if (hashVal < epsilon) {
-          const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1;
-          const explorationMagnitude = 0.05 + hashVal / epsilon * 0.1;
-          recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
-          recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
-          confidence = 0.45;
-          log8.info(`[MetaLearning] v266 UCB\u63A2\u7D22\u6A21\u5F0F: entity=${keywordId || targetId}, \u65B9\u5411=${explorationDirection > 0 ? "\u63D0\u4EF7" : "\u964D\u4EF7"}, \u5E45\u5EA6=${(explorationMagnitude * 100).toFixed(1)}%`);
-        } else {
-          recommendedBid = ucbBid;
-          confidence = 0.5;
-        }
-        break;
+    if (shouldFuse) {
+      fusionMode = "cascade_ensemble";
+      log8.info(`[MetaLearning] v270 Cascade Ensemble: ${top1.algorithm}(${top1.score.toFixed(3)}) + ${top2.algorithm}(${top2.score.toFixed(3)}), \u5206\u5DEE=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}%`);
+      const [result1, result2] = await Promise.all([
+        executeAlgorithm(top1.algorithm, accountId, keywordId, targetId, campaignId, currentBid),
+        executeAlgorithm(top2.algorithm, accountId, keywordId, targetId, campaignId, currentBid)
+      ]);
+      const fusionBids = [];
+      if (result1.bid > 0 && result1.confidence > 0) {
+        fusionBids.push({ bid: result1.bid, confidence: result1.confidence, algorithm: top1.algorithm });
       }
-      case "rule_based":
-      default:
+      if (result2.bid > 0 && result2.confidence > 0) {
+        fusionBids.push({ bid: result2.bid, confidence: result2.confidence, algorithm: top2.algorithm });
+      }
+      linucbDecision = result1.linucb || result2.linucb;
+      cqlDecision = result1.cql || result2.cql;
+      sigmoidDecision = result1.sigmoid || result2.sigmoid;
+      if (fusionBids.length >= 2) {
+        const totalConf = fusionBids.reduce((s4, b6) => s4 + b6.confidence, 0);
+        recommendedBid = fusionBids.reduce((s4, b6) => s4 + b6.bid * b6.confidence, 0) / totalConf;
+        const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
+        const consensusBonus = bidDivergence < 0.1 ? 0.1 : bidDivergence < 0.2 ? 0.05 : 0;
+        confidence = Math.min(0.95, totalConf / fusionBids.length + consensusBonus);
+        selectedAlgorithmName = "ensemble";
+        fusionDetail = `Cascade\u878D\u5408: ${fusionBids.map((b6) => `${b6.algorithm}($${b6.bid.toFixed(2)},conf=${b6.confidence.toFixed(2)})`).join(" + ")} \u2192 $${recommendedBid.toFixed(2)}, \u5206\u6B67\u5EA6=${(bidDivergence * 100).toFixed(1)}%, \u5171\u8BC6\u5956\u52B1=${(consensusBonus * 100).toFixed(0)}%`;
+        log8.info(`[MetaLearning] v270 ${fusionDetail}`);
+      } else if (fusionBids.length === 1) {
+        recommendedBid = fusionBids[0].bid;
+        confidence = fusionBids[0].confidence;
+        fusionMode = "single";
+        fusionDetail = `Cascade\u964D\u7EA7: \u4EC5${fusionBids[0].algorithm}\u8FD4\u56DE\u6709\u6548\u7ED3\u679C`;
+        selectedAlgorithmName = fusionBids[0].algorithm;
+      } else {
         recommendedBid = currentBid || 0;
-        confidence = 0.5;
-        break;
+        confidence = 0.3;
+        fusionMode = "single";
+        fusionDetail = "Cascade\u5931\u8D25: \u4E24\u4E2A\u7B97\u6CD5\u5747\u672A\u8FD4\u56DE\u6709\u6548\u7ED3\u679C\uFF0C\u964D\u7EA7rule_based";
+        selectedAlgorithmName = "rule_based";
+      }
+    } else {
+      const result = await executeAlgorithm(top1.algorithm, accountId, keywordId, targetId, campaignId, currentBid);
+      recommendedBid = result.bid;
+      confidence = result.confidence;
+      linucbDecision = result.linucb;
+      cqlDecision = result.cql;
+      sigmoidDecision = result.sigmoid;
+      fusionDetail = `Single\u6A21\u5F0F: ${top1.algorithm}(\u5F97\u5206=${top1.score.toFixed(3)})`;
+      if (top2) {
+        fusionDetail += `, \u6B21\u9009${top2.algorithm}(\u5206\u5DEE=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}% > 15%\u9608\u503C)`;
+      }
     }
   } catch (error51) {
-    log8.error(`Error executing ${selected.algorithm}:`, error51);
+    log8.error(`Error executing algorithm(s):`, error51);
     recommendedBid = currentBid || 0;
     confidence = 0.3;
+    fusionMode = "single";
+    fusionDetail = `\u6267\u884C\u5F02\u5E38\uFF0C\u964D\u7EA7rule_based: ${error51}`;
+    selectedAlgorithmName = "rule_based";
   }
   recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
   const decision = {
-    selectedAlgorithm: selected.algorithm,
+    selectedAlgorithm: selectedAlgorithmName,
     recommendedBid,
     confidence,
     algorithmScores: scores,
-    reasoning: `\u9009\u62E9${selected.algorithm}: ${selected.reason} (\u5F97\u5206=${selected.score.toFixed(4)})`,
+    reasoning: fusionMode === "cascade_ensemble" ? `v270 Cascade Ensemble\u878D\u5408: ${fusionDetail}` : `\u9009\u62E9${selectedAlgorithmName}: ${top1.reason} (\u5F97\u5206=${top1.score.toFixed(4)})`,
+    fusionMode,
+    fusionDetail,
     linucbDecision,
     cqlDecision,
     sigmoidDecision
@@ -60614,7 +60698,7 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
     keywordId: keywordId || null,
     targetId: targetId || null,
     campaignId: campaignId || null,
-    selectedAlgorithm: selected.algorithm,
+    selectedAlgorithm: selectedAlgorithmName,
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid)
@@ -84729,6 +84813,43 @@ function getAdaptiveBidReduction(acos, riskLevel) {
   }
   return 0;
 }
+function getRiskResponseStrategy(riskLevel, currentAcos) {
+  const adaptiveReduction = currentAcos ? getAdaptiveBidReduction(currentAcos, riskLevel) : void 0;
+  switch (riskLevel) {
+    case "critical":
+      return {
+        bidReductionPercent: adaptiveReduction ?? 0.3,
+        budgetReductionPercent: currentAcos && currentAcos > 80 ? 0.3 : 0.2,
+        // v270: 预算调降20-30%
+        pauseThresholdAcos: 120,
+        pauseThresholdSpend: 2,
+        scanInterval: "immediate",
+        daypartingEnabled: true
+        // v270: critical级别启用分时限制
+      };
+    case "warning":
+      return {
+        bidReductionPercent: adaptiveReduction ?? 0.15,
+        budgetReductionPercent: 0.1,
+        // v270: 预算调降10%
+        pauseThresholdAcos: 200,
+        pauseThresholdSpend: 5,
+        scanInterval: "4h",
+        daypartingEnabled: currentAcos !== void 0 && currentAcos > 50
+        // v270: ACoS>50%时启用分时限制
+      };
+    case "healthy":
+    default:
+      return {
+        bidReductionPercent: 0,
+        budgetReductionPercent: 0,
+        pauseThresholdAcos: 500,
+        pauseThresholdSpend: 20,
+        scanInterval: "12h",
+        daypartingEnabled: false
+      };
+  }
+}
 async function persistRiskAlert(accountId, alertType, severity, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
@@ -84788,6 +84909,7 @@ async function assessAccountRisks() {
         const actions = [];
         if (riskLevel === "critical") {
           const adaptiveReduction = getAdaptiveBidReduction(acos, "critical");
+          const riskStrategy = getRiskResponseStrategy("critical", acos);
           actions.push({
             actionType: "emergency_bid_reduction",
             priority: "P0",
@@ -84800,6 +84922,20 @@ async function assessAccountRisks() {
             description: `\u6682\u505CACoS>120%\u4E14\u82B1\u8D39>$2\u7684\u6781\u7AEF\u4E8F\u635F\u5173\u952E\u8BCD(\u539Fv267: ACoS>150%\u4E14\u82B1\u8D39>$3)`,
             estimatedImpact: "\u7ACB\u5373\u6B62\u635F\uFF0Cv268\u6536\u7D27\u95E8\u69DB\u540E\u53EF\u66F4\u65E9\u963B\u65AD\u4E8F\u635F"
           });
+          actions.push({
+            actionType: "budget_cap_reduction",
+            priority: "P0",
+            description: `\u8D26\u6237ACoS=${acos.toFixed(1)}%\u4E25\u91CD\u8D85\u6807\uFF0C\u8C03\u964D\u4E8F\u635F\u5E7F\u544A\u6D3B\u52A8\u65E5\u9884\u7B97${(riskStrategy.budgetReductionPercent * 100).toFixed(0)}%`,
+            estimatedImpact: `\u9884\u8BA1\u51CF\u5C11\u6BCF\u65E5\u65E0\u6548\u82B1\u8D39$${(riskStrategy.budgetReductionPercent * 100).toFixed(0)}%\uFF0C\u4ECE\u6E90\u5934\u63A7\u5236\u4E8F\u635F\u89C4\u6A21`
+          });
+          if (riskStrategy.daypartingEnabled) {
+            actions.push({
+              actionType: "dayparting_restriction",
+              priority: "P1",
+              description: `\u542F\u7528\u5206\u65F6\u6BB5\u9650\u5236\u6295\u653E\uFF0C\u5728\u4F4E\u8F6C\u5316\u65F6\u6BB5(0:00-6:00)\u964D\u4F4E\u7ADE\u4EF750%\uFF0C\u51CF\u5C11\u65E0\u6548\u82B1\u8D39`,
+              estimatedImpact: "\u9884\u8BA1\u51CF\u5C11\u4F4E\u6548\u65F6\u6BB5\u82B1\u8D3530-50%\uFF0C\u63D0\u5347\u6574\u4F53\u6295\u4EA7\u6BD4"
+            });
+          }
         }
         if (riskLevel === "warning" || riskLevel === "critical") {
           actions.push({
@@ -85085,22 +85221,77 @@ async function detectAndReportUnassignedCampaigns() {
   try {
     const unassigned = await getUnassignedCampaigns();
     const activeCampaigns = unassigned.filter((c5) => c5.campaignStatus === "enabled");
-    if (activeCampaigns.length > 0) {
-      const totalBudget = activeCampaigns.reduce((sum2, c5) => sum2 + (Number(c5.dailyBudget) || 0), 0);
-      log17.warn(`[RiskActionEngine] v263: \u68C0\u6D4B\u5230${activeCampaigns.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97$${totalBudget.toFixed(2)}`);
-      await persistRiskAlert(
-        0,
-        "unassigned_campaigns",
-        activeCampaigns.length > 50 ? "high" : "medium",
-        `${activeCampaigns.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97$${totalBudget.toFixed(2)}\uFF0C\u8FD9\u4E9B\u5E7F\u544A\u6D3B\u52A8\u4E0D\u4F1A\u88AB\u4EFB\u4F55\u7B97\u6CD5\u4F18\u5316`
-      );
-      return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget };
+    if (activeCampaigns.length === 0) {
+      return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
     }
-    return { unassignedCount: 0, totalDailyBudget: 0 };
+    const totalBudget = activeCampaigns.reduce((sum2, c5) => sum2 + (Number(c5.dailyBudget) || 0), 0);
+    log17.warn(`[RiskActionEngine] v270: \u68C0\u6D4B\u5230${activeCampaigns.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97$${totalBudget.toFixed(2)}`);
+    const groupMap = /* @__PURE__ */ new Map();
+    for (const c5 of activeCampaigns) {
+      const key = `${c5.accountId}_${c5.campaignType || "SP"}`;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key).push(c5);
+    }
+    let autoAssigned = 0;
+    for (const [groupKey, campaigns7] of groupMap.entries()) {
+      const [accountIdStr, campaignType] = groupKey.split("_");
+      const accountId = parseInt(accountIdStr);
+      const totalSpend = campaigns7.reduce((s4, c5) => s4 + (Number(c5.spend) || 0), 0);
+      const totalSales = campaigns7.reduce((s4, c5) => s4 + (Number(c5.sales) || 0), 0);
+      const avgAcos = totalSales > 0 ? totalSpend / totalSales * 100 : 999;
+      const strategyTemplateId = matchStrategyTemplate(avgAcos, campaignType);
+      const strategyName = getStrategyTemplateName(strategyTemplateId);
+      const typeLabel = campaignType === "SB" ? "\u54C1\u724C\u63A8\u5E7F" : campaignType === "SD" ? "\u5C55\u793A\u63A8\u5E7F" : "\u5546\u54C1\u63A8\u5E7F";
+      const goalName = `[\u81EA\u52A8\u5206\u914D] ${typeLabel} ${campaigns7.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8 (ACoS ${avgAcos.toFixed(0)}%)`;
+      log17.info(`[RiskActionEngine] v270: \u81EA\u52A8\u5206\u914D \u8D26\u6237${accountId} ${campaignType} ${campaigns7.length}\u4E2A\u5E7F\u544A \u2192 \u7B56\u7565"${strategyName}"`);
+      await persistRiskAlert(
+        accountId,
+        "auto_assign_unmanaged",
+        avgAcos > 60 ? "high" : "medium",
+        JSON.stringify({
+          goalName,
+          strategyTemplateId,
+          strategyName,
+          campaignIds: campaigns7.map((c5) => c5.id),
+          campaignCount: campaigns7.length,
+          avgAcos: avgAcos.toFixed(1),
+          totalDailyBudget: campaigns7.reduce((s4, c5) => s4 + (Number(c5.dailyBudget) || 0), 0).toFixed(2),
+          campaignType
+        })
+      );
+      autoAssigned += campaigns7.length;
+    }
+    log17.info(`[RiskActionEngine] v270: \u667A\u80FD\u5206\u914D\u5B8C\u6210\uFF0C${autoAssigned}/${activeCampaigns.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u5DF2\u751F\u6210\u5206\u914D\u5EFA\u8BAE`);
+    return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget, autoAssigned };
   } catch (err2) {
     log17.error(`[detectAndReportUnassignedCampaigns] Error: ${err2.message}`);
-    return { unassignedCount: 0, totalDailyBudget: 0 };
+    return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
   }
+}
+function matchStrategyTemplate(avgAcos, campaignType) {
+  if (campaignType === "SB") return 9;
+  if (campaignType === "SD") return 6;
+  if (avgAcos > 80) return 3;
+  if (avgAcos > 50) return 6;
+  if (avgAcos > 30) return 2;
+  if (avgAcos > 15) return 1;
+  return 5;
+}
+function getStrategyTemplateName(templateId) {
+  const names = {
+    1: "\u6FC0\u8FDB\u589E\u957F",
+    2: "\u7A33\u5065\u589E\u957F",
+    3: "\u5229\u6DA6\u4F18\u5148",
+    4: "\u6E05\u4ED3\u4FC3\u9500",
+    5: "\u65B0\u54C1\u63A8\u5E7F",
+    6: "\u9632\u5FA1\u578B",
+    7: "\u5B63\u8282\u6027",
+    8: "\u957F\u5C3E\u8BCD\u6316\u6398",
+    9: "\u54C1\u724C\u9632\u5FA1",
+    10: "\u7ADE\u54C1\u622A\u6D41",
+    11: "\u81EA\u52A8\u6295\u653E\u4F18\u5316"
+  };
+  return names[templateId] || "\u7A33\u5065\u589E\u957F";
 }
 async function checkAcosTrendForAccount(accountId) {
   const dbInstance = await getDb();
@@ -123026,7 +123217,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log32 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 268;
+    SYSTEM_VERSION = 269;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -124770,7 +124961,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 268;
+    SYSTEM_VERSION2 = 270;
   }
 });
 
@@ -314516,7 +314707,20 @@ var STRATEGY_WEIGHTS = {
   "balanced": { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
   "profit-focused": { coreMetric: 32, trend: 8, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
   "seasonal-boost": { coreMetric: 13, trend: 32, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  "brand-defense": { coreMetric: 27, trend: 8, budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 }
+  "brand-defense": { coreMetric: 27, trend: 8, budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  // v270 P1-2: 以下6个策略模板之前缺失权重配置，导致回退到DEFAULT_WEIGHTS，评分维度与策略目标不匹配
+  // 清仓策略: 重点关注趋势和预算效率，确保快速消耗库存且不过度亏损
+  "inventory-clearance": { coreMetric: 12, trend: 30, budgetEfficiency: 8, conversionEfficiency: 20, gradualProgress: 18, algorithmEfficacy: 12 },
+  // 竞争攻击策略: 重点关注趋势和渐进优化，允许短期高花费换取市场份额
+  "competitor-attack": { coreMetric: 10, trend: 25, budgetEfficiency: 5, conversionEfficiency: 15, gradualProgress: 30, algorithmEfficacy: 15 },
+  // 市场扩张策略: 重点关注趋势和算法效能，允许探索新市场的不确定性
+  "market-expansion": { coreMetric: 12, trend: 28, budgetEfficiency: 5, conversionEfficiency: 15, gradualProgress: 25, algorithmEfficacy: 15 },
+  // 季节性模式策略: 重点关注核心指标和趋势，利用季节性波动最大化收益
+  "seasonal-pattern": { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 15, gradualProgress: 15, algorithmEfficacy: 10 },
+  // 下滑管理策略: 重点关注核心指标和预算效率，优先止损和成本控制
+  "decline-management": { coreMetric: 30, trend: 12, budgetEfficiency: 20, conversionEfficiency: 18, gradualProgress: 12, algorithmEfficacy: 8 },
+  // 紧急响应策略: 重点关注核心指标和预算效率，最大化止损速度
+  "emergency-response": { coreMetric: 35, trend: 5, budgetEfficiency: 25, conversionEfficiency: 15, gradualProgress: 10, algorithmEfficacy: 10 }
 };
 var DEFAULT_WEIGHTS = { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 };
 function getWeights(strategyTemplateId) {
@@ -341257,6 +341461,480 @@ var monitoringRouter = router({
   })
 });
 
+// server/intelligentRecommendationEngine.ts
+init_drizzle_orm();
+init_db2();
+init_schema2();
+init_strategyRecommendationService();
+function calculateHealthScore2(campaign) {
+  let score = 0;
+  const reasons = [];
+  if (campaign.recent7dSpend > 0 && campaign.recent7dSales > 0) {
+    const currentAcos = campaign.recent7dAcos;
+    const prevAcos = campaign.prev7dAcos;
+    if (prevAcos > 0 && currentAcos > prevAcos) {
+      const acosIncrease = (currentAcos - prevAcos) / prevAcos * 100;
+      if (acosIncrease > 100) {
+        score -= 40;
+        reasons.push(`ACoS\u98D9\u5347${acosIncrease.toFixed(0)}%\uFF08${prevAcos.toFixed(1)}%\u2192${currentAcos.toFixed(1)}%\uFF09`);
+      } else if (acosIncrease > 50) {
+        score -= 25;
+        reasons.push(`ACoS\u5927\u5E45\u4E0A\u5347${acosIncrease.toFixed(0)}%`);
+      } else if (acosIncrease > 20) {
+        score -= 15;
+        reasons.push(`ACoS\u4E0A\u5347${acosIncrease.toFixed(0)}%`);
+      }
+    }
+    if (currentAcos > 80) {
+      score -= 30;
+      reasons.push(`ACoS\u6781\u9AD8(${currentAcos.toFixed(1)}%)`);
+    } else if (currentAcos > 50) {
+      score -= 15;
+      reasons.push(`ACoS\u504F\u9AD8(${currentAcos.toFixed(1)}%)`);
+    }
+  }
+  if (campaign.prev7dSpend > 0) {
+    const spendChange = (campaign.recent7dSpend - campaign.prev7dSpend) / campaign.prev7dSpend * 100;
+    if (spendChange > 100) {
+      score -= 20;
+      reasons.push(`\u82B1\u8D39\u6FC0\u589E${spendChange.toFixed(0)}%`);
+    } else if (spendChange > 50) {
+      score -= 10;
+      reasons.push(`\u82B1\u8D39\u5927\u5E45\u589E\u52A0${spendChange.toFixed(0)}%`);
+    }
+  }
+  if (campaign.prev7dSales > 0) {
+    const salesChange = (campaign.recent7dSales - campaign.prev7dSales) / campaign.prev7dSales * 100;
+    if (salesChange < -50) {
+      score -= 25;
+      reasons.push(`\u9500\u552E\u989D\u66B4\u8DCC${Math.abs(salesChange).toFixed(0)}%`);
+    } else if (salesChange < -20) {
+      score -= 15;
+      reasons.push(`\u9500\u552E\u989D\u4E0B\u964D${Math.abs(salesChange).toFixed(0)}%`);
+    }
+  }
+  if (campaign.recent7dSpend > 5 && campaign.recent7dOrders === 0) {
+    score -= 30;
+    reasons.push(`\u82B1\u8D39$${campaign.recent7dSpend.toFixed(0)}\u4F46\u96F6\u8F6C\u5316`);
+  }
+  if (campaign.recent7dImpressions > 1e3 && campaign.recent7dClicks > 0) {
+    const ctr = campaign.recent7dClicks / campaign.recent7dImpressions * 100;
+    if (ctr < 0.1) {
+      score -= 10;
+      reasons.push(`\u70B9\u51FB\u7387\u6781\u4F4E(${ctr.toFixed(2)}%)`);
+    }
+  }
+  campaign.healthScore = score;
+  campaign.deteriorationReasons = reasons;
+  return score;
+}
+function matchStrategy(campaignList) {
+  if (campaignList.length === 0) return null;
+  const totalSpend = campaignList.reduce((sum2, c5) => sum2 + c5.recent7dSpend, 0);
+  const totalSales = campaignList.reduce((sum2, c5) => sum2 + c5.recent7dSales, 0);
+  const avgAcos = totalSales > 0 ? totalSpend / totalSales * 100 : 999;
+  const zeroCvCampaigns = campaignList.filter((c5) => c5.recent7dSpend > 5 && c5.recent7dOrders === 0);
+  if (zeroCvCampaigns.length > campaignList.length * 0.5) {
+    return STRATEGY_TEMPLATES.find((t7) => t7.id === "emergency-response") || STRATEGY_TEMPLATES[0];
+  }
+  if (avgAcos > 80) return STRATEGY_TEMPLATES.find((t7) => t7.id === "decline-management") || STRATEGY_TEMPLATES[2];
+  if (avgAcos > 40) return STRATEGY_TEMPLATES.find((t7) => t7.id === "profit-focused") || STRATEGY_TEMPLATES[2];
+  if (avgAcos > 25) return STRATEGY_TEMPLATES.find((t7) => t7.id === "balanced") || STRATEGY_TEMPLATES[1];
+  return STRATEGY_TEMPLATES.find((t7) => t7.id === "aggressive-growth") || STRATEGY_TEMPLATES[0];
+}
+async function executeAutoOptimizationForTarget(targetId, targetName, deterioratingCampaigns) {
+  const actions = [];
+  try {
+    const optimizationTargetEngine = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const maxSeverity = Math.min(...deterioratingCampaigns.map((c5) => c5.healthScore));
+    let specificModules;
+    if (maxSeverity <= -40) {
+      specificModules = ["bid", "searchterm", "keyword", "budget", "placement", "dayparting"];
+    } else if (maxSeverity <= -25) {
+      specificModules = ["bid", "searchterm", "keyword", "budget"];
+    } else {
+      specificModules = ["bid", "searchterm"];
+    }
+    console.log(`[\u667A\u80FD\u63A8\u8350] \u5BF9\u4F18\u5316\u76EE\u6807\u300C${targetName}\u300D(#${targetId})\u6267\u884C\u8865\u5145\u4F18\u5316\uFF0C\u6A21\u5757: ${specificModules.join(", ")}, \u6076\u5316\u4E25\u91CD\u5EA6: ${maxSeverity}`);
+    const result = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
+      dryRun: false,
+      forceExecution: true,
+      specificModules
+    });
+    if (result.bidOptimization.executed) {
+      actions.push({
+        type: "bid_adjustment",
+        description: "\u7ADE\u4EF7\u8C03\u6574",
+        count: result.bidOptimization.adjustmentsCount,
+        status: result.bidOptimization.adjustmentsCount > 0 ? "executed" : "skipped",
+        details: result.bidOptimization.adjustmentsCount > 0 ? `\u5DF2\u5BF9${result.bidOptimization.adjustmentsCount}\u4E2A\u6295\u653E\u8BCD\u8FDB\u884C\u7ADE\u4EF7\u8C03\u6574` : "\u5F53\u524D\u7ADE\u4EF7\u5728\u5408\u7406\u8303\u56F4\u5185\uFF0C\u65E0\u9700\u8C03\u6574"
+      });
+    }
+    if (result.placementOptimization.executed) {
+      actions.push({
+        type: "placement_tilt",
+        description: "\u4F4D\u7F6E\u503E\u659C\u4F18\u5316",
+        count: result.placementOptimization.adjustmentsCount,
+        status: result.placementOptimization.adjustmentsCount > 0 ? "executed" : "skipped",
+        details: result.placementOptimization.adjustmentsCount > 0 ? `\u5DF2\u8C03\u6574${result.placementOptimization.adjustmentsCount}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B` : "\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u65E0\u9700\u8C03\u6574"
+      });
+    }
+    if (result.daypartingOptimization.executed) {
+      actions.push({
+        type: "dayparting",
+        description: "\u5206\u65F6\u7B56\u7565\u4F18\u5316",
+        count: result.daypartingOptimization.adjustmentsCount,
+        status: result.daypartingOptimization.adjustmentsCount > 0 ? "executed" : "skipped",
+        details: result.daypartingOptimization.adjustmentsCount > 0 ? `\u5DF2\u8C03\u6574${result.daypartingOptimization.adjustmentsCount}\u4E2A\u65F6\u6BB5\u7684\u7ADE\u4EF7/\u9884\u7B97` : "\u5206\u65F6\u7B56\u7565\u65E0\u9700\u8C03\u6574"
+      });
+    }
+    if (result.searchTermAnalysis.executed) {
+      const negCount = result.searchTermAnalysis.negativeKeywordsAdded;
+      const newCount = result.searchTermAnalysis.newKeywordsAdded;
+      if (negCount > 0 || newCount > 0) {
+        actions.push({
+          type: "negative_keyword",
+          description: "\u641C\u7D22\u8BCD\u4F18\u5316",
+          count: negCount + newCount,
+          status: "executed",
+          details: `\u5426\u5B9A${negCount}\u4E2A\u4F4E\u6548\u641C\u7D22\u8BCD\uFF0C\u8FC1\u79FB${newCount}\u4E2A\u9AD8\u6548\u641C\u7D22\u8BCD`
+        });
+      }
+    }
+    if (result.budgetAllocation.executed) {
+      actions.push({
+        type: "budget_allocation",
+        description: "\u9884\u7B97\u5206\u914D\u4F18\u5316",
+        count: result.budgetAllocation.adjustmentsCount,
+        status: result.budgetAllocation.adjustmentsCount > 0 ? "executed" : "skipped",
+        details: result.budgetAllocation.adjustmentsCount > 0 ? `\u5DF2\u8C03\u6574${result.budgetAllocation.adjustmentsCount}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u9884\u7B97\u5206\u914D` : "\u9884\u7B97\u5206\u914D\u65E0\u9700\u8C03\u6574"
+      });
+    }
+    if (result.keywordStatusChanges.executed) {
+      const paused = result.keywordStatusChanges.pausedCount;
+      const enabled = result.keywordStatusChanges.enabledCount;
+      if (paused > 0 || enabled > 0) {
+        actions.push({
+          type: "keyword_status",
+          description: "\u5173\u952E\u8BCD\u72B6\u6001\u8C03\u6574",
+          count: paused + enabled,
+          status: "executed",
+          details: `\u6682\u505C${paused}\u4E2A\u4F4E\u6548\u5173\u952E\u8BCD\uFF0C\u542F\u7528${enabled}\u4E2A\u6F5C\u529B\u5173\u952E\u8BCD`
+        });
+      }
+    }
+    const executedActions = actions.filter((a4) => a4.status === "executed");
+    const totalAdjustments = executedActions.reduce((sum2, a4) => sum2 + a4.count, 0);
+    const summary = totalAdjustments > 0 ? `\u7CFB\u7EDF\u5DF2\u81EA\u52A8\u6267\u884C${executedActions.length}\u7C7B\u4F18\u5316\u52A8\u4F5C\uFF0C\u5171${totalAdjustments}\u9879\u8C03\u6574` : "\u7CFB\u7EDF\u5DF2\u5B8C\u6210\u5206\u6790\uFF0C\u5F53\u524D\u4F18\u5316\u7B56\u7565\u4ECD\u5728\u6267\u884C\u4E2D\uFF0C\u6682\u65E0\u9700\u989D\u5916\u8C03\u6574";
+    return { status: result.status, actions, summary };
+  } catch (error51) {
+    console.error(`[\u667A\u80FD\u63A8\u8350] \u5BF9\u4F18\u5316\u76EE\u6807\u300C${targetName}\u300D\u6267\u884C\u81EA\u52A8\u4F18\u5316\u5931\u8D25:`, error51.message);
+    return {
+      status: "error",
+      actions: [{
+        type: "bid_adjustment",
+        description: "\u81EA\u52A8\u4F18\u5316\u6267\u884C",
+        count: 0,
+        status: "skipped",
+        details: `\u6267\u884C\u5931\u8D25: ${error51.message}`
+      }],
+      summary: `\u81EA\u52A8\u4F18\u5316\u6267\u884C\u9047\u5230\u95EE\u9898: ${error51.message}`
+    };
+  }
+}
+async function scanAccountHealth(accountId) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      accountId,
+      scanTime: (/* @__PURE__ */ new Date()).toISOString(),
+      totalCampaignsScanned: 0,
+      activeCampaignsScanned: 0,
+      deterioratingCampaigns: 0,
+      unmanagedDeteriorating: 0,
+      managedDeteriorating: 0,
+      totalPotentialSavings: 0,
+      autoOptimizationTriggered: false,
+      autoOptimizationResults: [],
+      recommendations: []
+    };
+  }
+  const allCampaigns = await db.select({
+    id: campaigns.id,
+    campaignId: campaigns.campaignId,
+    campaignName: campaigns.campaignName,
+    campaignType: campaigns.campaignType,
+    campaignStatus: campaigns.campaignStatus,
+    performanceGroupId: campaigns.performanceGroupId
+  }).from(campaigns).where(and(
+    eq(campaigns.accountId, accountId),
+    eq(campaigns.campaignStatus, "enabled")
+  ));
+  const totalCampaigns = allCampaigns.length;
+  if (totalCampaigns === 0) {
+    return {
+      accountId,
+      scanTime: (/* @__PURE__ */ new Date()).toISOString(),
+      totalCampaignsScanned: 0,
+      activeCampaignsScanned: 0,
+      deterioratingCampaigns: 0,
+      unmanagedDeteriorating: 0,
+      managedDeteriorating: 0,
+      totalPotentialSavings: 0,
+      autoOptimizationTriggered: false,
+      autoOptimizationResults: [],
+      recommendations: []
+    };
+  }
+  const pgIds = [...new Set(allCampaigns.filter((c5) => c5.performanceGroupId).map((c5) => c5.performanceGroupId))];
+  const pgMap = /* @__PURE__ */ new Map();
+  if (pgIds.length > 0) {
+    const pgs = await db.select({ id: performanceGroups.id, name: performanceGroups.name }).from(performanceGroups).where(sql`${performanceGroups.id} IN (${sql.join(pgIds.map((id) => sql`${id}`), sql`, `)})`);
+    pgs.forEach((pg) => pgMap.set(pg.id, pg.name));
+  }
+  const now = /* @__PURE__ */ new Date();
+  const recent7dEnd = new Date(now);
+  recent7dEnd.setDate(recent7dEnd.getDate() - 1);
+  const recent7dStart = new Date(recent7dEnd);
+  recent7dStart.setDate(recent7dStart.getDate() - 6);
+  const prev7dEnd = new Date(recent7dStart);
+  prev7dEnd.setDate(prev7dEnd.getDate() - 1);
+  const prev7dStart = new Date(prev7dEnd);
+  prev7dStart.setDate(prev7dStart.getDate() - 6);
+  const fmt = (d5) => d5.toISOString().split("T")[0];
+  const recent7dPerf = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
+  }).from(dailyPerformance).where(and(
+    eq(dailyPerformance.accountId, accountId),
+    sql`${dailyPerformance.campaignId} IS NOT NULL`,
+    sql`DATE(${dailyPerformance.date}) >= ${fmt(recent7dStart)}`,
+    sql`DATE(${dailyPerformance.date}) <= ${fmt(recent7dEnd)}`
+  )).groupBy(dailyPerformance.campaignId);
+  const prev7dPerf = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
+  }).from(dailyPerformance).where(and(
+    eq(dailyPerformance.accountId, accountId),
+    sql`${dailyPerformance.campaignId} IS NOT NULL`,
+    sql`DATE(${dailyPerformance.date}) >= ${fmt(prev7dStart)}`,
+    sql`DATE(${dailyPerformance.date}) <= ${fmt(prev7dEnd)}`
+  )).groupBy(dailyPerformance.campaignId);
+  const recentMap = /* @__PURE__ */ new Map();
+  recent7dPerf.forEach((p4) => {
+    if (p4.campaignId) recentMap.set(p4.campaignId, p4);
+  });
+  const prevMap = /* @__PURE__ */ new Map();
+  prev7dPerf.forEach((p4) => {
+    if (p4.campaignId) prevMap.set(p4.campaignId, p4);
+  });
+  const healthDataList = allCampaigns.map((c5) => {
+    const recent = recentMap.get(c5.campaignId);
+    const prev = prevMap.get(c5.campaignId);
+    const rSpend = parseFloat(recent?.totalSpend || "0");
+    const rSales = parseFloat(recent?.totalSales || "0");
+    const pSpend = parseFloat(prev?.totalSpend || "0");
+    const pSales = parseFloat(prev?.totalSales || "0");
+    const data2 = {
+      campaignDbId: c5.id,
+      campaignId: c5.campaignId,
+      campaignName: c5.campaignName,
+      campaignType: c5.campaignType,
+      campaignStatus: c5.campaignStatus || "enabled",
+      performanceGroupId: c5.performanceGroupId,
+      performanceGroupName: c5.performanceGroupId ? pgMap.get(c5.performanceGroupId) || null : null,
+      recent7dSpend: rSpend,
+      recent7dSales: rSales,
+      recent7dAcos: rSales > 0 ? rSpend / rSales * 100 : rSpend > 0 ? 999 : 0,
+      recent7dImpressions: recent?.totalImpressions || 0,
+      recent7dClicks: recent?.totalClicks || 0,
+      recent7dOrders: recent?.totalOrders || 0,
+      prev7dSpend: pSpend,
+      prev7dSales: pSales,
+      prev7dAcos: pSales > 0 ? pSpend / pSales * 100 : pSpend > 0 ? 999 : 0,
+      prev7dImpressions: prev?.totalImpressions || 0,
+      prev7dClicks: prev?.totalClicks || 0,
+      prev7dOrders: prev?.totalOrders || 0,
+      healthScore: 0,
+      deteriorationReasons: []
+    };
+    calculateHealthScore2(data2);
+    return data2;
+  });
+  const deteriorating = healthDataList.filter((c5) => c5.healthScore <= -15);
+  const unmanagedDet = deteriorating.filter((c5) => !c5.performanceGroupId);
+  const managedDet = deteriorating.filter((c5) => !!c5.performanceGroupId);
+  const recommendations = [];
+  const autoOptResults = [];
+  let autoOptTriggered = false;
+  if (managedDet.length > 0) {
+    const byGroup = /* @__PURE__ */ new Map();
+    managedDet.forEach((c5) => {
+      const gid = c5.performanceGroupId;
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid).push(c5);
+    });
+    for (const [groupId, groupCampaigns] of byGroup) {
+      const groupName = groupCampaigns[0].performanceGroupName || `\u4F18\u5316\u76EE\u6807#${groupId}`;
+      const autoOptResult = await executeAutoOptimizationForTarget(groupId, groupName, groupCampaigns);
+      autoOptTriggered = true;
+      autoOptResults.push({
+        targetId: groupId,
+        targetName: groupName,
+        status: autoOptResult.status,
+        actions: autoOptResult.actions
+      });
+      const totalWasted = groupCampaigns.reduce((sum2, c5) => {
+        if (c5.recent7dAcos > 30 && c5.recent7dSales > 0) return sum2 + Math.max(0, c5.recent7dSpend - c5.recent7dSales * 0.3);
+        return sum2 + (c5.recent7dOrders === 0 ? c5.recent7dSpend : 0);
+      }, 0);
+      const executedActions = autoOptResult.actions.filter((a4) => a4.status === "executed");
+      recommendations.push({
+        id: `managed-${groupId}-${Date.now()}`,
+        priority: groupCampaigns.some((c5) => c5.healthScore <= -40) ? "high" : "medium",
+        type: "managed_deteriorating",
+        title: `\u300C${groupName}\u300D\u4E2D${groupCampaigns.length}\u4E2A\u5E7F\u544A\u6076\u5316\uFF0C\u7CFB\u7EDF\u5DF2\u81EA\u52A8\u6267\u884C\u8865\u5145\u4F18\u5316`,
+        description: autoOptResult.summary,
+        campaigns: groupCampaigns.slice(0, 10),
+        suggestedStrategy: null,
+        estimatedImpact: {
+          potentialSavings: Math.round(totalWasted * 100) / 100,
+          acosReduction: `\u9884\u8BA1\u53EF\u964D${Math.min(50, Math.round(totalWasted / (groupCampaigns.reduce((s4, c5) => s4 + c5.recent7dSpend, 0) || 1) * 100))}%`,
+          description: autoOptResult.summary
+        },
+        autoOptimizationActions: autoOptResult.actions,
+        autoOptimizationSummary: autoOptResult.summary,
+        action: {
+          type: "auto_optimized",
+          label: executedActions.length > 0 ? `\u5DF2\u81EA\u52A8\u6267\u884C${executedActions.length}\u7C7B\u4F18\u5316` : "\u5206\u6790\u5B8C\u6210\uFF0C\u6301\u7EED\u76D1\u63A7\u4E2D",
+          goalId: groupId
+        }
+      });
+    }
+  }
+  if (unmanagedDet.length > 0) {
+    unmanagedDet.sort((a4, b6) => a4.healthScore - b6.healthScore);
+    const strategy = matchStrategy(unmanagedDet);
+    const totalWasted = unmanagedDet.reduce((sum2, c5) => {
+      if (c5.recent7dAcos > 30 && c5.recent7dSales > 0) return sum2 + Math.max(0, c5.recent7dSpend - c5.recent7dSales * 0.3);
+      return sum2 + (c5.recent7dOrders === 0 ? c5.recent7dSpend : 0);
+    }, 0);
+    recommendations.push({
+      id: `unmanaged-${accountId}-${Date.now()}`,
+      priority: unmanagedDet.some((c5) => c5.healthScore <= -40) ? "critical" : "high",
+      type: "unmanaged_deteriorating",
+      title: `${unmanagedDet.length}\u4E2A\u672A\u7EB3\u7BA1\u5E7F\u544A\u6D3B\u52A8\u8868\u73B0\u6076\u5316\uFF0C\u5EFA\u8BAE\u4F7F\u7528\u300C${strategy?.name || "\u5E73\u8861\u589E\u957F"}\u300D\u7B56\u7565\u7ACB\u5373\u4F18\u5316`,
+      description: `\u53D1\u73B0${unmanagedDet.length}\u4E2A\u672A\u7EB3\u5165\u4EFB\u4F55\u4F18\u5316\u76EE\u6807\u7684\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u8FD17\u5929\u8868\u73B0\u660E\u663E\u6076\u5316\u3002\u4E00\u952E\u521B\u5EFA\u4F18\u5316\u76EE\u6807\u540E\uFF0C\u7CFB\u7EDF\u5C06\u7ACB\u5373\u6267\u884C\u7ADE\u4EF7\u8C03\u6574\u3001\u641C\u7D22\u8BCD\u4F18\u5316\u3001\u9884\u7B97\u5206\u914D\u7B49\u5168\u5957\u81EA\u52A8\u4F18\u5316\u3002`,
+      campaigns: unmanagedDet.slice(0, 10),
+      suggestedStrategy: strategy ? { id: strategy.id, name: strategy.name, description: strategy.description, targetAcos: strategy.targetAcos } : null,
+      estimatedImpact: {
+        potentialSavings: Math.round(totalWasted * 100) / 100,
+        acosReduction: strategy ? `ACoS\u76EE\u6807\u964D\u81F3${strategy.targetAcos}%` : "ACoS\u76EE\u6807\u964D\u81F330%",
+        description: `\u521B\u5EFA\u4F18\u5316\u76EE\u6807\u540E\uFF0C\u7CFB\u7EDF\u5C06\u7ACB\u5373\u542F\u52A8\u81EA\u52A8\u4F18\u5316\uFF0C\u9884\u8BA1\u6BCF\u5468\u53EF\u8282\u7701$${totalWasted.toFixed(0)}\u5E7F\u544A\u82B1\u8D39\u3002`
+      },
+      autoOptimizationActions: [],
+      autoOptimizationSummary: "\u521B\u5EFA\u4F18\u5316\u76EE\u6807\u540E\u5C06\u7ACB\u5373\u89E6\u53D1\u9996\u6B21\u5168\u5957\u81EA\u52A8\u4F18\u5316",
+      action: {
+        type: "create_goal",
+        label: "\u4E00\u952E\u521B\u5EFA\u4F18\u5316\u76EE\u6807\u5E76\u7ACB\u5373\u4F18\u5316",
+        prefillData: {
+          name: `\u667A\u80FD\u63A8\u8350-${strategy?.name || "\u5E73\u8861\u589E\u957F"}-${(/* @__PURE__ */ new Date()).toLocaleDateString("zh-CN")}`,
+          description: `\u7531\u667A\u80FD\u63A8\u8350\u7CFB\u7EDF\u81EA\u52A8\u521B\u5EFA\u3002\u5305\u542B${unmanagedDet.length}\u4E2A\u8868\u73B0\u6076\u5316\u7684\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4F7F\u7528\u300C${strategy?.name || "\u5E73\u8861\u589E\u957F"}\u300D\u7B56\u7565\u8FDB\u884C\u81EA\u52A8\u4F18\u5316\u3002`,
+          optimizationGoal: "target_acos",
+          targetAcos: strategy?.targetAcos || 30,
+          targetRoas: strategy ? Math.round(100 / strategy.targetAcos * 100) / 100 : 3.33,
+          strategyTemplateId: strategy?.id || "balanced",
+          strategyTemplateName: strategy?.name || "\u5E73\u8861\u589E\u957F",
+          campaignIds: unmanagedDet.map((c5) => c5.campaignDbId)
+        }
+      }
+    });
+  }
+  const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  recommendations.sort((a4, b6) => priorityOrder[a4.priority] - priorityOrder[b6.priority]);
+  return {
+    accountId,
+    scanTime: (/* @__PURE__ */ new Date()).toISOString(),
+    totalCampaignsScanned: totalCampaigns,
+    activeCampaignsScanned: totalCampaigns,
+    deterioratingCampaigns: deteriorating.length,
+    unmanagedDeteriorating: unmanagedDet.length,
+    managedDeteriorating: managedDet.length,
+    totalPotentialSavings: Math.round(recommendations.reduce((s4, r5) => s4 + r5.estimatedImpact.potentialSavings, 0) * 100) / 100,
+    autoOptimizationTriggered: autoOptTriggered,
+    autoOptimizationResults: autoOptResults,
+    recommendations
+  };
+}
+
+// server/routes/intelligentRecommendation.ts
+init_db2();
+var intelligentRecommendationRouter = router({
+  scan: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
+    return await scanAccountHealth(input.accountId);
+  }),
+  quickCreateGoal: protectedProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    name: external_exports.string(),
+    description: external_exports.string().optional(),
+    optimizationGoal: external_exports.string(),
+    targetAcos: external_exports.number().optional(),
+    targetRoas: external_exports.number().optional(),
+    strategyTemplateId: external_exports.string().optional(),
+    strategyTemplateName: external_exports.string().optional(),
+    campaignIds: external_exports.array(external_exports.number())
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const id = await createPerformanceGroup({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        name: input.name,
+        description: input.description || "",
+        optimizationGoal: input.optimizationGoal,
+        targetAcos: input.targetAcos?.toString(),
+        targetRoas: input.targetRoas?.toString(),
+        strategyTemplateId: input.strategyTemplateId,
+        strategyTemplateName: input.strategyTemplateName
+      });
+      if (input.campaignIds.length > 0) {
+        await batchAssignCampaignsToPerformanceGroup(input.campaignIds, id);
+      }
+      try {
+        const { triggerInitialOptimization: triggerInitialOptimization2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+        triggerInitialOptimization2(id, { triggeredBy: "create" }).catch((err2) => {
+          console.error(`[\u667A\u80FD\u63A8\u8350] \u89E6\u53D1\u9996\u6B21\u4F18\u5316\u5931\u8D25:`, err2);
+        });
+      } catch (e6) {
+        console.error("[\u667A\u80FD\u63A8\u8350] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
+      }
+      console.log(`[\u667A\u80FD\u63A8\u8350] \u6210\u529F\u521B\u5EFA\u4F18\u5316\u76EE\u6807 #${id}\uFF0C\u5305\u542B${input.campaignIds.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8`);
+      return { success: true, goalId: id, campaignCount: input.campaignIds.length };
+    } catch (error51) {
+      console.error("[\u667A\u80FD\u63A8\u8350] \u521B\u5EFA\u4F18\u5316\u76EE\u6807\u5931\u8D25:", error51);
+      throw new Error(`\u521B\u5EFA\u4F18\u5316\u76EE\u6807\u5931\u8D25: ${error51.message}`);
+    }
+  }),
+  getSummaryBadge: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
+    const result = await scanAccountHealth(input.accountId);
+    return {
+      totalScanned: result.totalCampaignsScanned,
+      deteriorating: result.deterioratingCampaigns,
+      unmanaged: result.unmanagedDeteriorating,
+      potentialSavings: result.totalPotentialSavings,
+      hasRecommendations: result.recommendations.length > 0,
+      criticalCount: result.recommendations.filter((r5) => r5.priority === "critical").length
+    };
+  })
+});
+
 // server/routers.ts
 var appRouter = router({
   // 开发与系统路由
@@ -341375,7 +342053,9 @@ var appRouter = router({
   mlOptimization: mlOptimizationRouter,
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
-  monitoring: monitoringRouter
+  monitoring: monitoringRouter,
+  // 智能运营推荐 v269.4
+  intelligentRecommendation: intelligentRecommendationRouter
 });
 
 // server/_core/context.ts

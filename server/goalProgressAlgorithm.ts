@@ -150,13 +150,27 @@ interface WeightConfig {
 }
 
 // v235: 重新分配权重，给算法效能维度10%权重，从其他维度均匀扣减
+// v270 P1-2: 补齐全部11个策略模板的权重配置，消除缺失策略回退DEFAULT_WEIGHTS的问题
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
   // v268 P0-2: 激进增长策略进一步降低预算效率权重，允许为探索新机会保留预算
-  'aggressive-growth': { coreMetric: 16, trend: 28, budgetEfficiency: 5, conversionEfficiency: 18, gradualProgress: 22, algorithmEfficacy: 11 },
-  'balanced':          { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'profit-focused':    { coreMetric: 32, trend: 8, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'seasonal-boost':    { coreMetric: 13, trend: 32, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
-  'brand-defense':     { coreMetric: 27, trend: 8, budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'aggressive-growth':  { coreMetric: 16, trend: 28, budgetEfficiency: 5,  conversionEfficiency: 18, gradualProgress: 22, algorithmEfficacy: 11 },
+  'balanced':           { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'profit-focused':     { coreMetric: 32, trend: 8,  budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'seasonal-boost':     { coreMetric: 13, trend: 32, budgetEfficiency: 8,  conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  'brand-defense':      { coreMetric: 27, trend: 8,  budgetEfficiency: 18, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  // v270 P1-2: 以下6个策略模板之前缺失权重配置，导致回退到DEFAULT_WEIGHTS，评分维度与策略目标不匹配
+  // 清仓策略: 重点关注趋势和预算效率，确保快速消耗库存且不过度亏损
+  'inventory-clearance': { coreMetric: 12, trend: 30, budgetEfficiency: 8,  conversionEfficiency: 20, gradualProgress: 18, algorithmEfficacy: 12 },
+  // 竞争攻击策略: 重点关注趋势和渐进优化，允许短期高花费换取市场份额
+  'competitor-attack':   { coreMetric: 10, trend: 25, budgetEfficiency: 5,  conversionEfficiency: 15, gradualProgress: 30, algorithmEfficacy: 15 },
+  // 市场扩张策略: 重点关注趋势和算法效能，允许探索新市场的不确定性
+  'market-expansion':    { coreMetric: 12, trend: 28, budgetEfficiency: 5,  conversionEfficiency: 15, gradualProgress: 25, algorithmEfficacy: 15 },
+  // 季节性模式策略: 重点关注核心指标和趋势，利用季节性波动最大化收益
+  'seasonal-pattern':    { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 15, gradualProgress: 15, algorithmEfficacy: 10 },
+  // 下滑管理策略: 重点关注核心指标和预算效率，优先止损和成本控制
+  'decline-management':  { coreMetric: 30, trend: 12, budgetEfficiency: 20, conversionEfficiency: 18, gradualProgress: 12, algorithmEfficacy: 8 },
+  // 紧急响应策略: 重点关注核心指标和预算效率，最大化止损速度
+  'emergency-response':  { coreMetric: 35, trend: 5,  budgetEfficiency: 25, conversionEfficiency: 15, gradualProgress: 10, algorithmEfficacy: 10 },
 };
 
 const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 };

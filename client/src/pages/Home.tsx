@@ -81,6 +81,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
+import { IntelligentRecommendations } from "@/components/IntelligentRecommendations";
 import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
@@ -740,7 +741,7 @@ function MarketingPage() {
 
 // v233: 重新设计的运营作战指挥中心（登录后显示）
 // v234: 卡片ID定义
-const DEFAULT_CARD_ORDER = ['kpi-cards', 'quick-actions', 'sync-health', 'algorithm-effect', 'system-health', 'account-risk', 'order-trend', 'trend-chart'];
+const DEFAULT_CARD_ORDER = ['kpi-cards', 'quick-actions', 'sync-health', 'algorithm-effect', 'intelligent-recommendation', 'system-health', 'account-risk', 'order-trend', 'trend-chart'];
 // v261 布局说明: compact卡片连续排列以实现3列并排
 // 第1行: kpi-cards (full)
 // 第2行: quick-actions | sync-health | algorithm-effect (compact x3)
@@ -755,6 +756,7 @@ const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
   'account-risk': 'compact',  // v261: 与sync-health同尺寸
   'sync-health': 'compact',
   'algorithm-effect': 'compact',
+  'intelligent-recommendation': 'compact',  // v269: 智能运营推荐（与算法效果概览同尺寸）
   'order-trend': 'compact',
   'quick-actions': 'compact',
 };
@@ -1657,6 +1659,22 @@ function DashboardContent() {
                                   </div>
                                 </Link>
                               </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* v269: 智能运营推荐卡片 */}
+                        {cardId === 'intelligent-recommendation' && selectedAccountId && (
+                          <Card className="h-full flex flex-col">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base flex items-center gap-2">
+                                <Brain className="w-4 h-4 text-orange-500" />
+                                智能运营推荐
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-orange-500/10 text-orange-400 border-orange-500/30">自动优化</Badge>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex-1 overflow-y-auto">
+                              <IntelligentRecommendations accountId={selectedAccountId} />
                             </CardContent>
                           </Card>
                         )}

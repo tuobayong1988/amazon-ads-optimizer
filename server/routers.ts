@@ -74,6 +74,7 @@ import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import { monitoringRouter } from './routes/monitoring';
+import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
 
 // ==================== 主路由组合 ====================
 
@@ -215,6 +216,9 @@ export const appRouter = router({
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
   monitoring: monitoringRouter,
+
+  // 智能运营推荐 v269.4
+  intelligentRecommendation: intelligentRecommendationRouter,
 });
 
 export type AppRouter = typeof appRouter;

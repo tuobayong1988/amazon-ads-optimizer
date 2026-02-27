@@ -52,6 +52,9 @@ export interface MetaDecision {
   confidence: number;
   algorithmScores: AlgorithmScore[];
   reasoning: string;
+  // v270 P0: Cascade Ensemble融合模式
+  fusionMode: 'single' | 'cascade_ensemble';  // v270: 记录决策模式
+  fusionDetail?: string;  // v270: 融合详情
   // 各算法的具体建议（如果可用）
   linucbDecision?: LinUCBDecision;
   cqlDecision?: CQLDecision;
@@ -248,24 +251,50 @@ async function evaluateAlgorithms(
   const hourOfDay = new Date().getHours();
   const dayOfWeek = new Date().getDay();
   
-  // v268: 动态探索预算 — 提升探索率上下限
-  // 数据少时探索多(60%)，数据多时探索少(30%)，但永远不低于30%
-  const dataMaturity = Math.min(1, syntheticDataCount / 30); // v268: 降低成熟度阈值从50到0
-  const explorationRate = Math.max(0.40, 0.60 - dataMaturity * 0.30); // v268: 40%-60%(从30-50%提升)
+  // v270 P1-1: 探索-利用自适应机制
+  // 核心改进:
+  //   1. 引入"算法表现衰减因子": 连续失败的算法降低探索概率
+  //   2. 引入"数据新鲜度因子": 最近24h内有新数据时提升探索率
+  //   3. 探索率公式: baseRate * dataFreshness * (1 - performanceDecay)
+  const dataMaturity = Math.min(1, syntheticDataCount / 30);
+  const baseExplorationRate = Math.max(0.35, 0.60 - dataMaturity * 0.25); // v270: 基础探索率 35%-60%
+  
+  // v270: 数据新鲜度因子 — 最近24h内有新数据时提升探索率
+  // 新数据意味着环境可能变化，应增加探索
+  const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
+  const recentDataCount = await db.select({ count: sql<number>`COUNT(*)` })
+    .from(rlTrainingLogs)
+    .where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24)));
+  const hasRecentData = Number(recentDataCount[0]?.count) > 0;
+  const dataFreshnessFactor = hasRecentData ? 1.15 : 0.85; // 有新数据+15%, 无新数据-15%
+  
+  // v270: 算法表现衰减因子 — 连续失败的算法降低其探索概率
+  // 检查最近3次算法选择的reward，如果全部为负则衰减
+  const getConsecutiveFailures = (stat: AlgorithmStats): number => {
+    // 基于Beta分布参数估算连续失败率
+    if (stat.totalTrials < 3) return 0; // 数据不足，不衰减
+    const failRate = stat.betaParam / (stat.alphaParam + stat.betaParam);
+    return failRate > 0.75 ? 0.20 : failRate > 0.60 ? 0.10 : 0; // 衰减系数
+  };
+  
+  // v270: 综合探索率 = 基础率 * 数据新鲜度
+  const explorationRate = Math.min(0.65, Math.max(0.30, baseExplorationRate * dataFreshnessFactor));
   
   // v268: 算法轮转机制 — 缩短轮转周期到30分钟
-  // 每30分钟切换一次偏好算法，确保更快的多样性覆盖
   const halfHourSlot = Math.floor(Date.now() / (30 * 60 * 1000));
   const algorithmRotation = halfHourSlot % 6; // 0-5循环
   const isExplorationSlot = Math.random() < explorationRate;
-  const explorationBoost = isExplorationSlot ? 0.25 : 0; // v268: 从0.20提升到0.25
+  const explorationBoost = isExplorationSlot ? 0.25 : 0;
   
-  // v267: 算法表现反馈乘数 — 基于Thompson Sampling的历史表现动态调整
-  const getPerformanceMultiplier = (stat: any) => {
+  // v270 P1-1: 算法表现反馈乘数 — 融合Thompson Sampling + 衰减因子
+  const getPerformanceMultiplier = (stat: AlgorithmStats) => {
     const successRate = stat.alphaParam / (stat.alphaParam + stat.betaParam);
-    // 表现好的算法获得额外加成，但不超过15%
-    return 1 + Math.max(0, (successRate - 0.5)) * 0.30;
+    const decay = getConsecutiveFailures(stat);
+    // 表现好的算法获得加成，表现差的算法被衰减
+    return Math.max(0.70, (1 + Math.max(0, (successRate - 0.5)) * 0.30) - decay);
   };
+  
+  log.info(`[MetaLearning] v270探索自适应: 基础率=${(baseExplorationRate*100).toFixed(0)}%, 新鲜度=${dataFreshnessFactor.toFixed(2)}, 最终率=${(explorationRate*100).toFixed(0)}%, 最近24h数据=${hasRecentData}`);
   
   // 1. rule_based: v268进一步降低基础分，强制系统向高级算法迁移
   const rbStat = stats.get('rule_based')!;
@@ -338,7 +367,115 @@ async function evaluateAlgorithms(
 }
 
 /**
- * 元学习策略选择（核心决策函数）
+ * v270 P0: 执行单个算法并返回出价建议和置信度
+ * 抽取为独立函数，供Cascade Ensemble复用
+ */
+async function executeAlgorithm(
+  algorithm: AlgorithmType,
+  accountId: number,
+  keywordId?: number,
+  targetId?: number,
+  campaignId?: string,
+  currentBid?: number
+): Promise<{ bid: number; confidence: number; linucb?: LinUCBDecision; cql?: CQLDecision; sigmoid?: SigmoidOptimalBid }> {
+  let bid = currentBid || 0;
+  let conf = 0;
+  let linucb: LinUCBDecision | undefined;
+  let cql: CQLDecision | undefined;
+  let sigmoid: SigmoidOptimalBid | undefined;
+
+  switch (algorithm) {
+    case 'linucb':
+      linucb = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid) || undefined;
+      if (linucb) { bid = linucb.recommendedBid; conf = linucb.confidence; }
+      break;
+
+    case 'cql': {
+      const context = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
+      const cqlDec = await makeCQLBidDecision(accountId, context, currentBid || 0) || undefined;
+      if (cqlDec) { bid = cqlDec.recommendedBid; conf = cqlDec.confidence; cql = cqlDec; }
+      break;
+    }
+
+    case 'sigmoid_curve':
+      if (keywordId || targetId) {
+        const entityType = keywordId ? 'keyword' : 'target';
+        const entityId = keywordId || targetId || 0;
+        const params = await fitAndCacheSigmoidForEntity(accountId, entityType as any, entityId, campaignId || '');
+        if (params && params.r2 > 0.3) {
+          sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
+          bid = sigmoid.optimalBid; conf = sigmoid.confidence;
+        }
+      }
+      break;
+
+    case 'ensemble': {
+      // v230: 多算法融合
+      const bids: { bid: number; weight: number }[] = [];
+      const linDec = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid);
+      if (linDec) { bids.push({ bid: linDec.recommendedBid, weight: linDec.confidence }); linucb = linDec; }
+      const ctx = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
+      const cqlD = await makeCQLBidDecision(accountId, ctx, currentBid || 0);
+      if (cqlD) { bids.push({ bid: cqlD.recommendedBid, weight: cqlD.confidence }); cql = cqlD; }
+      try {
+        const { fitAndCacheSigmoidForEntity: fitSig, calculateSigmoidOptimalBid: calcSig } = await import('./sigmoidCurveFitter');
+        const eId = keywordId || targetId || 0;
+        const eType = keywordId ? 'keyword' : 'target';
+        const sigP = await fitSig(accountId, eType, eId, String(campaignId));
+        if (sigP && sigP.r2 > 0.5) {
+          const avgCtr = Number(ctx?.avgCtr7d || 0.02);
+          const avgCvr = Number(ctx?.avgCvr7d || 0.05);
+          const aov = avgCvr > 0 ? (Number(ctx?.weightedRoas14d || 3) * Number(ctx?.avgCpc7d || 1)) / avgCvr : 25;
+          const sigR = calcSig(sigP, avgCtr, avgCvr, aov, 0.7);
+          if (sigR.optimalBid > 0) {
+            const sigConf = Math.min(0.9, sigP.r2);
+            bids.push({ bid: sigR.optimalBid, weight: sigConf });
+            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as any;
+          }
+        }
+      } catch { /* Sigmoid不可用时静默跳过 */ }
+      if (bids.length > 0) {
+        const tw = bids.reduce((s, b) => s + b.weight, 0);
+        bid = bids.reduce((s, b) => s + b.bid * b.weight, 0) / tw;
+        conf = tw / bids.length;
+      }
+      break;
+    }
+
+    case 'ucb': {
+      const ucbBid = currentBid || 0;
+      const epsilon = 0.20;
+      const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
+      const hourWindow = Math.floor(Date.now() / (4 * 3600000));
+      const hashVal = ((entitySeed * 2654435761 + hourWindow) >>> 0) % 10000 / 10000;
+      if (hashVal < epsilon) {
+        const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1;
+        const explorationMagnitude = 0.05 + (hashVal / epsilon) * 0.10;
+        bid = ucbBid * (1 + explorationDirection * explorationMagnitude);
+        bid = Math.max(0.02, Math.round(bid * 100) / 100);
+        conf = 0.45;
+      } else {
+        bid = ucbBid; conf = 0.5;
+      }
+      break;
+    }
+
+    case 'rule_based':
+    default:
+      bid = currentBid || 0; conf = 0.5;
+      break;
+  }
+
+  return { bid, confidence: conf, linucb, cql, sigmoid };
+}
+
+/**
+ * v270 P0: 元学习策略选择（核心决策函数）
+ * 
+ * 重构：从"取最高分"改为"Cascade Ensemble置信度融合"
+ * - 当top2算法分差 < 15% 时，同时执行两个算法，按置信度加权融合出价
+ * - 当分差 >= 15% 时，直接使用最高分算法（single模式）
+ * - 融合时使用各算法返回的confidence作为权重
  */
 export async function selectBestAlgorithm(
   accountId: number,
@@ -353,142 +490,112 @@ export async function selectBestAlgorithm(
   const eligibleScores = scores.filter(s => s.eligible);
   eligibleScores.sort((a, b) => b.score - a.score);
   
-  const selected = eligibleScores[0] || scores.find(s => s.algorithm === 'rule_based')!;
+  const top1 = eligibleScores[0] || scores.find(s => s.algorithm === 'rule_based')!;
+  const top2 = eligibleScores[1];
   
   let recommendedBid = currentBid || 0;
   let confidence = 0;
   let linucbDecision: LinUCBDecision | undefined;
   let cqlDecision: CQLDecision | undefined;
   let sigmoidDecision: SigmoidOptimalBid | undefined;
+  let fusionMode: 'single' | 'cascade_ensemble' = 'single';
+  let fusionDetail = '';
+  let selectedAlgorithmName = top1.algorithm;
   
-  // 执行选中的算法
+  // v270 P0: Cascade Ensemble判定
+  // 当top2存在且与top1分差 < 15%时，执行两个算法并按置信度加权融合
+  const FUSION_THRESHOLD = 0.15; // 15%分差阈值
+  const shouldFuse = top2 && top1.score > 0 && 
+    ((top1.score - top2.score) / top1.score) < FUSION_THRESHOLD &&
+    top2.algorithm !== 'rule_based'; // 不与rule_based融合
+  
   try {
-    switch (selected.algorithm) {
-      case 'linucb':
-        linucbDecision = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid) || undefined;
-        if (linucbDecision) {
-          recommendedBid = linucbDecision.recommendedBid;
-          confidence = linucbDecision.confidence;
-        }
-        break;
-        
-      case 'cql':
-        const context = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
-        cqlDecision = await makeCQLBidDecision(accountId, context, currentBid || 0) || undefined;
-        if (cqlDecision) {
-          recommendedBid = cqlDecision.recommendedBid;
-          confidence = cqlDecision.confidence;
-        }
-        break;
-        
-      case 'sigmoid_curve':
-        if (keywordId || targetId) {
-          const entityType = keywordId ? 'keyword' : 'target';
-          const entityId = keywordId || targetId || 0;
-          const params = await fitAndCacheSigmoidForEntity(accountId, entityType as any, entityId, campaignId || '');
-          if (params && params.r2 > 0.3) {
-            sigmoidDecision = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
-            recommendedBid = sigmoidDecision.optimalBid;
-            confidence = sigmoidDecision.confidence;
-          }
-        }
-        break;
-        
-      case 'ensemble':
-        // v230: 多算法融合：收集所有可用算法的建议（包含Sigmoid），加权平均
-        const bids: { bid: number; weight: number }[] = [];
-        
-        const linDecision = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid);
-        if (linDecision) {
-          bids.push({ bid: linDecision.recommendedBid, weight: linDecision.confidence });
-          linucbDecision = linDecision;
-        }
-        
-        const ctx = await extractFeatureVector(accountId, keywordId, targetId, campaignId);
-        const cqlDec = await makeCQLBidDecision(accountId, ctx, currentBid || 0);
-        if (cqlDec) {
-          bids.push({ bid: cqlDec.recommendedBid, weight: cqlDec.confidence });
-          cqlDecision = cqlDec;
-        }
-        
-        // v230: 添加Sigmoid曲线拟合结果到Ensemble
-        try {
-          const { fitAndCacheSigmoidForEntity, calculateSigmoidOptimalBid } = await import('./sigmoidCurveFitter');
-          const entityId = keywordId || targetId || 0;
-          const entityType = keywordId ? 'keyword' : 'target';
-          const sigParams = await fitAndCacheSigmoidForEntity(accountId, entityType, entityId, String(campaignId));
-          if (sigParams && sigParams.r2 > 0.5) {
-            // 使用Sigmoid参数计算最优出价
-            const avgCtr = Number(ctx?.avgCtr7d || 0.02);
-            const avgCvr = Number(ctx?.avgCvr7d || 0.05);
-            const aov = avgCvr > 0 ? (Number(ctx?.weightedRoas14d || 3) * Number(ctx?.avgCpc7d || 1)) / avgCvr : 25;
-            const sigResult = calculateSigmoidOptimalBid(sigParams, avgCtr, avgCvr, aov, 0.7);
-            if (sigResult.optimalBid > 0) {
-              const sigConfidence = Math.min(0.9, sigParams.r2);
-              bids.push({ bid: sigResult.optimalBid, weight: sigConfidence });
-              sigmoidDecision = { recommendedBid: sigResult.optimalBid, confidence: sigConfidence } as any;
-            }
-          }
-        } catch (sigErr) {
-          // Sigmoid不可用时静默跳过
-        }
-        
-        if (bids.length > 0) {
-          const totalWeight = bids.reduce((sum, b) => sum + b.weight, 0);
-          recommendedBid = bids.reduce((sum, b) => sum + b.bid * b.weight, 0) / totalWeight;
-          confidence = totalWeight / bids.length;
-        }
-        break;
-        
-      case 'ucb': {
-        // v266 P1-2: 增强UCB探索-利用平衡机制
-        // 提高探索概率从15%到20%，增加探索方向的智能化
-        const ucbBid = currentBid || 0;
-        const epsilon = 0.20; // v266: 从15%提升到20%，增加探索频率
-        const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
-        const hourWindow = Math.floor(Date.now() / (4 * 3600000));
-        const hashVal = ((entitySeed * 2654435761 + hourWindow) >>> 0) % 10000 / 10000;
-        
-        if (hashVal < epsilon) {
-          // v266: 智能探索方向 — 偏向提价探索(60%提价/40%降价)，因为系统历史偏向降价
-          const explorationDirection = hashVal < epsilon * 0.6 ? 1 : -1; // v266: 60%提价/40%降价
-          const explorationMagnitude = 0.05 + (hashVal / epsilon) * 0.10; // v266: 5%~15%的扰动幅度(从12%提升到15%)
-          recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
-          recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
-          confidence = 0.45; // v266: 探索模式置信度微调
-          log.info(`[MetaLearning] v266 UCB探索模式: entity=${keywordId || targetId}, 方向=${explorationDirection > 0 ? '提价' : '降价'}, 幅度=${(explorationMagnitude * 100).toFixed(1)}%`);
-        } else {
-          recommendedBid = ucbBid;
-          confidence = 0.5;
-        }
-        break;
+    if (shouldFuse) {
+      // === Cascade Ensemble模式 ===
+      fusionMode = 'cascade_ensemble';
+      log.info(`[MetaLearning] v270 Cascade Ensemble: ${top1.algorithm}(${top1.score.toFixed(3)}) + ${top2.algorithm}(${top2.score.toFixed(3)}), 分差=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}%`);
+      
+      // 并行执行两个算法
+      const [result1, result2] = await Promise.all([
+        executeAlgorithm(top1.algorithm, accountId, keywordId, targetId, campaignId, currentBid),
+        executeAlgorithm(top2.algorithm, accountId, keywordId, targetId, campaignId, currentBid),
+      ]);
+      
+      // 收集有效结果
+      const fusionBids: { bid: number; confidence: number; algorithm: string }[] = [];
+      if (result1.bid > 0 && result1.confidence > 0) {
+        fusionBids.push({ bid: result1.bid, confidence: result1.confidence, algorithm: top1.algorithm });
+      }
+      if (result2.bid > 0 && result2.confidence > 0) {
+        fusionBids.push({ bid: result2.bid, confidence: result2.confidence, algorithm: top2.algorithm });
       }
       
-      case 'rule_based':
-      default:
-        // 使用现有系统的出价逻辑
+      // 合并各算法的决策详情
+      linucbDecision = result1.linucb || result2.linucb;
+      cqlDecision = result1.cql || result2.cql;
+      sigmoidDecision = result1.sigmoid || result2.sigmoid;
+      
+      if (fusionBids.length >= 2) {
+        // 按置信度加权融合
+        const totalConf = fusionBids.reduce((s, b) => s + b.confidence, 0);
+        recommendedBid = fusionBids.reduce((s, b) => s + b.bid * b.confidence, 0) / totalConf;
+        // 融合后的置信度取加权平均，并给予融合奖励（多算法一致性提升置信度）
+        const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
+        const consensusBonus = bidDivergence < 0.10 ? 0.10 : bidDivergence < 0.20 ? 0.05 : 0; // 出价越接近，置信度奖励越高
+        confidence = Math.min(0.95, (totalConf / fusionBids.length) + consensusBonus);
+        selectedAlgorithmName = 'ensemble' as AlgorithmType; // 融合模式记录为ensemble
+        fusionDetail = `Cascade融合: ${fusionBids.map(b => `${b.algorithm}($${b.bid.toFixed(2)},conf=${b.confidence.toFixed(2)})`).join(' + ')} → $${recommendedBid.toFixed(2)}, 分歧度=${(bidDivergence*100).toFixed(1)}%, 共识奖励=${(consensusBonus*100).toFixed(0)}%`;
+        log.info(`[MetaLearning] v270 ${fusionDetail}`);
+      } else if (fusionBids.length === 1) {
+        // 只有一个算法返回有效结果，降级为single模式
+        recommendedBid = fusionBids[0].bid;
+        confidence = fusionBids[0].confidence;
+        fusionMode = 'single';
+        fusionDetail = `Cascade降级: 仅${fusionBids[0].algorithm}返回有效结果`;
+        selectedAlgorithmName = fusionBids[0].algorithm as AlgorithmType;
+      } else {
+        // 两个都失败，降级到rule_based
         recommendedBid = currentBid || 0;
-        confidence = 0.5;
-        break;
+        confidence = 0.3;
+        fusionMode = 'single';
+        fusionDetail = 'Cascade失败: 两个算法均未返回有效结果，降级rule_based';
+        selectedAlgorithmName = 'rule_based';
+      }
+    } else {
+      // === Single模式（原逻辑）===
+      const result = await executeAlgorithm(top1.algorithm, accountId, keywordId, targetId, campaignId, currentBid);
+      recommendedBid = result.bid;
+      confidence = result.confidence;
+      linucbDecision = result.linucb;
+      cqlDecision = result.cql;
+      sigmoidDecision = result.sigmoid;
+      fusionDetail = `Single模式: ${top1.algorithm}(得分=${top1.score.toFixed(3)})`;
+      if (top2) {
+        fusionDetail += `, 次选${top2.algorithm}(分差=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}% > 15%阈值)`;
+      }
     }
   } catch (error) {
-    log.error(`Error executing ${selected.algorithm}:`, error);
-    // 降级到rule_based
+    log.error(`Error executing algorithm(s):`, error);
     recommendedBid = currentBid || 0;
     confidence = 0.3;
+    fusionMode = 'single';
+    fusionDetail = `执行异常，降级rule_based: ${error}`;
+    selectedAlgorithmName = 'rule_based';
   }
   
-  // v230: 移除重复的安全约束，由nextGenBidOrchestrator的safetyValidate统一处理
-  // 之前这里和safetyValidate双重限制导致系统过度保守
-  // 仅保留基本的数值合法性检查
+  // 基本数值合法性检查
   recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
   
   const decision: MetaDecision = {
-    selectedAlgorithm: selected.algorithm,
+    selectedAlgorithm: selectedAlgorithmName as AlgorithmType,
     recommendedBid,
     confidence,
     algorithmScores: scores,
-    reasoning: `选择${selected.algorithm}: ${selected.reason} (得分=${selected.score.toFixed(4)})`,
+    reasoning: fusionMode === 'cascade_ensemble' 
+      ? `v270 Cascade Ensemble融合: ${fusionDetail}`
+      : `选择${selectedAlgorithmName}: ${top1.reason} (得分=${top1.score.toFixed(4)})`,
+    fusionMode,
+    fusionDetail,
     linucbDecision,
     cqlDecision,
     sigmoidDecision,
@@ -501,7 +608,7 @@ export async function selectBestAlgorithm(
     keywordId: keywordId || null,
     targetId: targetId || null,
     campaignId: campaignId || null,
-    selectedAlgorithm: selected.algorithm as any,
+    selectedAlgorithm: selectedAlgorithmName as any,
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),
