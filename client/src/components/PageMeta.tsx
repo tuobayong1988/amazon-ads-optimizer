@@ -25,7 +25,7 @@ export function PageMeta({
   canonicalPath 
 }: PageMetaProps) {
   const baseUrl = import.meta.env.VITE_APP_URL || "";
-  const defaultOgImage = `${baseUrl}/og-image.png`;
+  const defaultOgImage = `${baseUrl}/og-image.jpg`;
   const fullTitle = `${title} | Amazon Ads Optimizer`;
 
   useEffect(() => {

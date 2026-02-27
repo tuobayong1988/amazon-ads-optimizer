@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_TIMEZONES } from '../../shared/timezone';
+import { apiCache } from '../services/apiCacheService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 
@@ -186,6 +187,11 @@ export const adAccountRouter = router({
       endDate: z.string().optional(),
     }).optional())
     .query(async ({ ctx, input }) => {
+    // v268 性能优化: API响应缓存（TTL 2分钟）
+    const cacheKey = apiCache.generateKey('listWithPerformance', ctx.user.id, input);
+    const cached = apiCache.get<any>(cacheKey);
+    if (cached) return cached;
+
     const timeRange = input?.timeRange || '7days';
     // 管理员可以访问所有账户
     const accounts = ctx.user.role === 'admin' 
@@ -334,6 +340,8 @@ export const adAccountRouter = router({
       })
     );
     
+    // v268: 缓存结果
+    apiCache.set(cacheKey, accountsWithPerformance, 2 * 60 * 1000);
     return accountsWithPerformance;
   }),
 
@@ -383,6 +391,11 @@ export const adAccountRouter = router({
       endDate: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
+      // v268 性能优化: API响应缓存（TTL 2分钟）
+      const cacheKey = apiCache.generateKey('getDailyTrend', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+
       // 管理员可以访问所有账户
       const accounts = ctx.user.role === 'admin' 
         ? await db.getAdAccounts() 
@@ -427,6 +440,8 @@ export const adAccountRouter = router({
       
       // 获取每日绩效数据
       const trendData = await db.getDailyTrendData(accountIds, input.days, 'custom', startDate, endDate);
+      // v268: 缓存结果
+      apiCache.set(cacheKey, trendData, 2 * 60 * 1000);
       return trendData;
     }),
   

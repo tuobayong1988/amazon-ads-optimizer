@@ -12,6 +12,7 @@ import { getSystemHealthMetrics } from '../systemHealthMetricsService';
 import { getDb } from '../db';
 import { optimizationEvents } from '../../drizzle/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
+import { apiCache } from '../services/apiCacheService';
 
 export const monitoringRouter = router({
   /**
@@ -100,13 +101,20 @@ export const monitoringRouter = router({
       days: z.number().optional().default(7),
     }))
     .query(async ({ input }) => {
+      // v268 性能优化: 健康指标缓存（TTL 5分钟）
+      const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+
       try {
         const metrics = await getSystemHealthMetrics(input.accountId, input.days);
-        return {
+        const result = {
           success: true,
           error: null,
           metrics,
         };
+        apiCache.set(cacheKey, result, 5 * 60 * 1000);
+        return result;
       } catch (e: any) {
         return {
           success: false,
@@ -123,6 +131,11 @@ export const monitoringRouter = router({
    */
   getDeployCorrectionReport: protectedProcedure
     .query(async () => {
+      // v268 性能优化: 部署纠错报告缓存（TTL 10分钟）
+      const cacheKey = 'monitoring.deployCorrectionReport:global';
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+
       try {
         const database = await getDb();
         if (!database) {
@@ -199,7 +212,7 @@ export const monitoringRouter = router({
           };
         });
 
-        return {
+        const result = {
           success: true,
           error: null,
           report: {
@@ -209,6 +222,8 @@ export const monitoringRouter = router({
             latestVerification: verifyHistory[0] || null,
           },
         };
+        apiCache.set(cacheKey, result, 10 * 60 * 1000);
+        return result;
       } catch (e: any) {
         return {
           success: false,

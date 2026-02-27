@@ -893,29 +893,30 @@ function DashboardContent() {
     { enabled: !!user }
   );
   
+  // v268 性能优化: 非关键数据请求增加staleTime，减少首屏并发请求数
   // v233: 获取纠错监控数据
   const { data: correctionDashboard } = trpc.autoCorrection.getDashboard.useQuery(
     undefined,
-    { enabled: !!user, refetchInterval: 60000 }
+    { enabled: !!user, refetchInterval: 60000, staleTime: 60 * 1000 }
   );
   
   // v233: 获取算法效果统计
   const { data: algorithmStats } = trpc.algorithmEffect.getStats.useQuery(
     { days: 30 },
-    { enabled: !!user }
+    { enabled: !!user, staleTime: 5 * 60 * 1000 }
   );
   
   // v261: 获取系统健康核心指标（回滚率 + 算法激活率）
   const selectedAccountId = accountsWithPerformance?.[0]?.id;
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: selectedAccountId!, days: 7 },
-    { enabled: !!user && !!selectedAccountId, refetchInterval: 5 * 60 * 1000 }
+    { enabled: !!user && !!selectedAccountId, refetchInterval: 5 * 60 * 1000, staleTime: 5 * 60 * 1000 }
   );
   
   // v261: 获取部署后纠错报告
   const { data: deployCorrectionReport } = trpc.monitoring.getDeployCorrectionReport.useQuery(
     undefined,
-    { enabled: !!user, refetchInterval: 10 * 60 * 1000 }
+    { enabled: !!user, refetchInterval: 10 * 60 * 1000, staleTime: 10 * 60 * 1000 }
   );
   
   // 图表数据

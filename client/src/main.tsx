@@ -8,7 +8,30 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
-const queryClient = new QueryClient();
+/**
+ * v268 性能优化: 全局QueryClient缓存策略
+ * 
+ * staleTime: 数据在多长时间内被认为是"新鲜的"，不会触发后台重新获取
+ *   - 设为2分钟，避免频繁的重复请求（默认是0，每次组件挂载都请求）
+ * gcTime: 数据在缓存中保留多长时间（即使已过期）
+ *   - 设为10分钟，账号切换回来时可以立即显示缓存数据
+ * refetchOnWindowFocus: 窗口获得焦点时是否重新获取
+ *   - 设为false，避免切换标签页时大量请求
+ * retry: 失败重试次数
+ *   - 设为1次，减少失败时的等待时间
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 2 * 60 * 1000,        // 2分钟内数据视为新鲜
+      gcTime: 10 * 60 * 1000,           // 缓存保留10分钟
+      refetchOnWindowFocus: false,       // 禁止窗口聚焦时自动刷新
+      refetchOnReconnect: 'always',      // 网络恢复时刷新
+      retry: 1,                          // 最多重试1次
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;

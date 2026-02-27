@@ -1093,6 +1093,17 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     }
   }
 
+  // 4d. v268: 性能优化索引迁移
+  if (!lastVersion || lastVersion < 268) {
+    try {
+      const { runV268PerformanceIndexMigration } = await import('./migrations/v268_performance_indexes');
+      await runV268PerformanceIndexMigration();
+      log.info(`[PostDeployOptimizer] v268: 性能优化索引创建完成`);
+    } catch (migrationErr: any) {
+      log.error(`[PostDeployOptimizer] v268: 性能优化索引创建失败: ${migrationErr.message}`);
+    }
+  }
+
   // 5. 获取所有活跃优化目标（恢复后重新获取）
   const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
   const targets = await getEnabledOptimizationTargets();

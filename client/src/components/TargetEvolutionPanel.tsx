@@ -40,14 +40,18 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
   // 手动触发进化
   const evolutionMutation = trpc.algorithmEvolution.runEvolutionCycle.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      // v268 性能优化: 精确失效而非全局刷新，避免触发所有查询重新请求
+      queryClient.invalidateQueries({ queryKey: [['algorithmEvolution']] });
+      queryClient.invalidateQueries({ queryKey: [['algorithmEffect']] });
     },
   });
 
   // 手动触发效果追踪
   const trackingMutation = trpc.algorithmEvolution.runEffectTracking.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      // v268 性能优化: 精确失效而非全局刷新
+      queryClient.invalidateQueries({ queryKey: [['algorithmEvolution']] });
+      queryClient.invalidateQueries({ queryKey: [['algorithmEffect']] });
     },
   });
 

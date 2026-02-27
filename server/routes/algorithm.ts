@@ -10,6 +10,7 @@ import * as algorithmEffectService from '../algorithmEffectService';
 import * as holidayConfigService from '../holidayConfigService';
 import * as algorithmEvolutionEngine from '../algorithmEvolutionEngine';
 import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimizationAutoCorrector';
+import { apiCache } from '../services/apiCacheService';
 
 
 // ==================== Algorithm Optimization Router ====================
@@ -122,15 +123,22 @@ export const algorithmEffectRouter = router({
       days: z.number().optional().default(30)
     }))
     .query(async ({ ctx, input }) => {
+      // v268 性能优化: 算法效果统计缓存（TTL 5分钟）
+      const cacheKey = apiCache.generateKey('algorithmEffect.getStats', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - input.days);
-      return algorithmEffectService.getAlgorithmEffectStats(
+      const result = await algorithmEffectService.getAlgorithmEffectStats(
         ctx.user.id,
         input.accountId,
         startDate,
         endDate
       );
+      apiCache.set(cacheKey, result, 5 * 60 * 1000);
+      return result;
     }),
 
   // 获取效果趋势

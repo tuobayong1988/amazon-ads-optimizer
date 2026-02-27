@@ -11,6 +11,7 @@ import * as correctionService from '../correctionService';
 import * as autoRollbackService from '../autoRollbackService';
 import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimizationAutoCorrector';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { apiCache } from '../services/apiCacheService';
 
 
 // ==================== Correction Review Router ====================
@@ -321,6 +322,11 @@ export const autoCorrectionRouter = router({
   
   // v177: 监控仪表盘 - 获取全面的纠错状态概览
   getDashboard: protectedProcedure.query(async () => {
+    // v268 性能优化: 纠错仪表盘缓存（TTL 1分钟）
+    const cacheKey = 'correction.getDashboard:global';
+    const cached = apiCache.get<any>(cacheKey);
+    if (cached) return cached;
+
     const dbInstance = await db.getDb();
     if (!dbInstance) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '数据库连接失败' });
     
@@ -382,7 +388,7 @@ export const autoCorrectionRouter = router({
           LIMIT 20`
     ) as any;
     
-    return {
+    const result = {
       scanStatus,
       lastScan: lastScan ? {
         scanId: lastScan.scanId,
@@ -402,6 +408,9 @@ export const autoCorrectionRouter = router({
       negKeywordStats: negKeywordStats || [],
       recentCorrections: recentCorrections || [],
     };
+    // v268: 缓存结果
+    apiCache.set(cacheKey, result, 60 * 1000);
+    return result;
   }),
   
   // v204: 获取同步健康度报告

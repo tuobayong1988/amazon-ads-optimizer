@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import compression from "compression";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -49,6 +50,31 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  
+  /**
+   * v268 性能优化: HTTP响应压缩
+   * 
+   * 启用gzip/deflate压缩，对所有文本类型响应（JS/CSS/JSON/HTML）进行压缩
+   * 预计可将传输体积减少 60-80%，显著提升页面加载速度
+   * 
+   * 配置说明:
+   * - level: 6 (压缩级别，1-9，6为压缩率和速度的最佳平衡点)
+   * - threshold: 1024 (只压缩大于1KB的响应，避免小文件压缩开销)
+   * - filter: 压缩所有文本类型 + JSON + JavaScript + CSS
+   */
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      // 对SSE流不压缩
+      if (req.headers['accept'] === 'text/event-stream') {
+        return false;
+      }
+      // 使用默认过滤器（压缩text/*, application/json, application/javascript等）
+      return compression.filter(req, res);
+    },
+  }));
+  
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

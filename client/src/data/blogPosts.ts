@@ -60,7 +60,7 @@ export const blogPosts: BlogPost[] = [
 
 只需在优化目标中设置您的目标ACoS，系统就会自动为您的广告活动启用动态竞价优化。您可以随时在仪表盘中查看优化效果和调整记录。
     `,
-    coverImage: "/blog/dynamic-bid-optimization.png",
+    coverImage: "/blog/dynamic-bid-optimization.jpg",
     category: "algorithm",
     author: {
       name: "李明",
@@ -122,7 +122,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 这样您可以及时介入，避免更大的损失。
     `,
-    coverImage: "/blog/acos-target-optimization.png",
+    coverImage: "/blog/acos-target-optimization.jpg",
     category: "algorithm",
     author: {
       name: "王芳",
@@ -187,7 +187,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 启用否定关键词自动化后，客户平均节省了25-35%的无效广告支出，同时转化率提升了15%以上。
     `,
-    coverImage: "/blog/negative-keyword-automation.png",
+    coverImage: "/blog/negative-keyword-automation.jpg",
     category: "algorithm",
     author: {
       name: "张伟",
@@ -248,7 +248,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 分时策略不是一成不变的。我们的算法会持续学习，根据最新数据不断优化时段划分和出价比例，确保策略始终与市场变化保持同步。
     `,
-    coverImage: "/blog/dayparting-strategy.png",
+    coverImage: "/blog/dayparting-strategy.jpg",
     category: "algorithm",
     author: {
       name: "陈静",
@@ -324,7 +324,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 这种多维度的协同优化，能够实现1+1>2的效果。
     `,
-    coverImage: "/blog/budget-allocation-algorithm.png",
+    coverImage: "/blog/budget-allocation-algorithm.jpg",
     category: "algorithm",
     author: {
       name: "刘强",
@@ -403,7 +403,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 我们的模型会持续学习新的数据，不断提升预测精度。每周自动更新模型参数，确保预测结果始终反映最新的市场情况。
     `,
-    coverImage: "/blog/conversion-rate-prediction.png",
+    coverImage: "/blog/conversion-rate-prediction.jpg",
     category: "algorithm",
     author: {
       name: "赵敏",
@@ -477,7 +477,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 使用关键词挖掘功能的客户，平均每月能发现20-50个新的有效关键词，广告覆盖的搜索词数量提升50%以上。
     `,
-    coverImage: "/blog/keyword-harvesting.png",
+    coverImage: "/blog/keyword-harvesting.jpg",
     category: "algorithm",
     author: {
       name: "孙丽",
@@ -551,7 +551,7 @@ ACoS（Advertising Cost of Sales）是衡量亚马逊广告效率的核心指标
 
 广告位优化与分时投放策略可以结合使用。例如，在高转化时段提高搜索顶部的出价，在低效时段则更多依赖商品页面的展示。
     `,
-    coverImage: "/blog/placement-optimization.png",
+    coverImage: "/blog/placement-optimization.jpg",
     category: "algorithm",
     author: {
       name: "周杰",
@@ -643,7 +643,7 @@ A/B测试提供了一种科学的方法来回答这些问题。
 
 A/B测试不是一次性的工作。我们建议建立持续测试的习惯，不断发现新的优化机会。
     `,
-    coverImage: "/blog/ab-testing-framework.png",
+    coverImage: "/blog/ab-testing-framework.jpg",
     category: "algorithm",
     author: {
       name: "吴涛",
@@ -730,7 +730,7 @@ A/B测试不是一次性的工作。我们建议建立持续测试的习惯，�
 
 您可以在系统中查看历史异常记录，分析异常发生的规律，提前做好预防。
     `,
-    coverImage: "/blog/anomaly-detection.png",
+    coverImage: "/blog/anomaly-detection.jpg",
     category: "algorithm",
     author: {
       name: "郑浩",
@@ -834,7 +834,7 @@ A/B测试不是一次性的工作。我们建议建立持续测试的习惯，�
 
 在取得初步成功后，ElaraFit继续扩大广告投放规模，目前月广告预算已增加到$25,000，ACoS稳定在25-30%之间，成为其品类的头部卖家之一。
     `,
-    coverImage: "/blog/case-study-elarafit.png",
+    coverImage: "/blog/case-study-elarafit.jpg",
     category: "case-study",
     author: {
       name: "客户成功团队",
@@ -972,7 +972,7 @@ HomeEssence的情况比较复杂，主要挑战在于：
 
 HomeEssence目前已成为我们的长期客户，我们持续为其提供优化服务。在2025年Q4旺季，他们的广告销售额达到了$150,000，ACoS保持在22%以下，创下了品牌历史最好成绩。
     `,
-    coverImage: "/blog/case-study-homeessence.png",
+    coverImage: "/blog/case-study-homeessence.jpg",
     category: "case-study",
     author: {
       name: "客户成功团队",

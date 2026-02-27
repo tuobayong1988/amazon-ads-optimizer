@@ -25,6 +25,9 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
     chunkSizeWarningLimit: 1000,
+    cssCodeSplit: true,  // v268: 启用CSS代码分割，每个懒加载页面独立CSS
+    cssMinify: 'lightningcss',  // v268: 使用lightningcss进行更高效的CSS压缩
+    target: 'es2020',  // v268: 现代浏览器目标，减少polyfill体积
     rollupOptions: {
       output: {
         manualChunks(id) {
