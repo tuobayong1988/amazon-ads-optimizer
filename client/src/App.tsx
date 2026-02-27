@@ -66,6 +66,9 @@ const InviteCodeManagement = lazy(() => import("./pages/InviteCodeManagement"));
 const LocalLogin = lazy(() => import("./pages/LocalLogin"));
 const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const HowItWorks = lazy(() => import("./pages/HowItWorks"));
+const Contact = lazy(() => import("./pages/Contact"));
 const SellerOnboarding = lazy(() => import("./pages/SellerOnboarding"));
 const BatchAuthorization = lazy(() => import("./pages/BatchAuthorization"));
 const HolidayCalendarManagement = lazy(() => import("./pages/HolidayCalendarManagement"));
@@ -179,6 +182,9 @@ function Router() {
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
       <Route path="/login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>
+      <Route path="/landing">{() => <LazyRoute component={LandingPage} />}</Route>
+      <Route path="/how-it-works">{() => <LazyRoute component={HowItWorks} />}</Route>
+      <Route path="/contact">{() => <LazyRoute component={Contact} />}</Route>
       <Route path="/blog">{() => <LazyRoute component={Blog} />}</Route>
       <Route path="/blog/:slug">{() => <LazyRoute component={BlogPost} />}</Route>
       <Route path="/invite-codes">{() => <LazyRoute component={InviteCodeManagement} />}</Route>

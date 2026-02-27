@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAllPosts, getPostsByCategory, BlogPost } from "@/data/blogPosts";
 import { PageMeta } from "@/components/PageMeta";
+import PublicLayout from "@/components/PublicLayout";
 
 const categoryLabels: Record<string, string> = {
   algorithm: "算法解析",
@@ -83,7 +84,8 @@ export default function Blog() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <PublicLayout>
+    <div className="min-h-screen">
       <PageMeta
         title="博客 - 亚马逊广告优化知识库 | Amazon Ads Optimizer"
         description="探索亚马逊广告优化的最新策略、算法解析和成功案例，帮助您提升广告效果和ROI。"
@@ -160,5 +162,6 @@ export default function Blog() {
         </div>
       </section>
     </div>
+    </PublicLayout>
   );
 }

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getPostBySlug, getRelatedPosts, BlogPost as BlogPostType } from "@/data/blogPosts";
 import { PageMeta } from "@/components/PageMeta";
 import ReactMarkdown from "react-markdown";
+import PublicLayout from "@/components/PublicLayout";
 
 const categoryLabels: Record<string, string> = {
   algorithm: "算法解析",
@@ -94,7 +95,8 @@ export default function BlogPost() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <PublicLayout>
+    <div className="min-h-screen">
       <PageMeta
         title={`${post.title} | Amazon Ads Optimizer 博客`}
         description={post.excerpt}
@@ -231,5 +233,6 @@ export default function BlogPost() {
         </div>
       </div>
     </div>
+    </PublicLayout>
   );
 }

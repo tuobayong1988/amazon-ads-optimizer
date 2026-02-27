@@ -2,6 +2,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { EnhancedMetricCard, TacosMetricCard } from "@/components/EnhancedMetricCard";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
+import { lazy, Suspense } from "react";
+const LandingPage = lazy(() => import("./LandingPage"));
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
@@ -1683,5 +1685,9 @@ export default function Home() {
     );
   }
   
-  return user ? <DashboardContent /> : <MarketingPage />;
+  return user ? <DashboardContent /> : (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <LandingPage />
+    </Suspense>
+  );
 }
