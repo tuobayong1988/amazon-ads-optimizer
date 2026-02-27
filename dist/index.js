@@ -159718,7 +159718,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log32 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 261;
+    SYSTEM_VERSION = 262;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159990,6 +159990,12 @@ var init_postDeployOptimizer = __esm({
         description: "v261: [\u90E8\u7F72\u540E\u7EA0\u9519\u673A\u5236\u91CD\u6784] \u2014 (1)\u542F\u52A8\u534F\u8C03\u987A\u5E8F\u91CD\u6784: PostDeploy\u2192AutoCorrector\u2192\u6548\u679C\u9A8C\u8BC1(\u65B0\u7B97\u6CD5\u4F18\u5148\u539F\u5219) (2)\u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1\u95ED\u73AF: \u91CD\u4F18\u5316\u540E\u7B49\u5F8560\u79D2\u518D\u6B21\u626B\u63CF\u786E\u8BA4Amazon\u5DF2\u63A5\u53D7\u6240\u6709\u6307\u4EE4 (3)\u524D\u7AEF\u7EA0\u9519\u62A5\u544A\u53EF\u89C6\u5316: Dashboard\u65B0\u589E\u90E8\u7F72\u540E\u7EA0\u9519\u62A5\u544A\u5361\u7247",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 262,
+        description: "v262: [\u524D\u53F0\u9875\u9762\u91CD\u6784] \u2014 \u65B0\u589E\u9996\u9875/\u4F18\u5316\u903B\u8F91/\u8054\u7CFB\u6211\u4EEC\u9875\u9762 + PublicLayout\u7EDF\u4E00\u5BFC\u822A\u548C\u5E95\u90E8\u516C\u53F8\u4FE1\u606F(\u7EAF\u524D\u7AEF\u53D8\u66F4,\u4E0D\u5F71\u54CD\u540E\u7AEF\u4F18\u5316\u6A21\u5757)",
+        affectedModules: [],
+        correctionActions: []
       }
     ];
     POST_DEPLOY_CONFIG = {

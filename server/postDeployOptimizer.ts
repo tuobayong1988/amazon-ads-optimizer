@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 261;  // v261: 部署后纠错机制重构 — 新算法优先原则(PostDeploy→AutoCorrector→效果验证) + 部署后效果验证闭环 + 前端纠错报告可视化
+export const SYSTEM_VERSION = 262;  // v262: 前台页面重构 — 首页/优化逻辑/博客/联系我们 + PublicLayout统一导航和底部公司信息
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -335,6 +335,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v261: [部署后纠错机制重构] — (1)启动协调顺序重构: PostDeploy→AutoCorrector→效果验证(新算法优先原则) (2)部署后效果验证闭环: 重优化后等待60秒再次扫描确认Amazon已接受所有指令 (3)前端纠错报告可视化: Dashboard新增部署后纠错报告卡片',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 262,
+    description: 'v262: [前台页面重构] — 新增首页/优化逻辑/联系我们页面 + PublicLayout统一导航和底部公司信息(纯前端变更,不影响后端优化模块)',
+    affectedModules: [],
+    correctionActions: [],
   },
 ];
 
