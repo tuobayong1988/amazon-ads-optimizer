@@ -214,7 +214,7 @@ async function checkAcosOverrun(
       marketplace: adAccounts.marketplace,
     })
     .from(adAccounts)
-    .where(eq(adAccounts.teamId, teamId));
+    .where(eq(adAccounts.userId, teamId));
 
     let totalOverrun = 0;
     let highRiskCount = 0;
@@ -532,7 +532,7 @@ async function checkProactiveRiskWarning(
       marketplace: adAccounts.marketplace,
     })
     .from(adAccounts)
-    .where(eq(adAccounts.teamId, teamId));
+    .where(eq(adAccounts.userId, teamId));
 
     for (const account of accounts) {
       try {
