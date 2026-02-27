@@ -40827,7 +40827,7 @@ async function getGoalProgressTrendData(performanceGroupId, groupCreatedAt) {
   if (!db) return { before: null, after: null };
   const createdDate = new Date(groupCreatedAt).toISOString().split("T")[0];
   try {
-    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
     if (groupCampaigns.length === 0) return { before: null, after: null };
     const campaignIds = groupCampaigns.map((c5) => c5.campaignId);
     const beforeData = await db.select({
@@ -40864,7 +40864,7 @@ async function getMultiWindowTrendData(performanceGroupId, groupCreatedAt) {
   const db = await getDb();
   if (!db) return null;
   try {
-    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
     if (groupCampaigns.length === 0) return null;
     const campaignIds = groupCampaigns.map((c5) => c5.campaignId);
     const createdDate = new Date(groupCreatedAt).toISOString().split("T")[0];
@@ -40921,7 +40921,7 @@ async function getTimeWeightedMetricsForGoalProgress(performanceGroupId) {
   const db = await getDb();
   if (!db) return null;
   try {
-    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
     if (groupCampaigns.length === 0) return null;
     const campaignIds = groupCampaigns.map((c5) => c5.campaignId);
     const now = /* @__PURE__ */ new Date();
@@ -56783,33 +56783,56 @@ async function getCachedFeatureVector(accountId, keywordId, targetId, campaignId
     )).limit(1);
   }
   if (cached2 && cached2.length > 0) {
-    const c5 = cached2[0];
-    return {
-      accountId: c5.accountId,
-      keywordId: c5.keywordId ?? void 0,
-      targetId: c5.targetId ?? void 0,
-      campaignId: c5.campaignId ?? void 0,
-      adGroupId: c5.adGroupId ?? void 0,
-      hourOfDay: c5.hourOfDay ?? (/* @__PURE__ */ new Date()).getHours(),
-      dayOfWeek: c5.dayOfWeek ?? (/* @__PURE__ */ new Date()).getDay(),
-      isHoliday: c5.isHoliday ?? 0,
-      estimatedCompetition: Number(c5.estimatedCompetition) || 0,
-      cpcVolatility7d: Number(c5.cpcVolatility7d) || 0,
-      ctrVolatility7d: Number(c5.ctrVolatility7d) || 0,
-      impressionShare: Number(c5.impressionShare) || 0.5,
-      avgCpc7d: Number(c5.avgCpc7d) || 0,
-      avgCtr7d: Number(c5.avgCtr7d) || 0,
-      avgCvr7d: Number(c5.avgCvr7d) || 0,
-      weightedAcos14d: Number(c5.weightedAcos14d) || 0,
-      impressionTrend7d: Number(c5.impressionTrend7d) || 0,
-      clickTrend7d: Number(c5.clickTrend7d) || 0,
-      orderTrend7d: Number(c5.orderTrend7d) || 0,
-      spendTrend7d: Number(c5.spendTrend7d) || 0,
-      weightedCvr14d: Number(c5.weightedCvr14d) || 0,
-      weightedRoas14d: Number(c5.weightedRoas14d) || 0
-    };
+    return parseCachedFeature(cached2[0]);
+  }
+  const yesterday = new Date(Date.now() - 24 * 36e5).toISOString().split("T")[0];
+  let staleCache;
+  if (keywordId) {
+    staleCache = await db.select().from(contextualFeatures).where(and(
+      eq(contextualFeatures.accountId, accountId),
+      eq(contextualFeatures.keywordId, keywordId),
+      eq(contextualFeatures.snapshotDate, yesterday)
+    )).limit(1);
+  } else if (targetId) {
+    staleCache = await db.select().from(contextualFeatures).where(and(
+      eq(contextualFeatures.accountId, accountId),
+      eq(contextualFeatures.targetId, targetId),
+      eq(contextualFeatures.snapshotDate, yesterday)
+    )).limit(1);
+  }
+  if (staleCache && staleCache.length > 0) {
+    const feature = parseCachedFeature(staleCache[0]);
+    feature.hourOfDay = (/* @__PURE__ */ new Date()).getHours();
+    feature.dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
+    return feature;
   }
   return extractFeatureVector(accountId, keywordId, targetId, campaignId);
+}
+function parseCachedFeature(c5) {
+  return {
+    accountId: c5.accountId,
+    keywordId: c5.keywordId ?? void 0,
+    targetId: c5.targetId ?? void 0,
+    campaignId: c5.campaignId ?? void 0,
+    adGroupId: c5.adGroupId ?? void 0,
+    hourOfDay: c5.hourOfDay ?? (/* @__PURE__ */ new Date()).getHours(),
+    dayOfWeek: c5.dayOfWeek ?? (/* @__PURE__ */ new Date()).getDay(),
+    isHoliday: c5.isHoliday ?? 0,
+    estimatedCompetition: Number(c5.estimatedCompetition) || 0,
+    cpcVolatility7d: Number(c5.cpcVolatility7d) || 0,
+    ctrVolatility7d: Number(c5.ctrVolatility7d) || 0,
+    impressionShare: Number(c5.impressionShare) || 0.5,
+    avgCpc7d: Number(c5.avgCpc7d) || 0,
+    avgCtr7d: Number(c5.avgCtr7d) || 0,
+    avgCvr7d: Number(c5.avgCvr7d) || 0,
+    weightedAcos14d: Number(c5.weightedAcos14d) || 0,
+    impressionTrend7d: Number(c5.impressionTrend7d) || 0,
+    clickTrend7d: Number(c5.clickTrend7d) || 0,
+    orderTrend7d: Number(c5.orderTrend7d) || 0,
+    spendTrend7d: Number(c5.spendTrend7d) || 0,
+    weightedCvr14d: Number(c5.weightedCvr14d) || 0,
+    weightedRoas14d: Number(c5.weightedRoas14d) || 0
+  };
 }
 var FEATURE_DIM, HALF_LIFE_DAYS;
 var init_contextualFeatureService = __esm({
@@ -57942,7 +57965,7 @@ async function selectArm(accountId, context, currentBid, alpha = 1.5) {
   const safeBidMultiplier = Math.max(0.7, Math.min(1.3, bidMultiplier));
   const recommendedBid = Math.round(currentBid * safeBidMultiplier * 100) / 100;
   const totalPulls = arms.reduce((sum2, a4) => sum2 + a4.totalPulls, 0);
-  const confidence = Math.min(1, totalPulls / 100);
+  const confidence = Math.min(1, 0.35 + totalPulls / 150 * 0.65);
   return {
     selectedArm: bestArm.armType,
     ucbScore: bestScore,
@@ -58539,10 +58562,14 @@ async function getOrTrainCQLModel(accountId) {
 async function makeCQLBidDecision(accountId, context, currentBid) {
   try {
     const model = await getOrTrainCQLModel(accountId);
-    if (model.trainingEpisodes < 20) {
+    if (model.trainingEpisodes < 5) {
       return null;
     }
-    return cqlDecide(model, context, currentBid);
+    const decision = cqlDecide(model, context, currentBid);
+    if (decision && decision.confidence < 0.35 && model.trainingEpisodes >= 5) {
+      decision.confidence = Math.max(0.35, decision.confidence);
+    }
+    return decision;
   } catch (error54) {
     console.error(`[CQL] Error making decision:`, error54);
     return null;
@@ -58794,8 +58821,26 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
           confidence = totalWeight / bids.length;
         }
         break;
+      case "ucb": {
+        const ucbBid = currentBid || 0;
+        const epsilon = 0.15;
+        const entitySeed = (keywordId || 0) * 31 + (targetId || 0) * 37 + accountId * 41;
+        const hourWindow = Math.floor(Date.now() / (4 * 36e5));
+        const hashVal = (entitySeed * 2654435761 + hourWindow >>> 0) % 1e4 / 1e4;
+        if (hashVal < epsilon) {
+          const explorationDirection = hashVal < epsilon / 2 ? 1 : -1;
+          const explorationMagnitude = 0.05 + hashVal / epsilon * 0.07;
+          recommendedBid = ucbBid * (1 + explorationDirection * explorationMagnitude);
+          recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
+          confidence = 0.4;
+          log8.info(`[MetaLearning] v264 UCB\u63A2\u7D22\u6A21\u5F0F: entity=${keywordId || targetId}, \u65B9\u5411=${explorationDirection > 0 ? "\u63D0\u4EF7" : "\u964D\u4EF7"}, \u5E45\u5EA6=${(explorationMagnitude * 100).toFixed(1)}%`);
+        } else {
+          recommendedBid = ucbBid;
+          confidence = 0.5;
+        }
+        break;
+      }
       case "rule_based":
-      case "ucb":
       default:
         recommendedBid = currentBid || 0;
         confidence = 0.5;
@@ -58998,16 +59043,21 @@ function marginalUtilityAllocation(curves, totalBudget, maxChangePercent = 0.5) 
 async function optimizeBudgetPortfolio(accountId, performanceGroupId, totalBudgetOverride) {
   const db = await getDbInstance9();
   try {
+    const whereConditions = [
+      eq(campaigns.accountId, accountId),
+      eq(campaigns.campaignStatus, "enabled")
+    ];
+    if (performanceGroupId) {
+      whereConditions.push(eq(campaigns.performanceGroupId, performanceGroupId));
+    }
     const activeCampaigns = await db.select({
       id: campaigns.id,
       campaignId: campaigns.campaignId,
       name: campaigns.campaignName,
       dailyBudget: campaigns.dailyBudget,
-      campaignType: campaigns.campaignType
-    }).from(campaigns).where(and(
-      eq(campaigns.accountId, accountId),
-      eq(campaigns.campaignStatus, "enabled")
-    )).limit(100);
+      campaignType: campaigns.campaignType,
+      performanceGroupId: campaigns.performanceGroupId
+    }).from(campaigns).where(and(...whereConditions)).limit(100);
     if (activeCampaigns.length === 0) return null;
     const currentTotalBudget = activeCampaigns.reduce(
       (sum2, c5) => sum2 + (Number(c5.dailyBudget) || 0),
@@ -68984,8 +69034,27 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       target.currentBid
     );
     const isAdvancedAlgorithm = !["rule_based", "ucb"].includes(metaDecision.selectedAlgorithm);
-    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > 0.3;
-    if (isAdvancedAlgorithm && hasValidBid) {
+    const isUcbExploration = metaDecision.selectedAlgorithm === "ucb" && Math.abs(metaDecision.confidence - 0.4) < 0.01 && Math.abs(metaDecision.recommendedBid - target.currentBid) > 5e-3;
+    const dynamicConfidenceThreshold = (() => {
+      switch (metaDecision.selectedAlgorithm) {
+        case "ensemble":
+          return 0.35;
+        // 融合算法要求更高置信度
+        case "cql":
+          return 0.25;
+        // CQL冷启动期降低门槛鼓励探索
+        case "linucb":
+          return 0.25;
+        // LinUCB冷启动期降低门槛鼓励探索
+        case "sigmoid_curve":
+          return 0.3;
+        // Sigmoid需要中等置信度
+        default:
+          return 0.3;
+      }
+    })();
+    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > dynamicConfidenceThreshold;
+    if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
       recordBidAction({
         accountId,
@@ -69065,8 +69134,8 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
     const shouldExplore = isEffectivelyHold ? explorationHash < EXPLORATION_RATE_HOLD && target.currentBid > 0.05 : explorationHash < EXPLORATION_RATE_ACTIVE;
     if (shouldExplore) {
       const directionHash = (entityId * 1103515245 + hourSeed >>> 0) % 100;
-      const gradientHash = (entityId * 6364136223846793005n + BigInt(hourSeed)) % 100n;
-      const gradientVal = Number(gradientHash < 0n ? -gradientHash : gradientHash);
+      const gradientHash = Math.abs((entityId * 2654435761 + hourSeed * 40503 >>> 0) % 100);
+      const gradientVal = gradientHash;
       let explorationRatio;
       if (gradientVal < 50) {
         explorationRatio = 0.03 + gradientVal / 50 * 0.02;
@@ -82705,9 +82774,10 @@ __export(riskActionEngine_exports, {
   isAccountInEmergencyQueue: () => isAccountInEmergencyQueue,
   markEmergencyOptimizationProcessed: () => markEmergencyOptimizationProcessed
 });
-function assessAccountRiskLevel(acos) {
-  if (acos > 50) return "critical";
-  if (acos > 35) return "warning";
+function assessAccountRiskLevel(acos, targetAcos) {
+  const effectiveTarget = targetAcos || 30;
+  if (acos > effectiveTarget * 3 || acos > 80) return "critical";
+  if (acos > effectiveTarget * 2 || acos > 50) return "warning";
   return "healthy";
 }
 async function persistRiskAlert(accountId, alertType, severity, detail) {
@@ -82954,6 +83024,41 @@ async function executeRiskActions() {
       });
     }
   }
+  try {
+    const unassignedResult = await detectAndReportUnassignedCampaigns();
+    if (unassignedResult.unassignedCount > 0) {
+      actionsTriggered++;
+      actionResults.push({
+        actionType: "assign_unmanaged_campaigns",
+        success: true,
+        detail: `\u68C0\u6D4B\u5230${unassignedResult.unassignedCount}\u4E2A\u672A\u5206\u914D\u5E7F\u544A\u6D3B\u52A8\uFF0C\u65E5\u5747\u9884\u7B97$${unassignedResult.totalDailyBudget.toFixed(2)}\uFF0C\u5DF2\u8BB0\u5F55\u5230\u544A\u8B66\u65E5\u5FD7`
+      });
+    }
+  } catch (err2) {
+    log17.error(`[RiskActionEngine] \u672A\u5206\u914D\u5E7F\u544A\u6D3B\u52A8\u68C0\u6D4B\u5931\u8D25: ${err2.message}`);
+  }
+  for (const account of warningAccounts) {
+    try {
+      const trendCheck = await checkAcosTrendForAccount(account.accountId);
+      if (trendCheck.isDeteriorating) {
+        actionsTriggered++;
+        const result = await markAccountForEmergencyOptimization(
+          account.accountId,
+          "proactive_acos_intervention",
+          "P1",
+          `ACoS\u8D8B\u52BF\u6076\u5316\u9884\u8B66: \u8FD17\u5929ACoS ${trendCheck.recentAcos.toFixed(1)}% vs \u524D14\u5929 ${trendCheck.prevAcos.toFixed(1)}%\uFF0C\u6076\u5316${trendCheck.deteriorationRate.toFixed(0)}%`
+        );
+        actionResults.push({
+          actionType: "proactive_acos_intervention",
+          accountId: account.accountId,
+          success: result,
+          detail: `\u8D26\u6237${account.accountName} ACoS\u8D8B\u52BF\u6076\u5316${trendCheck.deteriorationRate.toFixed(0)}%\uFF0C\u5DF2\u89E6\u53D1\u4E3B\u52A8\u5E72\u9884`
+        });
+      }
+    } catch (err2) {
+      log17.error(`[RiskActionEngine] \u8D26\u6237${account.accountId}\u8D8B\u52BF\u68C0\u67E5\u5931\u8D25: ${err2.message}`);
+    }
+  }
   log17.info(`[RiskActionEngine] \u98CE\u9669\u884C\u52A8\u6267\u884C\u5B8C\u6210: \u89E6\u53D1${actionsTriggered}\u4E2A\u884C\u52A8`);
   return {
     timestamp: timestamp2,
@@ -83024,6 +83129,70 @@ async function getPendingEmergencyAccounts() {
   } catch (err2) {
     log17.error(`[getPendingEmergencyAccounts] \u67E5\u8BE2\u5931\u8D25: ${err2.message}`);
     return [];
+  }
+}
+async function detectAndReportUnassignedCampaigns() {
+  try {
+    const unassigned = await getUnassignedCampaigns();
+    const activeCampaigns = unassigned.filter((c5) => c5.campaignStatus === "enabled");
+    if (activeCampaigns.length > 0) {
+      const totalBudget = activeCampaigns.reduce((sum2, c5) => sum2 + (Number(c5.dailyBudget) || 0), 0);
+      log17.warn(`[RiskActionEngine] v263: \u68C0\u6D4B\u5230${activeCampaigns.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97$${totalBudget.toFixed(2)}`);
+      await persistRiskAlert(
+        0,
+        "unassigned_campaigns",
+        activeCampaigns.length > 50 ? "high" : "medium",
+        `${activeCampaigns.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97$${totalBudget.toFixed(2)}\uFF0C\u8FD9\u4E9B\u5E7F\u544A\u6D3B\u52A8\u4E0D\u4F1A\u88AB\u4EFB\u4F55\u7B97\u6CD5\u4F18\u5316`
+      );
+      return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget };
+    }
+    return { unassignedCount: 0, totalDailyBudget: 0 };
+  } catch (err2) {
+    log17.error(`[detectAndReportUnassignedCampaigns] Error: ${err2.message}`);
+    return { unassignedCount: 0, totalDailyBudget: 0 };
+  }
+}
+async function checkAcosTrendForAccount(accountId) {
+  const dbInstance = await getDb();
+  if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
+  try {
+    const { sql: sql15 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [recentRows] = await dbInstance.execute(sql15`
+      SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+             SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+      FROM daily_performance
+      WHERE account_id = ${accountId}
+        AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    `);
+    const [prevRows] = await dbInstance.execute(sql15`
+      SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+             SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+      FROM daily_performance
+      WHERE account_id = ${accountId}
+        AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
+        AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    `);
+    const recent = recentRows?.[0] || recentRows;
+    const prev = prevRows?.[0] || prevRows;
+    const recentSpend = Number(recent?.total_spend) || 0;
+    const recentSales = Number(recent?.total_sales) || 0;
+    const prevSpend = Number(prev?.total_spend) || 0;
+    const prevSales = Number(prev?.total_sales) || 0;
+    if (recentSales > 0 && prevSales > 0) {
+      const recentAcos = recentSpend / recentSales * 100;
+      const prevAcos = prevSpend / prevSales * 100;
+      const deteriorationRate = prevAcos > 0 ? (recentAcos - prevAcos) / prevAcos * 100 : 0;
+      return {
+        isDeteriorating: deteriorationRate > 20,
+        recentAcos,
+        prevAcos,
+        deteriorationRate
+      };
+    }
+    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
+  } catch (err2) {
+    log17.error(`[checkAcosTrendForAccount] Error for account ${accountId}: ${err2.message}`);
+    return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   }
 }
 async function cleanupProcessedEntries() {
@@ -87306,9 +87475,9 @@ async function recordExecutionLog(result) {
     }
     try {
       const dbInstance = await getDb();
-      const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { performanceGroups: performanceGroups8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
+      await dbInstance.update(performanceGroups8).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups8.id, result.targetId));
       log19.info(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
@@ -159556,9 +159725,9 @@ async function runPostDeployOptimization() {
   }
   if (!lastVersion || lastVersion < 258) {
     try {
-      const { addLogFields } = await Promise.resolve().then(() => (init_v258_add_log_fields(), v258_add_log_fields_exports));
-      const logFieldsResult = await addLogFields();
-      log32.info(`[PostDeployOptimizer] v258: \u65E5\u5FD7\u5B57\u6BB5\u8FC1\u79FB\u5B8C\u6210: ${JSON.stringify(logFieldsResult)}`);
+      const { runV258Migration: runV258Migration2 } = await Promise.resolve().then(() => (init_v258_add_log_fields(), v258_add_log_fields_exports));
+      await runV258Migration2();
+      log32.info(`[PostDeployOptimizer] v258: \u65E5\u5FD7\u5B57\u6BB5\u8FC1\u79FB\u5B8C\u6210`);
     } catch (migrationErr) {
       log32.error(`[PostDeployOptimizer] v258: \u65E5\u5FD7\u5B57\u6BB5\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
     }
@@ -159718,7 +159887,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log32 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 262;
+    SYSTEM_VERSION = 264;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -161456,7 +161625,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 259;
+    SYSTEM_VERSION2 = 264;
   }
 });
 
@@ -161478,11 +161647,13 @@ async function generateMonitoringReport(teamId) {
   const syncMetrics = await checkSyncHealth(db, teamId, alerts);
   const algorithmMetrics = await checkAlgorithmHealth(db, teamId, thirtyDaysAgo, alerts);
   await checkVersionConsistency(alerts);
+  await checkUnassignedCampaigns(db, teamId, alerts);
+  await checkProactiveRiskWarning(db, teamId, alerts);
   const healthScore = calculateHealthScore(alerts);
   const status = healthScore >= 80 ? "healthy" : healthScore >= 50 ? "warning" : "critical";
   return {
     generatedAt: now,
-    systemVersion: 239,
+    systemVersion: 263,
     alerts,
     metrics: {
       bidRaiseCount: bidMetrics.raiseCount,
@@ -161501,21 +161672,22 @@ async function generateMonitoringReport(teamId) {
 }
 async function checkBidRatio(db, teamId, since, alerts) {
   try {
+    const sinceStr = since.toISOString();
     const result = await db.select({
-      direction: optimizationEvents.direction,
+      actionType: optimizationEvents.actionType,
       count: sql`count(*)`
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`
       )
-    ).groupBy(optimizationEvents.direction);
+    ).groupBy(optimizationEvents.actionType);
     let raiseCount = 0;
     let lowerCount = 0;
     for (const row of result) {
-      if (row.direction === "increase") raiseCount = Number(row.count);
-      if (row.direction === "decrease") lowerCount = Number(row.count);
+      if (row.actionType === "bid_increase") raiseCount = Number(row.count);
+      if (row.actionType === "bid_decrease") lowerCount = Number(row.count);
     }
     const ratio = lowerCount > 0 ? raiseCount / lowerCount : raiseCount > 0 ? Infinity : 1;
     if (ratio > ALERT_THRESHOLDS.bidRatioMax) {
@@ -161544,39 +161716,49 @@ async function checkAcosOverrun(db, teamId, alerts) {
       id: adAccounts.id,
       name: adAccounts.accountName,
       marketplace: adAccounts.marketplace
-    }).from(adAccounts).where(eq(adAccounts.teamId, teamId));
+    }).from(adAccounts).where(eq(adAccounts.userId, teamId));
     let totalOverrun = 0;
     let highRiskCount = 0;
     let accountCount = 0;
     for (const account of accounts) {
       const latestLog = await db.select({
-        actualAcos: optimizationLogs.actualAcos,
-        targetAcos: optimizationLogs.targetAcos
-      }).from(optimizationLogs).where(eq(optimizationLogs.adAccountId, account.id)).orderBy(desc(optimizationLogs.createdAt)).limit(1);
-      if (latestLog.length > 0 && latestLog[0].targetAcos && latestLog[0].actualAcos) {
-        const target = Number(latestLog[0].targetAcos);
-        const actual = Number(latestLog[0].actualAcos);
-        if (target > 0) {
-          const overrunPercent = (actual - target) / target * 100;
-          totalOverrun += Math.max(0, overrunPercent);
-          accountCount++;
-          if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
-            highRiskCount++;
-            alerts.push({
-              id: `acos-overrun-${account.id}-${Date.now()}`,
-              category: "acos_overrun",
-              severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? "critical" : "warning",
-              title: `${account.name} ${account.marketplace} ACoS\u4E25\u91CD\u8D85\u6807`,
-              message: `\u5B9E\u9645ACoS ${actual.toFixed(1)}%\uFF0C\u76EE\u6807${target.toFixed(1)}%\uFF0C\u8D85\u6807${overrunPercent.toFixed(0)}%`,
-              metric: "acos_overrun_percent",
-              currentValue: overrunPercent,
-              threshold: ALERT_THRESHOLDS.acosOverrunPercent,
-              recommendation: overrunPercent > 100 ? '\u5EFA\u8BAE\u6682\u505C\u8BE5\u8D26\u6237\u7684\u9AD8ACoS\u5E7F\u544A\u6D3B\u52A8\uFF0C\u5207\u6362\u5230"\u5229\u6DA6\u4F18\u5148"\u7B56\u7565' : "\u5EFA\u8BAE\u964D\u4F4E\u76EE\u6807ACoS\u6216\u68C0\u67E5\u5173\u952E\u8BCD\u8D28\u91CF",
-              timestamp: /* @__PURE__ */ new Date(),
-              accountId: account.id,
-              accountName: `${account.name} ${account.marketplace}`
-            });
+        actionDetail: optimizationLogs.actionDetail,
+        previousValue: optimizationLogs.previousValue,
+        newValue: optimizationLogs.newValue
+      }).from(optimizationLogs).where(
+        and(
+          eq(optimizationLogs.accountId, account.id),
+          sql`${optimizationLogs.logCategory} = 'bid_adjustment'`
+        )
+      ).orderBy(desc(optimizationLogs.createdAt)).limit(1);
+      if (latestLog.length > 0 && latestLog[0].actionDetail) {
+        try {
+          const detail = JSON.parse(latestLog[0].actionDetail);
+          const target = Number(detail.targetAcos || detail.target_acos || 0);
+          const actual = Number(detail.actualAcos || detail.actual_acos || detail.currentAcos || 0);
+          if (target > 0 && actual > 0) {
+            const overrunPercent = (actual - target) / target * 100;
+            totalOverrun += Math.max(0, overrunPercent);
+            accountCount++;
+            if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
+              highRiskCount++;
+              alerts.push({
+                id: `acos-overrun-${account.id}-${Date.now()}`,
+                category: "acos_overrun",
+                severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? "critical" : "warning",
+                title: `${account.name} ${account.marketplace} ACoS\u4E25\u91CD\u8D85\u6807`,
+                message: `\u5B9E\u9645ACoS ${actual.toFixed(1)}%\uFF0C\u76EE\u6807${target.toFixed(1)}%\uFF0C\u8D85\u6807${overrunPercent.toFixed(0)}%`,
+                metric: "acos_overrun_percent",
+                currentValue: overrunPercent,
+                threshold: ALERT_THRESHOLDS.acosOverrunPercent,
+                recommendation: overrunPercent > 100 ? '\u5EFA\u8BAE\u6682\u505C\u8BE5\u8D26\u6237\u7684\u9AD8ACoS\u5E7F\u544A\u6D3B\u52A8\uFF0C\u5207\u6362\u5230"\u5229\u6DA6\u4F18\u5148"\u7B56\u7565' : "\u5EFA\u8BAE\u964D\u4F4E\u76EE\u6807ACoS\u6216\u68C0\u67E5\u5173\u952E\u8BCD\u8D28\u91CF",
+                timestamp: /* @__PURE__ */ new Date(),
+                accountId: account.id,
+                accountName: `${account.name} ${account.marketplace}`
+              });
+            }
           }
+        } catch {
         }
       }
     }
@@ -161594,7 +161776,7 @@ async function checkSyncHealth(db, teamId, alerts) {
       count: sql`count(*)`
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.teamId, teamId),
+        eq(optimizationEvents.userId, teamId),
         sql`${optimizationEvents.apiSyncStatus} NOT IN ('not_applicable', 'invalid_legacy')`
       )
     ).groupBy(optimizationEvents.apiSyncStatus);
@@ -161628,13 +161810,14 @@ async function checkSyncHealth(db, teamId, alerts) {
 }
 async function checkAlgorithmHealth(db, teamId, since, alerts) {
   try {
+    const sinceStr = since.toISOString();
     const opsResult = await db.select({
       count: sql`count(*)`
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`
       )
     );
     const totalOps = Number(opsResult[0]?.count || 0);
@@ -161642,10 +161825,10 @@ async function checkAlgorithmHealth(db, teamId, since, alerts) {
       count: sql`count(*)`
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`,
-        sql`${optimizationEvents.isPositive} = true`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+        sql`${optimizationEvents.status} = 'success'`
       )
     );
     const positiveCount = Number(positiveResult[0]?.count || 0);
@@ -161654,8 +161837,8 @@ async function checkAlgorithmHealth(db, teamId, since, alerts) {
       algorithm: optimizationEvents.algorithmVersion
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
         sql`${optimizationEvents.algorithmVersion} IS NOT NULL`
       )
     ).groupBy(optimizationEvents.algorithmVersion);
@@ -161670,25 +161853,25 @@ async function checkAlgorithmHealth(db, teamId, since, alerts) {
         metric: "optimization_count_30d",
         currentValue: 0,
         threshold: ALERT_THRESHOLDS.minOptimizationCount,
-        recommendation: "\u68C0\u67E5\u4F18\u5316\u8C03\u5EA6\u5668\u662F\u5426\u6B63\u5E38\u8FD0\u884C\uFF0C\u786E\u8BA4\u4F18\u5316\u76EE\u6807\u662F\u5426\u5DF2\u542F\u7528\u81EA\u52A8\u4F18\u5316",
+        recommendation: "\u68C0\u67E5dataSyncScheduler\u662F\u5426\u6B63\u5E38\u8FD0\u884C\uFF0C\u786E\u8BA4\u4F18\u5316\u76EE\u6807\u662F\u5426\u5DF2\u914D\u7F6E",
         timestamp: /* @__PURE__ */ new Date()
       });
     }
-    if (totalOps > 0 && positiveRate < ALERT_THRESHOLDS.minPositiveRate) {
+    if (totalOps > 10 && positiveRate < ALERT_THRESHOLDS.minPositiveRate) {
       alerts.push({
         id: `low-positive-rate-${Date.now()}`,
         category: "algorithm_stall",
         severity: "warning",
         title: "\u7B97\u6CD5\u6B63\u5411\u7387\u504F\u4F4E",
-        message: `30\u5929\u6B63\u5411\u7387${positiveRate.toFixed(1)}%\uFF0C\u4F4E\u4E8E\u5B89\u5168\u9608\u503C${ALERT_THRESHOLDS.minPositiveRate}%`,
+        message: `30\u5929\u5185${totalOps}\u6B21\u4F18\u5316\u64CD\u4F5C\u4E2D\uFF0C\u6210\u529F\u7387\u4EC5${positiveRate.toFixed(1)}%\uFF0C\u4F4E\u4E8E${ALERT_THRESHOLDS.minPositiveRate}%\u9608\u503C`,
         metric: "positive_rate",
         currentValue: positiveRate,
         threshold: ALERT_THRESHOLDS.minPositiveRate,
-        recommendation: "\u68C0\u67E5\u7B97\u6CD5\u53C2\u6570\u914D\u7F6E\uFF0C\u53EF\u80FD\u9700\u8981\u964D\u4F4E\u63A2\u7D22\u529B\u5EA6\u6216\u8C03\u6574\u5B89\u5168\u8FB9\u754C",
+        recommendation: "\u68C0\u67E5\u89C4\u5219\u5F15\u64CE\u7684\u51FA\u4EF7\u7B56\u7565\u662F\u5426\u8FC7\u4E8E\u6FC0\u8FDB\uFF0C\u6216\u6570\u636E\u8D28\u91CF\u662F\u5426\u5B58\u5728\u95EE\u9898",
         timestamp: /* @__PURE__ */ new Date()
       });
     }
-    if (activeAlgorithms.length <= 1 && totalOps > 50) {
+    if (activeAlgorithms.length <= 1 && totalOps > 0) {
       alerts.push({
         id: `single-algorithm-${Date.now()}`,
         category: "algorithm_stall",
@@ -161712,7 +161895,7 @@ async function checkVersionConsistency(alerts) {
   try {
     const { SYSTEM_VERSION: SYSTEM_VERSION3 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
     const { SYSTEM_VERSION: UTIL_VERSION } = await Promise.resolve().then(() => (init_systemVersion(), systemVersion_exports));
-    if (SYSTEM_VERSION3 !== UTIL_VERSION) {
+    if (Number(SYSTEM_VERSION3) !== Number(UTIL_VERSION)) {
       alerts.push({
         id: `version-mismatch-${Date.now()}`,
         category: "version_mismatch",
@@ -161728,6 +161911,100 @@ async function checkVersionConsistency(alerts) {
     }
   } catch (e6) {
     console.warn("[MonitoringService] checkVersionConsistency error:", e6);
+  }
+}
+async function checkUnassignedCampaigns(db, teamId, alerts) {
+  try {
+    const unassigned = await db.select({
+      id: campaigns.id,
+      campaignName: campaigns.campaignName,
+      campaignStatus: campaigns.campaignStatus,
+      accountId: campaigns.accountId,
+      dailyBudget: campaigns.dailyBudget
+    }).from(campaigns).where(
+      and(
+        isNull(campaigns.performanceGroupId),
+        eq(campaigns.campaignStatus, "enabled")
+      )
+    );
+    if (unassigned.length > 0) {
+      const totalBudget = unassigned.reduce((sum2, c5) => sum2 + (Number(c5.dailyBudget) || 0), 0);
+      const severity = unassigned.length > 50 ? "critical" : unassigned.length > 10 ? "warning" : "info";
+      alerts.push({
+        id: `unassigned-campaigns-${Date.now()}`,
+        category: "unassigned_campaigns",
+        severity,
+        title: `${unassigned.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u5206\u914D\u4F18\u5316\u76EE\u6807`,
+        message: `\u5171${unassigned.length}\u4E2A\u6D3B\u8DC3\u5E7F\u544A\u6D3B\u52A8\u672A\u88AB\u5206\u914D\u5230\u4EFB\u4F55\u4F18\u5316\u76EE\u6807\uFF0C\u65E5\u5747\u9884\u7B97\u5408\u8BA1$${totalBudget.toFixed(2)}\uFF0C\u8FD9\u4E9B\u5E7F\u544A\u6D3B\u52A8\u4E0D\u4F1A\u88AB\u4EFB\u4F55\u4F18\u5316\u7B97\u6CD5\u7BA1\u7406`,
+        metric: "unassigned_campaign_count",
+        currentValue: unassigned.length,
+        threshold: 0,
+        recommendation: "\u5EFA\u8BAE\u5C06\u8FD9\u4E9B\u5E7F\u544A\u6D3B\u52A8\u5206\u914D\u5230\u5408\u9002\u7684\u4F18\u5316\u76EE\u6807\uFF0C\u6216\u521B\u5EFA\u65B0\u7684\u4F18\u5316\u76EE\u6807\u8FDB\u884C\u7BA1\u7406",
+        timestamp: /* @__PURE__ */ new Date()
+      });
+    }
+  } catch (e6) {
+    console.error("[MonitoringService] checkUnassignedCampaigns error:", e6);
+  }
+}
+async function checkProactiveRiskWarning(db, teamId, alerts) {
+  try {
+    const accounts = await db.select({
+      id: adAccounts.id,
+      name: adAccounts.accountName,
+      marketplace: adAccounts.marketplace
+    }).from(adAccounts).where(eq(adAccounts.userId, teamId));
+    for (const account of accounts) {
+      try {
+        const [recentResult] = await db.execute(
+          sql`SELECT 
+                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+              FROM daily_performance 
+              WHERE account_id = ${account.id}
+                AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+        );
+        const [prevResult] = await db.execute(
+          sql`SELECT 
+                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+              FROM daily_performance 
+              WHERE account_id = ${account.id}
+                AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
+                AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+        );
+        const recentData = recentResult?.[0] || recentResult;
+        const prevData = prevResult?.[0] || prevResult;
+        const recentSpend = Number(recentData?.total_spend) || 0;
+        const recentSales = Number(recentData?.total_sales) || 0;
+        const prevSpend = Number(prevData?.total_spend) || 0;
+        const prevSales = Number(prevData?.total_sales) || 0;
+        if (recentSales > 0 && prevSales > 0) {
+          const recentAcos = recentSpend / recentSales * 100;
+          const prevAcos = prevSpend / prevSales * 100;
+          const deterioration = prevAcos > 0 ? (recentAcos - prevAcos) / prevAcos * 100 : 0;
+          if (deterioration > 20) {
+            alerts.push({
+              id: `proactive-risk-${account.id}-${Date.now()}`,
+              category: "proactive_risk_warning",
+              severity: deterioration > 50 ? "critical" : "warning",
+              title: `${account.name} ${account.marketplace} ACoS\u8D8B\u52BF\u6076\u5316\u9884\u8B66`,
+              message: `\u6700\u8FD17\u5929ACoS ${recentAcos.toFixed(1)}%\uFF0C\u6BD4\u524D14\u5929(${prevAcos.toFixed(1)}%)\u6076\u5316${deterioration.toFixed(0)}%\uFF0C\u9700\u63D0\u524D\u5E72\u9884`,
+              metric: "acos_deterioration_rate",
+              currentValue: deterioration,
+              threshold: 20,
+              recommendation: `\u5EFA\u8BAE\u7ACB\u5373\u68C0\u67E5\u8BE5\u8D26\u6237\u7684\u9AD8ACoS\u5173\u952E\u8BCD\uFF0C\u8003\u8651\u5207\u6362\u5230\u66F4\u4FDD\u5B88\u7684\u7B56\u7565\u6A21\u677F\u6216\u964D\u4F4E\u76EE\u6807ACoS`,
+              timestamp: /* @__PURE__ */ new Date(),
+              accountId: account.id,
+              accountName: `${account.name} ${account.marketplace}`
+            });
+          }
+        }
+      } catch (accountErr) {
+      }
+    }
+  } catch (e6) {
+    console.error("[MonitoringService] checkProactiveRiskWarning error:", e6);
   }
 }
 function calculateHealthScore(alerts) {
@@ -161769,13 +162046,13 @@ function formatMonitoringReport(report2) {
   if (report2.alerts.length > 0) {
     lines.push("", `--- \u544A\u8B66 (${report2.alerts.length}) ---`);
     for (const alert of report2.alerts) {
-      const icon = alert.severity === "critical" ? "\u{1F534}" : alert.severity === "warning" ? "\u{1F7E1}" : "\u{1F535}";
+      const icon = alert.severity === "critical" ? "[CRIT]" : alert.severity === "warning" ? "[WARN]" : "[INFO]";
       lines.push(`${icon} [${alert.severity.toUpperCase()}] ${alert.title}`);
       lines.push(`   ${alert.message}`);
       lines.push(`   \u5EFA\u8BAE: ${alert.recommendation}`);
     }
   } else {
-    lines.push("", "\u2705 \u65E0\u544A\u8B66\uFF0C\u7CFB\u7EDF\u8FD0\u884C\u6B63\u5E38");
+    lines.push("", "\u7CFB\u7EDF\u8FD0\u884C\u6B63\u5E38\uFF0C\u65E0\u544A\u8B66");
   }
   lines.push(`
 ====================================
@@ -351267,6 +351544,18 @@ function calculateGradualProgressScore(config2, metrics, timeWeighted, multiWind
   const targetAcos = config2.targetAcos || 0;
   const targetRoas = config2.targetRoas || 0;
   if (!timeWeighted) {
+    const targetAcosVal = config2.targetAcos || 0;
+    const targetRoasVal = config2.targetRoas || 0;
+    if (targetAcosVal > 0 && metrics.avgAcos > 0) {
+      const gap = Math.abs(metrics.avgAcos - targetAcosVal) / targetAcosVal;
+      const baseScore = metrics.avgAcos <= targetAcosVal ? 75 : gap < 0.3 ? 55 : gap < 0.6 ? 40 : 25;
+      return { score: baseScore, detail: `\u57FA\u4E8EACoS\u4E0E\u76EE\u6807\u5DEE\u8DDD\u8BC4\u4F30(\u5DEE\u8DDD${(gap * 100).toFixed(0)}%)` };
+    }
+    if (targetRoasVal > 0 && metrics.avgRoas > 0) {
+      const gap = Math.abs(metrics.avgRoas - targetRoasVal) / targetRoasVal;
+      const baseScore = metrics.avgRoas >= targetRoasVal ? 75 : gap < 0.3 ? 55 : gap < 0.6 ? 40 : 25;
+      return { score: baseScore, detail: `\u57FA\u4E8EROAS\u4E0E\u76EE\u6807\u5DEE\u8DDD\u8BC4\u4F30(\u5DEE\u8DDD${(gap * 100).toFixed(0)}%)` };
+    }
     return { score: 50, detail: "\u9700\u8981\u66F4\u591A\u6570\u636E\u8BC4\u4F30\u6E10\u8FDB\u4F18\u5316\u8FDB\u5EA6" };
   }
   let score = 50;
@@ -351438,7 +351727,16 @@ function calculateGoalProgress(config2, metrics, trendData, timeWeighted, multiW
   const weights = getWeights(config2.strategyTemplateId);
   const confidenceMultiplier = timeWeighted ? getConfidenceMultiplier(timeWeighted.dataConfidence) : 0.8;
   const coreMetric = calculateCoreMetricScore(config2, metrics, timeWeighted);
-  const trend = trendData || multiWindow ? calculateTrendScore(trendData || { before: null, after: null }, config2, timeWeighted, multiWindow) : { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
+  let trend;
+  if (trendData || multiWindow) {
+    trend = calculateTrendScore(trendData || { before: null, after: null }, config2, timeWeighted, multiWindow);
+  } else if (timeWeighted) {
+    const trendDir = timeWeighted.trendDirection;
+    const baseScore = trendDir === "improving" ? 68 : trendDir === "stable" ? 52 : 35;
+    trend = { score: baseScore, detail: `\u57FA\u4E8E\u65F6\u95F4\u8870\u51CF\u8D8B\u52BF\u4FE1\u53F7: ${trendDir}` };
+  } else {
+    trend = { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
+  }
   const budgetEff = calculateBudgetEfficiencyScore(config2, metrics, timeWeighted);
   const convEff = calculateConversionEfficiencyScore(metrics, config2, timeWeighted);
   const gradualProgress = calculateGradualProgressScore(config2, metrics, timeWeighted, multiWindow);
@@ -372831,13 +373129,13 @@ var crossAccountRouter = router({
     }
     const accountsData = await Promise.all(
       accounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend2 = 0;
         let totalSales2 = 0;
         let totalImpressions2 = 0;
         let totalClicks2 = 0;
         let totalOrders2 = 0;
-        for (const pg of performanceGroups7) {
+        for (const pg of performanceGroups8) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend2 += parseFloat(campaign.spend || "0");
@@ -372915,13 +373213,13 @@ var crossAccountRouter = router({
     const selectedAccounts = accounts.filter((a4) => input.accountIds.includes(a4.id));
     const comparisonData = await Promise.all(
       selectedAccounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalImpressions = 0;
         let totalClicks = 0;
         let totalOrders = 0;
-        for (const pg of performanceGroups7) {
+        for (const pg of performanceGroups8) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend += parseFloat(campaign.spend || "0");
@@ -377799,7 +378097,7 @@ var monitoringRouter = router({
    * 获取当前团队的监控报告
    */
   getReport: protectedProcedure.query(async ({ ctx }) => {
-    const teamId = ctx.user.teamId;
+    const teamId = ctx.user.id;
     if (!teamId) {
       return {
         success: false,
@@ -377833,7 +378131,7 @@ var monitoringRouter = router({
    * 手动触发监控检查
    */
   runCheck: protectedProcedure.mutation(async ({ ctx }) => {
-    const teamId = ctx.user.teamId;
+    const teamId = ctx.user.id;
     if (!teamId) {
       return {
         success: false,
@@ -378790,7 +379088,7 @@ async function orchestrateStartup(server) {
         const { runMonitoringCheck: runMonitoringCheck2, formatMonitoringReport: formatMonitoringReport2 } = await Promise.resolve().then(() => (init_optimizationMonitoringService(), optimizationMonitoringService_exports));
         const database = await getDb();
         if (database) {
-          const teams = await database.selectDistinct({ teamId: optimizationEvents.teamId }).from(optimizationEvents).limit(10);
+          const teams = await database.selectDistinct({ teamId: optimizationEvents.userId }).from(optimizationEvents).limit(10);
           for (const team of teams) {
             if (team.teamId) {
               const report2 = await runMonitoringCheck2(team.teamId);

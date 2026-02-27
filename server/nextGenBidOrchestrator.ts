@@ -495,7 +495,7 @@ function ruleEngineDecision(
     let h = ((id * 2654435761 + seed) >>> 0) % 10000;
     return h / 10000; // 返回0~1之间的确定性值
   };
-  const entityId = (target as any).keywordId || (target as any).targetId || 0;
+  const entityId = Number((target as any).keywordId || (target as any).targetId || 0);
   
   // 场景1: 零曝光 — 需要提升可见性
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
@@ -946,7 +946,7 @@ export async function calculateNextGenBid(
     //   3. 对于非“hold”的调整也有概率叠加探索扰动，增加数据多样性
     // 安全保障：所有探索受safetyValidate约束，且受冷却时间保护
     const isEffectivelyHold = Math.abs(safeBid - target.currentBid) <= 0.005;
-    const entityId = target.id;
+    const entityId = Number(target.id);
     const hourSeed = Math.floor(Date.now() / (4 * 3600000)); // 每4小时一个种子
     const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
     
