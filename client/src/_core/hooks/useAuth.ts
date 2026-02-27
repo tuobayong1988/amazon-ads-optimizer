@@ -41,8 +41,13 @@ export function useAuth(options?: UseAuthOptions) {
     // 清除本地状态
     utils.auth.me.setData(undefined, null);
     
-    // 清除 localStorage 中的用户信息
-    localStorage.removeItem("ads-optimizer-user-info");
+    // v268: 彻底清除所有认证凭据
+    // 修复: 之前只清除了 ads-optimizer-user-info，但未清除 authToken 和 localUser
+    // 导致退出后 authenticatedFetch 仍然在请求头中附带 Bearer token，
+    // 后端验证通过后返回用户信息，造成自动重新登录
+    localStorage.removeItem("authToken");       // JWT token（本地登录）
+    localStorage.removeItem("localUser");       // 本地用户信息缓存
+    localStorage.removeItem("ads-optimizer-user-info"); // auth.me 查询缓存副本
     
     // 清除所有可能的缓存
     try {
@@ -51,9 +56,16 @@ export function useAuth(options?: UseAuthOptions) {
       // 忽略 invalidate 错误
     }
     
-    // 强制刷新页面并跳转到首页
-    // 使用 window.location.href 而不是 React Router，确保完全重新加载页面
-    // 这样可以确保所有状态都被清除
+    // 清除所有 React Query 缓存，确保不会残留任何用户数据
+    try {
+      utils.auth.me.setData(undefined, null);
+    } catch (e) {
+      // 忽略错误
+    }
+    
+    // 跳转到前台首页（LandingPage）
+    // 使用 window.location.href 强制完全重新加载页面
+    // 确保所有内存中的状态（React state、tRPC cache）都被清除
     window.location.href = "/";
   }, [logoutMutation, utils]);
 
