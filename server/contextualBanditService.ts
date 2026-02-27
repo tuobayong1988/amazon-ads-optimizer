@@ -317,7 +317,11 @@ export async function selectArm(
   
   // 计算置信度
   const totalPulls = arms.reduce((sum, a) => sum + a.totalPulls, 0);
-  const confidence = Math.min(1, totalPulls / 100);
+  // v263: 修复冷启动confidence过低导致高级算法永远无法激活的问题
+  // 之前: totalPulls/100 在冷启动时(totalPulls<30)导致confidence<0.3
+  // nextGenBidOrchestrator要求confidence>0.3才使用高级算法结果
+  // 修复: 保证最低0.35的基础置信度，随数据积累逐步提升到1.0
+  const confidence = Math.min(1, 0.35 + (totalPulls / 150) * 0.65);
   
   return {
     selectedArm: bestArm.armType,
