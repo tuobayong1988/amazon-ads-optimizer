@@ -5720,13 +5720,14 @@ export async function getGoalProgressTrendData(performanceGroupId: number, group
   
   try {
     // 获取该优化目标关联的所有广告活动的内部ID
-    const groupCampaigns = await db.select({ id: campaigns.id })
+    // v263: 修复关键Bug — 必须同时select campaignId字段，之前只select了id导致campaignIds全为undefined
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId })
       .from(campaigns)
       .where(eq(campaigns.performanceGroupId, performanceGroupId));
     
     if (groupCampaigns.length === 0) return { before: null, after: null };
     
-    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
+    const campaignIds = groupCampaigns.map(c => c.campaignId);
     
     // 加入前的数据（优化目标创建日期之前）
     const beforeData = await db.select({
@@ -5778,13 +5779,14 @@ export async function getMultiWindowTrendData(performanceGroupId: number, groupC
   if (!db) return null;
   
   try {
-    const groupCampaigns = await db.select({ id: campaigns.id })
+    // v263: 修复关键Bug — 必须同时select campaignId字段，之前只select了id导致campaignIds全为undefined
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId })
       .from(campaigns)
       .where(eq(campaigns.performanceGroupId, performanceGroupId));
     
     if (groupCampaigns.length === 0) return null;
     
-    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
+    const campaignIds = groupCampaigns.map(c => c.campaignId);
     const createdDate = new Date(groupCreatedAt).toISOString().split('T')[0];
     const now = new Date();
     
@@ -5856,13 +5858,14 @@ export async function getTimeWeightedMetricsForGoalProgress(performanceGroupId: 
   if (!db) return null;
   
   try {
-    const groupCampaigns = await db.select({ id: campaigns.id })
+    // v263: 修复关键Bug — 必须同时select campaignId字段，之前只select了id导致campaignIds全为undefined
+    const groupCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId })
       .from(campaigns)
       .where(eq(campaigns.performanceGroupId, performanceGroupId));
     
     if (groupCampaigns.length === 0) return null;
     
-    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
+    const campaignIds = groupCampaigns.map(c => c.campaignId);
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - 90);
