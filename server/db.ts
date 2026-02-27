@@ -90,7 +90,7 @@ export async function getDb() {
         enableKeepAlive: true,     // 保持连接活跃
         keepAliveInitialDelay: 30_000, // 30秒发送keepalive
       });
-      _db = drizzle(_pool, { casing: 'camelCase' });
+      _db = drizzle(_pool as any, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       log.info("[Database] 连接池已建立 (v257.1增强配置)");
     } catch (error) {

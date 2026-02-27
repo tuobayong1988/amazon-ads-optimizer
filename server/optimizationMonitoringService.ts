@@ -1,6 +1,6 @@
 /**
  * optimizationMonitoringService.ts
- * v239 - 自动化监控告警系统
+ * v263 - 自动化监控告警系统
  * 
  * 功能：
  * 1. 提价/降价比例监控 — 当提价/降价比例超过3:1时自动告警
@@ -8,6 +8,8 @@
  * 3. 同步成功率监控 — 当同步成功率低于100%时自动告警
  * 4. 算法健康度监控 — 检测算法是否正常运行
  * 5. 版本一致性检查 — 确保SYSTEM_VERSION与部署版本一致
+ * 6. v263: 未分配广告活动监控
+ * 7. v263: 主动风险预警（ACoS趋势恶化预警）
  */
 
 import { getDb } from './db';
@@ -125,7 +127,7 @@ export async function generateMonitoringReport(teamId: number): Promise<Monitori
 
   return {
     generatedAt: now,
-    systemVersion: 239,
+    systemVersion: 263,
     alerts,
     metrics: {
       bidRaiseCount: bidMetrics.raiseCount,
@@ -145,6 +147,7 @@ export async function generateMonitoringReport(teamId: number): Promise<Monitori
 
 /**
  * 检查提价/降价比例
+ * v263: 修复字段名 — direction→actionType, teamId→userId, eventType→eventCategory
  */
 async function checkBidRatio(
   db: any,
@@ -153,25 +156,27 @@ async function checkBidRatio(
   alerts: MonitoringAlert[]
 ): Promise<{ raiseCount: number; lowerCount: number; ratio: number }> {
   try {
+    const sinceStr = since.toISOString();
+    // v263: 使用actionType (bid_increase/bid_decrease) 替代不存在的direction字段
     const result = await db.select({
-      direction: optimizationEvents.direction,
+      actionType: optimizationEvents.actionType,
       count: sql<number>`count(*)`,
     })
     .from(optimizationEvents)
     .where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`
       )
     )
-    .groupBy(optimizationEvents.direction);
+    .groupBy(optimizationEvents.actionType);
 
     let raiseCount = 0;
     let lowerCount = 0;
     for (const row of result) {
-      if (row.direction === 'increase') raiseCount = Number(row.count);
-      if (row.direction === 'decrease') lowerCount = Number(row.count);
+      if (row.actionType === 'bid_increase') raiseCount = Number(row.count);
+      if (row.actionType === 'bid_decrease') lowerCount = Number(row.count);
     }
 
     const ratio = lowerCount > 0 ? raiseCount / lowerCount : raiseCount > 0 ? Infinity : 1;
@@ -200,6 +205,7 @@ async function checkBidRatio(
 
 /**
  * 检查ACoS超标情况
+ * v263: 修复字段名 — adAccountId→accountId, actualAcos/targetAcos→通过actionDetail JSON提取
  */
 async function checkAcosOverrun(
   db: any,
@@ -220,44 +226,57 @@ async function checkAcosOverrun(
     let highRiskCount = 0;
     let accountCount = 0;
 
-    // 简化：通过optimization_logs获取最近的ACoS数据
+    // v263: 修复 — optimizationLogs没有actualAcos/targetAcos字段
+    // 改为从actionDetail JSON中提取ACoS数据，或从performanceGroups获取目标ACoS
     for (const account of accounts) {
+      // 从optimization_logs的actionDetail中提取最近的ACoS数据
       const latestLog = await db.select({
-        actualAcos: optimizationLogs.actualAcos,
-        targetAcos: optimizationLogs.targetAcos,
+        actionDetail: optimizationLogs.actionDetail,
+        previousValue: optimizationLogs.previousValue,
+        newValue: optimizationLogs.newValue,
       })
       .from(optimizationLogs)
-      .where(eq(optimizationLogs.adAccountId, account.id))
+      .where(
+        and(
+          eq(optimizationLogs.accountId, account.id),
+          sql`${optimizationLogs.logCategory} = 'bid_adjustment'`
+        )
+      )
       .orderBy(desc(optimizationLogs.createdAt))
       .limit(1);
 
-      if (latestLog.length > 0 && latestLog[0].targetAcos && latestLog[0].actualAcos) {
-        const target = Number(latestLog[0].targetAcos);
-        const actual = Number(latestLog[0].actualAcos);
-        if (target > 0) {
-          const overrunPercent = ((actual - target) / target) * 100;
-          totalOverrun += Math.max(0, overrunPercent);
-          accountCount++;
+      if (latestLog.length > 0 && latestLog[0].actionDetail) {
+        try {
+          const detail = JSON.parse(latestLog[0].actionDetail);
+          const target = Number(detail.targetAcos || detail.target_acos || 0);
+          const actual = Number(detail.actualAcos || detail.actual_acos || detail.currentAcos || 0);
+          if (target > 0 && actual > 0) {
+            const overrunPercent = ((actual - target) / target) * 100;
+            totalOverrun += Math.max(0, overrunPercent);
+            accountCount++;
 
-          if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
-            highRiskCount++;
-            alerts.push({
-              id: `acos-overrun-${account.id}-${Date.now()}`,
-              category: 'acos_overrun',
-              severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? 'critical' : 'warning',
-              title: `${account.name} ${account.marketplace} ACoS严重超标`,
-              message: `实际ACoS ${actual.toFixed(1)}%，目标${target.toFixed(1)}%，超标${overrunPercent.toFixed(0)}%`,
-              metric: 'acos_overrun_percent',
-              currentValue: overrunPercent,
-              threshold: ALERT_THRESHOLDS.acosOverrunPercent,
-              recommendation: overrunPercent > 100
-                ? '建议暂停该账户的高ACoS广告活动，切换到"利润优先"策略'
-                : '建议降低目标ACoS或检查关键词质量',
-              timestamp: new Date(),
-              accountId: account.id,
-              accountName: `${account.name} ${account.marketplace}`,
-            });
+            if (overrunPercent > ALERT_THRESHOLDS.acosOverrunPercent) {
+              highRiskCount++;
+              alerts.push({
+                id: `acos-overrun-${account.id}-${Date.now()}`,
+                category: 'acos_overrun',
+                severity: actual > target * ALERT_THRESHOLDS.criticalAcosMultiplier ? 'critical' : 'warning',
+                title: `${account.name} ${account.marketplace} ACoS严重超标`,
+                message: `实际ACoS ${actual.toFixed(1)}%，目标${target.toFixed(1)}%，超标${overrunPercent.toFixed(0)}%`,
+                metric: 'acos_overrun_percent',
+                currentValue: overrunPercent,
+                threshold: ALERT_THRESHOLDS.acosOverrunPercent,
+                recommendation: overrunPercent > 100
+                  ? '建议暂停该账户的高ACoS广告活动，切换到"利润优先"策略'
+                  : '建议降低目标ACoS或检查关键词质量',
+                timestamp: new Date(),
+                accountId: account.id,
+                accountName: `${account.name} ${account.marketplace}`,
+              });
+            }
           }
+        } catch {
+          // JSON解析失败，跳过
         }
       }
     }
@@ -272,6 +291,7 @@ async function checkAcosOverrun(
 
 /**
  * 检查同步健康度
+ * v263: 修复字段名 — teamId→userId
  */
 async function checkSyncHealth(
   db: any,
@@ -286,7 +306,7 @@ async function checkSyncHealth(
     .from(optimizationEvents)
     .where(
       and(
-        eq(optimizationEvents.teamId, teamId),
+        eq(optimizationEvents.userId, teamId),
         sql`${optimizationEvents.apiSyncStatus} NOT IN ('not_applicable', 'invalid_legacy')`
       )
     )
@@ -326,6 +346,7 @@ async function checkSyncHealth(
 
 /**
  * 检查算法运行健康度
+ * v263: 修复字段名 — teamId→userId, eventType→eventCategory, isPositive→通过bid变化判断
  */
 async function checkAlgorithmHealth(
   db: any,
@@ -334,6 +355,7 @@ async function checkAlgorithmHealth(
   alerts: MonitoringAlert[]
 ): Promise<{ totalOps: number; positiveRate: number; activeAlgorithms: string[] }> {
   try {
+    const sinceStr = since.toISOString();
     // 查询30天内的优化操作总数
     const opsResult = await db.select({
       count: sql<number>`count(*)`,
@@ -341,25 +363,26 @@ async function checkAlgorithmHealth(
     .from(optimizationEvents)
     .where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`
       )
     );
 
     const totalOps = Number(opsResult[0]?.count || 0);
 
-    // 查询正向操作（降低ACoS的操作）
+    // v263: 查询正向操作 — 使用status='success'替代不存在的isPositive字段
+    // 正向操作定义：成功执行的出价调整
     const positiveResult = await db.select({
       count: sql<number>`count(*)`,
     })
     .from(optimizationEvents)
     .where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
-        sql`${optimizationEvents.eventType} = 'bid_change'`,
-        sql`${optimizationEvents.isPositive} = true`
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
+        sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
+        sql`${optimizationEvents.status} = 'success'`
       )
     );
 
@@ -373,16 +396,16 @@ async function checkAlgorithmHealth(
     .from(optimizationEvents)
     .where(
       and(
-        eq(optimizationEvents.teamId, teamId),
-        gte(optimizationEvents.createdAt, since),
+        eq(optimizationEvents.userId, teamId),
+        gte(optimizationEvents.createdAt, sinceStr),
         sql`${optimizationEvents.algorithmVersion} IS NOT NULL`
       )
     )
     .groupBy(optimizationEvents.algorithmVersion);
 
     const activeAlgorithms = algorithmResult
-      .map(r => r.algorithm)
-      .filter((a): a is string => a !== null);
+      .map((r: { algorithm: string | null }) => r.algorithm)
+      .filter((a: string | null): a is string => a !== null);
 
     // 检查是否有优化操作
     if (totalOps === 0) {
@@ -395,29 +418,29 @@ async function checkAlgorithmHealth(
         metric: 'optimization_count_30d',
         currentValue: 0,
         threshold: ALERT_THRESHOLDS.minOptimizationCount,
-        recommendation: '检查优化调度器是否正常运行，确认优化目标是否已启用自动优化',
+        recommendation: '检查dataSyncScheduler是否正常运行，确认优化目标是否已配置',
         timestamp: new Date(),
       });
     }
 
     // 检查正向率
-    if (totalOps > 0 && positiveRate < ALERT_THRESHOLDS.minPositiveRate) {
+    if (totalOps > 10 && positiveRate < ALERT_THRESHOLDS.minPositiveRate) {
       alerts.push({
         id: `low-positive-rate-${Date.now()}`,
         category: 'algorithm_stall',
         severity: 'warning',
         title: '算法正向率偏低',
-        message: `30天正向率${positiveRate.toFixed(1)}%，低于安全阈值${ALERT_THRESHOLDS.minPositiveRate}%`,
+        message: `30天内${totalOps}次优化操作中，成功率仅${positiveRate.toFixed(1)}%，低于${ALERT_THRESHOLDS.minPositiveRate}%阈值`,
         metric: 'positive_rate',
         currentValue: positiveRate,
         threshold: ALERT_THRESHOLDS.minPositiveRate,
-        recommendation: '检查算法参数配置，可能需要降低探索力度或调整安全边界',
+        recommendation: '检查规则引擎的出价策略是否过于激进，或数据质量是否存在问题',
         timestamp: new Date(),
       });
     }
 
-    // 检查是否只有rule_engine在运行
-    if (activeAlgorithms.length <= 1 && totalOps > 50) {
+    // 检查是否只有单一算法
+    if (activeAlgorithms.length <= 1 && totalOps > 0) {
       alerts.push({
         id: `single-algorithm-${Date.now()}`,
         category: 'algorithm_stall',
@@ -441,6 +464,7 @@ async function checkAlgorithmHealth(
 
 /**
  * 检查版本一致性
+ * v263: 修复版本号比较 — 使用Number()确保类型一致
  */
 async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void> {
   try {
@@ -448,7 +472,7 @@ async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void>
     const { SYSTEM_VERSION } = await import('./postDeployOptimizer');
     const { SYSTEM_VERSION: UTIL_VERSION } = await import('./utils/systemVersion');
 
-    if (SYSTEM_VERSION !== UTIL_VERSION) {
+    if (Number(SYSTEM_VERSION) !== Number(UTIL_VERSION)) {
       alerts.push({
         id: `version-mismatch-${Date.now()}`,
         category: 'version_mismatch',
@@ -643,13 +667,13 @@ export function formatMonitoringReport(report: MonitoringReport): string {
   if (report.alerts.length > 0) {
     lines.push('', `--- 告警 (${report.alerts.length}) ---`);
     for (const alert of report.alerts) {
-      const icon = alert.severity === 'critical' ? '🔴' : alert.severity === 'warning' ? '🟡' : '🔵';
+      const icon = alert.severity === 'critical' ? '[CRIT]' : alert.severity === 'warning' ? '[WARN]' : '[INFO]';
       lines.push(`${icon} [${alert.severity.toUpperCase()}] ${alert.title}`);
       lines.push(`   ${alert.message}`);
       lines.push(`   建议: ${alert.recommendation}`);
     }
   } else {
-    lines.push('', '✅ 无告警，系统运行正常');
+    lines.push('', '系统运行正常，无告警');
   }
 
   lines.push(`\n====================================\n`);

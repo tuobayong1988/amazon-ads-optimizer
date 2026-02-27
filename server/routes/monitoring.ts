@@ -19,7 +19,7 @@ export const monitoringRouter = router({
    */
   getReport: protectedProcedure
     .query(async ({ ctx }) => {
-      const teamId = ctx.user.teamId;
+      const teamId = ctx.user.id;
       if (!teamId) {
         return {
           success: false,
@@ -56,7 +56,7 @@ export const monitoringRouter = router({
    */
   runCheck: protectedProcedure
     .mutation(async ({ ctx }) => {
-      const teamId = ctx.user.teamId;
+      const teamId = ctx.user.id;
       if (!teamId) {
         return {
           success: false,
