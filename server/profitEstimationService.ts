@@ -268,7 +268,7 @@ export async function getProfitConfigForTarget(
 ): Promise<ProfitConfig> {
   try {
     const db = await getDb();
-    const groups = await db.select().from(performanceGroups)
+    const groups = await db!.select().from(performanceGroups)
       .where(eq(performanceGroups.id, targetId))
       .limit(1);
     
