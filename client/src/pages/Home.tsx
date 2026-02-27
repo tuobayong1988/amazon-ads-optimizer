@@ -738,11 +738,12 @@ function MarketingPage() {
 
 // v233: 重新设计的运营作战指挥中心（登录后显示）
 // v234: 卡片ID定义
-const DEFAULT_CARD_ORDER = ['kpi-cards', 'trend-chart', 'account-risk', 'sync-health', 'algorithm-effect', 'order-trend', 'quick-actions'];
+const DEFAULT_CARD_ORDER = ['kpi-cards', 'system-health', 'trend-chart', 'account-risk', 'sync-health', 'algorithm-effect', 'order-trend', 'quick-actions'];
 
 // v251: 卡片尺寸类型定义 - full-width独占一行，compact并排显示
 const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
   'kpi-cards': 'full',
+  'system-health': 'full',  // v261: 系统健康监控卡片
   'trend-chart': 'full',
   'account-risk': 'full',
   'sync-health': 'compact',
@@ -877,6 +878,19 @@ function DashboardContent() {
   const { data: algorithmStats } = trpc.algorithmEffect.getStats.useQuery(
     { days: 30 },
     { enabled: !!user }
+  );
+  
+  // v261: 获取系统健康核心指标（回滚率 + 算法激活率）
+  const selectedAccountId = accountsWithPerformance?.[0]?.id;
+  const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
+    { accountId: selectedAccountId!, days: 7 },
+    { enabled: !!user && !!selectedAccountId, refetchInterval: 5 * 60 * 1000 }
+  );
+  
+  // v261: 获取部署后纠错报告
+  const { data: deployCorrectionReport } = trpc.monitoring.getDeployCorrectionReport.useQuery(
+    undefined,
+    { enabled: !!user, refetchInterval: 10 * 60 * 1000 }
   );
   
   // 图表数据
@@ -1121,6 +1135,167 @@ function DashboardContent() {
                               borderColor="cyan-500"
                             />
                           </div>
+                        )}
+                        
+                        {cardId === 'system-health' && healthMetrics?.success && healthMetrics.metrics && (
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <Shield className="w-5 h-5 text-blue-500" />
+                                    系统健康监控
+                                  </CardTitle>
+                                  <CardDescription>v261 核心指标实时追踪</CardDescription>
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  每5分钟刷新
+                                </Badge>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {/* 回滚率 */}
+                                <div className={`p-4 rounded-lg border ${
+                                  healthMetrics.metrics.rollbackRate.status === 'healthy' 
+                                    ? 'border-green-500/30 bg-green-500/5' 
+                                    : healthMetrics.metrics.rollbackRate.status === 'warning'
+                                    ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
+                                }`}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'bg-green-500' :
+                                      healthMetrics.metrics.rollbackRate.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`} />
+                                    <span className="text-xs text-muted-foreground">回滚率</span>
+                                  </div>
+                                  <div className={`text-2xl font-bold ${
+                                    healthMetrics.metrics.rollbackRate.status === 'healthy' ? 'text-green-400' :
+                                    healthMetrics.metrics.rollbackRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {healthMetrics.metrics.rollbackRate.rate.toFixed(1)}%
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                    {healthMetrics.metrics.rollbackRate.trend === 'improving' ? (
+                                      <><TrendingDown className="w-3 h-3 text-green-500" /> 改善中</>
+                                    ) : healthMetrics.metrics.rollbackRate.trend === 'worsening' ? (
+                                      <><TrendingUp className="w-3 h-3 text-red-500" /> 恶化中</>
+                                    ) : '稳定'}
+                                    <span className="ml-1">(前期: {healthMetrics.metrics.rollbackRate.previousRate.toFixed(1)}%)</span>
+                                  </div>
+                                </div>
+                                {/* 算法激活率 */}
+                                <div className={`p-4 rounded-lg border ${
+                                  healthMetrics.metrics.algorithmActivation.status === 'healthy'
+                                    ? 'border-green-500/30 bg-green-500/5'
+                                    : healthMetrics.metrics.algorithmActivation.status === 'warning'
+                                    ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
+                                }`}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'bg-green-500' :
+                                      healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`} />
+                                    <span className="text-xs text-muted-foreground">算法激活率</span>
+                                  </div>
+                                  <div className={`text-2xl font-bold ${
+                                    healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'text-green-400' :
+                                    healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {healthMetrics.metrics.algorithmActivation.activeAlgorithms}/{healthMetrics.metrics.algorithmActivation.totalAlgorithms}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    活跃: {healthMetrics.metrics.algorithmActivation.algorithms.filter((a: any) => a.isActive).map((a: any) => a.name).join(', ') || '无'}
+                                  </div>
+                                </div>
+                                {/* ACoS趋势 */}
+                                <div className={`p-4 rounded-lg border ${
+                                  healthMetrics.metrics.acosTrend.status === 'healthy'
+                                    ? 'border-green-500/30 bg-green-500/5'
+                                    : healthMetrics.metrics.acosTrend.status === 'warning'
+                                    ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
+                                }`}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      healthMetrics.metrics.acosTrend.status === 'healthy' ? 'bg-green-500' :
+                                      healthMetrics.metrics.acosTrend.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`} />
+                                    <span className="text-xs text-muted-foreground">ACoS趋势</span>
+                                  </div>
+                                  <div className={`text-2xl font-bold ${
+                                    healthMetrics.metrics.acosTrend.status === 'healthy' ? 'text-green-400' :
+                                    healthMetrics.metrics.acosTrend.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {healthMetrics.metrics.acosTrend.currentAcos.toFixed(1)}%
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                    {healthMetrics.metrics.acosTrend.trend === 'improving' ? (
+                                      <><TrendingDown className="w-3 h-3 text-green-500" /> 改善中</>
+                                    ) : healthMetrics.metrics.acosTrend.trend === 'worsening' ? (
+                                      <><TrendingUp className="w-3 h-3 text-red-500" /> 恶化中</>
+                                    ) : '稳定'}
+                                    <span className="ml-1">(目标: {healthMetrics.metrics.acosTrend.targetAcos.toFixed(0)}%)</span>
+                                  </div>
+                                </div>
+                                {/* 熔断状态 */}
+                                <div className={`p-4 rounded-lg border ${
+                                  healthMetrics.metrics.circuitBreakerRate.status === 'healthy'
+                                    ? 'border-green-500/30 bg-green-500/5'
+                                    : healthMetrics.metrics.circuitBreakerRate.status === 'warning'
+                                    ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
+                                }`}>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className={`w-2 h-2 rounded-full ${
+                                      healthMetrics.metrics.circuitBreakerRate.status === 'healthy' ? 'bg-green-500' :
+                                      healthMetrics.metrics.circuitBreakerRate.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`} />
+                                    <span className="text-xs text-muted-foreground">熔断率</span>
+                                  </div>
+                                  <div className={`text-2xl font-bold ${
+                                    healthMetrics.metrics.circuitBreakerRate.status === 'healthy' ? 'text-green-400' :
+                                    healthMetrics.metrics.circuitBreakerRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                  }`}>
+                                    {healthMetrics.metrics.circuitBreakerRate.rate.toFixed(1)}%
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    触发: {healthMetrics.metrics.circuitBreakerRate.triggered} / {healthMetrics.metrics.circuitBreakerRate.total}
+                                  </div>
+                                </div>
+                              </div>
+                              {/* v261: 部署后纠错报告 */}
+                              {deployCorrectionReport?.success && deployCorrectionReport.report?.latestDeploy && (
+                                <div className="mt-4 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium flex items-center gap-2">
+                                      <Zap className="w-4 h-4 text-blue-400" />
+                                      最近部署纠错报告
+                                    </span>
+                                    <Badge variant="outline" className="text-xs">
+                                      v{deployCorrectionReport.report.latestDeploy.version}
+                                    </Badge>
+                                  </div>
+                                  <div className="grid grid-cols-4 gap-3 text-center">
+                                    <div>
+                                      <div className="text-lg font-bold text-foreground">{deployCorrectionReport.report.latestDeploy.targetsProcessed}</div>
+                                      <div className="text-xs text-muted-foreground">目标处理</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-lg font-bold text-green-400">{deployCorrectionReport.report.latestDeploy.targetsSucceeded}</div>
+                                      <div className="text-xs text-muted-foreground">成功</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-lg font-bold text-red-400">{deployCorrectionReport.report.latestDeploy.targetsFailed}</div>
+                                      <div className="text-xs text-muted-foreground">失败</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-lg font-bold text-blue-400">{deployCorrectionReport.report.latestDeploy.totalActions}</div>
+                                      <div className="text-xs text-muted-foreground">优化动作</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
                         )}
                         
                         {cardId === 'trend-chart' && (
