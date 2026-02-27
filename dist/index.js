@@ -159718,7 +159718,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log32 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 260;
+    SYSTEM_VERSION = 261;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -159982,6 +159982,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 260,
         description: "v260: [\u6301\u7EED\u76D1\u63A7+\u52A8\u6001\u63D0\u4EF7+\u4EEA\u8868\u76D8\u589E\u5F3A] \u2014 (1)P0-\u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7API: \u56DE\u6EDA\u7387/\u7B97\u6CD5\u6FC0\u6D3B\u7387/ACoS\u8D8B\u52BF/\u7194\u65AD\u89E6\u53D1\u7387/\u63D0\u4EF7\u5206\u6790\u5B9E\u65F6\u8BA1\u7B97 (2)P1-\u52A8\u6001\u63D0\u4EF7\u6A21\u578B: \u57FA\u4E8ECTR+CVR\u7CBE\u7EC6\u5316\u8C03\u6574\u63D0\u4EF7\u5E45\u5EA6(\u660E\u661F\u8BCD30%/\u9AD8\u6D41\u91CF15%/\u9AD8\u8F6C\u531620%/\u4FDD\u5B8810%) (3)P2-\u4EEA\u8868\u76D8\u589E\u5F3A: \u524D\u7AEF\u65B0\u589E\u56DE\u6EDA\u7387+\u7B97\u6CD5\u6FC0\u6D3B\u7387+ACoS\u8D8B\u52BF+\u7194\u65AD\u89E6\u53D1\u7387\u56DB\u5927\u5065\u5EB7\u6307\u6807\u5361\u7247 (4)\u7F51\u7AD9\u5E95\u90E8\u516C\u53F8\u4FE1\u606F: \u6DF1\u5733\u4E00\u54C1\u540D\u8F69\u79D1\u6280\u6709\u9650\u516C\u53F8",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 261,
+        description: "v261: [\u90E8\u7F72\u540E\u7EA0\u9519\u673A\u5236\u91CD\u6784] \u2014 (1)\u542F\u52A8\u534F\u8C03\u987A\u5E8F\u91CD\u6784: PostDeploy\u2192AutoCorrector\u2192\u6548\u679C\u9A8C\u8BC1(\u65B0\u7B97\u6CD5\u4F18\u5148\u539F\u5219) (2)\u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1\u95ED\u73AF: \u91CD\u4F18\u5316\u540E\u7B49\u5F8560\u79D2\u518D\u6B21\u626B\u63CF\u786E\u8BA4Amazon\u5DF2\u63A5\u53D7\u6240\u6709\u6307\u4EE4 (3)\u524D\u7AEF\u7EA0\u9519\u62A5\u544A\u53EF\u89C6\u5316: Dashboard\u65B0\u589E\u90E8\u7F72\u540E\u7EA0\u9519\u62A5\u544A\u5361\u7247",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }
@@ -377779,6 +377785,9 @@ async function getSystemHealthMetrics(accountId, days = 7) {
 }
 
 // server/routes/monitoring.ts
+init_db2();
+init_schema2();
+init_drizzle_orm();
 var monitoringRouter = router({
   /**
    * 获取当前团队的监控报告
@@ -377870,6 +377879,96 @@ var monitoringRouter = router({
         success: false,
         error: e6.message,
         metrics: null
+      };
+    }
+  }),
+  /**
+   * v261: 获取部署后纠错报告
+   * 
+   * 返回最近的部署后重优化结果、纠错结果和效果验证结果
+   * 用于前端仪表盘展示每次部署后的纠错执行情况
+   */
+  getDeployCorrectionReport: protectedProcedure.query(async () => {
+    try {
+      const database = await getDb();
+      if (!database) {
+        return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25", report: null };
+      }
+      const deployEvents = await database.select({
+        id: optimizationEvents.id,
+        actionDetail: optimizationEvents.actionDetail,
+        changeReason: optimizationEvents.changeReason,
+        status: optimizationEvents.status,
+        createdAt: optimizationEvents.createdAt
+      }).from(optimizationEvents).where(
+        and(
+          eq(optimizationEvents.eventCategory, "settings_change"),
+          eq(optimizationEvents.actionType, "settings_update"),
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
+        )
+      ).orderBy(desc(optimizationEvents.createdAt)).limit(5);
+      const verifyEvents = await database.select({
+        id: optimizationEvents.id,
+        actionDetail: optimizationEvents.actionDetail,
+        changeReason: optimizationEvents.changeReason,
+        status: optimizationEvents.status,
+        createdAt: optimizationEvents.createdAt
+      }).from(optimizationEvents).where(
+        and(
+          eq(optimizationEvents.eventCategory, "settings_change"),
+          eq(optimizationEvents.actionType, "auto_correction"),
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'post_deploy_verification'`
+        )
+      ).orderBy(desc(optimizationEvents.createdAt)).limit(5);
+      const deployHistory = deployEvents.map((e6) => {
+        let detail = {};
+        try {
+          detail = JSON.parse(e6.actionDetail || "{}");
+        } catch {
+        }
+        return {
+          id: e6.id,
+          version: detail.systemVersion,
+          previousVersion: detail.previousVersion,
+          targetsProcessed: detail.targetsProcessed || 0,
+          targetsSucceeded: detail.targetsSucceeded || 0,
+          targetsFailed: detail.targetsFailed || 0,
+          totalActions: detail.totalActions || 0,
+          status: e6.status,
+          deployedAt: e6.createdAt
+        };
+      });
+      const verifyHistory = verifyEvents.map((e6) => {
+        let detail = {};
+        try {
+          detail = JSON.parse(e6.actionDetail || "{}");
+        } catch {
+        }
+        return {
+          id: e6.id,
+          version: detail.systemVersion,
+          deployResult: detail.deployResult || {},
+          correctionResult: detail.correctionResult || {},
+          verificationResult: detail.verificationResult || {},
+          status: e6.status,
+          verifiedAt: e6.createdAt
+        };
+      });
+      return {
+        success: true,
+        error: null,
+        report: {
+          deployHistory,
+          verifyHistory,
+          latestDeploy: deployHistory[0] || null,
+          latestVerification: verifyHistory[0] || null
+        }
+      };
+    } catch (e6) {
+      return {
+        success: false,
+        error: e6.message,
+        report: null
       };
     }
   })
@@ -378592,17 +378691,65 @@ async function orchestrateStartup(server) {
         log35.info(`[LifecycleManager] \u5904\u7406 ${diagnostics.pendingTasks + diagnostics.interruptedTasks} \u4E2A\u5F85\u5904\u7406/\u6062\u590D\u7684\u4EFB\u52A1...`);
         await flushPendingTasks();
       }
-      log35.info("[LifecycleManager] \u8FD0\u884CAPI\u6267\u884C\u7EA7\u7EA0\u9519...");
-      const { runAutoCorrection: runAutoCorrection2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
-      const corrResult = await runAutoCorrection2();
-      log35.info(`[LifecycleManager] \u2713 \u7EA0\u9519\u5B8C\u6210: \u53D1\u73B0${corrResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${corrResult.totalCorrected}\u4E2A`);
-      log35.debug("[LifecycleManager] \u8FD0\u884C\u90E8\u7F72\u540E\u91CD\u4F18\u5316...");
+      log35.info("[LifecycleManager] v261: \u8FD0\u884C\u90E8\u7F72\u540E\u91CD\u4F18\u5316\uFF08\u65B0\u7B97\u6CD5\u4F18\u5148\uFF09...");
       const { runPostDeployOptimization: runPostDeployOptimization2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
       const deployResult = await runPostDeployOptimization2();
       if (deployResult.triggered) {
-        log35.info(`[LifecycleManager] \u2713 \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210: ${deployResult.targetsProcessed}\u4E2A\u76EE\u6807, ${deployResult.targetsSucceeded}\u4E2A\u6210\u529F`);
+        log35.info(`[LifecycleManager] \u2713 \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210: ${deployResult.targetsProcessed}\u4E2A\u76EE\u6807, ${deployResult.targetsSucceeded}\u4E2A\u6210\u529F, ${deployResult.totalOptimizationActions}\u4E2A\u4F18\u5316\u52A8\u4F5C`);
       } else {
         log35.debug(`[LifecycleManager] \u2713 ${deployResult.reason}`);
+      }
+      log35.info("[LifecycleManager] v261: \u8FD0\u884CAPI\u6267\u884C\u7EA7\u7EA0\u9519\uFF08\u786E\u4FDD\u540C\u6B65\u4E00\u81F4\u6027\uFF09...");
+      const { runAutoCorrection: runAutoCorrection2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
+      const corrResult = await runAutoCorrection2();
+      log35.info(`[LifecycleManager] \u2713 \u7EA0\u9519\u5B8C\u6210: \u53D1\u73B0${corrResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${corrResult.totalCorrected}\u4E2A`);
+      if (deployResult.triggered && deployResult.totalOptimizationActions > 0) {
+        try {
+          log35.info("[LifecycleManager] v261: \u542F\u52A8\u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1\uFF08\u7B49\u5F8560\u79D2\u8BA9Amazon\u5904\u7406\u6307\u4EE4\uFF09...");
+          await new Promise((resolve8) => setTimeout(resolve8, 60 * 1e3));
+          const verifyResult = await runAutoCorrection2();
+          const newIssues = verifyResult.totalIssuesFound;
+          const newCorrected = verifyResult.totalCorrected;
+          if (newIssues === 0) {
+            log35.info(`[LifecycleManager] v261: \u2713 \u6548\u679C\u9A8C\u8BC1\u901A\u8FC7 \u2014 \u6240\u6709\u91CD\u4F18\u5316\u6307\u4EE4\u5DF2\u88ABAmazon\u6210\u529F\u63A5\u53D7`);
+          } else {
+            log35.warn(`[LifecycleManager] v261: \u26A0 \u6548\u679C\u9A8C\u8BC1\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4, \u5DF2\u81EA\u52A8\u7EA0\u6B63${newCorrected}\u4E2A`);
+          }
+          const database = await getDb();
+          if (database) {
+            await database.insert(optimizationEvents).values({
+              accountId: 0,
+              eventCategory: "settings_change",
+              actionType: "auto_correction",
+              actionDetail: JSON.stringify({
+                type: "post_deploy_verification",
+                systemVersion: SYSTEM_VERSION2,
+                deployResult: {
+                  triggered: deployResult.triggered,
+                  targetsProcessed: deployResult.targetsProcessed,
+                  targetsSucceeded: deployResult.targetsSucceeded,
+                  targetsFailed: deployResult.targetsFailed,
+                  totalActions: deployResult.totalOptimizationActions
+                },
+                correctionResult: {
+                  issuesFound: corrResult.totalIssuesFound,
+                  corrected: corrResult.totalCorrected
+                },
+                verificationResult: {
+                  issuesFound: newIssues,
+                  corrected: newCorrected,
+                  passed: newIssues === 0
+                }
+              }),
+              changeReason: `v${SYSTEM_VERSION2} \u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1: ${newIssues === 0 ? "\u901A\u8FC7" : `\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4`}`,
+              algorithmVersion: `v${SYSTEM_VERSION2}`,
+              status: newIssues === 0 ? "success" : "pending",
+              apiSyncStatus: "not_applicable"
+            });
+          }
+        } catch (verifyErr) {
+          log35.warn(`[LifecycleManager] v261: \u6548\u679C\u9A8C\u8BC1\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u8FD0\u884C\uFF09: ${verifyErr.message}`);
+        }
       }
       if (diagnostics.lastShutdownType === "crash") {
         const database = await getDb();

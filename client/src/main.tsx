@@ -37,23 +37,38 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+/**
+ * v261: 统一的fetch函数 — 确保所有trpc请求（包括batch和非batch）都携带Authorization头
+ * 
+ * 问题背景: httpBatchLink在某些情况下会发出非batch请求（如延迟加载的查询），
+ * 这些请求虽然经过自定义fetch，但如果trpc内部在某些路径下绕过了batch机制，
+ * 就可能导致认证失败（401）。通过在fetch层统一注入token，确保所有请求都能通过认证。
+ */
+const authenticatedFetch: typeof globalThis.fetch = (input, init) => {
+  const token = localStorage.getItem('authToken');
+  const headers = new Headers((init as any)?.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return globalThis.fetch(input, {
+    ...(init ?? {}),
+    credentials: "include",
+    headers,
+  });
+};
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
-      fetch(input, init) {
-        const token = localStorage.getItem('authToken');
-        const headers = new Headers((init as any)?.headers);
-        if (token) {
-          headers.set('Authorization', `Bearer ${token}`);
-        }
-        return globalThis.fetch(input, {
-          ...(init ?? {}),
-          credentials: "include",
-          headers,
-        });
-      },
+      fetch: authenticatedFetch,
+      /**
+       * v261: 增加maxURLLength限制
+       * 当URL超过此长度时，httpBatchLink会将请求拆分为多个较小的batch
+       * 这确保了即使拆分后的请求也会经过authenticatedFetch
+       */
+      maxURLLength: 2083,
     }),
   ],
 });
