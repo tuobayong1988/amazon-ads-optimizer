@@ -250,18 +250,25 @@ export async function optimizeBudgetPortfolio(
   const db = await getDbInstance();
   
   try {
-    // 获取所有活跃Campaign
+    // v263: 增强预算优化器 — 支持按优化目标分组优化
+    // 之前: 仅按账户级别优化，未考虑不同优化目标的差异化策略
+    // 修复: 当指定performanceGroupId时，仅优化该目标下的Campaign
+    const whereConditions = [
+      eq(campaigns.accountId, accountId),
+      eq(campaigns.campaignStatus, 'enabled'),
+    ];
+    if (performanceGroupId) {
+      whereConditions.push(eq(campaigns.performanceGroupId, performanceGroupId));
+    }
     const activeCampaigns = await db.select({
       id: campaigns.id,
       campaignId: campaigns.campaignId,
       name: campaigns.campaignName,
       dailyBudget: campaigns.dailyBudget,
       campaignType: campaigns.campaignType,
+      performanceGroupId: campaigns.performanceGroupId,
     }).from(campaigns)
-      .where(and(
-        eq(campaigns.accountId, accountId),
-        eq(campaigns.campaignStatus, 'enabled')
-      ))
+      .where(and(...whereConditions))
       .limit(100);
     
     if (activeCampaigns.length === 0) return null;
