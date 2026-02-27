@@ -841,7 +841,18 @@ export async function calculateNextGenBid(
     const isUcbExploration = metaDecision.selectedAlgorithm === 'ucb' 
       && Math.abs(metaDecision.confidence - 0.4) < 0.01
       && Math.abs(metaDecision.recommendedBid - target.currentBid) > 0.005;
-    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > 0.3;
+    // v264: P1-2 动态confidence门槛
+    // 冷启动算法(linucb/cql新启用)降低门槛鼓励探索，成熟算法(ensemble)提高门槛要求更高置信度
+    const dynamicConfidenceThreshold = (() => {
+      switch (metaDecision.selectedAlgorithm) {
+        case 'ensemble': return 0.35;     // 融合算法要求更高置信度
+        case 'cql': return 0.25;          // CQL冷启动期降低门槛鼓励探索
+        case 'linucb': return 0.25;       // LinUCB冷启动期降低门槛鼓励探索
+        case 'sigmoid_curve': return 0.30; // Sigmoid需要中等置信度
+        default: return 0.30;
+      }
+    })();
+    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > dynamicConfidenceThreshold;
     
     if ((isAdvancedAlgorithm || isUcbExploration) && hasValidBid) {
       const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
