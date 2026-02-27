@@ -96,8 +96,10 @@ const BID_CIRCUIT_BREAKER_CONFIG = {
   attributionDelayHours: 48,
   /** 归因延迟数据权重折扣：最近48h内数据的权重 */
   recentDataWeightDiscount: 0.6,
-  /** v259: 熔断触发时的提价恢复比例 — 小幅提价恢复曝光 */
-  recoveryBoostPercent: 0.10, // v266: 从8%提升到10%，更积极地恢复曝光
+  /** v268 P0-1: 熔断触发时的提价恢复比例 — 从10%提升到15%，分3步渐进执行 */
+  recoveryBoostPercent: 0.15, // v268: 从10%提升到15%，更积极地恢复曝光
+  /** v268 P0-1: 渐进恢复步骤数 — 将恢复提价分成多步执行，避免一次性大幅提价 */
+  recoverySteps: 3,
   /** v259: 最低曝光保护阈值 — 曝光低于历史基线此比例时暂停所有降价 */
   minImpressionProtectionRatio: 0.60, // v266: 从50%提升到60%，更早保护曝光
 };
@@ -564,14 +566,32 @@ function ruleEngineDecision(
     const earlierAvgImpressions = earlier4d.reduce((sum, d) => sum + ((d as any).impressions || 0), 0) / Math.max(earlier4d.length, 1);
     
     if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
-      // 曝光大幅下降，触发提价恢复
-      const recoveryBoost = Math.min(0.10, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
-      const recoveryBid = currentBid * (1 + recoveryBoost);
+      // v268 P0-1: 增强曝光保护 — 引入渐进恢复机制
+      // 将恢复提价分成recoverySteps步执行，避免一次性大幅提价
+      const totalRecoveryBoost = Math.min(0.15, BID_CIRCUIT_BREAKER_CONFIG.recoveryBoostPercent);
+      const stepRecoveryBoost = totalRecoveryBoost / (BID_CIRCUIT_BREAKER_CONFIG.recoverySteps || 3);
+      const recoveryBid = currentBid * (1 + stepRecoveryBoost);
       const impressionDropPct = ((1 - recentAvgImpressions / earlierAvgImpressions) * 100).toFixed(0);
       return {
         bid: recoveryBid,
         confidence: 0.55,
-        reason: `[v259曝光保护] 近期曝光均值${recentAvgImpressions.toFixed(0)}较历史基线${earlierAvgImpressions.toFixed(0)}下降${impressionDropPct}%: 暂停降价并提价${(recoveryBoost * 100).toFixed(0)}%恢复曝光`,
+        reason: `[v268曝光保护-渐进恢复] 近期曝光均值${recentAvgImpressions.toFixed(0)}较历史基线${earlierAvgImpressions.toFixed(0)}下降${impressionDropPct}%: 渐进提价${(stepRecoveryBoost * 100).toFixed(1)}%(总目标${(totalRecoveryBoost * 100).toFixed(0)}%分${BID_CIRCUIT_BREAKER_CONFIG.recoverySteps}步)`,
+      };
+    }
+    
+    // v268 P0-1: 新增“竞争力恢复”模式
+    // 针对因长期低价而失去曝光的关键词，将出价提升至建议竞价的80%
+    // 触发条件：曝光持续低迷（近期均值<20）且当前出价较低（<$0.50）
+    // 安全保护：仅对有历史表现的关键词触发，且受maxBid限制
+    const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as any).impressions || 0) > 100);
+    if (recentAvgImpressions < 20 && currentBid < 0.50 && hasHistoricalPerformance) {
+      const suggestedBid = (groupConfig.maxBid || 10) * 0.15; // 使用maxBid的15%作为建议竞价估算
+      const competitiveRecoveryBid = Math.max(currentBid * 1.5, suggestedBid * 0.80);
+      const cappedRecoveryBid = Math.min(competitiveRecoveryBid, (groupConfig.maxBid || 10) * 0.60); // 不超过maxBid的60%
+      return {
+        bid: cappedRecoveryBid,
+        confidence: 0.50,
+        reason: `[v268竞争力恢复] 曝光持续低迷(均值${recentAvgImpressions.toFixed(0)})且出价较低($${currentBid.toFixed(2)}): 提升至$${cappedRecoveryBid.toFixed(2)}恢复市场竞争力`,
       };
     }
   }
@@ -674,19 +694,23 @@ function ruleEngineDecision(
     }
     const zeroConvTrendLabel = zeroConvTrendDir !== 'stable' ? `, 趋势=${zeroConvTrendDir}` : '';
     
-    // v258: 归因延迟保护 — 点击数少于5次时强制观察
-    // 亚马逊广告归因延迟24-48h，少量点击时订单可能尚未归因
-    if (clicks < 5) {
+    // v268 P1-2: 增强归因延迟保护 — 引入“无单词保护期”
+    // 亚马逊广告归因延迟24-48h，高客单价品类可能更长
+    // v268改进: 点击数门槛从5提升到8，并引入基于花费的保护期
+    // 当花费<AOV*targetAcos时，无论点击多少都不应降价（还未给足转化机会）
+    const minSpendForDecision = realAov * targetAcos * 0.8; // 至少花费AOV*targetAcos的80%才能做降价决策
+    if (clicks < 8 || spend < minSpendForDecision) {
+      const protectionReason = clicks < 8 ? `点击不足(${clicks}<8)` : `花费不足($${spend.toFixed(2)}<$${minSpendForDecision.toFixed(2)})`;
       return {
         bid: currentBid,
         confidence: 0.35,
-        reason: `零转化但点击不足(${clicks}次, $${spend.toFixed(2)}${zeroConvTrendLabel}): v258归因延迟保护，维持观察等待更多数据`,
+        reason: `零转化保护期(${protectionReason}${zeroConvTrendLabel}): v268归因延迟保护，维持观察等待归因完成`,
       };
     }
     
     // v258: 增强归因延迟容忍度 — 提升基础容忍系数到2.0（原1.5）
     // 趋势improving时进一步提升，declining时适度降低
-    const baseTolerance = 2.0; // v258: 从1.5提升到2.0，给予更多归因时间
+    const baseTolerance = 2.5; // v268: 从2.0提升到2.5，给予更多归因时间（尤其是高客单价品类）
     const attributionToleranceFactor = zeroConvTrendDir === 'improving' ? baseTolerance * (1 + zeroConvTrendStr * 0.25) :
                                        zeroConvTrendDir === 'declining' ? baseTolerance * (1 - zeroConvTrendStr * 0.15) : baseTolerance;
     const maxAcceptableSpend = realAov * targetAcos * attributionToleranceFactor;

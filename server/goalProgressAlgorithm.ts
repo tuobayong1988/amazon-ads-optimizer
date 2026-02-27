@@ -151,7 +151,8 @@ interface WeightConfig {
 
 // v235: 重新分配权重，给算法效能维度10%权重，从其他维度均匀扣减
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
-  'aggressive-growth': { coreMetric: 18, trend: 27, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
+  // v268 P0-2: 激进增长策略进一步降低预算效率权重，允许为探索新机会保留预算
+  'aggressive-growth': { coreMetric: 16, trend: 28, budgetEfficiency: 5, conversionEfficiency: 18, gradualProgress: 22, algorithmEfficacy: 11 },
   'balanced':          { coreMetric: 22, trend: 18, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
   'profit-focused':    { coreMetric: 32, trend: 8, budgetEfficiency: 13, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
   'seasonal-boost':    { coreMetric: 13, trend: 32, budgetEfficiency: 8, conversionEfficiency: 17, gradualProgress: 20, algorithmEfficacy: 10 },
@@ -383,7 +384,8 @@ function calculateTrendScore(
     trendPoints += 5;
   }
   
-  // v164: 趋势方向加分（使用时间衰减趋势信号）
+  // v268 P0-2: 趋势方向加分 + “方向正确性”加分
+  // 核心改进：对于ACoS绝对值虽未达标、但处于明确下降趋势的目标，给予额外加分
   maxPoints += 20;
   if (timeWeighted) {
     if (timeWeighted.trendDirection === 'improving') {
@@ -398,6 +400,24 @@ function calculateTrendScore(
     }
   } else {
     trendPoints += 10;
+  }
+  
+  // v268 P0-2: “方向正确性”加分机制
+  // 当ACoS绝对值未达标但处于明确下降趋势时，额外加分奖励正确方向
+  // 这解决了“ACoS从150%降到100%仍然得分很低”的不公平问题
+  maxPoints += 10;
+  if (beforeAcos < 900 && afterAcos < 900 && afterAcos > (config.targetAcos || 30)) {
+    const acosImprovement = (beforeAcos - afterAcos) / Math.max(beforeAcos, 1);
+    if (acosImprovement > 0.10 && timeWeighted?.trendDirection === 'improving') {
+      trendPoints += 10;
+      improvements.push(`v268方向正确加分: ACoS未达标但持续改善${(acosImprovement * 100).toFixed(0)}%`);
+    } else if (acosImprovement > 0.05) {
+      trendPoints += 6;
+    } else {
+      trendPoints += 2;
+    }
+  } else {
+    trendPoints += 5; // ACoS已达标或无数据时给中间分
   }
   
   const score = maxPoints > 0 ? Math.round((trendPoints / maxPoints) * 100) : 50;
@@ -581,12 +601,25 @@ function calculateConversionEfficiencyScore(
   else if (roas > 0) { totalPoints += 8; details.push(`ROAS ${roas.toFixed(2)}(亏损)`); }
   else { totalPoints += 0; details.push('ROAS=0'); }
   
-  // CVR评分（权重30%）
+  // v268 P0-2: CVR评分（权重30%）— 引入品类基准对比
+  // 不同品类的CVR基准差异很大，使用固定阈值对低客单价品类不公平
+  // 品类基准CVR: 电子8-12%, 家居5-8%, 服装3-5%, 快消品15-25%
+  const CATEGORY_CVR_BENCHMARK: Record<string, number> = {
+    'electronics': 10, 'computers': 9, 'cell_phones': 8, 'video_games': 12,
+    'home_kitchen': 7, 'sports_outdoors': 6, 'toys_games': 10, 'clothing': 4,
+    'beauty': 8, 'health': 7, 'baby': 9, 'pet_supplies': 8,
+    'grocery': 18, 'luxury': 3, 'default': 8,
+  };
+  const productCategory = (config as any).productCategory || 'default';
+  const categoryCvrBenchmark = CATEGORY_CVR_BENCHMARK[productCategory] || CATEGORY_CVR_BENCHMARK['default'];
+  
   maxPoints += 30;
-  if (cvr >= 15) { totalPoints += 30; details.push(`CVR ${cvr.toFixed(1)}%`); }
-  else if (cvr >= 10) { totalPoints += 25; }
-  else if (cvr >= 5) { totalPoints += 18; }
-  else if (cvr >= 2) { totalPoints += 12; }
+  // v268: 使用品类基准进行相对评估，而非绝对值
+  const cvrRatio = cvr / categoryCvrBenchmark;
+  if (cvrRatio >= 1.5) { totalPoints += 30; details.push(`CVR ${cvr.toFixed(1)}%(超越品类基准${categoryCvrBenchmark}%)`); }
+  else if (cvrRatio >= 1.0) { totalPoints += 25; details.push(`CVR ${cvr.toFixed(1)}%(达到品类基准)`); }
+  else if (cvrRatio >= 0.7) { totalPoints += 18; details.push(`CVR ${cvr.toFixed(1)}%`); }
+  else if (cvrRatio >= 0.4) { totalPoints += 12; }
   else if (cvr > 0) { totalPoints += 5; }
   else { totalPoints += 0; }
   
@@ -721,6 +754,28 @@ function calculateGradualProgressScore(
     } else {
       score -= 5;
       details.push(`距目标差距较大(${(gap * 100).toFixed(0)}%)`);
+    }
+  }
+  
+  // v268 P0-2: 引入“优化速度”评估
+  // 在多窗口数据中评估ACoS每周下降幅度，奖励快速接近目标的优化组
+  if (multiWindow && targetAcos > 0) {
+    const w7 = multiWindow.recent7d;
+    const w30 = multiWindow.recent30d;
+    if (w7 && w30 && w7.totalSales > 0 && w30.totalSales > 0) {
+      const acos7d = (w7.totalSpend / w7.totalSales) * 100;
+      const acos30d = (w30.totalSpend / w30.totalSales) * 100;
+      const weeklyImprovement = (acos30d - acos7d) / Math.max(acos30d, 1);
+      
+      if (weeklyImprovement > 0.15) {
+        score += 8;
+        details.push(`v268优化速度优秀: ACoS周降${(weeklyImprovement * 100).toFixed(0)}%`);
+      } else if (weeklyImprovement > 0.05) {
+        score += 4;
+        details.push(`优化速度良好`);
+      } else if (weeklyImprovement > 0) {
+        score += 2;
+      }
     }
   }
   

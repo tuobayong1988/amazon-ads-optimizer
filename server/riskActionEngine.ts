@@ -100,6 +100,7 @@ function assessAccountRiskLevel(acos: number, targetAcos?: number): 'critical' |
 
 /**
  * v264: 风险等级对应的响应策略配置
+ * v268 P0-1: 引入分层级降价力度 — 基于ACoS严重程度动态调整
  */
 interface RiskResponseStrategy {
   bidReductionPercent: number;   // 出价降低比例
@@ -108,16 +109,43 @@ interface RiskResponseStrategy {
   scanInterval: 'immediate' | '4h' | '12h'; // 扫描间隔
 }
 
-function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy'): RiskResponseStrategy {
+/**
+ * v268 P0-1: 分层级紧急降价策略
+ * 根据ACoS严重程度动态决定降价幅度，打破死亡螺旋：
+ * - ACoS > 100%: 极端亏损，降价40%（快速止血）
+ * - ACoS > 80%:  严重超标，降价30%
+ * - ACoS > 60%:  明显超标，降价25%（原v267 critical默认值）
+ * - ACoS > 45%:  偏高预警，降价15%
+ */
+function getAdaptiveBidReduction(acos: number, riskLevel: 'critical' | 'warning' | 'healthy'): number {
+  if (riskLevel === 'critical') {
+    if (acos > 100) return 0.40;  // v268: 极端亏损，激进降价40%
+    if (acos > 80) return 0.30;   // v268: 严重超标，降价30%
+    return 0.25;                   // v267: 默认critical降价25%
+  }
+  if (riskLevel === 'warning') {
+    return 0.15;
+  }
+  return 0;
+}
+
+function getRiskResponseStrategy(riskLevel: 'critical' | 'warning' | 'healthy', currentAcos?: number): RiskResponseStrategy {
+  const adaptiveReduction = currentAcos ? getAdaptiveBidReduction(currentAcos, riskLevel) : undefined;
+  
   switch (riskLevel) {
     case 'critical':
-      // v266 P0-3: 增强critical响应策略
-      // 降价幅度从20%提升到25%，更积极地控制花费
-      // 暂停门槛从200%降至150%，花费门槛从$5降至$3，更早暂停亏损关键词
-      return { bidReductionPercent: 0.25, pauseThresholdAcos: 150, pauseThresholdSpend: 3, scanInterval: 'immediate' };
+      // v268 P0-1: 增强critical响应策略
+      // 降价幅度动态化（25%-40%），基于ACoS严重程度
+      // 暂停门槛从150%降至120%，花费门槛从$3降至$2，更早暂停亏损关键词
+      return {
+        bidReductionPercent: adaptiveReduction ?? 0.30,
+        pauseThresholdAcos: 120,    // v268: 从150%降至120%
+        pauseThresholdSpend: 2,     // v268: 从$3降至$2
+        scanInterval: 'immediate'
+      };
     case 'warning':
       // v266: warning也需要更积极的响应
-      return { bidReductionPercent: 0.15, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: '4h' };
+      return { bidReductionPercent: adaptiveReduction ?? 0.15, pauseThresholdAcos: 200, pauseThresholdSpend: 5, scanInterval: '4h' };
     case 'healthy':
     default:
       return { bidReductionPercent: 0, pauseThresholdAcos: 500, pauseThresholdSpend: 20, scanInterval: '12h' };
@@ -221,20 +249,21 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
         const actions: RiskAction[] = [];
         
         if (riskLevel === 'critical') {
-          // P0: 紧急降价 — 对ACoS > 80%的关键词执行紧急降价
+          // v268 P0-1: 分层级紧急降价 — 基于ACoS严重程度动态调整降价幅度
+          const adaptiveReduction = getAdaptiveBidReduction(acos, 'critical');
           actions.push({
             actionType: 'emergency_bid_reduction',
             priority: 'P0',
-            description: `账户ACoS=${acos.toFixed(1)}%严重超标，触发NextGen紧急降价策略`,
-            estimatedImpact: 'v259: 预计降低高ACoS关键词出价10-20%（与NextGen熔断上限对齐）',
+            description: `账户ACoS=${acos.toFixed(1)}%严重超标，触发v268分层级紧急降价策略(降幅${(adaptiveReduction * 100).toFixed(0)}%)`,
+            estimatedImpact: `v268: 预计降低高ACoS关键词出价${(adaptiveReduction * 100).toFixed(0)}%，基于ACoS严重程度动态调整`,
           });
           
-          // P0: 暂停极端亏损关键词（ACoS > 200%且花费 > $5）
+          // v268 P0-1: 收紧亏损暂停门槛 — ACoS>120%且花费>$2即暂停
           actions.push({
             actionType: 'pause_extreme_loss',
             priority: 'P0',
-            description: '暂停ACoS>200%且花费>$5的极端亏损关键词',
-            estimatedImpact: '立即止损，减少无效花费',
+            description: `暂停ACoS>120%且花费>$2的极端亏损关键词(原v267: ACoS>150%且花费>$3)`,
+            estimatedImpact: '立即止损，v268收紧门槛后可更早阻断亏损',
           });
         }
         
@@ -366,9 +395,9 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
 /**
  * 执行风险行动 — 根据评估结果自动触发相应的优化策略
  * 
- * 遵循渐进式优化原则（v259更新）：
- * 1. 紧急降价最大幅度限制在20%（与NextGen熔断机制对齐，防止死亡螺旋）
- * 2. 暂停关键词仅针对极端亏损（ACoS > 200%且花费 > $5）
+ * 遵循渐进式优化原则（v268更新）：
+ * 1. v268 P0-1: 分层级紧急降价 — ACoS>100%降40%, >80%降30%, >60%降25%
+ * 2. v268 P0-1: 收紧暂停门槛 — ACoS>120%且花费>$2即暂停（原v267: >150%且>$3）
  * 3. 所有操作记录到optimization_events表，可追溯可回滚
  * 4. 紧急模式下也会触发提价恢复评估，确保曝光不会持续萎缩
  */

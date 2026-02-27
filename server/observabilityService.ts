@@ -315,7 +315,19 @@ export interface AlertRule {
   cooldownMs: number;
 }
 
-// A级标准告警规则
+// v268 P2-1: 增强告警规则 — 分级告警+智能降噪+算法效能监控
+// 告警级别: info(仅日志) < warning(通知) < critical(立即响应)
+// 智能降噪: 连续触发同一告警时自动延长冷却期
+const alertTriggerCounts: Map<string, number> = new Map();
+const MAX_COOLDOWN_MULTIPLIER = 4; // 最大冷却期倍数
+
+function getAdaptiveCooldown(ruleId: string, baseCooldownMs: number): number {
+  const triggerCount = alertTriggerCounts.get(ruleId) || 0;
+  // 每次触发后冷却期翻倍，最大到4倍
+  const multiplier = Math.min(MAX_COOLDOWN_MULTIPLIER, Math.pow(2, triggerCount - 1));
+  return baseCooldownMs * Math.max(1, multiplier);
+}
+
 const alertRules: AlertRule[] = [
   {
     id: 'sync_rate_drop',
@@ -430,6 +442,64 @@ const alertRules: AlertRule[] = [
     },
     cooldownMs: 60 * 60 * 1000,
   },
+  // v268 P2-1: 新增算法效能监控告警
+  {
+    id: 'advanced_algorithm_rate_low',
+    name: '高级算法激活率过低',
+    category: 'optimization',
+    condition: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      if (optMetrics.length === 0) return false;
+      const latest = optMetrics[optMetrics.length - 1];
+      const advancedRate = latest.metrics.advanced_algorithm_rate ?? -1;
+      return advancedRate >= 0 && advancedRate < 20; // 目标>30%，20%以下告警
+    },
+    severity: 'warning',
+    message: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      const latest = optMetrics[optMetrics.length - 1];
+      return `高级算法激活率仅 ${(latest.metrics.advanced_algorithm_rate ?? 0).toFixed(1)}%，低于v268目标(30%)。建议检查RL数据积累和模型训练状态。`;
+    },
+    cooldownMs: 4 * 60 * 60 * 1000, // 4小时
+  },
+  {
+    id: 'positive_rate_declining',
+    name: '优化正向率下降',
+    category: 'optimization',
+    condition: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      if (optMetrics.length === 0) return false;
+      const latest = optMetrics[optMetrics.length - 1];
+      const positiveRate = latest.metrics.positive_rate ?? -1;
+      return positiveRate >= 0 && positiveRate < 50; // 正向率低于50%告警
+    },
+    severity: 'warning',
+    message: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      const latest = optMetrics[optMetrics.length - 1];
+      return `优化正向率仅 ${(latest.metrics.positive_rate ?? 0).toFixed(1)}%，低于健康阈值(50%)。系统可能存在算法偏差或数据质量问题。`;
+    },
+    cooldownMs: 6 * 60 * 60 * 1000, // 6小时
+  },
+  {
+    id: 'rl_data_stale',
+    name: 'RL数据回填停滞',
+    category: 'performance',
+    condition: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      if (optMetrics.length === 0) return false;
+      const latest = optMetrics[optMetrics.length - 1];
+      const rlBackfillRate = latest.metrics.rl_backfill_rate ?? -1;
+      return rlBackfillRate >= 0 && rlBackfillRate < 30; // RL回填率低于30%告警
+    },
+    severity: 'info',
+    message: (metrics) => {
+      const optMetrics = metrics.filter(m => m.category === 'optimization');
+      const latest = optMetrics[optMetrics.length - 1];
+      return `RL数据回填率仅 ${(latest.metrics.rl_backfill_rate ?? 0).toFixed(1)}%，影响高级算法训练效果。建议检查reward回填链路。`;
+    },
+    cooldownMs: 8 * 60 * 60 * 1000, // 8小时
+  },
 ];
 
 /**
@@ -445,9 +515,10 @@ export async function evaluateAlertRules(): Promise<{ triggered: string[]; suppr
       const shouldAlert = rule.condition(metricsBuffer);
       
       if (shouldAlert) {
-        // 检查冷却期
+        // v268 P2-1: 智能降噪 — 使用自适应冷却期
         const lastAlert = alertCooldowns.get(rule.id);
-        if (lastAlert && (now.getTime() - lastAlert.getTime()) < rule.cooldownMs) {
+        const adaptiveCooldown = getAdaptiveCooldown(rule.id, rule.cooldownMs);
+        if (lastAlert && (now.getTime() - lastAlert.getTime()) < adaptiveCooldown) {
           suppressed.push(rule.id);
           continue;
         }
@@ -463,12 +534,14 @@ export async function evaluateAlertRules(): Promise<{ triggered: string[]; suppr
         });
         
         alertCooldowns.set(rule.id, now);
+        // v268: 更新触发计数，用于自适应冷却期
+        alertTriggerCounts.set(rule.id, (alertTriggerCounts.get(rule.id) || 0) + 1);
         triggered.push(rule.id);
         
-        console.warn(`[Observability] v267: 告警触发 - ${rule.name}: ${message}`);
+        console.warn(`[Observability] v268: 告警触发 - ${rule.name}: ${message} (自适应冷却=${Math.round(adaptiveCooldown/60000)}分钟)`);
       }
     } catch (err: any) {
-      console.error(`[Observability] v267: 评估告警规则 ${rule.id} 失败: ${err.message}`);
+      console.error(`[Observability] v268: 评估告警规则 ${rule.id} 失败: ${err.message}`);
     }
   }
   

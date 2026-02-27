@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 264;  // v264: 高级算法激活修复+进度评估重构+风险分层响应+探索机制+缓存TTL优化
+export const SYSTEM_VERSION = 268;  // v268: 紧急优化增强+评分算法优化+高级算法强制激活+竞价智能化+可观测性增强
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -341,6 +341,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v262: [前台页面重构] — 新增首页/优化逻辑/联系我们页面 + PublicLayout统一导航和底部公司信息(纯前端变更,不影响后端优化模块)',
     affectedModules: [],
     correctionActions: [],
+  },
+  {
+    version: 268,
+    description: 'v268: [B级→A级冲刺] — (1)P0-1紧急优化增强: 分层级降价+收紧暂停门槛+渐进熔断恢复+竞争力恢复模式 (2)P0-2评分算法优化: 方向正确性加分+优化速度评估+品类CVR基准 (3)P1-1高级算法强制激活: 降低激活门槛+RL数据快速积累+模型训练加速 (4)P1-2竞价智能化: 归因延迟感知+无单词保护期 (5)P2-1可观测性增强: 分级告警+智能降噪+算法效能监控',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
   },
 ];
 
