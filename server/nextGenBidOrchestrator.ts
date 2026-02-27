@@ -947,8 +947,9 @@ export async function calculateNextGenBid(
     if (shouldExplore) {
       const directionHash = ((entityId * 1103515245 + hourSeed) >>> 0) % 100;
       // v257: 多梯度探索 — 根据哈希值分配不同幅度
-      const gradientHash = ((entityId * 6364136223846793005n + BigInt(hourSeed)) % 100n);
-      const gradientVal = Number(gradientHash < 0n ? -gradientHash : gradientHash);
+      // v258: 使用普通数字运算替代BigInt（兼容ES2019及以下）
+      const gradientHash = Math.abs(((entityId * 2654435761 + hourSeed * 40503) >>> 0) % 100);
+      const gradientVal = gradientHash;
       let explorationRatio: number;
       if (gradientVal < 50) {
         // 50%概率: 小幅度探索 3-5%

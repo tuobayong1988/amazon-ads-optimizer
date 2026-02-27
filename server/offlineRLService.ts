@@ -460,11 +460,18 @@ export async function makeCQLBidDecision(
   try {
     const model = await getOrTrainCQLModel(accountId);
     
-    if (model.trainingEpisodes < 20) {
+    // v263: 降低CQL训练门槛从20到5，配合合成数据量让CQL更快可用
+    if (model.trainingEpisodes < 5) {
       return null; // 训练数据不足
     }
     
-    return cqlDecide(model, context, currentBid);
+    const decision = cqlDecide(model, context, currentBid);
+    // v263: 修复CQL冷启动confidence过低问题
+    // 当trainingEpisodes在5-50区间时，保证最低0.35的置信度
+    if (decision && decision.confidence < 0.35 && model.trainingEpisodes >= 5) {
+      decision.confidence = Math.max(0.35, decision.confidence);
+    }
+    return decision;
   } catch (error) {
     console.error(`[CQL] Error making decision:`, error);
     return null;

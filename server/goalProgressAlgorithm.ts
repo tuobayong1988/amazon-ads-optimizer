@@ -625,7 +625,21 @@ function calculateGradualProgressScore(
   const targetAcos = config.targetAcos || 0;
   const targetRoas = config.targetRoas || 0;
   
+  // v263: 修复无timeWeighted时的回退逻辑 — 使用metrics数据进行基础评估而非硬编码50分
   if (!timeWeighted) {
+    // 即使没有时间衰减数据，也可以基于当前指标与目标的差距进行基础评估
+    const targetAcosVal = config.targetAcos || 0;
+    const targetRoasVal = config.targetRoas || 0;
+    if (targetAcosVal > 0 && metrics.avgAcos > 0) {
+      const gap = Math.abs(metrics.avgAcos - targetAcosVal) / targetAcosVal;
+      const baseScore = metrics.avgAcos <= targetAcosVal ? 75 : gap < 0.3 ? 55 : gap < 0.6 ? 40 : 25;
+      return { score: baseScore, detail: `基于ACoS与目标差距评估(差距${(gap * 100).toFixed(0)}%)` };
+    }
+    if (targetRoasVal > 0 && metrics.avgRoas > 0) {
+      const gap = Math.abs(metrics.avgRoas - targetRoasVal) / targetRoasVal;
+      const baseScore = metrics.avgRoas >= targetRoasVal ? 75 : gap < 0.3 ? 55 : gap < 0.6 ? 40 : 25;
+      return { score: baseScore, detail: `基于ROAS与目标差距评估(差距${(gap * 100).toFixed(0)}%)` };
+    }
     return { score: 50, detail: '需要更多数据评估渐进优化进度' };
   }
   
@@ -809,9 +823,19 @@ export function calculateGoalProgress(
   
   // 计算各维度得分
   const coreMetric = calculateCoreMetricScore(config, metrics, timeWeighted);
-  const trend = trendData || multiWindow
-    ? calculateTrendScore(trendData || { before: null, after: null }, config, timeWeighted, multiWindow)
-    : { score: 50, detail: '趋势数据加载中' };
+  // v263: 修复趋势维度回退逻辑 — 当trendData和multiWindow都不可用时，
+  // 使用timeWeighted的趋势方向信号代替硬编码50分
+  let trend: { score: number; detail: string };
+  if (trendData || multiWindow) {
+    trend = calculateTrendScore(trendData || { before: null, after: null }, config, timeWeighted, multiWindow);
+  } else if (timeWeighted) {
+    // 有时间衰减数据但无趋势对比数据，从时间衰减信号推断趋势得分
+    const trendDir = timeWeighted.trendDirection;
+    const baseScore = trendDir === 'improving' ? 68 : trendDir === 'stable' ? 52 : 35;
+    trend = { score: baseScore, detail: `基于时间衰减趋势信号: ${trendDir}` };
+  } else {
+    trend = { score: 50, detail: '趋势数据加载中' };
+  }
   const budgetEff = calculateBudgetEfficiencyScore(config, metrics, timeWeighted);
   const convEff = calculateConversionEfficiencyScore(metrics, config, timeWeighted);
   const gradualProgress = calculateGradualProgressScore(config, metrics, timeWeighted, multiWindow);

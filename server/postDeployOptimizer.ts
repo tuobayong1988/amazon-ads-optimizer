@@ -1050,9 +1050,9 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   // 4c. v258: optimization_events表新增字段迁移
   if (!lastVersion || lastVersion < 258) {
     try {
-      const { addLogFields } = await import('./migrations/v258_add_log_fields');
-      const logFieldsResult = await addLogFields();
-      log.info(`[PostDeployOptimizer] v258: 日志字段迁移完成: ${JSON.stringify(logFieldsResult)}`);
+      const { runV258Migration } = await import('./migrations/v258_add_log_fields');
+      await runV258Migration();
+      log.info(`[PostDeployOptimizer] v258: 日志字段迁移完成`);
     } catch (migrationErr: any) {
       log.error(`[PostDeployOptimizer] v258: 日志字段迁移失败: ${migrationErr.message}`);
     }

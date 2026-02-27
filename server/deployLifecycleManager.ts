@@ -749,7 +749,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
         const database = await getDb();
         if (database) {
           // 获取所有团队ID进行监控
-          const teams = await database.selectDistinct({ teamId: optimizationEvents.teamId }).from(optimizationEvents).limit(10);
+          const teams = await database.selectDistinct({ teamId: optimizationEvents.userId }).from(optimizationEvents).limit(10);
           for (const team of teams) {
             if (team.teamId) {
               const report = await runMonitoringCheck(team.teamId);

@@ -478,7 +478,7 @@ export default function AlgorithmEffectDashboard() {
                               cy="50%"
                               outerRadius={100}
                               innerRadius={50}
-                              label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              label={(props: any) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
                               labelLine={{ stroke: '#9CA3AF' }}
                             >
                               {algorithmDistribution.map((entry, index) => (
@@ -487,7 +487,7 @@ export default function AlgorithmEffectDashboard() {
                             </Pie>
                             <Tooltip
                               contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151" }}
-                              formatter={(value: number, name: string) => [`${value} 次`, name]}
+                              formatter={(value: number | undefined, name: string | undefined) => [`${value ?? 0} 次`, name ?? '']}
                             />
                           </PieChart>
                         </ResponsiveContainer>

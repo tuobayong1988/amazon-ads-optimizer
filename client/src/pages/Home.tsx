@@ -1360,10 +1360,11 @@ function DashboardContent() {
                                     <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
                                     <Tooltip 
                                       contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                                      formatter={(value: number | undefined, name: string) => {
+                                      formatter={(value: number | undefined, name: string | undefined) => {
                                         const v = value ?? 0;
-                                        if (name === 'ACoS') return [`${v.toFixed(1)}%`, name];
-                                        return [`$${v.toFixed(0)}`, name];
+                                        const n = name ?? '';
+                                        if (n === 'ACoS') return [`${v.toFixed(1)}%`, n];
+                                        return [`$${v.toFixed(0)}`, n];
                                       }}
                                     />
                                     <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
