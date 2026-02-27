@@ -636,23 +636,83 @@ export async function orchestrateStartup(server: any): Promise<void> {
         await flushPendingTasks();
       }
       
-      // 步骤4b: 运行API执行级纠错
-      log.info('[LifecycleManager] 运行API执行级纠错...');
-      const { runAutoCorrection } = await import('./optimizationAutoCorrector');
-      const corrResult = await runAutoCorrection();
-      log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+      // v261: 重构启动协调顺序 — 确保"新版本算法优先"原则
+      // 原顺序: AutoCorrector → PostDeploy（问题：AutoCorrector可能基于旧逻辑"纠正"回去，PostDeploy再覆盖，浪费API调用）
+      // 新顺序: PostDeploy → AutoCorrector → 效果验证
+      // 理由: 先用新算法重优化所有目标，再用纠错器确保API同步一致性，最后验证效果
       
-      // 步骤4c: 运行部署后重优化
-      log.debug('[LifecycleManager] 运行部署后重优化...');
+      // 步骤4b: 运行部署后重优化（优先执行，确保新算法立即生效）
+      log.info('[LifecycleManager] v261: 运行部署后重优化（新算法优先）...');
       const { runPostDeployOptimization } = await import('./postDeployOptimizer');
       const deployResult = await runPostDeployOptimization();
       if (deployResult.triggered) {
-        log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功`);
+        log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功, ${deployResult.totalOptimizationActions}个优化动作`);
       } else {
         log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
       }
       
-      // 步骤4d: 如果是crash恢复，记录恢复完成事件
+      // 步骤4c: 运行API执行级纠错（在重优化之后执行，确保所有指令的API同步一致性）
+      log.info('[LifecycleManager] v261: 运行API执行级纠错（确保同步一致性）...');
+      const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+      const corrResult = await runAutoCorrection();
+      log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+      
+      // 步骤4d: v261 部署后效果验证 — 确认重优化指令已被Amazon API接受
+      if (deployResult.triggered && deployResult.totalOptimizationActions > 0) {
+        try {
+          log.info('[LifecycleManager] v261: 启动部署后效果验证（等待60秒让Amazon处理指令）...');
+          await new Promise(resolve => setTimeout(resolve, 60 * 1000));
+          
+          // 重新运行纠错扫描，检查是否有新的不一致（即PostDeploy的指令未被Amazon接受）
+          const verifyResult = await runAutoCorrection();
+          const newIssues = verifyResult.totalIssuesFound;
+          const newCorrected = verifyResult.totalCorrected;
+          
+          if (newIssues === 0) {
+            log.info(`[LifecycleManager] v261: ✓ 效果验证通过 — 所有重优化指令已被Amazon成功接受`);
+          } else {
+            log.warn(`[LifecycleManager] v261: ⚠ 效果验证发现${newIssues}个不一致, 已自动纠正${newCorrected}个`);
+          }
+          
+          // 记录验证结果到数据库
+          const database = await getDb();
+          if (database) {
+            await database.insert(optimizationEvents).values({
+              accountId: 0,
+              eventCategory: 'settings_change',
+              actionType: 'auto_correction',
+              actionDetail: JSON.stringify({
+                type: 'post_deploy_verification',
+                systemVersion: SYSTEM_VERSION,
+                deployResult: {
+                  triggered: deployResult.triggered,
+                  targetsProcessed: deployResult.targetsProcessed,
+                  targetsSucceeded: deployResult.targetsSucceeded,
+                  targetsFailed: deployResult.targetsFailed,
+                  totalActions: deployResult.totalOptimizationActions,
+                },
+                correctionResult: {
+                  issuesFound: corrResult.totalIssuesFound,
+                  corrected: corrResult.totalCorrected,
+                },
+                verificationResult: {
+                  issuesFound: newIssues,
+                  corrected: newCorrected,
+                  passed: newIssues === 0,
+                },
+              }),
+              changeReason: `v${SYSTEM_VERSION} 部署后效果验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个不一致`}`,
+              algorithmVersion: `v${SYSTEM_VERSION}`,
+              status: newIssues === 0 ? 'success' : 'pending',
+              apiSyncStatus: 'not_applicable',
+            });
+          }
+        } catch (verifyErr: any) {
+          log.warn(`[LifecycleManager] v261: 效果验证失败（不影响系统运行）: ${verifyErr.message}`);
+        }
+      }
+      
+      // 步骤4e: 如果是crash恢复，记录恢复完成事件
       if (diagnostics.lastShutdownType === 'crash') {
         const database = await getDb();
         if (database) {
@@ -682,7 +742,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
         }
       }
       
-      // 步骤4e: v239 运行系统监控检查
+      // 步骤4f: v239 运行系统监控检查
       try {
         log.info('[LifecycleManager] 运行系统监控检查...');
         const { runMonitoringCheck, formatMonitoringReport } = await import('./optimizationMonitoringService');

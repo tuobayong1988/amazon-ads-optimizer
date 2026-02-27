@@ -462,6 +462,12 @@ export default function Dashboard() {
     { accountId: accountId!, days: 7 },
     { enabled: !!accountId, refetchInterval: 5 * 60 * 1000 } // 每5分钟自动刷新
   );
+
+  // v261: 获取部署后纠错报告
+  const { data: deployCorrectionReport } = trpc.monitoring.getDeployCorrectionReport.useQuery(
+    undefined,
+    { refetchInterval: 10 * 60 * 1000 } // 每10分钟自动刷新
+  );
   
   // (kpiDateRange 已移动到上方使用前)
 
@@ -946,6 +952,65 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* v261: 部署后纠错报告 */}
+        {deployCorrectionReport?.success && deployCorrectionReport.report?.latestDeploy && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="w-5 h-5 text-purple-500" />
+                  <h3 className="font-semibold">部署后纠错报告</h3>
+                </div>
+                <Badge variant={deployCorrectionReport.report.latestDeploy.status === 'success' ? 'default' : 'destructive'}>
+                  v{deployCorrectionReport.report.latestDeploy.version}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">上一版本</p>
+                  <p className="text-lg font-bold">v{deployCorrectionReport.report.latestDeploy.previousVersion || '-'}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">重优化目标</p>
+                  <p className="text-lg font-bold">
+                    {deployCorrectionReport.report.latestDeploy.targetsSucceeded}/{deployCorrectionReport.report.latestDeploy.targetsProcessed}
+                  </p>
+                  <p className="text-xs text-green-500">成功/总数</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">优化动作</p>
+                  <p className="text-lg font-bold">{deployCorrectionReport.report.latestDeploy.totalActions}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50">
+                  <p className="text-xs text-muted-foreground">效果验证</p>
+                  {deployCorrectionReport.report.latestVerification ? (
+                    <>
+                      <p className={`text-lg font-bold ${
+                        deployCorrectionReport.report.latestVerification.verificationResult?.passed 
+                          ? 'text-green-500' : 'text-yellow-500'
+                      }`}>
+                        {deployCorrectionReport.report.latestVerification.verificationResult?.passed ? '✓ 通过' : '⚠ 待确认'}
+                      </p>
+                      {deployCorrectionReport.report.latestVerification.verificationResult?.issuesFound > 0 && (
+                        <p className="text-xs text-yellow-500">
+                          {deployCorrectionReport.report.latestVerification.verificationResult.issuesFound}个不一致已纠正
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-lg font-bold text-muted-foreground">待验证</p>
+                  )}
+                </div>
+              </div>
+              {deployCorrectionReport.report.latestDeploy.deployedAt && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  部署时间: {new Date(deployCorrectionReport.report.latestDeploy.deployedAt).toLocaleString('zh-CN')}
+                </p>
               )}
             </CardContent>
           </Card>

@@ -15,9 +15,9 @@
  * - 系统启动时自动检测版本变化 → 触发全量重优化
  * - 可通过API手动触发指定版本的重优化
  * 
- * 与现有系统的关系:
- * - 在 optimizationAutoCorrector（API执行级纠错）之后运行
- * - 在 startOptimizationScheduler（常规调度）之前运行
+ * 与现有系统的关系 (v261重构后):
+ * - 在 optimizationAutoCorrector（API执行级纠错）之前运行（新算法优先原则）
+ * - 执行顺序: PostDeploy重优化 → AutoCorrector纠错 → 效果验证
  * - 重优化完成后，常规调度器接管后续周期性优化
  */
 
@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 260;  // v260: 公司信息Footer+P0系统健康监控API+P1动态提价模型(CTR/CVR感知)+P2仪表盘增强(回滚率+算法激活率+ACoS趋势+熔断率)
+export const SYSTEM_VERSION = 261;  // v261: 部署后纠错机制重构 — 新算法优先原则(PostDeploy→AutoCorrector→效果验证) + 部署后效果验证闭环 + 前端纠错报告可视化
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -327,6 +327,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 260,
     description: 'v260: [持续监控+动态提价+仪表盘增强] — (1)P0-系统健康监控API: 回滚率/算法激活率/ACoS趋势/熔断触发率/提价分析实时计算 (2)P1-动态提价模型: 基于CTR+CVR精细化调整提价幅度(明星词30%/高流量15%/高转化20%/保守10%) (3)P2-仪表盘增强: 前端新增回滚率+算法激活率+ACoS趋势+熔断触发率四大健康指标卡片 (4)网站底部公司信息: 深圳一品名轩科技有限公司',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 261,
+    description: 'v261: [部署后纠错机制重构] — (1)启动协调顺序重构: PostDeploy→AutoCorrector→效果验证(新算法优先原则) (2)部署后效果验证闭环: 重优化后等待60秒再次扫描确认Amazon已接受所有指令 (3)前端纠错报告可视化: Dashboard新增部署后纠错报告卡片',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },

@@ -2,12 +2,16 @@
  * monitoring.ts - 系统监控告警API路由
  * v239 - 提供监控报告查询和手动触发监控检查的API
  * v260 - 新增系统健康核心指标API（回滚率、算法激活率、ACoS趋势）
+ * v261 - 新增部署后纠错报告API（纠错结果+效果验证可视化）
  */
 
 import { z } from 'zod';
 import { router, protectedProcedure } from '../_core/trpc';
 import { generateMonitoringReport, runMonitoringCheck } from '../optimizationMonitoringService';
 import { getSystemHealthMetrics } from '../systemHealthMetricsService';
+import { getDb } from '../db';
+import { optimizationEvents } from '../../drizzle/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
 
 export const monitoringRouter = router({
   /**
@@ -108,6 +112,108 @@ export const monitoringRouter = router({
           success: false,
           error: e.message,
           metrics: null,
+        };
+      }
+    }),
+  /**
+   * v261: 获取部署后纠错报告
+   * 
+   * 返回最近的部署后重优化结果、纠错结果和效果验证结果
+   * 用于前端仪表盘展示每次部署后的纠错执行情况
+   */
+  getDeployCorrectionReport: protectedProcedure
+    .query(async () => {
+      try {
+        const database = await getDb();
+        if (!database) {
+          return { success: false, error: '数据库连接失败', report: null };
+        }
+
+        // 查询最近的部署事件
+        const deployEvents = await database
+          .select({
+            id: optimizationEvents.id,
+            actionDetail: optimizationEvents.actionDetail,
+            changeReason: optimizationEvents.changeReason,
+            status: optimizationEvents.status,
+            createdAt: optimizationEvents.createdAt,
+          })
+          .from(optimizationEvents)
+          .where(
+            and(
+              eq(optimizationEvents.eventCategory, 'settings_change'),
+              eq(optimizationEvents.actionType, 'settings_update'),
+              sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
+            )
+          )
+          .orderBy(desc(optimizationEvents.createdAt))
+          .limit(5);
+
+        // 查询最近的效果验证事件
+        const verifyEvents = await database
+          .select({
+            id: optimizationEvents.id,
+            actionDetail: optimizationEvents.actionDetail,
+            changeReason: optimizationEvents.changeReason,
+            status: optimizationEvents.status,
+            createdAt: optimizationEvents.createdAt,
+          })
+          .from(optimizationEvents)
+          .where(
+            and(
+              eq(optimizationEvents.eventCategory, 'settings_change'),
+              eq(optimizationEvents.actionType, 'auto_correction'),
+              sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'post_deploy_verification'`
+            )
+          )
+          .orderBy(desc(optimizationEvents.createdAt))
+          .limit(5);
+
+        const deployHistory = deployEvents.map(e => {
+          let detail: any = {};
+          try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
+          return {
+            id: e.id,
+            version: detail.systemVersion,
+            previousVersion: detail.previousVersion,
+            targetsProcessed: detail.targetsProcessed || 0,
+            targetsSucceeded: detail.targetsSucceeded || 0,
+            targetsFailed: detail.targetsFailed || 0,
+            totalActions: detail.totalActions || 0,
+            status: e.status,
+            deployedAt: e.createdAt,
+          };
+        });
+
+        const verifyHistory = verifyEvents.map(e => {
+          let detail: any = {};
+          try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
+          return {
+            id: e.id,
+            version: detail.systemVersion,
+            deployResult: detail.deployResult || {},
+            correctionResult: detail.correctionResult || {},
+            verificationResult: detail.verificationResult || {},
+            status: e.status,
+            verifiedAt: e.createdAt,
+          };
+        });
+
+        return {
+          success: true,
+          error: null,
+          report: {
+            deployHistory,
+            verifyHistory,
+            latestDeploy: deployHistory[0] || null,
+            latestVerification: verifyHistory[0] || null,
+          },
+        };
+      } catch (e: any) {
+        return {
+          success: false,
+          error: e.message,
+          report: null,
         };
       }
     }),
