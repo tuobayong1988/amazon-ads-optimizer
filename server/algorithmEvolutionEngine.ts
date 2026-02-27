@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("EvolutionEngine");
 /**
  * 算法自我进化引擎 (Algorithm Evolution Engine)
  * v152: 实现优化算法的自动迭代和自我改进
@@ -156,13 +158,13 @@ export async function runEffectTracking(): Promise<{
   tracked14d: number;
   tracked30d: number;
 }> {
-  console.log('[EvolutionEngine] 开始效果追踪...');
+  log.info('[EvolutionEngine] 开始效果追踪...');
   
   const tracked7d = await trackEffectsForPeriod(7);
   const tracked14d = await trackEffectsForPeriod(14);
   const tracked30d = await trackEffectsForPeriod(30);
   
-  console.log(`[EvolutionEngine] 效果追踪完成: 7d=${tracked7d}, 14d=${tracked14d}, 30d=${tracked30d}`);
+  log.info(`[EvolutionEngine] 效果追踪完成: 7d=${tracked7d}, 14d=${tracked14d}, 30d=${tracked30d}`);
   
   return { tracked7d, tracked14d, tracked30d };
 }
@@ -241,13 +243,13 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
         
         processed++;
       } catch (error: any) {
-        console.error(`[EvolutionEngine] 追踪事件 ${event.id} 失败:`, error.message);
+        log.error(`[EvolutionEngine] 追踪事件 ${event.id} 失败:`, error.message);
       }
     }
     
     return processed;
   } catch (error: any) {
-    console.error(`[EvolutionEngine] ${period}天效果追踪失败:`, error.message);
+    log.error(`[EvolutionEngine] ${period}天效果追踪失败:`, error.message);
     return 0;
   }
 }
@@ -308,7 +310,7 @@ async function getEventPerformanceData(
     
     return result || null;
   } catch (error: any) {
-    console.error(`[EvolutionEngine] 获取事件 ${event.id} 效果数据失败:`, error.message);
+    log.error(`[EvolutionEngine] 获取事件 ${event.id} 效果数据失败:`, error.message);
     return null;
   }
 }
@@ -494,7 +496,7 @@ export async function evaluateTargetPerformance(
     
     return evaluation;
   } catch (error: any) {
-    console.error(`[EvolutionEngine] 评估优化目标 ${targetId} 效果失败:`, error.message);
+    log.error(`[EvolutionEngine] 评估优化目标 ${targetId} 效果失败:`, error.message);
     return null;
   }
 }
@@ -524,7 +526,7 @@ export async function getTargetAlgorithmConfig(targetId: number): Promise<Target
       }
     }
   } catch (error: any) {
-    console.error(`[EvolutionEngine] 获取目标 ${targetId} 算法配置失败:`, error.message);
+    log.error(`[EvolutionEngine] 获取目标 ${targetId} 算法配置失败:`, error.message);
   }
   
   return { ...DEFAULT_TARGET_ALGORITHM_CONFIG };
@@ -546,7 +548,7 @@ export function calculateParameterAdjustments(
   const adjustments: ParameterAdjustment[] = [];
   
   if (evaluation.totalEvents < MIN_EVENTS_FOR_EVOLUTION) {
-    console.log(`[EvolutionEngine] 事件数不足(${evaluation.totalEvents}/${MIN_EVENTS_FOR_EVOLUTION})，跳过参数调整`);
+    log.info(`[EvolutionEngine] 事件数不足(${evaluation.totalEvents}/${MIN_EVENTS_FOR_EVOLUTION})，跳过参数调整`);
     return adjustments;
   }
   
@@ -800,7 +802,7 @@ export function applyAdjustments(
  * 对指定优化目标执行：效果评估 → 参数调整 → 配置更新 → 记录日志
  */
 export async function runEvolutionCycle(targetId: number): Promise<EvolutionReport | null> {
-  console.log(`[EvolutionEngine] 开始进化周期: targetId=${targetId}`);
+  log.info(`[EvolutionEngine] 开始进化周期: targetId=${targetId}`);
   
   const db = await getDb();
   if (!db) return null;
@@ -813,7 +815,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
       .limit(1);
     
     if (groups.length === 0) {
-      console.log(`[EvolutionEngine] 优化目标 ${targetId} 不存在`);
+      log.info(`[EvolutionEngine] 优化目标 ${targetId} 不存在`);
       return null;
     }
     
@@ -826,7 +828,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
     const evaluation = await evaluateTargetPerformance(targetId, 14);
     
     if (!evaluation) {
-      console.log(`[EvolutionEngine] 优化目标 ${targetId} 无足够数据进行评估`);
+      log.info(`[EvolutionEngine] 优化目标 ${targetId} 无足够数据进行评估`);
       return null;
     }
     
@@ -868,10 +870,10 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
       
-      console.log(`[EvolutionEngine] 优化目标 ${group.name} 完成第${newConfig.evolutionGeneration}代进化，` +
+      log.info(`[EvolutionEngine] 优化目标 ${group.name} 完成第${newConfig.evolutionGeneration}代进化，` +
         `${adjustments.length}项参数调整`);
     } else {
-      console.log(`[EvolutionEngine] 优化目标 ${group.name} 当前参数表现良好，无需调整`);
+      log.info(`[EvolutionEngine] 优化目标 ${group.name} 当前参数表现良好，无需调整`);
     }
     
     // 7. 生成进化报告
@@ -889,7 +891,7 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
     
     return report;
   } catch (error: any) {
-    console.error(`[EvolutionEngine] 进化周期执行失败 (targetId=${targetId}):`, error.message);
+    log.error(`[EvolutionEngine] 进化周期执行失败 (targetId=${targetId}):`, error.message);
     return null;
   }
 }
@@ -905,7 +907,7 @@ export async function runGlobalEvolution(): Promise<{
   skippedTargets: number;
   reports: EvolutionReport[];
 }> {
-  console.log('[EvolutionEngine] ========== 开始全局进化周期 ==========');
+  log.info('[EvolutionEngine] ========== 开始全局进化周期 ==========');
   
   const db = await getDb();
   if (!db) return { totalTargets: 0, evolvedTargets: 0, skippedTargets: 0, reports: [] };
@@ -939,16 +941,16 @@ export async function runGlobalEvolution(): Promise<{
           result.skippedTargets++;
         }
       } catch (error: any) {
-        console.error(`[EvolutionEngine] 目标 ${target.name} 进化失败:`, error.message);
+        log.error(`[EvolutionEngine] 目标 ${target.name} 进化失败:`, error.message);
         result.skippedTargets++;
       }
     }
     
-    console.log(`[EvolutionEngine] 全局进化完成: ` +
+    log.info(`[EvolutionEngine] 全局进化完成: ` +
       `总目标=${result.totalTargets}, 已进化=${result.evolvedTargets}, 跳过=${result.skippedTargets}`);
     
   } catch (error: any) {
-    console.error('[EvolutionEngine] 全局进化失败:', error.message);
+    log.error('[EvolutionEngine] 全局进化失败:', error.message);
   }
   
   return result;
@@ -998,7 +1000,7 @@ export async function recordAlgorithmUsage(
       })
       .where(eq(optimizationEvents.id, eventId));
   } catch (error: any) {
-    console.error(`[EvolutionEngine] 记录算法使用信息失败:`, error.message);
+    log.error(`[EvolutionEngine] 记录算法使用信息失败:`, error.message);
   }
 }
 

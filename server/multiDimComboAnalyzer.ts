@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("MultiDimCombo");
 /**
  * v183.1: 多维度组合分析引擎 (Multi-Dimension Combo Analyzer)
  * 
@@ -182,7 +184,7 @@ async function synthesizeFromExistingData(
   ));
 
   if (hourlyData.length === 0) {
-    console.log(`[ComboAnalyzer] Campaign ${campaignId} hourlyPerformance 也无数据`);
+    log.info(`[ComboAnalyzer] Campaign ${campaignId} hourlyPerformance 也无数据`);
     return [];
   }
 
@@ -206,7 +208,7 @@ async function synthesizeFromExistingData(
   // 4. 计算位置分布比例
   const placementRatios = calculatePlacementRatios(placementData);
   
-  console.log(`[ComboAnalyzer] Campaign ${campaignId} 合成数据: ${hourlyData.length}条hourly记录, ` +
+  log.info(`[ComboAnalyzer] Campaign ${campaignId} 合成数据: ${hourlyData.length}条hourly记录, ` +
     `位置比例: TOS=${(placementRatios.top_of_search * 100).toFixed(1)}%, ` +
     `PP=${(placementRatios.product_page * 100).toFixed(1)}%, ` +
     `ROS=${(placementRatios.rest_of_search * 100).toFixed(1)}%`);
@@ -245,7 +247,7 @@ async function synthesizeFromExistingData(
     }
   }
 
-  console.log(`[ComboAnalyzer] Campaign ${campaignId} 合成了 ${synthesized.length} 条交叉维度记录`);
+  log.info(`[ComboAnalyzer] Campaign ${campaignId} 合成了 ${synthesized.length} 条交叉维度记录`);
   return synthesized;
 }
 
@@ -432,7 +434,7 @@ export async function analyzeCampaignCombos(
       orders: row.orders || 0,
     }));
     dataSource = 'cross_dimension';
-    console.log(`[ComboAnalyzer] Campaign ${campaignName}: 使用交叉维度表数据 (${rawData.length}条)`);
+    log.info(`[ComboAnalyzer] Campaign ${campaignName}: 使用交叉维度表数据 (${rawData.length}条)`);
   }
 
   // 2. v183.1: 如果交叉维度表无数据，从现有表合成
@@ -441,10 +443,10 @@ export async function analyzeCampaignCombos(
     dataSource = 'synthesized';
     
     if (rawData.length === 0) {
-      console.log(`[ComboAnalyzer] Campaign ${campaignName}: 无任何可用数据，跳过`);
+      log.info(`[ComboAnalyzer] Campaign ${campaignName}: 无任何可用数据，跳过`);
       return null;
     }
-    console.log(`[ComboAnalyzer] Campaign ${campaignName}: 使用合成数据 (${rawData.length}条)`);
+    log.info(`[ComboAnalyzer] Campaign ${campaignName}: 使用合成数据 (${rawData.length}条)`);
   }
 
   // 如果交叉维度表有部分数据，也合成补充
@@ -462,7 +464,7 @@ export async function analyzeCampaignCombos(
         }
       }
       dataSource = 'mixed';
-      console.log(`[ComboAnalyzer] Campaign ${campaignName}: 混合数据 (交叉:${crossDimData.length} + 合成补充, 总计:${rawData.length}条)`);
+      log.info(`[ComboAnalyzer] Campaign ${campaignName}: 混合数据 (交叉:${crossDimData.length} + 合成补充, 总计:${rawData.length}条)`);
     }
   }
 
@@ -552,17 +554,17 @@ export async function analyzeCampaignCombos(
     totalClicks >= 10 ? 'low' : 'insufficient';
 
   // v183.1: 详细日志包含自我迭代信息
-  console.log(`[ComboAnalyzer] Campaign ${campaignName} [${dataSource}]: ` +
+  log.info(`[ComboAnalyzer] Campaign ${campaignName} [${dataSource}]: ` +
     `${goldenCombos.length}个黄金, ${leadenCombos.length}个铅石, ${potentialCombos.length}个潜力, ${standardCombos.length}个标准 ` +
     `(置信度: ${overallConfidence}, 预算乘数: ${suggestedBudgetMultiplier.toFixed(3)}, ` +
     `分类变化: ${categoryChanges.length}个)`);
 
   if (categoryChanges.length > 0) {
     for (const change of categoryChanges.slice(0, 5)) {
-      console.log(`  [迭代] "${change.keywordText}": ${change.from} → ${change.to}`);
+      log.info(`  [迭代] "${change.keywordText}": ${change.from} → ${change.to}`);
     }
     if (categoryChanges.length > 5) {
-      console.log(`  [迭代] ...还有${categoryChanges.length - 5}个分类变化`);
+      log.info(`  [迭代] ...还有${categoryChanges.length - 5}个分类变化`);
     }
   }
 
@@ -1013,11 +1015,11 @@ export async function persistAnalysisResults(
       } as any);
       inserted++;
     } catch (err: any) {
-      console.error(`[ComboAnalyzer] 写入分析结果失败: ${err.message}`);
+      log.error(`[ComboAnalyzer] 写入分析结果失败: ${err.message}`);
     }
   }
 
-  console.log(`[ComboAnalyzer] Campaign ${analysis.campaignName}: 写入${inserted}条分析结果 (数据源: ${analysis.dataSource})`);
+  log.info(`[ComboAnalyzer] Campaign ${analysis.campaignName}: 写入${inserted}条分析结果 (数据源: ${analysis.dataSource})`);
   return inserted;
 }
 
@@ -1081,11 +1083,11 @@ export async function executeMultiDimComboAnalysis(
       // v183.1: 记录Campaign级别预算乘数
       campaignBudgetMultipliers.set(campaignId, analysis.suggestedBudgetMultiplier);
     } catch (err: any) {
-      console.error(`[ComboAnalyzer] Campaign ${campaignId} 分析失败: ${err.message}`);
+      log.error(`[ComboAnalyzer] Campaign ${campaignId} 分析失败: ${err.message}`);
     }
   }
 
-  console.log(`[ComboAnalyzer] 分析完成: ${campaignsAnalyzed}个campaign, ${totalCombosFound}个组合 ` +
+  log.info(`[ComboAnalyzer] 分析完成: ${campaignsAnalyzed}个campaign, ${totalCombosFound}个组合 ` +
     `(黄金:${goldenCount}, 铅石:${leadenCount}, 潜力:${potentialCount}, 标准:${standardCount}) ` +
     `分类变化:${totalCategoryChanges}个`);
 

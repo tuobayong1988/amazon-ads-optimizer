@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('IntelligentBudgetAllocationService');
 /**
  * 智能预算分配服务 - 超越智能优化的创新算法
  * 
@@ -233,10 +235,10 @@ export async function collectCampaignPerformanceData(
       
       if (dailyDataForWeighting.length > 0) {
         timeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
-        console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减加权 - 加权日均花费=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, 加权ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
+        log.info(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减加权 - 加权日均花费=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, 加权ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
       }
     } catch (e: any) {
-      console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+      log.info(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
     }
     
     const currentBudget = Number(campaign.dailyBudget) || 0;

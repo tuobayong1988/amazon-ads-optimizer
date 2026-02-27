@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('KeywordGraphService');
 /**
  * 关键词语义图谱服务 (Keyword Semantic Graph)
  * 
@@ -156,7 +158,7 @@ Output ONLY the JSON array, no explanation.`
         for (const _ of batch) embeddings.push(Array(32).fill(0));
       }
     } catch (error) {
-      console.error(`[KeywordGraph] Embedding generation error:`, error);
+      log.error(`[KeywordGraph] Embedding generation error:`, error);
       for (const _ of batch) embeddings.push(Array(32).fill(0));
     }
   }
@@ -257,11 +259,11 @@ export async function buildKeywordGraph(accountId: number): Promise<{
       );
     }
     
-    console.log(`[KeywordGraph] Built graph: ${result.nodes} nodes, ${result.edges} edges`);
+    log.info(`[KeywordGraph] Built graph: ${result.nodes} nodes, ${result.edges} edges`);
     return result;
     
   } catch (error) {
-    console.error(`[KeywordGraph] Error building graph:`, error);
+    log.error(`[KeywordGraph] Error building graph:`, error);
     return result;
   }
 }
@@ -349,7 +351,7 @@ export async function discoverOpportunities(accountId: number): Promise<KeywordO
     return opportunities;
     
   } catch (error) {
-    console.error(`[KeywordGraph] Error discovering opportunities:`, error);
+    log.error(`[KeywordGraph] Error discovering opportunities:`, error);
     return opportunities;
   }
 }
@@ -409,7 +411,7 @@ export async function discoverNegativeCandidates(accountId: number): Promise<Neg
     return candidates;
     
   } catch (error) {
-    console.error(`[KeywordGraph] Error discovering negatives:`, error);
+    log.error(`[KeywordGraph] Error discovering negatives:`, error);
     return candidates;
   }
 }

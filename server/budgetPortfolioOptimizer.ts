@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('BudgetPortfolioOptimizer');
 /**
  * 预算组合优化器 (Budget Portfolio Optimizer)
  * 
@@ -329,11 +331,11 @@ export async function optimizeBudgetPortfolio(
       convergenceScore: '0.990000',
     } as any);
     
-    console.log(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
+    log.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
     return result;
     
   } catch (error) {
-    console.error(`[BudgetPortfolio] Error:`, error);
+    log.error(`[BudgetPortfolio] Error:`, error);
     return null;
   }
 }

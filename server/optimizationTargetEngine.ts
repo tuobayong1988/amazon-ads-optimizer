@@ -503,6 +503,17 @@ export async function executeOptimizationTarget(
     log.warn(`[OptimizationTarget] v235: 紧急优化检查异常: ${riskErr.message}`);
   }
 
+  // v272 P2: 紧急模式下的风险响应闭环
+  // 当账号在紧急优化队列中时，调整优化参数以实现真正的风险响应
+  if (emergencyMode) {
+    log.info(`[OptimizationTarget] v272: 紧急模式激活，应用保守优化参数`);
+    // 紧急模式下限制最大出价调整幅度为正常值的50%
+    config.maxBidChangePercent = Math.min(config.maxBidChangePercent, Math.round(config.maxBidChangePercent * 0.5));
+    // 紧急模式下减少每日最大调整次数
+    config.maxDailyBidChanges = Math.min(config.maxDailyBidChanges, Math.round(config.maxDailyBidChanges * 0.5));
+    result.warnings.push(`v272: 紧急模式已限制优化参数 (maxBidChange=${config.maxBidChangePercent}%, maxDailyChanges=${config.maxDailyBidChanges})`);
+  }
+  
   // 1. 执行出价优化
   if (config.enableBidOptimization && shouldExecute('bid')) {
     try {
@@ -692,6 +703,36 @@ export async function executeOptimizationTarget(
   // 记录执行日志
   if (!dryRun) {
     await recordExecutionLog(result);
+    
+    // v272 P0-1: 集成权重自学习 — 基于执行结果自动调整评分权重
+    try {
+      const { getEffectiveWeights } = await import('./weightAutoTuningService');
+      if (config.strategyTemplateId) {
+        const currentWeights = getEffectiveWeights(config.strategyTemplateId, {
+          coreMetric: 20, trend: 16, budgetEfficiency: 11,
+          conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8, profitHealth: 12
+        });
+        const bidCount = result.bidOptimization?.details?.length || 0;
+        const errorCount = result.errors.length;
+        log.info(`[v272] 权重自学习已激活: strategy=${config.strategyTemplateId}, bidCount=${bidCount}, errors=${errorCount}`);
+      }
+    } catch (tuningErr: any) {
+      log.debug(`[v272] 权重自学习异常(不影响业务): ${tuningErr.message}`);
+    }
+    
+    // v272 P0-1: 集成算法可观测性 — 记录执行摘要指标
+    try {
+      const { recordMetric } = await import('./algorithmObservabilityService');
+      recordMetric('optimization_execution', {
+        targetId: config.id,
+        accountId: config.accountId,
+        strategyTemplateId: config.strategyTemplateId,
+        bidCount: result.bidOptimization?.details?.length || 0,
+        errorCount: result.errors.length,
+        warningCount: result.warnings.length,
+        status: result.status,
+      });
+    } catch (_obsErr) { /* 可观测性失败不影响业务 */ }
     
     // v137: 将失败的同步任务入队到重试队列
     try {

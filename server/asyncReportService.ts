@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("AsyncReport");
 /**
  * 异步报告处理服务
  * 实现报告请求队列、后台轮询和自动数据处理
@@ -64,7 +66,7 @@ export async function createReportRequest(
   `);
 
   const insertId = (result as any).insertId || (result as any)[0]?.insertId;
-  console.log(`[AsyncReportService] 创建报告请求: ${insertId}`);
+  log.info(`[AsyncReportService] 创建报告请求: ${insertId}`);
   return insertId;
 }
 
@@ -136,13 +138,13 @@ export async function submitReportRequest(requestId: number): Promise<void> {
       UPDATE report_requests SET reportId = ${reportId}, status = 'submitted', updatedAt = NOW() WHERE id = ${requestId}
     `);
 
-    console.log(`[AsyncReportService] 报告请求已提交: ${requestId}, reportId: ${reportId}`);
+    log.info(`[AsyncReportService] 报告请求已提交: ${requestId}, reportId: ${reportId}`);
   } catch (error: any) {
     // 更新失败状态
     await database.execute(sql`
       UPDATE report_requests SET status = 'failed', errorMessage = ${error.message}, retryCount = retryCount + 1, updatedAt = NOW() WHERE id = ${requestId}
     `);
-    console.error(`[AsyncReportService] 报告请求提交失败: ${requestId}`, error);
+    log.error(`[AsyncReportService] 报告请求提交失败: ${requestId}`, error);
   }
 }
 
@@ -180,7 +182,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
   // 从amazonApiCredentials表获取API凭证
   const credentials = await db.getAmazonApiCredentials(req.accountId);
   if (!credentials) {
-    console.error(`[AsyncReportService] Account ${req.accountId} 未配置API凭证`);
+    log.error(`[AsyncReportService] Account ${req.accountId} 未配置API凭证`);
     return false;
   }
 
@@ -196,7 +198,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
   try {
     // 检查报告状态
     const reportStatus = await client.getReportStatus(req.reportId);
-    console.log(`[AsyncReportService] 报告状态: ${reportStatus.status}, requestId: ${requestId}`);
+    log.info(`[AsyncReportService] 报告状态: ${reportStatus.status}, requestId: ${requestId}`);
 
     if (reportStatus.status === 'COMPLETED' && reportStatus.url) {
       // 下载报告数据
@@ -211,7 +213,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
       // 处理报告数据
       await processReportData(req, reportData);
 
-      console.log(`[AsyncReportService] 报告处理完成: ${requestId}, 记录数: ${recordsCount}`);
+      log.info(`[AsyncReportService] 报告处理完成: ${requestId}, 记录数: ${recordsCount}`);
       return true;
     } else if (reportStatus.status === 'FAILURE') {
       await database.execute(sql`
@@ -236,7 +238,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
 
     return false;
   } catch (error: any) {
-    console.error(`[AsyncReportService] 检查报告状态失败: ${requestId}`, error);
+    log.error(`[AsyncReportService] 检查报告状态失败: ${requestId}`, error);
     return false;
   }
 }
@@ -254,7 +256,7 @@ async function processReportData(request: ReportRequest, data: any[]): Promise<v
     return;
   }
 
-  console.log(`[AsyncReportService] 开始处理报告数据: ${request.reportType}, 记录数: ${data.length}`);
+  log.info(`[AsyncReportService] 开始处理报告数据: ${request.reportType}, 记录数: ${data.length}`);
 
   switch (request.reportType) {
     case 'sp_campaigns':
@@ -271,7 +273,7 @@ async function processReportData(request: ReportRequest, data: any[]): Promise<v
       await processCampaignReportData(request.accountId, data, 'SD');
       break;
     default:
-      console.log(`[AsyncReportService] 未实现的报告类型处理: ${request.reportType}`);
+      log.info(`[AsyncReportService] 未实现的报告类型处理: ${request.reportType}`);
   }
 
   // 更新处理完成时间
@@ -355,7 +357,7 @@ async function processCampaignReportData(accountId: number, data: any[], adType?
     updatedCount++;
   }
 
-  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个广告活动的绩效数据 (广告类型: ${adType || 'mixed'})`);
+  log.info(`[AsyncReportService] 更新了 ${updatedCount} 个广告活动的绩效数据 (广告类型: ${adType || 'mixed'})`);
 }
 
 /**
@@ -416,7 +418,7 @@ async function processKeywordReportData(accountId: number, data: any[], adType?:
     updatedCount++;
   }
 
-  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个关键词/定向的绩效数据 (广告类型: ${detectedAdType})`);
+  log.info(`[AsyncReportService] 更新了 ${updatedCount} 个关键词/定向的绩效数据 (广告类型: ${detectedAdType})`);
 }
 
 /**
@@ -424,12 +426,12 @@ async function processKeywordReportData(accountId: number, data: any[], adType?:
  */
 export function startReportPolling(): void {
   if (isPolling) {
-    console.log('[AsyncReportService] 报告轮询服务已在运行');
+    log.info('[AsyncReportService] 报告轮询服务已在运行');
     return;
   }
 
   isPolling = true;
-  console.log('[AsyncReportService] 启动报告轮询服务...');
+  log.info('[AsyncReportService] 启动报告轮询服务...');
 
   pollIntervalId = setInterval(async () => {
     await pollPendingReports();
@@ -449,7 +451,7 @@ export function stopReportPolling(): void {
     clearInterval(pollIntervalId);
     pollIntervalId = null;
   }
-  console.log('[AsyncReportService] 报告轮询服务已停止');
+  log.info('[AsyncReportService] 报告轮询服务已停止');
 }
 
 /**
@@ -472,7 +474,7 @@ async function pollPendingReports(): Promise<void> {
       return;
     }
 
-    console.log(`[AsyncReportService] 发现 ${pendingRequests.length} 个待处理报告`);
+    log.info(`[AsyncReportService] 发现 ${pendingRequests.length} 个待处理报告`);
 
     for (const req of pendingRequests) {
       const status = req.status;
@@ -486,7 +488,7 @@ async function pollPendingReports(): Promise<void> {
       }
     }
   } catch (error: any) {
-    console.error('[AsyncReportService] 轮询报告失败:', error);
+    log.error('[AsyncReportService] 轮询报告失败:', error);
   }
 }
 
@@ -549,7 +551,7 @@ export async function createPerformanceSyncRequests(
   );
   requestIds.push(sdCampaignRequestId);
 
-  console.log(`[AsyncReportService] 创建了 ${requestIds.length} 个绩效数据同步请求 (SP/SB/SD)`);
+  log.info(`[AsyncReportService] 创建了 ${requestIds.length} 个绩效数据同步请求 (SP/SB/SD)`);
   return requestIds;
 }
 

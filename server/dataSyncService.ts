@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("DataSync");
 /**
  * Data Sync Service - 广告数据自动同步服务
  * 从Amazon API拉取广告活动、关键词和绩效数据
@@ -224,7 +226,7 @@ async function syncCampaigns(userId: number, accountId: number, account: any): P
       message: `通过Amazon API同步了${result?.campaigns || 0}个广告活动` 
     };
   } catch (error: any) {
-    console.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, error.message);
+    log.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }
@@ -257,7 +259,7 @@ async function syncKeywords(userId: number, accountId: number, account: any): Pr
       message: `通过Amazon API同步了${result?.keywords || 0}个关键词` 
     };
   } catch (error: any) {
-    console.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, error.message);
+    log.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }
@@ -288,7 +290,7 @@ async function syncPerformance(userId: number, accountId: number, account: any):
       message: `通过Amazon API同步了${result?.performance || 0}条绩效数据` 
     };
   } catch (error: any) {
-    console.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, error.message);
+    log.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }
@@ -535,7 +537,7 @@ export async function executeScheduledSync(scheduleId: number): Promise<{ succes
   `);
 
   // 异步执行同步任务
-  executeSyncJob(jobId).catch(console.error);
+  executeSyncJob(jobId).catch((err) => log.error("[DataSync] executeSyncJob failed:", err));
 
   return { success: true, jobId, message: "同步任务已启动" };
 }
@@ -607,7 +609,7 @@ export async function runScheduleCheck(): Promise<{ executed: number; failed: nu
       else failed++;
     } catch (error) {
       failed++;
-      console.error(`执行调度任务 ${schedule.id} 失败:`, error);
+      log.error(`执行调度任务 ${schedule.id} 失败:`, error);
     }
   }
 
@@ -707,7 +709,7 @@ export async function getScheduleExecutionHistory(
       duration: row.duration,
     }));
   } catch (error) {
-    console.error("获取执行历史失败:", error);
+    log.error("获取执行历史失败:", error);
     return [];
   }
 }
@@ -741,7 +743,7 @@ export async function executeScheduledSyncWithRetry(
       if (retryCount <= RETRY_CONFIG.maxRetries) {
         // 计算退避延迟
         const delay = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
-        console.log(`调度 ${scheduleId} 执行失败，${delay/1000}秒后进行第 ${retryCount} 次重试...`);
+        log.info(`调度 ${scheduleId} 执行失败，${delay/1000}秒后进行第 ${retryCount} 次重试...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -793,7 +795,7 @@ async function logScheduleExecution(
       details: { scheduleId, retryCount, timestamp: new Date().toISOString() },
     });
   } catch (error) {
-    console.error("记录执行日志失败:", error);
+    log.error("记录执行日志失败:", error);
   }
 }
 
@@ -844,7 +846,7 @@ async function sendScheduleFailureAlert(
       `.trim(),
     });
   } catch (error) {
-    console.error("发送失败告警失败:", error);
+    log.error("发送失败告警失败:", error);
   }
 }
 
@@ -910,7 +912,7 @@ export async function getScheduleExecutionStats(scheduleId: number): Promise<{
       lastFailureAt: row.lastFailureAt ? new Date(row.lastFailureAt) : null,
     };
   } catch (error) {
-    console.error("获取执行统计失败:", error);
+    log.error("获取执行统计失败:", error);
     return {
       totalExecutions: 0,
       successCount: 0,
@@ -944,7 +946,7 @@ export async function runScheduleCheckWithRetry(): Promise<{ executed: number; f
       }
     } catch (error) {
       failed++;
-      console.error(`执行调度任务 ${schedule.id} 失败:`, error);
+      log.error(`执行调度任务 ${schedule.id} 失败:`, error);
     }
   }
 

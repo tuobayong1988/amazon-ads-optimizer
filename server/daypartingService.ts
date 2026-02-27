@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('DaypartingService');
 /**
  * Dayparting Service - 分时预算和竞价服务
  * 实现基于历史数据的智能分时预算分配和出价调整
@@ -577,11 +579,11 @@ export async function ensureDaypartingStrategy(
     }
     await saveBidRules(strategyId, defaultBidRules);
     
-    console.log(`[DaypartingService] v157: 自动创建分时策略 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
+    log.info(`[DaypartingService] v157: 自动创建分时策略 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
     
     return await getDaypartingStrategy(strategyId);
   } catch (err: any) {
-    console.error(`[DaypartingService] v157: 自动创建分时策略失败: ${err.message}`);
+    log.error(`[DaypartingService] v157: 自动创建分时策略失败: ${err.message}`);
     return null;
   }
 }

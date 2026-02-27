@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('NotificationService');
 /**
  * Notification Service - Handle alerts and notifications
  */
@@ -87,7 +89,7 @@ export async function sendNotification(notification: AlertNotification): Promise
     
     return result;
   } catch (error) {
-    console.error('[NotificationService] Failed to send notification:', error);
+    log.error('[NotificationService] Failed to send notification:', error);
     return false;
   }
 }

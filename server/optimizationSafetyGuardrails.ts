@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('OptimizationSafetyGuardrails');
 /**
  * optimizationSafetyGuardrails.ts - 优化安全护栏
  * 
@@ -345,7 +347,7 @@ export async function checkEmergencyBrake(
           };
         }
         // v230: 无优化操作时记录但不触发制动
-        console.warn(`[EmergencyBrake] v230: 销售额下降${(salesDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动，不触发制动`);
+        log.warn(`[EmergencyBrake] v230: 销售额下降${(salesDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动，不触发制动`);
       }
     }
     
@@ -360,7 +362,7 @@ export async function checkEmergencyBrake(
             recommendation: 'reduce_budgets',
           };
         }
-        console.warn(`[EmergencyBrake] v230: 花费激增${((spendSurgeRate - 1) * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
+        log.warn(`[EmergencyBrake] v230: 花费激增${((spendSurgeRate - 1) * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
       }
     }
     
@@ -375,13 +377,13 @@ export async function checkEmergencyBrake(
             recommendation: 'pause_optimization',
           };
         }
-        console.warn(`[EmergencyBrake] v230: 订单下降${(ordersDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
+        log.warn(`[EmergencyBrake] v230: 订单下降${(ordersDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
       }
     }
     
     return { triggered: false, reason: null, recommendation: 'none' };
   } catch (error) {
-    console.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error);
+    log.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error);
     return { triggered: false, reason: null, recommendation: 'none' };
   }
 }

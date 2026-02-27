@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('GtoCompetitorAwarenessEngine');
 /**
  * gtoCompetitorAwarenessEngine.ts - GTO竞争环境感知引擎
  * 
@@ -197,7 +199,7 @@ export async function analyzeCompetitionForCampaign(
       reasoning,
     };
   } catch (error: any) {
-    console.error(`[GTO-CompetitorAwareness] Error analyzing competition: ${error.message}`);
+    log.error(`[GTO-CompetitorAwareness] Error analyzing competition: ${error.message}`);
     return buildDefaultProfile(`分析异常: ${error.message}`);
   }
 }

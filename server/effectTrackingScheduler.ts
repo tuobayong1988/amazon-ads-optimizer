@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('EffectTrackingScheduler');
 /**
  * 效果追踪定时任务服务
  * 自动收集出价调整后7/14/30天的实际表现数据
@@ -216,7 +218,7 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
         trackingData,
       });
     } catch (error) {
-      console.error(`Failed to track record ${record.id}:`, error);
+      log.error(`Failed to track record ${record.id}:`, error);
     }
   }
   
@@ -344,7 +346,7 @@ let schedulerInterval: NodeJS.Timeout | null = null;
  */
 export function startEffectTrackingScheduler(intervalMs: number = 60 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
-    console.log('效果追踪定时任务已在运行中');
+    log.info('效果追踪定时任务已在运行中');
     return;
   }
   
@@ -360,7 +362,7 @@ export function startEffectTrackingScheduler(intervalMs: number = 60 * 60 * 1000
     executeScheduledTask();
   }, intervalMs);
   
-  console.log(`效果追踪定时任务已启动，执行间隔: ${intervalMs / 1000 / 60} 分钟`);
+  log.info(`效果追踪定时任务已启动，执行间隔: ${intervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -368,7 +370,7 @@ export function startEffectTrackingScheduler(intervalMs: number = 60 * 60 * 1000
  */
 export function stopEffectTrackingScheduler(): void {
   if (!schedulerStatus.isRunning) {
-    console.log('效果追踪定时任务未在运行');
+    log.info('效果追踪定时任务未在运行');
     return;
   }
   
@@ -380,7 +382,7 @@ export function stopEffectTrackingScheduler(): void {
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
   
-  console.log('效果追踪定时任务已停止');
+  log.info('效果追踪定时任务已停止');
 }
 
 /**
@@ -395,7 +397,7 @@ export function getSchedulerStatus(): SchedulerStatus {
  */
 async function executeScheduledTask(): Promise<void> {
   try {
-    console.log(`[${new Date().toISOString()}] 开始执行效果追踪任务...`);
+    log.info(`[${new Date().toISOString()}] 开始执行效果追踪任务...`);
     
     const results = await runAllTrackingTasks();
     
@@ -404,10 +406,10 @@ async function executeScheduledTask(): Promise<void> {
     schedulerStatus.totalProcessed += totalProcessed;
     schedulerStatus.errors = [];
     
-    console.log(`[${new Date().toISOString()}] 效果追踪任务完成: 7天=${results.day7.length}, 14天=${results.day14.length}, 30天=${results.day30.length}`);
+    log.info(`[${new Date().toISOString()}] 效果追踪任务完成: 7天=${results.day7.length}, 14天=${results.day14.length}, 30天=${results.day30.length}`);
   } catch (error: any) {
     const errorMsg = `效果追踪任务执行失败: ${error.message}`;
-    console.error(errorMsg);
+    log.error(errorMsg);
     schedulerStatus.errors.push(errorMsg);
   }
 }

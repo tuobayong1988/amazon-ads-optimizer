@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("ApiSecurity");
 /**
  * API安全三件套服务模块
  * 1. 详细操作日志记录
@@ -92,7 +94,7 @@ export interface AnomalyRuleParams {
 export async function logApiOperation(params: LogOperationParams): Promise<number | null> {
   const db = await getDb();
   if (!db) {
-    console.warn('[ApiSecurity] Database not available, skipping log');
+    log.warn('[ApiSecurity] Database not available, skipping log');
     return null;
   }
 
@@ -130,10 +132,10 @@ export async function logApiOperation(params: LogOperationParams): Promise<numbe
       await notifyHighRiskOperation(params, riskLevel);
     }
 
-    console.log(`[ApiSecurity] Operation logged: ${params.operationType} - ${params.actionDescription}`);
+    log.info(`[ApiSecurity] Operation logged: ${params.operationType} - ${params.actionDescription}`);
     return logId;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to log operation:', error);
+    log.error('[ApiSecurity] Failed to log operation:', error);
     return null;
   }
 }
@@ -190,7 +192,7 @@ ${params.changeAmount ? `变更金额: $${params.changeAmount}` : ''}
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    console.error('[ApiSecurity] Failed to send high risk notification:', error);
+    log.error('[ApiSecurity] Failed to send high risk notification:', error);
   }
 }
 
@@ -256,7 +258,7 @@ export async function getOperationLogs(params: {
       total: countResult[0]?.count || 0,
     };
   } catch (error) {
-    console.error('[ApiSecurity] Failed to get operation logs:', error);
+    log.error('[ApiSecurity] Failed to get operation logs:', error);
     return { logs: [], total: 0 };
   }
 }
@@ -312,7 +314,7 @@ export async function upsertSpendLimitConfig(params: SpendLimitConfigParams): Pr
       return Number(result[0].insertId);
     }
   } catch (error) {
-    console.error('[ApiSecurity] Failed to upsert spend limit config:', error);
+    log.error('[ApiSecurity] Failed to upsert spend limit config:', error);
     return null;
   }
 }
@@ -336,7 +338,7 @@ export async function getSpendLimitConfig(userId: number, accountId: number): Pr
 
     return configs[0] || null;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to get spend limit config:', error);
+    log.error('[ApiSecurity] Failed to get spend limit config:', error);
     return null;
   }
 }
@@ -455,7 +457,7 @@ ${alertType === 'limit_reached' ? '⚠️ 建议立即检查广告活动状态' 
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    console.error('[ApiSecurity] Failed to send spend alert:', error);
+    log.error('[ApiSecurity] Failed to send spend alert:', error);
   }
 }
 
@@ -485,7 +487,7 @@ export async function getSpendAlertHistory(
 
     return alerts;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to get spend alert history:', error);
+    log.error('[ApiSecurity] Failed to get spend alert history:', error);
     return [];
   }
 }
@@ -544,7 +546,7 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
 
     return Number(result[0].insertId);
   } catch (error) {
-    console.error('[ApiSecurity] Failed to create anomaly rule:', error);
+    log.error('[ApiSecurity] Failed to create anomaly rule:', error);
     return null;
   }
 }
@@ -570,7 +572,7 @@ export async function getAnomalyRules(userId: number, accountId?: number): Promi
 
     return rules;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to get anomaly rules:', error);
+    log.error('[ApiSecurity] Failed to get anomaly rules:', error);
     return [];
   }
 }
@@ -710,7 +712,7 @@ ${rule.ruleDescription || ''}
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    console.error('[ApiSecurity] Failed to send anomaly alert:', error);
+    log.error('[ApiSecurity] Failed to send anomaly alert:', error);
   }
 }
 
@@ -768,7 +770,7 @@ export async function recordAutoPause(params: {
 
     return recordId;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to record auto pause:', error);
+    log.error('[ApiSecurity] Failed to record auto pause:', error);
     return null;
   }
 }
@@ -804,7 +806,7 @@ async function sendAutoPauseNotification(params: {
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    console.error('[ApiSecurity] Failed to send auto pause notification:', error);
+    log.error('[ApiSecurity] Failed to send auto pause notification:', error);
   }
 }
 
@@ -832,7 +834,7 @@ export async function resumePausedEntities(
 
     return true;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to resume paused entities:', error);
+    log.error('[ApiSecurity] Failed to resume paused entities:', error);
     return false;
   }
 }
@@ -865,7 +867,7 @@ export async function getAutoPauseRecords(
 
     return records;
   } catch (error) {
-    console.error('[ApiSecurity] Failed to get auto pause records:', error);
+    log.error('[ApiSecurity] Failed to get auto pause records:', error);
     return [];
   }
 }
@@ -919,5 +921,5 @@ export async function initializeDefaultRules(userId: number): Promise<void> {
     await createAnomalyRule({ ...rule, userId });
   }
 
-  console.log(`[ApiSecurity] Initialized default rules for user ${userId}`);
+  log.info(`[ApiSecurity] Initialized default rules for user ${userId}`);
 }

@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AiOptimizationService');
 /**
  * AI优化服务模块
  * 提供一键执行优化建议、效果预估、复盘分析等功能
@@ -342,7 +344,7 @@ ${suggestionsSummary}
     const content = response.choices[0]?.message?.content;
     return typeof content === "string" ? content : "无法生成摘要";
   } catch (error) {
-    console.error("LLM摘要生成失败:", error);
+    log.error("LLM摘要生成失败:", error);
     return `## 广告活动分析\n\n当前ACoS为${metrics.acos.toFixed(1)}%，ROAS为${metrics.roas.toFixed(2)}。\n\n系统已识别${suggestions.length}条优化建议，建议执行以改善广告表现。`;
   }
 }
@@ -551,7 +553,7 @@ async function executeAction(action: any): Promise<void> {
     case "add_negative_exact":
       // 否定词添加需要知道广告组ID，这里简化处理
       // 实际应用中需要根据搜索词找到对应的广告组
-      console.log(`添加否定词: ${action.targetText} (${action.actionType})`);
+      log.info(`添加否定词: ${action.targetText} (${action.actionType})`);
       break;
       
     default:

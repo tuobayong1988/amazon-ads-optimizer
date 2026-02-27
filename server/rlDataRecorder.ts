@@ -131,15 +131,15 @@ async function getOrCreateEpisodeId(
 export async function recordBidAction(action: BidAction): Promise<void> {
   // v231: 防御性校验 - 确保必要参数有效
   if (!action.accountId) {
-    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing accountId`);
+    rlLog.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing accountId`);
     return;
   }
   if (!action.keywordId && !action.targetId) {
-    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing both keywordId and targetId`);
+    rlLog.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing both keywordId and targetId`);
     return;
   }
   if (action.bidAfter == null || !isFinite(action.bidAfter)) {
-    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - invalid bidAfter: ${action.bidAfter}`);
+    rlLog.warn(`[RLDataRecorder] v231: recordBidAction skipped - invalid bidAfter: ${action.bidAfter}`);
     return;
   }
   const db = await getDbInstance();
@@ -196,7 +196,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
     
   } catch (error) {
     // RL数据记录失败不应阻塞出价调整主流程
-    console.error(`[RLDataRecorder] Failed to record bid action:`, error);
+    rlLog.error(`[RLDataRecorder] Failed to record bid action:`, error);
   }
 }
 
@@ -767,7 +767,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         if (usedImmediateChannel) immediateFilledCount++;
         filledCount++;
       } catch (e) {
-        console.error(`[RLDataRecorder] Failed to fill reward for log ${log.id}:`, e);
+        rlLog.error(`[RLDataRecorder] Failed to fill reward for log ${log.id}:`, e);
       }
     }
     
@@ -829,11 +829,11 @@ export async function recordBidPerformanceHistory(params: {
 }): Promise<void> {
   // v231: 防御性校验 - 确保关键参数有效，避免写入无效数据
   if (!params.accountId || !params.campaignId || !params.bidObjectId || params.bid == null) {
-    console.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - missing required params: accountId=${params.accountId}, campaignId=${params.campaignId}, bidObjectId=${params.bidObjectId}, bid=${params.bid}`);
+    rlLog.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - missing required params: accountId=${params.accountId}, campaignId=${params.campaignId}, bidObjectId=${params.bidObjectId}, bid=${params.bid}`);
     return;
   }
   if (params.bid <= 0 || !isFinite(params.bid)) {
-    console.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - invalid bid value: ${params.bid}`);
+    rlLog.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - invalid bid value: ${params.bid}`);
     return;
   }
   try {
@@ -880,10 +880,10 @@ export async function recordBidPerformanceHistory(params: {
       profit: String(profit),
     } as any);
     
-    console.log(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
+    rlLog.info(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
   } catch (error) {
     // 记录失败不阻塞主流程
-    console.error(`[RLDataRecorder] v230: Failed to record bidPerformanceHistory:`, error);
+    rlLog.error(`[RLDataRecorder] v230: Failed to record bidPerformanceHistory:`, error);
   }
 }
 
@@ -915,7 +915,7 @@ export async function batchRecordBidPerformanceHistory(records: Array<{
     }
   }
   
-  console.log(`[RLDataRecorder] v230: batchRecordBidPerformanceHistory: recorded=${recorded}, failed=${failed}`);
+  rlLog.info(`[RLDataRecorder] v230: batchRecordBidPerformanceHistory: recorded=${recorded}, failed=${failed}`);
   return { recorded, failed };
 }
 
@@ -1015,12 +1015,12 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
     }
     
     if (updated > 0 || staleRecords.length > 0) {
-      console.log(`[RLDataRecorder] v230: backfillBidPerformanceResults: updated=${updated}, skipped=${skipped}, total_checked=${staleRecords.length}`);
+      rlLog.info(`[RLDataRecorder] v230: backfillBidPerformanceResults: updated=${updated}, skipped=${skipped}, total_checked=${staleRecords.length}`);
     }
     
     return { updated, skipped };
   } catch (error) {
-    console.error(`[RLDataRecorder] v230: Failed to backfill bid performance results:`, error);
+    rlLog.error(`[RLDataRecorder] v230: Failed to backfill bid performance results:`, error);
     return { updated: 0, skipped: 0 };
   }
 }

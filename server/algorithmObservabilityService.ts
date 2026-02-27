@@ -333,3 +333,37 @@ export function cleanupOldTraces(maxAgeDays: number = 7): number {
   }
   return cleaned;
 }
+
+// ==================== v272 P0-1: 通用指标记录 ====================
+
+/** 通用指标缓冲区 */
+const metricBuffer: Array<{ type: string; data: Record<string, any>; timestamp: Date }> = [];
+const MAX_METRIC_BUFFER = 5000;
+
+/**
+ * v272 P0-1: 记录通用可观测性指标
+ * 
+ * 用于核心业务流程中记录关键操作指标，
+ * 支持后续聚合分析和仪表板展示。
+ */
+export function recordMetric(type: string, data: Record<string, any>): void {
+  metricBuffer.push({
+    type,
+    data,
+    timestamp: new Date(),
+  });
+  
+  while (metricBuffer.length > MAX_METRIC_BUFFER) {
+    metricBuffer.shift();
+  }
+  
+  log.debug(`[Metric] ${type}: ${JSON.stringify(data)}`);
+}
+
+/**
+ * v272 P0-1: 获取指标缓冲区数据
+ */
+export function getMetrics(type?: string, limit: number = 100): Array<{ type: string; data: Record<string, any>; timestamp: Date }> {
+  const filtered = type ? metricBuffer.filter(m => m.type === type) : metricBuffer;
+  return filtered.slice(-limit);
+}

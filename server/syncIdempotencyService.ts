@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('SyncIdempotencyService');
 /**
  * Sync Idempotency Service - 同步幂等性保护服务
  * 
@@ -56,10 +58,10 @@ export function acquireSyncLock(accountId: number, syncType: string = 'all'): st
   if (existing) {
     // 检查锁是否已超时
     if (new Date() > existing.expiresAt) {
-      console.warn(`[SyncLock] 锁已超时，强制释放: ${key} (acquired at ${existing.acquiredAt.toISOString()})`);
+      log.warn(`[SyncLock] 锁已超时，强制释放: ${key} (acquired at ${existing.acquiredAt.toISOString()})`);
       syncLocks.delete(key);
     } else {
-      console.log(`[SyncLock] 同步锁被占用: ${key}, 获取于 ${existing.acquiredAt.toISOString()}, 将于 ${existing.expiresAt.toISOString()} 超时`);
+      log.info(`[SyncLock] 同步锁被占用: ${key}, 获取于 ${existing.acquiredAt.toISOString()}, 将于 ${existing.expiresAt.toISOString()} 超时`);
       return null;
     }
   }
@@ -76,7 +78,7 @@ export function acquireSyncLock(accountId: number, syncType: string = 'all'): st
     expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS),
   });
   
-  console.log(`[SyncLock] 同步锁已获取: ${key}, lockId=${lockId}`);
+  log.info(`[SyncLock] 同步锁已获取: ${key}, lockId=${lockId}`);
   return lockId;
 }
 
@@ -97,12 +99,12 @@ export function releaseSyncLock(accountId: number, syncType: string = 'all', loc
   
   // 如果提供了lockId，验证身份
   if (lockId && existing.lockId !== lockId) {
-    console.warn(`[SyncLock] 锁ID不匹配，拒绝释放: expected=${existing.lockId}, got=${lockId}`);
+    log.warn(`[SyncLock] 锁ID不匹配，拒绝释放: expected=${existing.lockId}, got=${lockId}`);
     return false;
   }
   
   syncLocks.delete(key);
-  console.log(`[SyncLock] 同步锁已释放: ${key}`);
+  log.info(`[SyncLock] 同步锁已释放: ${key}`);
   return true;
 }
 
@@ -160,7 +162,7 @@ export async function clearPerformanceDataForFullSync(
   startDate: string,
   endDate: string
 ): Promise<number> {
-  console.log(`[SyncIdempotency] 清除旧绩效数据: accountId=${accountId}, ${startDate} ~ ${endDate}`);
+  log.info(`[SyncIdempotency] 清除旧绩效数据: accountId=${accountId}, ${startDate} ~ ${endDate}`);
   
   try {
     const deletedCount = await db.deleteDailyPerformanceByDateRange(
@@ -169,10 +171,10 @@ export async function clearPerformanceDataForFullSync(
       endDate
     );
     
-    console.log(`[SyncIdempotency] 已清除 ${deletedCount} 条旧绩效数据`);
+    log.info(`[SyncIdempotency] 已清除 ${deletedCount} 条旧绩效数据`);
     return deletedCount;
   } catch (error: any) {
-    console.error(`[SyncIdempotency] 清除旧绩效数据失败:`, error);
+    log.error(`[SyncIdempotency] 清除旧绩效数据失败:`, error);
     // 清除失败不应阻止同步继续，因为upsert本身也能处理
     return 0;
   }
@@ -215,7 +217,7 @@ export async function executeWithIdempotency<T>(
     
     return { success: true, result };
   } catch (error: any) {
-    console.error(`[SyncIdempotency] 同步执行失败: accountId=${accountId}, syncType=${syncType}`, error);
+    log.error(`[SyncIdempotency] 同步执行失败: accountId=${accountId}, syncType=${syncType}`, error);
     return { success: false, error: error.message };
   } finally {
     // 3. 始终释放锁

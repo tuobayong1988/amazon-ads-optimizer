@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('UnifiedOptimizationEngine');
 /**
  * 统一自动优化引擎
  * 
@@ -324,10 +326,10 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const groups = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
       if (groups.length > 0 && groups[0].targetAcos) {
         groupTargetAcos = Number(groups[0].targetAcos);
-        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} 使用优化目标targetAcos=${groupTargetAcos}%`);
+        log.info(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} 使用优化目标targetAcos=${groupTargetAcos}%`);
       }
     } catch (pgErr: any) {
-      console.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, pgErr.message);
+      log.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, pgErr.message);
     }
   }
   
@@ -349,10 +351,10 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
     )) {
       correctionFactor = correctionResult.correctionFactor;
       correctionApplied = true;
-      console.log(`[UnifiedOptEngine] Campaign ${campaign.campaignId} 归因校正系数: ${correctionFactor.toFixed(3)}`);
+      log.info(`[UnifiedOptEngine] Campaign ${campaign.campaignId} 归因校正系数: ${correctionFactor.toFixed(3)}`);
     }
   } catch (corrErr: any) {
-    console.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, corrErr.message);
+    log.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, corrErr.message);
   }
   
   // 获取广告活动的关键词

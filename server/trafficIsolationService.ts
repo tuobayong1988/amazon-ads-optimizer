@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('TrafficIsolationService');
 /**
  * Traffic Isolation and N-Gram Noise Reduction Service
  * 
@@ -1292,7 +1294,7 @@ export async function runT1SearchTermAnalysis(
   // 获取T-1日期范围
   const { startDate, endDate, description } = getT1AnalysisDateRange();
   
-  console.log(`[TrafficIsolation] 开始T+1分析: ${description}`);
+  log.info(`[TrafficIsolation] 开始T+1分析: ${description}`);
   
   let ngramResult: NGramAnalysisResult | undefined;
   let conflictResult: TrafficConflictAnalysisResult | undefined;
@@ -1300,13 +1302,13 @@ export async function runT1SearchTermAnalysis(
   // 运行N-Gram分析
   if (options?.includeNGram !== false) {
     ngramResult = await runNGramAnalysis(accountId, startDate, endDate);
-    console.log(`[TrafficIsolation] N-Gram分析完成: ${ngramResult.highRiskTokens.length}个高风险词根`);
+    log.info(`[TrafficIsolation] N-Gram分析完成: ${ngramResult.highRiskTokens.length}个高风险词根`);
   }
   
   // 运行冲突检测
   if (options?.includeConflictDetection !== false) {
     conflictResult = await detectTrafficConflicts(accountId, startDate, endDate);
-    console.log(`[TrafficIsolation] 冲突检测完成: ${conflictResult.totalConflicts}个冲突`);
+    log.info(`[TrafficIsolation] 冲突检测完成: ${conflictResult.totalConflicts}个冲突`);
   }
   
   return {

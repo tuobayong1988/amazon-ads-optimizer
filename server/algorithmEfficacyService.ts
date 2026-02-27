@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AlgorithmEfficacyService');
 /**
  * algorithmEfficacyService.ts - 算法效能数据服务 (v235)
  * 
@@ -159,7 +161,7 @@ export async function getAlgorithmEfficacyForTarget(
       improvementTrend,
     };
   } catch (err: any) {
-    console.error(`[algorithmEfficacyService] Error for target ${targetId}:`, err.message);
+    log.error(`[algorithmEfficacyService] Error for target ${targetId}:`, err.message);
     return undefined;
   }
 }

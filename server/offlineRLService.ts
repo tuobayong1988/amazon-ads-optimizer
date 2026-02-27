@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('OfflineRLService');
 /**
  * 离线强化学习服务 (Offline RL - Conservative Q-Learning)
  * 
@@ -173,7 +175,7 @@ export async function trainCQL(
     .limit(10000);
   
   if (trainingData.length < 20) {
-    console.log(`[CQL] Insufficient training data (${trainingData.length}), skipping`);
+    log.info(`[CQL] Insufficient training data (${trainingData.length}), skipping`);
     return model;
   }
   
@@ -268,7 +270,7 @@ export async function trainCQL(
   model.avgLoss = totalSteps > 0 ? totalLoss / totalSteps : 0;
   model.lastTrainedAt = new Date().toISOString();
   
-  console.log(`[CQL] Training complete: ${samples.length} samples, ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}`);
+  log.info(`[CQL] Training complete: ${samples.length} samples, ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}`);
   return model;
 }
 
@@ -351,7 +353,7 @@ async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
     
     // 验证权重矩阵维度
     if (!Array.isArray(weights) || weights.length !== NUM_ACTIONS) {
-      console.warn(`[CQL] v230: Invalid model weights dimensions for account ${accountId}`);
+      log.warn(`[CQL] v230: Invalid model weights dimensions for account ${accountId}`);
       return null;
     }
     
@@ -363,7 +365,7 @@ async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
       lastTrainedAt: row.lastTrainedAt || new Date().toISOString(),
     };
   } catch (error) {
-    console.error(`[CQL] v230: Failed to load model from DB:`, error);
+    log.error(`[CQL] v230: Failed to load model from DB:`, error);
     return null;
   }
 }
@@ -409,9 +411,9 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
       } as any);
     }
     
-    console.log(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
+    log.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
   } catch (error) {
-    console.error(`[CQL] v230: Failed to save model to DB:`, error);
+    log.error(`[CQL] v230: Failed to save model to DB:`, error);
   }
 }
 
@@ -432,7 +434,7 @@ export async function getOrTrainCQLModel(accountId: number): Promise<CQLModel> {
     const age = Date.now() - new Date(dbModel.lastTrainedAt).getTime();
     if (age < 6 * 3600000) {
       modelCache.set(accountId, dbModel);
-      console.log(`[CQL] v230: Model loaded from DB for account ${accountId}`);
+      log.info(`[CQL] v230: Model loaded from DB for account ${accountId}`);
       return dbModel;
     }
     // 数据库模型过时，基于它继续训练
@@ -473,7 +475,7 @@ export async function makeCQLBidDecision(
     }
     return decision;
   } catch (error) {
-    console.error(`[CQL] Error making decision:`, error);
+    log.error(`[CQL] Error making decision:`, error);
     return null;
   }
 }

@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('ContextualFeatureService');
 /**
  * 上下文特征管道服务 (Contextual Feature Pipeline)
  * 
@@ -440,11 +442,11 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       }
     }
     
-    console.log(`[ContextualFeatureService] Cached ${processedCount} feature vectors for account ${accountId}`);
+    log.info(`[ContextualFeatureService] Cached ${processedCount} feature vectors for account ${accountId}`);
     return processedCount;
     
   } catch (error) {
-    console.error(`[ContextualFeatureService] Error extracting features for account ${accountId}:`, error);
+    log.error(`[ContextualFeatureService] Error extracting features for account ${accountId}:`, error);
     return processedCount;
   }
 }

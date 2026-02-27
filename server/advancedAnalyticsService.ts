@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AdvancedAnalyticsService');
 /**
  * 高级分析服务 (Advanced Analytics Service)
  * 
@@ -1110,7 +1112,7 @@ export async function runUnifiedEffectTrackingTask(period: number): Promise<numb
       
       processed++;
     } catch (error) {
-      console.error(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error);
+      log.error(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error);
     }
   }
   
@@ -1127,7 +1129,7 @@ export async function runAllUnifiedTrackingTasks(): Promise<{
   const day14 = await runUnifiedEffectTrackingTask(14);
   const day30 = await runUnifiedEffectTrackingTask(30);
   
-  console.log(`[AdvancedAnalytics] Effect tracking completed: 7d=${day7}, 14d=${day14}, 30d=${day30}`);
+  log.info(`[AdvancedAnalytics] Effect tracking completed: 7d=${day7}, 14d=${day14}, 30d=${day30}`);
   return { day7, day14, day30 };
 }
 

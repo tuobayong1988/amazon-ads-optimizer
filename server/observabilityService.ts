@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("Observability");
 /**
  * v267 P2-3: 统一可观测性服务 (Observability Service)
  * 
@@ -77,7 +79,7 @@ export async function collectSystemMetrics(): Promise<SystemMetricSnapshot[]> {
     
     return snapshots;
   } catch (err: any) {
-    console.error(`[Observability] v267: 指标收集失败: ${err.message}`);
+    log.error(`[Observability] v267: 指标收集失败: ${err.message}`);
     return snapshots;
   }
 }
@@ -289,7 +291,7 @@ export function endTrace(traceId: string, status: 'completed' | 'failed' = 'comp
   
   // 记录慢操作
   if (trace.durationMs > 30000) { // >30秒
-    console.warn(`[Observability] v267: 慢操作检测 - ${trace.operationType} 耗时 ${trace.durationMs}ms`, trace.metadata);
+    log.warn(`[Observability] v267: 慢操作检测 - ${trace.operationType} 耗时 ${trace.durationMs}ms`, trace.metadata);
   }
   
   // 聚合指标
@@ -538,10 +540,10 @@ export async function evaluateAlertRules(): Promise<{ triggered: string[]; suppr
         alertTriggerCounts.set(rule.id, (alertTriggerCounts.get(rule.id) || 0) + 1);
         triggered.push(rule.id);
         
-        console.warn(`[Observability] v268: 告警触发 - ${rule.name}: ${message} (自适应冷却=${Math.round(adaptiveCooldown/60000)}分钟)`);
+        log.warn(`[Observability] v268: 告警触发 - ${rule.name}: ${message} (自适应冷却=${Math.round(adaptiveCooldown/60000)}分钟)`);
       }
     } catch (err: any) {
-      console.error(`[Observability] v268: 评估告警规则 ${rule.id} 失败: ${err.message}`);
+      log.error(`[Observability] v268: 评估告警规则 ${rule.id} 失败: ${err.message}`);
     }
   }
   
@@ -685,9 +687,9 @@ export function startObservabilityService(): void {
   setTimeout(async () => {
     try {
       await collectSystemMetrics();
-      console.log('[Observability] v267: 初始指标收集完成');
+      log.info('[Observability] v267: 初始指标收集完成');
     } catch (err: any) {
-      console.error(`[Observability] v267: 初始指标收集失败: ${err.message}`);
+      log.error(`[Observability] v267: 初始指标收集失败: ${err.message}`);
     }
   }, 30 * 1000); // 启动30秒后
   
@@ -698,10 +700,10 @@ export function startObservabilityService(): void {
       const alertResult = await evaluateAlertRules();
       
       if (alertResult.triggered.length > 0) {
-        console.warn(`[Observability] v267: ${alertResult.triggered.length}个告警被触发: ${alertResult.triggered.join(', ')}`);
+        log.warn(`[Observability] v267: ${alertResult.triggered.length}个告警被触发: ${alertResult.triggered.join(', ')}`);
       }
     } catch (err: any) {
-      console.error(`[Observability] v267: 定时指标收集失败: ${err.message}`);
+      log.error(`[Observability] v267: 定时指标收集失败: ${err.message}`);
     }
   }, 5 * 60 * 1000);
   
@@ -709,7 +711,7 @@ export function startObservabilityService(): void {
   summaryInterval = setInterval(async () => {
     try {
       const summary = await generateHealthSummary();
-      console.log(`[Observability] v267: 健康摘要 - 等级: ${summary.grade} (${summary.overallScore}分), 告警: ${summary.alerts.length}`);
+      log.info(`[Observability] v267: 健康摘要 - 等级: ${summary.grade} (${summary.overallScore}分), 告警: ${summary.alerts.length}`);
       
       // 如果等级低于B，发送通知
       if (['C', 'D', 'F'].includes(summary.grade)) {
@@ -723,11 +725,11 @@ export function startObservabilityService(): void {
         });
       }
     } catch (err: any) {
-      console.error(`[Observability] v267: 健康摘要生成失败: ${err.message}`);
+      log.error(`[Observability] v267: 健康摘要生成失败: ${err.message}`);
     }
   }, 60 * 60 * 1000);
   
-  console.log('[Observability] v267: 可观测性服务已启动 - 指标收集: 5分钟, 健康摘要: 1小时');
+  log.info('[Observability] v267: 可观测性服务已启动 - 指标收集: 5分钟, 健康摘要: 1小时');
 }
 
 /**
@@ -742,7 +744,7 @@ export function stopObservabilityService(): void {
     clearInterval(summaryInterval);
     summaryInterval = null;
   }
-  console.log('[Observability] v267: 可观测性服务已停止');
+  log.info('[Observability] v267: 可观测性服务已停止');
 }
 
 // ==================== 对外查询接口 ====================

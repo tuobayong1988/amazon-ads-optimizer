@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AuditService');
 /**
  * 审计日志服务
  * 记录所有团队成员的操作行为，便于追溯和合规管理
@@ -291,7 +293,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
       .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
       .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
   } catch (error) {
-    console.warn("Failed to get audit logs by day:", error);
+    log.warn("Failed to get audit logs by day:", error);
     dayStats = [];
   }
 

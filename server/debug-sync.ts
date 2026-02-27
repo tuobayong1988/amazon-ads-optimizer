@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('Debugsync');
 /**
  * 调试同步API端点
  * 用于诊断同步问题,返回详细的同步过程信息
@@ -166,10 +168,10 @@ export const debugSyncRouter = router({
         // 异步执行全量同步，立即返回
         const startTime = new Date().toISOString();
         syncService.syncAll().then((result: any) => {
-          console.log(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
+          log.info(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
             JSON.stringify(result).substring(0, 500));
         }).catch((err: any) => {
-          console.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, err.message);
+          log.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, err.message);
         });
 
         return {
@@ -223,9 +225,9 @@ export const debugSyncRouter = router({
 
             // 异步执行，不等待完成
             syncService.syncAll().then((result: any) => {
-              console.log(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
+              log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
             }).catch((err: any) => {
-              console.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, err.message);
+              log.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, err.message);
             });
 
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'triggered' });

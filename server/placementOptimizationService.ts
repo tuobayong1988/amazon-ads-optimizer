@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('PlacementOptimizationService');
 /**
  * 广告位置智能倾斜服务
  * 
@@ -241,7 +243,7 @@ export async function calculateDynamicBenchmarks(
       cpcBaseline: Math.max(0.5, Math.min(5, (data.avgCpc || 1) * 1.5))
     };
   } catch (error) {
-    console.error('[PlacementOptimization] 计算动态基准失败:', error);
+    log.error('[PlacementOptimization] 计算动态基准失败:', error);
     return DEFAULT_BENCHMARKS;
   }
 }
@@ -305,7 +307,7 @@ export async function checkAdjustmentCooldown(
       lastAdjustmentDate: lastDate
     };
   } catch (error) {
-    console.error('[PlacementOptimization] 检查冷却期失败:', error);
+    log.error('[PlacementOptimization] 检查冷却期失败:', error);
     return { inCooldown: false };
   }
 }
@@ -340,7 +342,7 @@ export async function getCampaignBiddingStrategy(
     // 默认返回down_only，实际应该从Amazon API同步
     return 'down_only';
   } catch (error) {
-    console.error('[PlacementOptimization] 获取竞价策略失败:', error);
+    log.error('[PlacementOptimization] 获取竞价策略失败:', error);
     return 'fixed';
   }
 }
@@ -698,9 +700,9 @@ export async function getCampaignPlacementPerformance(
           sales: twMetrics.weightedDailySales * totalDays,
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
         };
-        console.log(`[PlacementOptimization] v163: ${placement} 时间衰减加权 - 加权ROAS=${twMetrics.weightedRoas.toFixed(2)}, 加权ACoS=${twMetrics.weightedAcos.toFixed(1)}%, 置信度=${twMetrics.dataQuality.confidenceLevel}`);
+        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减加权 - 加权ROAS=${twMetrics.weightedRoas.toFixed(2)}, 加权ACoS=${twMetrics.weightedAcos.toFixed(1)}%, 置信度=${twMetrics.dataQuality.confidenceLevel}`);
       } catch (e: any) {
-        console.log(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${e.message}`);
+        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${e.message}`);
       }
     }
     
@@ -786,7 +788,7 @@ export async function recordPlacementAdjustment(
       status: 'applied'
     });
   } catch (error) {
-    console.error('[PlacementOptimization] 记录调整历史失败:', error);
+    log.error('[PlacementOptimization] 记录调整历史失败:', error);
   }
 }
 
@@ -880,10 +882,10 @@ export async function updatePlacementSettings(
             eq(campaigns.accountId, accountId)
           )
         );
-      console.log(`[PlacementOptimization] v166: campaigns表位置倾斜已同步更新(待确认) - campaignId=${campaignId}`, campaignUpdateData);
+      log.info(`[PlacementOptimization] v166: campaigns表位置倾斜已同步更新(待确认) - campaignId=${campaignId}`, campaignUpdateData);
     }
   } catch (campaignUpdateError: any) {
-    console.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${campaignUpdateError.message}`);
+    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${campaignUpdateError.message}`);
   }
 }
 
@@ -974,7 +976,7 @@ export async function executeAutomaticPlacementOptimization(
       biddingStrategy
     };
   } catch (error) {
-    console.error('[PlacementOptimization] 位置倾斜优化执行失败:', error);
+    log.error('[PlacementOptimization] 位置倾斜优化执行失败:', error);
     return {
       success: false,
       message: `优化执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
@@ -1156,7 +1158,7 @@ export async function applyPlacementAdjustment(
     }] as PlacementAdjustmentSuggestion[]);
     return true;
   } catch (error) {
-    console.error('[placementOptimizationService] applyPlacementAdjustment error:', error);
+    log.error('[placementOptimizationService] applyPlacementAdjustment error:', error);
     return false;
   }
 }

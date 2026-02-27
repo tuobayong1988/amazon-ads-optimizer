@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AutoOperationService');
 /**
  * 自动运营服务 - 每2小时自动执行完整的优化流程
  * 
@@ -317,7 +319,7 @@ export const autoOperationService = {
         totalAnalyzed = 1;
         totalSuggestions = result.suggestedNegatives?.length || 0;
       } catch (e) {
-        console.error(`N-Gram analysis failed for account ${accountId}:`, e);
+        log.error(`N-Gram analysis failed for account ${accountId}:`, e);
       }
       
       const duration = Date.now() - startTime;
@@ -474,9 +476,9 @@ export const autoOperationService = {
           });
           totalOptimized++;
           totalAdjustments += result.bidOptimization.adjustmentsCount;
-          console.log(`[AutoOperation] v167: 出价优化目标 ${target.name}: 调整=${result.bidOptimization.adjustmentsCount}`);
+          log.info(`[AutoOperation] v167: 出价优化目标 ${target.name}: 调整=${result.bidOptimization.adjustmentsCount}`);
         } catch (e: any) {
-          console.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, e.message);
+          log.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, e.message);
         }
       }
       
@@ -545,7 +547,7 @@ export const autoOperationService = {
         results.push(result);
         executed++;
       } catch (error) {
-        console.error(`Auto operation failed for account ${accountId}:`, error);
+        log.error(`Auto operation failed for account ${accountId}:`, error);
         failed++;
       }
     }

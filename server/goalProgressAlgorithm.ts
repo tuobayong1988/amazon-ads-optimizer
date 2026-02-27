@@ -178,8 +178,21 @@ const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
 const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 20, trend: 16, budgetEfficiency: 11, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8, profitHealth: 12 };
 
 function getWeights(strategyTemplateId: string | null): WeightConfig {
-  if (!strategyTemplateId) return DEFAULT_WEIGHTS;
-  return STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS;
+  const baseWeights = (!strategyTemplateId) ? DEFAULT_WEIGHTS : (STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS);
+  
+  // v272 P0-1: 集成weightAutoTuningService，优先使用自学习权重
+  try {
+    if (strategyTemplateId) {
+      const { getEffectiveWeights } = require('./weightAutoTuningService');
+      const tunedWeights = getEffectiveWeights(strategyTemplateId, baseWeights as any);
+      if (tunedWeights && Object.keys(tunedWeights).length > 0) {
+        return tunedWeights as unknown as WeightConfig;
+      }
+    }
+  } catch (_e) {
+    // weightAutoTuningService不可用时降级到静态权重
+  }
+  return baseWeights;
 }
 
 // ==================== 数据置信度修正系数 ====================

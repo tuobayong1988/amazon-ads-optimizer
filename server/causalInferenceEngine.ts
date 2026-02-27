@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('CausalInferenceEngine');
 /**
  * 因果推断引擎 (Causal Inference Engine)
  * 
@@ -301,7 +303,7 @@ export async function estimateCausalEffect(
     return result;
     
   } catch (error) {
-    console.error(`[CausalInference] Error estimating causal effect:`, error);
+    log.error(`[CausalInference] Error estimating causal effect:`, error);
     return null;
   }
 }
@@ -455,6 +457,6 @@ export async function batchCausalAnalysis(accountId: number): Promise<{
     }
   }
   
-  console.log(`[CausalInference] Batch analysis: ${result.analyzed} analyzed, ${result.significant} significant, ${result.errors} errors`);
+  log.info(`[CausalInference] Batch analysis: ${result.analyzed} analyzed, ${result.significant} significant, ${result.errors} errors`);
   return result;
 }

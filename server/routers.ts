@@ -75,6 +75,7 @@ import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
+import { systemConfigRouter } from './routes/systemConfig'; // v272 P0-1
 
 // ==================== 主路由组合 ====================
 
@@ -219,6 +220,8 @@ export const appRouter = router({
 
   // 智能运营推荐 v269.4
   intelligentRecommendation: intelligentRecommendationRouter,
+  // v272 P0-1: 系统配置、算法可观测性、权重自学习
+  systemConfig: systemConfigRouter,
 });
 
 export type AppRouter = typeof appRouter;

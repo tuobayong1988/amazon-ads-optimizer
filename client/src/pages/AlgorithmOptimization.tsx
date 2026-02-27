@@ -28,6 +28,7 @@ import {
   Info,
   Zap
 } from 'lucide-react';
+import ProfitObservabilityPanel from '@/components/ProfitObservabilityPanel';
 import {
   Dialog,
   DialogContent,
@@ -253,6 +254,10 @@ export default function AlgorithmOptimization() {
             <TabsTrigger value="parameters" className="flex items-center gap-2">
               <Sliders className="w-4 h-4" />
               参数调优
+            </TabsTrigger>
+            <TabsTrigger value="observability" className="flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              利润与可观测性
             </TabsTrigger>
           </TabsList>
 
@@ -550,6 +555,11 @@ export default function AlgorithmOptimization() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* v272: 利润与可观测性 */}
+          <TabsContent value="observability" className="space-y-4">
+            <ProfitObservabilityPanel />
           </TabsContent>
         </Tabs>
       </div>

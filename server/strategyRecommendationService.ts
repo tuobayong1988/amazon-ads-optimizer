@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('StrategyRecommendationService');
 /**
  * 策略模板推荐服务
  * 
@@ -361,10 +363,10 @@ export async function updateAllCampaignRecommendations(accountId: number): Promi
       updated++;
     }
 
-    console.log(`[StrategyRecommendation] 已更新 ${updated} 个广告活动的策略推荐`);
+    log.info(`[StrategyRecommendation] 已更新 ${updated} 个广告活动的策略推荐`);
     return updated;
   } catch (error) {
-    console.error('[StrategyRecommendation] 更新策略推荐失败:', error);
+    log.error('[StrategyRecommendation] 更新策略推荐失败:', error);
     return 0;
   }
 }

@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("AutoExecEngine");
 /**
  * 自动化执行引擎
  * 
@@ -226,7 +228,7 @@ function cleanupStaleMemoryData() {
   }
   
   if (cleanedCount > 0) {
-    console.log(`[MemoryCleanup] v230: 清理了${cleanedCount}条过期的dailyExecutionCount记录`);
+    log.info(`[MemoryCleanup] v230: 清理了${cleanedCount}条过期的dailyExecutionCount记录`);
   }
 }
 
@@ -515,7 +517,7 @@ export async function executeOptimization(
                   bidApiSuccess = true;
                 }
               } catch (apiErr: any) {
-                console.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, apiErr.message);
+                log.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, apiErr.message);
               }
             }
           }
@@ -524,7 +526,7 @@ export async function executeOptimization(
         if (bidApiSuccess) {
           await db.updateKeyword(targetId, { bid: String(newValue) });
         } else {
-          console.warn(`[AutoExec] v148: API同步失败，跳过本地DB更新 (keyword ${targetId})`);
+          log.warn(`[AutoExec] v148: API同步失败，跳过本地DB更新 (keyword ${targetId})`);
         }
         await db.createBiddingLog({
           accountId,
@@ -573,14 +575,14 @@ export async function executeOptimization(
               budgetApiSuccess = true;
             }
           } catch (budgetApiErr: any) {
-            console.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, budgetApiErr.message);
+            log.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, budgetApiErr.message);
           }
         }
         // v148: 先API后DB原则 - 只有API成功才更新本地DB
         if (budgetApiSuccess) {
           await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
         } else {
-          console.warn(`[AutoExec] v148: 预算API同步失败，跳过本地DB更新 (campaign ${targetId})`);
+          log.warn(`[AutoExec] v148: 预算API同步失败，跳过本地DB更新 (campaign ${targetId})`);
         }
         await db.createBiddingLog({
           accountId,
@@ -594,7 +596,7 @@ export async function executeOptimization(
           newBid: String(newValue),
           reason: `${budgetApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 预算调整: ${reason}`,
         });
-        console.log(`[AutoExec] v148: 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
+        log.info(`[AutoExec] v148: 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
         if (!budgetApiSuccess) {
           throw new Error('Amazon API预算同步失败，本地DB未更新');
         }
@@ -638,7 +640,7 @@ export async function executeOptimization(
                   ptApiSuccess = true;
                 }
               } catch (ptApiErr: any) {
-                console.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, ptApiErr.message);
+                log.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, ptApiErr.message);
               }
             }
           }
@@ -647,7 +649,7 @@ export async function executeOptimization(
         if (ptApiSuccess) {
           await db.updateProductTargetBid(targetId, String(newValue));
         } else {
-          console.warn(`[AutoExec] v148: 商品定向API同步失败，跳过本地DB更新 (productTarget ${targetId})`);
+          log.warn(`[AutoExec] v148: 商品定向API同步失败，跳过本地DB更新 (productTarget ${targetId})`);
         }
         await db.createBiddingLog({
           accountId,
@@ -710,7 +712,7 @@ export async function executeOptimization(
               placementApiSuccess = true;
             }
           } catch (plApiErr: any) {
-            console.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, plApiErr.message);
+            log.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, plApiErr.message);
           }
         }
         await db.createBiddingLog({
@@ -725,7 +727,7 @@ export async function executeOptimization(
           newBid: String(newValue),
           reason: `${placementApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 广告位置倾斜调整: ${reason}`,
         });
-        console.log(`[AutoExec] v148: 广告位置倾斜: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? '✅' : '❌'}`);
+        log.info(`[AutoExec] v148: 广告位置倾斜: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? '✅' : '❌'}`);
         if (!placementApiSuccess) {
           throw new Error('Amazon API广告位置倾斜同步失败');
         }
@@ -765,7 +767,7 @@ export async function executeOptimization(
               daypartingApiSuccess = true;
             }
           } catch (dpApiErr: any) {
-            console.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, dpApiErr.message);
+            log.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, dpApiErr.message);
           }
         }
         // v271: 先API后DB原则
@@ -784,7 +786,7 @@ export async function executeOptimization(
           newBid: String(newValue),
           reason: `${daypartingApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 分时策略调整: ${reason}`,
         });
-        console.log(`[AutoExec] v271: 分时策略: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${daypartingApiSuccess ? '✅' : '❌'}`);
+        log.info(`[AutoExec] v271: 分时策略: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${daypartingApiSuccess ? '✅' : '❌'}`);
         if (!daypartingApiSuccess) {
           throw new Error('Amazon API分时策略同步失败');
         }
@@ -827,12 +829,12 @@ export async function executeOptimization(
           
           if (negSyncResult.success > 0) {
             negApiSuccess = true;
-            console.log(`[AutoExec] v266: 否定关键词API同步成功: "${targetName}", matchType=${negMatchType}`);
+            log.info(`[AutoExec] v266: 否定关键词API同步成功: "${targetName}", matchType=${negMatchType}`);
           } else {
-            console.error(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
+            log.error(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
           }
         } catch (negApiErr: any) {
-          console.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, negApiErr.message);
+          log.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, negApiErr.message);
         }
         
         // 先API后DB原则: 只有API成功才写入本地DB
@@ -845,7 +847,7 @@ export async function executeOptimization(
               level: 'campaign',
             });
           } catch (dbErr: any) {
-            console.warn(`[AutoExec] v266: 否定词本地DB写入失败(API已成功): ${dbErr.message}`);
+            log.warn(`[AutoExec] v266: 否定词本地DB写入失败(API已成功): ${dbErr.message}`);
           }
         }
         
@@ -901,12 +903,12 @@ export async function executeOptimization(
           
           if (harvestSyncResult.success > 0) {
             harvestApiSuccess = true;
-            console.log(`[AutoExec] v266: 搜索词收割API同步成功: "${targetName}", bid=${newValue}`);
+            log.info(`[AutoExec] v266: 搜索词收割API同步成功: "${targetName}", bid=${newValue}`);
           } else {
-            console.error(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
+            log.error(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
           }
         } catch (harvestApiErr: any) {
-          console.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, harvestApiErr.message);
+          log.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, harvestApiErr.message);
         }
         
         // 先API后DB原则: 只有API成功才写入本地DB
@@ -921,7 +923,7 @@ export async function executeOptimization(
               keywordStatus: 'enabled',
             });
           } catch (dbErr: any) {
-            console.warn(`[AutoExec] v266: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
+            log.warn(`[AutoExec] v266: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
           }
         }
         
@@ -938,7 +940,7 @@ export async function executeOptimization(
           reason: `${harvestApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 搜索词收割: ${reason}`,
         });
         
-        console.log(`[AutoExec] v266: 搜索词收割执行: target=${targetName}, API=${harvestApiSuccess ? '✅' : '❌'}`);
+        log.info(`[AutoExec] v266: 搜索词收割执行: target=${targetName}, API=${harvestApiSuccess ? '✅' : '❌'}`);
         if (!harvestApiSuccess) {
           throw new Error('Amazon API搜索词收割同步失败');
         }
@@ -947,7 +949,7 @@ export async function executeOptimization(
 
       default:
         // 通用处理 - 记录日志
-        console.log(`[AutoExec] 未实现的执行类型: ${type}, target=${targetName}`);
+        log.info(`[AutoExec] 未实现的执行类型: ${type}, target=${targetName}`);
         break;
     }
     
@@ -1350,10 +1352,10 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
           }
           
           if (syncResult.failed > 0) {
-            console.warn(`[AutomationEngine] N-Gram否定词部分同步失败: ${syncResult.errors.join('; ')}`);
+            log.warn(`[AutomationEngine] N-Gram否定词部分同步失败: ${syncResult.errors.join('; ')}`);
           }
         } catch (apiError: any) {
-          console.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${apiError.message}`);
+          log.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${apiError.message}`);
           // API失败时仍然写入本地DB，等待AutoCorrector重试
           for (const campaign of campaigns) {
             try {
@@ -1605,7 +1607,7 @@ export async function runKeywordMigrationTask(accountId: number): Promise<{
                 bid: '1.00',
               };
               // TODO: 通过API创建关键词
-              console.log('[AutomationEngine] Would create keyword:', newKeyword);
+              log.info('[AutomationEngine] Would create keyword:', newKeyword);
               
               // 在源广告活动中添加否定词
               await db.addNegativeKeyword({

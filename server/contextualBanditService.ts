@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('ContextualBanditService');
 /**
  * 上下文赌博机出价引擎 (LinUCB Contextual Bandit)
  * 
@@ -348,7 +350,7 @@ export async function updateArm(
 ): Promise<void> {
   // v231: 防御性校验 - 确保input有效
   if (!isFinite(reward) || isNaN(reward)) {
-    console.warn(`[LinUCB] v231: updateArm skipped - invalid reward: ${reward}`);
+    log.warn(`[LinUCB] v231: updateArm skipped - invalid reward: ${reward}`);
     return;
   }
   // 限制reward范围避免极端值导致模型不稳定
@@ -434,7 +436,7 @@ export async function makeLinUCBBidDecision(
     return decision;
     
   } catch (error) {
-    console.error(`[LinUCB] Error making bid decision:`, error);
+    log.error(`[LinUCB] Error making bid decision:`, error);
     return null;
   }
 }

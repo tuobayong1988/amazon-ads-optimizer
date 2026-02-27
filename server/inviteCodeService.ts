@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('InviteCodeService');
 /**
  * 邀请码服务 - 支持生成、验证、管理邀请码
  */
@@ -92,7 +94,7 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     
     return { success: false, error: '创建邀请码失败' };
   } catch (error: any) {
-    console.error('[InviteCode] 创建邀请码失败:', error);
+    log.error('[InviteCode] 创建邀请码失败:', error);
     return { success: false, error: error.message || '创建邀请码失败' };
   }
 }
@@ -162,7 +164,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       }
     };
   } catch (error: any) {
-    console.error('[InviteCode] 验证邀请码失败:', error);
+    log.error('[InviteCode] 验证邀请码失败:', error);
     return { valid: false, error: error.message || '验证邀请码失败' };
   }
 }
@@ -189,7 +191,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
     
     return { success: true };
   } catch (error: any) {
-    console.error('[InviteCode] 使用邀请码失败:', error);
+    log.error('[InviteCode] 使用邀请码失败:', error);
     return { success: false, error: error.message || '使用邀请码失败' };
   }
 }
@@ -233,7 +235,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       creatorName: row.creator_name,
     }));
   } catch (error) {
-    console.error('[InviteCode] 获取邀请码列表失败:', error);
+    log.error('[InviteCode] 获取邀请码列表失败:', error);
     return [];
   }
 }
@@ -312,7 +314,7 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
     
     return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
   } catch (error) {
-    console.error('[InviteCode] 获取邀请码统计失败:', error);
+    log.error('[InviteCode] 获取邀请码统计失败:', error);
     return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
   }
 }

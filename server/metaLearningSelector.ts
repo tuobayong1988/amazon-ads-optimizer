@@ -184,7 +184,8 @@ async function evaluateAlgorithms(
   keywordId?: number,
   targetId?: number,
   campaignId?: string,
-  currentBid?: number
+  currentBid?: number,
+  strategyTemplateId?: string | null  // v272: 策略级别化探索率
 ): Promise<AlgorithmScore[]> {
   const db = await getDbInstance();
   const scores: AlgorithmScore[] = [];
@@ -253,34 +254,31 @@ async function evaluateAlgorithms(
   const hourOfDay = new Date().getHours();
   const dayOfWeek = new Date().getDay();
   
-  // v270 P1-1: 探索-利用自适应机制
-  // 核心改进:
-  //   1. 引入"算法表现衰减因子": 连续失败的算法降低探索概率
-  //   2. 引入"数据新鲜度因子": 最近24h内有新数据时提升探索率
-  //   3. 探索率公式: baseRate * dataFreshness * (1 - performanceDecay)
-  const dataMaturity = Math.min(1, syntheticDataCount / 30);
-  const baseExplorationRate = Math.max(0.35, 0.60 - dataMaturity * 0.25); // v270: 基础探索率 35%-60%
+  // v272 P1-2: 探索-利用自适应机制 — 策略级别化完整集成
+  // v270: 引入自适应探索率
+  // v271: 创建calculateStrategyExplorationRate但未集成到evaluateAlgorithms
+  // v272: 完成集成，用策略级别的探索率替换全局硬编码值
   
-  // v270: 数据新鲜度因子 — 最近24h内有新数据时提升探索率
-  // 新数据意味着环境可能变化，应增加探索
+  // v270: 算法表现衰减因子 — 连续失败的算法降低其探索概率
+  const getConsecutiveFailures = (stat: AlgorithmStats): number => {
+    if (stat.totalTrials < 3) return 0;
+    const failRate = stat.betaParam / (stat.alphaParam + stat.betaParam);
+    return failRate > 0.75 ? 0.20 : failRate > 0.60 ? 0.10 : 0;
+  };
+  
+  // v272: 数据新鲜度检测
   const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
   const recentDataCount = await db.select({ count: sql<number>`COUNT(*)` })
     .from(rlTrainingLogs)
     .where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24)));
   const hasRecentData = Number(recentDataCount[0]?.count) > 0;
-  const dataFreshnessFactor = hasRecentData ? 1.15 : 0.85; // 有新数据+15%, 无新数据-15%
   
-  // v270: 算法表现衰减因子 — 连续失败的算法降低其探索概率
-  // 检查最近3次算法选择的reward，如果全部为负则衰减
-  const getConsecutiveFailures = (stat: AlgorithmStats): number => {
-    // 基于Beta分布参数估算连续失败率
-    if (stat.totalTrials < 3) return 0; // 数据不足，不衰减
-    const failRate = stat.betaParam / (stat.alphaParam + stat.betaParam);
-    return failRate > 0.75 ? 0.20 : failRate > 0.60 ? 0.10 : 0; // 衰减系数
-  };
-  
-  // v270: 综合探索率 = 基础率 * 数据新鲜度
-  const explorationRate = Math.min(0.65, Math.max(0.30, baseExplorationRate * dataFreshnessFactor));
+  // v272: 使用策略级别化探索率计算（替代v270的全局硬编码）
+  const { explorationRate, detail: explorationDetail } = calculateStrategyExplorationRate(
+    strategyTemplateId || null,
+    syntheticDataCount,
+    hasRecentData
+  );
   
   // v268: 算法轮转机制 — 缩短轮转周期到30分钟
   const halfHourSlot = Math.floor(Date.now() / (30 * 60 * 1000));
@@ -296,7 +294,7 @@ async function evaluateAlgorithms(
     return Math.max(0.70, (1 + Math.max(0, (successRate - 0.5)) * 0.30) - decay);
   };
   
-  log.info(`[MetaLearning] v270探索自适应: 基础率=${(baseExplorationRate*100).toFixed(0)}%, 新鲜度=${dataFreshnessFactor.toFixed(2)}, 最终率=${(explorationRate*100).toFixed(0)}%, 最近24h数据=${hasRecentData}`);
+  log.info(`[MetaLearning] v272策略级探索自适应: ${explorationDetail}`);
   
   // 1. rule_based: v268进一步降低基础分，强制系统向高级算法迁移
   const rbStat = stats.get('rule_based')!;
@@ -487,7 +485,7 @@ export async function selectBestAlgorithm(
   currentBid?: number,
   strategyTemplateId?: string | null  // v271 P1-2: 策略模板级别的算法配置
 ): Promise<MetaDecision> {
-  const scores = await evaluateAlgorithms(accountId, keywordId, targetId, campaignId, currentBid);
+  const scores = await evaluateAlgorithms(accountId, keywordId, targetId, campaignId, currentBid, strategyTemplateId);
   
   // 选择得分最高的可用算法
   const eligibleScores = scores.filter(s => s.eligible);

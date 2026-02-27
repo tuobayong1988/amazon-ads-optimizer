@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('NextGenMigration');
 /**
  * NextGen Algorithm Database Migration (v198)
  * 
@@ -266,7 +268,7 @@ export async function ensureNextGenTables(): Promise<{ success: boolean; tablesC
       try {
         await db.execute(sql.raw(dropSql));
       } catch (err: any) {
-        console.error(`[NextGen Migration] Error dropping table:`, err.message);
+        log.error(`[NextGen Migration] Error dropping table:`, err.message);
       }
     }
 
@@ -276,9 +278,9 @@ export async function ensureNextGenTables(): Promise<{ success: boolean; tablesC
       try {
         await db.execute(sql.raw(table.ddl));
         tablesCreated++;
-        console.log(`[NextGen Migration] Table '${table.name}' ensured successfully`);
+        log.info(`[NextGen Migration] Table '${table.name}' ensured successfully`);
       } catch (err: any) {
-        console.error(`[NextGen Migration] Error creating table '${table.name}':`, err.message);
+        log.error(`[NextGen Migration] Error creating table '${table.name}':`, err.message);
       }
     }
 

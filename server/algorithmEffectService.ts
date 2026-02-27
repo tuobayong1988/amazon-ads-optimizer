@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AlgorithmEffectService');
 /**
  * algorithmEffectService.ts - 算法效果追踪服务
  * 
@@ -324,7 +326,7 @@ export async function getAlgorithmEffectStats(
       }));
     }
   } catch (eventsErr: any) {
-    console.error('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', eventsErr.message);
+    log.error('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', eventsErr.message);
   }
   
   // v235: 备用数据源 — 从 optimization_logs 表读取
@@ -383,7 +385,7 @@ export async function getAlgorithmEffectStats(
       }));
     }
   } catch (logsErr: any) {
-    console.error('[algorithmEffectService] v235: optimization_logs查询也失败:', logsErr.message);
+    log.error('[algorithmEffectService] v235: optimization_logs查询也失败:', logsErr.message);
   }
   
   // 所有数据源都没有数据
@@ -490,7 +492,7 @@ export async function getEffectTrend(
       count: Number(row.count),
     }));
   } catch (err: any) {
-    console.error('[algorithmEffectService] v235: getEffectTrend from optimization_events failed:', err.message);
+    log.error('[algorithmEffectService] v235: getEffectTrend from optimization_events failed:', err.message);
   }
   
   // 回退到旧表

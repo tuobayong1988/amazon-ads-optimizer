@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('IntelligentRecommendationEngine');
 /**
  * 智能运营推荐引擎 v269.4
  * 
@@ -219,7 +221,7 @@ async function executeAutoOptimizationForTarget(
       specificModules = ['bid', 'searchterm'];
     }
     
-    console.log(`[智能推荐] 对优化目标「${targetName}」(#${targetId})执行补充优化，模块: ${specificModules.join(', ')}, 恶化严重度: ${maxSeverity}`);
+    log.info(`[智能推荐] 对优化目标「${targetName}」(#${targetId})执行补充优化，模块: ${specificModules.join(', ')}, 恶化严重度: ${maxSeverity}`);
     
     // 调用现有的优化执行引擎
     const result = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
@@ -315,7 +317,7 @@ async function executeAutoOptimizationForTarget(
     return { status: result.status, actions, summary };
     
   } catch (error: any) {
-    console.error(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败:`, error.message);
+    log.error(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败:`, error.message);
     return {
       status: 'error',
       actions: [{

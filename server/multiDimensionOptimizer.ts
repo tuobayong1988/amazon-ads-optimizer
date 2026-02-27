@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('MultiDimensionOptimizer');
 /**
  * 多维度智能优化引擎 (Multi-Dimension Optimizer)
  * 
@@ -902,10 +904,10 @@ export async function executeMultiDimensionOptimization(
             campaign.id, accountId, uniqueDayPerfs, config
           );
           if (budgetApplyResult.success) {
-            console.log(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} 分时预算规则已保存: ${budgetApplyResult.rulesApplied}条`);
+            log.info(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} 分时预算规则已保存: ${budgetApplyResult.rulesApplied}条`);
           }
         } catch (budgetErr: any) {
-          console.warn(`[MultiDimOptimizer] v179: 分时预算规则保存失败: ${budgetErr.message}`);
+          log.warn(`[MultiDimOptimizer] v179: 分时预算规则保存失败: ${budgetErr.message}`);
         }
       }
       

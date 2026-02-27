@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AdAutomation');
 /**
  * 广告自动化核心算法模块
  * 基于亚马逊运营流程文档实现的自动化功能
@@ -1649,13 +1651,13 @@ export async function addNegativeKeyword(
   try {
     // 这里应该调用Amazon Ads API添加否定关键词
     // 目前返回模拟结果
-    console.log(`[adAutomation] Adding negative keyword: ${keyword} (${matchType}) to campaign ${campaignId}`);
+    log.info(`[adAutomation] Adding negative keyword: ${keyword} (${matchType}) to campaign ${campaignId}`);
     return {
       success: true,
       message: `成功添加否定关键词: ${keyword}`
     };
   } catch (error) {
-    console.error('[adAutomation] addNegativeKeyword error:', error);
+    log.error('[adAutomation] addNegativeKeyword error:', error);
     return {
       success: false,
       message: `添加否定关键词失败: ${error}`
@@ -1677,13 +1679,13 @@ export async function addKeywordFromSearchTerm(
   try {
     // 这里应该调用Amazon Ads API添加关键词
     // 目前返回模拟结果
-    console.log(`[adAutomation] Adding keyword from search term: ${searchTerm} (${matchType}) with bid ${bid}`);
+    log.info(`[adAutomation] Adding keyword from search term: ${searchTerm} (${matchType}) with bid ${bid}`);
     return {
       success: true,
       message: `成功添加关键词: ${searchTerm}`
     };
   } catch (error) {
-    console.error('[adAutomation] addKeywordFromSearchTerm error:', error);
+    log.error('[adAutomation] addKeywordFromSearchTerm error:', error);
     return {
       success: false,
       message: `添加关键词失败: ${error}`

@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('OptimizationMonitoringService');
 /**
  * optimizationMonitoringService.ts
  * v263 - 自动化监控告警系统
@@ -198,7 +200,7 @@ async function checkBidRatio(
 
     return { raiseCount, lowerCount, ratio };
   } catch (e) {
-    console.error('[MonitoringService] checkBidRatio error:', e);
+    log.error('[MonitoringService] checkBidRatio error:', e);
     return { raiseCount: 0, lowerCount: 0, ratio: 1 };
   }
 }
@@ -284,7 +286,7 @@ async function checkAcosOverrun(
     const avgOverrun = accountCount > 0 ? totalOverrun / accountCount : 0;
     return { avgOverrun, highRiskCount };
   } catch (e) {
-    console.error('[MonitoringService] checkAcosOverrun error:', e);
+    log.error('[MonitoringService] checkAcosOverrun error:', e);
     return { avgOverrun: 0, highRiskCount: 0 };
   }
 }
@@ -339,7 +341,7 @@ async function checkSyncHealth(
 
     return { successRate };
   } catch (e) {
-    console.error('[MonitoringService] checkSyncHealth error:', e);
+    log.error('[MonitoringService] checkSyncHealth error:', e);
     return { successRate: 100 };
   }
 }
@@ -457,7 +459,7 @@ async function checkAlgorithmHealth(
 
     return { totalOps, positiveRate, activeAlgorithms };
   } catch (e) {
-    console.error('[MonitoringService] checkAlgorithmHealth error:', e);
+    log.error('[MonitoringService] checkAlgorithmHealth error:', e);
     return { totalOps: 0, positiveRate: 0, activeAlgorithms: [] };
   }
 }
@@ -488,7 +490,7 @@ async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void>
     }
   } catch (e) {
     // 版本检查失败不阻塞其他监控
-    console.warn('[MonitoringService] checkVersionConsistency error:', e);
+    log.warn('[MonitoringService] checkVersionConsistency error:', e);
   }
 }
 
@@ -536,7 +538,7 @@ async function checkUnassignedCampaigns(
       });
     }
   } catch (e) {
-    console.error('[MonitoringService] checkUnassignedCampaigns error:', e);
+    log.error('[MonitoringService] checkUnassignedCampaigns error:', e);
   }
 }
 
@@ -615,7 +617,7 @@ async function checkProactiveRiskWarning(
       }
     }
   } catch (e) {
-    console.error('[MonitoringService] checkProactiveRiskWarning error:', e);
+    log.error('[MonitoringService] checkProactiveRiskWarning error:', e);
   }
 }
 
@@ -684,8 +686,8 @@ export function formatMonitoringReport(report: MonitoringReport): string {
  * 运行监控检查并输出报告（由定时任务调用）
  */
 export async function runMonitoringCheck(teamId: number): Promise<MonitoringReport> {
-  console.log('[MonitoringService] Starting monitoring check for team', teamId);
+  log.info('[MonitoringService] Starting monitoring check for team', teamId);
   const report = await generateMonitoringReport(teamId);
-  console.log(formatMonitoringReport(report));
+  log.info(formatMonitoringReport(report));
   return report;
 }

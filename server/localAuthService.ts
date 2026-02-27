@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('LocalAuthService');
 /**
  * 本地认证服务 - 支持邀请码注册、多租户数据隔离
  */
@@ -155,7 +157,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       token,
     };
   } catch (error: any) {
-    console.error('[LocalAuth] 注册失败:', error);
+    log.error('[LocalAuth] 注册失败:', error);
     return { success: false, error: error.message || '注册失败' };
   }
 }
@@ -274,7 +276,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       token,
     };
   } catch (error: any) {
-    console.error('[LocalAuth] 登录失败:', error);
+    log.error('[LocalAuth] 登录失败:', error);
     return { success: false, error: error.message || '登录失败' };
   }
 }

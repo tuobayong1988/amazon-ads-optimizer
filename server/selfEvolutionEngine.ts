@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("SelfEvolution");
 /**
  * v164: 优化算法自我进化引擎
  * 
@@ -281,13 +283,13 @@ export async function evaluateRecentOptimizations(
           correctionReason,
         });
       } catch (logErr) {
-        console.error(`[selfEvolution] Error evaluating log ${log.id}:`, logErr);
+        log.error(`[selfEvolution] Error evaluating log ${log.id}:`, logErr);
       }
     }
     
     return assessments;
   } catch (error) {
-    console.error(`[selfEvolution] evaluateRecentOptimizations error:`, error);
+    log.error(`[selfEvolution] evaluateRecentOptimizations error:`, error);
     return [];
   }
 }
@@ -614,7 +616,7 @@ export async function generateAutoCorrections(
         createdAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err);
+      log.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err);
     }
   }
   
@@ -722,7 +724,7 @@ export async function runEvolutionCycle(
   const cycleId = `evo_${performanceGroupId}_${Date.now()}`;
   const startDate = new Date().toISOString();
   
-  console.log(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
+  log.info(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
   
   // 第一步：评估最近的优化效果
   const assessments = await evaluateRecentOptimizations(performanceGroupId);
@@ -731,28 +733,28 @@ export async function runEvolutionCycle(
   const neutralActions = assessments.filter(a => a.effectScore >= -10 && a.effectScore <= 10).length;
   const negativeActions = assessments.filter(a => a.effectScore < -10).length;
   
-  console.log(`[selfEvolution] Evaluated ${assessments.length} actions: ${positiveActions} positive, ${neutralActions} neutral, ${negativeActions} negative`);
+  log.info(`[selfEvolution] Evaluated ${assessments.length} actions: ${positiveActions} positive, ${neutralActions} neutral, ${negativeActions} negative`);
   
   // 第二步：从评估中学习
   const learningResult = await updateLearningFromAssessments(
     performanceGroupId, assessments, strategyTemplateId
   );
   
-  console.log(`[selfEvolution] Learning updated: ${learningResult.keywordsUpdated} keywords, strategy: ${learningResult.strategyUpdated}`);
+  log.info(`[selfEvolution] Learning updated: ${learningResult.keywordsUpdated} keywords, strategy: ${learningResult.strategyUpdated}`);
   
   // 第三步：生成自动纠错动作
   const corrections = await generateAutoCorrections(performanceGroupId, assessments);
   
   let correctionsExecuted = 0;
   if (corrections.length > 0) {
-    console.log(`[selfEvolution] ${corrections.length} corrections identified`);
+    log.info(`[selfEvolution] ${corrections.length} corrections identified`);
     
     // 执行自动纠错（仅对效果严重负面的进行自动回滚）
     const severeCorrections = corrections.filter(c => c.effectScore < -30);
     if (severeCorrections.length > 0) {
       const execResult = await executeAutoCorrections(severeCorrections, userId, accountId);
       correctionsExecuted = execResult.executed;
-      console.log(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
+      log.info(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
     }
   }
   
@@ -782,7 +784,7 @@ export async function runEvolutionCycle(
     improvementTrend,
   };
   
-  console.log(`[selfEvolution] Evolution cycle ${cycleId} completed: avg score ${report.avgEffectScore}, trend: ${report.improvementTrend}`);
+  log.info(`[selfEvolution] Evolution cycle ${cycleId} completed: avg score ${report.avgEffectScore}, trend: ${report.improvementTrend}`);
   
   return report;
 }
@@ -871,7 +873,7 @@ export async function getAdaptiveOptimizationParams(
       recentSuccessRate: Math.round(successRate * 100) / 100,
     };
   } catch (error) {
-    console.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error);
+    log.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error);
     return defaultParams;
   }
 }
@@ -944,7 +946,7 @@ export async function getKeywordOptimizationHistory(
       warningMessage,
     };
   } catch (error) {
-    console.error(`[selfEvolution] getKeywordOptimizationHistory error:`, error);
+    log.error(`[selfEvolution] getKeywordOptimizationHistory error:`, error);
     return null;
   }
 }

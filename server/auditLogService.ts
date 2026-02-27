@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('AuditLogService');
 /**
  * 审计日志服务 - 记录所有用户操作
  */
@@ -118,7 +120,7 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<{ succ
     
     return { success: true };
   } catch (error: any) {
-    console.error('[AuditLog] 创建审计日志失败:', error);
+    log.error('[AuditLog] 创建审计日志失败:', error);
     return { success: false, error: error.message };
   }
 }
@@ -175,7 +177,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     
     return { logs, total };
   } catch (error) {
-    console.error('[AuditLog] 查询审计日志失败:', error);
+    log.error('[AuditLog] 查询审计日志失败:', error);
     return { logs: [], total: 0 };
   }
 }

@@ -46,6 +46,8 @@ import type { OptimizationTarget, PerformanceGroupConfig } from "./bidOptimizer"
 import { createModuleLogger } from './utils/logger';
 import { batchCalculateGTOModifiers, type GTOModifier, type GTOBatchContext } from './gtoIntegrationOrchestrator';
 import * as timeDecayService from './timeDecayWeightedDataService';
+import { getConfig } from './systemConfigService';
+import { startAlgorithmTrace, completeAlgorithmTrace } from './algorithmObservabilityService';
 
 const log = createModuleLogger('NextGen');
 
@@ -61,16 +63,17 @@ const log = createModuleLogger('NextGen');
  *   3. 新增累计降价追踪：7天内累计降幅不超过30%
  *   4. 新增连续降价计数：连续3次降价后强制hold
  */
-const BID_COOLDOWN_CONFIG = {
-  /** v267: 冷却时间窗口（小时）：同一关键词在此时间内最多调整一次，从4h延长到6h减少振荡 */
-  cooldownHours: 6,
-  /** 最小调整幅度（百分比）：低于此幅度的调整将被忽略 */
-  minAdjustmentPercent: 0.02,  // 2%
-  /** 最小调整绝对值（美元）：低于此金额的调整将被忽略 */
-  minAdjustmentAbsolute: 0.02, // $0.02
-  /** 24小时内最大调整次数：超过此次数的关键词进入强制冷却 */
-  maxAdjustmentsPerDay: 3,
-};
+// v272 P0-1: 从systemConfigService动态获取冷却配置，消除硬编码
+function getBidCooldownConfig() {
+  return {
+    cooldownHours: getConfig<number>('safety.cooldown_hours'),
+    minAdjustmentPercent: getConfig<number>('safety.min_adjustment_percent'),
+    minAdjustmentAbsolute: 0.02, // 绝对值保持固定
+    maxAdjustmentsPerDay: getConfig<number>('safety.max_adjustments_per_day'),
+  };
+}
+// v272: 动态获取，每次调用时读取最新配置
+const BID_COOLDOWN_CONFIG = getBidCooldownConfig();
 
 /**
  * v258: 降价熔断配置
@@ -962,6 +965,15 @@ export async function calculateNextGenBid(
     const keywordId = target.type === 'keyword' ? target.id : undefined;
     const targetId = target.type === 'product_target' ? target.id : undefined;
     
+    // v272 P0-1: 启动算法决策追踪
+    const traceCtx = startAlgorithmTrace(
+      accountId,
+      target.type === 'keyword' ? 'keyword' : 'product_target',
+      target.id,
+      (target as any).amazonCampaignId,
+      (normalizedConfig as any).strategyTemplate
+    );
+    
     // v271 P1-2: 传递策略模板以支持策略级别的算法配置
     const metaDecision = await selectBestAlgorithm(
       accountId, keywordId, targetId, undefined, target.currentBid,
@@ -1006,15 +1018,39 @@ export async function calculateNextGenBid(
                       metaDecision.selectedAlgorithm === 'cql' ? 'cql' : 'rule_based',
       }).catch(err => log.error('[NextGenOrchestrator] RL recording error:', err));
       
+      // v272 P0-1: 记录算法决策追踪
+      try {
+        completeAlgorithmTrace(traceCtx, {
+          accountId,
+          entityType: target.type === 'keyword' ? 'keyword' : 'product_target',
+          entityId: target.id,
+          campaignId: (target as any).amazonCampaignId,
+          strategyTemplateId: (normalizedConfig as any).strategyTemplate,
+          metaSelection: {
+            algorithmScores: metaDecision.algorithmScores?.map((s: any) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
+            selectedAlgorithm: metaDecision.selectedAlgorithm,
+            fusionMode: metaDecision.fusionMode || 'single',
+            fusionThreshold: 0.15,
+            fusionDetail: metaDecision.fusionDetail || '',
+          },
+          finalDecision: {
+            recommendedBid: safeBid,
+            confidence: metaDecision.confidence,
+            currentBid: target.currentBid,
+            bidChangePercent: target.currentBid > 0 ? ((safeBid - target.currentBid) / target.currentBid) * 100 : 0,
+          },
+        });
+      } catch (_traceErr) { /* 追踪失败不影响业务 */ }
+      
       return buildResult(target, safeBid, metaDecision.selectedAlgorithm, metaDecision.confidence,
         `[高级算法:${metaDecision.selectedAlgorithm}] ${metaDecision.reasoning}`, 'advanced', metaDecision);
     }
     
-    // 高级算法不可用（数据不足），自然降级到第2层
+    // 高级算法不可用（数据不足），自然降级到2层
     // 不记录为错误，这是正常的算法选择流程
     
   } catch (advancedError: any) {
-    // 高级算法执行异常，降级到第2层
+    // 高级算法执行异常，降级到2层2层
     log.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${advancedError.message}`);
   }
   

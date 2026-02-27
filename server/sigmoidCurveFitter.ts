@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('SigmoidCurveFitter');
 /**
  * Sigmoid曲线拟合引擎 (Sigmoid Curve Fitter)
  * 
@@ -447,7 +449,7 @@ export async function fitAndCacheSigmoidForEntity(
         eq(contextualFeatures.snapshotDate, today)
       ));
   } catch (e) {
-    console.error(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e);
+    log.error(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e);
   }
   
   return params;
@@ -493,6 +495,6 @@ export async function batchFitSigmoidCurves(accountId: number): Promise<{
     }
   }
   
-  console.log(`[SigmoidCurveFitter] Batch fit: ${result.fitted} fitted, ${result.skipped} skipped, ${result.errors} errors`);
+  log.info(`[SigmoidCurveFitter] Batch fit: ${result.fitted} fitted, ${result.skipped} skipped, ${result.errors} errors`);
   return result;
 }

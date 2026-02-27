@@ -1,3 +1,5 @@
+import { createModuleLogger } from './utils/logger';
+const log = createModuleLogger('Dailysynctask');
 /**
  * 每日数据同步任务
  * 
@@ -67,7 +69,7 @@ export async function syncCampaignDailyData(
     );
     
     if (!campaignData) {
-      console.log(`[Daily Sync] 未找到广告活动 ${campaignId} 的数据`);
+      log.info(`[Daily Sync] 未找到广告活动 ${campaignId} 的数据`);
       return;
     }
     
@@ -75,9 +77,9 @@ export async function syncCampaignDailyData(
     const record = buildPerformanceRecord(campaignData, campaignId, date);
     await db.createDailyPerformance(record as any);
     
-    console.log(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
+    log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
   } catch (error: any) {
-    console.error(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, error.message);
+    log.error(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, error.message);
     throw error;
   }
 }
@@ -89,7 +91,7 @@ export async function syncAllCampaignsDailyData(
   config: SyncTaskConfig,
   date: string
 ): Promise<{ success: number; failed: number }> {
-  console.log(`[Daily Sync] 开始同步所有广告活动的数据, 日期: ${date}`);
+  log.info(`[Daily Sync] 开始同步所有广告活动的数据, 日期: ${date}`);
   
   // 创建API客户端
   const apiClient = new AmazonAdsApiClient({
@@ -105,10 +107,10 @@ export async function syncAllCampaignsDailyData(
 
   try {
     // 请求SP广告活动报告
-    console.log('[Daily Sync] 请求SP广告活动报告...');
+    log.info('[Daily Sync] 请求SP广告活动报告...');
     const spReportId = await apiClient.requestSpCampaignReport(date, date);
     const spData = await apiClient.waitAndDownloadReport(spReportId);
-    console.log(`[Daily Sync] SP报告下载完成, 共 ${spData.length} 条记录`);
+    log.info(`[Daily Sync] SP报告下载完成, 共 ${spData.length} 条记录`);
     
     // 存储SP数据
     for (const row of spData) {
@@ -117,7 +119,7 @@ export async function syncAllCampaignsDailyData(
         await db.createDailyPerformance(record as any);
         successCount++;
       } catch (error: any) {
-        console.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, error.message);
+        log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, error.message);
         failedCount++;
       }
     }
@@ -126,10 +128,10 @@ export async function syncAllCampaignsDailyData(
     // const sbReportId = await apiClient.requestSbCampaignReport(date, date);
     // const sdReportId = await apiClient.requestSdCampaignReport(date, date);
     
-    console.log(`[Daily Sync] 同步完成, 成功: ${successCount}, 失败: ${failedCount}`);
+    log.info(`[Daily Sync] 同步完成, 成功: ${successCount}, 失败: ${failedCount}`);
     return { success: successCount, failed: failedCount };
   } catch (error: any) {
-    console.error('[Daily Sync] 同步失败:', error.message);
+    log.error('[Daily Sync] 同步失败:', error.message);
     throw error;
   }
 }

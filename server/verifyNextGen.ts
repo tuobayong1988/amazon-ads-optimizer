@@ -1,3 +1,5 @@
+import { createModuleLogger } from "./utils/logger";
+const log = createModuleLogger("VerifyNextGen");
 /**
  * Verification Script for Next-Gen Algorithm Suite
  * 
@@ -29,7 +31,7 @@ async function setupMockData() {
     const db = await getDb();
     if (!db) throw new Error("DB connection failed");
 
-    console.log("Setting up mock data...");
+    log.info("Setting up mock data...");
 
     // Clean up previous test data
     await db.delete(campaigns).where(eq(campaigns.accountId, TEST_ACCOUNT_ID));
@@ -81,34 +83,34 @@ async function setupMockData() {
         createdAt: new Date(Date.now() - (60 - i) * 86400000).toISOString(),
     })) as any);
 
-    console.log("Mock data setup complete.");
+    log.info("Mock data setup complete.");
 }
 
 async function runVerification() {
-    console.log("--- Starting Next-Gen Algorithm Verification ---");
+    log.info("--- Starting Next-Gen Algorithm Verification ---");
 
     try {
         await setupMockData();
 
         // 1. Run maintenance tasks
-        console.log("\n--- Running Maintenance Tasks ---");
+        log.info("\n--- Running Maintenance Tasks ---");
         const maintenanceResult = await executeNextGenMaintenanceTasks(TEST_ACCOUNT_ID);
-        console.log("Maintenance Result:", JSON.stringify(maintenanceResult, null, 2));
+        log.info("Maintenance Result:", JSON.stringify(maintenanceResult, null, 2));
 
         // 2. Run model training
-        console.log("\n--- Running Model Training ---");
+        log.info("\n--- Running Model Training ---");
         await executeModelTraining(TEST_ACCOUNT_ID);
 
         // 3. Run budget optimization
-        console.log("\n--- Running Budget Optimization ---");
+        log.info("\n--- Running Budget Optimization ---");
         await executeBudgetOptimization(TEST_ACCOUNT_ID);
 
         // 4. Run keyword graph analysis
-        console.log("\n--- Running Keyword Graph Analysis ---");
+        log.info("\n--- Running Keyword Graph Analysis ---");
         await executeKeywordGraphAnalysis(TEST_ACCOUNT_ID);
 
         // 5. Calculate a bid using the orchestrator
-        console.log("\n--- Calculating Bid with Orchestrator ---");
+        log.info("\n--- Calculating Bid with Orchestrator ---");
         const mockTarget: OptimizationTarget = {
             id: TEST_KEYWORD_ID,
             type: "keyword",
@@ -133,18 +135,18 @@ async function runVerification() {
             maxBid: 10.00,
         });
 
-        console.log("\n--- Bid Calculation Result ---");
+        log.info("\n--- Bid Calculation Result ---");
         if (bidResult) {
-            console.log(JSON.stringify(bidResult, null, 2));
+            log.info(JSON.stringify(bidResult, null, 2));
         } else {
-            console.log("Next-gen algorithm was not used (as per traffic allocation or error).");
+            log.info("Next-gen algorithm was not used (as per traffic allocation or error).");
         }
 
-        console.log("\n--- Verification Script Finished Successfully ---");
+        log.info("\n--- Verification Script Finished Successfully ---");
 
     } catch (error) {
-        console.error("\n--- VERIFICATION FAILED ---");
-        console.error(error);
+        log.error("\n--- VERIFICATION FAILED ---");
+        log.error(error);
         process.exit(1);
     }
 }
