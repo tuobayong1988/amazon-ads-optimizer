@@ -11,8 +11,9 @@
  */
 
 import { getDb } from './db';
-import { optimizationEvents, optimizationLogs, adAccounts } from '../drizzle/schema';
-import { eq, gte, and, sql, desc } from 'drizzle-orm';
+import * as dbService from './db';
+import { optimizationEvents, optimizationLogs, adAccounts, campaigns, performanceGroups } from '../drizzle/schema';
+import { eq, gte, and, sql, desc, isNull } from 'drizzle-orm';
 
 // ============================================================
 // 告警级别和类型定义
@@ -26,7 +27,9 @@ export type AlertCategory =
   | 'algorithm_stall'
   | 'version_mismatch'
   | 'budget_overrun'
-  | 'zero_optimization';
+  | 'zero_optimization'
+  | 'unassigned_campaigns'   // v263: 未分配广告活动告警
+  | 'proactive_risk_warning'; // v263: 主动风险预警
 
 export interface MonitoringAlert {
   id: string;
@@ -109,6 +112,12 @@ export async function generateMonitoringReport(teamId: number): Promise<Monitori
 
   // 5. 检查版本一致性
   await checkVersionConsistency(alerts);
+
+  // v263: 新增检查项 — 未分配广告活动监控
+  await checkUnassignedCampaigns(db, teamId, alerts);
+
+  // v263: 新增检查项 — 主动风险预警（ACoS趋势恶化预警）
+  await checkProactiveRiskWarning(db, teamId, alerts);
 
   // 计算综合健康分
   const healthScore = calculateHealthScore(alerts);
@@ -456,6 +465,133 @@ async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void>
   } catch (e) {
     // 版本检查失败不阻塞其他监控
     console.warn('[MonitoringService] checkVersionConsistency error:', e);
+  }
+}
+
+/**
+ * v263: 检查未分配到优化目标的广告活动
+ * 未分配的广告活动不会被任何优化算法管理，导致资源浪费和潜在风险
+ */
+async function checkUnassignedCampaigns(
+  db: any,
+  teamId: number,
+  alerts: MonitoringAlert[]
+): Promise<void> {
+  try {
+    // 查询所有未分配的活跃广告活动
+    const unassigned = await db.select({
+      id: campaigns.id,
+      campaignName: campaigns.campaignName,
+      campaignStatus: campaigns.campaignStatus,
+      accountId: campaigns.accountId,
+      dailyBudget: campaigns.dailyBudget,
+    })
+    .from(campaigns)
+    .where(
+      and(
+        isNull(campaigns.performanceGroupId),
+        eq(campaigns.campaignStatus, 'enabled')
+      )
+    );
+
+    if (unassigned.length > 0) {
+      const totalBudget = unassigned.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
+      const severity: AlertSeverity = unassigned.length > 50 ? 'critical' : unassigned.length > 10 ? 'warning' : 'info';
+      
+      alerts.push({
+        id: `unassigned-campaigns-${Date.now()}`,
+        category: 'unassigned_campaigns',
+        severity,
+        title: `${unassigned.length}个活跃广告活动未分配优化目标`,
+        message: `共${unassigned.length}个活跃广告活动未被分配到任何优化目标，日均预算合计$${totalBudget.toFixed(2)}，这些广告活动不会被任何优化算法管理`,
+        metric: 'unassigned_campaign_count',
+        currentValue: unassigned.length,
+        threshold: 0,
+        recommendation: '建议将这些广告活动分配到合适的优化目标，或创建新的优化目标进行管理',
+        timestamp: new Date(),
+      });
+    }
+  } catch (e) {
+    console.error('[MonitoringService] checkUnassignedCampaigns error:', e);
+  }
+}
+
+/**
+ * v263: 主动风险预警 — 检测ACoS趋势恶化，在问题变严重之前发出预警
+ * 核心逻辑：对比最近7天和前14天的ACoS，如果近7天ACoS比前14天恶化超过20%，发出预警
+ */
+async function checkProactiveRiskWarning(
+  db: any,
+  teamId: number,
+  alerts: MonitoringAlert[]
+): Promise<void> {
+  try {
+    const accounts = await db.select({
+      id: adAccounts.id,
+      name: adAccounts.accountName,
+      marketplace: adAccounts.marketplace,
+    })
+    .from(adAccounts)
+    .where(eq(adAccounts.teamId, teamId));
+
+    for (const account of accounts) {
+      try {
+        // 查询最近7天和前14天的ACoS
+        const [recentResult] = await db.execute(
+          sql`SELECT 
+                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+              FROM daily_performance 
+              WHERE account_id = ${account.id}
+                AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+        ) as any;
+        
+        const [prevResult] = await db.execute(
+          sql`SELECT 
+                SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
+                SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
+              FROM daily_performance 
+              WHERE account_id = ${account.id}
+                AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
+                AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
+        ) as any;
+
+        const recentData = recentResult?.[0] || recentResult;
+        const prevData = prevResult?.[0] || prevResult;
+        
+        const recentSpend = Number(recentData?.total_spend) || 0;
+        const recentSales = Number(recentData?.total_sales) || 0;
+        const prevSpend = Number(prevData?.total_spend) || 0;
+        const prevSales = Number(prevData?.total_sales) || 0;
+
+        if (recentSales > 0 && prevSales > 0) {
+          const recentAcos = (recentSpend / recentSales) * 100;
+          const prevAcos = (prevSpend / prevSales) * 100;
+          const deterioration = prevAcos > 0 ? ((recentAcos - prevAcos) / prevAcos) * 100 : 0;
+
+          if (deterioration > 20) {
+            alerts.push({
+              id: `proactive-risk-${account.id}-${Date.now()}`,
+              category: 'proactive_risk_warning',
+              severity: deterioration > 50 ? 'critical' : 'warning',
+              title: `${account.name} ${account.marketplace} ACoS趋势恶化预警`,
+              message: `最近7天ACoS ${recentAcos.toFixed(1)}%，比前14天(${prevAcos.toFixed(1)}%)恶化${deterioration.toFixed(0)}%，需提前干预`,
+              metric: 'acos_deterioration_rate',
+              currentValue: deterioration,
+              threshold: 20,
+              recommendation: `建议立即检查该账户的高ACoS关键词，考虑切换到更保守的策略模板或降低目标ACoS`,
+              timestamp: new Date(),
+              accountId: account.id,
+              accountName: `${account.name} ${account.marketplace}`,
+            });
+          }
+        }
+      } catch (accountErr) {
+        // 单个账户检查失败不影响其他账户
+      }
+    }
+  } catch (e) {
+    console.error('[MonitoringService] checkProactiveRiskWarning error:', e);
   }
 }
 
