@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 259;  // v259: 提价恢复机制+曝光保护+纠错器时序重构+强制UCB激活+RL回填修复+双向出价+护栏可视化增强
+export const SYSTEM_VERSION = 264;  // v264: 高级算法激活修复+进度评估重构+风险分层响应+探索机制+缓存TTL优化

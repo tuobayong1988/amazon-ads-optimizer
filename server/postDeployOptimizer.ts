@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 262;  // v262: 前台页面重构 — 首页/优化逻辑/博客/联系我们 + PublicLayout统一导航和底部公司信息
+export const SYSTEM_VERSION = 264;  // v264: 高级算法激活修复+进度评估重构+风险分层响应+探索机制+缓存TTL优化
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
