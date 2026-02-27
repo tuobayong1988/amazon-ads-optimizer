@@ -1196,71 +1196,83 @@ function DashboardContent() {
                                       healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'bg-green-500' :
                                       healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                                     }`} />
-                                    <span className="text-xs text-muted-foreground">算法激活率</span>
+                                    <span className="text-xs text-muted-foreground">高级算法激活率</span>
                                   </div>
                                   <div className={`text-2xl font-bold ${
                                     healthMetrics.metrics.algorithmActivation.status === 'healthy' ? 'text-green-400' :
                                     healthMetrics.metrics.algorithmActivation.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
-                                    {healthMetrics.metrics.algorithmActivation.activeAlgorithms}/{healthMetrics.metrics.algorithmActivation.totalAlgorithms}
+                                    {healthMetrics.metrics.algorithmActivation.advancedRate.toFixed(1)}%
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    活跃: {healthMetrics.metrics.algorithmActivation.algorithms.filter((a: any) => a.isActive).map((a: any) => a.name).join(', ') || '无'}
+                                    {Object.entries(healthMetrics.metrics.algorithmActivation.algorithmRates || {}).map(([name, rate]) => `${name}: ${(rate as number).toFixed(0)}%`).join(', ') || '无数据'}
                                   </div>
                                 </div>
                                 {/* ACoS趋势 */}
+                                {(() => {
+                                  const acosTrend = healthMetrics.metrics.acosTrend;
+                                  const acosStatus = acosTrend.deathSpiralDetected ? 'critical' : acosTrend.direction === 'improving' ? 'healthy' : acosTrend.direction === 'worsening' ? 'warning' : 'healthy';
+                                  return (
                                 <div className={`p-4 rounded-lg border ${
-                                  healthMetrics.metrics.acosTrend.status === 'healthy'
+                                  acosStatus === 'healthy'
                                     ? 'border-green-500/30 bg-green-500/5'
-                                    : healthMetrics.metrics.acosTrend.status === 'warning'
+                                    : acosStatus === 'warning'
                                     ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
                                 }`}>
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-2 h-2 rounded-full ${
-                                      healthMetrics.metrics.acosTrend.status === 'healthy' ? 'bg-green-500' :
-                                      healthMetrics.metrics.acosTrend.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                      acosStatus === 'healthy' ? 'bg-green-500' :
+                                      acosStatus === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                                     }`} />
-                                    <span className="text-xs text-muted-foreground">ACoS趋势</span>
+                                    <span className="text-xs text-muted-foreground">ACoS趋势 {acosTrend.deathSpiralDetected ? '⚠️死亡螺旋' : ''}</span>
                                   </div>
                                   <div className={`text-2xl font-bold ${
-                                    healthMetrics.metrics.acosTrend.status === 'healthy' ? 'text-green-400' :
-                                    healthMetrics.metrics.acosTrend.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                    acosStatus === 'healthy' ? 'text-green-400' :
+                                    acosStatus === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
-                                    {healthMetrics.metrics.acosTrend.currentAcos.toFixed(1)}%
+                                    {acosTrend.currentAcos.toFixed(1)}%
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                    {healthMetrics.metrics.acosTrend.trend === 'improving' ? (
+                                    {acosTrend.direction === 'improving' ? (
                                       <><TrendingDown className="w-3 h-3 text-green-500" /> 改善中</>
-                                    ) : healthMetrics.metrics.acosTrend.trend === 'worsening' ? (
+                                    ) : acosTrend.direction === 'worsening' ? (
                                       <><TrendingUp className="w-3 h-3 text-red-500" /> 恶化中</>
                                     ) : '稳定'}
-                                    <span className="ml-1">(目标: {healthMetrics.metrics.acosTrend.targetAcos.toFixed(0)}%)</span>
+                                    <span className="ml-1">(变化: {acosTrend.changePoints > 0 ? '+' : ''}{acosTrend.changePoints.toFixed(1)}pp)</span>
                                   </div>
                                 </div>
+                                  );
+                                })()}
                                 {/* 熔断状态 */}
+                                {(() => {
+                                  const cbr = healthMetrics.metrics.circuitBreakerRate;
+                                  const cbrStatus = cbr.rate < 5 ? 'healthy' : cbr.rate < 20 ? 'warning' : 'critical';
+                                  return (
                                 <div className={`p-4 rounded-lg border ${
-                                  healthMetrics.metrics.circuitBreakerRate.status === 'healthy'
+                                  cbrStatus === 'healthy'
                                     ? 'border-green-500/30 bg-green-500/5'
-                                    : healthMetrics.metrics.circuitBreakerRate.status === 'warning'
+                                    : cbrStatus === 'warning'
                                     ? 'border-yellow-500/30 bg-yellow-500/5' : 'border-red-500/30 bg-red-500/5'
                                 }`}>
                                   <div className="flex items-center gap-2 mb-2">
                                     <div className={`w-2 h-2 rounded-full ${
-                                      healthMetrics.metrics.circuitBreakerRate.status === 'healthy' ? 'bg-green-500' :
-                                      healthMetrics.metrics.circuitBreakerRate.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
+                                      cbrStatus === 'healthy' ? 'bg-green-500' :
+                                      cbrStatus === 'warning' ? 'bg-yellow-500' : 'bg-red-500'
                                     }`} />
                                     <span className="text-xs text-muted-foreground">熔断率</span>
                                   </div>
                                   <div className={`text-2xl font-bold ${
-                                    healthMetrics.metrics.circuitBreakerRate.status === 'healthy' ? 'text-green-400' :
-                                    healthMetrics.metrics.circuitBreakerRate.status === 'warning' ? 'text-yellow-400' : 'text-red-400'
+                                    cbrStatus === 'healthy' ? 'text-green-400' :
+                                    cbrStatus === 'warning' ? 'text-yellow-400' : 'text-red-400'
                                   }`}>
-                                    {healthMetrics.metrics.circuitBreakerRate.rate.toFixed(1)}%
+                                    {cbr.rate.toFixed(1)}%
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    触发: {healthMetrics.metrics.circuitBreakerRate.triggered} / {healthMetrics.metrics.circuitBreakerRate.total}
+                                    触发: {cbr.trippedCount} / {cbr.totalDecisions}
                                   </div>
                                 </div>
+                                  );
+                                })()}
                               </div>
                               {/* v261: 部署后纠错报告 */}
                               {deployCorrectionReport?.success && deployCorrectionReport.report?.latestDeploy && (
