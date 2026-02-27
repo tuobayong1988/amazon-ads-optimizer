@@ -738,14 +738,14 @@ function MarketingPage() {
 
 // v233: 重新设计的运营作战指挥中心（登录后显示）
 // v234: 卡片ID定义
-const DEFAULT_CARD_ORDER = ['kpi-cards', 'system-health', 'trend-chart', 'account-risk', 'sync-health', 'algorithm-effect', 'order-trend', 'quick-actions'];
+const DEFAULT_CARD_ORDER = ['kpi-cards', 'quick-actions', 'sync-health', 'algorithm-effect', 'system-health', 'account-risk', 'order-trend', 'trend-chart'];
 
 // v251: 卡片尺寸类型定义 - full-width独占一行，compact并排显示
 const CARD_SIZE_TYPE: Record<string, 'full' | 'compact'> = {
   'kpi-cards': 'full',
-  'system-health': 'full',  // v261: 系统健康监控卡片
+  'system-health': 'compact',  // v261: 系统健康监控卡片（与sync-health同尺寸）
   'trend-chart': 'full',
-  'account-risk': 'full',
+  'account-risk': 'compact',  // v261: 与sync-health同尺寸
   'sync-health': 'compact',
   'algorithm-effect': 'compact',
   'order-trend': 'compact',
