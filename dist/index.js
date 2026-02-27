@@ -341534,6 +341534,8 @@ function serveStatic(app) {
   app.use(import_express.default.static(distPath, {
     maxAge: "1y",
     immutable: true,
+    etag: false,
+    lastModified: false,
     setHeaders: (res, filePath) => {
       if (filePath.endsWith(".html")) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

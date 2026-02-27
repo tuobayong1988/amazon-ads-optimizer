@@ -130,10 +130,15 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // 静态资源（JS/CSS/图片等带哈希文件名）：长期缓存1年
+  // v268.1: 静态资源服务配置
+  // 关键修复: 必须设置 etag: false 来防止 express.static 使用 sendfile 系统调用
+  // sendfile 会绕过 compression 中间件的流处理，导致 gzip 压缩不生效
+  // 带哈希文件名的资源设置长期缓存1年
   app.use(express.static(distPath, {
     maxAge: '1y',
     immutable: true,
+    etag: false,
+    lastModified: false,
     setHeaders: (res, filePath) => {
       // HTML文件禁止缓存，确保每次部署后浏览器获取最新版本
       if (filePath.endsWith('.html')) {
