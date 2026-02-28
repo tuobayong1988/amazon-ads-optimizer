@@ -5075,8 +5075,32 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       reasonDetails: (data as any).reasonDetails || undefined,
       guardrailInfo: (data as any).guardrailInfo || undefined,
       relatedEventId: (data as any).relatedEventId || undefined,
+      // v274: 写入算法决策元数据（预算分池、因果推断、GTO修正等）
+      performanceData: (() => {
+        try {
+          if (!data.actionDetail) return undefined;
+          const detail = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
+          const meta: Record<string, any> = {};
+          if (detail.gtoModifier) {
+            meta.gto = {
+              composite: detail.gtoModifier.compositeModifier,
+              budgetPool: detail.gtoModifier.decisions?.budget?.pool,
+              budgetModifier: detail.gtoModifier.decisions?.budget?.budgetModifier,
+              isFrozen: detail.gtoModifier.decisions?.budget?.isFrozen,
+              keywordRole: detail.gtoModifier.decisions?.portfolio?.role,
+              competitorType: detail.gtoModifier.decisions?.competition?.dominantCompetitorType,
+            };
+          }
+          if (detail.causalAdjustment) {
+            meta.causal = detail.causalAdjustment;
+          }
+          if (detail.algorithmTier) meta.algorithmTier = detail.algorithmTier;
+          if (detail.algorithmUsed) meta.algorithmUsed = detail.algorithmUsed;
+          return Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined;
+        } catch { return undefined; }
+      })(),
     });
-    log.info(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
+    log.info(`[v274] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
     log.error('[v212] 双写optimization_events失败:', (e as any).message || e);
     log.error(`[v212] 双写失败详情: logCategory=${data.logCategory} actionType=${data.actionType}`);

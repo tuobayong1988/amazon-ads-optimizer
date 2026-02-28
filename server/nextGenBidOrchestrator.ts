@@ -36,7 +36,10 @@ import {
 import { recordBidAction, backfillRewards, type BidAction } from "./rlDataRecorder";
 import { batchFitSigmoidCurves } from "./sigmoidCurveFitter";
 import { updateArm, type ArmType } from "./contextualBanditService";
-import { batchCausalAnalysis } from "./causalInferenceEngine";
+import { batchCausalAnalysis, type CausalEffect } from "./causalInferenceEngine";
+import { causalInferenceResults } from '../drizzle/schema';
+// v274: getDb已在第30行导入，此处复用
+import { eq, and, gte, desc, isNotNull } from 'drizzle-orm';
 import { trainCQL } from "./offlineRLService";
 import { selectBestAlgorithm, backfillAlgorithmResults, type MetaDecision } from "./metaLearningSelector";
 import { optimizeBudgetPortfolio } from "./budgetPortfolioOptimizer";
@@ -416,6 +419,14 @@ export interface NextGenBidResult {
   algorithmTier: 'advanced' | 'rule_engine' | 'conservative' | 'guardrail';
   /** GTO博弈论修正系数（v236新增） */
   gtoModifier?: GTOModifier;
+  /** v274: 因果推断修正信息 */
+  causalAdjustment?: {
+    optimalBid: number;
+    upliftScore: number;
+    incrementalProfit: number;
+    confidence: number;
+    applied: boolean;
+  };
   /** v258: 结构化调整归因详情 */
   reasonDetails?: {
     triggerRule: string;         // 触发的规则/场景
@@ -1340,11 +1351,83 @@ export async function batchCalculateNextGenBids(
     log.warn(`[NextGenOrchestrator] GTO修正层异常(已降级): ${gtoError.message}`);
   }
   
+  // ===== v274: 加载因果推断结果，作为出价修正信号 =====
+  let causalMap: Map<string, { optimalBid: number; upliftScore: number; incrementalProfit: number; confidence: number; sampleSize: number }> = new Map();
+  try {
+    const causalDb = await getDb();
+    if (!causalDb) throw new Error('DB not available for causal inference');
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 7);
+    const causalResults = await causalDb.select({
+      keywordId: causalInferenceResults.keywordId,
+      targetId: causalInferenceResults.targetId,
+      optimalBid: causalInferenceResults.optimalBid,
+      upliftScore: causalInferenceResults.upliftScore,
+      incrementalProfit: causalInferenceResults.incrementalProfit,
+      confidenceInterval: causalInferenceResults.confidenceInterval,
+      sampleSize: causalInferenceResults.sampleSize,
+    }).from(causalInferenceResults)
+      .where(and(
+        eq(causalInferenceResults.accountId, accountId),
+        gte(causalInferenceResults.analysisDate, recentDate.toISOString().split('T')[0])
+      ))
+      .orderBy(desc(causalInferenceResults.createdAt))
+      .limit(500);
+    
+    for (const cr of causalResults) {
+      const key = cr.keywordId ? `kw_${cr.keywordId}` : cr.targetId ? `tg_${cr.targetId}` : null;
+      if (key && !causalMap.has(key)) {
+        causalMap.set(key, {
+          optimalBid: Number(cr.optimalBid) || 0,
+          upliftScore: Number(cr.upliftScore) || 0,
+          incrementalProfit: Number(cr.incrementalProfit) || 0,
+          confidence: cr.confidenceInterval ? Math.max(0, 1 - Number(cr.confidenceInterval)) : 0.5,
+          sampleSize: cr.sampleSize || 0,
+        });
+      }
+    }
+    if (causalMap.size > 0) {
+      log.info(`[NextGenOrchestrator] v274 因果推断信号已加载: ${causalMap.size}个关键词/定向`);
+    }
+  } catch (causalErr: any) {
+    log.warn(`[NextGenOrchestrator] v274 因果推断加载异常(已降级): ${causalErr.message}`);
+  }
+  
   // ===== 核心出价计算 =====
   const results: NextGenBidResult[] = [];
   
   for (const target of targets) {
     const result = await calculateNextGenBid(accountId, target, groupConfig, maxBidLimit);
+    
+    // v274: 应用因果推断修正 — 在GTO修正之前，作为额外的出价信号
+    const causalKey = target.type === 'keyword' ? `kw_${target.id}` : target.type === 'product_target' ? `tg_${target.id}` : null;
+    const causalData = causalKey ? causalMap.get(causalKey) : null;
+    if (causalData && causalData.optimalBid > 0 && causalData.sampleSize >= 3 && causalData.confidence > 0.3) {
+      // 因果推断的最优出价作为修正信号，权重基于置信度
+      const causalWeight = Math.min(0.3, causalData.confidence * 0.3); // 最大修正权重30%
+      const blendedBid = result.newBid * (1 - causalWeight) + causalData.optimalBid * causalWeight;
+      const causalCorrectedBid = Math.round(blendedBid * 100) / 100;
+      
+      // 安全边界：因果修正不应超过原始出价的15%
+      const maxCausalDelta = result.newBid * 0.15;
+      const finalCausalBid = Math.max(
+        result.newBid - maxCausalDelta,
+        Math.min(result.newBid + maxCausalDelta, causalCorrectedBid)
+      );
+      
+      result.causalAdjustment = {
+        optimalBid: causalData.optimalBid,
+        upliftScore: causalData.upliftScore,
+        incrementalProfit: causalData.incrementalProfit,
+        confidence: causalData.confidence,
+        applied: Math.abs(finalCausalBid - result.newBid) > 0.005,
+      };
+      
+      if (result.causalAdjustment.applied) {
+        result.newBid = finalCausalBid;
+        result.reason += ` | 因果修正: uplift=${causalData.upliftScore.toFixed(3)}, 最优出价=$${causalData.optimalBid.toFixed(2)}`;
+      }
+    }
     
     // v236: 应用GTO修正
     const gtoMod = gtoModifiers.get(target.id);
@@ -1385,10 +1468,11 @@ export async function batchCalculateNextGenBids(
   const guardrail = results.filter(r => r.algorithmTier === 'guardrail').length;
   const changed = results.filter(r => r.actionType !== 'hold').length;
   const gtoApplied = results.filter(r => r.gtoModifier && r.gtoModifier.compositeModifier !== 1.0).length;
+  const causalApplied = results.filter(r => r.causalAdjustment?.applied).length;
   
-  log.info(`[NextGenOrchestrator] v273批量出价完成: 总计=${targets.length}, ` +
+  log.info(`[NextGenOrchestrator] v274批量出价完成: 总计=${targets.length}, ` +
     `高级算法=${advanced}, 规则引擎=${ruleEngine}, 护栏保护=${guardrail}, 保守策略=${conservative}, ` +
-    `实际调整=${changed}, GTO修正=${gtoApplied}`);
+    `实际调整=${changed}, GTO修正=${gtoApplied}, 因果修正=${causalApplied}`);
   
   return results;
 }

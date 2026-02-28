@@ -369,15 +369,14 @@ async function getTimeWeightedCampaignMetrics(
 function calculateEffectScore(
   pre: { acos: number; roas: number; dailySpend: number; dailyOrders: number },
   post: { acos: number; roas: number; dailySpend: number; dailyOrders: number },
-  log: any
+  logEntry: any
 ): number {
   let score = 0;
   
-  // 1. ROAS变化（权重40%）
+  // 1. ROAS变化（权重35%）
   if (pre.roas > 0) {
     const roasChange = (post.roas - pre.roas) / pre.roas;
-    // ROAS提升得正分，下降得负分
-    score += Math.max(-40, Math.min(40, roasChange * 100));
+    score += Math.max(-35, Math.min(35, roasChange * 100));
   }
   
   // 2. ACoS变化（权重25%）- ACoS降低为正向
@@ -389,9 +388,8 @@ function calculateEffectScore(
   // 3. 订单量变化（权重25%）- 订单量不能大幅下降
   if (pre.dailyOrders > 0) {
     const ordersChange = (post.dailyOrders - pre.dailyOrders) / pre.dailyOrders;
-    // 订单下降惩罚更重
     if (ordersChange < 0) {
-      score += Math.max(-25, ordersChange * 150); // 1.5倍惩罚
+      score += Math.max(-25, ordersChange * 150);
     } else {
       score += Math.min(25, ordersChange * 80);
     }
@@ -404,6 +402,20 @@ function calculateEffectScore(
     const efficiencyChange = (preCostPerOrder - postCostPerOrder) / preCostPerOrder;
     score += Math.max(-10, Math.min(10, efficiencyChange * 50));
   }
+  
+  // v274: 5. 因果推断增量利润信号（权重5%）
+  // 如果该优化动作的action_detail中包含因果推断结果，作为额外信号
+  try {
+    if (logEntry?.actionDetail) {
+      const detail = typeof logEntry.actionDetail === 'string' 
+        ? JSON.parse(logEntry.actionDetail) : logEntry.actionDetail;
+      if (detail.causalAdjustment && detail.causalAdjustment.confidence > 0.5) {
+        // 因果推断的增量利润为正 → 加分，为负 → 减分
+        const causalSignal = detail.causalAdjustment.incrementalProfit > 0 ? 5 : -5;
+        score += causalSignal;
+      }
+    }
+  } catch { /* 解析失败忽略 */ }
   
   return Math.round(Math.max(-100, Math.min(100, score)));
 }
@@ -600,6 +612,36 @@ export async function generateAutoCorrections(
       
       if (originalValue === 0 && currentValue === 0) continue;
       
+      // v274: 因果推断辅助纠错判断
+      // 如果因果推断显示该关键词的出价调整实际产生了正向增量利润，则降低纠错优先级
+      let causalOverride = false;
+      try {
+        const causalDb = await getDb();
+        if (causalDb && assessment.entityId) {
+          const { causalInferenceResults } = await import('../drizzle/schema');
+          const { eq: eqOp, gte: gteOp, and: andOp } = await import('drizzle-orm');
+          const recentDate = new Date();
+          recentDate.setDate(recentDate.getDate() - 14);
+          const [causalResult] = await causalDb.select({
+            incrementalProfit: causalInferenceResults.incrementalProfit,
+            upliftScore: causalInferenceResults.upliftScore,
+          }).from(causalInferenceResults)
+            .where(andOp(
+              eqOp(causalInferenceResults.keywordId, parseInt(assessment.entityId)),
+              gteOp(causalInferenceResults.analysisDate, recentDate.toISOString().split('T')[0])
+            ))
+            .limit(1);
+          
+          if (causalResult && Number(causalResult.incrementalProfit) > 0 && Number(causalResult.upliftScore) > 0.3) {
+            // 因果推断显示正向效果，降级为部分回滚而非完全回滚
+            if (correctionType === 'rollback_bid') {
+              correctedValue = Math.round((originalValue * 0.3 + currentValue * 0.7) * 100) / 100;
+              causalOverride = true;
+            }
+          }
+        }
+      } catch { /* 因果推断查询失败不影响主流程 */ }
+      
       corrections.push({
         id: `correction_${assessment.logId}_${Date.now()}`,
         logId: assessment.logId,
@@ -610,7 +652,9 @@ export async function generateAutoCorrections(
         originalValue,
         currentValue,
         correctedValue,
-        reason: assessment.correctionReason || `效果评分${assessment.effectScore}，需要纠正`,
+        reason: causalOverride 
+          ? `效果评分${assessment.effectScore}，但因果推断显示正向增量利润，降级为部分回滚`
+          : (assessment.correctionReason || `效果评分${assessment.effectScore}，需要纠正`),
         effectScore: assessment.effectScore,
         status: 'pending',
         createdAt: new Date().toISOString(),

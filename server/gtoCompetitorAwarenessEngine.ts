@@ -15,7 +15,7 @@ const log = createModuleLogger('GtoCompetitorAwarenessEngine');
  */
 
 import { getDb } from "./db";
-import { hourlyPerformance, keywords, campaigns } from "../drizzle/schema";
+import { hourlyPerformance, keywords, campaigns, dailyPerformance } from "../drizzle/schema";
 import { eq, and, gte, lte, sql, desc, isNotNull } from "drizzle-orm";
 
 // ==================== 类型定义 ====================
@@ -74,6 +74,41 @@ export async function analyzeCompetitionForCampaign(
 ): Promise<CompetitionProfile> {
   const db = await getDb();
   if (!db) return buildDefaultProfile('数据库不可用');
+  
+  // v274: 多维信号融合 — 从广告活动日报中提取额外的竞争信号
+  let dailyCompetitionSignals: { avgCpc: number; cpcTrend: number; impressionTrend: number; ctrTrend: number } | null = null;
+  try {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - lookbackDays);
+    const dailyData = await db.select({
+      date: dailyPerformance.date,
+      impressions: dailyPerformance.impressions,
+      clicks: dailyPerformance.clicks,
+      spend: dailyPerformance.spend,
+    }).from(dailyPerformance)
+      .where(and(
+        eq(dailyPerformance.accountId, accountId),
+        eq(dailyPerformance.campaignId, campaignId),
+        gte(dailyPerformance.date, startDate.toISOString().split('T')[0])
+      ))
+      .orderBy(dailyPerformance.date)
+      .limit(lookbackDays);
+    
+    if (dailyData.length >= 5) {
+      const cpcs = dailyData.filter(d => (d.clicks || 0) > 0).map(d => Number(d.spend || 0) / (d.clicks || 1));
+      const impressions = dailyData.map(d => d.impressions || 0);
+      const ctrs = dailyData.filter(d => (d.impressions || 0) > 0).map(d => (d.clicks || 0) / (d.impressions || 1));
+      
+      const avgCpc = cpcs.length > 0 ? cpcs.reduce((a, b) => a + b, 0) / cpcs.length : 0;
+      const cpcTrend = cpcs.length >= 3 ? (cpcs[cpcs.length - 1] - cpcs[0]) / (cpcs[0] || 1) : 0;
+      const impressionTrend = impressions.length >= 3 ? (impressions[impressions.length - 1] - impressions[0]) / (impressions[0] || 1) : 0;
+      const ctrTrend = ctrs.length >= 3 ? (ctrs[ctrs.length - 1] - ctrs[0]) / (ctrs[0] || 1) : 0;
+      
+      dailyCompetitionSignals = { avgCpc, cpcTrend, impressionTrend, ctrTrend };
+    }
+  } catch (dailyErr: any) {
+    // 日报信号失败不影响核心流程
+  }
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - lookbackDays);
@@ -174,9 +209,21 @@ export async function analyzeCompetitionForCampaign(
           return allComps.length > 0 ? allComps.reduce((a, b) => a + b, 0) / allComps.length : 0.5;
         })()
       : 0.5;
-    const competitionIntensity = Math.min(1, Math.max(0, avgCompetition));
-
-    // 6. 推断竞品类型
+    let competitionIntensity = Math.min(1, Math.max(0, avgCompetition));
+    
+    // v274: 融合日报多维信号增强竞争强度估计
+    if (dailyCompetitionSignals) {
+      // CPC上升趋势表明竞争加剧
+      const cpcSignal = dailyCompetitionSignals.cpcTrend > 0.1 ? 0.15 : dailyCompetitionSignals.cpcTrend < -0.1 ? -0.1 : 0;
+      // 曝光下降趋势表明被竞品挤出
+      const impressionSignal = dailyCompetitionSignals.impressionTrend < -0.15 ? 0.1 : dailyCompetitionSignals.impressionTrend > 0.15 ? -0.05 : 0;
+      // CTR下降可能表明竞品广告更具吸引力
+      const ctrSignal = dailyCompetitionSignals.ctrTrend < -0.1 ? 0.05 : 0;
+      
+      competitionIntensity = Math.min(1, Math.max(0, competitionIntensity + cpcSignal + impressionSignal + ctrSignal));
+    }
+    
+    // 6. 推断竞品类型型
     const { competitorType, reasoning } = classifyCompetitor(
       cpcVolatility, impressionConcentration, competitionIntensity
     );

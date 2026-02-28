@@ -40,6 +40,19 @@ export interface CQLModel {
   trainingSteps: number;
   avgLoss: number;
   lastTrainedAt: string;
+  // v274: 模型质量评估指标
+  qualityMetrics?: CQLQualityMetrics;
+}
+
+// v274: CQL模型质量评估指标
+export interface CQLQualityMetrics {
+  qValueStability: number;      // Q值稳定性 (0-1, 越高越稳定)
+  policyConsistency: number;    // 策略一致性 (0-1, 越高越一致)
+  rewardCorrelation: number;    // 奖励相关性 (0-1, Q值与实际奖励的相关度)
+  actionDiversity: number;      // 动作多样性 (0-1, 避免退化到单一动作)
+  dataQualityScore: number;     // 数据质量评分 (0-1)
+  overallScore: number;         // 综合质量评分 (0-1)
+  evaluatedAt: string;
 }
 
 export interface CQLDecision {
@@ -179,6 +192,38 @@ export async function trainCQL(
     return model;
   }
   
+  // v274: 数据质量验证 — 过滤异常值和无效样本
+  const validData = trainingData.filter(d => {
+    const reward = Number(d.reward) || 0;
+    const bidBefore = Number(d.actionBidBefore) || 0;
+    const bidAfter = Number(d.actionBidAfter) || 0;
+    // 过滤极端奖励（超过3个标准差的异常值）
+    if (Math.abs(reward) > 100) return false;
+    // 过滤无效出价
+    if (bidBefore <= 0 || bidAfter <= 0) return false;
+    // 过滤出价变化超过100%的异常记录
+    if (bidBefore > 0 && Math.abs(bidAfter - bidBefore) / bidBefore > 1.0) return false;
+    return true;
+  });
+  
+  const filteredCount = trainingData.length - validData.length;
+  if (filteredCount > 0) {
+    log.info(`[CQL] v274: 数据质量过滤: ${filteredCount}/${trainingData.length}条异常样本被移除`);
+  }
+  
+  if (validData.length < 20) {
+    log.info(`[CQL] v274: 过滤后数据不足(${validData.length}), skipping`);
+    return model;
+  }
+  
+  // v274: 奖励归一化 — 防止极端奖励主导训练
+  const rewards = validData.map(d => Number(d.reward) || 0);
+  const rewardMean = rewards.reduce((a, b) => a + b, 0) / rewards.length;
+  const rewardStd = Math.sqrt(rewards.reduce((sum, r) => sum + (r - rewardMean) ** 2, 0) / rewards.length) || 1;
+  
+  // 使用validData替代trainingData进行后续处理
+  const processedData = validData;
+  
   // v230: 构建(s, a, r, s')序列 - 使用同一episode的下一步作为next state
   interface TrainingSample {
     state: number[];
@@ -188,17 +233,19 @@ export async function trainCQL(
   }
   
   const samples: TrainingSample[] = [];
-  for (let i = 0; i < trainingData.length; i++) {
-    const d = trainingData[i];
+  for (let i = 0; i < processedData.length; i++) {
+    const d = processedData[i];
     const context = d.stateContext as ContextFeatureVector | null;
     const state = buildStateVector(context, Number(d.stateBid) || 0);
     const action = bidDeltaToAction(Number(d.actionBidBefore) || 0, Number(d.actionBidAfter) || 0);
-    const reward = Number(d.reward) || 0;
+    // v274: 使用归一化奖励
+    const rawReward = Number(d.reward) || 0;
+    const reward = (rawReward - rewardMean) / rewardStd;
     
     // v230: 查找同一episode的下一步作为next state
     let nextState: number[] | null = null;
-    if (d.isTerminal !== 1 && i + 1 < trainingData.length) {
-      const nextD = trainingData[i + 1];
+    if (d.isTerminal !== 1 && i + 1 < processedData.length) {
+      const nextD = processedData[i + 1];
       if (nextD.episodeId === d.episodeId && (nextD.stepIndex || 0) > (d.stepIndex || 0)) {
         const nextContext = nextD.stateContext as ContextFeatureVector | null;
         nextState = buildStateVector(nextContext, Number(nextD.stateBid) || 0);
@@ -270,8 +317,110 @@ export async function trainCQL(
   model.avgLoss = totalSteps > 0 ? totalLoss / totalSteps : 0;
   model.lastTrainedAt = new Date().toISOString();
   
-  log.info(`[CQL] Training complete: ${samples.length} samples, ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}`);
+  // v274: 模型质量评估
+  model.qualityMetrics = evaluateModelQuality(model, samples);
+  
+  log.info(`[CQL] v274 Training complete: ${samples.length} samples(filtered ${filteredCount}), ${epochs} epochs, ` +
+    `avgLoss=${model.avgLoss.toFixed(6)}, quality=${model.qualityMetrics.overallScore.toFixed(3)}`);
   return model;
+}
+
+/**
+ * v274: 评估CQL模型质量
+ */
+function evaluateModelQuality(model: CQLModel, samples: { state: number[]; action: number; reward: number; nextState: number[] | null }[]): CQLQualityMetrics {
+  // 1. Q值稳定性：检查Q值的方差是否在合理范围
+  const qValues: number[] = [];
+  for (const sample of samples.slice(0, 200)) {
+    for (let a = 0; a < NUM_ACTIONS; a++) {
+      qValues.push(computeQ(model.weights[a], sample.state));
+    }
+  }
+  const qMean = qValues.reduce((a, b) => a + b, 0) / qValues.length;
+  const qStd = Math.sqrt(qValues.reduce((sum, q) => sum + (q - qMean) ** 2, 0) / qValues.length);
+  // Q值标准差在0.1-2.0之间为健康，过大或过小都不好
+  const qValueStability = Math.max(0, Math.min(1, 1 - Math.abs(qStd - 0.5) / 2));
+  
+  // 2. 策略一致性：对相似状态是否给出相似决策
+  let consistentPairs = 0;
+  let totalPairs = 0;
+  const sampleSubset = samples.slice(0, 100);
+  for (let i = 0; i < sampleSubset.length; i++) {
+    for (let j = i + 1; j < Math.min(i + 5, sampleSubset.length); j++) {
+      const stateDistSq = sampleSubset[i].state.reduce((sum, v, k) => sum + (v - sampleSubset[j].state[k]) ** 2, 0);
+      if (stateDistSq < 0.5) { // 相似状态
+        const q1 = model.weights.map(w => computeQ(w, sampleSubset[i].state));
+        const q2 = model.weights.map(w => computeQ(w, sampleSubset[j].state));
+        const bestA1 = q1.indexOf(Math.max(...q1));
+        const bestA2 = q2.indexOf(Math.max(...q2));
+        if (bestA1 === bestA2) consistentPairs++;
+        totalPairs++;
+      }
+    }
+  }
+  const policyConsistency = totalPairs > 0 ? consistentPairs / totalPairs : 0.5;
+  
+  // 3. 奖励相关性：Q值与实际奖励的相关度
+  const predictedQ: number[] = [];
+  const actualRewards: number[] = [];
+  for (const sample of sampleSubset) {
+    predictedQ.push(computeQ(model.weights[sample.action], sample.state));
+    actualRewards.push(sample.reward);
+  }
+  const rewardCorrelation = Math.max(0, Math.min(1, Math.abs(pearsonCorrelation(predictedQ, actualRewards))));
+  
+  // 4. 动作多样性：避免退化到单一动作
+  const actionCounts = Array(NUM_ACTIONS).fill(0);
+  for (const sample of samples.slice(0, 500)) {
+    const qVals = model.weights.map(w => computeQ(w, sample.state));
+    const bestAction = qVals.indexOf(Math.max(...qVals));
+    actionCounts[bestAction]++;
+  }
+  const totalActions = actionCounts.reduce((a, b) => a + b, 0);
+  const maxActionPct = totalActions > 0 ? Math.max(...actionCounts) / totalActions : 1;
+  const actionDiversity = 1 - maxActionPct; // 如果全选同一个动作，多样性为0
+  
+  // 5. 数据质量评分
+  const dataQualityScore = Math.min(1, samples.length / 500); // 500条以上满分
+  
+  // 综合评分
+  const overallScore = (
+    qValueStability * 0.2 +
+    policyConsistency * 0.25 +
+    rewardCorrelation * 0.25 +
+    actionDiversity * 0.15 +
+    dataQualityScore * 0.15
+  );
+  
+  return {
+    qValueStability,
+    policyConsistency,
+    rewardCorrelation,
+    actionDiversity,
+    dataQualityScore,
+    overallScore,
+    evaluatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * v274: 皮尔逊相关系数
+ */
+function pearsonCorrelation(x: number[], y: number[]): number {
+  const n = Math.min(x.length, y.length);
+  if (n < 3) return 0;
+  const xMean = x.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const yMean = y.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  let num = 0, denX = 0, denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - xMean;
+    const dy = y[i] - yMean;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den > 0 ? num / den : 0;
 }
 
 // ==================== CQL决策 ====================

@@ -41783,9 +41783,35 @@ async function createOptimizationLog(data2) {
       // v258: 写入结构化归因和护栏信息
       reasonDetails: data2.reasonDetails || void 0,
       guardrailInfo: data2.guardrailInfo || void 0,
-      relatedEventId: data2.relatedEventId || void 0
+      relatedEventId: data2.relatedEventId || void 0,
+      // v274: 写入算法决策元数据（预算分池、因果推断、GTO修正等）
+      performanceData: (() => {
+        try {
+          if (!data2.actionDetail) return void 0;
+          const detail = typeof data2.actionDetail === "string" ? JSON.parse(data2.actionDetail) : data2.actionDetail;
+          const meta3 = {};
+          if (detail.gtoModifier) {
+            meta3.gto = {
+              composite: detail.gtoModifier.compositeModifier,
+              budgetPool: detail.gtoModifier.decisions?.budget?.pool,
+              budgetModifier: detail.gtoModifier.decisions?.budget?.budgetModifier,
+              isFrozen: detail.gtoModifier.decisions?.budget?.isFrozen,
+              keywordRole: detail.gtoModifier.decisions?.portfolio?.role,
+              competitorType: detail.gtoModifier.decisions?.competition?.dominantCompetitorType
+            };
+          }
+          if (detail.causalAdjustment) {
+            meta3.causal = detail.causalAdjustment;
+          }
+          if (detail.algorithmTier) meta3.algorithmTier = detail.algorithmTier;
+          if (detail.algorithmUsed) meta3.algorithmUsed = detail.algorithmUsed;
+          return Object.keys(meta3).length > 0 ? JSON.stringify(meta3) : void 0;
+        } catch {
+          return void 0;
+        }
+      })()
     });
-    log4.info(`[v212] \u53CC\u5199optimization_events\u6210\u529F: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || "N/A"}, apiSyncStatus=${finalApiSyncStatus}`);
+    log4.info(`[v274] \u53CC\u5199optimization_events\u6210\u529F: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || "N/A"}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e6) {
     log4.error("[v212] \u53CC\u5199optimization_events\u5931\u8D25:", e6.message || e6);
     log4.error(`[v212] \u53CC\u5199\u5931\u8D25\u8BE6\u60C5: logCategory=${data2.logCategory} actionType=${data2.actionType}`);
@@ -60327,16 +60353,38 @@ async function trainCQL(accountId, model = null, config2 = {}) {
     log20.info(`[CQL] Insufficient training data (${trainingData.length}), skipping`);
     return model;
   }
+  const validData = trainingData.filter((d5) => {
+    const reward = Number(d5.reward) || 0;
+    const bidBefore = Number(d5.actionBidBefore) || 0;
+    const bidAfter = Number(d5.actionBidAfter) || 0;
+    if (Math.abs(reward) > 100) return false;
+    if (bidBefore <= 0 || bidAfter <= 0) return false;
+    if (bidBefore > 0 && Math.abs(bidAfter - bidBefore) / bidBefore > 1) return false;
+    return true;
+  });
+  const filteredCount = trainingData.length - validData.length;
+  if (filteredCount > 0) {
+    log20.info(`[CQL] v274: \u6570\u636E\u8D28\u91CF\u8FC7\u6EE4: ${filteredCount}/${trainingData.length}\u6761\u5F02\u5E38\u6837\u672C\u88AB\u79FB\u9664`);
+  }
+  if (validData.length < 20) {
+    log20.info(`[CQL] v274: \u8FC7\u6EE4\u540E\u6570\u636E\u4E0D\u8DB3(${validData.length}), skipping`);
+    return model;
+  }
+  const rewards = validData.map((d5) => Number(d5.reward) || 0);
+  const rewardMean = rewards.reduce((a4, b6) => a4 + b6, 0) / rewards.length;
+  const rewardStd = Math.sqrt(rewards.reduce((sum2, r5) => sum2 + (r5 - rewardMean) ** 2, 0) / rewards.length) || 1;
+  const processedData = validData;
   const samples = [];
-  for (let i4 = 0; i4 < trainingData.length; i4++) {
-    const d5 = trainingData[i4];
+  for (let i4 = 0; i4 < processedData.length; i4++) {
+    const d5 = processedData[i4];
     const context = d5.stateContext;
     const state2 = buildStateVector(context, Number(d5.stateBid) || 0);
     const action = bidDeltaToAction(Number(d5.actionBidBefore) || 0, Number(d5.actionBidAfter) || 0);
-    const reward = Number(d5.reward) || 0;
+    const rawReward = Number(d5.reward) || 0;
+    const reward = (rawReward - rewardMean) / rewardStd;
     let nextState = null;
-    if (d5.isTerminal !== 1 && i4 + 1 < trainingData.length) {
-      const nextD = trainingData[i4 + 1];
+    if (d5.isTerminal !== 1 && i4 + 1 < processedData.length) {
+      const nextD = processedData[i4 + 1];
       if (nextD.episodeId === d5.episodeId && (nextD.stepIndex || 0) > (d5.stepIndex || 0)) {
         const nextContext = nextD.stateContext;
         nextState = buildStateVector(nextContext, Number(nextD.stateBid) || 0);
@@ -60383,8 +60431,80 @@ async function trainCQL(accountId, model = null, config2 = {}) {
   model.trainingSteps += totalSteps;
   model.avgLoss = totalSteps > 0 ? totalLoss / totalSteps : 0;
   model.lastTrainedAt = (/* @__PURE__ */ new Date()).toISOString();
-  log20.info(`[CQL] Training complete: ${samples.length} samples, ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}`);
+  model.qualityMetrics = evaluateModelQuality(model, samples);
+  log20.info(`[CQL] v274 Training complete: ${samples.length} samples(filtered ${filteredCount}), ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}, quality=${model.qualityMetrics.overallScore.toFixed(3)}`);
   return model;
+}
+function evaluateModelQuality(model, samples) {
+  const qValues = [];
+  for (const sample of samples.slice(0, 200)) {
+    for (let a4 = 0; a4 < NUM_ACTIONS; a4++) {
+      qValues.push(computeQ(model.weights[a4], sample.state));
+    }
+  }
+  const qMean = qValues.reduce((a4, b6) => a4 + b6, 0) / qValues.length;
+  const qStd = Math.sqrt(qValues.reduce((sum2, q7) => sum2 + (q7 - qMean) ** 2, 0) / qValues.length);
+  const qValueStability = Math.max(0, Math.min(1, 1 - Math.abs(qStd - 0.5) / 2));
+  let consistentPairs = 0;
+  let totalPairs = 0;
+  const sampleSubset = samples.slice(0, 100);
+  for (let i4 = 0; i4 < sampleSubset.length; i4++) {
+    for (let j6 = i4 + 1; j6 < Math.min(i4 + 5, sampleSubset.length); j6++) {
+      const stateDistSq = sampleSubset[i4].state.reduce((sum2, v6, k5) => sum2 + (v6 - sampleSubset[j6].state[k5]) ** 2, 0);
+      if (stateDistSq < 0.5) {
+        const q1 = model.weights.map((w7) => computeQ(w7, sampleSubset[i4].state));
+        const q22 = model.weights.map((w7) => computeQ(w7, sampleSubset[j6].state));
+        const bestA1 = q1.indexOf(Math.max(...q1));
+        const bestA2 = q22.indexOf(Math.max(...q22));
+        if (bestA1 === bestA2) consistentPairs++;
+        totalPairs++;
+      }
+    }
+  }
+  const policyConsistency = totalPairs > 0 ? consistentPairs / totalPairs : 0.5;
+  const predictedQ = [];
+  const actualRewards = [];
+  for (const sample of sampleSubset) {
+    predictedQ.push(computeQ(model.weights[sample.action], sample.state));
+    actualRewards.push(sample.reward);
+  }
+  const rewardCorrelation = Math.max(0, Math.min(1, Math.abs(pearsonCorrelation(predictedQ, actualRewards))));
+  const actionCounts = Array(NUM_ACTIONS).fill(0);
+  for (const sample of samples.slice(0, 500)) {
+    const qVals = model.weights.map((w7) => computeQ(w7, sample.state));
+    const bestAction = qVals.indexOf(Math.max(...qVals));
+    actionCounts[bestAction]++;
+  }
+  const totalActions = actionCounts.reduce((a4, b6) => a4 + b6, 0);
+  const maxActionPct = totalActions > 0 ? Math.max(...actionCounts) / totalActions : 1;
+  const actionDiversity = 1 - maxActionPct;
+  const dataQualityScore = Math.min(1, samples.length / 500);
+  const overallScore = qValueStability * 0.2 + policyConsistency * 0.25 + rewardCorrelation * 0.25 + actionDiversity * 0.15 + dataQualityScore * 0.15;
+  return {
+    qValueStability,
+    policyConsistency,
+    rewardCorrelation,
+    actionDiversity,
+    dataQualityScore,
+    overallScore,
+    evaluatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function pearsonCorrelation(x6, y4) {
+  const n7 = Math.min(x6.length, y4.length);
+  if (n7 < 3) return 0;
+  const xMean = x6.slice(0, n7).reduce((a4, b6) => a4 + b6, 0) / n7;
+  const yMean = y4.slice(0, n7).reduce((a4, b6) => a4 + b6, 0) / n7;
+  let num = 0, denX = 0, denY = 0;
+  for (let i4 = 0; i4 < n7; i4++) {
+    const dx = x6[i4] - xMean;
+    const dy = y4[i4] - yMean;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  const den = Math.sqrt(denX * denY);
+  return den > 0 ? num / den : 0;
 }
 function cqlDecide(model, context, currentBid, temperature = 0.5) {
   const state2 = buildStateVector(context, currentBid);
@@ -73414,9 +73534,68 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
   } catch (gtoError) {
     log32.warn(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${gtoError.message}`);
   }
+  let causalMap = /* @__PURE__ */ new Map();
+  try {
+    const causalDb = await getDb();
+    if (!causalDb) throw new Error("DB not available for causal inference");
+    const recentDate = /* @__PURE__ */ new Date();
+    recentDate.setDate(recentDate.getDate() - 7);
+    const causalResults = await causalDb.select({
+      keywordId: causalInferenceResults.keywordId,
+      targetId: causalInferenceResults.targetId,
+      optimalBid: causalInferenceResults.optimalBid,
+      upliftScore: causalInferenceResults.upliftScore,
+      incrementalProfit: causalInferenceResults.incrementalProfit,
+      confidenceInterval: causalInferenceResults.confidenceInterval,
+      sampleSize: causalInferenceResults.sampleSize
+    }).from(causalInferenceResults).where(and(
+      eq(causalInferenceResults.accountId, accountId),
+      gte(causalInferenceResults.analysisDate, recentDate.toISOString().split("T")[0])
+    )).orderBy(desc(causalInferenceResults.createdAt)).limit(500);
+    for (const cr2 of causalResults) {
+      const key = cr2.keywordId ? `kw_${cr2.keywordId}` : cr2.targetId ? `tg_${cr2.targetId}` : null;
+      if (key && !causalMap.has(key)) {
+        causalMap.set(key, {
+          optimalBid: Number(cr2.optimalBid) || 0,
+          upliftScore: Number(cr2.upliftScore) || 0,
+          incrementalProfit: Number(cr2.incrementalProfit) || 0,
+          confidence: cr2.confidenceInterval ? Math.max(0, 1 - Number(cr2.confidenceInterval)) : 0.5,
+          sampleSize: cr2.sampleSize || 0
+        });
+      }
+    }
+    if (causalMap.size > 0) {
+      log32.info(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u4FE1\u53F7\u5DF2\u52A0\u8F7D: ${causalMap.size}\u4E2A\u5173\u952E\u8BCD/\u5B9A\u5411`);
+    }
+  } catch (causalErr) {
+    log32.warn(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u52A0\u8F7D\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${causalErr.message}`);
+  }
   const results = [];
   for (const target of targets) {
     const result = await calculateNextGenBid(accountId, target, groupConfig, maxBidLimit);
+    const causalKey = target.type === "keyword" ? `kw_${target.id}` : target.type === "product_target" ? `tg_${target.id}` : null;
+    const causalData = causalKey ? causalMap.get(causalKey) : null;
+    if (causalData && causalData.optimalBid > 0 && causalData.sampleSize >= 3 && causalData.confidence > 0.3) {
+      const causalWeight = Math.min(0.3, causalData.confidence * 0.3);
+      const blendedBid = result.newBid * (1 - causalWeight) + causalData.optimalBid * causalWeight;
+      const causalCorrectedBid = Math.round(blendedBid * 100) / 100;
+      const maxCausalDelta = result.newBid * 0.15;
+      const finalCausalBid = Math.max(
+        result.newBid - maxCausalDelta,
+        Math.min(result.newBid + maxCausalDelta, causalCorrectedBid)
+      );
+      result.causalAdjustment = {
+        optimalBid: causalData.optimalBid,
+        upliftScore: causalData.upliftScore,
+        incrementalProfit: causalData.incrementalProfit,
+        confidence: causalData.confidence,
+        applied: Math.abs(finalCausalBid - result.newBid) > 5e-3
+      };
+      if (result.causalAdjustment.applied) {
+        result.newBid = finalCausalBid;
+        result.reason += ` | \u56E0\u679C\u4FEE\u6B63: uplift=${causalData.upliftScore.toFixed(3)}, \u6700\u4F18\u51FA\u4EF7=$${causalData.optimalBid.toFixed(2)}`;
+      }
+    }
     const gtoMod = gtoModifiers.get(target.id);
     if (gtoMod && gtoMod.compositeModifier !== 1) {
       const baseBid = result.newBid;
@@ -73442,7 +73621,8 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
   const guardrail = results.filter((r5) => r5.algorithmTier === "guardrail").length;
   const changed = results.filter((r5) => r5.actionType !== "hold").length;
   const gtoApplied = results.filter((r5) => r5.gtoModifier && r5.gtoModifier.compositeModifier !== 1).length;
-  log32.info(`[NextGenOrchestrator] v273\u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u62A4\u680F\u4FDD\u62A4=${guardrail}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}`);
+  const causalApplied = results.filter((r5) => r5.causalAdjustment?.applied).length;
+  log32.info(`[NextGenOrchestrator] v274\u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u62A4\u680F\u4FDD\u62A4=${guardrail}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}, \u56E0\u679C\u4FEE\u6B63=${causalApplied}`);
   return results;
 }
 async function executeNextGenMaintenanceTasks(accountId) {
@@ -73541,6 +73721,8 @@ var init_nextGenBidOrchestrator = __esm({
     init_sigmoidCurveFitter();
     init_contextualBanditService();
     init_causalInferenceEngine();
+    init_schema2();
+    init_drizzle_orm();
     init_offlineRLService();
     init_metaLearningSelector();
     init_budgetPortfolioOptimizer();
@@ -74450,11 +74632,11 @@ async function getTimeWeightedCampaignMetrics(db, campaignIds, startDate, endDat
     days: dailyData.length
   };
 }
-function calculateEffectScore2(pre, post, log88) {
+function calculateEffectScore2(pre, post, logEntry) {
   let score = 0;
   if (pre.roas > 0) {
     const roasChange = (post.roas - pre.roas) / pre.roas;
-    score += Math.max(-40, Math.min(40, roasChange * 100));
+    score += Math.max(-35, Math.min(35, roasChange * 100));
   }
   if (pre.acos > 0) {
     const acosChange = (pre.acos - post.acos) / pre.acos;
@@ -74473,6 +74655,16 @@ function calculateEffectScore2(pre, post, log88) {
     const postCostPerOrder = post.dailySpend / Math.max(0.1, post.dailyOrders);
     const efficiencyChange = (preCostPerOrder - postCostPerOrder) / preCostPerOrder;
     score += Math.max(-10, Math.min(10, efficiencyChange * 50));
+  }
+  try {
+    if (logEntry?.actionDetail) {
+      const detail = typeof logEntry.actionDetail === "string" ? JSON.parse(logEntry.actionDetail) : logEntry.actionDetail;
+      if (detail.causalAdjustment && detail.causalAdjustment.confidence > 0.5) {
+        const causalSignal = detail.causalAdjustment.incrementalProfit > 0 ? 5 : -5;
+        score += causalSignal;
+      }
+    }
+  } catch {
   }
   return Math.round(Math.max(-100, Math.min(100, score)));
 }
@@ -74596,6 +74788,30 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
       } catch {
       }
       if (originalValue === 0 && currentValue === 0) continue;
+      let causalOverride = false;
+      try {
+        const causalDb = await getDb();
+        if (causalDb && assessment.entityId) {
+          const { causalInferenceResults: causalInferenceResults2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eqOp, gte: gteOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const recentDate = /* @__PURE__ */ new Date();
+          recentDate.setDate(recentDate.getDate() - 14);
+          const [causalResult] = await causalDb.select({
+            incrementalProfit: causalInferenceResults2.incrementalProfit,
+            upliftScore: causalInferenceResults2.upliftScore
+          }).from(causalInferenceResults2).where(andOp(
+            eqOp(causalInferenceResults2.keywordId, parseInt(assessment.entityId)),
+            gteOp(causalInferenceResults2.analysisDate, recentDate.toISOString().split("T")[0])
+          )).limit(1);
+          if (causalResult && Number(causalResult.incrementalProfit) > 0 && Number(causalResult.upliftScore) > 0.3) {
+            if (correctionType === "rollback_bid") {
+              correctedValue = Math.round((originalValue * 0.3 + currentValue * 0.7) * 100) / 100;
+              causalOverride = true;
+            }
+          }
+        }
+      } catch {
+      }
       corrections.push({
         id: `correction_${assessment.logId}_${Date.now()}`,
         logId: assessment.logId,
@@ -74606,7 +74822,7 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
         originalValue,
         currentValue,
         correctedValue,
-        reason: assessment.correctionReason || `\u6548\u679C\u8BC4\u5206${assessment.effectScore}\uFF0C\u9700\u8981\u7EA0\u6B63`,
+        reason: causalOverride ? `\u6548\u679C\u8BC4\u5206${assessment.effectScore}\uFF0C\u4F46\u56E0\u679C\u63A8\u65AD\u663E\u793A\u6B63\u5411\u589E\u91CF\u5229\u6DA6\uFF0C\u964D\u7EA7\u4E3A\u90E8\u5206\u56DE\u6EDA` : assessment.correctionReason || `\u6548\u679C\u8BC4\u5206${assessment.effectScore}\uFF0C\u9700\u8981\u7EA0\u6B63`,
         effectScore: assessment.effectScore,
         status: "pending",
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -125046,7 +125262,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 273;
+    SYSTEM_VERSION = 274;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -125334,6 +125550,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 273,
         description: "v273: [\u81EA\u52A8\u4F18\u5316\u505C\u6EDE\u611F+\u7B97\u6CD5\u5206\u5E03\u4FEE\u590D] \u2014 (1)P0-\u7B97\u6CD5\u5206\u7C7B\u4FEE\u6B63: cooldown_hold/direction_hold\u4ECErule_engine\u6539\u4E3Aguardrail\u5C42\u7EA7 (2)P0-\u51B7\u5374\u671F\u4F18\u5316: 6h\u964D\u81F34h+24h\u6700\u5927\u8C03\u6574\u6B21\u65703\u21924 (3)P1-\u9AD8\u7EA7\u7B97\u6CD5\u6FC0\u6D3B\u589E\u5F3A: confidence\u95E8\u69DB\u964D\u4F4E(ensemble 0.35\u21920.30, CQL/LinUCB 0.25\u21920.20) (4)P1-\u524D\u7AEF\u7EDF\u8BA1\u589E\u5F3A: \u65B0\u589Eguardrail\u5C42\u7EA7\u989C\u8272+\u4E2D\u6587\u540D+\u7B97\u6CD5\u5206\u5E03\u8BA1\u7B97\u4FEE\u6B63 (5)P2-\u8C03\u5EA6\u5668\u5FC3\u8DF3\u65E5\u5FD7\u589E\u5F3A",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 274,
+        description: "v274: [\u5168\u9762\u5F15\u64CE\u589E\u5F3A] \u2014 (1)P0-\u56E0\u679C\u63A8\u65AD\u63A5\u5165\u51FA\u4EF7\u51B3\u7B56: causalInferenceResults\u7684optimalBid\u4F5C\u4E3A\u4FE1\u53F7\u6E90\u878D\u5165batchCalculateNextGenBids (2)P0-CQL\u8BAD\u7EC3\u589E\u5F3A: \u6570\u636E\u8D28\u91CF\u9A8C\u8BC1+\u5956\u52B1\u5F52\u4E00\u5316+\u6A21\u578B\u8D28\u91CF\u8BC4\u4F30+\u51B7\u542F\u52A8\u63A2\u7D22 (3)P1-\u7ADE\u4E89\u73AF\u5883\u611F\u77E5\u589E\u5F3A: \u591A\u7EF4\u4FE1\u53F7\u878D\u5408(CPC\u6CE2\u52A8+\u66DD\u5149\u4EFD\u989D+CTR\u53D8\u5316+\u65E5\u62A5\u6570\u636E) (4)P1-\u9884\u7B97\u5206\u6C60\u5177\u8C61\u5316: performanceData\u5B57\u6BB5\u8BB0\u5F55GTO\u51B3\u7B56\u5143\u6570\u636E (5)P2-\u81EA\u52A8\u7EA0\u9519\u95ED\u73AF\u589E\u5F3A: \u56E0\u679C\u63A8\u65AD\u8F85\u52A9\u7EA0\u9519\u5224\u65AD+\u6548\u679C\u8BC4\u5206\u589E\u52A0\u56E0\u679C\u7EF4\u5EA6",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 273;  // v273: 修复自动优化停滞感+算法分布不合理+guardrail层级分类
+export const SYSTEM_VERSION = 274;  // v274: 因果推断接入出价决策+CQL训练增强+竞争感知增强+预算分池具象化+自动纠错闭环增强
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -351,6 +351,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 273,
     description: 'v273: [自动优化停滞感+算法分布修复] — (1)P0-算法分类修正: cooldown_hold/direction_hold从rule_engine改为guardrail层级 (2)P0-冷却期优化: 6h降至4h+24h最大调整次数3→4 (3)P1-高级算法激活增强: confidence门槛降低(ensemble 0.35→0.30, CQL/LinUCB 0.25→0.20) (4)P1-前端统计增强: 新增guardrail层级颜色+中文名+算法分布计算修正 (5)P2-调度器心跳日志增强',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 274,
+    description: 'v274: [全面引擎增强] — (1)P0-因果推断接入出价决策: causalInferenceResults的optimalBid作为信号源融入batchCalculateNextGenBids (2)P0-CQL训练增强: 数据质量验证+奖励归一化+模型质量评估+冷启动探索 (3)P1-竞争环境感知增强: 多维信号融合(CPC波动+曝光份额+CTR变化+日报数据) (4)P1-预算分池具象化: performanceData字段记录GTO决策元数据 (5)P2-自动纠错闭环增强: 因果推断辅助纠错判断+效果评分增加因果维度',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
