@@ -125046,7 +125046,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 269;
+    SYSTEM_VERSION = 273;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -125328,6 +125328,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 268,
         description: "v268: [B\u7EA7\u2192A\u7EA7\u51B2\u523A] \u2014 (1)P0-1\u7D27\u6025\u4F18\u5316\u589E\u5F3A: \u5206\u5C42\u7EA7\u964D\u4EF7+\u6536\u7D27\u6682\u505C\u95E8\u69DB+\u6E10\u8FDB\u7194\u65AD\u6062\u590D+\u7ADE\u4E89\u529B\u6062\u590D\u6A21\u5F0F (2)P0-2\u8BC4\u5206\u7B97\u6CD5\u4F18\u5316: \u65B9\u5411\u6B63\u786E\u6027\u52A0\u5206+\u4F18\u5316\u901F\u5EA6\u8BC4\u4F30+\u54C1\u7C7BCVR\u57FA\u51C6 (3)P1-1\u9AD8\u7EA7\u7B97\u6CD5\u5F3A\u5236\u6FC0\u6D3B: \u964D\u4F4E\u6FC0\u6D3B\u95E8\u69DB+RL\u6570\u636E\u5FEB\u901F\u79EF\u7D2F+\u6A21\u578B\u8BAD\u7EC3\u52A0\u901F (4)P1-2\u7ADE\u4EF7\u667A\u80FD\u5316: \u5F52\u56E0\u5EF6\u8FDF\u611F\u77E5+\u65E0\u5355\u8BCD\u4FDD\u62A4\u671F (5)P2-1\u53EF\u89C2\u6D4B\u6027\u589E\u5F3A: \u5206\u7EA7\u544A\u8B66+\u667A\u80FD\u964D\u566A+\u7B97\u6CD5\u6548\u80FD\u76D1\u63A7",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 273,
+        description: "v273: [\u81EA\u52A8\u4F18\u5316\u505C\u6EDE\u611F+\u7B97\u6CD5\u5206\u5E03\u4FEE\u590D] \u2014 (1)P0-\u7B97\u6CD5\u5206\u7C7B\u4FEE\u6B63: cooldown_hold/direction_hold\u4ECErule_engine\u6539\u4E3Aguardrail\u5C42\u7EA7 (2)P0-\u51B7\u5374\u671F\u4F18\u5316: 6h\u964D\u81F34h+24h\u6700\u5927\u8C03\u6574\u6B21\u65703\u21924 (3)P1-\u9AD8\u7EA7\u7B97\u6CD5\u6FC0\u6D3B\u589E\u5F3A: confidence\u95E8\u69DB\u964D\u4F4E(ensemble 0.35\u21920.30, CQL/LinUCB 0.25\u21920.20) (4)P1-\u524D\u7AEF\u7EDF\u8BA1\u589E\u5F3A: \u65B0\u589Eguardrail\u5C42\u7EA7\u989C\u8272+\u4E2D\u6587\u540D+\u7B97\u6CD5\u5206\u5E03\u8BA1\u7B97\u4FEE\u6B63 (5)P2-\u8C03\u5EA6\u5668\u5FC3\u8DF3\u65E5\u5FD7\u589E\u5F3A",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }

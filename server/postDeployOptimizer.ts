@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 269;  // v269: 智能运营推荐系统+自动优化执行引擎
+export const SYSTEM_VERSION = 273;  // v273: 修复自动优化停滞感+算法分布不合理+guardrail层级分类
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -345,6 +345,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 268,
     description: 'v268: [B级→A级冲刺] — (1)P0-1紧急优化增强: 分层级降价+收紧暂停门槛+渐进熔断恢复+竞争力恢复模式 (2)P0-2评分算法优化: 方向正确性加分+优化速度评估+品类CVR基准 (3)P1-1高级算法强制激活: 降低激活门槛+RL数据快速积累+模型训练加速 (4)P1-2竞价智能化: 归因延迟感知+无单词保护期 (5)P2-1可观测性增强: 分级告警+智能降噪+算法效能监控',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 273,
+    description: 'v273: [自动优化停滞感+算法分布修复] — (1)P0-算法分类修正: cooldown_hold/direction_hold从rule_engine改为guardrail层级 (2)P0-冷却期优化: 6h降至4h+24h最大调整次数3→4 (3)P1-高级算法激活增强: confidence门槛降低(ensemble 0.35→0.30, CQL/LinUCB 0.25→0.20) (4)P1-前端统计增强: 新增guardrail层级颜色+中文名+算法分布计算修正 (5)P2-调度器心跳日志增强',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
