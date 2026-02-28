@@ -57,10 +57,10 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
   // ===== 安全护栏参数 =====
   'safety.cooldown_hours': {
     key: 'safety.cooldown_hours',
-    value: 6,
+    value: 4, // v273: 从6小时降至4小时，提高优化频率避免停滞感
     category: 'safety',
     description: '出价调整冷却时间窗口（小时）',
-    defaultValue: 6,
+    defaultValue: 4,
     range: { min: 1, max: 24 },
   },
   'safety.min_adjustment_percent': {
@@ -73,10 +73,10 @@ const DEFAULT_CONFIG: Record<string, Omit<ConfigParameter, 'updatedAt' | 'update
   },
   'safety.max_adjustments_per_day': {
     key: 'safety.max_adjustments_per_day',
-    value: 3,
+    value: 4, // v273: 从3次提升至4次，配合冷却期缩短提高优化吸入量
     category: 'safety',
     description: '24小时内最大调整次数',
-    defaultValue: 3,
+    defaultValue: 4,
     range: { min: 1, max: 10 },
   },
   'safety.max_cumulative_decrease_7d': {

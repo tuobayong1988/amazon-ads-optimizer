@@ -1746,7 +1746,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
           }
           
-          log.info(`[OptimizationScheduler] 出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          log.info(`[OptimizationScheduler] v273出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}, 总目标=${targets.length}, 时间=${new Date().toISOString()}`);
         } catch (bidError: any) {
           log.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
         }

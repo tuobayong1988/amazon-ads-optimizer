@@ -1002,7 +1002,7 @@ export function calculateGoalProgress(
   const gradualProgress = calculateGradualProgressScore(config, metrics, timeWeighted, multiWindow);
   const algEfficacy = calculateAlgorithmEfficacyScore(algorithmData);
   
-  // v271 P1-1: 第7维度 - 利润健康度
+  // v271 P1-1 → v272重构: 第7维度 - 广告效率（基于ACOS/ROAS等广告原生指标）
   const profitHealth = profitData 
     ? { score: profitData.profitHealthScore, detail: profitData.detail }
     : calculateDefaultProfitScore(metrics);

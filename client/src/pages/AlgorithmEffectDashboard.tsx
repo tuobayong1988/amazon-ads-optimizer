@@ -28,8 +28,12 @@ const TIER_COLORS = {
   advanced: { fill: '#8B5CF6', label: '高级算法', icon: BrainCircuit, desc: 'UCB/贝叶斯等统计算法' },
   rule_engine: { fill: '#3B82F6', label: '规则引擎', icon: Workflow, desc: '基于真实AOV的智能规则' },
   conservative: { fill: '#F59E0B', label: '保守策略', icon: ShieldCheck, desc: '数据不足时的安全策略' },
+  guardrail: { fill: '#94A3B8', label: '护栏保护', icon: ShieldCheck, desc: 'v273: 冷却保护/方向一致性保护' },
   LinUCB: { fill: '#A855F7', label: 'LinUCB', icon: Brain, desc: '线性上置信界算法' },
   CQL: { fill: '#EC4899', label: 'CQL', icon: Cpu, desc: '保守Q学习离线RL' },
+  ensemble: { fill: '#F97316', label: 'Cascade融合', icon: BrainCircuit, desc: 'v270 Cascade Ensemble多算法融合' },
+  sigmoid_curve: { fill: '#06B6D4', label: 'Sigmoid曲线', icon: Gauge, desc: 'Sigmoid曲线利润最大化' },
+  UCB: { fill: '#10B981', label: 'UCB探索', icon: Brain, desc: 'UCB探索-利用策略' },
   Bayesian: { fill: '#14B8A6', label: '贝叶斯', icon: Gauge, desc: '贝叶斯优化' },
   unknown: { fill: '#6B7280', label: '未知', icon: Info, desc: '' },
 };
@@ -128,7 +132,9 @@ export default function AlgorithmEffectDashboard() {
     for (const stat of algorithmEffectStats) {
       const algo = stat.algorithm;
       let tier = 'unknown';
-      if (algo === 'LinUCB' || algo === 'CQL' || algo === 'Bayesian' || algo === 'advanced') tier = 'advanced';
+      // v273: 正确分类算法层级，新增guardrail和更多算法类型
+      if (algo === 'LinUCB' || algo === 'CQL' || algo === 'Bayesian' || algo === 'advanced' || algo === 'ensemble' || algo === 'sigmoid_curve' || algo === 'UCB') tier = 'advanced';
+      else if (algo === 'guardrail') tier = 'guardrail';
       else if (algo === 'rule_engine' || algo.includes('RuleEngine')) tier = 'rule_engine';
       else if (algo === 'conservative') tier = 'conservative';
       else tier = algo; // 保留原始名称

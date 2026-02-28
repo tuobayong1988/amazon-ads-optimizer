@@ -160,12 +160,33 @@ function parseAlgorithmFromDetail(actionDetail: string | null, changeReason: str
   try {
     const detail = JSON.parse(actionDetail);
     
+    // v273: 优先使用 algorithmTier 字段（最准确的分类标识）
+    if (detail.algorithmTier) {
+      if (detail.algorithmTier === 'advanced') {
+        // 进一步解析具体算法
+        const algo = (detail.algorithmUsed || '').toLowerCase();
+        if (algo.includes('linucb')) return 'LinUCB';
+        if (algo.includes('cql')) return 'CQL';
+        if (algo.includes('ensemble')) return 'ensemble';
+        if (algo.includes('sigmoid')) return 'sigmoid_curve';
+        if (algo.includes('ucb')) return 'UCB';
+        return 'advanced';
+      }
+      if (detail.algorithmTier === 'guardrail') return 'guardrail';
+      if (detail.algorithmTier === 'rule_engine') return 'rule_engine';
+      if (detail.algorithmTier === 'conservative') return 'conservative';
+    }
+    
     // 优先使用 algorithmUsed 字段
     if (detail.algorithmUsed) {
       const algo = detail.algorithmUsed.toLowerCase();
       if (algo.includes('linucb') || algo === 'linucb') return 'LinUCB';
       if (algo.includes('cql') || algo === 'cql') return 'CQL';
+      if (algo.includes('ensemble')) return 'ensemble';
+      if (algo.includes('sigmoid')) return 'sigmoid_curve';
+      if (algo.includes('ucb') && algo !== 'linucb') return 'UCB';
       if (algo.includes('bayesian')) return 'Bayesian';
+      if (algo.includes('cooldown') || algo.includes('direction')) return 'guardrail';
       if (algo.includes('rule') || algo === 'rule_engine') return 'rule_engine';
       if (algo.includes('conservative')) return 'conservative';
       return detail.algorithmUsed;
@@ -173,17 +194,16 @@ function parseAlgorithmFromDetail(actionDetail: string | null, changeReason: str
     
     // 从 reason 中解析
     const reason = detail.reason || detail.changeReason || '';
-    if (reason.includes('[高级算法:linucb]') || reason.includes('linucb')) return 'LinUCB';
-    if (reason.includes('[高级算法:cql]') || reason.includes('cql')) return 'CQL';
+    if (reason.includes('[高级算法:linucb]') || reason.includes('LinUCB')) return 'LinUCB';
+    if (reason.includes('[高级算法:cql]') || reason.includes('CQL')) return 'CQL';
+    if (reason.includes('[高级算法:ensemble]')) return 'ensemble';
+    if (reason.includes('[高级算法:sigmoid]')) return 'sigmoid_curve';
+    if (reason.includes('[高级算法:ucb]')) return 'UCB';
     if (reason.includes('[高级算法:bayesian]')) return 'Bayesian';
     if (reason.includes('[高级算法')) return 'advanced';
+    if (reason.includes('[冷却保护]') || reason.includes('[方向保护]') || reason.includes('护栏保护')) return 'guardrail';
     if (reason.includes('[规则引擎]')) return 'rule_engine';
     if (reason.includes('[保守策略]')) return 'conservative';
-    
-    // 从 algorithmTier 解析
-    if (detail.algorithmTier === 'advanced') return 'advanced';
-    if (detail.algorithmTier === 'rule_engine') return 'rule_engine';
-    if (detail.algorithmTier === 'conservative') return 'conservative';
     
     return 'rule_engine'; // 默认归类为规则引擎
   } catch {

@@ -412,8 +412,8 @@ export interface NextGenBidResult {
   algorithmUsed: string;
   confidence: number;
   metaDecision?: MetaDecision;
-  /** 算法降级链中实际使用的层级: 'advanced' | 'rule_engine' | 'conservative' */
-  algorithmTier: 'advanced' | 'rule_engine' | 'conservative';
+  /** v273: 算法降级链中实际使用的层级，新增guardrail层级区分护栏保护操作 */
+  algorithmTier: 'advanced' | 'rule_engine' | 'conservative' | 'guardrail';
   /** GTO博弈论修正系数（v236新增） */
   gtoModifier?: GTOModifier;
   /** v258: 结构化调整归因详情 */
@@ -989,13 +989,14 @@ export async function calculateNextGenBid(
       && Math.abs(metaDecision.recommendedBid - target.currentBid) > 0.005;
     // v264: P1-2 动态confidence门槛
     // 冷启动算法(linucb/cql新启用)降低门槛鼓励探索，成熟算法(ensemble)提高门槛要求更高置信度
+    // v273: 进一步降低高级算法confidence门槛，提高高级算法激活率
     const dynamicConfidenceThreshold = (() => {
       switch (metaDecision.selectedAlgorithm) {
-        case 'ensemble': return 0.35;     // 融合算法要求更高置信度
-        case 'cql': return 0.25;          // CQL冷启动期降低门槛鼓励探索
-        case 'linucb': return 0.25;       // LinUCB冷启动期降低门槛鼓励探索
-        case 'sigmoid_curve': return 0.30; // Sigmoid需要中等置信度
-        default: return 0.30;
+        case 'ensemble': return 0.30;     // v273: 从0.35降至0.30，融合算法本身已有多算法交叉验证
+        case 'cql': return 0.20;          // v273: 从0.25降至0.20，CQL冷启动期更积极探索
+        case 'linucb': return 0.20;       // v273: 从0.25降至0.20，LinUCB冷启动期更积极探索
+        case 'sigmoid_curve': return 0.25; // v273: 从0.30降至0.25，Sigmoid有曲线拟合保证
+        default: return 0.25;             // v273: 从0.30降至0.25
       }
     })();
     // v267 P1-3: 应用进化引擎的置信度乘数 — 历史表现好时降低门槛，表现差时提高门槛
@@ -1065,7 +1066,7 @@ export async function calculateNextGenBid(
   if (cooldownResult.inCooldown) {
     log.info(`[NextGenOrchestrator] v257冷却保护: target=${target.id}, ${cooldownResult.reason}`);
     return buildResult(target, target.currentBid, 'cooldown_hold', 0.5,
-      `[冷却保护] ${cooldownResult.reason}: 维持当前出价避免振荡`, 'rule_engine');
+      `[冷却保护] ${cooldownResult.reason}: 维持当前出价避免振荡`, 'guardrail');
   }
   
   // ===== v267: 出价方向一致性检查 =====
@@ -1080,7 +1081,7 @@ export async function calculateNextGenBid(
     if (directionCheck.isOscillating) {
       log.info(`[NextGenOrchestrator] v267方向一致性保护: target=${target.id}, ${directionCheck.reason}`);
       return buildResult(target, target.currentBid, 'direction_hold', 0.5,
-        `[v267方向保护] ${directionCheck.reason}: 检测到出价振荡模式，强制hold等待数据稳定`, 'rule_engine');
+        `[v267方向保护] ${directionCheck.reason}: 检测到出价振荡模式，强制hold等待数据稳定`, 'guardrail');
     }
   } catch (dirErr: any) {
     log.warn(`[NextGenOrchestrator] v267方向检查异常: ${dirErr.message}`);
@@ -1230,7 +1231,7 @@ function buildResult(
   algorithmUsed: string,
   confidence: number,
   reason: string,
-  tier: 'advanced' | 'rule_engine' | 'conservative',
+  tier: 'advanced' | 'rule_engine' | 'conservative' | 'guardrail',
   metaDecision?: MetaDecision
 ): NextGenBidResult {
   const bidChangePercent = target.currentBid > 0
@@ -1247,7 +1248,7 @@ function buildResult(
   const reasonDetails = {
     triggerRule: tier === 'advanced' ? `高级算法:${algorithmUsed}` :
                  tier === 'conservative' ? '保守策略:算法异常兆底' :
-                 algorithmUsed === 'cooldown_hold' ? '冷却保护:维持出价' :
+                 tier === 'guardrail' ? `护栏保护:${algorithmUsed}` :
                  `规则引擎:${reason.split(':')[0]?.replace('[\u89c4\u5219\u5f15\u64ce] ', '') || algorithmUsed}`,
     coreMetrics: {
       clicks: (target as any).clicks,
@@ -1377,15 +1378,16 @@ export async function batchCalculateNextGenBids(
     results.push(result);
   }
   
-  // 统计日志
+  // v273: 统计日志增加guardrail计数
   const advanced = results.filter(r => r.algorithmTier === 'advanced').length;
   const ruleEngine = results.filter(r => r.algorithmTier === 'rule_engine').length;
   const conservative = results.filter(r => r.algorithmTier === 'conservative').length;
+  const guardrail = results.filter(r => r.algorithmTier === 'guardrail').length;
   const changed = results.filter(r => r.actionType !== 'hold').length;
   const gtoApplied = results.filter(r => r.gtoModifier && r.gtoModifier.compositeModifier !== 1.0).length;
   
-  log.info(`[NextGenOrchestrator] 批量出价完成: 总计=${targets.length}, ` +
-    `高级算法=${advanced}, 规则引擎=${ruleEngine}, 保守策略=${conservative}, ` +
+  log.info(`[NextGenOrchestrator] v273批量出价完成: 总计=${targets.length}, ` +
+    `高级算法=${advanced}, 规则引擎=${ruleEngine}, 护栏保护=${guardrail}, 保守策略=${conservative}, ` +
     `实际调整=${changed}, GTO修正=${gtoApplied}`);
   
   return results;
