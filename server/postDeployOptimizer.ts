@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 274;  // v274: 因果推断接入出价决策+CQL训练增强+竞争感知增强+预算分池具象化+自动纠错闭环增强
+export const SYSTEM_VERSION = 275;  // v275: 前端可视化四大模块+风险等级分层自动响应+动态时间衰减权重+特征缓存TTL优化
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -357,6 +357,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 274,
     description: 'v274: [全面引擎增强] — (1)P0-因果推断接入出价决策: causalInferenceResults的optimalBid作为信号源融入batchCalculateNextGenBids (2)P0-CQL训练增强: 数据质量验证+奖励归一化+模型质量评估+冷启动探索 (3)P1-竞争环境感知增强: 多维信号融合(CPC波动+曝光份额+CTR变化+日报数据) (4)P1-预算分池具象化: performanceData字段记录GTO决策元数据 (5)P2-自动纠错闭环增强: 因果推断辅助纠错判断+效果评分增加因果维度',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 275,
+    description: 'v275: [可视化+风控+智能化] — (1)P1-前端因果推断可视化: AlgorithmEffectDashboard新增因果分析Tab+影响分布图+置信度进度条 (2)P1-预算分池Dashboard: 实时展示80/20分池分配和回报 (3)P2-CQL模型监控: 训练状态/决策次数/模型质量分展示 (4)P2-竞争环境感知展示: 竞争强度分布图+市场动态卡片 (5)P2-风险等级分层自动响应: 红/黄/绿三级风险评估+自动出价乘数调整+冷却期延长 (6)P3-动态时间衰减权重: 指数衰减+波动性自适应 (7)P3-特征缓存TTL优化: 3天宽限期逐天回退',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },

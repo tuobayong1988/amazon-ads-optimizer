@@ -100,6 +100,36 @@ export default function AlgorithmEffectDashboard() {
     }
   );
 
+  // v275: 获取因果推断洞察
+  const { data: causalInsights } = trpc.nextGen.getCausalInsights.useQuery(
+    {
+      accountId: selectedAccount === "all" ? 0 : parseInt(selectedAccount),
+      days: parseInt(timeRange),
+      limit: 50,
+    },
+    { enabled: selectedAccount !== "all" }
+  );
+  // v275: 获取CQL模型状态
+  const { data: cqlModelStatus } = trpc.nextGen.getCqlModelStatus.useQuery(
+    { accountId: selectedAccount === "all" ? 0 : parseInt(selectedAccount) },
+    { enabled: selectedAccount !== "all" }
+  );
+  // v275: 获取竞争环境洞察
+  const { data: competitionInsights } = trpc.nextGen.getCompetitionInsights.useQuery(
+    {
+      accountId: selectedAccount === "all" ? 0 : parseInt(selectedAccount),
+      days: parseInt(timeRange),
+    },
+    { enabled: selectedAccount !== "all" }
+  );
+  // v275: 获取预算分池洞察
+  const { data: budgetPoolInsights } = trpc.nextGen.getBudgetPoolInsights.useQuery(
+    {
+      accountId: selectedAccount === "all" ? 0 : parseInt(selectedAccount),
+      days: parseInt(timeRange),
+    },
+    { enabled: selectedAccount !== "all" }
+  );
   // v135: 获取算法效果趋势
   const { data: algorithmEffectTrend } = trpc.algorithmEffect.getTrend.useQuery(
     {
@@ -381,6 +411,10 @@ export default function AlgorithmEffectDashboard() {
             <TabsTrigger value="effect-comparison">优化前后对比</TabsTrigger>
             <TabsTrigger value="adjustment-distribution">调整分布</TabsTrigger>
             <TabsTrigger value="execution-history">执行历史</TabsTrigger>
+            <TabsTrigger value="causal-insights">因果推断</TabsTrigger>
+            <TabsTrigger value="cql-monitor">CQL模型</TabsTrigger>
+            <TabsTrigger value="competition">竞争环境</TabsTrigger>
+            <TabsTrigger value="budget-pool">预算分池</TabsTrigger>
           </TabsList>
 
           {/* ACoS变化趋势 */}
@@ -729,6 +763,324 @@ export default function AlgorithmEffectDashboard() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* v275: 因果推断洞察 */}
+          <TabsContent value="causal-insights">
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-400" />
+                  因果推断分析洞察
+                </CardTitle>
+                <CardDescription>
+                  基于DID（双重差分法）的因果推断结果，识别出价调整的真实增量效果
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* 汇总卡片 */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">分析总数</p>
+                    <p className="text-2xl font-bold text-white">{causalInsights?.summary?.total || 0}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">显著效果</p>
+                    <p className="text-2xl font-bold text-green-400">{causalInsights?.summary?.significant || 0}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">平均提升分</p>
+                    <p className="text-2xl font-bold text-blue-400">{(causalInsights?.summary?.avgUplift || 0).toFixed(4)}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">增量利润</p>
+                    <p className="text-2xl font-bold text-yellow-400">${(causalInsights?.summary?.totalIncrementalProfit || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+                {/* 详细结果表 */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-700">
+                        <th className="text-left py-3 px-3 text-gray-400 font-medium text-sm">日期</th>
+                        <th className="text-left py-3 px-3 text-gray-400 font-medium text-sm">关键词ID</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">提升分</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">置信区间</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">增量利润</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">增量ROAS</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">最优出价</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">出价区间</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">样本量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(causalInsights?.results || []).slice(0, 20).map((r: any, i: number) => (
+                        <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                          <td className="py-2 px-3 text-gray-300 text-sm">{r.analysisDate}</td>
+                          <td className="py-2 px-3 text-white text-sm">{r.keywordId || r.targetId || '-'}</td>
+                          <td className="py-2 px-3 text-right text-sm">
+                            <span className={r.upliftScore > 0 ? 'text-green-400' : 'text-red-400'}>
+                              {r.upliftScore?.toFixed(4)}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right text-gray-300 text-sm">{r.confidenceInterval?.toFixed(3)}</td>
+                          <td className="py-2 px-3 text-right text-sm">
+                            <span className={r.incrementalProfit > 0 ? 'text-green-400' : 'text-red-400'}>
+                              ${r.incrementalProfit?.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-right text-blue-400 text-sm">{r.incrementalRoas?.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right text-yellow-400 text-sm">${r.optimalBid?.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right text-gray-400 text-sm">${r.optimalBidLower?.toFixed(2)}-${r.optimalBidUpper?.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right text-gray-300 text-sm">{r.sampleSize || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!causalInsights?.results || causalInsights.results.length === 0) && (
+                    <div className="text-center py-8 text-gray-400">
+                      暂无因果推断分析结果，系统将在定时维护任务中自动执行分析
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* v275: CQL模型监控 */}
+          <TabsContent value="cql-monitor">
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-pink-400" />
+                  CQL离线强化学习模型监控
+                </CardTitle>
+                <CardDescription>
+                  Conservative Q-Learning模型的训练状态、版本和性能指标
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* 汇总卡片 */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">模型总数</p>
+                    <p className="text-2xl font-bold text-white">{cqlModelStatus?.summary?.totalModels || 0}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">平均训练步数</p>
+                    <p className="text-2xl font-bold text-pink-400">{cqlModelStatus?.summary?.avgTrainingSteps || 0}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">最近训练时间</p>
+                    <p className="text-lg font-bold text-blue-400">
+                      {cqlModelStatus?.summary?.latestTrainedAt 
+                        ? format(new Date(cqlModelStatus.summary.latestTrainedAt), 'MM/dd HH:mm')
+                        : '尚未训练'}
+                    </p>
+                  </div>
+                </div>
+                {/* 模型列表 */}
+                <div className="space-y-3">
+                  {(cqlModelStatus?.models || []).map((model: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-full bg-pink-500/20">
+                          <Cpu className="h-5 w-5 text-pink-400" />
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">模型 v{model.modelVersion}</p>
+                          <p className="text-sm text-gray-400">
+                            训练轮次: {model.trainingEpisodes} | 步数: {model.trainingSteps}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white">Loss: {model.avgLoss?.toFixed(6)}</p>
+                        <p className="text-sm text-gray-400">
+                          {model.lastTrainedAt ? format(new Date(model.lastTrainedAt), 'yyyy-MM-dd HH:mm') : '未训练'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {(!cqlModelStatus?.models || cqlModelStatus.models.length === 0) && (
+                    <div className="text-center py-8 text-gray-400">
+                      暂无CQL模型记录，系统将在定时任务中自动训练
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* v275: 竞争环境感知 */}
+          <TabsContent value="competition">
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-orange-400" />
+                  竞争环境感知分析
+                </CardTitle>
+                <CardDescription>
+                  基于CPC波动、曝光变化和竞争密度的竞争环境分类和趋势
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-6">
+                  {/* 竞争类型分布饼图 */}
+                  <div>
+                    <h4 className="text-white font-medium mb-4">竞争类型分布</h4>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={(competitionInsights?.distribution || []).map((d: any) => ({
+                            name: d.label,
+                            value: d.count,
+                          }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={90}
+                          paddingAngle={3}
+                          dataKey="value"
+                          label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {(competitionInsights?.distribution || []).map((_: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={['#EF4444', '#F59E0B', '#10B981', '#6B7280'][index % 4]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  {/* 竞争强度趋势 */}
+                  <div>
+                    <h4 className="text-white font-medium mb-4">竞争强度趋势</h4>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={competitionInsights?.recentTrend || []}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="aggressive" name="疯狂型" fill="#EF4444" stackId="a" />
+                        <Bar dataKey="tight" name="紧缩型" fill="#F59E0B" stackId="a" />
+                        <Bar dataKey="passive" name="被动型" fill="#10B981" stackId="a" />
+                        <Bar dataKey="neutral" name="中性型" fill="#6B7280" stackId="a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                {/* 竞争环境摘要 */}
+                <div className="mt-4 p-4 bg-gray-700/50 rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <span className="text-gray-400 text-sm">平均竞争强度：</span>
+                      <Badge variant="outline" className={
+                        competitionInsights?.summary?.avgCompetition === 'high' ? 'border-red-500 text-red-400' :
+                        competitionInsights?.summary?.avgCompetition === 'medium' ? 'border-yellow-500 text-yellow-400' :
+                        'border-green-500 text-green-400'
+                      }>
+                        {competitionInsights?.summary?.avgCompetition === 'high' ? '高强度' :
+                         competitionInsights?.summary?.avgCompetition === 'medium' ? '中等' : '低强度'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-sm">主导竞争类型：</span>
+                      <span className="text-white">
+                        {competitionInsights?.summary?.dominantType === 'aggressive' ? '疯狂型' :
+                         competitionInsights?.summary?.dominantType === 'tight' ? '紧缩型' :
+                         competitionInsights?.summary?.dominantType === 'passive' ? '被动型' : '中性型'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {(!competitionInsights?.distribution || competitionInsights.distribution.length === 0) && (
+                  <div className="text-center py-8 text-gray-400">
+                    暂无竞争环境数据，系统将在优化执行时自动收集
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* v275: 预算分池状态 */}
+          <TabsContent value="budget-pool">
+            <Card className="bg-gray-800/50 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-green-400" />
+                  预算分池状态
+                </CardTitle>
+                <CardDescription>
+                  80/20预算分池策略的执行状态，核心池保护已验证的高ROI关键词，探索池测试新机会
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* 当前分配比例 */}
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 border border-blue-700/50 rounded-lg p-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="h-5 w-5 text-blue-400" />
+                      <span className="text-blue-400 font-medium">核心池</span>
+                    </div>
+                    <p className="text-4xl font-bold text-white">{budgetPoolInsights?.poolAllocation?.coreRatio || 80}%</p>
+                    <p className="text-sm text-gray-400 mt-1">保护已验证的高ROI关键词</p>
+                    <Progress value={budgetPoolInsights?.poolAllocation?.coreRatio || 80} className="mt-3" />
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-900/50 to-orange-800/30 border border-orange-700/50 rounded-lg p-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="h-5 w-5 text-orange-400" />
+                      <span className="text-orange-400 font-medium">探索池</span>
+                    </div>
+                    <p className="text-4xl font-bold text-white">{budgetPoolInsights?.poolAllocation?.explorationRatio || 20}%</p>
+                    <p className="text-sm text-gray-400 mt-1">测试新机会和潜力关键词</p>
+                    <Progress value={budgetPoolInsights?.poolAllocation?.explorationRatio || 20} className="mt-3" />
+                  </div>
+                </div>
+                {/* 分池趋势图 */}
+                {(budgetPoolInsights?.dailyTrend || []).length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-white font-medium mb-4">分池比例趋势</h4>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <ComposedChart data={budgetPoolInsights?.dailyTrend || []}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11 }} />
+                        <YAxis tick={{ fill: '#9CA3AF', fontSize: 11 }} domain={[0, 100]} />
+                        <Tooltip />
+                        <Legend />
+                        <Area type="monotone" dataKey="avgCoreRatio" name="核心池比例" fill="#3B82F6" stroke="#3B82F6" fillOpacity={0.3} />
+                        <Area type="monotone" dataKey="avgExplorationRatio" name="探索池比例" fill="#F97316" stroke="#F97316" fillOpacity={0.3} />
+                        <Line type="monotone" dataKey="eventCount" name="事件数" stroke="#10B981" yAxisId={0} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {/* 分池统计摘要 */}
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">平均核心池比例</p>
+                    <p className="text-xl font-bold text-blue-400">{budgetPoolInsights?.summary?.avgCoreRatio || 80}%</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">平均探索池比例</p>
+                    <p className="text-xl font-bold text-orange-400">{budgetPoolInsights?.summary?.avgExplorationRatio || 20}%</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">熔断触发次数</p>
+                    <p className="text-xl font-bold text-red-400">{budgetPoolInsights?.summary?.fusedCount || 0}</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-lg p-4">
+                    <p className="text-sm text-gray-400">总分池事件</p>
+                    <p className="text-xl font-bold text-white">{budgetPoolInsights?.summary?.totalEvents || 0}</p>
+                  </div>
+                </div>
+                {(!budgetPoolInsights?.dailyTrend || budgetPoolInsights.dailyTrend.length === 0) && (
+                  <div className="text-center py-8 text-gray-400 mt-4">
+                    暂无预算分池数据，系统将在优化执行时自动记录分池决策
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -326,21 +326,26 @@ async function getTimeWeightedCampaignMetrics(
   let weightedSpend = 0, weightedSales = 0, weightedOrders = 0;
   let totalWeight = 0;
   
-  const WEIGHTS = [
-    { maxDaysAgo: 3, weight: 1.0 },
-    { maxDaysAgo: 7, weight: 0.85 },
-    { maxDaysAgo: 14, weight: 0.65 },
-    { maxDaysAgo: 30, weight: 0.40 },
-  ];
+  // v275: 动态时间衰减权重 - 根据数据量和波动性自适应调整
+  // 数据量少时降低衰减速度（更平均地利用历史数据），数据量多时增强衰减（更侧重近期数据）
+  const dataPoints = dailyData.length;
+  const decayRate = dataPoints < 7 ? 0.02 : dataPoints < 14 ? 0.04 : 0.06; // 数据越多衰减越快
+  
+  // 计算数据波动性（用于调整衰减强度）
+  const spendValues = dailyData.map(d => Number(d.spend) || 0);
+  const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a, b) => a + b, 0) / spendValues.length : 0;
+  const variance = spendValues.length > 1 
+    ? spendValues.reduce((sum, v) => sum + Math.pow(v - avgSpendRaw, 2), 0) / spendValues.length 
+    : 0;
+  const cv = avgSpendRaw > 0 ? Math.sqrt(variance) / avgSpendRaw : 0; // 变异系数
+  const volatilityMultiplier = Math.min(1.5, 1.0 + cv * 0.5); // 波动越大衰减越快
   
   for (const day of dailyData) {
     const dayDate = new Date(day.date as string);
     const daysAgo = Math.floor((now.getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
     
-    let weight = 0.40;
-    for (const tw of WEIGHTS) {
-      if (daysAgo <= tw.maxDaysAgo) { weight = tw.weight; break; }
-    }
+    // v275: 指数衰减 + 波动性调整
+    const weight = Math.max(0.1, Math.exp(-decayRate * volatilityMultiplier * daysAgo));
     
     weightedSpend += (Number(day.spend) || 0) * weight;
     weightedSales += (Number(day.sales) || 0) * weight;

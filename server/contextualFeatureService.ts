@@ -487,34 +487,37 @@ export async function getCachedFeatureVector(
     return parseCachedFeature(cached[0]);
   }
   
-  // v264: P2-3 缓存TTL优化 — 当天缓存不存在时，接受昨天的缓存（24h宽限期）
+  // v275: 缓存TTL优化 — 扩展到3天宽限期，按新鲜度优先级逐天回退
   // 避免缓存任务延迟执行导致高级算法因缺少特征而降级
-  const yesterday = new Date(Date.now() - 24 * 3600000).toISOString().split('T')[0];
-  let staleCache;
-  if (keywordId) {
-    staleCache = await db.select().from(contextualFeatures)
-      .where(and(
-        eq(contextualFeatures.accountId, accountId),
-        eq(contextualFeatures.keywordId, keywordId),
-        eq(contextualFeatures.snapshotDate, yesterday)
-      ))
-      .limit(1);
-  } else if (targetId) {
-    staleCache = await db.select().from(contextualFeatures)
-      .where(and(
-        eq(contextualFeatures.accountId, accountId),
-        eq(contextualFeatures.targetId, targetId),
-        eq(contextualFeatures.snapshotDate, yesterday)
-      ))
-      .limit(1);
-  }
-  
-  if (staleCache && staleCache.length > 0) {
-    // 使用昨天的缓存但更新时间相关特征
-    const feature = parseCachedFeature(staleCache[0]);
-    feature.hourOfDay = new Date().getHours();
-    feature.dayOfWeek = new Date().getDay();
-    return feature;
+  for (let daysBack = 1; daysBack <= 3; daysBack++) {
+    const fallbackDate = new Date(Date.now() - daysBack * 24 * 3600000).toISOString().split('T')[0];
+    let staleCache;
+    if (keywordId) {
+      staleCache = await db.select().from(contextualFeatures)
+        .where(and(
+          eq(contextualFeatures.accountId, accountId),
+          eq(contextualFeatures.keywordId, keywordId),
+          eq(contextualFeatures.snapshotDate, fallbackDate)
+        ))
+        .limit(1);
+    } else if (targetId) {
+      staleCache = await db.select().from(contextualFeatures)
+        .where(and(
+          eq(contextualFeatures.accountId, accountId),
+          eq(contextualFeatures.targetId, targetId),
+          eq(contextualFeatures.snapshotDate, fallbackDate)
+        ))
+        .limit(1);
+    }
+    
+    if (staleCache && staleCache.length > 0) {
+      // 使用过期缓存但更新时间相关特征
+      const feature = parseCachedFeature(staleCache[0]);
+      feature.hourOfDay = new Date().getHours();
+      feature.dayOfWeek = new Date().getDay();
+      log.info(`[ContextualFeatureService] v275: 使用${daysBack}天前的缓存特征 (kw=${keywordId}, tgt=${targetId})`);
+      return feature;
+    }
   }
   
   // 缓存完全不存在，实时计算

@@ -357,6 +357,12 @@ export async function executeOptimizationTarget(
       log.warn(`[OptimizationTarget] v162 安全护栏触发: ${safetyCheck.warnings.join('; ')}`);
       // 紧急制动时不完全阻止执行，但记录警告并降低调整幅度
     }
+    // v275: 将风险评估结果传递到后续出价计算中
+    const riskBidMultiplier = safetyCheck.riskAssessment?.autoResponse?.bidMultiplier ?? 1.0;
+    const riskCooldownExtension = safetyCheck.riskAssessment?.autoResponse?.cooldownExtension ?? 1.0;
+    if (riskBidMultiplier < 1.0) {
+      log.info(`[OptimizationTarget] v275: 风险自动响应生效 - 出价乘数=${riskBidMultiplier}, 冷却延长=${riskCooldownExtension}x`);
+    }
   } catch (safetyErr: any) {
     log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
   }

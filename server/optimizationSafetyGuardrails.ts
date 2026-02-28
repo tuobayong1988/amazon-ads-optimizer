@@ -392,26 +392,160 @@ export async function checkEmergencyBrake(
  * 在优化执行前检查安全护栏
  * 如果触发紧急制动，返回建议的操作
  */
+// v275: 风险等级分层定义
+export type RiskLevel = 'green' | 'yellow' | 'red';
+
+export interface RiskAssessment {
+  level: RiskLevel;
+  score: number;           // 0-100, 越高越危险
+  factors: string[];
+  autoResponse: {
+    action: 'none' | 'slow_down' | 'reduce_bids' | 'reduce_budgets' | 'pause_optimization';
+    bidMultiplier: number;   // 出价乘数 (1.0=不变, 0.8=降20%)
+    budgetMultiplier: number; // 预算乘数
+    cooldownExtension: number; // 冷却期延长倍数
+  };
+}
+
+/**
+ * v275: 多维度风险评估 - 红/黄/绿三级风险等级
+ * 综合考虑ACoS趋势、花费趋势、订单趋势、紧急制动状态
+ */
+export async function assessRiskLevel(
+  accountId: number,
+  performanceGroupId: number
+): Promise<RiskAssessment> {
+  let riskScore = 0;
+  const factors: string[] = [];
+
+  try {
+    const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
+
+    // 紧急制动触发 → 直接红色
+    if (brakeResult.triggered) {
+      riskScore += 60;
+      factors.push(`紧急制动触发: ${brakeResult.reason}`);
+    }
+
+    // 获取最近7天的绩效数据用于趋势分析
+    const lookback = 7;
+    const now = new Date();
+    const recentStart = new Date(now);
+    recentStart.setDate(recentStart.getDate() - lookback);
+    const previousStart = new Date(recentStart);
+    previousStart.setDate(previousStart.getDate() - lookback);
+
+    const campaigns = await db.getCampaignsByPerformanceGroupId(performanceGroupId);
+    let recentSpend = 0, recentSales = 0, recentClicks = 0;
+    let previousSpend = 0, previousSales = 0, previousClicks = 0;
+
+    for (const campaign of campaigns) {
+      try {
+        const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, now, campaign.campaignId);
+        const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, recentStart, campaign.campaignId);
+        for (const d of recentData) {
+          recentSpend += Number(d.spend) || 0;
+          recentSales += Number(d.sales) || 0;
+          recentClicks += d.clicks || 0;
+        }
+        for (const d of previousData) {
+          previousSpend += Number(d.spend) || 0;
+          previousSales += Number(d.sales) || 0;
+          previousClicks += d.clicks || 0;
+        }
+      } catch (e) { /* skip */ }
+    }
+
+    // ACoS趋势评估
+    const recentACoS = recentSales > 0 ? recentSpend / recentSales : 0;
+    const previousACoS = previousSales > 0 ? previousSpend / previousSales : 0;
+    if (previousACoS > 0 && recentACoS > previousACoS * 1.3) {
+      riskScore += 15;
+      factors.push(`ACoS恶化: ${(previousACoS * 100).toFixed(1)}%→${(recentACoS * 100).toFixed(1)}%`);
+    }
+
+    // 花费效率评估
+    if (previousSpend > 10 && recentSpend > previousSpend * 1.5 && recentSales < previousSales * 1.2) {
+      riskScore += 15;
+      factors.push(`花费效率下降: 花费增${((recentSpend / previousSpend - 1) * 100).toFixed(0)}%但销售仅增${((recentSales / previousSales - 1) * 100).toFixed(0)}%`);
+    }
+
+    // 点击率趋势评估
+    if (previousClicks > 50 && recentClicks < previousClicks * 0.7) {
+      riskScore += 10;
+      factors.push(`点击量下降: ${previousClicks}→${recentClicks}`);
+    }
+
+    // 销售趋势评估
+    if (previousSales > 20 && recentSales < previousSales * 0.8) {
+      riskScore += 15;
+      factors.push(`销售额下降: $${previousSales.toFixed(0)}→$${recentSales.toFixed(0)}`);
+    }
+
+    // 确定风险等级和自动响应
+    let level: RiskLevel;
+    let autoResponse: RiskAssessment['autoResponse'];
+
+    if (riskScore >= 50) {
+      level = 'red';
+      autoResponse = {
+        action: brakeResult.recommendation === 'pause_optimization' ? 'pause_optimization' : 'reduce_bids',
+        bidMultiplier: 0.8,
+        budgetMultiplier: 0.85,
+        cooldownExtension: 2.0,
+      };
+      log.warn(`[RiskAssessment] 🔴 RED risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join('; ')}`);
+    } else if (riskScore >= 25) {
+      level = 'yellow';
+      autoResponse = {
+        action: 'slow_down',
+        bidMultiplier: 0.9,
+        budgetMultiplier: 0.95,
+        cooldownExtension: 1.5,
+      };
+      log.info(`[RiskAssessment] 🟡 YELLOW risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join('; ')}`);
+    } else {
+      level = 'green';
+      autoResponse = {
+        action: 'none',
+        bidMultiplier: 1.0,
+        budgetMultiplier: 1.0,
+        cooldownExtension: 1.0,
+      };
+    }
+
+    return { level, score: Math.min(riskScore, 100), factors, autoResponse };
+  } catch (error) {
+    log.error(`[RiskAssessment] Error for PG ${performanceGroupId}:`, error);
+    return {
+      level: 'green',
+      score: 0,
+      factors: ['风险评估异常，默认绿色'],
+      autoResponse: { action: 'none', bidMultiplier: 1.0, budgetMultiplier: 1.0, cooldownExtension: 1.0 },
+    };
+  }
+}
+
 export async function preOptimizationSafetyCheck(
   accountId: number,
   performanceGroupId: number
-): Promise<{ safe: boolean; warnings: string[] }> {
+): Promise<{ safe: boolean; warnings: string[]; riskAssessment?: RiskAssessment }> {
   const warnings: string[] = [];
   
-  const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
+  // v275: 使用多维度风险评估替代简单的紧急制动检查
+  const riskAssessment = await assessRiskLevel(accountId, performanceGroupId);
   
-  if (brakeResult.triggered) {
-    warnings.push(`⚠️ 紧急制动: ${brakeResult.reason}`);
-    warnings.push(`建议操作: ${
-      brakeResult.recommendation === 'pause_optimization' ? '暂停自动优化' :
-      brakeResult.recommendation === 'reduce_bids' ? '降低竞价10%' :
-      brakeResult.recommendation === 'reduce_budgets' ? '降低预算15%' :
-      '继续监控'
-    }`);
+  if (riskAssessment.level === 'red') {
+    warnings.push(`🔴 高风险 (评分${riskAssessment.score}): ${riskAssessment.factors.join('; ')}`);
+    warnings.push(`自动响应: ${riskAssessment.autoResponse.action}, 出价乘数=${riskAssessment.autoResponse.bidMultiplier}, 冷却延长=${riskAssessment.autoResponse.cooldownExtension}x`);
+  } else if (riskAssessment.level === 'yellow') {
+    warnings.push(`🟡 中风险 (评分${riskAssessment.score}): ${riskAssessment.factors.join('; ')}`);
+    warnings.push(`自动响应: 降速模式, 出价乘数=${riskAssessment.autoResponse.bidMultiplier}`);
   }
   
   return {
-    safe: !brakeResult.triggered,
+    safe: riskAssessment.level !== 'red',
     warnings,
+    riskAssessment,
   };
 }

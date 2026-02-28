@@ -543,8 +543,8 @@ var require_depd = __commonJS({
       return deprecate;
     }
     function eehaslisteners(emitter, type) {
-      var count2 = typeof emitter.listenerCount !== "function" ? emitter.listeners(type).length : emitter.listenerCount(type);
-      return count2 > 0;
+      var count3 = typeof emitter.listenerCount !== "function" ? emitter.listeners(type).length : emitter.listenerCount(type);
+      return count3 > 0;
     }
     function isignored(namespace) {
       if (process.noDeprecation) {
@@ -17543,16 +17543,16 @@ var require_urlencoded = __commonJS({
       }
     }
     function parameterCount(body, limit2) {
-      var count2 = 0;
+      var count3 = 0;
       var index2 = 0;
       while ((index2 = body.indexOf("&", index2)) !== -1) {
-        count2++;
+        count3++;
         index2++;
-        if (count2 === limit2) {
+        if (count3 === limit2) {
           return void 0;
         }
       }
-      return count2;
+      return count3;
     }
     function parser(name2) {
       var mod = parsers[name2];
@@ -21273,8 +21273,8 @@ var require_send = __commonJS({
       return typeof res.getHeaderNames !== "function" ? Object.keys(res._headers || {}) : res.getHeaderNames();
     }
     function hasListeners(emitter, type) {
-      var count2 = typeof emitter.listenerCount !== "function" ? emitter.listeners(type).length : emitter.listenerCount(type);
-      return count2 > 0;
+      var count3 = typeof emitter.listenerCount !== "function" ? emitter.listeners(type).length : emitter.listenerCount(type);
+      return count3 > 0;
     }
     function headersSent(res) {
       return typeof res.headersSent !== "boolean" ? Boolean(res._header) : res.headersSent;
@@ -22962,13 +22962,13 @@ var require_mediaType = __commonJS({
       return spec.q > 0;
     }
     function quoteCount(string4) {
-      var count2 = 0;
+      var count3 = 0;
       var index2 = 0;
       while ((index2 = string4.indexOf('"', index2)) !== -1) {
-        count2++;
+        count3++;
         index2++;
       }
-      return count2;
+      return count3;
     }
     function splitKeyValuePair(str2) {
       var index2 = str2.indexOf("=");
@@ -24703,13 +24703,13 @@ var require_mediaType2 = __commonJS({
       return spec.q > 0;
     }
     function quoteCount(string4) {
-      var count2 = 0;
+      var count3 = 0;
       var index2 = 0;
       while ((index2 = string4.indexOf('"', index2)) !== -1) {
-        count2++;
+        count3++;
         index2++;
       }
-      return count2;
+      return count3;
     }
     function splitKeyValuePair(str2) {
       var index2 = str2.indexOf("=");
@@ -27072,10 +27072,10 @@ var init_subquery = __esm({
     init_entity();
     Subquery = class {
       static [entityKind] = "Subquery";
-      constructor(sql16, fields, alias2, isWith = false, usedTables = []) {
+      constructor(sql17, fields, alias2, isWith = false, usedTables = []) {
         this._ = {
           brand: "Subquery",
-          sql: sql16,
+          sql: sql17,
           selectedFields: fields,
           alias: alias2,
           isWith,
@@ -33170,8 +33170,8 @@ var init_db = __esm({
 });
 
 // node_modules/drizzle-orm/cache/core/cache.js
-async function hashQuery(sql16, params) {
-  const dataToHash = `${sql16}-${JSON.stringify(params)}`;
+async function hashQuery(sql17, params) {
+  const dataToHash = `${sql17}-${JSON.stringify(params)}`;
   const encoder2 = new TextEncoder();
   const data2 = encoder2.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data2);
@@ -37689,9 +37689,9 @@ var init_logger2 = __esm({
       }
       /** 获取最新的N条 */
       getLatest(n7) {
-        const count2 = Math.min(n7, this.count);
+        const count3 = Math.min(n7, this.count);
         const result = [];
-        for (let i4 = 0; i4 < count2; i4++) {
+        for (let i4 = 0; i4 < count3; i4++) {
           const idx = (this.head - 1 - i4 + this.capacity) % this.capacity;
           const item = this.buffer[idx];
           if (item !== void 0) result.push(item);
@@ -37989,7 +37989,7 @@ var init_logger2 = __esm({
           byLevel[levelName] = (byLevel[levelName] || 0) + 1;
           moduleCount.set(entry.module, (moduleCount.get(entry.module) || 0) + 1);
         }
-        const byModule = Array.from(moduleCount.entries()).map(([module2, count2]) => ({ module: module2, count: count2 })).sort((a4, b6) => b6.count - a4.count).slice(0, 20);
+        const byModule = Array.from(moduleCount.entries()).map(([module2, count3]) => ({ module: module2, count: count3 })).sort((a4, b6) => b6.count - a4.count).slice(0, 20);
         return {
           totalEntries: entries.length,
           byLevel,
@@ -50409,8 +50409,8 @@ var require_lte = __commonJS({
   "node_modules/jsonwebtoken/node_modules/semver/functions/lte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var lte25 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
-    module2.exports = lte25;
+    var lte26 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
+    module2.exports = lte26;
   }
 });
 
@@ -50423,7 +50423,7 @@ var require_cmp = __commonJS({
     var gt5 = require_gt();
     var gte23 = require_gte();
     var lt5 = require_lt();
-    var lte25 = require_lte();
+    var lte26 = require_lte();
     var cmp = (a4, op2, b6, loose) => {
       switch (op2) {
         case "===":
@@ -50455,7 +50455,7 @@ var require_cmp = __commonJS({
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte25(a4, b6, loose);
+          return lte26(a4, b6, loose);
         default:
           throw new TypeError(`Invalid operator: ${op2}`);
       }
@@ -51209,7 +51209,7 @@ var require_outside = __commonJS({
     var satisfies = require_satisfies();
     var gt5 = require_gt();
     var lt5 = require_lt();
-    var lte25 = require_lte();
+    var lte26 = require_lte();
     var gte23 = require_gte();
     var outside = (version5, range3, hilo, options) => {
       version5 = new SemVer(version5, options);
@@ -51218,7 +51218,7 @@ var require_outside = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte25;
+          ltefn = lte26;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
@@ -51541,7 +51541,7 @@ var require_semver2 = __commonJS({
     var eq7 = require_eq();
     var neq = require_neq();
     var gte23 = require_gte();
-    var lte25 = require_lte();
+    var lte26 = require_lte();
     var cmp = require_cmp();
     var coerce2 = require_coerce();
     var Comparator = require_comparator();
@@ -51579,7 +51579,7 @@ var require_semver2 = __commonJS({
       eq: eq7,
       neq,
       gte: gte23,
-      lte: lte25,
+      lte: lte26,
       cmp,
       coerce: coerce2,
       Comparator,
@@ -55480,11 +55480,11 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
         const errorSummary = result.errors.slice(0, 3).join("; ");
-        await dbInstance.execute(sql16`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+        await dbInstance.execute(sql17`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
       log10.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
@@ -55970,8 +55970,8 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
           if (dbInstance) {
-            const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-            await dbInstance.execute(sql16`
+            const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql17`
               INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
               VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
             `);
@@ -57572,16 +57572,113 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
     return { triggered: false, reason: null, recommendation: "none" };
   }
 }
+async function assessRiskLevel(accountId, performanceGroupId) {
+  let riskScore = 0;
+  const factors = [];
+  try {
+    const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
+    if (brakeResult.triggered) {
+      riskScore += 60;
+      factors.push(`\u7D27\u6025\u5236\u52A8\u89E6\u53D1: ${brakeResult.reason}`);
+    }
+    const lookback = 7;
+    const now = /* @__PURE__ */ new Date();
+    const recentStart = new Date(now);
+    recentStart.setDate(recentStart.getDate() - lookback);
+    const previousStart = new Date(recentStart);
+    previousStart.setDate(previousStart.getDate() - lookback);
+    const campaigns7 = await getCampaignsByPerformanceGroupId(performanceGroupId);
+    let recentSpend = 0, recentSales = 0, recentClicks = 0;
+    let previousSpend = 0, previousSales = 0, previousClicks = 0;
+    for (const campaign of campaigns7) {
+      try {
+        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, now, campaign.campaignId);
+        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, recentStart, campaign.campaignId);
+        for (const d5 of recentData) {
+          recentSpend += Number(d5.spend) || 0;
+          recentSales += Number(d5.sales) || 0;
+          recentClicks += d5.clicks || 0;
+        }
+        for (const d5 of previousData) {
+          previousSpend += Number(d5.spend) || 0;
+          previousSales += Number(d5.sales) || 0;
+          previousClicks += d5.clicks || 0;
+        }
+      } catch (e6) {
+      }
+    }
+    const recentACoS = recentSales > 0 ? recentSpend / recentSales : 0;
+    const previousACoS = previousSales > 0 ? previousSpend / previousSales : 0;
+    if (previousACoS > 0 && recentACoS > previousACoS * 1.3) {
+      riskScore += 15;
+      factors.push(`ACoS\u6076\u5316: ${(previousACoS * 100).toFixed(1)}%\u2192${(recentACoS * 100).toFixed(1)}%`);
+    }
+    if (previousSpend > 10 && recentSpend > previousSpend * 1.5 && recentSales < previousSales * 1.2) {
+      riskScore += 15;
+      factors.push(`\u82B1\u8D39\u6548\u7387\u4E0B\u964D: \u82B1\u8D39\u589E${((recentSpend / previousSpend - 1) * 100).toFixed(0)}%\u4F46\u9500\u552E\u4EC5\u589E${((recentSales / previousSales - 1) * 100).toFixed(0)}%`);
+    }
+    if (previousClicks > 50 && recentClicks < previousClicks * 0.7) {
+      riskScore += 10;
+      factors.push(`\u70B9\u51FB\u91CF\u4E0B\u964D: ${previousClicks}\u2192${recentClicks}`);
+    }
+    if (previousSales > 20 && recentSales < previousSales * 0.8) {
+      riskScore += 15;
+      factors.push(`\u9500\u552E\u989D\u4E0B\u964D: $${previousSales.toFixed(0)}\u2192$${recentSales.toFixed(0)}`);
+    }
+    let level;
+    let autoResponse;
+    if (riskScore >= 50) {
+      level = "red";
+      autoResponse = {
+        action: brakeResult.recommendation === "pause_optimization" ? "pause_optimization" : "reduce_bids",
+        bidMultiplier: 0.8,
+        budgetMultiplier: 0.85,
+        cooldownExtension: 2
+      };
+      log14.warn(`[RiskAssessment] \u{1F534} RED risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
+    } else if (riskScore >= 25) {
+      level = "yellow";
+      autoResponse = {
+        action: "slow_down",
+        bidMultiplier: 0.9,
+        budgetMultiplier: 0.95,
+        cooldownExtension: 1.5
+      };
+      log14.info(`[RiskAssessment] \u{1F7E1} YELLOW risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
+    } else {
+      level = "green";
+      autoResponse = {
+        action: "none",
+        bidMultiplier: 1,
+        budgetMultiplier: 1,
+        cooldownExtension: 1
+      };
+    }
+    return { level, score: Math.min(riskScore, 100), factors, autoResponse };
+  } catch (error51) {
+    log14.error(`[RiskAssessment] Error for PG ${performanceGroupId}:`, error51);
+    return {
+      level: "green",
+      score: 0,
+      factors: ["\u98CE\u9669\u8BC4\u4F30\u5F02\u5E38\uFF0C\u9ED8\u8BA4\u7EFF\u8272"],
+      autoResponse: { action: "none", bidMultiplier: 1, budgetMultiplier: 1, cooldownExtension: 1 }
+    };
+  }
+}
 async function preOptimizationSafetyCheck(accountId, performanceGroupId) {
   const warnings = [];
-  const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
-  if (brakeResult.triggered) {
-    warnings.push(`\u26A0\uFE0F \u7D27\u6025\u5236\u52A8: ${brakeResult.reason}`);
-    warnings.push(`\u5EFA\u8BAE\u64CD\u4F5C: ${brakeResult.recommendation === "pause_optimization" ? "\u6682\u505C\u81EA\u52A8\u4F18\u5316" : brakeResult.recommendation === "reduce_bids" ? "\u964D\u4F4E\u7ADE\u4EF710%" : brakeResult.recommendation === "reduce_budgets" ? "\u964D\u4F4E\u9884\u7B9715%" : "\u7EE7\u7EED\u76D1\u63A7"}`);
+  const riskAssessment = await assessRiskLevel(accountId, performanceGroupId);
+  if (riskAssessment.level === "red") {
+    warnings.push(`\u{1F534} \u9AD8\u98CE\u9669 (\u8BC4\u5206${riskAssessment.score}): ${riskAssessment.factors.join("; ")}`);
+    warnings.push(`\u81EA\u52A8\u54CD\u5E94: ${riskAssessment.autoResponse.action}, \u51FA\u4EF7\u4E58\u6570=${riskAssessment.autoResponse.bidMultiplier}, \u51B7\u5374\u5EF6\u957F=${riskAssessment.autoResponse.cooldownExtension}x`);
+  } else if (riskAssessment.level === "yellow") {
+    warnings.push(`\u{1F7E1} \u4E2D\u98CE\u9669 (\u8BC4\u5206${riskAssessment.score}): ${riskAssessment.factors.join("; ")}`);
+    warnings.push(`\u81EA\u52A8\u54CD\u5E94: \u964D\u901F\u6A21\u5F0F, \u51FA\u4EF7\u4E58\u6570=${riskAssessment.autoResponse.bidMultiplier}`);
   }
   return {
-    safe: !brakeResult.triggered,
-    warnings
+    safe: riskAssessment.level !== "red",
+    warnings,
+    riskAssessment
   };
 }
 var log14, SAFETY_LIMITS;
@@ -58657,26 +58754,29 @@ async function getCachedFeatureVector(accountId, keywordId, targetId, campaignId
   if (cached2 && cached2.length > 0) {
     return parseCachedFeature(cached2[0]);
   }
-  const yesterday = new Date(Date.now() - 24 * 36e5).toISOString().split("T")[0];
-  let staleCache;
-  if (keywordId) {
-    staleCache = await db.select().from(contextualFeatures).where(and(
-      eq(contextualFeatures.accountId, accountId),
-      eq(contextualFeatures.keywordId, keywordId),
-      eq(contextualFeatures.snapshotDate, yesterday)
-    )).limit(1);
-  } else if (targetId) {
-    staleCache = await db.select().from(contextualFeatures).where(and(
-      eq(contextualFeatures.accountId, accountId),
-      eq(contextualFeatures.targetId, targetId),
-      eq(contextualFeatures.snapshotDate, yesterday)
-    )).limit(1);
-  }
-  if (staleCache && staleCache.length > 0) {
-    const feature = parseCachedFeature(staleCache[0]);
-    feature.hourOfDay = (/* @__PURE__ */ new Date()).getHours();
-    feature.dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
-    return feature;
+  for (let daysBack = 1; daysBack <= 3; daysBack++) {
+    const fallbackDate = new Date(Date.now() - daysBack * 24 * 36e5).toISOString().split("T")[0];
+    let staleCache;
+    if (keywordId) {
+      staleCache = await db.select().from(contextualFeatures).where(and(
+        eq(contextualFeatures.accountId, accountId),
+        eq(contextualFeatures.keywordId, keywordId),
+        eq(contextualFeatures.snapshotDate, fallbackDate)
+      )).limit(1);
+    } else if (targetId) {
+      staleCache = await db.select().from(contextualFeatures).where(and(
+        eq(contextualFeatures.accountId, accountId),
+        eq(contextualFeatures.targetId, targetId),
+        eq(contextualFeatures.snapshotDate, fallbackDate)
+      )).limit(1);
+    }
+    if (staleCache && staleCache.length > 0) {
+      const feature = parseCachedFeature(staleCache[0]);
+      feature.hourOfDay = (/* @__PURE__ */ new Date()).getHours();
+      feature.dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
+      log16.info(`[ContextualFeatureService] v275: \u4F7F\u7528${daysBack}\u5929\u524D\u7684\u7F13\u5B58\u7279\u5F81 (kw=${keywordId}, tgt=${targetId})`);
+      return feature;
+    }
   }
   return extractFeatureVector(accountId, keywordId, targetId, campaignId);
 }
@@ -72731,9 +72831,9 @@ async function checkBidDirectionConsistency(accountId, keywordId, targetId) {
   try {
     const db = await getDb();
     if (!db) return { isOscillating: false, reason: "" };
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const entityCondition = keywordId ? sql16`entity_id = ${keywordId} AND entity_type = 'keyword'` : sql16`entity_id = ${targetId} AND entity_type = 'product_target'`;
-    const [rows] = await db.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const entityCondition = keywordId ? sql17`entity_id = ${keywordId} AND entity_type = 'keyword'` : sql17`entity_id = ${targetId} AND entity_type = 'product_target'`;
+    const [rows] = await db.execute(sql17`
       SELECT action_type, new_value, previous_value, created_at
       FROM optimization_events
       WHERE account_id = ${accountId}
@@ -74599,22 +74699,17 @@ async function getTimeWeightedCampaignMetrics(db, campaignIds, startDate, endDat
   const now = /* @__PURE__ */ new Date();
   let weightedSpend = 0, weightedSales = 0, weightedOrders = 0;
   let totalWeight = 0;
-  const WEIGHTS = [
-    { maxDaysAgo: 3, weight: 1 },
-    { maxDaysAgo: 7, weight: 0.85 },
-    { maxDaysAgo: 14, weight: 0.65 },
-    { maxDaysAgo: 30, weight: 0.4 }
-  ];
+  const dataPoints = dailyData.length;
+  const decayRate = dataPoints < 7 ? 0.02 : dataPoints < 14 ? 0.04 : 0.06;
+  const spendValues = dailyData.map((d5) => Number(d5.spend) || 0);
+  const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a4, b6) => a4 + b6, 0) / spendValues.length : 0;
+  const variance = spendValues.length > 1 ? spendValues.reduce((sum2, v6) => sum2 + Math.pow(v6 - avgSpendRaw, 2), 0) / spendValues.length : 0;
+  const cv = avgSpendRaw > 0 ? Math.sqrt(variance) / avgSpendRaw : 0;
+  const volatilityMultiplier = Math.min(1.5, 1 + cv * 0.5);
   for (const day2 of dailyData) {
     const dayDate = new Date(day2.date);
     const daysAgo = Math.floor((now.getTime() - dayDate.getTime()) / (1e3 * 60 * 60 * 24));
-    let weight = 0.4;
-    for (const tw of WEIGHTS) {
-      if (daysAgo <= tw.maxDaysAgo) {
-        weight = tw.weight;
-        break;
-      }
-    }
+    const weight = Math.max(0.1, Math.exp(-decayRate * volatilityMultiplier * daysAgo));
     weightedSpend += (Number(day2.spend) || 0) * weight;
     weightedSales += (Number(day2.sales) || 0) * weight;
     weightedOrders += (Number(day2.orders) || 0) * weight;
@@ -81587,18 +81682,18 @@ var init_amazonAdsApi = __esm({
       async listSdCampaigns() {
         const allCampaigns = [];
         let startIndex = 0;
-        const count2 = 100;
+        const count3 = 100;
         while (true) {
           let response;
           try {
             response = await this.axiosInstance.get("/sd/campaigns/extended", {
-              params: { startIndex, count: count2 }
+              params: { startIndex, count: count3 }
             });
             log37.debug("[SD API] Using extended endpoint for more fields");
           } catch (error51) {
             log37.warn("[SD API] Extended endpoint failed, falling back to standard endpoint");
             response = await this.axiosInstance.get("/sd/campaigns", {
-              params: { startIndex, count: count2 }
+              params: { startIndex, count: count3 }
             });
           }
           const campaigns7 = response.data || [];
@@ -81609,10 +81704,10 @@ var init_amazonAdsApi = __esm({
             log37.debug("[SD API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
             log37.debug("[SD API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
           }
-          if (campaigns7.length < count2) {
+          if (campaigns7.length < count3) {
             break;
           }
-          startIndex += count2;
+          startIndex += count3;
         }
         log37.debug(`[SD API] Total campaigns fetched: ${allCampaigns.length}`);
         return allCampaigns;
@@ -81624,9 +81719,9 @@ var init_amazonAdsApi = __esm({
       async listSdAdGroups(campaignId) {
         const allAdGroups = [];
         let startIndex = 0;
-        const count2 = 100;
+        const count3 = 100;
         while (true) {
-          const params = { startIndex, count: count2 };
+          const params = { startIndex, count: count3 };
           if (campaignId) {
             params.campaignIdFilter = campaignId;
           }
@@ -81634,10 +81729,10 @@ var init_amazonAdsApi = __esm({
           const adGroups4 = response.data || [];
           allAdGroups.push(...adGroups4);
           log37.debug(`[SD API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}`);
-          if (adGroups4.length < count2) {
+          if (adGroups4.length < count3) {
             break;
           }
-          startIndex += count2;
+          startIndex += count3;
         }
         log37.debug(`[SD API] Total ad groups fetched: ${allAdGroups.length}`);
         return allAdGroups;
@@ -81649,9 +81744,9 @@ var init_amazonAdsApi = __esm({
       async listSdTargets(adGroupId) {
         const allTargets = [];
         let startIndex = 0;
-        const count2 = 100;
+        const count3 = 100;
         while (true) {
-          const params = { startIndex, count: count2 };
+          const params = { startIndex, count: count3 };
           if (adGroupId) {
             params.adGroupIdFilter = adGroupId;
           }
@@ -81659,10 +81754,10 @@ var init_amazonAdsApi = __esm({
           const targets = response.data || [];
           allTargets.push(...targets);
           log37.debug(`[SD API] Fetched ${targets.length} targets, total: ${allTargets.length}`);
-          if (targets.length < count2) {
+          if (targets.length < count3) {
             break;
           }
-          startIndex += count2;
+          startIndex += count3;
         }
         log37.debug(`[SD API] Total targets fetched: ${allTargets.length}`);
         return allTargets;
@@ -87241,8 +87336,8 @@ async function persistRiskAlert(accountId, alertType, severity, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql17`
       INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
       VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
     `);
@@ -87254,8 +87349,8 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return false;
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [existing] = await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [existing] = await dbInstance.execute(sql17`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
       LIMIT 1
@@ -87264,7 +87359,7 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
       log41.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u6709\u672A\u5904\u7406\u7684${actionType}\u4EFB\u52A1\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5165\u961F`);
       return true;
     }
-    await dbInstance.execute(sql16`
+    await dbInstance.execute(sql17`
       INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
       VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
     `);
@@ -87373,9 +87468,9 @@ async function assessSyncHealth() {
     };
   }
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const [statusStats] = await dbInstance.execute(
-      sql16`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+      sql17`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     );
     const dist = statusStats || [];
     const synced = Number(dist.find((d5) => d5.api_sync_status === "synced")?.count || 0);
@@ -87575,8 +87670,8 @@ async function isAccountInEmergencyQueue(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { inQueue: false };
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql17`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
       ORDER BY createdAt DESC LIMIT 1
@@ -87594,8 +87689,8 @@ async function markEmergencyOptimizationProcessed(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql17`
       UPDATE emergency_optimization_queue 
       SET processed = 1, processedAt = NOW()
       WHERE accountId = ${accountId} AND processed = 0
@@ -87609,8 +87704,8 @@ async function getPendingEmergencyAccounts() {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql17`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
       ORDER BY 
@@ -87704,15 +87799,15 @@ async function checkAcosTrendForAccount(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [recentRows] = await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [recentRows] = await dbInstance.execute(sql17`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
       WHERE account_id = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `);
-    const [prevRows] = await dbInstance.execute(sql16`
+    const [prevRows] = await dbInstance.execute(sql17`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
@@ -87782,8 +87877,8 @@ async function cleanupProcessedEntries() {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [result] = await dbInstance.execute(sql16`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [result] = await dbInstance.execute(sql17`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
@@ -89292,6 +89387,11 @@ async function executeOptimizationTarget(targetId, options = {}) {
     if (!safetyCheck.safe) {
       result.warnings.push(...safetyCheck.warnings);
       log44.warn(`[OptimizationTarget] v162 \u5B89\u5168\u62A4\u680F\u89E6\u53D1: ${safetyCheck.warnings.join("; ")}`);
+    }
+    const riskBidMultiplier = safetyCheck.riskAssessment?.autoResponse?.bidMultiplier ?? 1;
+    const riskCooldownExtension = safetyCheck.riskAssessment?.autoResponse?.cooldownExtension ?? 1;
+    if (riskBidMultiplier < 1) {
+      log44.info(`[OptimizationTarget] v275: \u98CE\u9669\u81EA\u52A8\u54CD\u5E94\u751F\u6548 - \u51FA\u4EF7\u4E58\u6570=${riskBidMultiplier}, \u51B7\u5374\u5EF6\u957F=${riskCooldownExtension}x`);
     }
   } catch (safetyErr) {
     log44.warn(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
@@ -120306,7 +120406,7 @@ var init_sqsConsumerService = __esm({
       async upsertKeywordPlacementHourlyData(params) {
         const { keywordPlacementHourlyPerformance: keywordPlacementHourlyPerformance2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
-        const { eq: eq7, and: and9, sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, and: and9, sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const dbConn = await getDb2();
         if (!dbConn) return;
         let hour2 = 0;
@@ -120340,8 +120440,8 @@ var init_sqsConsumerService = __esm({
         const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and9(
           eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
           eq7(keywordPlacementHourlyPerformance2.campaignId, String(params.campaignId)),
-          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql16`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
-          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql16`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
+          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql17`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
+          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql17`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
           eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
           eq7(keywordPlacementHourlyPerformance2.date, params.date),
           eq7(keywordPlacementHourlyPerformance2.hour, hour2)
@@ -125262,7 +125362,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 274;
+    SYSTEM_VERSION = 275;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -125556,6 +125656,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 274,
         description: "v274: [\u5168\u9762\u5F15\u64CE\u589E\u5F3A] \u2014 (1)P0-\u56E0\u679C\u63A8\u65AD\u63A5\u5165\u51FA\u4EF7\u51B3\u7B56: causalInferenceResults\u7684optimalBid\u4F5C\u4E3A\u4FE1\u53F7\u6E90\u878D\u5165batchCalculateNextGenBids (2)P0-CQL\u8BAD\u7EC3\u589E\u5F3A: \u6570\u636E\u8D28\u91CF\u9A8C\u8BC1+\u5956\u52B1\u5F52\u4E00\u5316+\u6A21\u578B\u8D28\u91CF\u8BC4\u4F30+\u51B7\u542F\u52A8\u63A2\u7D22 (3)P1-\u7ADE\u4E89\u73AF\u5883\u611F\u77E5\u589E\u5F3A: \u591A\u7EF4\u4FE1\u53F7\u878D\u5408(CPC\u6CE2\u52A8+\u66DD\u5149\u4EFD\u989D+CTR\u53D8\u5316+\u65E5\u62A5\u6570\u636E) (4)P1-\u9884\u7B97\u5206\u6C60\u5177\u8C61\u5316: performanceData\u5B57\u6BB5\u8BB0\u5F55GTO\u51B3\u7B56\u5143\u6570\u636E (5)P2-\u81EA\u52A8\u7EA0\u9519\u95ED\u73AF\u589E\u5F3A: \u56E0\u679C\u63A8\u65AD\u8F85\u52A9\u7EA0\u9519\u5224\u65AD+\u6548\u679C\u8BC4\u5206\u589E\u52A0\u56E0\u679C\u7EF4\u5EA6",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 275,
+        description: "v275: [\u53EF\u89C6\u5316+\u98CE\u63A7+\u667A\u80FD\u5316] \u2014 (1)P1-\u524D\u7AEF\u56E0\u679C\u63A8\u65AD\u53EF\u89C6\u5316: AlgorithmEffectDashboard\u65B0\u589E\u56E0\u679C\u5206\u6790Tab+\u5F71\u54CD\u5206\u5E03\u56FE+\u7F6E\u4FE1\u5EA6\u8FDB\u5EA6\u6761 (2)P1-\u9884\u7B97\u5206\u6C60Dashboard: \u5B9E\u65F6\u5C55\u793A80/20\u5206\u6C60\u5206\u914D\u548C\u56DE\u62A5 (3)P2-CQL\u6A21\u578B\u76D1\u63A7: \u8BAD\u7EC3\u72B6\u6001/\u51B3\u7B56\u6B21\u6570/\u6A21\u578B\u8D28\u91CF\u5206\u5C55\u793A (4)P2-\u7ADE\u4E89\u73AF\u5883\u611F\u77E5\u5C55\u793A: \u7ADE\u4E89\u5F3A\u5EA6\u5206\u5E03\u56FE+\u5E02\u573A\u52A8\u6001\u5361\u7247 (5)P2-\u98CE\u9669\u7B49\u7EA7\u5206\u5C42\u81EA\u52A8\u54CD\u5E94: \u7EA2/\u9EC4/\u7EFF\u4E09\u7EA7\u98CE\u9669\u8BC4\u4F30+\u81EA\u52A8\u51FA\u4EF7\u4E58\u6570\u8C03\u6574+\u51B7\u5374\u671F\u5EF6\u957F (6)P3-\u52A8\u6001\u65F6\u95F4\u8870\u51CF\u6743\u91CD: \u6307\u6570\u8870\u51CF+\u6CE2\u52A8\u6027\u81EA\u9002\u5E94 (7)P3-\u7279\u5F81\u7F13\u5B58TTL\u4F18\u5316: 3\u5929\u5BBD\u9650\u671F\u9010\u5929\u56DE\u9000",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
       }
@@ -126629,12 +126735,12 @@ async function createInviteCode(input) {
     return { success: false, error: error51.message || "\u521B\u5EFA\u9080\u8BF7\u7801\u5931\u8D25" };
   }
 }
-async function createInviteCodesBatch(input, count2) {
-  if (count2 < 1 || count2 > 100) {
+async function createInviteCodesBatch(input, count3) {
+  if (count3 < 1 || count3 > 100) {
     return { success: false, error: "\u6279\u91CF\u751F\u6210\u6570\u91CF\u5FC5\u987B\u57281-100\u4E4B\u95F4" };
   }
   const codes = [];
-  for (let i4 = 0; i4 < count2; i4++) {
+  for (let i4 = 0; i4 < count3; i4++) {
     const result = await createInviteCode(input);
     if (result.success && result.inviteCode) {
       codes.push(result.inviteCode);
@@ -127183,9 +127289,9 @@ async function checkSyncHealth(db, teamId, alerts) {
     let synced = 0;
     let total = 0;
     for (const row of result) {
-      const count2 = Number(row.count);
-      total += count2;
-      if (row.status === "synced") synced += count2;
+      const count3 = Number(row.count);
+      total += count3;
+      if (row.status === "synced") synced += count3;
     }
     const successRate = total > 0 ? synced / total * 100 : 100;
     if (successRate < ALERT_THRESHOLDS.syncSuccessRateMin) {
@@ -132800,13 +132906,13 @@ var require_parse4 = __commonJS({
         consume(token.value);
       };
       const negate = () => {
-        let count2 = 1;
+        let count3 = 1;
         while (peek() === "!" && (peek(2) !== "(" || peek(3) === "?")) {
           advance();
           state2.start++;
-          count2++;
+          count3++;
         }
-        if (count2 % 2 === 0) {
+        if (count3 % 2 === 0) {
           return false;
         }
         state2.negated = true;
@@ -133708,17 +133814,17 @@ var require_main2 = __commonJS({
           case 4:
             return bb.read();
           case 5: {
-            let count2 = bb.read32();
+            let count3 = bb.read32();
             let value22 = [];
-            for (let i4 = 0; i4 < count2; i4++) {
+            for (let i4 = 0; i4 < count3; i4++) {
               value22.push(visit());
             }
             return value22;
           }
           case 6: {
-            let count2 = bb.read32();
+            let count3 = bb.read32();
             let value22 = {};
-            for (let i4 = 0; i4 < count2; i4++) {
+            for (let i4 = 0; i4 < count3; i4++) {
               value22[decodeUTF82(bb.read())] = visit();
             }
             return value22;
@@ -142911,8 +143017,8 @@ var init_dist5 = __esm({
         if (isControlCodePoint(cp)) this._err(ERR.controlCharacterInInputStream);
         else if (isUndefinedCodePoint(cp)) this._err(ERR.noncharacterInInputStream);
       }
-      retreat(count2) {
-        this.pos -= count2;
+      retreat(count3) {
+        this.pos -= count3;
         while (this.pos < this.lastGapPos) {
           this.lastGapPos = this.gapStack.pop();
           this.pos--;
@@ -143924,9 +144030,9 @@ var init_dist5 = __esm({
         this.consumedAfterSnapshot++;
         return this.preprocessor.advance();
       }
-      _advanceBy(count2) {
-        this.consumedAfterSnapshot += count2;
-        for (let i4 = 0; i4 < count2; i4++) this.preprocessor.advance();
+      _advanceBy(count3) {
+        this.consumedAfterSnapshot += count3;
+        for (let i4 = 0; i4 < count3; i4++) this.preprocessor.advance();
       }
       _consumeSequenceIfMatch(pattern, caseSensitive) {
         if (this.preprocessor.startsWith(pattern, caseSensitive)) {
@@ -148250,13 +148356,13 @@ function requireParse$2() {
       consume(token.value);
     };
     const negate = () => {
-      let count2 = 1;
+      let count3 = 1;
       while (peek() === "!" && (peek(2) !== "(" || peek(3) === "?")) {
         advance();
         state2.start++;
-        count2++;
+        count3++;
       }
-      if (count2 % 2 === 0) {
+      if (count3 % 2 === 0) {
         return false;
       }
       state2.negated = true;
@@ -149973,13 +150079,13 @@ function requireParse$1() {
       consume(token.value);
     };
     const negate = () => {
-      let count2 = 1;
+      let count3 = 1;
       while (peek() === "!" && (peek(2) !== "(" || peek(3) === "?")) {
         advance();
         state2.start++;
-        count2++;
+        count3++;
       }
-      if (count2 % 2 === 0) {
+      if (count3 % 2 === 0) {
         return false;
       }
       state2.negated = true;
@@ -151269,7 +151375,7 @@ function requireToRegexRange() {
     let zipped = zip(start, stop);
     let digits = zipped.length;
     let pattern = "";
-    let count2 = 0;
+    let count3 = 0;
     for (let i4 = 0; i4 < digits; i4++) {
       let [startDigit, stopDigit] = zipped[i4];
       if (startDigit === stopDigit) {
@@ -151277,13 +151383,13 @@ function requireToRegexRange() {
       } else if (startDigit !== "0" || stopDigit !== "9") {
         pattern += toCharacterClass(startDigit, stopDigit);
       } else {
-        count2++;
+        count3++;
       }
     }
-    if (count2) {
+    if (count3) {
       pattern += options.shorthand === true ? "\\d" : "[0-9]";
     }
-    return { pattern, count: [count2], digits };
+    return { pattern, count: [count3], digits };
   }
   function splitToPatterns(min2, max2, tok, options) {
     let ranges = splitToRanges(min2, max2);
@@ -152794,11 +152900,11 @@ function requireFseventsHandler() {
     };
   }
   const couldConsolidate = (path7) => {
-    let count2 = 0;
+    let count3 = 0;
     for (const watchPath of FSEventsWatchers.keys()) {
       if (watchPath.indexOf(path7) === 0) {
-        count2++;
-        if (count2 >= consolidateThreshhold) {
+        count3++;
+        if (count3 >= consolidateThreshhold) {
           return true;
         }
       }
@@ -153581,11 +153687,11 @@ function requireChokidar() {
       let timeoutObject;
       const clear = () => {
         const item = action.get(path7);
-        const count2 = item ? item.count : 0;
+        const count3 = item ? item.count : 0;
         action.delete(path7);
         clearTimeout(timeoutObject);
         if (item) clearTimeout(item.timeoutObject);
-        return count2;
+        return count3;
       };
       timeoutObject = setTimeout(clear, timeout);
       const thr = { timeoutObject, clear, count: 0 };
@@ -154969,9 +155075,9 @@ function toBase648(value2) {
 }
 function getSafeName(baseName, usedNames, forbiddenNames) {
   let safeName = baseName;
-  let count2 = 1;
+  let count3 = 1;
   while (usedNames.has(safeName) || RESERVED_NAMES.has(safeName) || forbiddenNames?.has(safeName)) {
-    safeName = `${baseName}$${toBase648(count2++)}`;
+    safeName = `${baseName}$${toBase648(count3++)}`;
   }
   usedNames.add(safeName);
   return safeName;
@@ -156407,13 +156513,13 @@ function requireParse2() {
       consume(token.value);
     };
     const negate = () => {
-      let count2 = 1;
+      let count3 = 1;
       while (peek() === "!" && (peek(2) !== "(" || peek(3) === "?")) {
         advance();
         state2.start++;
-        count2++;
+        count3++;
       }
-      if (count2 % 2 === 0) {
+      if (count3 % 2 === 0) {
         return false;
       }
       state2.negated = true;
@@ -178911,31 +179017,31 @@ var init_build2 = __esm({
           return concat2(this.stringifyProperty(name2), attrSpaces);
         };
         _proto.offsetOf = function offsetOf(name2) {
-          var count2 = 1;
+          var count3 = 1;
           var attributeSpaces = this._spacesFor("attribute");
-          count2 += attributeSpaces.before.length;
-          if (name2 === "namespace" || name2 === "ns") return this.namespace ? count2 : -1;
-          if (name2 === "attributeNS") return count2;
-          count2 += this.namespaceString.length;
-          if (this.namespace) count2 += 1;
-          if (name2 === "attribute") return count2;
-          count2 += this.stringifyProperty("attribute").length;
-          count2 += attributeSpaces.after.length;
+          count3 += attributeSpaces.before.length;
+          if (name2 === "namespace" || name2 === "ns") return this.namespace ? count3 : -1;
+          if (name2 === "attributeNS") return count3;
+          count3 += this.namespaceString.length;
+          if (this.namespace) count3 += 1;
+          if (name2 === "attribute") return count3;
+          count3 += this.stringifyProperty("attribute").length;
+          count3 += attributeSpaces.after.length;
           var operatorSpaces = this._spacesFor("operator");
-          count2 += operatorSpaces.before.length;
+          count3 += operatorSpaces.before.length;
           var operator = this.stringifyProperty("operator");
-          if (name2 === "operator") return operator ? count2 : -1;
-          count2 += operator.length;
-          count2 += operatorSpaces.after.length;
+          if (name2 === "operator") return operator ? count3 : -1;
+          count3 += operator.length;
+          count3 += operatorSpaces.after.length;
           var valueSpaces = this._spacesFor("value");
-          count2 += valueSpaces.before.length;
+          count3 += valueSpaces.before.length;
           var value2 = this.stringifyProperty("value");
-          if (name2 === "value") return value2 ? count2 : -1;
-          count2 += value2.length;
-          count2 += valueSpaces.after.length;
+          if (name2 === "value") return value2 ? count3 : -1;
+          count3 += value2.length;
+          count3 += valueSpaces.after.length;
           var insensitiveSpaces = this._spacesFor("insensitive");
-          count2 += insensitiveSpaces.before.length;
-          if (name2 === "insensitive") return this.insensitive ? count2 : -1;
+          count3 += insensitiveSpaces.before.length;
+          if (name2 === "insensitive") return this.insensitive ? count3 : -1;
           return -1;
         };
         _proto.toString = function toString$12() {
@@ -188516,17 +188622,17 @@ function generateCodeFrame(source, start = 0, end) {
   const lastPosLine = end !== void 0 ? numberToPos(source, end).line : numberToPos(source, start).line + range2;
   const lineNumberWidth = Math.max(3, String(lastPosLine).length + 1);
   const lines = source.split(splitRE);
-  let count2 = 0;
+  let count3 = 0;
   const res = [];
   for (let i$1 = 0; i$1 < lines.length; i$1++) {
-    count2 += lines[i$1].length;
-    if (count2 >= start) {
-      for (let j6 = i$1 - range2; j6 <= i$1 + range2 || end > count2; j6++) {
+    count3 += lines[i$1].length;
+    if (count3 >= start) {
+      for (let j6 = i$1 - range2; j6 <= i$1 + range2 || end > count3; j6++) {
         if (j6 < 0 || j6 >= lines.length) continue;
         const line = j6 + 1;
         const lineLength = lines[j6].length;
-        const pad$2 = Math.max(start - (count2 - lineLength), 0);
-        const underlineLength = Math.max(1, end > count2 ? lineLength - pad$2 : end - start);
+        const pad$2 = Math.max(start - (count3 - lineLength), 0);
+        const underlineLength = Math.max(1, end > count3 ? lineLength - pad$2 : end - start);
         let displayLine = lines[j6];
         let underlinePad = pad$2;
         if (lineLength > MAX_DISPLAY_LEN) {
@@ -188549,17 +188655,17 @@ function generateCodeFrame(source, start = 0, end) {
           const underline = "^".repeat(Math.min(underlineLength, MAX_DISPLAY_LEN));
           res.push(`${" ".repeat(lineNumberWidth)}|  ` + " ".repeat(underlinePad) + underline);
         } else if (j6 > i$1) {
-          if (end > count2) {
-            const length = Math.max(Math.min(end - count2, lineLength), 1);
+          if (end > count3) {
+            const length = Math.max(Math.min(end - count3, lineLength), 1);
             const underline = "^".repeat(Math.min(length, MAX_DISPLAY_LEN));
             res.push(`${" ".repeat(lineNumberWidth)}|  ` + underline);
           }
-          count2 += lineLength + 1;
+          count3 += lineLength + 1;
         }
       }
       break;
     }
-    count2++;
+    count3++;
   }
   return res.join("\n");
 }
@@ -197358,11 +197464,11 @@ function err$1(e$1, pos) {
   return error$1;
 }
 function findClosingParen(input, fromIndex) {
-  let count2 = 1;
+  let count3 = 1;
   for (let i$1 = fromIndex; i$1 < input.length; i$1++) {
-    if (input[i$1] === "(") count2++;
-    if (input[i$1] === ")") count2--;
-    if (count2 === 0) return i$1;
+    if (input[i$1] === "(") count3++;
+    if (input[i$1] === ")") count3--;
+    if (count3 === 0) return i$1;
   }
   return -1;
 }
@@ -208858,17 +208964,17 @@ Error: ${e$1.message}`);
         let zipped = zip(start, stop);
         let digits = zipped.length;
         let pattern = "";
-        let count2 = 0;
+        let count3 = 0;
         for (let i$1 = 0; i$1 < digits; i$1++) {
           let [startDigit, stopDigit] = zipped[i$1];
           if (startDigit === stopDigit) pattern += startDigit;
           else if (startDigit !== "0" || stopDigit !== "9") pattern += toCharacterClass(startDigit, stopDigit, options$1);
-          else count2++;
+          else count3++;
         }
-        if (count2) pattern += options$1.shorthand === true ? "\\d" : "[0-9]";
+        if (count3) pattern += options$1.shorthand === true ? "\\d" : "[0-9]";
         return {
           pattern,
-          count: [count2],
+          count: [count3],
           digits
         };
       }
@@ -210374,10 +210480,10 @@ Error: ${e$1.message}`);
         };
       }
       const couldConsolidate = (path$13) => {
-        let count2 = 0;
+        let count3 = 0;
         for (const watchPath of FSEventsWatchers.keys()) if (watchPath.indexOf(path$13) === 0) {
-          count2++;
-          if (count2 >= consolidateThreshhold) return true;
+          count3++;
+          if (count3 >= consolidateThreshhold) return true;
         }
         return false;
       };
@@ -211017,11 +211123,11 @@ Error: ${e$1.message}`);
           let timeoutObject;
           const clear = () => {
             const item = action.get(path$13);
-            const count2 = item ? item.count : 0;
+            const count3 = item ? item.count : 0;
             action.delete(path$13);
             clearTimeout(timeoutObject);
             if (item) clearTimeout(item.timeoutObject);
-            return count2;
+            return count3;
           };
           timeoutObject = setTimeout(clear, timeout$1);
           const thr = {
@@ -239162,9 +239268,9 @@ var require_lib8 = __commonJS({
             return String.fromCodePoint(codePoint);
           }
         } else {
-          let count2 = 0;
+          let count3 = 0;
           let semi = false;
-          while (count2++ < 10 && this.state.pos < this.length && !(semi = this.codePointAtPos(this.state.pos) === 59)) {
+          while (count3++ < 10 && this.state.pos < this.length && !(semi = this.codePointAtPos(this.state.pos) === 59)) {
             ++this.state.pos;
           }
           if (semi) {
@@ -259365,10 +259471,10 @@ var require_token_map = __commonJS({
             test2 = String.fromCharCode(test2);
           }
           let i4 = 0;
-          const count2 = occurrenceCount;
-          if (count2 > 1) {
+          const count3 = occurrenceCount;
+          if (count3 > 1) {
             const cache6 = this._nodesOccurrencesCountCache.get(node);
-            if ((cache6 == null ? void 0 : cache6.test) === test2 && cache6.count < count2) {
+            if ((cache6 == null ? void 0 : cache6.test) === test2 && cache6.count < count3) {
               i4 = cache6.i + 1;
               occurrenceCount -= cache6.count + 1;
             }
@@ -259377,10 +259483,10 @@ var require_token_map = __commonJS({
             const tok = this._tokens[indexes[i4]];
             if (this.matchesOriginal(tok, test2)) {
               if (occurrenceCount === 0) {
-                if (count2 > 0) {
+                if (count3 > 0) {
                   this._nodesOccurrencesCountCache.set(node, {
                     test: test2,
-                    count: count2,
+                    count: count3,
                     i: i4
                   });
                 }
@@ -259810,8 +259916,8 @@ var require_printer = __commonJS({
       }
       catchUp(line) {
         if (!this.format.retainLines) return;
-        const count2 = line - this._buf.getCurrentLine();
-        for (let i4 = 0; i4 < count2; i4++) {
+        const count3 = line - this._buf.getCurrentLine();
+        for (let i4 = 0; i4 < count3; i4++) {
           this._newline();
         }
       }
@@ -259831,14 +259937,14 @@ var require_printer = __commonJS({
         column,
         index: index2
       }) {
-        const count2 = line - this._buf.getCurrentLine();
-        if (count2 > 0 && this._noLineTerminator) {
+        const count3 = line - this._buf.getCurrentLine();
+        if (count3 > 0 && this._noLineTerminator) {
           return;
         }
-        for (let i4 = 0; i4 < count2; i4++) {
+        for (let i4 = 0; i4 < count3; i4++) {
           this._newline();
         }
-        const spacesCount = count2 > 0 ? column : column - this._buf.getCurrentColumn();
+        const spacesCount = count3 > 0 ? column : column - this._buf.getCurrentColumn();
         if (spacesCount > 0) {
           const spaces2 = this._originalCode ? this._originalCode.slice(index2 - spacesCount, index2).replace(/[^\t\x0B\f \xA0\u1680\u2000-\u200A\u202F\u205F\u3000\uFEFF]/gu, " ") : " ".repeat(spacesCount);
           this._append(spaces2, false);
@@ -260224,9 +260330,9 @@ ${" ".repeat(indentSize)}`);
               }
               this._printComment(comment2, 1);
               if (i4 + 1 === len) {
-                const count2 = Math.max(nodeStartLine - lastLine, leadingCommentNewline);
-                if (count2 > 0 && !_noLineTerminator) {
-                  this.newline(count2, _flags);
+                const count3 = Math.max(nodeStartLine - lastLine, leadingCommentNewline);
+                if (count3 > 0 && !_noLineTerminator) {
+                  this.newline(count3, _flags);
                 }
                 lastLine = nodeStartLine;
               }
@@ -260238,9 +260344,9 @@ ${" ".repeat(indentSize)}`);
               }
               this._printComment(comment2, 1);
               if (i4 + 1 === len) {
-                const count2 = Math.min(1, nodeEndLine - lastLine);
-                if (count2 > 0 && !_noLineTerminator) {
-                  this.newline(count2, _flags);
+                const count3 = Math.min(1, nodeEndLine - lastLine);
+                if (count3 > 0 && !_noLineTerminator) {
+                  this.newline(count3, _flags);
                 }
                 lastLine = nodeEndLine;
               }
@@ -262857,8 +262963,8 @@ var require_conversion = __commonJS({
       return this.replaceWith(call)[0].get("arguments.0");
     }
     function getFunctionArity(node) {
-      const count2 = node.params.findIndex((param2) => isAssignmentPattern(param2) || isRestElement(param2));
-      return count2 === -1 ? node.params.length : count2;
+      const count3 = node.params.findIndex((param2) => isAssignmentPattern(param2) || isRestElement(param2));
+      return count3 === -1 ? node.params.length : count3;
     }
   }
 });
@@ -264994,8 +265100,8 @@ var require_semver3 = __commonJS({
     function gte23(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte25;
-    function lte25(a4, b6, loose) {
+    exports2.lte = lte26;
+    function lte26(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -265026,7 +265132,7 @@ var require_semver3 = __commonJS({
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte25(a4, b6, loose);
+          return lte26(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op2);
       }
@@ -265560,7 +265666,7 @@ var require_semver3 = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte25;
+          ltefn = lte26;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
@@ -267816,15 +267922,15 @@ var require_gensync = __commonJS({
               Promise.resolve().then(() => resolve8([]));
               return;
             }
-            let count2 = 0;
+            let count3 = 0;
             const results = items.map(() => void 0);
             items.forEach((item, i4) => {
               evaluateAsync(
                 item,
                 (val) => {
                   results[i4] = val;
-                  count2 += 1;
-                  if (count2 === results.length) resolve8(results);
+                  count3 += 1;
+                  if (count3 === results.length) resolve8(results);
                 },
                 reject
               );
@@ -269458,8 +269564,8 @@ var require_parse9 = __commonJS({
     }
     function unicodeEscape() {
       let buffer2 = "";
-      let count2 = 4;
-      while (count2-- > 0) {
+      let count3 = 4;
+      while (count3-- > 0) {
         const c6 = peek();
         if (!util3.isHexDigit(c6)) {
           throw invalidChar(read());
@@ -298836,7 +298942,7 @@ function _takeWithGrace() {
       const iterator2 = _usingCtx$1.a(iteratorResource(iterable));
       let result;
       const timer = _usingCtx$1.u(timerResource(opts.gracePeriodMs));
-      let count2 = opts.count;
+      let count3 = opts.count;
       let timerPromise = new Promise(() => {
       });
       while (true) {
@@ -298844,7 +298950,7 @@ function _takeWithGrace() {
         if (result === disposablePromiseTimerResult) throwAbortError();
         if (result.done) return result.value;
         yield result.value;
-        if (--count2 === 0) timerPromise = timer.start();
+        if (--count3 === 0) timerPromise = timer.start();
         result = null;
       }
     } catch (_3) {
@@ -301642,7 +301748,7 @@ var SDKServer = class {
         const secret = process.env.JWT_SECRET || "default-secret-key";
         const decoded = jwt3.default.verify(token, secret);
         if (decoded && decoded.userId) {
-          const { sql: sql16 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbQueryWithTimeout = async (timeoutMs = 8e3) => {
             const localDb = await getDb2();
@@ -301651,7 +301757,7 @@ var SDKServer = class {
               (_3, reject) => setTimeout(() => reject(new Error("DB query timeout")), timeoutMs)
             );
             return Promise.race([
-              localDb.execute(sql16`
+              localDb.execute(sql17`
                 SELECT tm.*, o.name as organization_name 
                 FROM team_members tm 
                 LEFT JOIN organizations o ON tm.organization_id = o.id 
@@ -306258,8 +306364,8 @@ function az_default() {
 }
 
 // node_modules/zod/v4/locales/be.js
-function getBelarusianPlural(count2, one, few, many) {
-  const absCount = Math.abs(count2);
+function getBelarusianPlural(count3, one, few, many) {
+  const absCount = Math.abs(count3);
   const lastDigit = absCount % 10;
   const lastTwoDigits = absCount % 100;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
@@ -308083,8 +308189,8 @@ function hu_default() {
 }
 
 // node_modules/zod/v4/locales/hy.js
-function getArmenianPlural(count2, one, many) {
-  return Math.abs(count2) === 1 ? one : many;
+function getArmenianPlural(count3, one, many) {
+  return Math.abs(count3) === 1 ? one : many;
 }
 function withDefiniteArticle(word) {
   if (!word)
@@ -310092,8 +310198,8 @@ function pt_default() {
 }
 
 // node_modules/zod/v4/locales/ru.js
-function getRussianPlural(count2, one, few, many) {
-  const absCount = Math.abs(count2);
+function getRussianPlural(count3, one, few, many) {
+  const absCount = Math.abs(count3);
   const lastDigit = absCount % 10;
   const lastTwoDigits = absCount % 100;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
@@ -315767,31 +315873,31 @@ var ApiCacheService = class {
    * 用于账号切换、数据更新等场景
    */
   invalidateByPrefix(prefix) {
-    let count2 = 0;
+    let count3 = 0;
     for (const key of this.cache.keys()) {
       if (key.startsWith(prefix)) {
         this.cache.delete(key);
-        count2++;
+        count3++;
       }
     }
-    this.stats.evictions += count2;
+    this.stats.evictions += count3;
     this.stats.size = this.cache.size;
-    return count2;
+    return count3;
   }
   /**
    * 清除指定用户的所有缓存
    */
   invalidateByUser(userId) {
-    let count2 = 0;
+    let count3 = 0;
     for (const key of this.cache.keys()) {
       if (key.includes(`:${userId}:`)) {
         this.cache.delete(key);
-        count2++;
+        count3++;
       }
     }
-    this.stats.evictions += count2;
+    this.stats.evictions += count3;
     this.stats.size = this.cache.size;
-    return count2;
+    return count3;
   }
   /**
    * 清空所有缓存
@@ -318545,11 +318651,11 @@ var performanceGroupRouter = router({
     campaignIds: external_exports.array(external_exports.number()),
     performanceGroupId: external_exports.number()
   })).mutation(async ({ input }) => {
-    let count2 = 0;
+    let count3 = 0;
     for (const campaignId of input.campaignIds) {
       await assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
       await updateCampaign(campaignId, { optimizationStatus: "managed" });
-      count2++;
+      count3++;
     }
     try {
       const { onCampaignsAdded: onCampaignsAdded2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
@@ -318559,19 +318665,19 @@ var performanceGroupRouter = router({
     } catch (e6) {
       console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
     }
-    return { success: true, count: count2 };
+    return { success: true, count: count3 };
   }),
   // 批量移除广告活动从绩效组
   batchRemoveCampaigns: protectedProcedure.input(external_exports.object({
     campaignIds: external_exports.array(external_exports.number())
   })).mutation(async ({ input }) => {
-    let count2 = 0;
+    let count3 = 0;
     for (const campaignId of input.campaignIds) {
       await assignCampaignToPerformanceGroup(campaignId, null);
       await updateCampaign(campaignId, { optimizationStatus: "unmanaged" });
-      count2++;
+      count3++;
     }
-    return { success: true, count: count2 };
+    return { success: true, count: count3 };
   }),
   // v153: 批量更新广告活动状态（暂停/启用），同时同步到Amazon API
   batchUpdateCampaignStatus: protectedProcedure.input(external_exports.object({
@@ -318632,13 +318738,13 @@ var performanceGroupRouter = router({
     groupId: external_exports.number(),
     campaignIds: external_exports.array(external_exports.number())
   })).mutation(async ({ input }) => {
-    let count2 = 0;
+    let count3 = 0;
     for (const campaignId of input.campaignIds) {
       await assignCampaignToPerformanceGroup(campaignId, null);
       await updateCampaign(campaignId, { optimizationStatus: "unmanaged" });
-      count2++;
+      count3++;
     }
-    return { success: true, count: count2 };
+    return { success: true, count: count3 };
   }),
   // 获取绩效组详情（通过ID）
   getById: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
@@ -318685,11 +318791,11 @@ var performanceGroupRouter = router({
     groupId: external_exports.number(),
     campaignIds: external_exports.array(external_exports.number())
   })).mutation(async ({ input }) => {
-    let count2 = 0;
+    let count3 = 0;
     for (const campaignId of input.campaignIds) {
       await assignCampaignToPerformanceGroup(campaignId, input.groupId);
       await updateCampaign(campaignId, { optimizationStatus: "managed" });
-      count2++;
+      count3++;
     }
     try {
       const { onCampaignsAdded: onCampaignsAdded2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
@@ -318699,7 +318805,7 @@ var performanceGroupRouter = router({
     } catch (e6) {
       console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
     }
-    return { success: true, count: count2 };
+    return { success: true, count: count3 };
   }),
   // 从绩效组移除单个广告活动
   removeCampaign: publicProcedure.input(external_exports.object({
@@ -325927,8 +326033,8 @@ var amazonApiRouter = router({
       ctx.user.id,
       marketplace
     );
-    const count2 = await syncService.syncSpCampaigns();
-    return { synced: count2 };
+    const count3 = await syncService.syncSpCampaigns();
+    return { synced: count3 };
   }),
   // Sync performance data
   syncPerformance: protectedProcedure.input(external_exports.object({
@@ -325956,8 +326062,8 @@ var amazonApiRouter = router({
       ctx.user.id,
       marketplace
     );
-    const count2 = await syncService.syncPerformanceData(input.days);
-    return { synced: count2 };
+    const count3 = await syncService.syncPerformanceData(input.days);
+    return { synced: count3 };
   }),
   // 获取同步历史记录
   getSyncHistory: protectedProcedure.input(external_exports.object({
@@ -328102,10 +328208,10 @@ var ReportJobScheduler = class {
     logSystem("ReportJobScheduler", "\u62A5\u544A\u4EFB\u52A1\u8C03\u5EA6\u5668\u542F\u52A8");
     this.submitTimer = setInterval(async () => {
       try {
-        const count2 = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
-        if (count2 > 0) {
-          log57.info(`[ReportJobScheduler] Submitted ${count2} jobs`);
-          logSync("ReportJobScheduler", `\u63D0\u4EA4${count2}\u4E2A\u62A5\u544A\u4EFB\u52A1`, { count: count2 });
+        const count3 = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
+        if (count3 > 0) {
+          log57.info(`[ReportJobScheduler] Submitted ${count3} jobs`);
+          logSync("ReportJobScheduler", `\u63D0\u4EA4${count3}\u4E2A\u62A5\u544A\u4EFB\u52A1`, { count: count3 });
         }
       } catch (error51) {
         log57.error("[ReportJobScheduler] Submit error:", error51.message);
@@ -328126,10 +328232,10 @@ var ReportJobScheduler = class {
     }, SCHEDULER_CONFIG.checkInterval);
     this.processTimer = setInterval(async () => {
       try {
-        const count2 = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
-        if (count2 > 0) {
-          log57.info(`[ReportJobScheduler] Processed ${count2} jobs`);
-          logSync("ReportJobScheduler", `\u5904\u7406${count2}\u4E2A\u5DF2\u5B8C\u6210\u62A5\u544A`, { count: count2 });
+        const count3 = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
+        if (count3 > 0) {
+          log57.info(`[ReportJobScheduler] Processed ${count3} jobs`);
+          logSync("ReportJobScheduler", `\u5904\u7406${count3}\u4E2A\u5DF2\u5B8C\u6210\u62A5\u544A`, { count: count3 });
         }
       } catch (error51) {
         log57.error("[ReportJobScheduler] Process error:", error51.message);
@@ -328138,10 +328244,10 @@ var ReportJobScheduler = class {
     }, SCHEDULER_CONFIG.processInterval);
     this.cleanupTimer = setInterval(async () => {
       try {
-        const count2 = await asyncReportService.cleanupExpiredJobs(7);
-        if (count2 > 0) {
-          log57.info(`[ReportJobScheduler] Cleaned up ${count2} expired jobs`);
-          logSync("ReportJobScheduler", `\u6E05\u7406${count2}\u4E2A\u8FC7\u671F\u4EFB\u52A1`, { count: count2 });
+        const count3 = await asyncReportService.cleanupExpiredJobs(7);
+        if (count3 > 0) {
+          log57.info(`[ReportJobScheduler] Cleaned up ${count3} expired jobs`);
+          logSync("ReportJobScheduler", `\u6E05\u7406${count3}\u4E2A\u8FC7\u671F\u4EFB\u52A1`, { count: count3 });
         }
       } catch (error51) {
         log57.error("[ReportJobScheduler] Cleanup error:", error51.message);
@@ -329339,8 +329445,8 @@ var reportJobsRouter = router({
   }),
   // 清理过期任务
   cleanupExpiredJobs: protectedProcedure.input(external_exports.object({ daysOld: external_exports.number().default(7) })).mutation(async ({ input }) => {
-    const count2 = await asyncReportService.cleanupExpiredJobs(input.daysOld);
-    return { success: true, deletedCount: count2 };
+    const count3 = await asyncReportService.cleanupExpiredJobs(input.daysOld);
+    return { success: true, deletedCount: count3 };
   }),
   // 开始账号初始化
   startInitialization: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).mutation(async ({ input }) => {
@@ -331269,9 +331375,9 @@ async function identifyFunnelTiers(accountId) {
     if (!matchTypes) continue;
     let dominantMatchType = "unknown";
     let maxCount = 0;
-    matchTypes.forEach((count2, matchType) => {
-      if (count2 > maxCount) {
-        maxCount = count2;
+    matchTypes.forEach((count3, matchType) => {
+      if (count3 > maxCount) {
+        maxCount = count3;
         dominantMatchType = matchType;
       }
     });
@@ -331551,22 +331657,22 @@ function updateAccountAutomationConfig(accountId, config2) {
 function checkDailyLimit(accountId, type) {
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const key = `${accountId}_${today}_${type}`;
-  const count2 = dailyExecutionCount.get(key) || 0;
+  const count3 = dailyExecutionCount.get(key) || 0;
   const config2 = getAccountAutomationConfig(accountId);
   switch (type) {
     case "bid_adjustment":
-      return count2 < config2.safetyBoundary.maxDailyBidAdjustments;
+      return count3 < config2.safetyBoundary.maxDailyBidAdjustments;
     case "budget_adjustment":
-      return count2 < config2.safetyBoundary.maxDailyBudgetAdjustments;
+      return count3 < config2.safetyBoundary.maxDailyBudgetAdjustments;
     default:
-      return count2 < config2.safetyBoundary.maxDailyTotalAdjustments;
+      return count3 < config2.safetyBoundary.maxDailyTotalAdjustments;
   }
 }
 function incrementDailyCount(accountId, type) {
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const key = `${accountId}_${today}_${type}`;
-  const count2 = dailyExecutionCount.get(key) || 0;
-  dailyExecutionCount.set(key, count2 + 1);
+  const count3 = dailyExecutionCount.get(key) || 0;
+  dailyExecutionCount.set(key, count3 + 1);
 }
 function checkAdjustmentBoundary(accountId, type, currentValue, newValue) {
   const config2 = getAccountAutomationConfig(accountId);
@@ -335509,8 +335615,8 @@ async function analyzeByBidChangeRange(accountId, days = 30) {
   }
   return results;
 }
-function generateTypeRecommendation(type, accuracy, mae, count2) {
-  if (count2 < 5) {
+function generateTypeRecommendation(type, accuracy, mae, count3) {
+  if (count3 < 5) {
     return "\u6837\u672C\u91CF\u4E0D\u8DB3\uFF0C\u5EFA\u8BAE\u6536\u96C6\u66F4\u591A\u6570\u636E\u540E\u518D\u8BC4\u4F30";
   }
   if (accuracy >= 80) {
@@ -335523,8 +335629,8 @@ function generateTypeRecommendation(type, accuracy, mae, count2) {
     return `${type}\u7C7B\u578B\u8C03\u6574\u8868\u73B0\u8F83\u5DEE\uFF0C\u5EFA\u8BAE\u6682\u505C\u4F7F\u7528\u5E76\u5206\u6790\u539F\u56E0`;
   }
 }
-function generateRangeRecommendation(range3, accuracy, mae, count2) {
-  if (count2 < 5) {
+function generateRangeRecommendation(range3, accuracy, mae, count3) {
+  if (count3 < 5) {
     return "\u6837\u672C\u91CF\u4E0D\u8DB3\uFF0C\u5EFA\u8BAE\u6536\u96C6\u66F4\u591A\u6570\u636E\u540E\u518D\u8BC4\u4F30";
   }
   if (accuracy >= 80) {
@@ -336494,6 +336600,7 @@ var abTestRouter = router({
 // server/routes/nextGen.ts
 init_causalInferenceEngine();
 init_keywordGraphService();
+init_drizzle_orm();
 
 // server/nextGenMigration.ts
 init_logger2();
@@ -336767,6 +336874,8 @@ async function ensureNextGenTables() {
 }
 
 // server/routes/nextGen.ts
+init_db2();
+init_schema2();
 var nextGenRouter = router({
   // 初始化NextGen数据库表（仅在首次部署时使用一次，后续部署自动执行）
   ensureTables: protectedProcedure.mutation(async () => {
@@ -336775,7 +336884,7 @@ var nextGenRouter = router({
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
     return {
-      version: "v198",
+      version: "v275",
       engineMode: "unified",
       description: "NextGen\u7EDF\u4E00\u51FA\u4EF7\u5F15\u64CE\uFF0C100%\u8986\u76D6\u6240\u6709\u5173\u952E\u8BCD\u548C\u5546\u54C1\u5B9A\u5411",
       algorithmTiers: {
@@ -336794,6 +336903,236 @@ var nextGenRouter = router({
   // 查询因果推断分析结果（只读查询，分析由定时任务自动执行）
   getCausalAnalysis: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
     return batchCausalAnalysis(input.accountId);
+  }),
+  // v275: 查询因果推断详细结果 — 用于前端因果推断可视化模块
+  getCausalInsights: protectedProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    days: external_exports.number().default(30),
+    limit: external_exports.number().default(50)
+  })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { results: [], summary: { total: 0, significant: 0, avgUplift: 0, totalIncrementalProfit: 0 } };
+    const startDate = /* @__PURE__ */ new Date();
+    startDate.setDate(startDate.getDate() - input.days);
+    const startDateStr = startDate.toISOString().split("T")[0];
+    try {
+      const results = await db.select({
+        id: causalInferenceResults.id,
+        keywordId: causalInferenceResults.keywordId,
+        targetId: causalInferenceResults.targetId,
+        campaignId: causalInferenceResults.campaignId,
+        analysisDate: causalInferenceResults.analysisDate,
+        upliftScore: causalInferenceResults.upliftScore,
+        confidenceInterval: causalInferenceResults.confidenceInterval,
+        incrementalRevenue: causalInferenceResults.incrementalRevenue,
+        incrementalCost: causalInferenceResults.incrementalCost,
+        incrementalProfit: causalInferenceResults.incrementalProfit,
+        incrementalRoas: causalInferenceResults.incrementalRoas,
+        optimalBid: causalInferenceResults.optimalBid,
+        optimalBidLower: causalInferenceResults.optimalBidLower,
+        optimalBidUpper: causalInferenceResults.optimalBidUpper,
+        treatmentCvr: causalInferenceResults.treatmentCvr,
+        controlCvr: causalInferenceResults.controlCvr,
+        sampleSize: causalInferenceResults.sampleSize,
+        modelVersion: causalInferenceResults.modelVersion
+      }).from(causalInferenceResults).where(and(
+        eq(causalInferenceResults.accountId, input.accountId),
+        gte(causalInferenceResults.analysisDate, startDateStr)
+      )).orderBy(desc(causalInferenceResults.analysisDate)).limit(input.limit);
+      const total = results.length;
+      const significant = results.filter(
+        (r5) => Math.abs(parseFloat(r5.upliftScore || "0")) > 0.05 && parseFloat(r5.confidenceInterval || "1") < 0.5
+      ).length;
+      const avgUplift = total > 0 ? results.reduce((sum2, r5) => sum2 + parseFloat(r5.upliftScore || "0"), 0) / total : 0;
+      const totalIncrementalProfit = results.reduce(
+        (sum2, r5) => sum2 + parseFloat(r5.incrementalProfit || "0"),
+        0
+      );
+      return {
+        results: results.map((r5) => ({
+          ...r5,
+          upliftScore: parseFloat(r5.upliftScore || "0"),
+          confidenceInterval: parseFloat(r5.confidenceInterval || "0"),
+          incrementalRevenue: parseFloat(r5.incrementalRevenue || "0"),
+          incrementalCost: parseFloat(r5.incrementalCost || "0"),
+          incrementalProfit: parseFloat(r5.incrementalProfit || "0"),
+          incrementalRoas: parseFloat(r5.incrementalRoas || "0"),
+          optimalBid: parseFloat(r5.optimalBid || "0"),
+          optimalBidLower: parseFloat(r5.optimalBidLower || "0"),
+          optimalBidUpper: parseFloat(r5.optimalBidUpper || "0"),
+          treatmentCvr: parseFloat(r5.treatmentCvr || "0"),
+          controlCvr: parseFloat(r5.controlCvr || "0")
+        })),
+        summary: {
+          total,
+          significant,
+          avgUplift: Math.round(avgUplift * 1e4) / 1e4,
+          totalIncrementalProfit: Math.round(totalIncrementalProfit * 100) / 100
+        }
+      };
+    } catch (e6) {
+      return { results: [], summary: { total: 0, significant: 0, avgUplift: 0, totalIncrementalProfit: 0 } };
+    }
+  }),
+  // v275: 查询CQL模型训练状态 — 用于前端CQL训练效果监控
+  getCqlModelStatus: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { models: [], summary: { totalModels: 0, avgTrainingSteps: 0, latestTrainedAt: null } };
+    try {
+      const models = await db.select({
+        id: cqlModels.id,
+        accountId: cqlModels.accountId,
+        modelVersion: cqlModels.modelVersion,
+        trainingEpisodes: cqlModels.trainingEpisodes,
+        trainingSteps: cqlModels.trainingSteps,
+        avgLoss: cqlModels.avgLoss,
+        lastTrainedAt: cqlModels.lastTrainedAt,
+        createdAt: cqlModels.createdAt,
+        updatedAt: cqlModels.updatedAt
+      }).from(cqlModels).where(eq(cqlModels.accountId, input.accountId)).orderBy(desc(cqlModels.updatedAt)).limit(10);
+      const totalModels = models.length;
+      const avgTrainingSteps = totalModels > 0 ? models.reduce((sum2, m4) => sum2 + (m4.trainingSteps || 0), 0) / totalModels : 0;
+      const latestTrainedAt = models.length > 0 ? models[0].lastTrainedAt : null;
+      return {
+        models: models.map((m4) => ({
+          ...m4,
+          avgLoss: parseFloat(m4.avgLoss || "0")
+        })),
+        summary: {
+          totalModels,
+          avgTrainingSteps: Math.round(avgTrainingSteps),
+          latestTrainedAt
+        }
+      };
+    } catch (e6) {
+      return { models: [], summary: { totalModels: 0, avgTrainingSteps: 0, latestTrainedAt: null } };
+    }
+  }),
+  // v275: 查询竞争环境感知状态 — 用于前端竞争环境展示
+  getCompetitionInsights: protectedProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    days: external_exports.number().default(7)
+  })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { distribution: [], recentTrend: [], summary: { avgCompetition: "medium", dominantType: "neutral" } };
+    try {
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setDate(startDate.getDate() - input.days);
+      const startDateStr = startDate.toISOString().split("T")[0];
+      const events = await db.select({
+        performanceData: optimizationEvents.performanceData,
+        createdAt: optimizationEvents.createdAt
+      }).from(optimizationEvents).where(and(
+        eq(optimizationEvents.accountId, input.accountId),
+        gte(optimizationEvents.createdAt, startDateStr)
+      )).orderBy(desc(optimizationEvents.createdAt)).limit(500);
+      const competitionCounts = { aggressive: 0, tight: 0, passive: 0, neutral: 0 };
+      const dailyCompetition = {};
+      for (const event of events) {
+        const perfData = event.performanceData;
+        if (!perfData) continue;
+        const competitionType = perfData?.gto?.competitorType || perfData?.competitorType || "neutral";
+        const normalizedType = ["aggressive", "tight", "passive", "neutral"].includes(competitionType) ? competitionType : "neutral";
+        competitionCounts[normalizedType]++;
+        const dateKey = event.createdAt ? event.createdAt.split(" ")[0] : "unknown";
+        if (!dailyCompetition[dateKey]) {
+          dailyCompetition[dateKey] = { aggressive: 0, tight: 0, passive: 0, neutral: 0, total: 0 };
+        }
+        dailyCompetition[dateKey][normalizedType]++;
+        dailyCompetition[dateKey].total++;
+      }
+      const total = Object.values(competitionCounts).reduce((a4, b6) => a4 + b6, 0);
+      const distribution = Object.entries(competitionCounts).map(([type, cnt]) => ({
+        type,
+        count: cnt,
+        percentage: total > 0 ? Math.round(cnt / total * 1e3) / 10 : 0,
+        label: type === "aggressive" ? "\u75AF\u72C2\u578B" : type === "tight" ? "\u7D27\u7F29\u578B" : type === "passive" ? "\u88AB\u52A8\u578B" : "\u4E2D\u6027\u578B"
+      }));
+      const recentTrend = Object.entries(dailyCompetition).sort(([a4], [b6]) => a4.localeCompare(b6)).map(([date7, data2]) => ({
+        date: date7,
+        ...data2,
+        dominantType: Object.entries(data2).filter(([k5]) => k5 !== "total").sort(([, a4], [, b6]) => b6 - a4)[0]?.[0] || "neutral"
+      }));
+      const dominantType = Object.entries(competitionCounts).sort(([, a4], [, b6]) => b6 - a4)[0]?.[0] || "neutral";
+      const intensityMap = { aggressive: 3, tight: 2, neutral: 1, passive: 0 };
+      const avgIntensity = total > 0 ? Object.entries(competitionCounts).reduce((sum2, [type, cnt]) => sum2 + (intensityMap[type] || 1) * cnt, 0) / total : 1;
+      const avgCompetition = avgIntensity > 2.2 ? "high" : avgIntensity > 1.2 ? "medium" : "low";
+      return {
+        distribution,
+        recentTrend,
+        summary: { avgCompetition, dominantType }
+      };
+    } catch (e6) {
+      return { distribution: [], recentTrend: [], summary: { avgCompetition: "medium", dominantType: "neutral" } };
+    }
+  }),
+  // v275: 查询预算分池状态 — 用于前端预算分池Dashboard展示
+  getBudgetPoolInsights: protectedProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    days: external_exports.number().default(30)
+  })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { poolAllocation: { coreRatio: 80, explorationRatio: 20 }, dailyTrend: [], summary: { avgCoreRatio: 80, avgExplorationRatio: 20, fusedCount: 0, totalEvents: 0 } };
+    try {
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setDate(startDate.getDate() - input.days);
+      const startDateStr = startDate.toISOString().split("T")[0];
+      const events = await db.select({
+        performanceData: optimizationEvents.performanceData,
+        createdAt: optimizationEvents.createdAt
+      }).from(optimizationEvents).where(and(
+        eq(optimizationEvents.accountId, input.accountId),
+        gte(optimizationEvents.createdAt, startDateStr)
+      )).orderBy(desc(optimizationEvents.createdAt)).limit(1e3);
+      const dailyPool = {};
+      let totalCoreRatio = 0;
+      let totalExplorationRatio = 0;
+      let poolEventCount = 0;
+      let fusedCount = 0;
+      for (const event of events) {
+        const perfData = event.performanceData;
+        if (!perfData) continue;
+        const budgetPool = perfData?.budgetPool || perfData?.gto?.budgetPool;
+        if (budgetPool) {
+          const coreRatio = budgetPool.coreRatio || budgetPool.profitPoolRatio || 80;
+          const explorationRatio = budgetPool.explorationRatio || budgetPool.explorationPoolRatio || 20;
+          const isFused = budgetPool.isFused || false;
+          totalCoreRatio += coreRatio;
+          totalExplorationRatio += explorationRatio;
+          poolEventCount++;
+          if (isFused) fusedCount++;
+          const dateKey = event.createdAt ? event.createdAt.split(" ")[0] : "unknown";
+          if (!dailyPool[dateKey]) {
+            dailyPool[dateKey] = { coreRatioSum: 0, explorationRatioSum: 0, count: 0, fusedCount: 0 };
+          }
+          dailyPool[dateKey].coreRatioSum += coreRatio;
+          dailyPool[dateKey].explorationRatioSum += explorationRatio;
+          dailyPool[dateKey].count++;
+          if (isFused) dailyPool[dateKey].fusedCount++;
+        }
+      }
+      const avgCoreRatio = poolEventCount > 0 ? Math.round(totalCoreRatio / poolEventCount * 10) / 10 : 80;
+      const avgExplorationRatio = poolEventCount > 0 ? Math.round(totalExplorationRatio / poolEventCount * 10) / 10 : 20;
+      const dailyTrend = Object.entries(dailyPool).sort(([a4], [b6]) => a4.localeCompare(b6)).map(([date7, data2]) => ({
+        date: date7,
+        avgCoreRatio: Math.round(data2.coreRatioSum / data2.count * 10) / 10,
+        avgExplorationRatio: Math.round(data2.explorationRatioSum / data2.count * 10) / 10,
+        eventCount: data2.count,
+        fusedCount: data2.fusedCount
+      }));
+      return {
+        poolAllocation: { coreRatio: avgCoreRatio, explorationRatio: avgExplorationRatio },
+        dailyTrend,
+        summary: {
+          avgCoreRatio,
+          avgExplorationRatio,
+          fusedCount,
+          totalEvents: poolEventCount
+        }
+      };
+    } catch (e6) {
+      return { poolAllocation: { coreRatio: 80, explorationRatio: 20 }, dailyTrend: [], summary: { avgCoreRatio: 80, avgExplorationRatio: 20, fusedCount: 0, totalEvents: 0 } };
+    }
   }),
   // 查询关键词图谱机会（只读查询，图谱由定时任务自动构建）
   getKeywordOpportunities: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
@@ -336894,8 +337233,8 @@ var collaborationRouter = router({
   // 标记所有通知为已读
   markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
     const { markAllNotificationsAsRead: markAllNotificationsAsRead2 } = await Promise.resolve().then(() => (init_collaborationNotificationService(), collaborationNotificationService_exports));
-    const count2 = await markAllNotificationsAsRead2(ctx.user.id);
-    return { count: count2 };
+    const count3 = await markAllNotificationsAsRead2(ctx.user.id);
+    return { count: count3 };
   }),
   // 获取用户通知偏好设置
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
@@ -343085,10 +343424,10 @@ async function calculateAlgorithmActivation(accountId, days = 7) {
     let totalDecisions = 0;
     if (Array.isArray(rows)) {
       for (const row of rows) {
-        const count2 = Number(row.cnt) || 0;
+        const count3 = Number(row.cnt) || 0;
         const algorithm = parseAlgorithmName(row.change_reason, row.action_detail);
-        algorithmCounts[algorithm] = (algorithmCounts[algorithm] || 0) + count2;
-        totalDecisions += count2;
+        algorithmCounts[algorithm] = (algorithmCounts[algorithm] || 0) + count3;
+        totalDecisions += count3;
       }
     }
     const advancedAlgorithms = ["ucb", "linucb", "sigmoid_curve", "cql", "ensemble"];
@@ -343098,8 +343437,8 @@ async function calculateAlgorithmActivation(accountId, days = 7) {
     }
     const advancedRate = totalDecisions > 0 ? advancedCount / totalDecisions * 100 : 0;
     const algorithmRates = {};
-    for (const [alg, count2] of Object.entries(algorithmCounts)) {
-      algorithmRates[alg] = totalDecisions > 0 ? Math.round(count2 / totalDecisions * 1e3) / 10 : 0;
+    for (const [alg, count3] of Object.entries(algorithmCounts)) {
+      algorithmRates[alg] = totalDecisions > 0 ? Math.round(count3 / totalDecisions * 1e3) / 10 : 0;
     }
     const status = advancedRate > 30 ? "healthy" : advancedRate > 10 ? "warning" : "critical";
     return {
@@ -343267,10 +343606,10 @@ async function calculateCircuitBreakerRate(accountId, days = 7) {
     const byReason = {};
     if (Array.isArray(trippedRows)) {
       for (const row of trippedRows) {
-        const count2 = Number(row.cnt) || 0;
-        trippedCount += count2;
+        const count3 = Number(row.cnt) || 0;
+        trippedCount += count3;
         const reason = classifyCircuitBreakerReason(row.change_reason);
-        byReason[reason] = (byReason[reason] || 0) + count2;
+        byReason[reason] = (byReason[reason] || 0) + count3;
       }
     }
     const rate = totalDecisions > 0 ? trippedCount / totalDecisions * 100 : 0;
