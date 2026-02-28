@@ -26,7 +26,7 @@ export const nextGenRouter = router({
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return {
-        version: 'v275',
+        version: 'v276',
         engineMode: 'unified',
         description: 'NextGen统一出价引擎，100%覆盖所有关键词和商品定向',
         algorithmTiers: {

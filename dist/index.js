@@ -27072,10 +27072,10 @@ var init_subquery = __esm({
     init_entity();
     Subquery = class {
       static [entityKind] = "Subquery";
-      constructor(sql17, fields, alias2, isWith = false, usedTables = []) {
+      constructor(sql18, fields, alias2, isWith = false, usedTables = []) {
         this._ = {
           brand: "Subquery",
-          sql: sql17,
+          sql: sql18,
           selectedFields: fields,
           alias: alias2,
           isWith,
@@ -33170,8 +33170,8 @@ var init_db = __esm({
 });
 
 // node_modules/drizzle-orm/cache/core/cache.js
-async function hashQuery(sql17, params) {
-  const dataToHash = `${sql17}-${JSON.stringify(params)}`;
+async function hashQuery(sql18, params) {
+  const dataToHash = `${sql18}-${JSON.stringify(params)}`;
   const encoder2 = new TextEncoder();
   const data2 = encoder2.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data2);
@@ -50399,8 +50399,8 @@ var require_gte = __commonJS({
   "node_modules/jsonwebtoken/node_modules/semver/functions/gte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var gte23 = (a4, b6, loose) => compare2(a4, b6, loose) >= 0;
-    module2.exports = gte23;
+    var gte24 = (a4, b6, loose) => compare2(a4, b6, loose) >= 0;
+    module2.exports = gte24;
   }
 });
 
@@ -50409,8 +50409,8 @@ var require_lte = __commonJS({
   "node_modules/jsonwebtoken/node_modules/semver/functions/lte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var lte26 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
-    module2.exports = lte26;
+    var lte27 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
+    module2.exports = lte27;
   }
 });
 
@@ -50421,9 +50421,9 @@ var require_cmp = __commonJS({
     var eq7 = require_eq();
     var neq = require_neq();
     var gt5 = require_gt();
-    var gte23 = require_gte();
+    var gte24 = require_gte();
     var lt5 = require_lt();
-    var lte26 = require_lte();
+    var lte27 = require_lte();
     var cmp = (a4, op2, b6, loose) => {
       switch (op2) {
         case "===":
@@ -50451,11 +50451,11 @@ var require_cmp = __commonJS({
         case ">":
           return gt5(a4, b6, loose);
         case ">=":
-          return gte23(a4, b6, loose);
+          return gte24(a4, b6, loose);
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte26(a4, b6, loose);
+          return lte27(a4, b6, loose);
         default:
           throw new TypeError(`Invalid operator: ${op2}`);
       }
@@ -51209,8 +51209,8 @@ var require_outside = __commonJS({
     var satisfies = require_satisfies();
     var gt5 = require_gt();
     var lt5 = require_lt();
-    var lte26 = require_lte();
-    var gte23 = require_gte();
+    var lte27 = require_lte();
+    var gte24 = require_gte();
     var outside = (version5, range3, hilo, options) => {
       version5 = new SemVer(version5, options);
       range3 = new Range(range3, options);
@@ -51218,14 +51218,14 @@ var require_outside = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte26;
+          ltefn = lte27;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
           gtfn = lt5;
-          ltefn = gte23;
+          ltefn = gte24;
           ltfn = gt5;
           comp = "<";
           ecomp = "<=";
@@ -51540,8 +51540,8 @@ var require_semver2 = __commonJS({
     var lt5 = require_lt();
     var eq7 = require_eq();
     var neq = require_neq();
-    var gte23 = require_gte();
-    var lte26 = require_lte();
+    var gte24 = require_gte();
+    var lte27 = require_lte();
     var cmp = require_cmp();
     var coerce2 = require_coerce();
     var Comparator = require_comparator();
@@ -51578,8 +51578,8 @@ var require_semver2 = __commonJS({
       lt: lt5,
       eq: eq7,
       neq,
-      gte: gte23,
-      lte: lte26,
+      gte: gte24,
+      lte: lte27,
       cmp,
       coerce: coerce2,
       Comparator,
@@ -55480,11 +55480,11 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
         const errorSummary = result.errors.slice(0, 3).join("; ");
-        await dbInstance.execute(sql17`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+        await dbInstance.execute(sql18`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
       log10.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
@@ -55970,8 +55970,8 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
           if (dbInstance) {
-            const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-            await dbInstance.execute(sql17`
+            const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql18`
               INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
               VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
             `);
@@ -61161,6 +61161,24 @@ var init_abTestService = __esm({
 });
 
 // server/abTestIntegration.ts
+async function createAlgorithmExperiment(config2, userId) {
+  log21.info(`[ABTestIntegration] \u521B\u5EFA\u7B97\u6CD5\u5B9E\u9A8C: ${config2.name}, \u7C7B\u578B: ${config2.experimentType}`);
+  const result = await createABTest({
+    accountId: config2.accountId,
+    performanceGroupId: config2.performanceGroupId,
+    testName: `[${config2.experimentType}] ${config2.name}`,
+    testDescription: config2.description || `v271 \u7B97\u6CD5\u5BF9\u6BD4\u5B9E\u9A8C: ${config2.experimentType}`,
+    testType: "bid_strategy",
+    targetMetric: config2.targetMetric,
+    durationDays: config2.durationDays || 14,
+    controlConfig: config2.controlConfig,
+    treatmentConfig: config2.treatmentConfig,
+    trafficSplit: config2.trafficSplit || 0.5
+  }, userId);
+  invalidateCache(config2.accountId);
+  log21.info(`[ABTestIntegration] \u5B9E\u9A8C\u521B\u5EFA\u6210\u529F: testId=${result.testId}`);
+  return result;
+}
 async function getExperimentConfigForCampaign(accountId, campaignId) {
   const experiments = await getActiveExperiments(accountId);
   if (experiments.length === 0) return null;
@@ -61210,6 +61228,69 @@ async function getActiveExperiments(accountId) {
     log21.error(`[ABTestIntegration] \u52A0\u8F7D\u6D3B\u8DC3\u5B9E\u9A8C\u5931\u8D25:`, error51);
     return [];
   }
+}
+function invalidateCache(accountId) {
+  activeExperimentsCache.delete(accountId);
+}
+async function createCascadeVsSingleExperiment(accountId, performanceGroupId, userId) {
+  const result = await createAlgorithmExperiment({
+    name: "Cascade Ensemble vs Single Mode",
+    description: "v271: \u5BF9\u6BD4Cascade Ensemble\u878D\u5408\u6A21\u5F0F\u4E0E\u4F20\u7EDFSingle\u6A21\u5F0F\u7684ROAS/ACoS\u8868\u73B0",
+    accountId,
+    performanceGroupId,
+    experimentType: "algorithm_strategy",
+    controlConfig: {
+      algorithmMode: "single"
+    },
+    treatmentConfig: {
+      algorithmMode: "cascade_ensemble",
+      fusionThreshold: 0.15
+    },
+    targetMetric: "roas",
+    durationDays: 14,
+    trafficSplit: 0.5
+  }, userId);
+  return { testId: result.testId };
+}
+async function createFusionThresholdExperiment(accountId, controlThreshold, treatmentThreshold, performanceGroupId, userId) {
+  const result = await createAlgorithmExperiment({
+    name: `Fusion Threshold ${controlThreshold * 100}% vs ${treatmentThreshold * 100}%`,
+    description: `v271: \u5BF9\u6BD4\u4E0D\u540CCascade Ensemble\u878D\u5408\u9608\u503C\u7684\u6548\u679C`,
+    accountId,
+    performanceGroupId,
+    experimentType: "fusion_threshold",
+    controlConfig: {
+      algorithmMode: "cascade_ensemble",
+      fusionThreshold: controlThreshold
+    },
+    treatmentConfig: {
+      algorithmMode: "cascade_ensemble",
+      fusionThreshold: treatmentThreshold
+    },
+    targetMetric: "roas",
+    durationDays: 14,
+    trafficSplit: 0.5
+  }, userId);
+  return { testId: result.testId };
+}
+async function createExplorationRateExperiment(accountId, controlRange, treatmentRange, performanceGroupId, userId) {
+  const result = await createAlgorithmExperiment({
+    name: `Exploration Rate [${controlRange.min}-${controlRange.max}] vs [${treatmentRange.min}-${treatmentRange.max}]`,
+    description: `v271: \u5BF9\u6BD4\u4E0D\u540C\u63A2\u7D22\u7387\u8303\u56F4\u5BF9\u7B97\u6CD5\u5B66\u4E60\u6548\u7387\u7684\u5F71\u54CD`,
+    accountId,
+    performanceGroupId,
+    experimentType: "exploration_rate",
+    controlConfig: {
+      explorationRange: controlRange
+    },
+    treatmentConfig: {
+      explorationRange: treatmentRange
+    },
+    targetMetric: "roas",
+    durationDays: 21,
+    trafficSplit: 0.5
+  }, userId);
+  return { testId: result.testId };
 }
 var log21, activeExperimentsCache, cacheLastRefresh, CACHE_TTL;
 var init_abTestIntegration = __esm({
@@ -72831,9 +72912,9 @@ async function checkBidDirectionConsistency(accountId, keywordId, targetId) {
   try {
     const db = await getDb();
     if (!db) return { isOscillating: false, reason: "" };
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const entityCondition = keywordId ? sql17`entity_id = ${keywordId} AND entity_type = 'keyword'` : sql17`entity_id = ${targetId} AND entity_type = 'product_target'`;
-    const [rows] = await db.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const entityCondition = keywordId ? sql18`entity_id = ${keywordId} AND entity_type = 'keyword'` : sql18`entity_id = ${targetId} AND entity_type = 'product_target'`;
+    const [rows] = await db.execute(sql18`
       SELECT action_type, new_value, previous_value, created_at
       FROM optimization_events
       WHERE account_id = ${accountId}
@@ -87336,8 +87417,8 @@ async function persistRiskAlert(accountId, alertType, severity, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql18`
       INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
       VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
     `);
@@ -87349,8 +87430,8 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return false;
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [existing] = await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [existing] = await dbInstance.execute(sql18`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
       LIMIT 1
@@ -87359,7 +87440,7 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
       log41.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u6709\u672A\u5904\u7406\u7684${actionType}\u4EFB\u52A1\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5165\u961F`);
       return true;
     }
-    await dbInstance.execute(sql17`
+    await dbInstance.execute(sql18`
       INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
       VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
     `);
@@ -87468,9 +87549,9 @@ async function assessSyncHealth() {
     };
   }
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const [statusStats] = await dbInstance.execute(
-      sql17`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+      sql18`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     );
     const dist = statusStats || [];
     const synced = Number(dist.find((d5) => d5.api_sync_status === "synced")?.count || 0);
@@ -87670,8 +87751,8 @@ async function isAccountInEmergencyQueue(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { inQueue: false };
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql18`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
       ORDER BY createdAt DESC LIMIT 1
@@ -87689,8 +87770,8 @@ async function markEmergencyOptimizationProcessed(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql18`
       UPDATE emergency_optimization_queue 
       SET processed = 1, processedAt = NOW()
       WHERE accountId = ${accountId} AND processed = 0
@@ -87704,8 +87785,8 @@ async function getPendingEmergencyAccounts() {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql18`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
       ORDER BY 
@@ -87799,15 +87880,15 @@ async function checkAcosTrendForAccount(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [recentRows] = await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [recentRows] = await dbInstance.execute(sql18`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
       WHERE account_id = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `);
-    const [prevRows] = await dbInstance.execute(sql17`
+    const [prevRows] = await dbInstance.execute(sql18`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
@@ -87877,8 +87958,8 @@ async function cleanupProcessedEntries() {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [result] = await dbInstance.execute(sql17`
+    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [result] = await dbInstance.execute(sql18`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
@@ -120406,7 +120487,7 @@ var init_sqsConsumerService = __esm({
       async upsertKeywordPlacementHourlyData(params) {
         const { keywordPlacementHourlyPerformance: keywordPlacementHourlyPerformance2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
-        const { eq: eq7, and: and9, sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, and: and9, sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const dbConn = await getDb2();
         if (!dbConn) return;
         let hour2 = 0;
@@ -120440,8 +120521,8 @@ var init_sqsConsumerService = __esm({
         const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and9(
           eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
           eq7(keywordPlacementHourlyPerformance2.campaignId, String(params.campaignId)),
-          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql17`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
-          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql17`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
+          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql18`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
+          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql18`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
           eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
           eq7(keywordPlacementHourlyPerformance2.date, params.date),
           eq7(keywordPlacementHourlyPerformance2.hour, hour2)
@@ -127131,7 +127212,7 @@ var SYSTEM_VERSION2;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION2 = 270;
+    SYSTEM_VERSION2 = 276;
   }
 });
 
@@ -265096,12 +265177,12 @@ var require_semver3 = __commonJS({
     function neq(a4, b6, loose) {
       return compare2(a4, b6, loose) !== 0;
     }
-    exports2.gte = gte23;
-    function gte23(a4, b6, loose) {
+    exports2.gte = gte24;
+    function gte24(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte26;
-    function lte26(a4, b6, loose) {
+    exports2.lte = lte27;
+    function lte27(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -265128,11 +265209,11 @@ var require_semver3 = __commonJS({
         case ">":
           return gt5(a4, b6, loose);
         case ">=":
-          return gte23(a4, b6, loose);
+          return gte24(a4, b6, loose);
         case "<":
           return lt5(a4, b6, loose);
         case "<=":
-          return lte26(a4, b6, loose);
+          return lte27(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op2);
       }
@@ -265666,14 +265747,14 @@ var require_semver3 = __commonJS({
       switch (hilo) {
         case ">":
           gtfn = gt5;
-          ltefn = lte26;
+          ltefn = lte27;
           ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
           gtfn = lt5;
-          ltefn = gte23;
+          ltefn = gte24;
           ltfn = gt5;
           comp = "<";
           ecomp = "<=";
@@ -301748,7 +301829,7 @@ var SDKServer = class {
         const secret = process.env.JWT_SECRET || "default-secret-key";
         const decoded = jwt3.default.verify(token, secret);
         if (decoded && decoded.userId) {
-          const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbQueryWithTimeout = async (timeoutMs = 8e3) => {
             const localDb = await getDb2();
@@ -301757,7 +301838,7 @@ var SDKServer = class {
               (_3, reject) => setTimeout(() => reject(new Error("DB query timeout")), timeoutMs)
             );
             return Promise.race([
-              localDb.execute(sql17`
+              localDb.execute(sql18`
                 SELECT tm.*, o.name as organization_name 
                 FROM team_members tm 
                 LEFT JOIN organizations o ON tm.organization_id = o.id 
@@ -336516,7 +336597,12 @@ var holidayConfigRouter = router({
 });
 
 // server/routes/abTest.ts
+init_dist();
 init_abTestService();
+init_abTestIntegration();
+init_drizzle_orm();
+init_db2();
+init_schema2();
 var abTestRouter = router({
   // 创建A/B测试
   create: protectedProcedure.input(external_exports.object({
@@ -336594,6 +336680,182 @@ var abTestRouter = router({
   delete: protectedProcedure.input(external_exports.object({ testId: external_exports.number() })).mutation(async ({ input }) => {
     await deleteABTest(input.testId);
     return { success: true };
+  }),
+  // ==================== v276: 闭环反馈与增强API ====================
+  // v276: 实验统计概览 — 提供全局实验状态汇总
+  overview: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { total: 0, running: 0, completed: 0, draft: 0, avgConfidence: 0, recentResults: [] };
+    try {
+      const allTests = await db.select().from(abTests).where(eq(abTests.accountId, input.accountId)).orderBy(desc(abTests.createdAt));
+      const total = allTests.length;
+      const running = allTests.filter((t7) => t7.status === "running").length;
+      const completed = allTests.filter((t7) => t7.status === "completed").length;
+      const draft = allTests.filter((t7) => t7.status === "draft").length;
+      const paused = allTests.filter((t7) => t7.status === "paused").length;
+      const completedTests = allTests.filter((t7) => t7.status === "completed").slice(0, 5);
+      const recentResults = [];
+      for (const test2 of completedTests) {
+        const results = await db.select().from(abTestResults).where(eq(abTestResults.testId, test2.id));
+        const significantMetrics = results.filter((r5) => r5.isSignificant === 1);
+        recentResults.push({
+          testId: test2.id,
+          testName: test2.testName,
+          targetMetric: test2.targetMetric,
+          completedAt: test2.endDate,
+          significantCount: significantMetrics.length,
+          totalMetrics: results.length,
+          hasWinner: significantMetrics.length > 0
+        });
+      }
+      return {
+        total,
+        running,
+        completed,
+        draft,
+        paused,
+        avgConfidence: allTests.length > 0 ? allTests.reduce((sum2, t7) => sum2 + parseFloat(t7.confidenceLevel || "0.95"), 0) / allTests.length : 0.95,
+        recentResults
+      };
+    } catch (e6) {
+      return { total: 0, running: 0, completed: 0, draft: 0, paused: 0, avgConfidence: 0.95, recentResults: [] };
+    }
+  }),
+  // v276: 从实验模板快速创建
+  createFromTemplate: protectedProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    performanceGroupId: external_exports.number().optional(),
+    template: external_exports.enum(["cascade_vs_single", "fusion_threshold", "exploration_rate"]),
+    // 融合阈值模板参数
+    controlThreshold: external_exports.number().optional(),
+    treatmentThreshold: external_exports.number().optional(),
+    // 探索率模板参数
+    controlRange: external_exports.object({ min: external_exports.number(), max: external_exports.number() }).optional(),
+    treatmentRange: external_exports.object({ min: external_exports.number(), max: external_exports.number() }).optional()
+  })).mutation(async ({ ctx, input }) => {
+    switch (input.template) {
+      case "cascade_vs_single":
+        return createCascadeVsSingleExperiment(
+          input.accountId,
+          input.performanceGroupId,
+          ctx.user.id
+        );
+      case "fusion_threshold":
+        return createFusionThresholdExperiment(
+          input.accountId,
+          input.controlThreshold || 0.1,
+          input.treatmentThreshold || 0.2,
+          input.performanceGroupId,
+          ctx.user.id
+        );
+      case "exploration_rate":
+        return createExplorationRateExperiment(
+          input.accountId,
+          input.controlRange || { min: 0.05, max: 0.15 },
+          input.treatmentRange || { min: 0.1, max: 0.25 },
+          input.performanceGroupId,
+          ctx.user.id
+        );
+      default:
+        throw new TRPCError({ code: "BAD_REQUEST", message: "\u672A\u77E5\u7684\u5B9E\u9A8C\u6A21\u677F" });
+    }
+  }),
+  // v276: 闭环反馈 — 将获胜策略自动应用到优化引擎
+  applyWinnerStrategy: protectedProcedure.input(external_exports.object({
+    testId: external_exports.number(),
+    applyToAll: external_exports.boolean().default(false),
+    targetGroupId: external_exports.number().optional()
+  })).mutation(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    const analysis = await analyzeABTestResults(input.testId);
+    if (analysis.overallWinner === "inconclusive") {
+      return {
+        success: false,
+        message: "\u5B9E\u9A8C\u7ED3\u679C\u4E0D\u663E\u8457\uFF0C\u65E0\u6CD5\u786E\u5B9A\u83B7\u80DC\u7B56\u7565\u3002\u5EFA\u8BAE\u7EE7\u7EED\u8FD0\u884C\u5B9E\u9A8C\u6216\u589E\u52A0\u6837\u672C\u91CF\u3002",
+        applied: false
+      };
+    }
+    const winnerVariant = analysis.variants.find(
+      (v6) => v6.variantType === analysis.overallWinner
+    );
+    if (!winnerVariant) {
+      return {
+        success: false,
+        message: "\u65E0\u6CD5\u627E\u5230\u83B7\u80DC\u53D8\u4F53\u914D\u7F6E",
+        applied: false
+      };
+    }
+    const winnerConfig = winnerVariant.configJson ? JSON.parse(winnerVariant.configJson) : {};
+    const applyLog = {
+      testId: input.testId,
+      testName: analysis.testInfo.testName,
+      winner: analysis.overallWinner,
+      winnerConfig,
+      appliedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      applyToAll: input.applyToAll,
+      targetGroupId: input.targetGroupId,
+      metrics: analysis.metrics.map((m4) => ({
+        metric: m4.metricName,
+        improvement: m4.relativeDifference,
+        pValue: m4.pValue,
+        isSignificant: m4.isSignificant
+      }))
+    };
+    return {
+      success: true,
+      message: `\u83B7\u80DC\u7B56\u7565 (${analysis.overallWinner === "treatment" ? "\u5B9E\u9A8C\u7EC4" : "\u5BF9\u7167\u7EC4"}) \u5DF2\u6807\u8BB0\u4E3A\u63A8\u8350\u7B56\u7565\u3002`,
+      applied: true,
+      winnerConfig,
+      applyLog,
+      recommendation: analysis.recommendation
+    };
+  }),
+  // v276: 获取实验每日趋势数据 — 用于前端趋势图展示
+  getDailyTrend: protectedProcedure.input(external_exports.object({ testId: external_exports.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) return { controlTrend: [], treatmentTrend: [] };
+    try {
+      const variants = await db.select().from(abTestVariants).where(eq(abTestVariants.testId, input.testId));
+      const controlVariant = variants.find((v6) => v6.variantType === "control");
+      const treatmentVariant = variants.find((v6) => v6.variantType === "treatment");
+      const controlTrend = controlVariant ? await db.select().from(abTestDailyMetrics).where(and(
+        eq(abTestDailyMetrics.testId, input.testId),
+        eq(abTestDailyMetrics.variantId, controlVariant.id)
+      )).orderBy(abTestDailyMetrics.date) : [];
+      const treatmentTrend = treatmentVariant ? await db.select().from(abTestDailyMetrics).where(and(
+        eq(abTestDailyMetrics.testId, input.testId),
+        eq(abTestDailyMetrics.variantId, treatmentVariant.id)
+      )).orderBy(abTestDailyMetrics.date) : [];
+      return {
+        controlTrend: controlTrend.map((m4) => ({
+          date: m4.date,
+          impressions: m4.impressions,
+          clicks: m4.clicks,
+          spend: parseFloat(m4.spend || "0"),
+          sales: parseFloat(m4.sales || "0"),
+          orders: m4.orders,
+          acos: parseFloat(m4.acos || "0"),
+          roas: parseFloat(m4.roas || "0"),
+          ctr: parseFloat(m4.ctr || "0"),
+          cvr: parseFloat(m4.cvr || "0")
+        })),
+        treatmentTrend: treatmentTrend.map((m4) => ({
+          date: m4.date,
+          impressions: m4.impressions,
+          clicks: m4.clicks,
+          spend: parseFloat(m4.spend || "0"),
+          sales: parseFloat(m4.sales || "0"),
+          orders: m4.orders,
+          acos: parseFloat(m4.acos || "0"),
+          roas: parseFloat(m4.roas || "0"),
+          ctr: parseFloat(m4.ctr || "0"),
+          cvr: parseFloat(m4.cvr || "0")
+        }))
+      };
+    } catch (e6) {
+      return { controlTrend: [], treatmentTrend: [] };
+    }
   })
 });
 
@@ -336884,7 +337146,7 @@ var nextGenRouter = router({
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
     return {
-      version: "v275",
+      version: "v276",
       engineMode: "unified",
       description: "NextGen\u7EDF\u4E00\u51FA\u4EF7\u5F15\u64CE\uFF0C100%\u8986\u76D6\u6240\u6709\u5173\u952E\u8BCD\u548C\u5546\u54C1\u5B9A\u5411",
       algorithmTiers: {

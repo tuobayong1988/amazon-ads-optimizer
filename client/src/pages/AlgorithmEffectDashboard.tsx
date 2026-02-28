@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   ShoppingCart, Eye, Lightbulb, Info,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { Input } from "@/components/ui/input";
 import { zhCN } from "date-fns/locale";
 
 // 算法层级颜色配置
@@ -43,6 +44,20 @@ const PIE_COLORS = ['#8B5CF6', '#3B82F6', '#F59E0B', '#A855F7', '#EC4899', '#14B
 export default function AlgorithmEffectDashboard() {
   const [timeRange, setTimeRange] = useState("30");
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
+
+  // v276: 因果推断Tab交互状态
+  const [causalSortBy, setCausalSortBy] = useState<string>("date");
+  const [causalFilterSignificant, setCausalFilterSignificant] = useState(false);
+  const [causalSearchKeyword, setCausalSearchKeyword] = useState("");
+
+  // v276: CQL模型Tab交互状态
+  const [cqlSortBy, setCqlSortBy] = useState<string>("time");
+
+  // v276: 竞争环境Tab交互状态
+  const [competitionTimeRange, setCompetitionTimeRange] = useState("7");
+
+  // v276: 预算分池Tab交互状态
+  const [budgetPoolTimeRange, setBudgetPoolTimeRange] = useState("30");
 
   // 获取账户列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -780,6 +795,44 @@ export default function AlgorithmEffectDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* v276: 交互控件栏 */}
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
+                  <Input
+                    placeholder="搜索关键词ID..."
+                    value={causalSearchKeyword}
+                    onChange={(e) => setCausalSearchKeyword(e.target.value)}
+                    className="w-[200px] bg-gray-700 border-gray-600 text-white placeholder:text-gray-500"
+                  />
+                  <Select value={causalSortBy} onValueChange={setCausalSortBy}>
+                    <SelectTrigger className="w-[150px] bg-gray-700 border-gray-600">
+                      <SelectValue placeholder="排序方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">按日期排序</SelectItem>
+                      <SelectItem value="uplift">按提升分排序</SelectItem>
+                      <SelectItem value="profit">按增量利润排序</SelectItem>
+                      <SelectItem value="roas">按增量ROAS排序</SelectItem>
+                      <SelectItem value="sample">按样本量排序</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant={causalFilterSignificant ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCausalFilterSignificant(!causalFilterSignificant)}
+                    className={causalFilterSignificant ? "bg-green-600 hover:bg-green-700" : "border-gray-600 text-gray-300"}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    仅显著效果
+                  </Button>
+                  <span className="text-xs text-gray-500 ml-auto">
+                    共 {(() => {
+                      let data = causalInsights?.results || [];
+                      if (causalFilterSignificant) data = data.filter((r: any) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
+                      if (causalSearchKeyword) data = data.filter((r: any) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
+                      return data.length;
+                    })()} 条结果
+                  </span>
+                </div>
                 {/* 汇总卡片 */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <div className="bg-gray-700/50 rounded-lg p-4">
@@ -804,19 +857,31 @@ export default function AlgorithmEffectDashboard() {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-gray-700">
-                        <th className="text-left py-3 px-3 text-gray-400 font-medium text-sm">日期</th>
+                        <th className="text-left py-3 px-3 text-gray-400 font-medium text-sm cursor-pointer hover:text-white" onClick={() => setCausalSortBy('date')}>日期 {causalSortBy === 'date' && '↓'}</th>
                         <th className="text-left py-3 px-3 text-gray-400 font-medium text-sm">关键词ID</th>
-                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">提升分</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm cursor-pointer hover:text-white" onClick={() => setCausalSortBy('uplift')}>提升分 {causalSortBy === 'uplift' && '↓'}</th>
                         <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">置信区间</th>
-                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">增量利润</th>
-                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">增量ROAS</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm cursor-pointer hover:text-white" onClick={() => setCausalSortBy('profit')}>增量利润 {causalSortBy === 'profit' && '↓'}</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm cursor-pointer hover:text-white" onClick={() => setCausalSortBy('roas')}>增量ROAS {causalSortBy === 'roas' && '↓'}</th>
                         <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">最优出价</th>
                         <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">出价区间</th>
-                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm">样本量</th>
+                        <th className="text-right py-3 px-3 text-gray-400 font-medium text-sm cursor-pointer hover:text-white" onClick={() => setCausalSortBy('sample')}>样本量 {causalSortBy === 'sample' && '↓'}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(causalInsights?.results || []).slice(0, 20).map((r: any, i: number) => (
+                      {(() => {
+                        let data = [...(causalInsights?.results || [])];
+                        // v276: 筛选
+                        if (causalFilterSignificant) data = data.filter((r: any) => r.upliftScore > 0 && r.confidenceInterval && r.confidenceInterval < 0.5);
+                        if (causalSearchKeyword) data = data.filter((r: any) => String(r.keywordId || r.targetId || '').includes(causalSearchKeyword));
+                        // v276: 排序
+                        if (causalSortBy === 'uplift') data.sort((a: any, b: any) => (b.upliftScore || 0) - (a.upliftScore || 0));
+                        else if (causalSortBy === 'profit') data.sort((a: any, b: any) => (b.incrementalProfit || 0) - (a.incrementalProfit || 0));
+                        else if (causalSortBy === 'roas') data.sort((a: any, b: any) => (b.incrementalRoas || 0) - (a.incrementalRoas || 0));
+                        else if (causalSortBy === 'sample') data.sort((a: any, b: any) => (b.sampleSize || 0) - (a.sampleSize || 0));
+                        else data.sort((a: any, b: any) => (b.analysisDate || '').localeCompare(a.analysisDate || ''));
+                        return data.slice(0, 30);
+                      })().map((r: any, i: number) => (
                         <tr key={i} className="border-b border-gray-700/50 hover:bg-gray-700/30">
                           <td className="py-2 px-3 text-gray-300 text-sm">{r.analysisDate}</td>
                           <td className="py-2 px-3 text-white text-sm">{r.keywordId || r.targetId || '-'}</td>
@@ -862,6 +927,21 @@ export default function AlgorithmEffectDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* v276: CQL排序控件 */}
+                <div className="flex items-center gap-3 mb-4">
+                  <Select value={cqlSortBy} onValueChange={setCqlSortBy}>
+                    <SelectTrigger className="w-[180px] bg-gray-700 border-gray-600">
+                      <SelectValue placeholder="排序方式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="time">按训练时间排序</SelectItem>
+                      <SelectItem value="version">按版本号排序</SelectItem>
+                      <SelectItem value="loss">按Loss排序</SelectItem>
+                      <SelectItem value="steps">按训练步数排序</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-gray-500">共 {cqlModelStatus?.summary?.totalModels || 0} 个模型</span>
+                </div>
                 {/* 汇总卡片 */}
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-gray-700/50 rounded-lg p-4">
@@ -883,7 +963,14 @@ export default function AlgorithmEffectDashboard() {
                 </div>
                 {/* 模型列表 */}
                 <div className="space-y-3">
-                  {(cqlModelStatus?.models || []).map((model: any, i: number) => (
+                  {(() => {
+                    let models = [...(cqlModelStatus?.models || [])];
+                    if (cqlSortBy === 'version') models.sort((a: any, b: any) => (b.modelVersion || 0) - (a.modelVersion || 0));
+                    else if (cqlSortBy === 'loss') models.sort((a: any, b: any) => (a.avgLoss || 999) - (b.avgLoss || 999));
+                    else if (cqlSortBy === 'steps') models.sort((a: any, b: any) => (b.trainingSteps || 0) - (a.trainingSteps || 0));
+                    else models.sort((a: any, b: any) => new Date(b.lastTrainedAt || 0).getTime() - new Date(a.lastTrainedAt || 0).getTime());
+                    return models;
+                  })().map((model: any, i: number) => (
                     <div key={i} className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-full bg-pink-500/20">
@@ -927,6 +1014,22 @@ export default function AlgorithmEffectDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* v276: 竞争环境时间范围选择器 */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-sm text-gray-400">时间范围：</span>
+                  <Select value={competitionTimeRange} onValueChange={setCompetitionTimeRange}>
+                    <SelectTrigger className="w-[140px] bg-gray-700 border-gray-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="3">近3天</SelectItem>
+                      <SelectItem value="7">近7天</SelectItem>
+                      <SelectItem value="14">近14天</SelectItem>
+                      <SelectItem value="30">近30天</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-gray-500">竞争环境数据每次优化执行时自动采集</span>
+                </div>
                 <div className="grid grid-cols-2 gap-6">
                   {/* 竞争类型分布饼图 */}
                   <div>
@@ -1018,6 +1121,22 @@ export default function AlgorithmEffectDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* v276: 预算分池时间范围选择器 */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-sm text-gray-400">时间范围：</span>
+                  <Select value={budgetPoolTimeRange} onValueChange={setBudgetPoolTimeRange}>
+                    <SelectTrigger className="w-[140px] bg-gray-700 border-gray-600">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">近7天</SelectItem>
+                      <SelectItem value="14">近14天</SelectItem>
+                      <SelectItem value="30">近30天</SelectItem>
+                      <SelectItem value="60">近60天</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-gray-500">分池决策在每次出价优化时自动记录</span>
+                </div>
                 {/* 当前分配比例 */}
                 <div className="grid grid-cols-2 gap-6 mb-6">
                   <div className="bg-gradient-to-br from-blue-900/50 to-blue-800/30 border border-blue-700/50 rounded-lg p-6">
