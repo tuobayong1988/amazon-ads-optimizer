@@ -2905,7 +2905,7 @@ async function executeSearchTermAnalysis(
                   .from(productTargets)
                   .where(andOp(
                     eqOp(productTargets.adGroupId, adGroup.id),
-                    eqOp(productTargets.expressionValue, decision.targetValue)
+                    eqOp(productTargets.targetValue, decision.targetValue)
                   ))
                   .limit(5);
                 
@@ -2918,8 +2918,8 @@ async function executeSearchTermAnalysis(
                   try {
                     const insertResult = await dbInstance.insert(productTargets).values({
                       adGroupId: adGroup.id,
-                      expressionType: 'manual',
-                      expressionValue: decision.targetValue,
+                      targetType: 'asin',
+                      targetValue: decision.targetValue,
                       bid: String(bid),
                       targetStatus: 'enabled',
                       createdAt: new Date().toISOString(),

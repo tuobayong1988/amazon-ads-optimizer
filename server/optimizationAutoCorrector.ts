@@ -3767,13 +3767,13 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
     
     // 查找缺少Amazon targetId的product_targets记录
     const [missingTargets] = await database.execute(sql`
-      SELECT pt.id, pt.adGroupId, pt.expressionType, pt.expression, pt.bid, pt.state,
+      SELECT pt.id, pt.adGroupId, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
              ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
       FROM product_targets pt
       INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
       WHERE pt.accountId = ${accountId}
         AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
-        AND pt.state != 'archived'
+        AND pt.targetStatus != 'archived'
         AND ag.adGroupId IS NOT NULL
         AND ag.campaignId IS NOT NULL
       LIMIT 200
@@ -3799,8 +3799,8 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
     for (const pt of missingTargets) {
       try {
         let expression: any[] = [];
-        if (pt.expression) {
-          try { expression = typeof pt.expression === 'string' ? JSON.parse(pt.expression) : pt.expression; } catch {}
+        if (pt.targetExpression) {
+          try { expression = typeof pt.targetExpression === 'string' ? JSON.parse(pt.targetExpression) : pt.targetExpression; } catch {}
         }
         
         // 从expression中提取ASIN
