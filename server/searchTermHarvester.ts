@@ -12,7 +12,7 @@
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { createAmazonAdsClient, AmazonAdsApiClient } from './amazonAdsApi';
-import { isAsinSearchTerm, adGroupHasProductTargets, sanitizeAndValidateKeyword } from './utils/keywordValidator';
+import { isAsinSearchTerm, adGroupHasProductTargets, sanitizeAndValidateKeyword, isProductTargetingCampaign } from './utils/keywordValidator';
 import { createModuleLogger } from './utils/logger';
 
 const log = createModuleLogger('SearchTermHarvester');
@@ -577,8 +577,13 @@ async function findTargetAdGroup(
   amazonCampaignId: string;
 } | null> {
   
-  // 策由1: 查找名称包含"Exact"的Campaign
-  const exactCampaigns = manualCampaigns.filter(c => 
+  // v311: 先过滤掉Product Targeting类型的campaign
+  const nonPTCampaigns = manualCampaigns.filter(c => 
+    !isProductTargetingCampaign(c.campaignName || '')
+  );
+  
+  // 策由1: 查找名称包含"Exact"的Campaign（排除PT类型）
+  const exactCampaigns = nonPTCampaigns.filter(c => 
     c.campaignName?.toLowerCase().includes('exact') ||
     c.campaignName?.includes('精确')
   );
@@ -604,8 +609,8 @@ async function findTargetAdGroup(
     }
   }
   
-  // 策由2: 查找任意手动Campaign的广告组
-  for (const campaign of manualCampaigns) {
+  // 策由2: 查找任意手动Campaign的广告组（排除PT类型）
+  for (const campaign of nonPTCampaigns) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag: any) => ag.adGroupStatus === 'enabled');

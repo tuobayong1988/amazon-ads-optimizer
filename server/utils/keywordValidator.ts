@@ -169,14 +169,51 @@ export function isAsinSearchTerm(searchTerm: string): boolean {
 }
 
 /**
- * 检查广告活动是否允许添加正面关键词
- * 自动广告活动(auto targeting)不允许添加正面关键词
+ * v191: 判断广告活动是否可以添加正面关键词
+ * Amazon规则: 自动广告活动不能添加正面关键词
  * 
  * @param campaignTargetingType - 广告活动定向类型 ('auto' | 'manual')
+ * @param campaignName - 广告活动名称（可选，用于检测Product Targeting campaign）
  * @returns true = 允许添加正面关键词
  */
-export function canAddPositiveKeyword(campaignTargetingType: string): boolean {
-  return campaignTargetingType !== 'auto';
+export function canAddPositiveKeyword(campaignTargetingType: string, campaignName?: string): boolean {
+  if (campaignTargetingType === 'auto') return false;
+  
+  // v311: 检测Product Targeting类型的campaign
+  // POE (Product + Other + Exact) 和 PT (Product Targeting) campaign不支持keyword
+  // 这些campaign只能添加product targets，不能添加keywords
+  if (campaignName && isProductTargetingCampaign(campaignName)) return false;
+  
+  return true;
+}
+
+/**
+ * v311: 判断campaign是否为Product Targeting类型
+ * 通过campaign名称中的命名约定来识别：
+ * - POE (Product + Other + Exact)
+ * - PT (Product Targeting)
+ * - ASIN (ASIN定向)
+ * 
+ * Amazon规则: Product Targeting campaign的广告组只能包含product targets，不能包含keywords
+ * 
+ * @param campaignName - 广告活动名称
+ * @returns true = 是Product Targeting campaign，不能添加keyword
+ */
+export function isProductTargetingCampaign(campaignName: string): boolean {
+  if (!campaignName) return false;
+  const name = campaignName.toUpperCase();
+  
+  // 匹配常见的Product Targeting campaign命名模式
+  // 使用分隔符边界检测避免误匹配（如"SPOT"中的"POT"）
+  const ptPatterns = [
+    /[-_\s]POE[-_\s]/,     // POE = Product + Other + Exact
+    /[-_\s]POB[-_\s]/,     // POB = Product + Other + Broad  
+    /[-_\s]PT[-_\s]/,      // PT = Product Targeting
+    /[-_\s]ASIN[-_\s]/,    // ASIN定向
+    /PRODUCT[\s_-]?TARGET/i, // Product Targeting / Product_Target
+  ];
+  
+  return ptPatterns.some(pattern => pattern.test(`-${name}-`));
 }
 
 /**

@@ -38,7 +38,7 @@ import * as postOptVerifier from "./postOptimizationVerifier";
 import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "./utils/taskLifecycle";
 import { decideTargeting } from "./services/targetingAlgorithm";
 import type { SearchTermPerformance, TargetingDecision } from "./services/targetingAlgorithm";
-import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from "./utils/keywordValidator";
+import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "./utils/keywordValidator";
 import { createModuleLogger } from './utils/logger';
 import { getCampaignAmazonId, getCampaignLocalId } from './utils/idTypes';
 
@@ -2497,6 +2497,15 @@ async function executeSearchTermAnalysis(
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
+      // v311: Campaign级别的Product Targeting检查
+      // Product Targeting campaign（POE/PT/ASIN）只能包含product targets，不能添加keywords
+      // 在遍历搜索词之前就跳过这类campaign，避免产生无效的keyword_create操作
+      const campaignNameStr = (campaign as any).campaignName || '';
+      if (isProductTargetingCampaign(campaignNameStr)) {
+        log.info(`[SearchTermAnalysis] v311: 跳过Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})，该类型campaign不支持keyword操作`);
+        continue;
+      }
+      
       // 获取搜索词数据
       const searchTerms = await db.getSearchTermsByCampaignId(campaignAmazonId as any);
       
@@ -2686,9 +2695,9 @@ async function executeSearchTermAnalysis(
         
         // ===== 正面关键词处理 =====
         else if (decision.action === 'CREATE_KEYWORD') {
-          // v191: 自动广告活动不能添加正面关键词（已在算法层拦截，这里双重保险）
-          if (!canAddPositiveKeyword(campaignTargetingType)) {
-            log.info(`[SearchTermAnalysis] v191: 自动广告活动不能添加正面关键词，跳过: "${decision.targetValue}"`);
+          // v191+v311: 自动广告活动和Product Targeting campaign不能添加正面关键词（双重保险）
+          if (!canAddPositiveKeyword(campaignTargetingType, campaignNameStr)) {
+            log.info(`[SearchTermAnalysis] v311: campaign不支持添加正面关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}", type=${campaignTargetingType})`);
             continue;
           }
           

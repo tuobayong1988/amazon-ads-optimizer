@@ -30,7 +30,7 @@ import * as db from './db';
 import { optimizationEvents, keywords, campaigns, adGroups, negativeKeywords, performanceGroups, productTargets } from '../drizzle/schema';
 import { eq, and, or, sql, inArray, isNull, desc, lt, gt, gte, lte } from 'drizzle-orm';
 import * as amazonApiHelper from './services/amazonApiHelper';
-import { sanitizeAndValidateKeyword } from './utils/keywordValidator';
+import { sanitizeAndValidateKeyword, isProductTargetingCampaign } from './utils/keywordValidator';
 import { createModuleLogger } from './utils/logger';
 
 const log = createModuleLogger('AutoCorrector');
@@ -2521,6 +2521,21 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
     // 逐个 campaign 处理
     for (const [localCampaignId, kwEvents] of byCampaign) {
       try {
+        // v311: 检查campaign名称是否为Product Targeting类型
+        // PT campaign不支持keyword操作，直接标记为invalid_legacy而不是反复重试
+        const firstCampaignName = kwEvents[0]?.campaignName || '';
+        if (isProductTargetingCampaign(firstCampaignName)) {
+          for (const kw of kwEvents) {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {});
+            results.push({ type: 'keyword_create_retry' as any, accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `v311: PT campaign不支持keyword，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'pt_campaign_no_keyword' });
+          }
+          continue;
+        }
+        
         // 获取 campaign 的 Amazon ID
         const campRows = await database
           .select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId })
