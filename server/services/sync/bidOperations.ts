@@ -246,6 +246,33 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
     log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${error.response?.status || 'N/A'}`);
     
+    // v310-fix: 识别Amazon ID无效错误，清空targetId防止后续继续尝试同步
+    const isInvalidId = (
+      error.response?.status === 404 ||
+      errorDetail.includes('INVALID_ARGUMENT') ||
+      errorDetail.includes('NOT_FOUND') ||
+      errorDetail.includes('RESOURCE_NOT_FOUND') ||
+      errorDetail.includes('EntityNotFound') ||
+      errorDetail.includes('does not exist')
+    );
+    if (isInvalidId && amazonId) {
+      log.warn(`[applyBidAdjustment] v310-fix: ${targetType} id=${targetId} 的Amazon ID "${amazonId}" 已失效，清空以防止后续重复失败`);
+      try {
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          const { sql: sqlTag } = await import('drizzle-orm');
+          if (targetType === 'keyword') {
+            await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = NULL WHERE id = ${targetId}`);
+          } else {
+            await dbInstance.execute(sqlTag`UPDATE product_targets SET targetId = NULL WHERE id = ${targetId}`);
+          }
+          log.info(`[applyBidAdjustment] v310-fix: 已清空${targetType} id=${targetId}的Amazon ID，将通过即时回填机制重新获取`);
+        }
+      } catch (clearErr: any) {
+        log.error(`[applyBidAdjustment] v310-fix: 清空Amazon ID失败: ${clearErr.message}`);
+      }
+    }
+    
     // v126: 记录失败的出价调整到bidding_logs
     try {
       const bidChangePercent = oldBid > 0 ? ((newBid - oldBid) / oldBid) * 100 : 0;

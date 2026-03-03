@@ -3373,6 +3373,58 @@ export class AmazonAdsApiClient {
     log.info(`[SD API] v199: SD定位出价更新完成: 总计${updates.length}个`);
   }
 
+  /**
+   * v310-fix: 更新SD广告组状态
+   * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
+   */
+  async updateSdAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+    const BATCH_SIZE = 100; // SD API使用旧版接口，批次较小
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
+      adGroupId: Number(u.adGroupId),
+      state: u.state.toLowerCase(),
+    }));
+    
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    log.info(`[SD API] v310-fix: updateSdAdGroupStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      
+      try {
+        const response = await this.axiosInstance.put('/sd/adGroups', batch);
+        
+        // SD API返回格式与SP不同，直接返回更新后的对象数组
+        if (Array.isArray(response.data)) {
+          const errors = response.data.filter((r: any) => r.code && r.code !== 'SUCCESS');
+          const successes = response.data.filter((r: any) => !r.code || r.code === 'SUCCESS');
+          totalSuccess += successes.length;
+          for (const err of errors) {
+            allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description });
+          }
+        } else {
+          // 如果没有错误返回，视为全部成功
+          totalSuccess += batch.length;
+        }
+      } catch (batchErr: any) {
+        log.error(`[SD API] v310-fix: 第${batchIdx + 1}批SD广告组状态更新失败: ${batchErr.message}`);
+        for (const item of batch) {
+          allErrors.push({ adGroupId: item.adGroupId, code: 'BATCH_ERROR', details: batchErr.message });
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    
+    log.warn(`[SD API] v310-fix: SD广告组状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+  }
+
   // ==================== 否定关键词 API ====================
 
   /**

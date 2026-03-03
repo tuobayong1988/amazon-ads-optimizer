@@ -335,8 +335,42 @@ export async function syncNewKeywordsToAmazon(
           }
         } else {
           result.failed++;
-          result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${created.code}`);
-          log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
+          const errorCode = created.code || 'UNKNOWN';
+          const errorDetail = created.details || created.description || '';
+          result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
+          log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
+          
+          // v310-fix: 识别品牌词拒绝、无效值等永久性错误，立即标记为permanently_failed
+          const isPermanentError = (
+            errorCode === 'INVALID_VALUE' ||
+            errorCode === 'INVALID_ARGUMENT' ||
+            errorDetail.toLowerCase().includes('trademark') ||
+            errorDetail.toLowerCase().includes('brand') ||
+            errorDetail.toLowerCase().includes('restricted') ||
+            errorDetail.toLowerCase().includes('not eligible')
+          );
+          if (isPermanentError && original.localKeywordId) {
+            try {
+              const dbInstance = await db.getDb();
+              if (dbInstance) {
+                const { sql: sqlTag } = await import('drizzle-orm');
+                // 将该关键词在optimization_logs中的最新记录标记为permanently_failed
+                await dbInstance.execute(sqlTag`
+                  UPDATE optimization_logs 
+                  SET api_sync_status = 'permanently_failed',
+                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: 'v310-fix: Amazon永久性拒绝' })}
+                  WHERE action_type = 'keyword_create'
+                    AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')) = ${original.keywordText}
+                    AND api_sync_status = 'failed'
+                  ORDER BY created_at DESC
+                  LIMIT 1
+                `);
+                log.warn(`[AmazonApiHelper] v310-fix: 关键词"${original.keywordText}"已标记为永久失败 (${errorCode})`);
+              }
+            } catch (markErr: any) {
+              log.error(`[AmazonApiHelper] v310-fix: 标记永久失败异常: ${markErr.message}`);
+            }
+          }
         }
       }
       
@@ -959,6 +993,7 @@ export async function syncAdGroupStatusToAmazon(
     adGroupName: string;
     campaignName: string;
     reason: string;
+    campaignType?: string;    // v310-fix: 广告类型，用于选择正确的API端点
   }>
 ): Promise<{ success: number; failed: number; errors: string[] }> {
   const result = { success: 0, failed: 0, errors: [] as string[] };
@@ -990,13 +1025,22 @@ export async function syncAdGroupStatusToAmazon(
     try {
       log.info(`[AmazonApiHelper] 同步广告组状态: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
       
-      // v190: 使用withRetry包装API调用
+      // v310-fix: 根据广告类型选择正确的API端点
+      const isSD = change.campaignType === 'sd' || change.campaignType === 'sponsoredDisplay' || change.campaignType === 'SD';
+      const apiLabel = isSD ? 'updateSdAdGroupStatus' : 'updateSpAdGroupStatus';
+      log.info(`[AmazonApiHelper] v310-fix: 使用${apiLabel}更新广告组状态 (campaignType=${change.campaignType || 'sp'})`);
+      
       const apiResult = await withRetry(
-        () => syncService.client.updateSpAdGroupStatus([{
-          adGroupId: change.amazonAdGroupId,
-          state: change.newStatus,
-        }]),
-        { maxRetries: 2, baseDelayMs: 2000, label: `updateSpAdGroupStatus-${change.amazonAdGroupId}` }
+        () => isSD 
+          ? syncService.client.updateSdAdGroupStatus([{
+              adGroupId: change.amazonAdGroupId,
+              state: change.newStatus,
+            }])
+          : syncService.client.updateSpAdGroupStatus([{
+              adGroupId: change.amazonAdGroupId,
+              state: change.newStatus,
+            }]),
+        { maxRetries: 2, baseDelayMs: 2000, label: `${apiLabel}-${change.amazonAdGroupId}` }
       );
       
       if (apiResult.successCount > 0) {

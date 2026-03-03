@@ -2139,6 +2139,97 @@ async function executeSearchTermAnalysis(
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
+  // v310: 预加载最近24h已处理的搜索词（含 already_exists/synced/failed/permanently_failed），
+  // 在进入 decideTargeting 之前就跳过已处理的搜索词，从根本上避免重复记录
+  const recentlyProcessedSearchTerms = new Set<string>();
+  try {
+    const dbInstance = await db.getDb();
+    if (dbInstance) {
+      const { sql } = await import('drizzle-orm');
+      const recentLogs = await dbInstance.execute(sql`
+        SELECT DISTINCT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+               JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
+        FROM optimization_logs 
+        WHERE performance_group_id = ${config.performanceGroupId}
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending')
+      `);
+      for (const row of (recentLogs as any)[0] || []) {
+        if (row.search_term && row.campaign_id) {
+          recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
+        }
+      }
+      log.info(`[SearchTermAnalysis] v310: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重`);
+    }
+  } catch (dedupErr: any) {
+    log.warn(`[SearchTermAnalysis] v310: 去重预加载失败(不影响主流程): ${dedupErr.message}`);
+  }
+  
+  // v310-fix: 预加载永久失败的关键词列表，避免反复尝试已知会失败的关键词
+  // 两类永久失败: 1) 已标记为permanently_failed的 2) 普通失败达到3次的
+  const permanentlyFailedKeywords = new Set<string>();
+  try {
+    const dbInstance = await db.getDb();
+    if (dbInstance) {
+      const { sql } = await import('drizzle-orm');
+      // v310-fix: 同时查询已标记permanently_failed的(哪怕只有1次)和普通失败达3次的
+      const failedLogs = await dbInstance.execute(sql`
+        SELECT search_term, MAX(fail_count) as fail_count FROM (
+          SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+                 COUNT(*) as fail_count
+          FROM optimization_logs 
+          WHERE performance_group_id = ${config.performanceGroupId}
+            AND action_type = 'keyword_create'
+            AND api_sync_status = 'permanently_failed'
+          GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
+          UNION ALL
+          SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+                 COUNT(*) as fail_count
+          FROM optimization_logs 
+          WHERE performance_group_id = ${config.performanceGroupId}
+            AND action_type = 'keyword_create'
+            AND api_sync_status = 'failed'
+          GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
+          HAVING fail_count >= 3
+        ) combined
+        GROUP BY search_term
+      `);
+      for (const row of (failedLogs as any)[0] || []) {
+        if (row.search_term) {
+          permanentlyFailedKeywords.add(row.search_term);
+        }
+      }
+      if (permanentlyFailedKeywords.size > 0) {
+        log.warn(`[SearchTermAnalysis] v310: 发现${permanentlyFailedKeywords.size}个永久失败关键词将被跳过: ${[...permanentlyFailedKeywords].slice(0, 5).join(', ')}`);
+      }
+    }
+  } catch (failErr: any) {
+    log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${failErr.message}`);
+  }
+  
+  // v310-fix: 处理pending积压 - 将超过24小时的pending记录标记为timeout_failed
+  try {
+    const dbInstance = await db.getDb();
+    if (dbInstance) {
+      const { sql } = await import('drizzle-orm');
+      const timeoutResult = await dbInstance.execute(sql`
+        UPDATE optimization_logs 
+        SET api_sync_status = 'timeout_failed',
+            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310-fix: pending超过24小时未同步')
+        WHERE performance_group_id = ${config.performanceGroupId}
+          AND api_sync_status = 'pending'
+          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      `);
+      const timeoutCount = (timeoutResult as any)[0]?.affectedRows || 0;
+      if (timeoutCount > 0) {
+        log.warn(`[SearchTermAnalysis] v310-fix: 标记${timeoutCount}条超时pending记录为timeout_failed`);
+      }
+    }
+  } catch (timeoutErr: any) {
+    log.warn(`[SearchTermAnalysis] v310-fix: pending超时处理失败: ${timeoutErr.message}`);
+  }
+  
   for (const campaign of campaigns) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
@@ -2176,6 +2267,29 @@ async function executeSearchTermAnalysis(
         
         // SKIP和MONITOR不需要操作
         if (decision.action === 'SKIP' || decision.action === 'MONITOR') {
+          continue;
+        }
+        
+        // v310: 搜索词级别去重 — 如果该搜索词+campaign在最近24h内已处理过，直接跳过
+        const dedupKey = `${campaignAmazonId}::${stPerf.searchTerm.toLowerCase().trim()}`;
+        if (recentlyProcessedSearchTerms.has(dedupKey)) {
+          log.debug(`[SearchTermAnalysis] v310: 跳过已处理搜索词: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
+          continue;
+        }
+        
+        // v310: 永久失败关键词检查 — 如果该关键词已连续失败≥3次，跳过创建
+        if (decision.action === 'CREATE_KEYWORD' && permanentlyFailedKeywords.has(stPerf.searchTerm.toLowerCase().trim())) {
+          log.info(`[SearchTermAnalysis] v310: 跳过永久失败关键词: "${stPerf.searchTerm}"`);
+          details.push({
+            accountId: config.accountId,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
+            campaignName: campaign.campaignName,
+            searchTerm: stPerf.searchTerm,
+            action: 'keyword_permanently_failed_skip',
+            reason: `v310: 关键词已连续失败≥3次，标记为永久失败，不再重试`,
+            apiSyncStatus: 'permanently_failed',
+          });
           continue;
         }
         
@@ -3351,6 +3465,7 @@ async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: pauseReason,
+                  campaignType: (campaign as any).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
@@ -3399,6 +3514,7 @@ async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: enableReason,
+                  campaignType: (campaign as any).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';

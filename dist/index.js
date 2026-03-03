@@ -55570,8 +55570,32 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
           }
         } else {
           result.failed++;
-          result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${created.code}`);
-          log10.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${created.code}`);
+          const errorCode = created.code || "UNKNOWN";
+          const errorDetail = created.details || created.description || "";
+          result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${errorCode}`);
+          log10.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
+          const isPermanentError = errorCode === "INVALID_VALUE" || errorCode === "INVALID_ARGUMENT" || errorDetail.toLowerCase().includes("trademark") || errorDetail.toLowerCase().includes("brand") || errorDetail.toLowerCase().includes("restricted") || errorDetail.toLowerCase().includes("not eligible");
+          if (isPermanentError && original.localKeywordId) {
+            try {
+              const dbInstance = await getDb();
+              if (dbInstance) {
+                const { sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+                await dbInstance.execute(sqlTag`
+                  UPDATE optimization_logs 
+                  SET api_sync_status = 'permanently_failed',
+                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: "v310-fix: Amazon\u6C38\u4E45\u6027\u62D2\u7EDD" })}
+                  WHERE action_type = 'keyword_create'
+                    AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')) = ${original.keywordText}
+                    AND api_sync_status = 'failed'
+                  ORDER BY created_at DESC
+                  LIMIT 1
+                `);
+                log10.warn(`[AmazonApiHelper] v310-fix: \u5173\u952E\u8BCD"${original.keywordText}"\u5DF2\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25 (${errorCode})`);
+              }
+            } catch (markErr) {
+              log10.error(`[AmazonApiHelper] v310-fix: \u6807\u8BB0\u6C38\u4E45\u5931\u8D25\u5F02\u5E38: ${markErr.message}`);
+            }
+          }
         }
       }
       log10.info(`[AmazonApiHelper] \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u672C\u6279\u6210\u529F=${apiResult.createdKeywords.filter((k5) => k5.code === "SUCCESS").length}, \u7D2F\u8BA1\u6210\u529F=${result.success}`);
@@ -56014,12 +56038,18 @@ async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
   for (const change of validChanges) {
     try {
       log10.info(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
+      const isSD = change.campaignType === "sd" || change.campaignType === "sponsoredDisplay" || change.campaignType === "SD";
+      const apiLabel = isSD ? "updateSdAdGroupStatus" : "updateSpAdGroupStatus";
+      log10.info(`[AmazonApiHelper] v310-fix: \u4F7F\u7528${apiLabel}\u66F4\u65B0\u5E7F\u544A\u7EC4\u72B6\u6001 (campaignType=${change.campaignType || "sp"})`);
       const apiResult = await withRetry(
-        () => syncService.client.updateSpAdGroupStatus([{
+        () => isSD ? syncService.client.updateSdAdGroupStatus([{
+          adGroupId: change.amazonAdGroupId,
+          state: change.newStatus
+        }]) : syncService.client.updateSpAdGroupStatus([{
           adGroupId: change.amazonAdGroupId,
           state: change.newStatus
         }]),
-        { maxRetries: 2, baseDelayMs: 2e3, label: `updateSpAdGroupStatus-${change.amazonAdGroupId}` }
+        { maxRetries: 2, baseDelayMs: 2e3, label: `${apiLabel}-${change.amazonAdGroupId}` }
       );
       if (apiResult.successCount > 0) {
         result.success++;
@@ -81867,6 +81897,48 @@ var init_amazonAdsApi = __esm({
         }
         log37.info(`[SD API] v199: SD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
       }
+      /**
+       * v310-fix: 更新SD广告组状态
+       * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
+       */
+      async updateSdAdGroupStatus(updates) {
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          adGroupId: Number(u5.adGroupId),
+          state: u5.state.toLowerCase()
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log37.info(`[SD API] v310-fix: updateSdAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          try {
+            const response = await this.axiosInstance.put("/sd/adGroups", batch);
+            if (Array.isArray(response.data)) {
+              const errors = response.data.filter((r5) => r5.code && r5.code !== "SUCCESS");
+              const successes = response.data.filter((r5) => !r5.code || r5.code === "SUCCESS");
+              totalSuccess += successes.length;
+              for (const err2 of errors) {
+                allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+              }
+            } else {
+              totalSuccess += batch.length;
+            }
+          } catch (batchErr) {
+            log37.error(`[SD API] v310-fix: \u7B2C${batchIdx + 1}\u6279SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log37.warn(`[SD API] v310-fix: SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+      }
       // ==================== 否定关键词 API ====================
       /**
        * 获取SP活动级别否定关键词列表
@@ -90922,6 +90994,88 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   const details = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
+  const recentlyProcessedSearchTerms = /* @__PURE__ */ new Set();
+  try {
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const recentLogs = await dbInstance.execute(sql18`
+        SELECT DISTINCT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+               JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
+        FROM optimization_logs 
+        WHERE performance_group_id = ${config2.performanceGroupId}
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending')
+      `);
+      for (const row of recentLogs[0] || []) {
+        if (row.search_term && row.campaign_id) {
+          recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
+        }
+      }
+      log44.info(`[SearchTermAnalysis] v310: \u9884\u52A0\u8F7D${recentlyProcessedSearchTerms.size}\u4E2A\u5DF2\u5904\u7406\u641C\u7D22\u8BCD\u7528\u4E8E\u53BB\u91CD`);
+    }
+  } catch (dedupErr) {
+    log44.warn(`[SearchTermAnalysis] v310: \u53BB\u91CD\u9884\u52A0\u8F7D\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${dedupErr.message}`);
+  }
+  const permanentlyFailedKeywords = /* @__PURE__ */ new Set();
+  try {
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const failedLogs = await dbInstance.execute(sql18`
+        SELECT search_term, MAX(fail_count) as fail_count FROM (
+          SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+                 COUNT(*) as fail_count
+          FROM optimization_logs 
+          WHERE performance_group_id = ${config2.performanceGroupId}
+            AND action_type = 'keyword_create'
+            AND api_sync_status = 'permanently_failed'
+          GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
+          UNION ALL
+          SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
+                 COUNT(*) as fail_count
+          FROM optimization_logs 
+          WHERE performance_group_id = ${config2.performanceGroupId}
+            AND action_type = 'keyword_create'
+            AND api_sync_status = 'failed'
+          GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
+          HAVING fail_count >= 3
+        ) combined
+        GROUP BY search_term
+      `);
+      for (const row of failedLogs[0] || []) {
+        if (row.search_term) {
+          permanentlyFailedKeywords.add(row.search_term);
+        }
+      }
+      if (permanentlyFailedKeywords.size > 0) {
+        log44.warn(`[SearchTermAnalysis] v310: \u53D1\u73B0${permanentlyFailedKeywords.size}\u4E2A\u6C38\u4E45\u5931\u8D25\u5173\u952E\u8BCD\u5C06\u88AB\u8DF3\u8FC7: ${[...permanentlyFailedKeywords].slice(0, 5).join(", ")}`);
+      }
+    }
+  } catch (failErr) {
+    log44.warn(`[SearchTermAnalysis] v310: \u6C38\u4E45\u5931\u8D25\u5173\u952E\u8BCD\u9884\u52A0\u8F7D\u5931\u8D25: ${failErr.message}`);
+  }
+  try {
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const timeoutResult = await dbInstance.execute(sql18`
+        UPDATE optimization_logs 
+        SET api_sync_status = 'timeout_failed',
+            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310-fix: pending超过24小时未同步')
+        WHERE performance_group_id = ${config2.performanceGroupId}
+          AND api_sync_status = 'pending'
+          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      `);
+      const timeoutCount = timeoutResult[0]?.affectedRows || 0;
+      if (timeoutCount > 0) {
+        log44.warn(`[SearchTermAnalysis] v310-fix: \u6807\u8BB0${timeoutCount}\u6761\u8D85\u65F6pending\u8BB0\u5F55\u4E3Atimeout_failed`);
+      }
+    }
+  } catch (timeoutErr) {
+    log44.warn(`[SearchTermAnalysis] v310-fix: pending\u8D85\u65F6\u5904\u7406\u5931\u8D25: ${timeoutErr.message}`);
+  }
   for (const campaign of campaigns7) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
@@ -90945,6 +91099,25 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
       for (const stPerf of searchTermPerformanceList) {
         const decision = decideTargeting(stPerf);
         if (decision.action === "SKIP" || decision.action === "MONITOR") {
+          continue;
+        }
+        const dedupKey = `${campaignAmazonId}::${stPerf.searchTerm.toLowerCase().trim()}`;
+        if (recentlyProcessedSearchTerms.has(dedupKey)) {
+          log44.debug(`[SearchTermAnalysis] v310: \u8DF3\u8FC7\u5DF2\u5904\u7406\u641C\u7D22\u8BCD: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
+          continue;
+        }
+        if (decision.action === "CREATE_KEYWORD" && permanentlyFailedKeywords.has(stPerf.searchTerm.toLowerCase().trim())) {
+          log44.info(`[SearchTermAnalysis] v310: \u8DF3\u8FC7\u6C38\u4E45\u5931\u8D25\u5173\u952E\u8BCD: "${stPerf.searchTerm}"`);
+          details.push({
+            accountId: config2.accountId,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
+            campaignName: campaign.campaignName,
+            searchTerm: stPerf.searchTerm,
+            action: "keyword_permanently_failed_skip",
+            reason: `v310: \u5173\u952E\u8BCD\u5DF2\u8FDE\u7EED\u5931\u8D25\u22653\u6B21\uFF0C\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25\uFF0C\u4E0D\u518D\u91CD\u8BD5`,
+            apiSyncStatus: "permanently_failed"
+          });
           continue;
         }
         if (decision.action === "CREATE_NEGATIVE_KEYWORD") {
@@ -91921,7 +92094,9 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
                   newStatus: "paused",
                   adGroupName: adGroup.adGroupName || "",
                   campaignName: campaign.campaignName || "",
-                  reason: pauseReason
+                  reason: pauseReason,
+                  campaignType: campaign.campaignType || ""
+                  // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? "synced" : "failed";
@@ -91967,7 +92142,9 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
                   newStatus: "enabled",
                   adGroupName: adGroup.adGroupName || "",
                   campaignName: campaign.campaignName || "",
-                  reason: enableReason
+                  reason: enableReason,
+                  campaignType: campaign.campaignType || ""
+                  // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? "synced" : "failed";
@@ -349669,6 +349846,24 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
     const errorDetail = error51.response?.data ? JSON.stringify(error51.response.data) : error51.message;
     log87.error(`[applyBidAdjustment] \u2757 ${targetType} id=${targetId} \u51FA\u4EF7\u8C03\u6574\u5931\u8D25:`, errorDetail);
     log87.error(`[applyBidAdjustment] \u8BE6\u7EC6\u4FE1\u606F: newBid=${newBid}, campaignId=${campaignId}, HTTP\u72B6\u6001=${error51.response?.status || "N/A"}`);
+    const isInvalidId = error51.response?.status === 404 || errorDetail.includes("INVALID_ARGUMENT") || errorDetail.includes("NOT_FOUND") || errorDetail.includes("RESOURCE_NOT_FOUND") || errorDetail.includes("EntityNotFound") || errorDetail.includes("does not exist");
+    if (isInvalidId && amazonId) {
+      log87.warn(`[applyBidAdjustment] v310-fix: ${targetType} id=${targetId} \u7684Amazon ID "${amazonId}" \u5DF2\u5931\u6548\uFF0C\u6E05\u7A7A\u4EE5\u9632\u6B62\u540E\u7EED\u91CD\u590D\u5931\u8D25`);
+      try {
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          const { sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          if (targetType === "keyword") {
+            await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = NULL WHERE id = ${targetId}`);
+          } else {
+            await dbInstance.execute(sqlTag`UPDATE product_targets SET targetId = NULL WHERE id = ${targetId}`);
+          }
+          log87.info(`[applyBidAdjustment] v310-fix: \u5DF2\u6E05\u7A7A${targetType} id=${targetId}\u7684Amazon ID\uFF0C\u5C06\u901A\u8FC7\u5373\u65F6\u56DE\u586B\u673A\u5236\u91CD\u65B0\u83B7\u53D6`);
+        }
+      } catch (clearErr) {
+        log87.error(`[applyBidAdjustment] v310-fix: \u6E05\u7A7AAmazon ID\u5931\u8D25: ${clearErr.message}`);
+      }
+    }
     try {
       const bidChangePercent = oldBid > 0 ? (newBid - oldBid) / oldBid * 100 : 0;
       const actionType = newBid > oldBid ? "increase" : newBid < oldBid ? "decrease" : "set";
