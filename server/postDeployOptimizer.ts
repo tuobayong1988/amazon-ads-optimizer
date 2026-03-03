@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 310;  // v310: 全链路修复+自愈增强(8大修复+pending重评估+已执行指令审计)
+export const SYSTEM_VERSION = 311;  // v311: PT campaign类型检查+三层防御体系+searchTermHarvest底层修复
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -376,6 +376,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v310: [全链路修复+自愈增强] — (1)P0-去重逻辑增强pending状态检查: 修复重复关键词创建(542+207条) (2)P0-品牌词永久失败标记: INVALID_VALUE错误自动标记not_applicable (3)P0-无效targetId自动清理: 清除导致API失败的无效Amazon ID (4)P0-SD广告组状态API修复: 新增updateSdAdGroupStatus方法 (5)P1-超时pending自动处理: 24h未同步自动标记timeout (6)P1-商品定向创建API实现: createSpProductTargets+syncNewProductTargetsToAmazon (7)P1-关键词Amazon ID回填重试: 解决pending keyword_create缺少Amazon ID (8)P2-分时竞价历史pending清理: dayparting_bid无效记录清理 (9)P0-pending指令新算法重评估: 用新算法判断pending指令是否仍合理 (10)P1-已执行指令回溯审计: 审计synced指令是否与新算法一致',
     affectedModules: ['bid', 'sync', 'product_target', 'keyword', 'dayparting'],
     correctionActions: ['rerun_optimization', 'cleanup_stale_pending', 'revalidate_pending_commands', 'audit_synced_commands', 'retry_product_target_sync'],
+  },
+  {
+    version: 311,
+    description: 'v311: [PT campaign底层修复+三层防御体系] — (1)P0-Campaign级别PT类型检查: 新增isProductTargetingCampaign()函数，通过命名约定(POE/POB/PT/ASIN)识别Product Targeting campaign (2)P0-三层防御体系: executeSearchTermAnalysis遍历开头跳过PT campaign + canAddPositiveKeyword双重检查 + adGroupHasProductTargets底层拦截 (3)P0-AutoCorrector PT检查: retryHistoricalFailedKeywordHarvests重试前检查campaign类型，PT campaign直接标记invalid_legacy (4)P0-SearchTermHarvester PT过滤: findTargetAdGroup过滤掉PT类型campaign (5)P1-30019配置修复: 关闭keywordAutoEnabled阻止向POE campaign添加keyword (6)P1-keywords表去重索引: uk_keyword_dedup(adGroupId,keywordText,matchType)数据库层面防重复',
+    affectedModules: ['keyword', 'searchterm'],
+    correctionActions: ['cleanup_stale_pending'],
   },
 ];
 
