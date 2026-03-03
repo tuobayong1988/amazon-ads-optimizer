@@ -87047,13 +87047,13 @@ async function retryFailedProductTargetCreations(database, accountId) {
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
     const [missingTargets] = await database.execute(sql`
-      SELECT pt.id, pt.adGroupId, pt.expressionType, pt.expression, pt.bid, pt.state,
+      SELECT pt.id, pt.adGroupId, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
              ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
       FROM product_targets pt
       INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
       WHERE pt.accountId = ${accountId}
         AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
-        AND pt.state != 'archived'
+        AND pt.targetStatus != 'archived'
         AND ag.adGroupId IS NOT NULL
         AND ag.campaignId IS NOT NULL
       LIMIT 200
@@ -87067,9 +87067,9 @@ async function retryFailedProductTargetCreations(database, accountId) {
     for (const pt3 of missingTargets) {
       try {
         let expression = [];
-        if (pt3.expression) {
+        if (pt3.targetExpression) {
           try {
-            expression = typeof pt3.expression === "string" ? JSON.parse(pt3.expression) : pt3.expression;
+            expression = typeof pt3.targetExpression === "string" ? JSON.parse(pt3.targetExpression) : pt3.targetExpression;
           } catch {
           }
         }
@@ -91564,7 +91564,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
                 const existingTargets = await dbInstance.select({ id: productTargets4.id, targetId: productTargets4.targetId }).from(productTargets4).where(andOp(
                   eqOp(productTargets4.adGroupId, adGroup.id),
-                  eqOp(productTargets4.expressionValue, decision.targetValue)
+                  eqOp(productTargets4.targetValue, decision.targetValue)
                 )).limit(5);
                 if (existingTargets.length > 0) {
                   newTarget.apiSyncStatus = "already_exists";
@@ -91574,8 +91574,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                   try {
                     const insertResult = await dbInstance.insert(productTargets4).values({
                       adGroupId: adGroup.id,
-                      expressionType: "manual",
-                      expressionValue: decision.targetValue,
+                      targetType: "asin",
+                      targetValue: decision.targetValue,
                       bid: String(bid),
                       targetStatus: "enabled",
                       createdAt: (/* @__PURE__ */ new Date()).toISOString(),

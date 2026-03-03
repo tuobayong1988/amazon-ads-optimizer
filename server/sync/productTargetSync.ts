@@ -132,6 +132,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
        const targetData = {
+        accountId: service.accountId,  // v311: 添加缺失的accountId
         adGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
@@ -278,6 +279,7 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const targetData = {
+        accountId: service.accountId,  // v311: 添加缺失的accountId
         adGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
@@ -602,6 +604,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const targetData = {
+        accountId: service.accountId,  // v311: 添加缺失的accountId
         adGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),

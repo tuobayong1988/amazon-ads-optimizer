@@ -144,6 +144,8 @@ export const adAccounts = mysqlTable("ad_accounts", {
 
 export const adGroups = mysqlTable("ad_groups", {
 	id: int().autoincrement().notNull(),
+	// v311: 添加缺失的accountId字段，确保与数据库实际表结构一致
+	accountId: int(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: varchar({ length: 64 }).notNull(),
 	adGroupName: varchar({ length: 500 }).notNull(),
@@ -1891,6 +1893,9 @@ export const keywordPredictions = mysqlTable("keyword_predictions", {
 
 export const keywords = mysqlTable("keywords", {
 	id: int().autoincrement().notNull(),
+	// v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+	accountId: int(),
+	campaignId: int(),
 	adGroupId: int().notNull(),
 	keywordId: varchar({ length: 64 }),
 	keywordText: varchar({ length: 500 }).notNull(),
@@ -2258,6 +2263,9 @@ export const placementSettings = mysqlTable("placement_settings", {
 
 export const productTargets = mysqlTable("product_targets", {
 	id: int().autoincrement().notNull(),
+	// v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+	accountId: int(),
+	campaignId: int(),
 	adGroupId: int().notNull(),
 	targetId: varchar({ length: 64 }),
 	targetType: mysqlEnum(['asin','category']).notNull(),
