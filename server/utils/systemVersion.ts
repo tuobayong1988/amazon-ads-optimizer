@@ -6,4 +6,4 @@
  * deployLifecycleManager 只需要 SYSTEM_VERSION 常量，不需要依赖整个 postDeployOptimizer。
  */
 
-export const SYSTEM_VERSION = 276;  // v276: 前端交互增强+闭环A/B测试框架+模板快速创建+策略反馈闭环
+export const SYSTEM_VERSION = 311;  // v311: searchTermHarvest PT campaign保护+全链路修复+Schema修复
