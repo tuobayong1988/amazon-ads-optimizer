@@ -402,6 +402,83 @@ export async function syncNewKeywordsToAmazon(
 }
 
 /**
+ * v310: 同步新商品定向(Product Target)到 Amazon
+ * 通过 POST /sp/targets API 创建商品定向
+ */
+export async function syncNewProductTargetsToAmazon(
+  accountId: number,
+  newTargets: Array<{
+    localTargetId?: number;
+    adGroupId: number | string;
+    campaignId: number | string;
+    asin: string;
+    targetingType: 'exact' | 'expanded';
+    bid: number;
+  }>
+): Promise<{ success: number; failed: number; errors: string[]; targetIdMap: Map<string, number> }> {
+  const result = { success: 0, failed: 0, errors: [] as string[], targetIdMap: new Map<string, number>() };
+  if (!newTargets.length) return result;
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    result.errors.push('No sync service available');
+    result.failed = newTargets.length;
+    return result;
+  }
+  
+  const BATCH_SIZE = 50;
+  const BATCH_DELAY_MS = 500;
+  
+  for (let i = 0; i < newTargets.length; i += BATCH_SIZE) {
+    const batch = newTargets.slice(i, i + BATCH_SIZE);
+    
+    try {
+      const apiTargets = batch.map(t => {
+        // 根据定向类型构建 expression
+        const expression = t.targetingType === 'exact'
+          ? [{ type: 'asinSameAs', value: t.asin }]
+          : [{ type: 'asinExpandedFrom', value: t.asin }];
+        return {
+          adGroupId: t.adGroupId,
+          campaignId: t.campaignId,
+          expression,
+          expressionType: 'manual' as const,
+          bid: t.bid,
+          state: 'enabled' as const,
+        };
+      });
+      
+      const apiResult = await syncService.createSpProductTargets(apiTargets);
+      
+      for (let j = 0; j < apiResult.createdTargets.length; j++) {
+        const created = apiResult.createdTargets[j];
+        if (created.code === 'SUCCESS' && created.targetId) {
+          result.success++;
+          const mapKey = `${batch[j].adGroupId}:${batch[j].asin}`;
+          result.targetIdMap.set(mapKey, created.targetId);
+        } else {
+          result.failed++;
+          const errMsg = `ASIN ${batch[j].asin}: ${created.code}`;
+          result.errors.push(errMsg);
+          log.error(`[AmazonApiHelper] v310: 商品定向创建失败: ${errMsg}`);
+        }
+      }
+    } catch (batchErr: any) {
+      log.error(`[AmazonApiHelper] v310: 商品定向批次同步失败: ${batchErr.message}`);
+      result.failed += batch.length;
+      result.errors.push(`Batch error: ${batchErr.message}`);
+    }
+    
+    if (i + BATCH_SIZE < newTargets.length) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+    }
+  }
+  
+  log.warn(`[AmazonApiHelper] v310: 商品定向同步完成: 成功=${result.success}, 失败=${result.failed}, 总计=${newTargets.length}`);
+  return result;
+}
+
+/**
  * 同步预算调整到 Amazon
  * 通过 updateSpCampaign API 更新 Campaign 的 dailyBudget
  */

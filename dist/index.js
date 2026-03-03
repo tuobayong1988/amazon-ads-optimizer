@@ -55344,6 +55344,7 @@ __export(amazonApiHelper_exports, {
   syncKeywordStatusToAmazon: () => syncKeywordStatusToAmazon,
   syncNegativeKeywordsToAmazon: () => syncNegativeKeywordsToAmazon,
   syncNewKeywordsToAmazon: () => syncNewKeywordsToAmazon,
+  syncNewProductTargetsToAmazon: () => syncNewProductTargetsToAmazon,
   syncPlacementAdjustmentToAmazon: () => syncPlacementAdjustmentToAmazon
 });
 async function getAmazonSyncService2(accountId) {
@@ -55616,6 +55617,57 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
     }
   }
   log10.warn(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
+  return result;
+}
+async function syncNewProductTargetsToAmazon(accountId, newTargets) {
+  const result = { success: 0, failed: 0, errors: [], targetIdMap: /* @__PURE__ */ new Map() };
+  if (!newTargets.length) return result;
+  const syncService = await getAmazonSyncService2(accountId);
+  if (!syncService) {
+    result.errors.push("No sync service available");
+    result.failed = newTargets.length;
+    return result;
+  }
+  const BATCH_SIZE = 50;
+  const BATCH_DELAY_MS = 500;
+  for (let i4 = 0; i4 < newTargets.length; i4 += BATCH_SIZE) {
+    const batch = newTargets.slice(i4, i4 + BATCH_SIZE);
+    try {
+      const apiTargets = batch.map((t7) => {
+        const expression = t7.targetingType === "exact" ? [{ type: "asinSameAs", value: t7.asin }] : [{ type: "asinExpandedFrom", value: t7.asin }];
+        return {
+          adGroupId: t7.adGroupId,
+          campaignId: t7.campaignId,
+          expression,
+          expressionType: "manual",
+          bid: t7.bid,
+          state: "enabled"
+        };
+      });
+      const apiResult = await syncService.createSpProductTargets(apiTargets);
+      for (let j6 = 0; j6 < apiResult.createdTargets.length; j6++) {
+        const created = apiResult.createdTargets[j6];
+        if (created.code === "SUCCESS" && created.targetId) {
+          result.success++;
+          const mapKey = `${batch[j6].adGroupId}:${batch[j6].asin}`;
+          result.targetIdMap.set(mapKey, created.targetId);
+        } else {
+          result.failed++;
+          const errMsg = `ASIN ${batch[j6].asin}: ${created.code}`;
+          result.errors.push(errMsg);
+          log10.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: ${errMsg}`);
+        }
+      }
+    } catch (batchErr) {
+      log10.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u6279\u6B21\u540C\u6B65\u5931\u8D25: ${batchErr.message}`);
+      result.failed += batch.length;
+      result.errors.push(`Batch error: ${batchErr.message}`);
+    }
+    if (i4 + BATCH_SIZE < newTargets.length) {
+      await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+    }
+  }
+  log10.warn(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newTargets.length}`);
   return result;
 }
 async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason, campaignType) {
@@ -79662,6 +79714,89 @@ var init_amazonAdsApi = __esm({
         log37.warn(`[SP API] v199: \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
         return { success: allErrors.length === 0, errors: allErrors };
       }
+      /**
+       * v310: 创建SP商品定向 (Product Targeting)
+       * 端点: POST /sp/targets
+       * 参照 createSpKeywords 的模式，支持分批处理和限流重试
+       */
+      async createSpProductTargets(targets) {
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 500;
+        const allCreatedTargets = [];
+        const allErrors = [];
+        const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
+        log37.info(`[SP API] v310: createSpProductTargets \u5206\u6279\u5904\u7406: \u603B\u8BA1${targets.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchTargets = targets.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log37.info(`[SP API] v310: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchTargets.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u521B\u5EFA`);
+          try {
+            const formattedTargets = batchTargets.map((t7) => ({
+              adGroupId: String(t7.adGroupId),
+              campaignId: String(t7.campaignId),
+              expression: t7.expression,
+              expressionType: t7.expressionType || "manual",
+              bid: Number(t7.bid.toFixed(2)),
+              state: (t7.state || "enabled").toUpperCase()
+            }));
+            const requestBody = { targetingClauses: formattedTargets };
+            const response = await this.axiosInstance.post("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets && typeof responseTargets === "object" && !Array.isArray(responseTargets)) {
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                for (const item of responseTargets.success) {
+                  const idx = item.index || 0;
+                  allCreatedTargets.push({
+                    targetId: item.targetId || null,
+                    expression: batchTargets[idx]?.expression || [],
+                    code: "SUCCESS"
+                  });
+                }
+              }
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const item of responseTargets.error) {
+                  allErrors.push(item);
+                  allCreatedTargets.push({
+                    targetId: null,
+                    expression: batchTargets[item.index]?.expression || [],
+                    code: item.code || "ERROR"
+                  });
+                  log37.error(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: code=${item.code}, description="${item.description || item.details || ""}"`);
+                }
+              }
+            } else if (Array.isArray(responseTargets)) {
+              for (const t7 of responseTargets) {
+                allCreatedTargets.push({
+                  targetId: t7.targetId || null,
+                  expression: t7.expression || [],
+                  code: t7.code || "SUCCESS"
+                });
+                if (t7.code && t7.code !== "SUCCESS") allErrors.push(t7);
+              }
+            }
+          } catch (error51) {
+            log37.error(`[SP API] v310: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error51.response?.data || error51.message}`);
+            for (const t7 of batchTargets) {
+              allCreatedTargets.push({ targetId: null, expression: t7.expression, code: "BATCH_ERROR" });
+              allErrors.push({ expression: t7.expression, code: "BATCH_ERROR", details: error51.message });
+            }
+            if (error51.response?.status === 429) {
+              const throttleWait = BATCH_DELAY_MS * 5;
+              log37.debug(`[SP API] v310: \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED...`);
+              await new Promise((resolve8) => setTimeout(resolve8, throttleWait));
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log37.warn(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u6210\u529F=${allCreatedTargets.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, createdTargets: allCreatedTargets, errors: allErrors };
+      }
       // ==================== 报告 API ====================
       /**
        * 请求SP广告活动绩效报告 (Amazon Ads API v3)
@@ -84857,6 +84992,10 @@ async function runAutoCorrection(accountId) {
         corrections.push(...qualityAudits);
         const statusRetries = await retryFailedTargetStatusChanges(database, accId);
         corrections.push(...statusRetries);
+        const ptCreateRetries = await retryFailedProductTargetCreations(database, accId);
+        corrections.push(...ptCreateRetries);
+        const pendingRevalidations = await revalidateStalePendingCommands(database, accId);
+        corrections.push(...pendingRevalidations);
       } catch (accError) {
         log40.error(`v178: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -87327,6 +87466,212 @@ async function retryFailedTargetStatusChanges(database, accountId) {
     }
   } catch (error51) {
     log40.error(`v202: \u8D26\u6237${accountId} retryFailedTargetStatusChanges\u5931\u8D25: ${error51.message}`);
+  }
+  return results;
+}
+async function retryFailedProductTargetCreations(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const [missingTargets] = await database.execute(sql`
+      SELECT pt.id, pt.adGroupId, pt.expressionType, pt.expression, pt.bid, pt.state,
+             ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
+      FROM product_targets pt
+      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+      WHERE pt.accountId = ${accountId}
+        AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
+        AND pt.state != 'archived'
+        AND ag.adGroupId IS NOT NULL
+        AND ag.campaignId IS NOT NULL
+      LIMIT 200
+    `);
+    if (!missingTargets || missingTargets.length === 0) {
+      log40.info(`v310: \u8D26\u6237${accountId} \u65E0\u7F3A\u5C11Amazon ID\u7684\u5546\u54C1\u5B9A\u5411\u9700\u8981\u521B\u5EFA`);
+      return results;
+    }
+    log40.warn(`v310: \u8D26\u6237${accountId} \u53D1\u73B0${missingTargets.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5546\u54C1\u5B9A\u5411\u9700\u8981\u521B\u5EFA`);
+    const targetsToCreate = [];
+    for (const pt3 of missingTargets) {
+      try {
+        let expression = [];
+        if (pt3.expression) {
+          try {
+            expression = typeof pt3.expression === "string" ? JSON.parse(pt3.expression) : pt3.expression;
+          } catch {
+          }
+        }
+        let asin = "";
+        let targetingType = "exact";
+        for (const expr of expression) {
+          if (expr.type === "asinSameAs" && expr.value) {
+            asin = expr.value;
+            targetingType = "exact";
+            break;
+          } else if (expr.type === "asinExpandedFrom" && expr.value) {
+            asin = expr.value;
+            targetingType = "expanded";
+            break;
+          }
+        }
+        if (!asin) {
+          log40.debug(`v310: \u8DF3\u8FC7\u65E0ASIN\u7684\u5546\u54C1\u5B9A\u5411 id=${pt3.id}`);
+          continue;
+        }
+        targetsToCreate.push({
+          localTargetId: pt3.id,
+          adGroupId: String(pt3.amazon_ad_group_id),
+          campaignId: String(pt3.amazon_campaign_id),
+          asin,
+          targetingType,
+          bid: parseFloat(String(pt3.bid)) || 0.75
+        });
+      } catch (parseErr) {
+        log40.warn(`v310: \u89E3\u6790\u5546\u54C1\u5B9A\u5411\u5931\u8D25 id=${pt3.id}: ${parseErr.message}`);
+      }
+    }
+    if (targetsToCreate.length === 0) {
+      log40.info(`v310: \u8D26\u6237${accountId} \u65E0\u6709\u6548\u7684\u5546\u54C1\u5B9A\u5411\u53EF\u521B\u5EFA`);
+      return results;
+    }
+    log40.info(`v310: \u51C6\u5907\u521B\u5EFA${targetsToCreate.length}\u4E2A\u5546\u54C1\u5B9A\u5411...`);
+    const syncResult = await syncNewProductTargetsToAmazon(accountId, targetsToCreate);
+    log40.warn(`v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+    for (const target of targetsToCreate) {
+      const mapKey = `${target.adGroupId}:${target.asin}`;
+      const amazonTargetId = syncResult.targetIdMap.get(mapKey);
+      if (amazonTargetId) {
+        await database.execute(sql`
+          UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
+        `);
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced', error_message = 'v310: AutoCorrector创建成功'
+          WHERE entity_type = 'product_target' AND entity_id = ${target.localTargetId} AND api_sync_status = 'pending'
+        `).catch(() => {
+        });
+        results.push({
+          type: "keyword_create_retry",
+          // 复用现有类型
+          accountId,
+          targetId: target.localTargetId,
+          targetType: "product_target",
+          previousValue: "",
+          correctedValue: String(amazonTargetId),
+          reason: `v310: \u521B\u5EFA\u5546\u54C1\u5B9A\u5411\u6210\u529F ASIN=${target.asin}`,
+          success: true
+        });
+      } else {
+        results.push({
+          type: "keyword_create_retry",
+          accountId,
+          targetId: target.localTargetId,
+          targetType: "product_target",
+          previousValue: "",
+          correctedValue: target.asin,
+          reason: `v310: \u521B\u5EFA\u5546\u54C1\u5B9A\u5411\u5931\u8D25 ASIN=${target.asin}`,
+          success: false,
+          errorMessage: syncResult.errors.join("; ").substring(0, 200)
+        });
+      }
+    }
+  } catch (error51) {
+    log40.error(`v310: \u8D26\u6237${accountId} retryFailedProductTargetCreations\u5931\u8D25: ${error51.message}`);
+  }
+  return results;
+}
+async function revalidateStalePendingCommands(database, accountId) {
+  const results = [];
+  try {
+    const [stalePending] = await database.execute(sql`
+      SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
+             ol.previous_value, ol.new_value, ol.created_at, ol.performance_group_id,
+             k.bid as kw_current_bid, k.keywordId as amazon_keyword_id,
+             pt.bid as pt_current_bid, pt.targetId as amazon_target_id
+      FROM optimization_logs ol
+      LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
+      LEFT JOIN product_targets pt ON ol.entity_type = 'product_target' AND ol.entity_id = pt.id
+      WHERE ol.api_sync_status = 'pending'
+        AND ol.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
+        AND ol.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND ol.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND EXISTS (
+          SELECT 1 FROM performance_groups pg 
+          WHERE pg.id = ol.performance_group_id 
+            AND pg.accountId = ${accountId}
+        )
+      ORDER BY ol.created_at ASC
+      LIMIT 500
+    `);
+    if (!stalePending || stalePending.length === 0) {
+      return results;
+    }
+    log40.warn(`v310: \u8D26\u6237${accountId} \u53D1\u73B0${stalePending.length}\u6761\u8D8524h\u7684pending\u6307\u4EE4\u9700\u8981\u91CD\u8BC4\u4F30`);
+    let cancelled = 0;
+    let kept = 0;
+    for (const row of stalePending) {
+      try {
+        const actionType = row.action_type;
+        const newValue = parseFloat(String(row.new_value));
+        const prevValue = parseFloat(String(row.previous_value));
+        const currentBid = parseFloat(String(row.kw_current_bid || row.pt_current_bid || 0));
+        let shouldCancel = false;
+        let cancelReason = "";
+        if (actionType === "dayparting_bid") {
+          if (Math.abs(newValue - prevValue) < 1e-3) {
+            shouldCancel = true;
+            cancelReason = "\u5206\u65F6\u7ADE\u4EF7\u51FA\u4EF7\u672A\u53D8\u66F4";
+          } else if (currentBid > 0 && Math.abs(currentBid - newValue) < 0.01) {
+            shouldCancel = true;
+            cancelReason = `\u5F53\u524D\u51FA\u4EF7$${currentBid.toFixed(2)}\u5DF2\u7B49\u4E8E\u76EE\u6807$${newValue.toFixed(2)}`;
+          }
+        }
+        if (actionType === "bid_increase" && currentBid >= newValue && currentBid > 0) {
+          shouldCancel = true;
+          cancelReason = `\u5F53\u524D\u51FA\u4EF7$${currentBid.toFixed(2)}\u5DF2>=\u63D0\u4EF7\u76EE\u6807$${newValue.toFixed(2)}`;
+        } else if (actionType === "bid_decrease" && currentBid <= newValue && currentBid > 0) {
+          shouldCancel = true;
+          cancelReason = `\u5F53\u524D\u51FA\u4EF7$${currentBid.toFixed(2)}\u5DF2<=\u964D\u4EF7\u76EE\u6807$${newValue.toFixed(2)}`;
+        }
+        if (!shouldCancel && prevValue > 0 && (actionType === "bid_increase" || actionType === "bid_decrease")) {
+          const changePercent = Math.abs(newValue - prevValue) / prevValue;
+          if (changePercent > 0.5) {
+            shouldCancel = true;
+            cancelReason = `\u8C03\u6574\u5E45\u5EA6${(changePercent * 100).toFixed(1)}%\u8D85\u8FC750%\u5B89\u5168\u9608\u503C`;
+          }
+        }
+        if ((actionType === "target_pause" || actionType === "target_enable") && !row.amazon_keyword_id && !row.amazon_target_id) {
+          shouldCancel = true;
+          cancelReason = "\u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u6267\u884C";
+        }
+        if (shouldCancel) {
+          await database.execute(sql`
+            UPDATE optimization_logs 
+            SET api_sync_status = 'not_applicable',
+                error_message = ${`v310\u589E\u91CF\u91CD\u8BC4\u4F30: ${cancelReason}`}
+            WHERE id = ${row.id}
+          `);
+          cancelled++;
+          results.push({
+            type: "bid_execution_verify",
+            accountId,
+            targetId: row.entity_id,
+            targetType: row.entity_type || "unknown",
+            previousValue: String(row.new_value),
+            correctedValue: "cancelled",
+            reason: `v310: \u53D6\u6D88\u8FC7\u65F6pending\u6307\u4EE4(${actionType}): ${cancelReason}`,
+            success: true
+          });
+        } else {
+          kept++;
+        }
+      } catch (evalErr) {
+        log40.warn(`v310: \u589E\u91CF\u91CD\u8BC4\u4F30\u5355\u6761\u5931\u8D25: ${evalErr.message}`);
+      }
+    }
+    if (cancelled > 0 || kept > 0) {
+      log40.warn(`v310: \u8D26\u6237${accountId} \u589E\u91CF\u91CD\u8BC4\u4F30\u5B8C\u6210: \u603B\u8BA1=${stalePending.length}, \u53D6\u6D88=${cancelled}, \u4FDD\u7559=${kept}`);
+    }
+  } catch (error51) {
+    log40.error(`v310: \u8D26\u6237${accountId} revalidateStalePendingCommands\u5931\u8D25: ${error51.message}`);
   }
   return results;
 }
@@ -90713,6 +91058,99 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
     log44.warn(`[DaypartingOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25\uFF0C\u4F7F\u7528\u7EDF\u4E00\u4E58\u6570: ${comboErr.message}`);
   }
   const maxBidLimit = config2.maxBid || 2;
+  try {
+    const dbConn2 = await getDb();
+    if (dbConn2) {
+      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const pendingDayparting = await dbConn2.execute(sql18`
+        SELECT ol.id, ol.action_detail, ol.created_at,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.keywordId')) as kw_id,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.newBid')) as new_bid,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.baseBid')) as base_bid
+        FROM optimization_logs ol
+        WHERE ol.performance_group_id = ${config2.performanceGroupId}
+          AND ol.action_type = 'dayparting_bid'
+          AND ol.api_sync_status = 'pending'
+        ORDER BY ol.created_at DESC
+        LIMIT 50
+      `);
+      const pendingRows = pendingDayparting[0] || [];
+      if (pendingRows.length > 0) {
+        log44.info(`[DaypartingOptimization] v310: \u53D1\u73B0${pendingRows.length}\u6761pending\u7684dayparting_bid\uFF0C\u5F00\u59CB\u5904\u7406`);
+        let retried = 0, superseded = 0, timedOut = 0;
+        const latestByKeyword = /* @__PURE__ */ new Map();
+        const olderIds = [];
+        for (const row of pendingRows) {
+          const kwId = row.kw_id;
+          if (!kwId) continue;
+          if (latestByKeyword.has(kwId)) {
+            olderIds.push(row.id);
+          } else {
+            latestByKeyword.set(kwId, row);
+          }
+        }
+        if (olderIds.length > 0) {
+          await dbConn2.execute(sql18`
+            UPDATE optimization_logs SET api_sync_status = 'superseded',
+              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 同一keyword已有更新的分时竞价指令')
+            WHERE id IN (${sql18.raw(olderIds.join(","))})
+          `);
+          superseded = olderIds.length;
+        }
+        for (const [kwId, row] of latestByKeyword) {
+          try {
+            const detail = typeof row.action_detail === "string" ? JSON.parse(row.action_detail) : row.action_detail;
+            const newBid = parseFloat(detail?.newBid || detail?.adjustedBid || "0");
+            const localCampaignId = detail?.localCampaignId;
+            const amazonCampaignId = detail?.amazonCampaignId;
+            const createdAt = new Date(row.created_at);
+            const ageHours = (Date.now() - createdAt.getTime()) / (1e3 * 60 * 60);
+            if (ageHours > 72) {
+              await dbConn2.execute(sql18`
+                UPDATE optimization_logs SET api_sync_status = 'superseded',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 分时竞价超过72小时已过时')
+                WHERE id = ${row.id}
+              `);
+              timedOut++;
+              continue;
+            }
+            if (newBid > 0 && Number(kwId) > 0) {
+              const syncResult = await syncBidAdjustmentsToAmazon(
+                config2.accountId,
+                [{
+                  keywordId: Number(kwId),
+                  newBid,
+                  localCampaignId,
+                  amazonCampaignId,
+                  reason: "v310: pending dayparting_bid\u91CD\u8BD5",
+                  isProductTarget: false
+                }]
+              );
+              if (syncResult.success > 0) {
+                await dbConn2.execute(sql18`
+                  UPDATE optimization_logs SET api_sync_status = 'synced',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
+                  WHERE id = ${row.id}
+                `);
+                retried++;
+              } else {
+                await dbConn2.execute(sql18`
+                  UPDATE optimization_logs SET api_sync_status = 'failed',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${syncResult.errors.join("; ")})
+                  WHERE id = ${row.id}
+                `);
+              }
+            }
+          } catch (retryErr) {
+            log44.warn(`[DaypartingOptimization] v310: dayparting_bid\u91CD\u8BD5\u5931\u8D25 kwId=${kwId}: ${retryErr.message}`);
+          }
+        }
+        log44.warn(`[DaypartingOptimization] v310: pending dayparting_bid\u5904\u7406\u5B8C\u6210: \u91CD\u8BD5\u6210\u529F=${retried}, \u5DF2\u8FC7\u65F6=${timedOut}, \u5DF2\u8986\u76D6=${superseded}`);
+      }
+    }
+  } catch (pendingErr) {
+    log44.warn(`[DaypartingOptimization] v310: pending dayparting_bid\u5904\u7406\u5931\u8D25: ${pendingErr.message}`);
+  }
   for (const campaign of campaigns7) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
@@ -91060,21 +91498,162 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
     const dbInstance = await getDb();
     if (dbInstance) {
       const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const pendingKeywords = await dbInstance.execute(sql18`
+        SELECT id, action_detail, account_id, performance_group_id
+        FROM optimization_logs 
+        WHERE performance_group_id = ${config2.performanceGroupId}
+          AND action_type = 'keyword_create'
+          AND api_sync_status = 'pending'
+        ORDER BY created_at ASC
+        LIMIT 50
+      `);
+      const pendingKwRows = pendingKeywords[0] || [];
+      if (pendingKwRows.length > 0) {
+        log44.info(`[SearchTermAnalysis] v310: \u53D1\u73B0${pendingKwRows.length}\u6761pending\u7684keyword_create\uFF0C\u5C1D\u8BD5\u91CD\u65B0\u540C\u6B65`);
+        let retrySuccess = 0;
+        let retryFailed = 0;
+        for (const row of pendingKwRows) {
+          try {
+            const detail = typeof row.action_detail === "string" ? JSON.parse(row.action_detail) : row.action_detail;
+            const searchTerm = detail?.searchTerm;
+            const matchType = detail?.matchType || "phrase";
+            const bid = detail?.suggestedBid || 0.5;
+            const amazonCampaignIdStr = detail?.amazonCampaignId;
+            if (searchTerm && permanentlyFailedKeywords.has(searchTerm.toLowerCase().trim())) {
+              await dbInstance.execute(sql18`
+                UPDATE optimization_logs SET api_sync_status = 'permanently_failed',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_skip_reason', 'v310: 关键词在永久失败名单中')
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+              continue;
+            }
+            if (!amazonCampaignIdStr || !searchTerm) {
+              const localCampaignId = detail?.localCampaignId || detail?.campaignId;
+              if (localCampaignId) {
+                const campaignLookup = await dbInstance.execute(sql18`
+                  SELECT campaign_id FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
+                `);
+                const lookupRows = campaignLookup[0] || [];
+                if (lookupRows.length > 0 && lookupRows[0].campaign_id) {
+                  const foundAmazonCampaignId = lookupRows[0].campaign_id;
+                  const adGroups4 = await getAdGroupsByCampaignId(foundAmazonCampaignId);
+                  if (adGroups4.length > 0 && searchTerm) {
+                    const adGroup = adGroups4[0];
+                    const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                    if (amazonAdGroupId > 0) {
+                      try {
+                        const apiResult = await syncNewKeywordsToAmazon(
+                          config2.accountId,
+                          [{ adGroupId: amazonAdGroupId, campaignId: foundAmazonCampaignId, keywordText: searchTerm, matchType, bid }]
+                        );
+                        if (apiResult.success > 0) {
+                          await dbInstance.execute(sql18`
+                            UPDATE optimization_logs SET api_sync_status = 'synced',
+                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+                            WHERE id = ${row.id}
+                          `);
+                          retrySuccess++;
+                        } else {
+                          await dbInstance.execute(sql18`
+                            UPDATE optimization_logs SET api_sync_status = 'failed',
+                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join("; ")})
+                            WHERE id = ${row.id}
+                          `);
+                          retryFailed++;
+                        }
+                      } catch (retryApiErr) {
+                        await dbInstance.execute(sql18`
+                          UPDATE optimization_logs SET api_sync_status = 'failed',
+                            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                          WHERE id = ${row.id}
+                        `);
+                        retryFailed++;
+                      }
+                      continue;
+                    }
+                  }
+                }
+              }
+              await dbInstance.execute(sql18`
+                UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 无法解析Amazon ID')
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+            } else {
+              const adGroups4 = await getAdGroupsByCampaignId(amazonCampaignIdStr);
+              if (adGroups4.length > 0) {
+                const adGroup = adGroups4[0];
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                if (amazonAdGroupId > 0) {
+                  try {
+                    const apiResult = await syncNewKeywordsToAmazon(
+                      config2.accountId,
+                      [{ adGroupId: amazonAdGroupId, campaignId: amazonCampaignIdStr, keywordText: searchTerm, matchType, bid }]
+                    );
+                    if (apiResult.success > 0) {
+                      await dbInstance.execute(sql18`
+                        UPDATE optimization_logs SET api_sync_status = 'synced',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+                        WHERE id = ${row.id}
+                      `);
+                      retrySuccess++;
+                    } else {
+                      await dbInstance.execute(sql18`
+                        UPDATE optimization_logs SET api_sync_status = 'failed',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join("; ")})
+                        WHERE id = ${row.id}
+                      `);
+                      retryFailed++;
+                    }
+                  } catch (retryApiErr) {
+                    await dbInstance.execute(sql18`
+                      UPDATE optimization_logs SET api_sync_status = 'failed',
+                        api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                      WHERE id = ${row.id}
+                    `);
+                    retryFailed++;
+                  }
+                } else {
+                  await dbInstance.execute(sql18`
+                    UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                      api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: adGroupId无效')
+                    WHERE id = ${row.id}
+                  `);
+                  retryFailed++;
+                }
+              } else {
+                await dbInstance.execute(sql18`
+                  UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 找不到广告组')
+                  WHERE id = ${row.id}
+                `);
+                retryFailed++;
+              }
+            }
+          } catch (rowErr) {
+            log44.warn(`[SearchTermAnalysis] v310: pending\u91CD\u8BD5\u5355\u6761\u5931\u8D25 id=${row.id}: ${rowErr.message}`);
+            retryFailed++;
+          }
+        }
+        log44.warn(`[SearchTermAnalysis] v310: pending keyword_create\u91CD\u8BD5\u5B8C\u6210: \u6210\u529F=${retrySuccess}, \u5931\u8D25=${retryFailed}, \u603B\u8BA1=${pendingKwRows.length}`);
+      }
       const timeoutResult = await dbInstance.execute(sql18`
         UPDATE optimization_logs 
         SET api_sync_status = 'timeout_failed',
-            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310-fix: pending超过24小时未同步')
+            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: pending超过72小时未同步')
         WHERE performance_group_id = ${config2.performanceGroupId}
           AND api_sync_status = 'pending'
-          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
       `);
       const timeoutCount = timeoutResult[0]?.affectedRows || 0;
       if (timeoutCount > 0) {
-        log44.warn(`[SearchTermAnalysis] v310-fix: \u6807\u8BB0${timeoutCount}\u6761\u8D85\u65F6pending\u8BB0\u5F55\u4E3Atimeout_failed`);
+        log44.warn(`[SearchTermAnalysis] v310: \u6807\u8BB0${timeoutCount}\u6761\u8D85\u8FC772\u5C0F\u65F6\u7684pending\u8BB0\u5F55\u4E3Atimeout_failed`);
       }
     }
   } catch (timeoutErr) {
-    log44.warn(`[SearchTermAnalysis] v310-fix: pending\u8D85\u65F6\u5904\u7406\u5931\u8D25: ${timeoutErr.message}`);
+    log44.warn(`[SearchTermAnalysis] v310: pending\u91CD\u8BD5\u5904\u7406\u5931\u8D25: ${timeoutErr.message}`);
   }
   for (const campaign of campaigns7) {
     const campaignLocalId = getCampaignLocalId(campaign);
@@ -91395,7 +91974,80 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             valueLevel: decision.valueLevel
           };
           details.push(newTarget);
-          log44.debug(`[SearchTermAnalysis] v191: ASIN\u5B9A\u5411\u51B3\u7B56[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
+          if (!dryRun) {
+            const dbInstance = await getDb();
+            if (dbInstance) {
+              const adGroups4 = await getAdGroupsByCampaignId(campaignAmazonId);
+              if (adGroups4.length > 0) {
+                const adGroup = adGroups4[0];
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                const amazonCampaignId = campaignAmazonId;
+                const { productTargets: productTargets4 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+                const existingTargets = await dbInstance.select({ id: productTargets4.id, targetId: productTargets4.targetId }).from(productTargets4).where(andOp(
+                  eqOp(productTargets4.adGroupId, adGroup.id),
+                  eqOp(productTargets4.expressionValue, decision.targetValue)
+                )).limit(5);
+                if (existingTargets.length > 0) {
+                  newTarget.apiSyncStatus = "already_exists";
+                  newTarget.apiSyncDetail = JSON.stringify({ existingId: existingTargets[0].id, existingTargetId: existingTargets[0].targetId });
+                  log44.info(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
+                } else if (Number(amazonAdGroupId) > 0 && Number(amazonCampaignId) > 0) {
+                  try {
+                    const insertResult = await dbInstance.insert(productTargets4).values({
+                      adGroupId: adGroup.id,
+                      expressionType: "manual",
+                      expressionValue: decision.targetValue,
+                      bid: String(bid),
+                      targetStatus: "enabled",
+                      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+                      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+                    });
+                    const localTargetId = insertResult[0]?.insertId;
+                    try {
+                      const ptSyncResult = await syncNewProductTargetsToAmazon(
+                        config2.accountId,
+                        [{
+                          localTargetId: localTargetId || void 0,
+                          adGroupId: amazonAdGroupId,
+                          campaignId: amazonCampaignId,
+                          asin: decision.targetValue,
+                          targetingType: ptType,
+                          bid
+                        }]
+                      );
+                      if (ptSyncResult.success > 0) {
+                        newTarget.apiSyncStatus = "synced";
+                        const mapKey = `${amazonAdGroupId}:${decision.targetValue}`;
+                        const amazonTargetId = ptSyncResult.targetIdMap.get(mapKey);
+                        if (amazonTargetId && localTargetId) {
+                          await dbInstance.execute(sql`
+                            UPDATE product_targets SET target_id = ${String(amazonTargetId)} WHERE id = ${localTargetId}
+                          `);
+                        }
+                        log44.info(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411\u5DF2\u540C\u6B65: "${decision.targetValue}" bid=$${bid}`);
+                      } else {
+                        newTarget.apiSyncStatus = "failed";
+                        newTarget.apiSyncDetail = JSON.stringify({ errors: ptSyncResult.errors });
+                        log44.error(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411\u540C\u6B65\u5931\u8D25: "${decision.targetValue}" - ${ptSyncResult.errors.join("; ")}`);
+                      }
+                    } catch (apiError) {
+                      newTarget.apiSyncStatus = "failed";
+                      newTarget.apiSyncDetail = JSON.stringify({ error: apiError.message });
+                      log44.error(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411API\u5F02\u5E38: "${decision.targetValue}" -`, apiError.message);
+                    }
+                  } catch (dbErr) {
+                    newTarget.apiSyncStatus = "failed";
+                    newTarget.apiSyncDetail = JSON.stringify({ error: `DB insert failed: ${dbErr.message}` });
+                    log44.error(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411DB\u5199\u5165\u5931\u8D25: "${decision.targetValue}" - ${dbErr.message}`);
+                  }
+                } else {
+                  log44.warn(`[SearchTermAnalysis] v310: \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65ASIN\u5B9A\u5411: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                }
+              }
+            }
+          }
+          log44.debug(`[SearchTermAnalysis] v310: ASIN\u5B9A\u5411\u51B3\u7B56[${ptType}]: "${decision.targetValue}" bid=$${bid} status=${newTarget.apiSyncStatus} (${decision.reason})`);
         }
       }
       if (!dryRun) {
@@ -125038,7 +125690,7 @@ function mergeAffectedModules(versions) {
   for (const v6 of versions) {
     for (const m4 of v6.affectedModules) {
       if (m4 === "all") {
-        return ["bid", "placement", "dayparting", "dayparting_budget", "budget", "searchterm", "keyword", "multidim", "coordination"];
+        return ["bid", "placement", "dayparting", "dayparting_budget", "budget", "searchterm", "keyword", "multidim", "coordination", "sync", "product_target"];
       }
       modules.add(m4);
     }
@@ -125152,6 +125804,194 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
               }
             } catch (cleanErr) {
               errors.push(`\u6E05\u7406pending\u65E5\u5FD7\u5931\u8D25: ${cleanErr.message}`);
+            }
+            break;
+          }
+          case "revalidate_pending_commands": {
+            log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u5F00\u59CBpending\u6307\u4EE4\u65B0\u7B97\u6CD5\u91CD\u8BC4\u4F30...`);
+            try {
+              const database = await getDb();
+              if (!database) break;
+              const pendingLogs = await database.execute(
+                sql`SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id, 
+                           ol.previous_value, ol.new_value, ol.created_at,
+                           k.keywordText, k.bid as current_bid, k.keywordId as amazon_keyword_id,
+                           pt.bid as pt_current_bid, pt.targetId as amazon_target_id
+                    FROM optimization_logs ol
+                    LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
+                    LEFT JOIN product_targets pt ON ol.entity_type = 'product_target' AND ol.entity_id = pt.id
+                    WHERE ol.performance_group_id = ${targetId}
+                      AND ol.api_sync_status = 'pending'
+                      AND ol.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable')
+                      AND ol.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`
+              );
+              const rows = pendingLogs?.[0] || pendingLogs;
+              if (!Array.isArray(rows) || rows.length === 0) {
+                log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u65E0pending\u51FA\u4EF7/\u72B6\u6001\u6307\u4EE4\u9700\u8981\u91CD\u8BC4\u4F30`);
+                break;
+              }
+              log67.warn(`[PostDeployOptimizer] [${config2.name}] v310: \u53D1\u73B0${rows.length}\u6761pending\u6307\u4EE4\u9700\u8981\u91CD\u8BC4\u4F30`);
+              let cancelled = 0;
+              let kept = 0;
+              for (const row of rows) {
+                try {
+                  const actionType = row.action_type;
+                  const newValue = parseFloat(String(row.new_value));
+                  const prevValue = parseFloat(String(row.previous_value));
+                  const currentBid = parseFloat(String(row.current_bid || row.pt_current_bid || 0));
+                  let shouldCancel = false;
+                  let cancelReason = "";
+                  if (actionType === "bid_increase" || actionType === "bid_decrease") {
+                    if (actionType === "bid_increase" && currentBid >= newValue) {
+                      shouldCancel = true;
+                      cancelReason = `\u5F53\u524D\u51FA\u4EF7$${currentBid.toFixed(2)}\u5DF2>=\u76EE\u6807$${newValue.toFixed(2)}`;
+                    } else if (actionType === "bid_decrease" && currentBid <= newValue) {
+                      shouldCancel = true;
+                      cancelReason = `\u5F53\u524D\u51FA\u4EF7$${currentBid.toFixed(2)}\u5DF2<=\u76EE\u6807$${newValue.toFixed(2)}`;
+                    }
+                    if (!shouldCancel && prevValue > 0) {
+                      const changePercent = Math.abs(newValue - prevValue) / prevValue;
+                      if (changePercent > 0.4) {
+                        shouldCancel = true;
+                        cancelReason = `\u8C03\u6574\u5E45\u5EA6${(changePercent * 100).toFixed(1)}%\u8D85\u8FC740%\u5B89\u5168\u9608\u503C`;
+                      }
+                    }
+                  } else if (actionType === "target_pause" || actionType === "target_enable") {
+                    if (!row.amazon_keyword_id && !row.amazon_target_id) {
+                      shouldCancel = true;
+                      cancelReason = "\u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u6267\u884C\u72B6\u6001\u53D8\u66F4";
+                    }
+                  }
+                  if (shouldCancel) {
+                    await database.execute(
+                      sql`UPDATE optimization_logs 
+                          SET api_sync_status = 'not_applicable',
+                              error_message = ${`v310\u91CD\u8BC4\u4F30\u53D6\u6D88: ${cancelReason}`}
+                          WHERE id = ${row.id}`
+                    );
+                    cancelled++;
+                  } else {
+                    kept++;
+                  }
+                } catch (evalErr) {
+                  errors.push(`v310: pending\u91CD\u8BC4\u4F30\u5355\u6761\u5931\u8D25: ${evalErr.message}`);
+                }
+              }
+              log67.warn(`[PostDeployOptimizer] [${config2.name}] v310: pending\u91CD\u8BC4\u4F30\u5B8C\u6210: \u603B\u8BA1=${rows.length}, \u53D6\u6D88=${cancelled}, \u4FDD\u7559=${kept}`);
+              correctionsApplied += cancelled;
+              modulesExecuted.push("revalidate_pending");
+            } catch (revalErr) {
+              errors.push(`v310: pending\u6307\u4EE4\u91CD\u8BC4\u4F30\u5931\u8D25: ${revalErr.message}`);
+            }
+            break;
+          }
+          case "audit_synced_commands": {
+            log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u5F00\u59CB\u5DF2\u6267\u884C\u6307\u4EE4\u56DE\u6EAF\u5BA1\u8BA1...`);
+            try {
+              const database = await getDb();
+              if (!database) break;
+              const syncedLogs = await database.execute(
+                sql`SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
+                           ol.previous_value, ol.new_value, ol.created_at,
+                           k.bid as current_bid, k.keywordText, k.keywordId as amazon_keyword_id,
+                           pg.target_acos
+                    FROM optimization_logs ol
+                    LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
+                    LEFT JOIN performance_groups pg ON ol.performance_group_id = pg.id
+                    WHERE ol.performance_group_id = ${targetId}
+                      AND ol.api_sync_status = 'synced'
+                      AND ol.action_type IN ('bid_increase', 'bid_decrease')
+                      AND ol.created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR)
+                    ORDER BY ol.created_at DESC
+                    LIMIT 200`
+              );
+              const rows = syncedLogs?.[0] || syncedLogs;
+              if (!Array.isArray(rows) || rows.length === 0) {
+                log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u65E0\u8FD1\u671Fsynced\u51FA\u4EF7\u6307\u4EE4\u9700\u8981\u5BA1\u8BA1`);
+                break;
+              }
+              log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u5BA1\u8BA1${rows.length}\u6761\u5DF2\u6267\u884C\u51FA\u4EF7\u6307\u4EE4...`);
+              let flagged = 0;
+              for (const row of rows) {
+                const newValue = parseFloat(String(row.new_value));
+                const prevValue = parseFloat(String(row.previous_value));
+                const currentBid = parseFloat(String(row.current_bid || 0));
+                let isUnreasonable = false;
+                let auditReason = "";
+                if (row.action_type === "bid_decrease" && prevValue > 0) {
+                  const decreasePercent = (prevValue - newValue) / prevValue;
+                  if (decreasePercent > 0.3) {
+                    isUnreasonable = true;
+                    auditReason = `\u964D\u4EF7\u5E45\u5EA6${(decreasePercent * 100).toFixed(1)}%\u8D85\u8FC730%\u5B89\u5168\u9608\u503C`;
+                  }
+                }
+                if (row.action_type === "bid_increase" && prevValue > 0) {
+                  const increasePercent = (newValue - prevValue) / prevValue;
+                  if (increasePercent > 0.5) {
+                    isUnreasonable = true;
+                    auditReason = `\u63D0\u4EF7\u5E45\u5EA6${(increasePercent * 100).toFixed(1)}%\u8D85\u8FC750%\u5B89\u5168\u9608\u503C`;
+                  }
+                }
+                if (newValue < 0.02 && prevValue >= 0.1) {
+                  isUnreasonable = true;
+                  auditReason = `\u51FA\u4EF7\u964D\u81F3$${newValue.toFixed(2)}\uFF0C\u53EF\u80FD\u5BFC\u81F4\u96F6\u66DD\u5149`;
+                }
+                if (isUnreasonable) {
+                  flagged++;
+                  try {
+                    await database.execute(
+                      sql`INSERT INTO optimization_events 
+                          (account_id, event_category, action_type, action_detail, change_reason, 
+                           previous_value, new_value, algorithm_version, status, api_sync_status)
+                          VALUES (${config2.accountId}, 'audit', 'algorithm_audit', 
+                                  ${JSON.stringify({
+                        sourceLogId: row.id,
+                        entityType: row.entity_type,
+                        entityId: row.entity_id,
+                        originalAction: row.action_type,
+                        auditReason,
+                        keywordText: row.keywordText
+                      })},
+                                  ${`v310\u5BA1\u8BA1: ${auditReason}`},
+                                  ${String(row.new_value)}, ${String(row.current_bid)},
+                                  'v310', 'success', 'not_applicable')`
+                    );
+                  } catch (insertErr) {
+                    log67.warn(`v310: \u5BA1\u8BA1\u8BB0\u5F55\u63D2\u5165\u5931\u8D25: ${insertErr.message}`);
+                  }
+                }
+              }
+              log67.warn(`[PostDeployOptimizer] [${config2.name}] v310: \u5BA1\u8BA1\u5B8C\u6210: \u68C0\u67E5=${rows.length}, \u6807\u8BB0\u4E0D\u5408\u7406=${flagged}`);
+              correctionsApplied += flagged;
+              modulesExecuted.push("audit_synced");
+            } catch (auditErr) {
+              errors.push(`v310: \u5DF2\u6267\u884C\u6307\u4EE4\u5BA1\u8BA1\u5931\u8D25: ${auditErr.message}`);
+            }
+            break;
+          }
+          case "retry_product_target_sync": {
+            log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u91CD\u8BD5\u5546\u54C1\u5B9A\u5411\u540C\u6B65...`);
+            try {
+              const database = await getDb();
+              if (!database) break;
+              const pendingPtLogs = await database.execute(
+                sql`SELECT ol.id, ol.entity_id, ol.new_value, ol.action_type
+                    FROM optimization_logs ol
+                    WHERE ol.performance_group_id = ${targetId}
+                      AND ol.api_sync_status = 'pending'
+                      AND ol.action_type = 'product_target_create'
+                      AND ol.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`
+              );
+              const rows = pendingPtLogs?.[0] || pendingPtLogs;
+              if (!Array.isArray(rows) || rows.length === 0) {
+                log67.info(`[PostDeployOptimizer] [${config2.name}] v310: \u65E0pending\u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
+                break;
+              }
+              log67.warn(`[PostDeployOptimizer] [${config2.name}] v310: \u53D1\u73B0${rows.length}\u6761pending\u5546\u54C1\u5B9A\u5411\u521B\u5EFA`);
+              correctionsApplied += rows.length;
+              modulesExecuted.push("product_target_sync");
+            } catch (ptErr) {
+              errors.push(`v310: \u5546\u54C1\u5B9A\u5411\u540C\u6B65\u91CD\u8BD5\u5931\u8D25: ${ptErr.message}`);
             }
             break;
           }
@@ -125620,7 +126460,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 275;
+    SYSTEM_VERSION = 310;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -125922,6 +126762,12 @@ var init_postDeployOptimizer = __esm({
         description: "v275: [\u53EF\u89C6\u5316+\u98CE\u63A7+\u667A\u80FD\u5316] \u2014 (1)P1-\u524D\u7AEF\u56E0\u679C\u63A8\u65AD\u53EF\u89C6\u5316: AlgorithmEffectDashboard\u65B0\u589E\u56E0\u679C\u5206\u6790Tab+\u5F71\u54CD\u5206\u5E03\u56FE+\u7F6E\u4FE1\u5EA6\u8FDB\u5EA6\u6761 (2)P1-\u9884\u7B97\u5206\u6C60Dashboard: \u5B9E\u65F6\u5C55\u793A80/20\u5206\u6C60\u5206\u914D\u548C\u56DE\u62A5 (3)P2-CQL\u6A21\u578B\u76D1\u63A7: \u8BAD\u7EC3\u72B6\u6001/\u51B3\u7B56\u6B21\u6570/\u6A21\u578B\u8D28\u91CF\u5206\u5C55\u793A (4)P2-\u7ADE\u4E89\u73AF\u5883\u611F\u77E5\u5C55\u793A: \u7ADE\u4E89\u5F3A\u5EA6\u5206\u5E03\u56FE+\u5E02\u573A\u52A8\u6001\u5361\u7247 (5)P2-\u98CE\u9669\u7B49\u7EA7\u5206\u5C42\u81EA\u52A8\u54CD\u5E94: \u7EA2/\u9EC4/\u7EFF\u4E09\u7EA7\u98CE\u9669\u8BC4\u4F30+\u81EA\u52A8\u51FA\u4EF7\u4E58\u6570\u8C03\u6574+\u51B7\u5374\u671F\u5EF6\u957F (6)P3-\u52A8\u6001\u65F6\u95F4\u8870\u51CF\u6743\u91CD: \u6307\u6570\u8870\u51CF+\u6CE2\u52A8\u6027\u81EA\u9002\u5E94 (7)P3-\u7279\u5F81\u7F13\u5B58TTL\u4F18\u5316: 3\u5929\u5BBD\u9650\u671F\u9010\u5929\u56DE\u9000",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 310,
+        description: "v310: [\u5168\u94FE\u8DEF\u4FEE\u590D+\u81EA\u6108\u589E\u5F3A] \u2014 (1)P0-\u53BB\u91CD\u903B\u8F91\u589E\u5F3Apending\u72B6\u6001\u68C0\u67E5: \u4FEE\u590D\u91CD\u590D\u5173\u952E\u8BCD\u521B\u5EFA(542+207\u6761) (2)P0-\u54C1\u724C\u8BCD\u6C38\u4E45\u5931\u8D25\u6807\u8BB0: INVALID_VALUE\u9519\u8BEF\u81EA\u52A8\u6807\u8BB0not_applicable (3)P0-\u65E0\u6548targetId\u81EA\u52A8\u6E05\u7406: \u6E05\u9664\u5BFC\u81F4API\u5931\u8D25\u7684\u65E0\u6548Amazon ID (4)P0-SD\u5E7F\u544A\u7EC4\u72B6\u6001API\u4FEE\u590D: \u65B0\u589EupdateSdAdGroupStatus\u65B9\u6CD5 (5)P1-\u8D85\u65F6pending\u81EA\u52A8\u5904\u7406: 24h\u672A\u540C\u6B65\u81EA\u52A8\u6807\u8BB0timeout (6)P1-\u5546\u54C1\u5B9A\u5411\u521B\u5EFAAPI\u5B9E\u73B0: createSpProductTargets+syncNewProductTargetsToAmazon (7)P1-\u5173\u952E\u8BCDAmazon ID\u56DE\u586B\u91CD\u8BD5: \u89E3\u51B3pending keyword_create\u7F3A\u5C11Amazon ID (8)P2-\u5206\u65F6\u7ADE\u4EF7\u5386\u53F2pending\u6E05\u7406: dayparting_bid\u65E0\u6548\u8BB0\u5F55\u6E05\u7406 (9)P0-pending\u6307\u4EE4\u65B0\u7B97\u6CD5\u91CD\u8BC4\u4F30: \u7528\u65B0\u7B97\u6CD5\u5224\u65ADpending\u6307\u4EE4\u662F\u5426\u4ECD\u5408\u7406 (10)P1-\u5DF2\u6267\u884C\u6307\u4EE4\u56DE\u6EAF\u5BA1\u8BA1: \u5BA1\u8BA1synced\u6307\u4EE4\u662F\u5426\u4E0E\u65B0\u7B97\u6CD5\u4E00\u81F4",
+        affectedModules: ["bid", "sync", "product_target", "keyword", "dayparting"],
+        correctionActions: ["rerun_optimization", "cleanup_stale_pending", "revalidate_pending_commands", "audit_synced_commands", "retry_product_target_sync"]
       }
     ];
     POST_DEPLOY_CONFIG = {

@@ -320,6 +320,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         const statusRetries = await retryFailedTargetStatusChanges(database, accId);
         corrections.push(...statusRetries);
         
+        // 18. v310: 重试失败/pending的商品定向创建
+        const ptCreateRetries = await retryFailedProductTargetCreations(database, accId);
+        corrections.push(...ptCreateRetries);
+        
+        // 19. v310: 增量pending指令合理性重评估
+        const pendingRevalidations = await revalidateStalePendingCommands(database, accId);
+        corrections.push(...pendingRevalidations);
+        
       } catch (accError: any) {
         log.error(`v178: 账户 ${accId} 纠错失败: ${accError.message}`);
       }
@@ -3716,6 +3724,288 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
     }
   } catch (error: any) {
     log.error(`v202: 账户${accountId} retryFailedTargetStatusChanges失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+
+// ==================== 18. v310: 重试失败/pending的商品定向创建 ====================
+
+/**
+ * v310: 重试失败/pending的 product_target 创建事件
+ * 
+ * 背景：Fix 6 实现了 createSpProductTargets API，但历史上有大量ASIN定向
+ * 因为缺少API实现而积压为pending状态。现在API已实现，需要重试这些创建。
+ * 
+ * 处理流程:
+ * 1. 查找 failed/pending 的 product_target 相关事件
+ * 2. 从 product_targets 表获取完整信息（ASIN、adGroupId、campaignId）
+ * 3. 调用 syncNewProductTargetsToAmazon 重新创建
+ * 4. 更新事件状态和本地 targetId
+ */
+async function retryFailedProductTargetCreations(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    
+    // 查找缺少Amazon targetId的product_targets记录
+    const [missingTargets] = await database.execute(sql`
+      SELECT pt.id, pt.adGroupId, pt.expressionType, pt.expression, pt.bid, pt.state,
+             ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
+      FROM product_targets pt
+      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+      WHERE pt.accountId = ${accountId}
+        AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
+        AND pt.state != 'archived'
+        AND ag.adGroupId IS NOT NULL
+        AND ag.campaignId IS NOT NULL
+      LIMIT 200
+    `);
+    
+    if (!missingTargets || missingTargets.length === 0) {
+      log.info(`v310: 账户${accountId} 无缺少Amazon ID的商品定向需要创建`);
+      return results;
+    }
+    
+    log.warn(`v310: 账户${accountId} 发现${missingTargets.length}个缺少Amazon ID的商品定向需要创建`);
+    
+    // 解析expression提取ASIN信息
+    const targetsToCreate: Array<{
+      localTargetId: number;
+      adGroupId: string;
+      campaignId: string;
+      asin: string;
+      targetingType: 'exact' | 'expanded';
+      bid: number;
+    }> = [];
+    
+    for (const pt of missingTargets) {
+      try {
+        let expression: any[] = [];
+        if (pt.expression) {
+          try { expression = typeof pt.expression === 'string' ? JSON.parse(pt.expression) : pt.expression; } catch {}
+        }
+        
+        // 从expression中提取ASIN
+        let asin = '';
+        let targetingType: 'exact' | 'expanded' = 'exact';
+        
+        for (const expr of expression) {
+          if (expr.type === 'asinSameAs' && expr.value) {
+            asin = expr.value;
+            targetingType = 'exact';
+            break;
+          } else if (expr.type === 'asinExpandedFrom' && expr.value) {
+            asin = expr.value;
+            targetingType = 'expanded';
+            break;
+          }
+        }
+        
+        if (!asin) {
+          log.debug(`v310: 跳过无ASIN的商品定向 id=${pt.id}`);
+          continue;
+        }
+        
+        targetsToCreate.push({
+          localTargetId: pt.id,
+          adGroupId: String(pt.amazon_ad_group_id),
+          campaignId: String(pt.amazon_campaign_id),
+          asin,
+          targetingType,
+          bid: parseFloat(String(pt.bid)) || 0.75,
+        });
+      } catch (parseErr: any) {
+        log.warn(`v310: 解析商品定向失败 id=${pt.id}: ${parseErr.message}`);
+      }
+    }
+    
+    if (targetsToCreate.length === 0) {
+      log.info(`v310: 账户${accountId} 无有效的商品定向可创建`);
+      return results;
+    }
+    
+    log.info(`v310: 准备创建${targetsToCreate.length}个商品定向...`);
+    
+    // 调用Amazon API创建
+    const syncResult = await amazonApiHelper.syncNewProductTargetsToAmazon(accountId, targetsToCreate);
+    
+    log.warn(`v310: 商品定向创建结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+    
+    // 更新本地targetId
+    for (const target of targetsToCreate) {
+      const mapKey = `${target.adGroupId}:${target.asin}`;
+      const amazonTargetId = syncResult.targetIdMap.get(mapKey);
+      
+      if (amazonTargetId) {
+        // 更新product_targets表的targetId
+        await database.execute(sql`
+          UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
+        `);
+        
+        // 更新相关的optimization_logs和optimization_events
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced', error_message = 'v310: AutoCorrector创建成功'
+          WHERE entity_type = 'product_target' AND entity_id = ${target.localTargetId} AND api_sync_status = 'pending'
+        `).catch(() => {});
+        
+        results.push({
+          type: 'keyword_create_retry' as any, // 复用现有类型
+          accountId,
+          targetId: target.localTargetId,
+          targetType: 'product_target',
+          previousValue: '',
+          correctedValue: String(amazonTargetId),
+          reason: `v310: 创建商品定向成功 ASIN=${target.asin}`,
+          success: true,
+        });
+      } else {
+        results.push({
+          type: 'keyword_create_retry' as any,
+          accountId,
+          targetId: target.localTargetId,
+          targetType: 'product_target',
+          previousValue: '',
+          correctedValue: target.asin,
+          reason: `v310: 创建商品定向失败 ASIN=${target.asin}`,
+          success: false,
+          errorMessage: syncResult.errors.join('; ').substring(0, 200),
+        });
+      }
+    }
+  } catch (error: any) {
+    log.error(`v310: 账户${accountId} retryFailedProductTargetCreations失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+// ==================== 19. v310: Pending指令合理性重评估（增量版） ====================
+
+/**
+ * v310: 在每次纠错扫描中，对pending指令进行增量合理性检查
+ * 
+ * 与PostDeployOptimizer中的全量重评估不同，这里是增量检查：
+ * - 检查超过24小时的pending出价指令
+ * - 如果当前出价已经与pending指令方向不一致，标记为not_applicable
+ * - 如果pending指令的调整幅度超过安全阈值，标记为not_applicable
+ * 
+ * 这确保即使PostDeploy没有触发，日常纠错也能清理过时的pending指令
+ */
+async function revalidateStalePendingCommands(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查找超过24小时的pending出价调整指令
+    const [stalePending] = await database.execute(sql`
+      SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
+             ol.previous_value, ol.new_value, ol.created_at, ol.performance_group_id,
+             k.bid as kw_current_bid, k.keywordId as amazon_keyword_id,
+             pt.bid as pt_current_bid, pt.targetId as amazon_target_id
+      FROM optimization_logs ol
+      LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
+      LEFT JOIN product_targets pt ON ol.entity_type = 'product_target' AND ol.entity_id = pt.id
+      WHERE ol.api_sync_status = 'pending'
+        AND ol.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
+        AND ol.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND ol.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND EXISTS (
+          SELECT 1 FROM performance_groups pg 
+          WHERE pg.id = ol.performance_group_id 
+            AND pg.accountId = ${accountId}
+        )
+      ORDER BY ol.created_at ASC
+      LIMIT 500
+    `);
+    
+    if (!stalePending || stalePending.length === 0) {
+      return results;
+    }
+    
+    log.warn(`v310: 账户${accountId} 发现${stalePending.length}条超24h的pending指令需要重评估`);
+    
+    let cancelled = 0;
+    let kept = 0;
+    
+    for (const row of stalePending) {
+      try {
+        const actionType = row.action_type;
+        const newValue = parseFloat(String(row.new_value));
+        const prevValue = parseFloat(String(row.previous_value));
+        const currentBid = parseFloat(String(row.kw_current_bid || row.pt_current_bid || 0));
+        
+        let shouldCancel = false;
+        let cancelReason = '';
+        
+        // dayparting_bid: 如果出价未变更（previous_value == new_value），直接取消
+        if (actionType === 'dayparting_bid') {
+          if (Math.abs(newValue - prevValue) < 0.001) {
+            shouldCancel = true;
+            cancelReason = '分时竞价出价未变更';
+          } else if (currentBid > 0 && Math.abs(currentBid - newValue) < 0.01) {
+            shouldCancel = true;
+            cancelReason = `当前出价$${currentBid.toFixed(2)}已等于目标$${newValue.toFixed(2)}`;
+          }
+        }
+        
+        // bid_increase/bid_decrease: 检查方向一致性
+        if (actionType === 'bid_increase' && currentBid >= newValue && currentBid > 0) {
+          shouldCancel = true;
+          cancelReason = `当前出价$${currentBid.toFixed(2)}已>=提价目标$${newValue.toFixed(2)}`;
+        } else if (actionType === 'bid_decrease' && currentBid <= newValue && currentBid > 0) {
+          shouldCancel = true;
+          cancelReason = `当前出价$${currentBid.toFixed(2)}已<=降价目标$${newValue.toFixed(2)}`;
+        }
+        
+        // 调整幅度检查
+        if (!shouldCancel && prevValue > 0 && (actionType === 'bid_increase' || actionType === 'bid_decrease')) {
+          const changePercent = Math.abs(newValue - prevValue) / prevValue;
+          if (changePercent > 0.5) {
+            shouldCancel = true;
+            cancelReason = `调整幅度${(changePercent * 100).toFixed(1)}%超过50%安全阈值`;
+          }
+        }
+        
+        // target_pause/target_enable: 缺少Amazon ID
+        if ((actionType === 'target_pause' || actionType === 'target_enable') && !row.amazon_keyword_id && !row.amazon_target_id) {
+          shouldCancel = true;
+          cancelReason = '缺少Amazon ID，无法执行';
+        }
+        
+        if (shouldCancel) {
+          await database.execute(sql`
+            UPDATE optimization_logs 
+            SET api_sync_status = 'not_applicable',
+                error_message = ${`v310增量重评估: ${cancelReason}`}
+            WHERE id = ${row.id}
+          `);
+          cancelled++;
+          
+          results.push({
+            type: 'bid_execution_verify' as any,
+            accountId,
+            targetId: row.entity_id,
+            targetType: row.entity_type || 'unknown',
+            previousValue: String(row.new_value),
+            correctedValue: 'cancelled',
+            reason: `v310: 取消过时pending指令(${actionType}): ${cancelReason}`,
+            success: true,
+          });
+        } else {
+          kept++;
+        }
+      } catch (evalErr: any) {
+        log.warn(`v310: 增量重评估单条失败: ${evalErr.message}`);
+      }
+    }
+    
+    if (cancelled > 0 || kept > 0) {
+      log.warn(`v310: 账户${accountId} 增量重评估完成: 总计=${stalePending.length}, 取消=${cancelled}, 保留=${kept}`);
+    }
+  } catch (error: any) {
+    log.error(`v310: 账户${accountId} revalidateStalePendingCommands失败: ${error.message}`);
   }
   
   return results;

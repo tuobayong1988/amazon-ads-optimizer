@@ -1177,6 +1177,107 @@ export class AmazonAdsApiClient {
     return { success: allErrors.length === 0, errors: allErrors };
   }
 
+  /**
+   * v310: 创建SP商品定向 (Product Targeting)
+   * 端点: POST /sp/targets
+   * 参照 createSpKeywords 的模式，支持分批处理和限流重试
+   */
+  async createSpProductTargets(
+    targets: Array<{
+      adGroupId: number | string;
+      campaignId: number | string;
+      expression: Array<{ type: string; value?: string }>;
+      expressionType?: 'auto' | 'manual';
+      bid: number;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<{ success: boolean; createdTargets: Array<{ targetId: number | null; expression: any; code: string }>; errors: any[] }> {
+    const BATCH_SIZE = 100; // Amazon SP API v3 targeting clauses 单次最多100个
+    const BATCH_DELAY_MS = 500;
+    const allCreatedTargets: Array<{ targetId: number | null; expression: any; code: string }> = [];
+    const allErrors: any[] = [];
+    
+    const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
+    log.info(`[SP API] v310: createSpProductTargets 分批处理: 总计${targets.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batchTargets = targets.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      log.info(`[SP API] v310: 第${batchIdx + 1}/${totalBatches}批: ${batchTargets.length}个商品定向创建`);
+      
+      try {
+        const formattedTargets = batchTargets.map(t => ({
+          adGroupId: String(t.adGroupId),
+          campaignId: String(t.campaignId),
+          expression: t.expression,
+          expressionType: t.expressionType || 'manual',
+          bid: Number(t.bid.toFixed(2)),
+          state: (t.state || 'enabled').toUpperCase(),
+        }));
+        const requestBody = { targetingClauses: formattedTargets };
+        const response = await this.axiosInstance.post('/sp/targets', requestBody, {
+          headers: {
+            'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+            'Accept': 'application/vnd.spTargetingClause.v3+json'
+          },
+        });
+        
+        const responseTargets = response.data?.targetingClauses;
+        
+        if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
+          if (responseTargets.success && Array.isArray(responseTargets.success)) {
+            for (const item of responseTargets.success) {
+              const idx = item.index || 0;
+              allCreatedTargets.push({
+                targetId: item.targetId || null,
+                expression: batchTargets[idx]?.expression || [],
+                code: 'SUCCESS',
+              });
+            }
+          }
+          if (responseTargets.error && Array.isArray(responseTargets.error)) {
+            for (const item of responseTargets.error) {
+              allErrors.push(item);
+              allCreatedTargets.push({
+                targetId: null,
+                expression: batchTargets[item.index]?.expression || [],
+                code: item.code || 'ERROR',
+              });
+              log.error(`[SP API] v310: 商品定向创建失败: code=${item.code}, description="${item.description || item.details || ''}"`);
+            }
+          }
+        } else if (Array.isArray(responseTargets)) {
+          for (const t of responseTargets) {
+            allCreatedTargets.push({
+              targetId: t.targetId || null,
+              expression: t.expression || [],
+              code: t.code || 'SUCCESS',
+            });
+            if (t.code && t.code !== 'SUCCESS') allErrors.push(t);
+          }
+        }
+      } catch (error: any) {
+        log.error(`[SP API] v310: 第${batchIdx + 1}批商品定向创建API调用失败: ${error.response?.data || error.message}`);
+        for (const t of batchTargets) {
+          allCreatedTargets.push({ targetId: null, expression: t.expression, code: 'BATCH_ERROR' });
+          allErrors.push({ expression: t.expression, code: 'BATCH_ERROR', details: error.message });
+        }
+        // 限流时增加等待
+        if (error.response?.status === 429) {
+          const throttleWait = BATCH_DELAY_MS * 5;
+          log.debug(`[SP API] v310: 限流，等待${throttleWait}ms后继续...`);
+          await new Promise(resolve => setTimeout(resolve, throttleWait));
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    
+    log.warn(`[SP API] v310: 商品定向创建完成: 总计=${targets.length}, 成功=${allCreatedTargets.length - allErrors.length}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, createdTargets: allCreatedTargets, errors: allErrors };
+  }
+
   // ==================== 报告 API ====================
 
   /**

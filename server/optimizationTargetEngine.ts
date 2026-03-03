@@ -1776,6 +1776,115 @@ async function executeDaypartingOptimization(
   // v183: 最高出价红线
   const maxBidLimit = config.maxBid || 2.00;
   
+  // v310: 处理pending积压的dayparting_bid记录
+  try {
+    const dbConn2 = await getDb();
+    if (dbConn2) {
+      const { sql } = await import('drizzle-orm');
+      
+      // 查找本优化目标下pending的dayparting_bid记录（最多50条）
+      const pendingDayparting = await dbConn2.execute(sql`
+        SELECT ol.id, ol.action_detail, ol.created_at,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.keywordId')) as kw_id,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.newBid')) as new_bid,
+               JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.baseBid')) as base_bid
+        FROM optimization_logs ol
+        WHERE ol.performance_group_id = ${config.performanceGroupId}
+          AND ol.action_type = 'dayparting_bid'
+          AND ol.api_sync_status = 'pending'
+        ORDER BY ol.created_at DESC
+        LIMIT 50
+      `);
+      const pendingRows = (pendingDayparting as any)[0] || [];
+      
+      if (pendingRows.length > 0) {
+        log.info(`[DaypartingOptimization] v310: 发现${pendingRows.length}条pending的dayparting_bid，开始处理`);
+        let retried = 0, superseded = 0, timedOut = 0;
+        
+        // 按keywordId分组，只保留每个keyword的最新pending记录
+        const latestByKeyword = new Map<string, any>();
+        const olderIds: number[] = [];
+        
+        for (const row of pendingRows) {
+          const kwId = row.kw_id;
+          if (!kwId) continue;
+          if (latestByKeyword.has(kwId)) {
+            olderIds.push(row.id);
+          } else {
+            latestByKeyword.set(kwId, row);
+          }
+        }
+        
+        // 标记旧的重复记录为superseded
+        if (olderIds.length > 0) {
+          await dbConn2.execute(sql`
+            UPDATE optimization_logs SET api_sync_status = 'superseded',
+              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 同一keyword已有更新的分时竞价指令')
+            WHERE id IN (${sql.raw(olderIds.join(','))})
+          `);
+          superseded = olderIds.length;
+        }
+        
+        // 对每个keyword的最新pending记录尝试重新同步
+        for (const [kwId, row] of latestByKeyword) {
+          try {
+            const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
+            const newBid = parseFloat(detail?.newBid || detail?.adjustedBid || '0');
+            const localCampaignId = detail?.localCampaignId;
+            const amazonCampaignId = detail?.amazonCampaignId;
+            
+            // 检查记录是否超过72小时
+            const createdAt = new Date(row.created_at);
+            const ageHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60);
+            if (ageHours > 72) {
+              // 超过72小时的分时竞价已过时，当前时段不同了
+              await dbConn2.execute(sql`
+                UPDATE optimization_logs SET api_sync_status = 'superseded',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 分时竞价超过72小时已过时')
+                WHERE id = ${row.id}
+              `);
+              timedOut++;
+              continue;
+            }
+            
+            if (newBid > 0 && Number(kwId) > 0) {
+              const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+                config.accountId,
+                [{
+                  keywordId: Number(kwId),
+                  newBid: newBid,
+                  localCampaignId: localCampaignId,
+                  amazonCampaignId: amazonCampaignId,
+                  reason: 'v310: pending dayparting_bid重试',
+                  isProductTarget: false,
+                }]
+              );
+              if (syncResult.success > 0) {
+                await dbConn2.execute(sql`
+                  UPDATE optimization_logs SET api_sync_status = 'synced',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
+                  WHERE id = ${row.id}
+                `);
+                retried++;
+              } else {
+                await dbConn2.execute(sql`
+                  UPDATE optimization_logs SET api_sync_status = 'failed',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${syncResult.errors.join('; ')})
+                  WHERE id = ${row.id}
+                `);
+              }
+            }
+          } catch (retryErr: any) {
+            log.warn(`[DaypartingOptimization] v310: dayparting_bid重试失败 kwId=${kwId}: ${retryErr.message}`);
+          }
+        }
+        log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理完成: 重试成功=${retried}, 已过时=${timedOut}, 已覆盖=${superseded}`);
+      }
+    }
+  } catch (pendingErr: any) {
+    log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理失败: ${pendingErr.message}`);
+  }
+  
   for (const campaign of campaigns) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
@@ -2208,26 +2317,180 @@ async function executeSearchTermAnalysis(
     log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${failErr.message}`);
   }
   
-  // v310-fix: 处理pending积压 - 将超过24小时的pending记录标记为timeout_failed
+  // v310: 处理pending积压 - 尝试重新同步pending的keyword_create和add_product_target
   try {
     const dbInstance = await db.getDb();
     if (dbInstance) {
       const { sql } = await import('drizzle-orm');
+      
+      // 查找所有pending的keyword_create记录（最多处理50条，避免API超载）
+      const pendingKeywords = await dbInstance.execute(sql`
+        SELECT id, action_detail, account_id, performance_group_id
+        FROM optimization_logs 
+        WHERE performance_group_id = ${config.performanceGroupId}
+          AND action_type = 'keyword_create'
+          AND api_sync_status = 'pending'
+        ORDER BY created_at ASC
+        LIMIT 50
+      `);
+      const pendingKwRows = (pendingKeywords as any)[0] || [];
+      
+      if (pendingKwRows.length > 0) {
+        log.info(`[SearchTermAnalysis] v310: 发现${pendingKwRows.length}条pending的keyword_create，尝试重新同步`);
+        let retrySuccess = 0;
+        let retryFailed = 0;
+        
+        for (const row of pendingKwRows) {
+          try {
+            const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
+            const searchTerm = detail?.searchTerm;
+            const matchType = detail?.matchType || 'phrase';
+            const bid = detail?.suggestedBid || 0.50;
+            const amazonCampaignIdStr = detail?.amazonCampaignId;
+            
+            // 跳过永久失败的关键词
+            if (searchTerm && permanentlyFailedKeywords.has(searchTerm.toLowerCase().trim())) {
+              await dbInstance.execute(sql`
+                UPDATE optimization_logs SET api_sync_status = 'permanently_failed',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_skip_reason', 'v310: 关键词在永久失败名单中')
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+              continue;
+            }
+            
+            if (!amazonCampaignIdStr || !searchTerm) {
+              // 缺少关键信息，尝试通过localCampaignId查找Amazon ID
+              const localCampaignId = detail?.localCampaignId || detail?.campaignId;
+              if (localCampaignId) {
+                const campaignLookup = await dbInstance.execute(sql`
+                  SELECT campaign_id FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
+                `);
+                const lookupRows = (campaignLookup as any)[0] || [];
+                if (lookupRows.length > 0 && lookupRows[0].campaign_id) {
+                  // 找到了Amazon Campaign ID，更新action_detail并继续
+                  const foundAmazonCampaignId = lookupRows[0].campaign_id;
+                  const adGroups = await db.getAdGroupsByCampaignId(foundAmazonCampaignId);
+                  if (adGroups.length > 0 && searchTerm) {
+                    const adGroup = adGroups[0];
+                    const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                    if (amazonAdGroupId > 0) {
+                      try {
+                        const apiResult = await amazonApiHelper.syncNewKeywordsToAmazon(
+                          config.accountId,
+                          [{ adGroupId: amazonAdGroupId, campaignId: foundAmazonCampaignId, keywordText: searchTerm, matchType, bid }]
+                        );
+                        if (apiResult.success > 0) {
+                          await dbInstance.execute(sql`
+                            UPDATE optimization_logs SET api_sync_status = 'synced',
+                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+                            WHERE id = ${row.id}
+                          `);
+                          retrySuccess++;
+                        } else {
+                          await dbInstance.execute(sql`
+                            UPDATE optimization_logs SET api_sync_status = 'failed',
+                              api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join('; ')})
+                            WHERE id = ${row.id}
+                          `);
+                          retryFailed++;
+                        }
+                      } catch (retryApiErr: any) {
+                        await dbInstance.execute(sql`
+                          UPDATE optimization_logs SET api_sync_status = 'failed',
+                            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                          WHERE id = ${row.id}
+                        `);
+                        retryFailed++;
+                      }
+                      continue;
+                    }
+                  }
+                }
+              }
+              // 无法解析Amazon ID，标记为超时失败
+              await dbInstance.execute(sql`
+                UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 无法解析Amazon ID')
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+            } else {
+              // 有Amazon Campaign ID，直接重试同步
+              const adGroups = await db.getAdGroupsByCampaignId(amazonCampaignIdStr);
+              if (adGroups.length > 0) {
+                const adGroup = adGroups[0];
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                if (amazonAdGroupId > 0) {
+                  try {
+                    const apiResult = await amazonApiHelper.syncNewKeywordsToAmazon(
+                      config.accountId,
+                      [{ adGroupId: amazonAdGroupId, campaignId: amazonCampaignIdStr, keywordText: searchTerm, matchType, bid }]
+                    );
+                    if (apiResult.success > 0) {
+                      await dbInstance.execute(sql`
+                        UPDATE optimization_logs SET api_sync_status = 'synced',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
+                        WHERE id = ${row.id}
+                      `);
+                      retrySuccess++;
+                    } else {
+                      await dbInstance.execute(sql`
+                        UPDATE optimization_logs SET api_sync_status = 'failed',
+                          api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join('; ')})
+                        WHERE id = ${row.id}
+                      `);
+                      retryFailed++;
+                    }
+                  } catch (retryApiErr: any) {
+                    await dbInstance.execute(sql`
+                      UPDATE optimization_logs SET api_sync_status = 'failed',
+                        api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                      WHERE id = ${row.id}
+                    `);
+                    retryFailed++;
+                  }
+                } else {
+                  await dbInstance.execute(sql`
+                    UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                      api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: adGroupId无效')
+                    WHERE id = ${row.id}
+                  `);
+                  retryFailed++;
+                }
+              } else {
+                await dbInstance.execute(sql`
+                  UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
+                    api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 找不到广告组')
+                  WHERE id = ${row.id}
+                `);
+                retryFailed++;
+              }
+            }
+          } catch (rowErr: any) {
+            log.warn(`[SearchTermAnalysis] v310: pending重试单条失败 id=${row.id}: ${rowErr.message}`);
+            retryFailed++;
+          }
+        }
+        log.warn(`[SearchTermAnalysis] v310: pending keyword_create重试完成: 成功=${retrySuccess}, 失败=${retryFailed}, 总计=${pendingKwRows.length}`);
+      }
+      
+      // v310: 将超过72小时仍然pending的记录标记为timeout_failed（已经重试过但仍然无法处理的）
       const timeoutResult = await dbInstance.execute(sql`
         UPDATE optimization_logs 
         SET api_sync_status = 'timeout_failed',
-            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310-fix: pending超过24小时未同步')
+            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: pending超过72小时未同步')
         WHERE performance_group_id = ${config.performanceGroupId}
           AND api_sync_status = 'pending'
-          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
       `);
       const timeoutCount = (timeoutResult as any)[0]?.affectedRows || 0;
       if (timeoutCount > 0) {
-        log.warn(`[SearchTermAnalysis] v310-fix: 标记${timeoutCount}条超时pending记录为timeout_failed`);
+        log.warn(`[SearchTermAnalysis] v310: 标记${timeoutCount}条超过72小时的pending记录为timeout_failed`);
       }
     }
   } catch (timeoutErr: any) {
-    log.warn(`[SearchTermAnalysis] v310-fix: pending超时处理失败: ${timeoutErr.message}`);
+    log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${timeoutErr.message}`);
   }
   
   for (const campaign of campaigns) {
@@ -2615,9 +2878,92 @@ async function executeSearchTermAnalysis(
           };
           
           details.push(newTarget);
-          // v191: ASIN商品定向的Amazon API同步将在后续版本实现
-          // 当前先记录决策，不执行API调用
-          log.debug(`[SearchTermAnalysis] v191: ASIN定向决策[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
+          
+          // v310: 实现ASIN商品定向的Amazon API同步
+          if (!dryRun) {
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const adGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
+              if (adGroups.length > 0) {
+                const adGroup = adGroups[0];
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                const amazonCampaignId = campaignAmazonId;
+                
+                // v310: 检查是否已存在相同的product target
+                const { productTargets } = await import('../drizzle/schema');
+                const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+                const existingTargets = await dbInstance.select({ id: productTargets.id, targetId: productTargets.targetId })
+                  .from(productTargets)
+                  .where(andOp(
+                    eqOp(productTargets.adGroupId, adGroup.id),
+                    eqOp(productTargets.expressionValue, decision.targetValue)
+                  ))
+                  .limit(5);
+                
+                if (existingTargets.length > 0) {
+                  newTarget.apiSyncStatus = 'already_exists';
+                  newTarget.apiSyncDetail = JSON.stringify({ existingId: existingTargets[0].id, existingTargetId: existingTargets[0].targetId });
+                  log.info(`[SearchTermAnalysis] v310: ASIN定向已存在，跳过: "${decision.targetValue}"`);
+                } else if (Number(amazonAdGroupId) > 0 && Number(amazonCampaignId) > 0) {
+                  // 先写入本地DB
+                  try {
+                    const insertResult = await dbInstance.insert(productTargets).values({
+                      adGroupId: adGroup.id,
+                      expressionType: 'manual',
+                      expressionValue: decision.targetValue,
+                      bid: String(bid),
+                      targetStatus: 'enabled',
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    });
+                    const localTargetId = (insertResult as any)[0]?.insertId;
+                    
+                    // 同步到Amazon
+                    try {
+                      const ptSyncResult = await amazonApiHelper.syncNewProductTargetsToAmazon(
+                        config.accountId,
+                        [{
+                          localTargetId: localTargetId || undefined,
+                          adGroupId: amazonAdGroupId,
+                          campaignId: amazonCampaignId,
+                          asin: decision.targetValue,
+                          targetingType: ptType as 'exact' | 'expanded',
+                          bid: bid,
+                        }]
+                      );
+                      if (ptSyncResult.success > 0) {
+                        newTarget.apiSyncStatus = 'synced';
+                        // 回写Amazon targetId
+                        const mapKey = `${amazonAdGroupId}:${decision.targetValue}`;
+                        const amazonTargetId = ptSyncResult.targetIdMap.get(mapKey);
+                        if (amazonTargetId && localTargetId) {
+                          await dbInstance.execute(sql`
+                            UPDATE product_targets SET target_id = ${String(amazonTargetId)} WHERE id = ${localTargetId}
+                          `);
+                        }
+                        log.info(`[SearchTermAnalysis] v310: ASIN定向已同步: "${decision.targetValue}" bid=$${bid}`);
+                      } else {
+                        newTarget.apiSyncStatus = 'failed';
+                        newTarget.apiSyncDetail = JSON.stringify({ errors: ptSyncResult.errors });
+                        log.error(`[SearchTermAnalysis] v310: ASIN定向同步失败: "${decision.targetValue}" - ${ptSyncResult.errors.join('; ')}`);
+                      }
+                    } catch (apiError: any) {
+                      newTarget.apiSyncStatus = 'failed';
+                      newTarget.apiSyncDetail = JSON.stringify({ error: apiError.message });
+                      log.error(`[SearchTermAnalysis] v310: ASIN定向API异常: "${decision.targetValue}" -`, apiError.message);
+                    }
+                  } catch (dbErr: any) {
+                    newTarget.apiSyncStatus = 'failed';
+                    newTarget.apiSyncDetail = JSON.stringify({ error: `DB insert failed: ${dbErr.message}` });
+                    log.error(`[SearchTermAnalysis] v310: ASIN定向DB写入失败: "${decision.targetValue}" - ${dbErr.message}`);
+                  }
+                } else {
+                  log.warn(`[SearchTermAnalysis] v310: 缺少Amazon ID，无法同步ASIN定向: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                }
+              }
+            }
+          }
+          log.debug(`[SearchTermAnalysis] v310: ASIN定向决策[${ptType}]: "${decision.targetValue}" bid=$${bid} status=${newTarget.apiSyncStatus} (${decision.reason})`);
         }
       }
       // v134: 同步否定关键词到 Amazon API，并记录同步状态
