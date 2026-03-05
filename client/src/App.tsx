@@ -77,6 +77,9 @@ const AutoOptimizationDashboard = lazy(() => import("./pages/AutoOptimizationDas
 const AdvancedAnalyticsDashboard = lazy(() => import("./pages/AdvancedAnalyticsDashboard"));
 const AutoCorrectionDashboard = lazy(() => import("./pages/AutoCorrectionDashboard"));
 
+// 预发布引擎页面（仅admin可见）
+const PrelaunchDashboard = lazy(() => import("./pages/PrelaunchDashboard"));
+
 // 加载中组件
 function PageLoading() {
   return (
@@ -177,6 +180,8 @@ function Router() {
       <Route path="/amazon-api-auth-status">{() => <LazyRoute component={AmazonApiAuthStatus} />}</Route>
       <Route path="/auto-optimization-dashboard">{() => <LazyRoute component={AutoOptimizationDashboard} />}</Route>
       <Route path="/auto-correction">{() => <LazyRoute component={AutoCorrectionDashboard} />}</Route>
+      {/* 预发布引擎（仅admin可见，前端路由可访问，后端由adminProcedure保护） */}
+      <Route path="/prelaunch">{() => <LazyRoute component={PrelaunchDashboard} />}</Route>
       {/* v151: 高级分析已融合到优化目标详情页的"分析洞察"Tab */}
       <Route path="/advanced-analytics">{() => <Redirect to="/strategy-center" />}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>

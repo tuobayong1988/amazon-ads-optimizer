@@ -3927,3 +3927,354 @@ export const cqlModels = mysqlTable("cql_models", {
 ]);
 export type CqlModel = InferSelectModel<typeof cqlModels>;
 export type InsertCqlModel = InferInsertModel<typeof cqlModels>;
+
+// ==================== v328: 亚马逊智能预发布引擎 v4.0 ====================
+
+// --- M1: 搜索词库引擎 ---
+
+/** 预发布项目表 */
+export const prelaunchProjects = mysqlTable("prelaunch_projects", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  projectName: varchar("project_name", { length: 200 }).notNull(),
+  asin: varchar("asin", { length: 20 }),
+  marketplace: varchar("marketplace", { length: 10 }).default('US'),
+  category: varchar("category", { length: 200 }),
+  seedKeywords: json("seed_keywords"),
+  status: mysqlEnum("status", ['draft', 'running', 'completed', 'archived']).default('draft'),
+  createdBy: int("created_by"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+}, (table) => [
+  index("idx_prelaunch_proj_account").on(table.accountId),
+  index("idx_prelaunch_proj_status").on(table.status),
+]);
+export type PrelaunchProject = InferSelectModel<typeof prelaunchProjects>;
+export type InsertPrelaunchProject = InferInsertModel<typeof prelaunchProjects>;
+
+/** 预发布关键词表 */
+export const prelaunchKeywords = mysqlTable("prelaunch_keywords", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  keyword: varchar("keyword", { length: 500 }).notNull(),
+  searchVolume: int("search_volume"),
+  searchVolumeGrowth: decimal("search_volume_growth", { precision: 8, scale: 4 }),
+  competitorDensity: int("competitor_density"),
+  avgPrice: decimal("avg_price", { precision: 10, scale: 2 }),
+  relevanceLayer: mysqlEnum("relevance_layer", ['core', 'extended', 'long_tail', 'irrelevant']).default('core'),
+  dimensionType: varchar("dimension_type", { length: 50 }),
+  scenarioCode: varchar("scenario_code", { length: 10 }),
+  intentTag: varchar("intent_tag", { length: 50 }),
+  kviScore: decimal("kvi_score", { precision: 8, scale: 4 }),
+  kviVolume: decimal("kvi_volume", { precision: 8, scale: 4 }),
+  kviRelevance: decimal("kvi_relevance", { precision: 8, scale: 4 }),
+  kviOpportunity: decimal("kvi_opportunity", { precision: 8, scale: 4 }),
+  clusterId: int("cluster_id"),
+  drAmScore: decimal("dr_am_score", { precision: 8, scale: 4 }),
+  scenarioConfidence: decimal("scenario_confidence", { precision: 8, scale: 4 }),
+  dataSource: varchar("data_source", { length: 50 }),
+  rawData: json("raw_data"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plkw_project").on(table.projectId),
+  index("idx_plkw_relevance").on(table.relevanceLayer),
+  index("idx_plkw_scenario").on(table.scenarioCode),
+  index("idx_plkw_kvi").on(table.kviScore),
+]);
+export type PrelaunchKeyword = InferSelectModel<typeof prelaunchKeywords>;
+export type InsertPrelaunchKeyword = InferInsertModel<typeof prelaunchKeywords>;
+
+/** 关键词聚类表 */
+export const prelaunchKeywordClusters = mysqlTable("prelaunch_keyword_clusters", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  clusterLabel: varchar("cluster_label", { length: 200 }).notNull(),
+  intentSummary: text("intent_summary"),
+  memberCount: int("member_count").default(0),
+  avgKvi: decimal("avg_kvi", { precision: 8, scale: 4 }),
+  topScenario: varchar("top_scenario", { length: 10 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plkc_project").on(table.projectId),
+]);
+
+/** 关键词关系表 */
+export const prelaunchKeywordRelations = mysqlTable("prelaunch_keyword_relations", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  sourceKeywordId: int("source_keyword_id").notNull(),
+  targetKeywordId: int("target_keyword_id").notNull(),
+  relationType: varchar("relation_type", { length: 50 }).notNull(),
+  strength: decimal("strength", { precision: 8, scale: 4 }),
+  evidence: text("evidence"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plkr_project").on(table.projectId),
+  index("idx_plkr_source").on(table.sourceKeywordId),
+]);
+
+/** COSMO因果链三元组表 */
+export const prelaunchCosmoTriples = mysqlTable("prelaunch_cosmo_triples", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  causeNode: varchar("cause_node", { length: 300 }).notNull(),
+  effectNode: varchar("effect_node", { length: 300 }).notNull(),
+  outcomeNode: varchar("outcome_node", { length: 300 }),
+  relationLabel: varchar("relation_label", { length: 100 }),
+  confidence: decimal("confidence", { precision: 8, scale: 4 }),
+  sourceKeywordIds: json("source_keyword_ids"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plct_project").on(table.projectId),
+]);
+
+// --- M2: 竞品库引擎 ---
+
+/** 预发布竞品表 */
+export const prelaunchCompetitors = mysqlTable("prelaunch_competitors", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  asin: varchar("asin", { length: 20 }).notNull(),
+  title: text("title"),
+  brand: varchar("brand", { length: 200 }),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  rating: decimal("rating", { precision: 4, scale: 2 }),
+  reviewCount: int("review_count"),
+  bsr: int("bsr"),
+  trsScore: decimal("trs_score", { precision: 8, scale: 4 }),
+  trsRelevance: decimal("trs_relevance", { precision: 8, scale: 4 }),
+  trsBrandPower: decimal("trs_brand_power", { precision: 8, scale: 4 }),
+  trsMarketShare: decimal("trs_market_share", { precision: 8, scale: 4 }),
+  trsBreakdown: json("trs_breakdown"),
+  tier: mysqlEnum("tier", ['T1_head', 'T2_waist', 'T3_niche']).default('T2_waist'),
+  competitorType: varchar("competitor_type", { length: 50 }),
+  dataSource: varchar("data_source", { length: 50 }),
+  rawData: json("raw_data"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plcomp_project").on(table.projectId),
+  index("idx_plcomp_asin").on(table.asin),
+  index("idx_plcomp_tier").on(table.tier),
+]);
+export type PrelaunchCompetitor = InferSelectModel<typeof prelaunchCompetitors>;
+export type InsertPrelaunchCompetitor = InferInsertModel<typeof prelaunchCompetitors>;
+
+/** 竞品用户语言库 */
+export const prelaunchCompetitorUserLanguage = mysqlTable("prelaunch_competitor_user_language", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  competitorId: int("competitor_id").notNull(),
+  phraseType: varchar("phrase_type", { length: 50 }).notNull(),
+  phrase: text("phrase").notNull(),
+  sentiment: mysqlEnum("sentiment", ['positive', 'negative', 'neutral']).default('neutral'),
+  frequency: int("frequency").default(1),
+  sourceReviewCount: int("source_review_count").default(0),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plcul_project").on(table.projectId),
+  index("idx_plcul_competitor").on(table.competitorId),
+]);
+
+/** 竞品场景矩阵 */
+export const prelaunchCompetitorScenarioMatrix = mysqlTable("prelaunch_competitor_scenario_matrix", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  competitorId: int("competitor_id").notNull(),
+  scenarioCode: varchar("scenario_code", { length: 10 }).notNull(),
+  trafficShare: decimal("traffic_share", { precision: 8, scale: 4 }),
+  attackFeasibility: decimal("attack_feasibility", { precision: 8, scale: 4 }),
+  suggestedStrategy: varchar("suggested_strategy", { length: 100 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plcsm_project").on(table.projectId),
+  index("idx_plcsm_competitor").on(table.competitorId),
+]);
+
+// --- M3: 用户画像引擎 ---
+
+/** 预发布用户画像 */
+export const prelaunchPersonas = mysqlTable("prelaunch_personas", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  personaName: varchar("persona_name", { length: 200 }).notNull(),
+  demographics: json("demographics"),
+  psychographics: json("psychographics"),
+  buyingBehavior: json("buying_behavior"),
+  painPoints: json("pain_points"),
+  motivations: json("motivations"),
+  preferredChannels: json("preferred_channels"),
+  narrativeProfile: text("narrative_profile"),
+  confidence: decimal("confidence", { precision: 8, scale: 4 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plpers_project").on(table.projectId),
+]);
+export type PrelaunchPersona = InferSelectModel<typeof prelaunchPersonas>;
+export type InsertPrelaunchPersona = InferInsertModel<typeof prelaunchPersonas>;
+
+// --- M4X: 文案动态进化引擎 ---
+
+/** 预发布文案版本 */
+export const prelaunchCopyVersions = mysqlTable("prelaunch_copy_versions", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  generation: int("generation").default(0),
+  copyType: varchar("copy_type", { length: 50 }).notNull(),
+  title: text("title"),
+  bulletPoints: json("bullet_points"),
+  description: text("description"),
+  backendKeywords: text("backend_keywords"),
+  aPlus: json("a_plus"),
+  fitnessScore: decimal("fitness_score", { precision: 8, scale: 4 }),
+  parentId: int("parent_id"),
+  mutationLog: json("mutation_log"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plcv_project").on(table.projectId),
+  index("idx_plcv_generation").on(table.generation),
+]);
+
+/** 文案反馈信号 */
+export const prelaunchCopyFeedback = mysqlTable("prelaunch_copy_feedback", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  copyVersionId: int("copy_version_id").notNull(),
+  signalType: varchar("signal_type", { length: 50 }).notNull(),
+  signalSource: varchar("signal_source", { length: 50 }),
+  metricName: varchar("metric_name", { length: 50 }),
+  metricValue: decimal("metric_value", { precision: 12, scale: 6 }),
+  rawPayload: json("raw_payload"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plcf_project").on(table.projectId),
+  index("idx_plcf_version").on(table.copyVersionId),
+]);
+
+/** Rufus Q&A种子 */
+export const prelaunchQnaSeeds = mysqlTable("prelaunch_qna_seeds", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  question: text("question").notNull(),
+  answer: text("answer").notNull(),
+  sourceType: varchar("source_type", { length: 50 }),
+  cosmoTripleId: int("cosmo_triple_id"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plqna_project").on(table.projectId),
+]);
+
+// --- M5: 视觉框架引擎 ---
+
+/** 视觉框架简报 */
+export const prelaunchVisualBriefs = mysqlTable("prelaunch_visual_briefs", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  slotPosition: int("slot_position").notNull(),
+  slotRole: varchar("slot_role", { length: 100 }),
+  headline: varchar("headline", { length: 300 }),
+  visualDescription: text("visual_description"),
+  keyElements: json("key_elements"),
+  colorPalette: json("color_palette"),
+  referenceImages: json("reference_images"),
+  generatedImageUrl: text("generated_image_url"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plvb_project").on(table.projectId),
+]);
+
+// --- M6: 视频素材创意引擎 ---
+
+/** 视频创意脚本 */
+export const prelaunchVideoScripts = mysqlTable("prelaunch_video_scripts", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  videoType: varchar("video_type", { length: 50 }).notNull(),
+  scenarioCode: varchar("scenario_code", { length: 10 }),
+  scriptFramework: varchar("script_framework", { length: 50 }),
+  hook: text("hook"),
+  body: text("body"),
+  cta: text("cta"),
+  duration: int("duration"),
+  storyboard: json("storyboard"),
+  generatedFrameUrls: json("generated_frame_urls"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plvs_project").on(table.projectId),
+]);
+
+/** SB广告Banner创意 */
+export const prelaunchBannerCreatives = mysqlTable("prelaunch_banner_creatives", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  bannerType: varchar("banner_type", { length: 50 }).notNull(),
+  headline: varchar("headline", { length: 300 }),
+  subHeadline: varchar("sub_headline", { length: 300 }),
+  ctaText: varchar("cta_text", { length: 100 }),
+  visualPrompt: text("visual_prompt"),
+  generatedImageUrl: text("generated_image_url"),
+  dimensions: varchar("dimensions", { length: 50 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plbc_project").on(table.projectId),
+]);
+
+// --- M7: 广告框架引擎 ---
+
+/** 广告框架编译结果 */
+export const prelaunchAdFrameworks = mysqlTable("prelaunch_ad_frameworks", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  frameworkType: varchar("framework_type", { length: 50 }).notNull(),
+  frameworkName: varchar("framework_name", { length: 200 }).notNull(),
+  campaignStructure: json("campaign_structure"),
+  totalCampaigns: int("total_campaigns").default(0),
+  totalAdGroups: int("total_ad_groups").default(0),
+  totalKeywords: int("total_keywords").default(0),
+  totalTargets: int("total_targets").default(0),
+  estimatedDailyBudget: decimal("estimated_daily_budget", { precision: 10, scale: 2 }),
+  status: mysqlEnum("ad_framework_status", ['draft', 'approved', 'deploying', 'deployed', 'failed']).default('draft'),
+  deployedAt: datetime("deployed_at", { mode: 'string' }),
+  deployResult: json("deploy_result"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+}, (table) => [
+  index("idx_plaf_project").on(table.projectId),
+  index("idx_plaf_type").on(table.frameworkType),
+  index("idx_plaf_status").on(table.status),
+]);
+export type PrelaunchAdFramework = InferSelectModel<typeof prelaunchAdFrameworks>;
+export type InsertPrelaunchAdFramework = InferInsertModel<typeof prelaunchAdFrameworks>;
+
+/** 广告框架部署日志 */
+export const prelaunchAdDeployLogs = mysqlTable("prelaunch_ad_deploy_logs", {
+  id: int().autoincrement().notNull(),
+  frameworkId: int("framework_id").notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityName: varchar("entity_name", { length: 200 }),
+  amazonId: varchar("amazon_id", { length: 100 }),
+  requestPayload: json("request_payload"),
+  responsePayload: json("response_payload"),
+  logStatus: mysqlEnum("log_status", ['pending', 'success', 'failed']).default('pending'),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_pladl_framework").on(table.frameworkId),
+  index("idx_pladl_status").on(table.logStatus),
+]);
+
+/** 功能开关表 */
+export const featureFlags = mysqlTable("feature_flags", {
+  id: int().autoincrement().notNull(),
+  flagKey: varchar("flag_key", { length: 100 }).notNull(),
+  flagName: varchar("flag_name", { length: 200 }),
+  isEnabled: tinyint("is_enabled").default(0),
+  rolloutPercentage: int("rollout_percentage").default(0),
+  allowedUserIds: json("allowed_user_ids"),
+  allowedAccountIds: json("allowed_account_ids"),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+}, (table) => [
+  index("idx_ff_key").on(table.flagKey),
+]);

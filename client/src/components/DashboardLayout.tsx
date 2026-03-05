@@ -54,7 +54,8 @@ import {
   History,
   FlaskConical,
   Bot,
-  UserPlus
+  UserPlus,
+  Rocket
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -65,7 +66,7 @@ import { MobileBottomNav } from "./MobileBottomNav";
 
 // 菜单分组配置 - 极简化设计
 // 算法自主决策执行，用户只需监督
-const menuGroups = [
+const baseMenuGroups = [
   {
     title: "数据概览",
     description: "多账户数据一览",
@@ -97,8 +98,21 @@ const menuGroups = [
   },
 ];
 
-// 扁平化菜单项用于路由匹配
-const menuItems = menuGroups.flatMap(group => group.items);
+// 预发布引擎菜单分组（仅admin角色可见）
+const prelaunchMenuGroup = {
+  title: "发布引擎",
+  description: "智能预发布引擎 v4.0",
+  items: [
+    { icon: Rocket, label: "发布引擎", path: "/prelaunch" },
+  ]
+};
+
+// 默认菜单（不含发布引擎，在组件内根据角色动态添加）
+const menuGroups = baseMenuGroups;
+
+// 扁平化菜单项用于路由匹配（包含发布引擎路由，确保admin访问时标题正确显示）
+const allMenuItems = [...baseMenuGroups, prelaunchMenuGroup].flatMap(group => group.items);
+const menuItems = allMenuItems;
 
 /**
  * 完整的路由路径到页面标题映射表
@@ -117,6 +131,7 @@ const routeTitleMap: Record<string, string> = {
   '/invite-codes': '邀请码管理',
   '/audit-logs': '审计日志',
   '/auto-correction': '纠错监控',
+  '/prelaunch': '发布引擎',
   '/optimization-targets': '优化目标',
   '/health': '系统健康',
   '/automation': '自动化',
@@ -309,8 +324,8 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0 overflow-y-auto">
-            {/* 菜单分组 */}
-            {menuGroups.map((group, groupIndex) => (
+            {/* 基础菜单分组（所有角色可见） */}
+            {baseMenuGroups.map((group, groupIndex) => (
               <MenuGroup 
                 key={group.title} 
                 group={group} 
@@ -320,6 +335,17 @@ function DashboardLayoutContent({
                 isCollapsed={isCollapsed}
               />
             ))}
+            {/* 发布引擎菜单分组（仅admin角色可见） */}
+            {user?.role === 'admin' && (
+              <MenuGroup 
+                key={prelaunchMenuGroup.title} 
+                group={prelaunchMenuGroup} 
+                groupIndex={baseMenuGroups.length}
+                location={location}
+                setLocation={setLocation}
+                isCollapsed={isCollapsed}
+              />
+            )}
           </SidebarContent>
 
           <SidebarFooter className="p-3">
