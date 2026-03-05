@@ -902,7 +902,7 @@ function DashboardContent() {
   const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
   // 获取账户列表及绩效数据
-  const { data: accountsWithPerformance, refetch: refetchAccounts } = trpc.adAccount.listWithPerformance.useQuery(
+  const { data: accountsWithPerformance, refetch: refetchAccounts, isLoading: isAccountsLoading } = trpc.adAccount.listWithPerformance.useQuery(
     { timeRange: timeRange as any, days, startDate, endDate },
     { enabled: !!user }
   );
@@ -1063,8 +1063,8 @@ function DashboardContent() {
       )}
       <PullToRefresh onRefresh={handlePullRefresh} className="h-full">
       <div className="space-y-6">
-        {/* P1优化: 未连接API时显示引导卡片 */}
-        {accountsData.length === 0 && !isRefreshing && (
+        {/* P1优化: 未连接API时显示引导卡片（仅在数据加载完成后且确实无账户时显示） */}
+        {accountsData.length === 0 && !isRefreshing && !isAccountsLoading && (
           <NoBrandSelectedGuide />
         )}
         {/* 页面标题和时间范围选择器 */}
@@ -1140,6 +1140,7 @@ function DashboardContent() {
                               gradientFrom="blue-500"
                               gradientTo="blue-600"
                               borderColor="blue-500"
+                              isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
                               title="总销售额"
@@ -1152,6 +1153,7 @@ function DashboardContent() {
                               gradientFrom="green-500"
                               gradientTo="green-600"
                               borderColor="green-500"
+                              isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
                               title="平均ACoS"
@@ -1163,6 +1165,7 @@ function DashboardContent() {
                               gradientFrom="orange-500"
                               gradientTo="orange-600"
                               borderColor="orange-500"
+                              isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
                               title="平均ROAS"
@@ -1172,12 +1175,14 @@ function DashboardContent() {
                               gradientFrom="purple-500"
                               gradientTo="purple-600"
                               borderColor="purple-500"
+                              isLoading={isAccountsLoading}
                             />
                             <TacosMetricCard
                               adSpend={summary.totalSpend}
                               totalSales={summary.totalSales * 1.5}
                               change={summary.acosChange * 0.7}
                               isRealtime={true}
+                              isLoading={isAccountsLoading}
                             />
                             <EnhancedMetricCard
                               title="总订单"
@@ -1187,6 +1192,7 @@ function DashboardContent() {
                               gradientFrom="cyan-500"
                               gradientTo="cyan-600"
                               borderColor="cyan-500"
+                              isLoading={isAccountsLoading}
                             />
                           </div>
                         )}

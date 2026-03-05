@@ -17,10 +17,11 @@ interface EnhancedMetricCardProps {
   gradientTo?: string;
   borderColor?: string;
   tooltip?: string;
+  isLoading?: boolean;
 }
 
 export function EnhancedMetricCard({
-  title, value, icon, change, isInverse = false, sparklineData, isRealtime = false, realtimeDelay, tooltip
+  title, value, icon, change, isInverse = false, sparklineData, isRealtime = false, realtimeDelay, tooltip, isLoading = false
 }: EnhancedMetricCardProps) {
   const getChangeColor = () => {
     if (change === undefined) return "text-muted-foreground";
@@ -41,15 +42,24 @@ export function EnhancedMetricCard({
         </div>
         <div className="mt-2 flex items-end justify-between">
           <div>
-            <span className="text-2xl font-bold">{value}</span>
-            {change !== undefined && (
-              <div className={"text-xs mt-1 flex items-center gap-1 " + getChangeColor()}>
-                {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {formatChange(change)} vs.上期
+            {isLoading ? (
+              <div className="space-y-2">
+                <div className="h-7 w-24 bg-muted/50 rounded animate-pulse" />
+                <div className="h-3 w-16 bg-muted/30 rounded animate-pulse" />
               </div>
+            ) : (
+              <>
+                <span className="text-2xl font-bold">{value}</span>
+                {change !== undefined && (
+                  <div className={"text-xs mt-1 flex items-center gap-1 " + getChangeColor()}>
+                    {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {formatChange(change)} vs.上期
+                  </div>
+                )}
+              </>
             )}
           </div>
-          {sparklineData && sparklineData.length > 0 && (
+          {!isLoading && sparklineData && sparklineData.length > 0 && (
             <div className="w-16 h-8">
               <Sparkline data={sparklineData} color={change !== undefined && ((isInverse && change > 0) || (!isInverse && change < 0)) ? "#ef4444" : "#22c55e"} height={32} width={64} />
             </div>
@@ -65,9 +75,10 @@ interface TacosMetricCardProps {
   totalSales: number;
   change?: number;
   isRealtime?: boolean;
+  isLoading?: boolean;
 }
 
-export function TacosMetricCard({ adSpend, totalSales, change, isRealtime = false }: TacosMetricCardProps) {
+export function TacosMetricCard({ adSpend, totalSales, change, isRealtime = false, isLoading = false }: TacosMetricCardProps) {
   const tacos = totalSales > 0 ? (adSpend / totalSales) * 100 : 0;
   return (
     <Card className="bg-gradient-to-br from-pink-500/10 to-pink-600/5 border-pink-500/20 relative overflow-hidden">
@@ -80,16 +91,26 @@ export function TacosMetricCard({ adSpend, totalSales, change, isRealtime = fals
           </div>
         </div>
         <div className="mt-2">
-          <span className="text-2xl font-bold">{tacos.toFixed(1)}%</span>
-          {change !== undefined && (
-            <div className={"text-xs mt-1 flex items-center gap-1 " + (change <= 0 ? "text-green-500" : "text-red-500")}>
-              {change <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
-              {(change >= 0 ? "+" : "") + change.toFixed(1)}% vs.上期
+          {isLoading ? (
+            <div className="space-y-2">
+              <div className="h-7 w-20 bg-muted/50 rounded animate-pulse" />
+              <div className="h-3 w-16 bg-muted/30 rounded animate-pulse" />
+              <div className="h-3 w-28 bg-muted/30 rounded animate-pulse mt-2" />
             </div>
+          ) : (
+            <>
+              <span className="text-2xl font-bold">{tacos.toFixed(1)}%</span>
+              {change !== undefined && (
+                <div className={"text-xs mt-1 flex items-center gap-1 " + (change <= 0 ? "text-green-500" : "text-red-500")}>
+                  {change <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+                  {(change >= 0 ? "+" : "") + change.toFixed(1)}% vs.上期
+                </div>
+              )}
+              <div className="mt-2 text-xs text-muted-foreground">
+                广告花费 ${adSpend.toFixed(0)} / 总销售 ${totalSales.toFixed(0)}
+              </div>
+            </>
           )}
-        </div>
-        <div className="mt-2 text-xs text-muted-foreground">
-          广告花费 ${adSpend.toFixed(0)} / 总销售 ${totalSales.toFixed(0)}
         </div>
       </CardContent>
     </Card>
