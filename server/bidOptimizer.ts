@@ -336,7 +336,10 @@ const STRATEGY_DATA_THRESHOLDS: Record<string, { minClicks: number; minOrders: n
  * 贝叶斯平滑信心参数
  * 越大表示越信任先验数据（广告组平均值）
  */
-const BAYESIAN_CONFIDENCE = 1;
+// v330: 冷启动出价优化 R-02第三步 — 强化贝叶斯平滑的先验信任度
+// 从1提升至20，意味着先验CVR的权重等同于20次点击的实际数据
+// 这在冷启动初期（只有几次点击）能有效平滑噪音，防止出价因偶然事件而剧烈波动
+const BAYESIAN_CONFIDENCE = 20;
 
 /**
  * 计算贝叶斯平滑后的转化率

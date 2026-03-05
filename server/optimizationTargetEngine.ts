@@ -1074,9 +1074,144 @@ async function executeBidOptimization(
     totalSpend += parseFloat(c.spend || '0');
     totalSales += parseFloat(c.sales || '0');
   }
-  const groupAvgCvr = totalClicks > 0 ? totalOrders / totalClicks : 0.05;
-  const groupAvgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0.80;
-  const groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
+  
+  // v330: 冷启动出价优化 R-02 — 重构CVR估算体系（三级回退机制）
+  // 当优化目标内部无点击数据时，不再使用硬编码0.05，而是依次回退：
+  // Level 1: 品类CVR基准表 → Level 2: 账户级别平均CVR → Level 3: 跨活动品类CVR → 最终兜底0.05
+  let groupAvgCvr: number;
+  let groupAvgCpc: number;
+  let groupAvgAov: number;
+  let cvrSource = 'group_actual'; // 记录CVR来源用于日志
+  
+  if (totalClicks > 0) {
+    // 有实际数据，直接使用
+    groupAvgCvr = totalOrders / totalClicks;
+    groupAvgCpc = totalSpend / totalClicks;
+    groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
+  } else {
+    // 冷启动：无点击数据，启用三级回退机制
+    groupAvgCpc = 0.80;
+    groupAvgAov = 30;
+    groupAvgCvr = 0.05; // 最终兜底值
+    cvrSource = 'hardcoded_fallback';
+    
+    try {
+      // === Level 1: 品类CVR基准表 ===
+      // 从campaign名称推断品类后，查询CATEGORY_CVR_BENCHMARK表
+      const CATEGORY_CVR_BENCHMARK: Record<string, number> = {
+        'electronics': 0.10, 'computers': 0.09, 'cell_phones': 0.08, 'video_games': 0.12,
+        'home_kitchen': 0.07, 'sports_outdoors': 0.06, 'toys_games': 0.10, 'clothing': 0.04,
+        'beauty': 0.08, 'health': 0.07, 'baby': 0.09, 'pet_supplies': 0.08,
+        'grocery': 0.18, 'luxury': 0.03, 'default': 0.08,
+      };
+      // 先做品类推断（后面会重复推断，这里提前做一次用于CVR回退）
+      const nameHintsForCvr = (config.name || '').toLowerCase();
+      const categoryKeywordsForCvr: Record<string, string[]> = {
+        'electronics': ['electronic', 'gadget', 'device', 'tech', 'phone', 'tablet', 'laptop', 'computer', 'camera', 'headphone', 'speaker', 'charger', 'cable', 'adapter'],
+        'clothing': ['clothing', 'apparel', 'fashion', 'shirt', 'dress', 'pants', 'jacket', 'shoes', 'sneaker', 'boot', 'sock', 'underwear', 'hat', 'scarf'],
+        'beauty': ['beauty', 'skincare', 'makeup', 'cosmetic', 'serum', 'cream', 'lotion', 'shampoo', 'conditioner', 'perfume', 'fragrance'],
+        'health': ['health', 'supplement', 'vitamin', 'protein', 'fitness', 'wellness', 'medical', 'mask', 'sanitizer'],
+        'home_kitchen': ['home', 'kitchen', 'furniture', 'decor', 'appliance', 'cookware', 'bedding', 'towel', 'curtain', 'rug', 'mat', 'storage', 'organizer'],
+        'sports_outdoors': ['sport', 'outdoor', 'camping', 'hiking', 'fishing', 'yoga', 'gym', 'exercise', 'bike', 'golf', 'running'],
+        'toys_games': ['toy', 'game', 'puzzle', 'lego', 'doll', 'action figure', 'board game', 'card game', 'kids'],
+        'baby': ['baby', 'infant', 'toddler', 'diaper', 'stroller', 'crib', 'pacifier', 'bottle', 'nursing'],
+        'pet_supplies': ['pet', 'dog', 'cat', 'fish', 'bird', 'aquarium', 'leash', 'collar', 'treat', 'food pet'],
+        'grocery': ['grocery', 'food', 'snack', 'beverage', 'coffee', 'tea', 'organic', 'gluten', 'vegan'],
+        'luxury': ['luxury', 'premium', 'designer', 'gold', 'silver', 'diamond', 'jewelry', 'watch', 'handbag'],
+      };
+      let earlyCategory = 'default';
+      for (const [cat, kws] of Object.entries(categoryKeywordsForCvr)) {
+        if (kws.some(kw => nameHintsForCvr.includes(kw))) {
+          earlyCategory = cat;
+          break;
+        }
+      }
+      if (earlyCategory === 'default') {
+        for (const campaign of campaigns) {
+          const campName = (campaign.campaignName || '').toLowerCase();
+          for (const [cat, kws] of Object.entries(categoryKeywordsForCvr)) {
+            if (kws.some(kw => campName.includes(kw))) {
+              earlyCategory = cat;
+              break;
+            }
+          }
+          if (earlyCategory !== 'default') break;
+        }
+      }
+      
+      if (earlyCategory !== 'default' && CATEGORY_CVR_BENCHMARK[earlyCategory]) {
+        groupAvgCvr = CATEGORY_CVR_BENCHMARK[earlyCategory];
+        cvrSource = `category_benchmark_${earlyCategory}`;
+        log.info(`[BidOptimization] v330 冷启动CVR回退Level1: 使用品类基准 ${earlyCategory}=${(groupAvgCvr * 100).toFixed(1)}%`);
+      } else {
+        // === Level 2: 账户级别平均CVR ===
+        const accountMetrics = await db.getAccountLevelMetrics(config.accountId);
+        if (accountMetrics && accountMetrics.accountAvgCvr > 0) {
+          groupAvgCvr = accountMetrics.accountAvgCvr;
+          groupAvgCpc = accountMetrics.accountAvgCpc || groupAvgCpc;
+          groupAvgAov = accountMetrics.accountAvgAov || groupAvgAov;
+          cvrSource = 'account_level_30d';
+          log.info(`[BidOptimization] v330 冷启动CVR回退Level2: 使用账户级别30天CVR=${(groupAvgCvr * 100).toFixed(2)}% (clicks=${accountMetrics.totalClicks}, orders=${accountMetrics.totalOrders})`);
+        } else {
+          // === Level 3: 跨活动品类平均CVR (R-03) ===
+          const crossMetrics = await db.getCrossCampaignCategoryMetrics(config.accountId, config.performanceGroupId);
+          if (crossMetrics && crossMetrics.crossCampaignCvr > 0) {
+            groupAvgCvr = crossMetrics.crossCampaignCvr;
+            cvrSource = 'cross_campaign_30d';
+            log.info(`[BidOptimization] v330 冷启动CVR回退Level3: 使用跨活动CVR=${(groupAvgCvr * 100).toFixed(2)}% (clicks=${crossMetrics.totalClicks}, orders=${crossMetrics.totalOrders})`);
+          } else {
+            // 使用默认品类基准作为最终兜底
+            groupAvgCvr = CATEGORY_CVR_BENCHMARK['default'];
+            cvrSource = 'category_benchmark_default';
+            log.info(`[BidOptimization] v330 冷启动CVR回退: 所有回退均无数据，使用默认品类基准=${(groupAvgCvr * 100).toFixed(1)}%`);
+          }
+        }
+      }
+    } catch (fallbackErr: any) {
+      log.warn(`[BidOptimization] v330 冷启动CVR回退异常: ${fallbackErr.message}，使用默认值0.08`);
+      groupAvgCvr = 0.08;
+      cvrSource = 'error_fallback';
+    }
+  }
+  log.info(`[BidOptimization] v330 CVR估算: groupAvgCvr=${(groupAvgCvr * 100).toFixed(2)}%, source=${cvrSource}, totalClicks=${totalClicks}`);
+  
+  // v330: 冷启动出价优化 R-01 — 获取亚马逊建议出价
+  // 当优化目标内有零曝光的关键词/Target时，尝试获取建议出价作为锚点
+  let suggestedBidData: { suggestedBid?: number; rangeStart?: number; rangeEnd?: number } | null = null;
+  if (totalClicks === 0) {
+    try {
+      const syncService = await amazonApiHelper.getAmazonSyncService(config.accountId);
+      if (syncService && syncService.client) {
+        // 尝试从第一个campaign的第一个adGroup获取建议出价
+        const firstCampaign = campaigns[0];
+        if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
+          const adGroupId = Number(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);
+          if (adGroupId) {
+            try {
+              // 尝试获取关键词建议出价
+              const keywordRecs = await syncService.client.getKeywordBidRecommendations(
+                adGroupId,
+                [{ keyword: config.name || 'product', matchType: 'BROAD' }]
+              );
+              if (keywordRecs && keywordRecs.length > 0) {
+                const rec = keywordRecs[0];
+                suggestedBidData = {
+                  suggestedBid: rec.suggestedBid,
+                  rangeStart: rec.rangeStart,
+                  rangeEnd: rec.rangeEnd,
+                };
+                log.info(`[BidOptimization] v330 R-01: 获取到建议出价 suggestedBid=$${rec.suggestedBid}, range=[$${rec.rangeStart}-$${rec.rangeEnd}]`);
+              }
+            } catch (kwBidErr: any) {
+              log.debug(`[BidOptimization] v330 R-01: 关键词建议出价获取失败: ${kwBidErr.message}`);
+            }
+          }
+        }
+      }
+    } catch (suggestedBidErr: any) {
+      log.debug(`[BidOptimization] v330 R-01: 建议出价API调用异常: ${suggestedBidErr.message}`);
+    }
+  }
   
   // v267 P3-3: 多品类自适应 — 从campaign名称和产品定向中推断品类
   // 品类信息会影响ruleEngineDecision中的提价/降价幅度和metaLearningSelector中的算法选择
@@ -1135,6 +1270,13 @@ async function executeBidOptimization(
     // v267 P3-3: 多品类自适应
     productCategory: inferredCategory,
   };
+  // v330: 将建议出价数据和CVR来源注入到bidConfig中，供nextGenBidOrchestrator使用
+  if (suggestedBidData) {
+    (bidConfig as any)._suggestedBid = suggestedBidData.suggestedBid;
+    (bidConfig as any)._suggestedBidRangeStart = suggestedBidData.rangeStart;
+    (bidConfig as any)._suggestedBidRangeEnd = suggestedBidData.rangeEnd;
+  }
+  (bidConfig as any)._cvrSource = cvrSource;
   
   // v164: 从自我进化引擎获取自适应参数，注入到bidConfig中
   try {

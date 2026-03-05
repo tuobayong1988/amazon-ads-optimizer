@@ -6038,3 +6038,116 @@ export async function getTimeWeightedMetricsForGoalProgress(performanceGroupId: 
     return null;
   }
 }
+
+
+/**
+ * v330: 冷启动出价优化 R-02第二步 — 获取账户级别平均指标
+ * 计算过去30天该账户下所有营销活动的总订单数和总点击数，
+ * 得出一个真实的账户级别平均CVR，比固定的全局默认值更具代表性。
+ */
+export async function getAccountLevelMetrics(accountId: number): Promise<{
+  totalClicks: number;
+  totalOrders: number;
+  totalSpend: number;
+  totalSales: number;
+  accountAvgCvr: number;
+  accountAvgCpc: number;
+  accountAvgAov: number;
+} | null> {
+  try {
+    const dbConn = await getDb();
+    if (!dbConn) return null;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const result = await dbConn
+      .select({
+        totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+        totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+        totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+      })
+      .from(dailyPerformance)
+      .where(
+        and(
+          eq(dailyPerformance.accountId, accountId),
+          gte(dailyPerformance.date, thirtyDaysAgo.toISOString().split('T')[0])
+        )
+      );
+    
+    const row = result[0];
+    if (!row || row.totalClicks === 0) return null;
+    
+    const totalClicks = Number(row.totalClicks);
+    const totalOrders = Number(row.totalOrders);
+    const totalSpend = parseFloat(row.totalSpend as string);
+    const totalSales = parseFloat(row.totalSales as string);
+    
+    return {
+      totalClicks,
+      totalOrders,
+      totalSpend,
+      totalSales,
+      accountAvgCvr: totalClicks > 0 ? totalOrders / totalClicks : 0,
+      accountAvgCpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+      accountAvgAov: totalOrders > 0 ? totalSales / totalOrders : 0,
+    };
+  } catch (error) {
+    log.error(`[getAccountLevelMetrics] Error for account ${accountId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * v330: 冷启动出价优化 R-03 — 获取跨活动品类平均CVR
+ * 查询该账户下所有属于同一品类的其他营销活动的近期(过去30天)表现，
+ * 使用这些活动的聚合数据来计算一个"跨活动品类平均CVR"作为先验值。
+ */
+export async function getCrossCampaignCategoryMetrics(
+  accountId: number,
+  excludePerformanceGroupId?: number
+): Promise<{
+  totalClicks: number;
+  totalOrders: number;
+  crossCampaignCvr: number;
+} | null> {
+  try {
+    const dbConn = await getDb();
+    if (!dbConn) return null;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    // 查询该账户下所有营销活动的近30天聚合表现
+    const result = await dbConn
+      .select({
+        totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      })
+      .from(dailyPerformance)
+      .where(
+        and(
+          eq(dailyPerformance.accountId, accountId),
+          gte(dailyPerformance.date, thirtyDaysAgo.toISOString().split('T')[0]),
+          // 排除当前优化目标的数据，避免自引用
+          excludePerformanceGroupId
+            ? sql`${dailyPerformance.performanceGroupId} != ${excludePerformanceGroupId}`
+            : sql`1=1`
+        )
+      );
+    
+    const row = result[0];
+    if (!row || Number(row.totalClicks) === 0) return null;
+    
+    const totalClicks = Number(row.totalClicks);
+    const totalOrders = Number(row.totalOrders);
+    
+    return {
+      totalClicks,
+      totalOrders,
+      crossCampaignCvr: totalClicks > 0 ? totalOrders / totalClicks : 0,
+    };
+  } catch (error) {
+    log.error(`[getCrossCampaignCategoryMetrics] Error for account ${accountId}:`, error);
+    return null;
+  }
+}

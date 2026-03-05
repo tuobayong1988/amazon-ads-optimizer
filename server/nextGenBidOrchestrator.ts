@@ -620,7 +620,50 @@ function ruleEngineDecision(
   
   // 场景1: 零曝光 — 需要提升可见性
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
+  // v330: R-01优化 — 引入亚马逊建议出价作为锚点
   if (impressions === 0) {
+    // v330 R-01: 从上层传入的建议出价数据
+    const suggestedBid = (groupConfig as any)._suggestedBid as number | undefined;
+    const suggestedBidRangeStart = (groupConfig as any)._suggestedBidRangeStart as number | undefined;
+    const suggestedBidRangeEnd = (groupConfig as any)._suggestedBidRangeEnd as number | undefined;
+    
+    // v330 R-01: 如果有建议出价，使用建议出价作为探索目标
+    if (suggestedBid && suggestedBid > 0) {
+      // 计算目标出价：优先使用范围中位数，否则使用suggestedBid
+      let targetBid: number;
+      if (suggestedBidRangeStart && suggestedBidRangeEnd && suggestedBidRangeEnd > suggestedBidRangeStart) {
+        // 使用范围中位数作为更稳健的初始值
+        targetBid = (suggestedBidRangeStart + suggestedBidRangeEnd) / 2;
+      } else {
+        targetBid = suggestedBid;
+      }
+      
+      // 安全保护：不超过maxBid的60%
+      const suggestedBidCeiling = maxBid * 0.60;
+      const safeBid = Math.min(targetBid, suggestedBidCeiling, maxBid);
+      
+      // 如果当前出价已经接近或超过建议出价，维持当前出价
+      if (currentBid >= safeBid * 0.90) {
+        return {
+          bid: currentBid,
+          confidence: 0.5,
+          reason: `[v330 R-01] 零曝光但出价已接近建议出价($${currentBid.toFixed(2)} vs 建议$${safeBid.toFixed(2)}): 维持出价，建议检查关键词相关性`,
+        };
+      }
+      
+      // 分步逼近建议出价，避免出价跳跃过大
+      // 每次最多调整到当前出价与建议出价差距的50%
+      const bidGap = safeBid - currentBid;
+      const stepBid = currentBid + bidGap * 0.50;
+      const finalBid = Math.min(stepBid, suggestedBidCeiling, maxBid);
+      
+      return {
+        bid: finalBid,
+        confidence: 0.65,
+        reason: `[v330 R-01] 零曝光探索(建议出价引导): 从$${currentBid.toFixed(2)}向建议出价$${safeBid.toFixed(2)}逼近至$${finalBid.toFixed(2)} (API建议=$${suggestedBid.toFixed(2)}, 范围=$${(suggestedBidRangeStart||0).toFixed(2)}-$${(suggestedBidRangeEnd||0).toFixed(2)})`,
+      };
+    }
+    
     // v238: 出价累积保护 — 如果当前出价已经达到maxBid的40%，不再提价
     // 这防止了零曝光关键词通过多次小幅提价累积到过高出价的问题
     const explorationCeiling = maxBid * 0.40;
