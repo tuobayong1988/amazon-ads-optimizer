@@ -84186,6 +84186,8 @@ async function syncAccount(account, tier, options) {
   const startTime = /* @__PURE__ */ new Date();
   const result = {
     accountId: account.accountId,
+    userId: account.userId,
+    // v336: 传递userId用于同步记录
     accountName: account.accountName,
     tier,
     success: false,
@@ -84507,8 +84509,8 @@ async function recordBatchSyncResult(batchResult) {
       }
       try {
         await database.insert(dataSyncJobs2).values({
-          userId: 1,
-          // 系统自动同步
+          userId: accountResult.userId || 390001,
+          // v336: 使用账户关联的userId，而不是硬编码的1
           accountId: accountResult.accountId,
           syncType: batchResult.tier === "high" ? "campaigns" : batchResult.tier === "medium" ? "targeting" : "all",
           status: accountResult.success ? "completed" : "failed",

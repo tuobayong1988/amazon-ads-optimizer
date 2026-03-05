@@ -418,6 +418,7 @@ export interface SyncContext {
 /** 账户同步结果 */
 export interface AccountSyncResult {
   accountId: number;
+  userId: number; // v336: 添加userId用于recordBatchSyncResult
   accountName: string;
   tier: SyncTier;
   success: boolean;
@@ -1006,6 +1007,7 @@ export async function syncAccount(
   const startTime = new Date();
   const result: AccountSyncResult = {
     accountId: account.accountId,
+    userId: account.userId, // v336: 传递userId用于同步记录
     accountName: account.accountName,
     tier,
     success: false,
@@ -1488,7 +1490,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
 
       try {
         await database.insert(dataSyncJobs).values({
-          userId: 1, // 系统自动同步
+          userId: accountResult.userId || 390001, // v336: 使用账户关联的userId，而不是硬编码的1
           accountId: accountResult.accountId,
           syncType: batchResult.tier === 'high' ? 'campaigns' : batchResult.tier === 'medium' ? 'targeting' : 'all',
           status: accountResult.success ? 'completed' : 'failed',
