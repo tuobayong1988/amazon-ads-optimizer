@@ -320,12 +320,13 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
-      // 检查是否已存在当天数据
+      // v323: 检查是否已存在当天数据 - 必须包含accountId条件防止跨账户数据混淆
       const [existing] = await db
         .select()
         .from(dailyPerformance)
         .where(
           and(
+            eq(dailyPerformance.accountId, this.accountId),
             eq(dailyPerformance.campaignId, String(campaign.campaignId)),
             sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
           )
@@ -483,19 +484,19 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
         baseDate.setDate(baseDate.getDate() - i);
         const dateStr = baseDate.toISOString().split('T')[0];
 
-        // 检查是否已存在当天数据
+        // v323: 检查是否已存在当天数据 - 包含accountId防止跨账户混淆
         const [existing] = await db
           .select()
           .from(dailyPerformance)
           .where(
             and(
+              eq(dailyPerformance.accountId, this.accountId),
               eq(dailyPerformance.campaignId, String(campaign.campaignId)),
               sql`DATE(${dailyPerformance.date}) = ${dateStr}`
             )
           )
           .limit(1);
-
-        if (existing) continue;
+        if (existing) continue;;
 
         // 生成基于广告活动类型的模拟数据
         const baseImpressions = (campaign.campaignType === 'sp_auto' || campaign.campaignType === 'sp_manual') ? 5000 : 
@@ -1265,6 +1266,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
         .from(dailyPerformance)
         .where(
           and(
+            eq(dailyPerformance.accountId, this.accountId),
             eq(dailyPerformance.campaignId, String(campaign.campaignId)),
             sql`${dailyPerformance.date} >= ${startDateStr}`,
             sql`${dailyPerformance.date} <= ${endDateStr}`

@@ -88,7 +88,7 @@ export const amazonApiRouter = router({
         console.log('[ExchangeCode] Token exchange successful');
         
         // 尝试获取Profile列表
-        let profiles: Array<{ profileId: string; countryCode: string; accountName: string }> = [];
+        let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string; sellerName: string }> = [];
         try {
           console.log('[ExchangeCode] Creating client to fetch profiles...');
           const client = new AmazonAdsApiClient({
@@ -105,6 +105,9 @@ export const amazonApiRouter = router({
             profileId: String(p.profileId),
             countryCode: p.countryCode || '',
             accountName: p.accountInfo?.name || `Profile ${p.profileId}`,
+            // v323: 返回Amazon卖家账户ID，用于店铺隔离
+            sellerId: p.accountInfo?.id || '',
+            sellerName: p.accountInfo?.name || '',
           }));
           console.log('[ExchangeCode] Fetched profiles:', profiles.length, profiles);
         } catch (profileError: any) {
@@ -239,22 +242,55 @@ export const amazonApiRouter = router({
       clientSecret: z.string(),
       refreshToken: z.string(),
       region: z.enum(['NA', 'EU', 'FE']),
+      // v323: 增加sellerId和sellerName字段，用于店铺隔离
+      sellerId: z.string().optional(),
+      sellerName: z.string().optional(),
       profiles: z.array(z.object({
         profileId: z.string(),
         countryCode: z.string(),
         accountName: z.string(),
+        sellerId: z.string().optional(),
+        sellerName: z.string().optional(),
       })),
     }))
     .mutation(async ({ ctx, input }) => {
-      // 优先使用existingStoreName（已有店铺名称），否则使用storeName
-      const effectiveStoreName = input.existingStoreName || input.storeName;
+      // v323: 使用Amazon卖家账户ID进行店铺隔离
+      // 从Profle中提取sellerId（所有profile属于同一个卖家账户）
+      const currentSellerId = input.sellerId || input.profiles[0]?.sellerId || '';
+      const currentSellerName = input.sellerName || input.profiles[0]?.sellerName || '';
+      
+      // v323: 智能确定店铺名称
+      // 如果当前授权的卖家账户与existingStoreName对应的账户是同一个卖家，则使用existingStoreName
+      // 否则使用storeName（新店铺名称）
+      let effectiveStoreName = input.storeName;
+      if (input.existingStoreName && currentSellerId) {
+        // 检查已有店铺是否属于同一个卖家账户
+        const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+        const existingStoreAccount = existingAccounts.find(
+          a => a.storeName === input.existingStoreName
+        );
+        if (existingStoreAccount?.sellerId === currentSellerId) {
+          // 同一卖家账户，可以复用已有店铺名称（比如添加新站点）
+          effectiveStoreName = input.existingStoreName;
+          console.log(`[saveMultipleProfiles] 同一卖家账户(${currentSellerId})，复用店铺名称: ${effectiveStoreName}`);
+        } else {
+          // 不同卖家账户，使用新店铺名称，防止覆盖已有店铺的凭证
+          effectiveStoreName = input.storeName;
+          console.log(`[saveMultipleProfiles] 不同卖家账户! 已有店铺卖家=${existingStoreAccount?.sellerId || 'unknown'}, 当前授权卖家=${currentSellerId}, 使用新店铺名称: ${effectiveStoreName}`);
+        }
+      } else if (input.existingStoreName) {
+        // 没有sellerId信息，回退到旧逻辑
+        effectiveStoreName = input.existingStoreName;
+      }
       
       console.log('[saveMultipleProfiles] 收到多站点授权请求:', {
         storeName: input.storeName,
         existingStoreName: input.existingStoreName,
         effectiveStoreName,
+        sellerId: currentSellerId,
+        sellerName: currentSellerName,
         profilesCount: input.profiles.length,
-        profiles: input.profiles.map(p => ({ profileId: p.profileId, countryCode: p.countryCode })),
+        profiles: input.profiles.map(p => ({ profileId: p.profileId, countryCode: p.countryCode, sellerId: p.sellerId })),
         region: input.region,
       });
 
@@ -306,49 +342,65 @@ export const amazonApiRouter = router({
           const marketplaceName = countryToMarketplace[profile.countryCode] || profile.countryCode;
           // 保存国家代码（如US, CA, MX），而不是中文名称，以便前端正确显示国旗
           const marketplaceCode = profile.countryCode;
+          const profileSellerId = profile.sellerId || currentSellerId;
           
-          // 检查是否已存在相同profileId的账号
+          // 获取当前用户的所有账号
           const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+          
+          // v323: 三层匹配逻辑，确保店铺隔离
+          // 第1层: 按profileId精确匹配（最可靠）
           const existingAccountByProfileId = existingAccounts.find(a => a.profileId === profile.profileId);
           
-          // 同时检查同一店铺下是否已存在相同国家的站点（避免重复）
+          // v323: 第2层: 按店铺+国家匹配，但必须验证sellerId一致
+          // 防止不同卖家账户的相同国家站点被错误匹配
           const existingAccountByCountry = existingAccounts.find(
             a => a.storeName === effectiveStoreName && a.marketplace === marketplaceCode
           );
           
+          // v323: 安全检查 - 如果按店铺+国家匹配到的账号属于不同的卖家，不应该更新它
+          let countryMatchIsSameSeller = true;
+          if (existingAccountByCountry && profileSellerId && existingAccountByCountry.sellerId) {
+            if (existingAccountByCountry.sellerId !== profileSellerId) {
+              countryMatchIsSameSeller = false;
+              console.log(`[saveMultipleProfiles] ❗ 店铺+国家匹配到账号 ${existingAccountByCountry.id}，但卖家不同(${existingAccountByCountry.sellerId} vs ${profileSellerId})，将创建新账号`);
+            }
+          }
+          
           let accountId: number;
           
           if (existingAccountByProfileId) {
-            // 更新现有账号（按profileId匹配）
+            // 更新现有账号（按profileId精确匹配）
             accountId = existingAccountByProfileId.id;
-            // 更新店铺名称和marketplace代码
+            // 更新店铺名称、marketplace代码和sellerId
             await db.updateAdAccount(accountId, {
               storeName: effectiveStoreName,
               marketplace: marketplaceCode,
+              sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配`);
-          } else if (existingAccountByCountry) {
-            // 更新现有账号（同店铺同国家）
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配, sellerId=${profileSellerId}`);
+          } else if (existingAccountByCountry && countryMatchIsSameSeller) {
+            // 更新现有账号（同店铺同国家同卖家）
             accountId = existingAccountByCountry.id;
-            // 更新profileId和其他信息
+            // 更新profileId、sellerId和其他信息
             await db.updateAdAccount(accountId, {
               profileId: profile.profileId,
               accountId: profile.profileId,
+              sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配`);
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配, sellerId=${profileSellerId}`);
           } else {
-            // 创建新账号 - createAdAccount返回insertId数字
-            // 使用effectiveStoreName确保新站点添加到正确的店铺下
+            // 创建新账号
             accountId = await db.createAdAccount({
               userId: ctx.user.id,
               storeName: effectiveStoreName,
               accountName: `${effectiveStoreName} ${marketplaceName}`,
               accountId: profile.profileId,
-              marketplace: marketplaceCode,  // 保存国家代码（如US, CA, MX）
+              marketplace: marketplaceCode,
               profileId: profile.profileId,
               connectionStatus: 'pending',
+              sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode})`);
+            console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode}), sellerId=${profileSellerId}`);
           }
 
           // 保存API凭证

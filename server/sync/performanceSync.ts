@@ -294,11 +294,13 @@ async function processReportData(service: SyncContext, db: any, reportData: any[
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
       // 检查是否已存在当天数据
+      // v323: 检查是否已存在当天数据 - 包含accountId防止跨账户混淆
       const [existing] = await db
         .select()
         .from(dailyPerformance)
         .where(
           and(
+            eq(dailyPerformance.accountId, service.accountId),
             eq(dailyPerformance.campaignId, String(campaign.campaignId)),
             sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
           )
@@ -457,12 +459,13 @@ export async function generateMockPerformanceData(service: SyncContext,days: num
         baseDate.setDate(baseDate.getDate() - i);
         const dateStr = baseDate.toISOString().split('T')[0];
 
-        // 检查是否已存在当天数据
+        // v323: 检查是否已存在当天数据 - 包含accountId防止跨账户混淆
         const [existing] = await db
           .select()
           .from(dailyPerformance)
           .where(
             and(
+              eq(dailyPerformance.accountId, service.accountId),
               eq(dailyPerformance.campaignId, String(campaign.campaignId)),
               sql`DATE(${dailyPerformance.date}) = ${dateStr}`
             )
@@ -789,6 +792,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
 
     for (const campaign of accountCampaigns) {
       // 首先尝试仍ailyPerformance表汇总
+      // v323: 添加accountId条件防止跨账户数据混淆
       const [dailySummary] = await db
         .select({
           totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
@@ -800,6 +804,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
         .from(dailyPerformance)
         .where(
           and(
+            eq(dailyPerformance.accountId, service.accountId),
             eq(dailyPerformance.campaignId, String(campaign.campaignId)),
             sql`${dailyPerformance.date} >= ${startDateStr}`,
             sql`${dailyPerformance.date} <= ${endDateStr}`

@@ -90,12 +90,12 @@ async function collectSyncMetrics(now: Date): Promise<SystemMetricSnapshot> {
   // 统计各类型同步状态
   const syncStats = await (await getDb()).select({
     apiSyncStatus: optimizationEvents.apiSyncStatus,
-    operationType: optimizationEvents.operationType,
+    operationType: optimizationEvents.actionType,
     cnt: count()
   })
   .from(optimizationEvents)
   .where(gte(optimizationEvents.executedAt, oneHourAgo))
-  .groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.operationType);
+  .groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.actionType);
   
   let totalSynced = 0, totalPending = 0, totalFailed = 0, totalNA = 0;
   const typeBreakdown: Record<string, { synced: number; pending: number; failed: number }> = {};

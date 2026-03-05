@@ -1779,9 +1779,10 @@ async function executeDaypartingOptimization(
   // v310: 处理pending积压的dayparting_bid记录
   try {
     const dbConn2 = await getDb();
-    if (dbConn2) {
+    if (dbConn2 && config.performanceGroupId) {
       const { sql } = await import('drizzle-orm');
       
+      // v324: 添加performanceGroupId空值检查防止SQL语法错误
       // 查找本优化目标下pending的dayparting_bid记录（最多50条）
       const pendingDayparting = await dbConn2.execute(sql`
         SELECT ol.id, ol.action_detail, ol.created_at,

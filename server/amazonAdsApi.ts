@@ -3713,8 +3713,12 @@ export class AmazonAdsApiClient {
         body.nextToken = nextToken;
       }
       
+      // v323: 添加Accept header，避免415错误
       const response = await this.axiosInstance.post('/sp/negativeKeywords/list', body, {
-        headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+        headers: { 
+          'Content-Type': 'application/vnd.spNegativeKeyword.v3+json',
+          'Accept': 'application/vnd.spNegativeKeyword.v3+json',
+        },
       });
       
       const negatives = response.data.negativeKeywords || [];
@@ -3892,8 +3896,12 @@ export class AmazonAdsApiClient {
         body.nextToken = nextToken;
       }
       
+      // v323: 添加Accept header，避免415错误
       const response = await this.axiosInstance.post('/sp/negativeTargets/list', body, {
-        headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
+        headers: { 
+          'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json',
+          'Accept': 'application/vnd.spNegativeTargetingClause.v3+json',
+        },
       });
       
       const targets = response.data.negativeTargetingClauses || [];
@@ -4377,15 +4385,13 @@ export class AmazonAdsApiClient {
       }
       
       try {
-        const response = await this.axiosInstance.post('/sb/v4/negativeKeywords/list', 
-          body,
-          {
-            headers: {
-              'Content-Type': 'application/vnd.sbnegativekeywordresource.v4+json',
-              'Accept': 'application/vnd.sbnegativekeywordresource.v4+json',
-            },
-          }
-        );
+        // v323: SB Negative Keywords使用v3 API（GET方法），v4端点不存在
+        const response = await this.axiosInstance.get('/sb/negativeKeywords', {
+          params: campaignId ? { campaignIdFilter: campaignId } : {},
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
         
         const negatives = response.data.negativeKeywords || [];
         allNegatives.push(...negatives);
@@ -4424,12 +4430,13 @@ export class AmazonAdsApiClient {
       }
       
       try {
-        const response = await this.axiosInstance.post('/sb/v4/negativeTargets/list', 
+        // v323: SB Negative Targets使用v3 API（POST方法），v4端点不存在
+        const response = await this.axiosInstance.post('/sb/negativeTargets/list', 
           body,
           {
             headers: {
-              'Content-Type': 'application/vnd.sbnegativetargetresource.v4+json',
-              'Accept': 'application/vnd.sbnegativetargetresource.v4+json',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
           }
         );

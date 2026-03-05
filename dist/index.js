@@ -34079,6 +34079,8 @@ var init_schema2 = __esm({
     );
     adGroups = mysqlTable("ad_groups", {
       id: int().autoincrement().notNull(),
+      // v311: 添加缺失的accountId字段，确保与数据库实际表结构一致
+      accountId: int(),
       campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: varchar({ length: 64 }).notNull(),
       adGroupName: varchar({ length: 500 }).notNull(),
@@ -35825,6 +35827,9 @@ var init_schema2 = __esm({
     });
     keywords = mysqlTable("keywords", {
       id: int().autoincrement().notNull(),
+      // v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+      accountId: int(),
+      campaignId: int(),
       adGroupId: int().notNull(),
       keywordId: varchar({ length: 64 }),
       keywordText: varchar({ length: 500 }).notNull(),
@@ -36195,6 +36200,9 @@ var init_schema2 = __esm({
     );
     productTargets = mysqlTable("product_targets", {
       id: int().autoincrement().notNull(),
+      // v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+      accountId: int(),
+      campaignId: int(),
       adGroupId: int().notNull(),
       targetId: varchar({ length: 64 }),
       targetType: mysqlEnum(["asin", "category"]).notNull(),
@@ -55277,7 +55285,7 @@ async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, re
     await withRetry(async () => {
       if (type === "sb") {
         await syncService.client.updateSbCampaign(String(campaignId), {
-          budget: { budget: newBudget, budgetType: "DAILY" }
+          budget: newBudget
         });
       } else if (type === "sd") {
         await syncService.client.updateSdCampaign(Number(campaignId), {
@@ -61002,15 +61010,15 @@ function getExplorationConfig(strategyTemplateId) {
 }
 function calculateStrategyExplorationRate(strategyTemplateId, dataCount, hasRecentData) {
   const config2 = getExplorationConfig(strategyTemplateId);
-  const dataMaturity2 = Math.min(1, dataCount / config2.maturityThreshold);
-  const baseRate = config2.baseRateRange.max - dataMaturity2 * (config2.baseRateRange.max - config2.baseRateRange.min);
+  const dataMaturity = Math.min(1, dataCount / config2.maturityThreshold);
+  const baseRate = config2.baseRateRange.max - dataMaturity * (config2.baseRateRange.max - config2.baseRateRange.min);
   const freshnessFactor = hasRecentData ? config2.dataFreshnessFactor.withData : config2.dataFreshnessFactor.withoutData;
   const explorationRate = Math.min(
     config2.maxExplorationRate,
     Math.max(config2.minExplorationRate, baseRate * freshnessFactor)
   );
   const detail = `\u7B56\u7565=${strategyTemplateId || "default"}, \u57FA\u7840\u7387=${(baseRate * 100).toFixed(0)}%, \u65B0\u9C9C\u5EA6=${freshnessFactor.toFixed(2)}, \u6700\u7EC8\u7387=${(explorationRate * 100).toFixed(0)}%, \u8303\u56F4=[${(config2.minExplorationRate * 100).toFixed(0)}%-${(config2.maxExplorationRate * 100).toFixed(0)}%]`;
-  return { explorationRate, detail };
+  return { explorationRate, detail, dataMaturity };
 }
 var log22, STRATEGY_ALGORITHM_CONFIGS, DEFAULT_ALGORITHM_CONFIG;
 var init_algorithmConfigService = __esm({
@@ -61312,7 +61320,7 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const hoursAgo24 = new Date(Date.now() - 24 * 36e5).toISOString();
   const recentDataCount = await db.select({ count: sql`COUNT(*)` }).from(rlTrainingLogs).where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24)));
   const hasRecentData = Number(recentDataCount[0]?.count) > 0;
-  const { explorationRate, detail: explorationDetail } = calculateStrategyExplorationRate(
+  const { explorationRate, detail: explorationDetail, dataMaturity } = calculateStrategyExplorationRate(
     strategyTemplateId || null,
     syntheticDataCount,
     hasRecentData
@@ -71825,9 +71833,9 @@ async function collectSyncMetrics(now) {
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1e3);
   const syncStats = await (await getDb()).select({
     apiSyncStatus: optimizationEvents.apiSyncStatus,
-    operationType: optimizationEvents.operationType,
+    operationType: optimizationEvents.actionType,
     cnt: count()
-  }).from(optimizationEvents).where(gte(optimizationEvents.executedAt, oneHourAgo)).groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.operationType);
+  }).from(optimizationEvents).where(gte(optimizationEvents.executedAt, oneHourAgo)).groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.actionType);
   let totalSynced = 0, totalPending = 0, totalFailed = 0, totalNA = 0;
   const typeBreakdown = {};
   for (const row of syncStats) {
@@ -72555,7 +72563,7 @@ async function checkBidDirectionConsistency(accountId, keywordId, targetId) {
     const db = await getDb();
     if (!db) return { isOscillating: false, reason: "" };
     const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const entityCondition = keywordId ? sql18`entity_id = ${keywordId} AND entity_type = 'keyword'` : sql18`entity_id = ${targetId} AND entity_type = 'product_target'`;
+    const entityCondition = keywordId ? sql18`keyword_id = ${keywordId}` : sql18`target_id = ${targetId}`;
     const [rows] = await db.execute(sql18`
       SELECT action_type, new_value, previous_value, created_at
       FROM optimization_events
@@ -76333,15 +76341,15 @@ function decideTargeting(data4) {
   const cpc = clicks > 0 ? spend / clicks : 0;
   const ctr = impressions > 0 ? clicks / impressions * 100 : 0;
   const aov = orders > 0 ? sales / orders : 0;
-  const dataMaturity2 = assessDataMaturity(data4);
+  const dataMaturity = assessDataMaturity(data4);
   const valueLevel = assessValueLevel(cvr, acos, orders, clicks, targetAcos);
   if (isAsin) {
-    return decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, valueLevel);
+    return decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
   }
   if (!canAddPositiveKeyword(campaignTargetingType)) {
-    return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity2, valueLevel);
+    return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
   }
-  return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity2, valueLevel);
+  return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
 }
 function assessDataMaturity(data4) {
   const { clicks, impressions, orders, dataSpanDays, historicalConversions } = data4;
@@ -76361,7 +76369,7 @@ function assessValueLevel(cvr, acos, orders, clicks, targetAcos) {
   if (clicks >= 10 && orders === 0) return "negative";
   return "unknown";
 }
-function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity2, valueLevel) {
+function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel) {
   const { searchTerm, targetAcos, spend, sales } = data4;
   const cleanText = sanitizeAndValidateKeyword(searchTerm, "positive").sanitizedText || searchTerm;
   const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
@@ -76373,7 +76381,7 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
       negativeMatchType: "negative_exact",
       reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, \u8D85\u8FC7\u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)})`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
     };
   }
@@ -76383,7 +76391,7 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
       targetValue: cleanText,
       reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316\u4F46\u82B1\u8D39\u672A\u8FBE\u5BA2\u5355\u4EF7\u5BB9\u5FCD\u7EBF: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, \u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)}), \u7EE7\u7EED\u89C2\u5BDF`,
       confidence: 0.5,
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "unknown"
     };
   }
@@ -76393,46 +76401,46 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
       targetValue: cleanText,
       reason: `\u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}, \u9700\u8981\u66F4\u591A\u6570\u636E`,
       confidence: 0.5,
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "unknown"
     };
   }
-  if ((dataMaturity2 === "proven" || dataMaturity2 === "mature" && valueLevel === "high_profit") && (valueLevel === "high_profit" || valueLevel === "profitable")) {
+  if ((dataMaturity === "proven" || dataMaturity === "mature" && valueLevel === "high_profit") && (valueLevel === "high_profit" || valueLevel === "profitable")) {
     const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "exact");
     return {
       action: "CREATE_KEYWORD",
       targetValue: cleanText,
       matchType: "exact",
       suggestedBid: optimalBid,
-      reason: `[\u7CBE\u786E\u6536\u5272] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity2}, \u4EF7\u503C=${valueLevel}`,
+      reason: `[\u7CBE\u786E\u6536\u5272] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
       confidence: Math.min(0.95, 0.7 + orders / 20),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel
     };
   }
-  if ((dataMaturity2 === "mature" || dataMaturity2 === "moderate") && (valueLevel === "profitable" || valueLevel === "potential" || valueLevel === "high_profit")) {
+  if ((dataMaturity === "mature" || dataMaturity === "moderate") && (valueLevel === "profitable" || valueLevel === "potential" || valueLevel === "high_profit")) {
     const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "phrase");
     return {
       action: "CREATE_KEYWORD",
       targetValue: cleanText,
       matchType: "phrase",
       suggestedBid: optimalBid,
-      reason: `[\u77ED\u8BED\u6295\u653E] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity2}, \u4EF7\u503C=${valueLevel}`,
+      reason: `[\u77ED\u8BED\u6295\u653E] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
       confidence: Math.min(0.9, 0.6 + orders / 15),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel
     };
   }
-  if (dataMaturity2 === "emerging" && (valueLevel === "potential" || valueLevel === "profitable" || valueLevel === "unknown")) {
+  if (dataMaturity === "emerging" && (valueLevel === "potential" || valueLevel === "profitable" || valueLevel === "unknown")) {
     const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "broad");
     return {
       action: "CREATE_KEYWORD",
       targetValue: cleanText,
       matchType: "broad",
       suggestedBid: optimalBid,
-      reason: `[\u5E7F\u6CDB\u63A2\u7D22] ${orders}\u5355, ${clicks}\u6B21\u70B9\u51FB, CVR=${cvr.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity2}, \u4EF7\u503C=${valueLevel}`,
+      reason: `[\u5E7F\u6CDB\u63A2\u7D22] ${orders}\u5355, ${clicks}\u6B21\u70B9\u51FB, CVR=${cvr.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
       confidence: Math.min(0.75, 0.4 + orders / 10),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel
     };
   }
@@ -76442,7 +76450,7 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
       targetValue: cleanText,
       reason: `\u8FB9\u9645\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%(\u76EE\u6807${targetAcos}%), \u6682\u4E0D\u6295\u653E`,
       confidence: 0.6,
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "marginal"
     };
   }
@@ -76451,11 +76459,11 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
     targetValue: cleanText,
     reason: `\u6570\u636E\u4E0D\u8DB3: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355, \u9700\u8981\u66F4\u591A\u6570\u636E`,
     confidence: 0.3,
-    dataMaturityLevel: dataMaturity2,
+    dataMaturityLevel: dataMaturity,
     valueLevel
   };
 }
-function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, valueLevel) {
+function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
   const { searchTerm, targetAcos, spend, sales } = data4;
   const aov = orders > 0 ? sales / orders : 0;
   const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
@@ -76467,7 +76475,7 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, va
       negativeMatchType: "negative_exact",
       reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.9, 0.5 + clicks / 50),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
     };
   }
@@ -76477,11 +76485,11 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, va
       targetValue: searchTerm.trim(),
       reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN\u4F46\u82B1\u8D39\u672A\u8FBE\u5BB9\u5FCD\u7EBF: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), \u7EE7\u7EED\u89C2\u5BDF`,
       confidence: 0.5,
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "unknown"
     };
   }
-  if (orders >= 3 && acos <= targetAcos * 1.1 && (dataMaturity2 === "proven" || dataMaturity2 === "mature")) {
+  if (orders >= 3 && acos <= targetAcos * 1.1 && (dataMaturity === "proven" || dataMaturity === "mature")) {
     const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "exact");
     return {
       action: "CREATE_PRODUCT_TARGET",
@@ -76490,11 +76498,11 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, va
       suggestedBid: optimalBid,
       reason: `[\u7CBE\u786EASIN\u5B9A\u5411] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.9, 0.6 + orders / 15),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel
     };
   }
-  if (orders >= 1 && acos <= targetAcos * 1.5 && (dataMaturity2 === "moderate" || dataMaturity2 === "mature" || dataMaturity2 === "emerging")) {
+  if (orders >= 1 && acos <= targetAcos * 1.5 && (dataMaturity === "moderate" || dataMaturity === "mature" || dataMaturity === "emerging")) {
     const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "broad");
     return {
       action: "CREATE_PRODUCT_TARGET",
@@ -76503,7 +76511,7 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, va
       suggestedBid: optimalBid,
       reason: `[\u6269\u5C55ASIN\u5B9A\u5411] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.8, 0.5 + orders / 10),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel
     };
   }
@@ -76512,11 +76520,11 @@ function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity2, va
     targetValue: searchTerm.trim(),
     reason: `ASIN\u6570\u636E\u4E0D\u8DB3: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355`,
     confidence: 0.3,
-    dataMaturityLevel: dataMaturity2,
+    dataMaturityLevel: dataMaturity,
     valueLevel
   };
 }
-function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity2, valueLevel) {
+function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
   const { searchTerm, spend, sales, targetAcos } = data4;
   const cleanText = sanitizeAndValidateKeyword(searchTerm, "negative_exact").sanitizedText || searchTerm;
   const aov = orders > 0 ? sales / orders : 0;
@@ -76529,7 +76537,7 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
       negativeMatchType: "negative_exact",
       reason: `[\u81EA\u52A8\u5E7F\u544A] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
     };
   }
@@ -76540,7 +76548,7 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
       negativeMatchType: "negative_exact",
       reason: `[\u81EA\u52A8\u5E7F\u544A] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.85, 0.5 + clicks / 50),
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
     };
   }
@@ -76550,7 +76558,7 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
       targetValue: cleanText,
       reason: `[\u81EA\u52A8\u5E7F\u544A] \u70B9\u51FB${clicks}\u6B21\u65E0\u8F6C\u5316\u4F46\u82B1\u8D39\u672A\u8FBE\u5BA2\u5355\u4EF7\u5BB9\u5FCD\u7EBF: \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), \u7EE7\u7EED\u89C2\u5BDF`,
       confidence: 0.5,
-      dataMaturityLevel: dataMaturity2,
+      dataMaturityLevel: dataMaturity,
       valueLevel: "unknown"
     };
   }
@@ -76559,7 +76567,7 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
     targetValue: cleanText,
     reason: `[\u81EA\u52A8\u5E7F\u544A] ${orders > 0 ? "\u6709\u8F6C\u5316\u8BCD\u7B49\u5F85\u624B\u52A8\u6536\u5272" : "\u6570\u636E\u4E0D\u8DB3\u7EE7\u7EED\u89C2\u5BDF"}: ${clicks}\u70B9\u51FB, ${orders}\u5355`,
     confidence: 0.5,
-    dataMaturityLevel: dataMaturity2,
+    dataMaturityLevel: dataMaturity,
     valueLevel
   };
 }
@@ -81788,7 +81796,10 @@ var init_amazonAdsApi = __esm({
             body.nextToken = nextToken;
           }
           const response = await this.axiosInstance.post("/sp/negativeKeywords/list", body, {
-            headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
+            headers: {
+              "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
+              "Accept": "application/vnd.spNegativeKeyword.v3+json"
+            }
           });
           const negatives = response.data.negativeKeywords || [];
           allNegatives.push(...negatives);
@@ -81926,7 +81937,10 @@ var init_amazonAdsApi = __esm({
             body.nextToken = nextToken;
           }
           const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
-            headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
+            headers: {
+              "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
+              "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
+            }
           });
           const targets = response.data.negativeTargetingClauses || [];
           allTargets.push(...targets);
@@ -82326,16 +82340,12 @@ var init_amazonAdsApi = __esm({
             body.nextToken = nextToken;
           }
           try {
-            const response = await this.axiosInstance.post(
-              "/sb/v4/negativeKeywords/list",
-              body,
-              {
-                headers: {
-                  "Content-Type": "application/vnd.sbnegativekeywordresource.v4+json",
-                  "Accept": "application/vnd.sbnegativekeywordresource.v4+json"
-                }
+            const response = await this.axiosInstance.get("/sb/negativeKeywords", {
+              params: campaignId ? { campaignIdFilter: campaignId } : {},
+              headers: {
+                "Accept": "application/json"
               }
-            );
+            });
             const negatives = response.data.negativeKeywords || [];
             allNegatives.push(...negatives);
             nextToken = response.data.nextToken;
@@ -82369,12 +82379,12 @@ var init_amazonAdsApi = __esm({
           }
           try {
             const response = await this.axiosInstance.post(
-              "/sb/v4/negativeTargets/list",
+              "/sb/negativeTargets/list",
               body,
               {
                 headers: {
-                  "Content-Type": "application/vnd.sbnegativetargetresource.v4+json",
-                  "Accept": "application/vnd.sbnegativetargetresource.v4+json"
+                  "Content-Type": "application/json",
+                  "Accept": "application/json"
                 }
               }
             );
@@ -87117,8 +87127,8 @@ async function retryFailedProductTargetCreations(database, accountId) {
           UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
         `);
         await database.execute(sql`
-          UPDATE optimization_logs SET api_sync_status = 'synced', error_message = 'v310: AutoCorrector创建成功'
-          WHERE entity_type = 'product_target' AND entity_id = ${target.localTargetId} AND api_sync_status = 'pending'
+          UPDATE optimization_events SET api_sync_status = 'synced', error_message = 'v324: AutoCorrector创建成功'
+          WHERE target_id = ${target.localTargetId} AND api_sync_status = 'pending'
         `).catch(() => {
         });
         results.push({
@@ -87155,23 +87165,20 @@ async function revalidateStalePendingCommands(database, accountId) {
   const results = [];
   try {
     const [stalePending] = await database.execute(sql`
-      SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
-             ol.previous_value, ol.new_value, ol.created_at, ol.performance_group_id,
+      SELECT oe.id, oe.action_type, oe.keyword_id, oe.target_id,
+             oe.previous_value, oe.new_value, oe.previous_bid, oe.new_bid,
+             oe.created_at, oe.performance_group_id,
              k.bid as kw_current_bid, k.keywordId as amazon_keyword_id,
              pt.bid as pt_current_bid, pt.targetId as amazon_target_id
-      FROM optimization_logs ol
-      LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
-      LEFT JOIN product_targets pt ON ol.entity_type = 'product_target' AND ol.entity_id = pt.id
-      WHERE ol.api_sync_status = 'pending'
-        AND ol.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
-        AND ol.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        AND ol.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
-        AND EXISTS (
-          SELECT 1 FROM performance_groups pg 
-          WHERE pg.id = ol.performance_group_id 
-            AND pg.accountId = ${accountId}
-        )
-      ORDER BY ol.created_at ASC
+      FROM optimization_events oe
+      LEFT JOIN keywords k ON oe.keyword_id IS NOT NULL AND oe.keyword_id = k.id
+      LEFT JOIN product_targets pt ON oe.target_id IS NOT NULL AND oe.target_id = pt.id
+      WHERE oe.api_sync_status = 'pending'
+        AND oe.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
+        AND oe.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND oe.account_id = ${accountId}
+      ORDER BY oe.created_at ASC
       LIMIT 500
     `);
     if (!stalePending || stalePending.length === 0) {
@@ -87183,8 +87190,8 @@ async function revalidateStalePendingCommands(database, accountId) {
     for (const row of stalePending) {
       try {
         const actionType = row.action_type;
-        const newValue = parseFloat(String(row.new_value));
-        const prevValue = parseFloat(String(row.previous_value));
+        const newValue = parseFloat(String(row.new_bid || row.new_value || 0));
+        const prevValue = parseFloat(String(row.previous_bid || row.previous_value || 0));
         const currentBid = parseFloat(String(row.kw_current_bid || row.pt_current_bid || 0));
         let shouldCancel = false;
         let cancelReason = "";
@@ -87217,17 +87224,17 @@ async function revalidateStalePendingCommands(database, accountId) {
         }
         if (shouldCancel) {
           await database.execute(sql`
-            UPDATE optimization_logs 
+            UPDATE optimization_events 
             SET api_sync_status = 'not_applicable',
-                error_message = ${`v310\u589E\u91CF\u91CD\u8BC4\u4F30: ${cancelReason}`}
+                error_message = ${`v324\u589E\u91CF\u91CD\u8BC4\u4F30: ${cancelReason}`}
             WHERE id = ${row.id}
           `);
           cancelled++;
           results.push({
             type: "bid_execution_verify",
             accountId,
-            targetId: row.entity_id,
-            targetType: row.entity_type || "unknown",
+            targetId: row.keyword_id || row.target_id,
+            targetType: row.keyword_id ? "keyword" : row.target_id ? "product_target" : "unknown",
             previousValue: String(row.new_value),
             correctedValue: "cancelled",
             reason: `v310: \u53D6\u6D88\u8FC7\u65F6pending\u6307\u4EE4(${actionType}): ${cancelReason}`,
@@ -90633,7 +90640,7 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
   const maxBidLimit = config2.maxBid || 2;
   try {
     const dbConn2 = await getDb();
-    if (dbConn2) {
+    if (dbConn2 && config2.performanceGroupId) {
       const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const pendingDayparting = await dbConn2.execute(sql18`
         SELECT ol.id, ol.action_detail, ol.created_at,
@@ -365793,7 +365800,10 @@ var amazonApiRouter = router({
         profiles = profileList.map((p4) => ({
           profileId: String(p4.profileId),
           countryCode: p4.countryCode || "",
-          accountName: p4.accountInfo?.name || `Profile ${p4.profileId}`
+          accountName: p4.accountInfo?.name || `Profile ${p4.profileId}`,
+          // v323: 返回Amazon卖家账户ID，用于店铺隔离
+          sellerId: p4.accountInfo?.id || "",
+          sellerName: p4.accountInfo?.name || ""
         }));
         console.log("[ExchangeCode] Fetched profiles:", profiles.length, profiles);
       } catch (profileError) {
@@ -365905,19 +365915,43 @@ var amazonApiRouter = router({
     clientSecret: external_exports.string(),
     refreshToken: external_exports.string(),
     region: external_exports.enum(["NA", "EU", "FE"]),
+    // v323: 增加sellerId和sellerName字段，用于店铺隔离
+    sellerId: external_exports.string().optional(),
+    sellerName: external_exports.string().optional(),
     profiles: external_exports.array(external_exports.object({
       profileId: external_exports.string(),
       countryCode: external_exports.string(),
-      accountName: external_exports.string()
+      accountName: external_exports.string(),
+      sellerId: external_exports.string().optional(),
+      sellerName: external_exports.string().optional()
     }))
   })).mutation(async ({ ctx, input }) => {
-    const effectiveStoreName = input.existingStoreName || input.storeName;
+    const currentSellerId = input.sellerId || input.profiles[0]?.sellerId || "";
+    const currentSellerName = input.sellerName || input.profiles[0]?.sellerName || "";
+    let effectiveStoreName = input.storeName;
+    if (input.existingStoreName && currentSellerId) {
+      const existingAccounts = await getAdAccountsByUserId(ctx.user.id);
+      const existingStoreAccount = existingAccounts.find(
+        (a4) => a4.storeName === input.existingStoreName
+      );
+      if (existingStoreAccount?.sellerId === currentSellerId) {
+        effectiveStoreName = input.existingStoreName;
+        console.log(`[saveMultipleProfiles] \u540C\u4E00\u5356\u5BB6\u8D26\u6237(${currentSellerId})\uFF0C\u590D\u7528\u5E97\u94FA\u540D\u79F0: ${effectiveStoreName}`);
+      } else {
+        effectiveStoreName = input.storeName;
+        console.log(`[saveMultipleProfiles] \u4E0D\u540C\u5356\u5BB6\u8D26\u6237! \u5DF2\u6709\u5E97\u94FA\u5356\u5BB6=${existingStoreAccount?.sellerId || "unknown"}, \u5F53\u524D\u6388\u6743\u5356\u5BB6=${currentSellerId}, \u4F7F\u7528\u65B0\u5E97\u94FA\u540D\u79F0: ${effectiveStoreName}`);
+      }
+    } else if (input.existingStoreName) {
+      effectiveStoreName = input.existingStoreName;
+    }
     console.log("[saveMultipleProfiles] \u6536\u5230\u591A\u7AD9\u70B9\u6388\u6743\u8BF7\u6C42:", {
       storeName: input.storeName,
       existingStoreName: input.existingStoreName,
       effectiveStoreName,
+      sellerId: currentSellerId,
+      sellerName: currentSellerName,
       profilesCount: input.profiles.length,
-      profiles: input.profiles.map((p4) => ({ profileId: p4.profileId, countryCode: p4.countryCode })),
+      profiles: input.profiles.map((p4) => ({ profileId: p4.profileId, countryCode: p4.countryCode, sellerId: p4.sellerId })),
       region: input.region
     });
     if (!input.clientId || !input.clientSecret || !input.refreshToken) {
@@ -365965,26 +365999,36 @@ var amazonApiRouter = router({
       try {
         const marketplaceName = countryToMarketplace[profile.countryCode] || profile.countryCode;
         const marketplaceCode = profile.countryCode;
+        const profileSellerId = profile.sellerId || currentSellerId;
         const existingAccounts = await getAdAccountsByUserId(ctx.user.id);
         const existingAccountByProfileId = existingAccounts.find((a4) => a4.profileId === profile.profileId);
         const existingAccountByCountry = existingAccounts.find(
           (a4) => a4.storeName === effectiveStoreName && a4.marketplace === marketplaceCode
         );
+        let countryMatchIsSameSeller = true;
+        if (existingAccountByCountry && profileSellerId && existingAccountByCountry.sellerId) {
+          if (existingAccountByCountry.sellerId !== profileSellerId) {
+            countryMatchIsSameSeller = false;
+            console.log(`[saveMultipleProfiles] \u2757 \u5E97\u94FA+\u56FD\u5BB6\u5339\u914D\u5230\u8D26\u53F7 ${existingAccountByCountry.id}\uFF0C\u4F46\u5356\u5BB6\u4E0D\u540C(${existingAccountByCountry.sellerId} vs ${profileSellerId})\uFF0C\u5C06\u521B\u5EFA\u65B0\u8D26\u53F7`);
+          }
+        }
         let accountId;
         if (existingAccountByProfileId) {
           accountId = existingAccountByProfileId.id;
           await updateAdAccount(accountId, {
             storeName: effectiveStoreName,
-            marketplace: marketplaceCode
+            marketplace: marketplaceCode,
+            sellerId: profileSellerId || void 0
           });
-          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309profileId\u5339\u914D`);
-        } else if (existingAccountByCountry) {
+          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309profileId\u5339\u914D, sellerId=${profileSellerId}`);
+        } else if (existingAccountByCountry && countryMatchIsSameSeller) {
           accountId = existingAccountByCountry.id;
           await updateAdAccount(accountId, {
             profileId: profile.profileId,
-            accountId: profile.profileId
+            accountId: profile.profileId,
+            sellerId: profileSellerId || void 0
           });
-          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309\u5E97\u94FA+\u56FD\u5BB6\u5339\u914D`);
+          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309\u5E97\u94FA+\u56FD\u5BB6\u5339\u914D, sellerId=${profileSellerId}`);
         } else {
           accountId = await createAdAccount({
             userId: ctx.user.id,
@@ -365992,11 +366036,11 @@ var amazonApiRouter = router({
             accountName: `${effectiveStoreName} ${marketplaceName}`,
             accountId: profile.profileId,
             marketplace: marketplaceCode,
-            // 保存国家代码（如US, CA, MX）
             profileId: profile.profileId,
-            connectionStatus: "pending"
+            connectionStatus: "pending",
+            sellerId: profileSellerId || void 0
           });
-          console.log(`[saveMultipleProfiles] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId} (${profile.countryCode})`);
+          console.log(`[saveMultipleProfiles] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId} (${profile.countryCode}), sellerId=${profileSellerId}`);
         }
         await saveAmazonApiCredentials({
           accountId,
@@ -389235,6 +389279,7 @@ AmazonSyncService.prototype.processReportData = async function(db, reportData, a
       const reportDateStr = reportDate.toISOString().split("T")[0];
       const [existing] = await db.select().from(dailyPerformance).where(
         and(
+          eq(dailyPerformance.accountId, this.accountId),
           eq(dailyPerformance.campaignId, String(campaign.campaignId)),
           sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
         )
@@ -389346,11 +389391,13 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(days = 
         const dateStr = baseDate.toISOString().split("T")[0];
         const [existing] = await db.select().from(dailyPerformance).where(
           and(
+            eq(dailyPerformance.accountId, this.accountId),
             eq(dailyPerformance.campaignId, String(campaign.campaignId)),
             sql`DATE(${dailyPerformance.date}) = ${dateStr}`
           )
         ).limit(1);
         if (existing) continue;
+        ;
         const baseImpressions = campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual" ? 5e3 : campaign.campaignType === "sb" ? 3e3 : 2e3;
         const baseCtr = 0.02 + Math.random() * 0.03;
         const baseCvr = 0.05 + Math.random() * 0.1;
@@ -389966,6 +390013,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function() 
         totalOrders: sql`COALESCE(SUM(orders), 0)`
       }).from(dailyPerformance).where(
         and(
+          eq(dailyPerformance.accountId, this.accountId),
           eq(dailyPerformance.campaignId, String(campaign.campaignId)),
           sql`${dailyPerformance.date} >= ${startDateStr}`,
           sql`${dailyPerformance.date} <= ${endDateStr}`

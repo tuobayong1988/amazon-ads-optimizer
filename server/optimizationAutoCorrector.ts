@@ -3860,10 +3860,10 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
           UPDATE product_targets SET targetId = ${String(amazonTargetId)} WHERE id = ${target.localTargetId}
         `);
         
-        // 更新相关的optimization_logs和optimization_events
+        // v324: 修复 - 更新optimization_events表（使用正确的列名target_id）
         await database.execute(sql`
-          UPDATE optimization_logs SET api_sync_status = 'synced', error_message = 'v310: AutoCorrector创建成功'
-          WHERE entity_type = 'product_target' AND entity_id = ${target.localTargetId} AND api_sync_status = 'pending'
+          UPDATE optimization_events SET api_sync_status = 'synced', error_message = 'v324: AutoCorrector创建成功'
+          WHERE target_id = ${target.localTargetId} AND api_sync_status = 'pending'
         `).catch(() => {});
         
         results.push({
@@ -3913,25 +3913,22 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
   const results: CorrectionResult[] = [];
   
   try {
-    // 查找超过24小时的pending出价调整指令
+    // v324: 修复SQL - 使用optimization_events表的正确列名（keyword_id/target_id而非entity_type/entity_id）
     const [stalePending] = await database.execute(sql`
-      SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
-             ol.previous_value, ol.new_value, ol.created_at, ol.performance_group_id,
+      SELECT oe.id, oe.action_type, oe.keyword_id, oe.target_id,
+             oe.previous_value, oe.new_value, oe.previous_bid, oe.new_bid,
+             oe.created_at, oe.performance_group_id,
              k.bid as kw_current_bid, k.keywordId as amazon_keyword_id,
              pt.bid as pt_current_bid, pt.targetId as amazon_target_id
-      FROM optimization_logs ol
-      LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
-      LEFT JOIN product_targets pt ON ol.entity_type = 'product_target' AND ol.entity_id = pt.id
-      WHERE ol.api_sync_status = 'pending'
-        AND ol.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
-        AND ol.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        AND ol.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
-        AND EXISTS (
-          SELECT 1 FROM performance_groups pg 
-          WHERE pg.id = ol.performance_group_id 
-            AND pg.accountId = ${accountId}
-        )
-      ORDER BY ol.created_at ASC
+      FROM optimization_events oe
+      LEFT JOIN keywords k ON oe.keyword_id IS NOT NULL AND oe.keyword_id = k.id
+      LEFT JOIN product_targets pt ON oe.target_id IS NOT NULL AND oe.target_id = pt.id
+      WHERE oe.api_sync_status = 'pending'
+        AND oe.action_type IN ('bid_increase', 'bid_decrease', 'target_pause', 'target_enable', 'dayparting_bid')
+        AND oe.created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)
+        AND oe.account_id = ${accountId}
+      ORDER BY oe.created_at ASC
       LIMIT 500
     `);
     
@@ -3947,8 +3944,8 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
     for (const row of stalePending) {
       try {
         const actionType = row.action_type;
-        const newValue = parseFloat(String(row.new_value));
-        const prevValue = parseFloat(String(row.previous_value));
+        const newValue = parseFloat(String(row.new_bid || row.new_value || 0));
+        const prevValue = parseFloat(String(row.previous_bid || row.previous_value || 0));
         const currentBid = parseFloat(String(row.kw_current_bid || row.pt_current_bid || 0));
         
         let shouldCancel = false;
@@ -3991,9 +3988,9 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
         
         if (shouldCancel) {
           await database.execute(sql`
-            UPDATE optimization_logs 
+            UPDATE optimization_events 
             SET api_sync_status = 'not_applicable',
-                error_message = ${`v310增量重评估: ${cancelReason}`}
+                error_message = ${`v324增量重评估: ${cancelReason}`}
             WHERE id = ${row.id}
           `);
           cancelled++;
@@ -4001,8 +3998,8 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
           results.push({
             type: 'bid_execution_verify' as any,
             accountId,
-            targetId: row.entity_id,
-            targetType: row.entity_type || 'unknown',
+            targetId: row.keyword_id || row.target_id,
+            targetType: row.keyword_id ? 'keyword' : (row.target_id ? 'product_target' : 'unknown'),
             previousValue: String(row.new_value),
             correctedValue: 'cancelled',
             reason: `v310: 取消过时pending指令(${actionType}): ${cancelReason}`,

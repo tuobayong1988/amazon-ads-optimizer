@@ -129,9 +129,10 @@ async function checkBidDirectionConsistency(
     if (!db) return { isOscillating: false, reason: '' };
     
     const { sql } = await import('drizzle-orm');
+    // v324: 修复列名 - optimization_events表使用keyword_id/target_id而非entity_type/entity_id
     const entityCondition = keywordId 
-      ? sql`entity_id = ${keywordId} AND entity_type = 'keyword'`
-      : sql`entity_id = ${targetId} AND entity_type = 'product_target'`;
+      ? sql`keyword_id = ${keywordId}`
+      : sql`target_id = ${targetId}`;
     
     // 查询最近3次出价调整的方向
     const [rows] = await db.execute(sql`

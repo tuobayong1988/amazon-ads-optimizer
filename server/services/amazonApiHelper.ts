@@ -498,8 +498,9 @@ export async function syncBudgetAdjustmentToAmazon(
     // v189: 使用withRetry包装API调用，自动重试限流和服务器错误
     await withRetry(async () => {
       if (type === 'sb') {
+        // v323: SB v4 API budget是直接的数字，不是嵌套对象
         await syncService.client.updateSbCampaign(String(campaignId), {
-          budget: { budget: newBudget, budgetType: 'DAILY' },
+          budget: newBudget,
         });
       } else if (type === 'sd') {
         await syncService.client.updateSdCampaign(Number(campaignId), {

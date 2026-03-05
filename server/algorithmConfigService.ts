@@ -279,7 +279,7 @@ export function calculateStrategyExplorationRate(
   strategyTemplateId: string | null,
   dataCount: number,
   hasRecentData: boolean
-): { explorationRate: number; detail: string } {
+): { explorationRate: number; detail: string; dataMaturity: number } {
   const config = getExplorationConfig(strategyTemplateId);
   
   // 数据成熟度：0-1
@@ -301,7 +301,7 @@ export function calculateStrategyExplorationRate(
     `新鲜度=${freshnessFactor.toFixed(2)}, 最终率=${(explorationRate * 100).toFixed(0)}%, ` +
     `范围=[${(config.minExplorationRate * 100).toFixed(0)}%-${(config.maxExplorationRate * 100).toFixed(0)}%]`;
   
-  return { explorationRate, detail };
+  return { explorationRate, detail, dataMaturity };
 }
 
 /**

@@ -274,7 +274,7 @@ async function evaluateAlgorithms(
   const hasRecentData = Number(recentDataCount[0]?.count) > 0;
   
   // v272: 使用策略级别化探索率计算（替代v270的全局硬编码）
-  const { explorationRate, detail: explorationDetail } = calculateStrategyExplorationRate(
+  const { explorationRate, detail: explorationDetail, dataMaturity } = calculateStrategyExplorationRate(
     strategyTemplateId || null,
     syntheticDataCount,
     hasRecentData
