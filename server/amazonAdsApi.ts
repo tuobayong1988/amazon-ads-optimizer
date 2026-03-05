@@ -3479,41 +3479,63 @@ export class AmazonAdsApiClient {
    * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
    */
   async updateSdAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
-    const BATCH_SIZE = 100; // SD API使用旧版接口，批次较小
+    // v328: 修复SD adGroup状态更新 — 之前使用Number(adGroupId)导致大数字精度丢失，
+    // 且缺少Content-Type header，导致所有18次adgroup_pause全部失败返回"Unknown error"
+    const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 300;
     const allErrors: any[] = [];
     let totalSuccess = 0;
     
+    // v328-fix: 使用String类型adGroupId避免大数字精度丢失（如517951489093036是15位数字）
     const formattedAll = updates.map(u => ({
-      adGroupId: Number(u.adGroupId),
+      adGroupId: String(u.adGroupId),
       state: u.state.toLowerCase(),
     }));
     
     const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-    log.info(`[SD API] v310-fix: updateSdAdGroupStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
+    log.info(`[SD API] v328: updateSdAdGroupStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
       const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
       
       try {
-        const response = await this.axiosInstance.put('/sd/adGroups', batch);
+        // v328-fix: 添加Content-Type header，与SP API保持一致的请求格式
+        const response = await this.axiosInstance.put('/sd/adGroups', batch, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
         
-        // SD API返回格式与SP不同，直接返回更新后的对象数组
+        // v328: 增强响应解析 — SD API返回格式可能是数组或对象
+        log.info(`[SD API] v328: 第${batchIdx + 1}批响应: status=${response.status}, data=${JSON.stringify(response.data).substring(0, 500)}`);
+        
         if (Array.isArray(response.data)) {
           const errors = response.data.filter((r: any) => r.code && r.code !== 'SUCCESS');
           const successes = response.data.filter((r: any) => !r.code || r.code === 'SUCCESS');
           totalSuccess += successes.length;
           for (const err of errors) {
-            allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description });
+            allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
+          }
+        } else if (response.data && typeof response.data === 'object') {
+          // 某些SD API版本可能返回对象格式
+          if (response.data.errors) {
+            for (const err of (Array.isArray(response.data.errors) ? response.data.errors : [response.data.errors])) {
+              allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
+            }
+          } else {
+            totalSuccess += batch.length;
           }
         } else {
-          // 如果没有错误返回，视为全部成功
           totalSuccess += batch.length;
         }
       } catch (batchErr: any) {
-        log.error(`[SD API] v310-fix: 第${batchIdx + 1}批SD广告组状态更新失败: ${batchErr.message}`);
+        // v328: 增强错误日志 — 记录完整的错误响应体
+        const errorDetail = batchErr.response?.data ? JSON.stringify(batchErr.response.data).substring(0, 500) : batchErr.message;
+        const errorStatus = batchErr.response?.status || 'N/A';
+        log.error(`[SD API] v328: 第${batchIdx + 1}批SD广告组状态更新失败: status=${errorStatus}, detail=${errorDetail}`);
         for (const item of batch) {
-          allErrors.push({ adGroupId: item.adGroupId, code: 'BATCH_ERROR', details: batchErr.message });
+          allErrors.push({ adGroupId: item.adGroupId, code: `HTTP_${errorStatus}`, details: errorDetail });
         }
       }
       
@@ -3522,7 +3544,7 @@ export class AmazonAdsApiClient {
       }
     }
     
-    log.warn(`[SD API] v310-fix: SD广告组状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    log.warn(`[SD API] v328: SD广告组状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
     return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
   }
 

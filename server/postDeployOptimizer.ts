@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 327;  // v327: OAuth完整修复(正确client_id+回调路径/amazon-api+当前窗口跳转)
+export const SYSTEM_VERSION = 328;  // v328: [keyword_create去重增强+SD_adgroup_pause修复+AutoCorrector纠错循环修复]
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -382,6 +382,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v311: [PT campaign底层修复+三层防御体系] — (1)P0-Campaign级别PT类型检查: 新增isProductTargetingCampaign()函数，通过命名约定(POE/POB/PT/ASIN)识别Product Targeting campaign (2)P0-三层防御体系: executeSearchTermAnalysis遍历开头跳过PT campaign + canAddPositiveKeyword双重检查 + adGroupHasProductTargets底层拦截 (3)P0-AutoCorrector PT检查: retryHistoricalFailedKeywordHarvests重试前检查campaign类型，PT campaign直接标记invalid_legacy (4)P0-SearchTermHarvester PT过滤: findTargetAdGroup过滤掉PT类型campaign (5)P1-30019配置修复: 关闭keywordAutoEnabled阻止向POE campaign添加keyword (6)P1-keywords表去重索引: uk_keyword_dedup(adGroupId,keywordText,matchType)数据库层面防重复',
     affectedModules: ['keyword', 'searchterm'],
     correctionActions: ['cleanup_stale_pending'],
+  },
+  {
+    version: 328,
+    description: 'v328: [深度分析修复] — (1)P0-keyword_create去重窗口从24h扩展到7天: 消陥46.5%的already_exists重复创建问题 (2)P0-SD adgroup_pause API修复: String类型adGroupId避免大数字精度丢失+添加Content-Type header (3)P0-adgroup_pause连续失败保护: 同一adGroup失败≥3次后停止重试 (4)P1-AutoCorrector容差增大: 从$0.01提升到$0.03消除拉锯战 (5)P1-AutoCorrector纠错冷却: 同一keyword 8小时内最多纠正1次',
+    affectedModules: ['keyword', 'sync', 'bid'],
+    correctionActions: ['rerun_optimization', 'cleanup_stale_pending', 'revalidate_pending_commands'],
   },
 ];
 

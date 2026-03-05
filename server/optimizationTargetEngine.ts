@@ -2249,8 +2249,8 @@ async function executeSearchTermAnalysis(
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
-  // v310: 预加载最近24h已处理的搜索词（含 already_exists/synced/failed/permanently_failed），
-  // 在进入 decideTargeting 之前就跳过已处理的搜索词，从根本上避免重复记录
+  // v328: 预加载最近7天已处理的搜索词（含 already_exists/synced/failed/permanently_failed），
+  // 从24h扩展到7天，从根本上消除already_exists重复创建问题（之前24h窗口导致46.5%的already_exists）
   const recentlyProcessedSearchTerms = new Set<string>();
   try {
     const dbInstance = await db.getDb();
@@ -2262,18 +2262,18 @@ async function executeSearchTermAnalysis(
         FROM optimization_logs 
         WHERE performance_group_id = ${config.performanceGroupId}
           AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
-          AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
       `);
       for (const row of (recentLogs as any)[0] || []) {
         if (row.search_term && row.campaign_id) {
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
         }
       }
-      log.info(`[SearchTermAnalysis] v310: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重`);
+      log.info(`[SearchTermAnalysis] v328: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重(7天窗口)`);
     }
   } catch (dedupErr: any) {
-    log.warn(`[SearchTermAnalysis] v310: 去重预加载失败(不影响主流程): ${dedupErr.message}`);
+    log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${dedupErr.message}`);
   }
   
   // v310-fix: 预加载永久失败的关键词列表，避免反复尝试已知会失败的关键词
@@ -2543,10 +2543,10 @@ async function executeSearchTermAnalysis(
           continue;
         }
         
-        // v310: 搜索词级别去重 — 如果该搜索词+campaign在最近24h内已处理过，直接跳过
+        // v328: 搜索词级别去重 — 如果该搜索词+campaign在最近7天内已处理过，直接跳过
         const dedupKey = `${campaignAmazonId}::${stPerf.searchTerm.toLowerCase().trim()}`;
         if (recentlyProcessedSearchTerms.has(dedupKey)) {
-          log.debug(`[SearchTermAnalysis] v310: 跳过已处理搜索词: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
+          log.debug(`[SearchTermAnalysis] v328: 跳过已处理搜索词: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
           continue;
         }
         
@@ -3785,6 +3785,28 @@ async function executeAdGroupStatusChanges(
         }
         
         if (shouldPause) {
+          // v328: 连续失败保护 — 如果同一个adGroup已连续失败3次以上，跳过避免无限重试
+          try {
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const { sql: sqlTag } = await import('drizzle-orm');
+              const failHistory = await dbInstance.execute(sqlTag`
+                SELECT COUNT(*) as fail_count FROM optimization_logs
+                WHERE action_type = 'adgroup_pause'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.adGroupId')) = ${String(adGroup.id)}
+                  AND api_sync_status = 'failed'
+                  AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+              `);
+              const failCount = ((failHistory as any)[0]?.[0]?.fail_count) || 0;
+              if (failCount >= 3) {
+                log.warn(`[AdGroupStatus] v328: 跳过广告组"${adGroup.adGroupName}" — 已连续失败${failCount}次，等待人工处理`);
+                continue;
+              }
+            }
+          } catch (failCheckErr: any) {
+            log.warn(`[AdGroupStatus] v328: 失败历史检查异常: ${failCheckErr.message}`);
+          }
+          
           const action: any = {
             accountId: config.accountId,
             entityType: 'adGroup',

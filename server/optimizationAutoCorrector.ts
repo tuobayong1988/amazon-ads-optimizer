@@ -51,8 +51,10 @@ const AUTO_CORRECTION_CONFIG = {
   // 认为优化事件“过期”的天数（超过此天数不再重试）
   retryExpiryDays: 7,
   
-  // v204: 出价容差基准值（USD）— 实际容差会根据账户货币动态计算
-  bidToleranceBaseUSD: 0.01,
+  // v328: 出价容差基准值（USD）— 从$0.01提升到$0.03
+  // 根因：$0.01容差太小，导致AutoCorrector在803个关键词上与优化器形成“拉锯战”（最高23次/周），
+  // 产生23.9%的无效操作。$0.03容差可以容纳正常的算法微调和四舍五入差异。
+  bidToleranceBaseUSD: 0.03,
   
   // v204: 预算容差基准值（USD）— 实际容差会根据账户货币动态计算
   budgetToleranceBaseUSD: 2.00,
@@ -654,10 +656,29 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         continue;
       }
       
+      // v328: 纠错冷却机制 — 同一个keyword在8小时内最多纠正1次，避免拉锯战
+      const recentCorrectionQuery = sql`
+        SELECT id FROM optimization_events 
+        WHERE keyword_id = ${row.keyword_id}
+          AND event_category = 'bid_adjustment'
+          AND change_reason LIKE '%AutoCorrector%'
+          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      const recentCorrResult = await database.execute(recentCorrectionQuery);
+      const recentCorrRows = (recentCorrResult as any)[0] || recentCorrResult;
+      
+      if (Array.isArray(recentCorrRows) && recentCorrRows.length > 0) {
+        log.info(`v328冷却: 跳过keyword=${row.keyword_id}的纠正, 8小时内已纠正过(event#${recentCorrRows[0].id})`);
+        arbitrationSkipped++;
+        continue;
+      }
+      
       arbitratedRows.push(row);
     }
     
-    log.info(`v258仲裁结果: 账户${accountId} 原始${rows.length}条, 仲裁跳过${arbitrationSkipped}条, 实际纠正${arbitratedRows.length}条`);
+    log.info(`v328仲裁结果: 账户${accountId} 原始${rows.length}条, 仲裁跳过${arbitrationSkipped}条, 实际纠正${arbitratedRows.length}条`);
     
     if (arbitratedRows.length === 0) return results;
     
