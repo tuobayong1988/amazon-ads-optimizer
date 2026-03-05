@@ -141,6 +141,21 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
 
   schedulerStatus.isRunning = true;
   
+  // v335: 启动时立即清理卡死的同步任务（进程重启后DB中残留的running状态）
+  (async () => {
+    try {
+      const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
+      const staleResult = await cleanupStaleJobs(30); // v335: 超过30分钟的running任务
+      const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
+      if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
+        log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
+        logSystem('DataSyncScheduler', 'v335启动时卡死任务清理', { staleCleaned: staleResult.cleaned, orphanCleaned: orphanResult.cleaned, staleJobIds: staleResult.jobIds });
+      }
+    } catch (cleanupErr: any) {
+      log.error(`[DataSyncScheduler] v335: 启动清理失败: ${cleanupErr.message}`);
+    }
+  })();
+
   // v219: 启动统一同步引擎驱动的分层同步
   log.info('[DataSyncScheduler] v219: 启动统一同步引擎驱动的分层同步调度器...');
   logSystem('DataSyncScheduler', 'v219统一同步调度器启动', { defaultIntervalMs, mode: 'unified_engine' });
@@ -165,11 +180,19 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
   
-  // v219: 首次启动时延迟2分钟执行一次高频同步，确保系统启动后快速获取最新数据
+  // v335: 首次启动时延迟2分钟执行一次高频同步，然后5分钟后执行完整同步
+  // 确保部署后快速恢复数据同步，不会因为等待定时器而延迟
   setTimeout(async () => {
-    log.info('[DataSyncScheduler] v219: 启动后首次高频同步...');
+    log.info('[DataSyncScheduler] v335: 启动后首次高频同步...');
     await executeUnifiedSync('high');
   }, 2 * 60 * 1000);
+  
+  // v335: 启动后5分钟执行一次完整同步，确保部署后数据完整性
+  setTimeout(async () => {
+    log.info('[DataSyncScheduler] v335: 启动后首次完整同步（确保部署后数据完整性）...');
+    await executeUnifiedSync('full');
+    log.info('[DataSyncScheduler] v335: 启动后完整同步已完成');
+  }, 5 * 60 * 1000);
 
   // v220: 系统健康监控 - 每15分钟输出健康快照（内存/API速率/同步率/确认同步统计）
   setInterval(() => {
@@ -195,6 +218,20 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     }
   }, 5 * 60 * 1000);
   log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
+
+  // v334: 定期清理卡死任务（每10分钟检查一次）
+  setInterval(async () => {
+    try {
+      const { cleanupStaleJobs } = await import('./dataSyncService');
+      const result = await cleanupStaleJobs(30); // v335: 缩短到30分钟
+      if (result.cleaned > 0) {
+        log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
+      }
+    } catch (err: any) {
+      log.error(`[DataSyncScheduler] v334: 定期卡死任务清理异常: ${err.message}`);
+    }
+  }, 10 * 60 * 1000);
+  log.info('[DataSyncScheduler] v334: 卡死任务定期清理已启动，间隔: 10分钟');
   
   log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }

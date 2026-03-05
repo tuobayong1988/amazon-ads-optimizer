@@ -271,6 +271,40 @@ async function persistShutdownState(): Promise<void> {
       log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${e.message}`);
     }
     
+    // 3a-2: v335 重置 data_sync_jobs 中 running 状态的任务
+    // 这是之前遗漏的关键步骤 — 不重置会导致部署后同步任务永久卡死
+    try {
+      const syncResetNote = `v${SYSTEM_VERSION}-shutdown: interrupted by ${shutdownState.shutdownReason} at ${new Date().toISOString()}`;
+      const syncResetResult = await database.execute(sql`
+        UPDATE data_sync_jobs 
+        SET status = 'failed', 
+            completed_at = NOW(),
+            error_message = CONCAT(COALESCE(error_message, ''), ' [', ${syncResetNote}, ']')
+        WHERE status = 'running'
+      `);
+      const syncAffected = (syncResetResult as any)?.[0]?.affectedRows || 0;
+      if (syncAffected > 0) {
+        log.info(`[LifecycleManager]   ✓ 已将 ${syncAffected} 个running的数据同步任务标记为failed（部署中断）`);
+      } else {
+        log.debug('[LifecycleManager]   ✓ 无running的数据同步任务需要重置');
+      }
+      
+      // 同时取消pending状态的同步任务（部署后会重新调度）
+      const syncCancelResult = await database.execute(sql`
+        UPDATE data_sync_jobs 
+        SET status = 'cancelled', 
+            completed_at = NOW(),
+            error_message = CONCAT(COALESCE(error_message, ''), ' [', ${syncResetNote}, ']')
+        WHERE status = 'pending'
+      `);
+      const syncCancelled = (syncCancelResult as any)?.[0]?.affectedRows || 0;
+      if (syncCancelled > 0) {
+        log.info(`[LifecycleManager]   ✓ 已取消 ${syncCancelled} 个pending的数据同步任务（部署后将重新调度）`);
+      }
+    } catch (e: any) {
+      log.warn(`[LifecycleManager]   ⚠ 重置数据同步任务失败: ${e.message}`);
+    }
+    
     // 3b: 记录关闭心跳
     try {
       await writeHeartbeat('graceful');
@@ -624,6 +658,69 @@ export async function orchestrateStartup(server: any): Promise<void> {
   // 步骤3: 恢复被中断的任务（立即执行）
   if (diagnostics.interruptedTasks > 0) {
     await recoverInterruptedTasks();
+  }
+  
+  // 步骤3.5: v335 数据同步任务恢复（立即执行）
+  // 清理部署前卡死的同步任务，并触发立即同步
+  try {
+    log.info('[LifecycleManager] v335: 步骤3.5 - 数据同步任务恢复...');
+    const database = await getDb();
+    if (database) {
+      // 3.5a: 清理所有卡死的running任务（部署中断导致）
+      const staleResult = await database.execute(sql`
+        UPDATE data_sync_jobs 
+        SET status = 'failed', 
+            completed_at = NOW(),
+            error_message = CONCAT(COALESCE(error_message, ''), ' [v${SYSTEM_VERSION}-startup: cleaned stale running job]')
+        WHERE status = 'running'
+      `);
+      const staleCleaned = (staleResult as any)?.[0]?.affectedRows || 0;
+      if (staleCleaned > 0) {
+        log.info(`[LifecycleManager] v335:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务`);
+      }
+      
+      // 3.5b: 检查最后成功同步时间，如果超过2小时未同步则记录告警
+      const lastSyncResult = await database.execute(sql`
+        SELECT account_id, MAX(completed_at) as last_sync 
+        FROM data_sync_jobs 
+        WHERE status = 'completed' 
+        GROUP BY account_id
+      `);
+      const lastSyncs = (lastSyncResult as any)?.[0] || [];
+      const now = Date.now();
+      const staleAccounts: number[] = [];
+      for (const row of lastSyncs) {
+        if (row.last_sync) {
+          const lastSyncTime = new Date(row.last_sync).getTime();
+          const hoursSinceSync = (now - lastSyncTime) / (1000 * 60 * 60);
+          if (hoursSinceSync > 2) {
+            staleAccounts.push(row.account_id);
+            log.warn(`[LifecycleManager] v335:   ⚠ 账户 ${row.account_id} 已 ${hoursSinceSync.toFixed(1)} 小时未成功同步`);
+          }
+        }
+      }
+      
+      if (staleAccounts.length > 0) {
+        log.info(`[LifecycleManager] v335:   ℹ ${staleAccounts.length} 个账户同步滞后，将在数据同步调度器启动后立即触发同步`);
+      }
+      
+      // 3.5c: 记录同步恢复事件
+      if (staleCleaned > 0 || staleAccounts.length > 0) {
+        const detail = JSON.stringify({
+          type: 'data_sync_recovery',
+          systemVersion: SYSTEM_VERSION,
+          staleJobsCleaned: staleCleaned,
+          staleAccounts: staleAccounts,
+          staleAccountCount: staleAccounts.length,
+        });
+        await database.execute(sql`
+          INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
+          VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
+        `);
+      }
+    }
+  } catch (syncRecoveryErr: any) {
+    log.error(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${syncRecoveryErr.message}`);
   }
   
   // 步骤4: 延迟30秒后执行纠错和重优化

@@ -855,8 +855,10 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 	newBid: decimal({ precision: 10, scale: 2 }).notNull(),
 	bidChangePercent: decimal({ precision: 5, scale: 2 }),
 	reason: text(),
-	algorithmVersion: varchar({ length: 32 }),
-	performanceData: json(),
+  algorithmVersion: varchar({ length: 32 }),
+  // v334: 添加算法标识列，记录每次出价调整使用的具体算法
+  algorithmUsed: varchar('algorithm_used', { length: 64 }),
+  performanceData: json(),
 	isIntradayAdjustment: tinyint().default(0),
 	executionStatus: mysqlEnum('execution_status', ['pending','success','failed','skipped']).default('pending'),
 	apiResponseId: varchar('api_response_id', { length: 128 }),

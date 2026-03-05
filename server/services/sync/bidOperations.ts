@@ -52,7 +52,7 @@ declare module '../../amazonSyncService' {
 /**
  * 执行出价调整并同步到Amazon
  */
-AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSyncService, targetType: 'keyword' | 'product_target', targetId: number, newBid: number, reason: string, campaignId: number | string): Promise<boolean | { success: boolean; apiResponseId?: string }> {
+AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSyncService, targetType: 'keyword' | 'product_target', targetId: number, newBid: number, reason: string, campaignId: number | string, algorithmUsed?: string): Promise<boolean | { success: boolean; apiResponseId?: string }> {
   const db = await getDb();
   if (!db) return false;
 
@@ -228,6 +228,8 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         bidChangePercent: String(bidChangePercent),
         reason,
         algorithmVersion: 'v1.0',
+        // v334: 记录使用的具体算法
+        algorithmUsed: algorithmUsed || null,
         isIntradayAdjustment: 0,
         executionStatus: 'success',
         // v333: 记录Amazon API的requestId用于端到端追踪

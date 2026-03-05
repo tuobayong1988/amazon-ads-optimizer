@@ -71,6 +71,7 @@ export async function syncBidAdjustmentsToAmazon(
     amazonCampaignId?: string; // Amazon Campaign ID
     reason: string;
     isProductTarget?: boolean;
+    algorithmUsed?: string; // v334: 传递算法标识到biddingLogs
   }>
 ): Promise<{ success: number; failed: number; errors: string[]; itemResults: Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }> }> {
   const result = { success: 0, failed: 0, errors: [] as string[], itemResults: new Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }>() };
@@ -130,7 +131,8 @@ export async function syncBidAdjustmentsToAmazon(
           actualTargetId,
           adj.newBid,
           adj.reason,
-          adj.campaignId ?? adj.amazonCampaignId ?? adj.localCampaignId ?? 0
+          adj.campaignId ?? adj.amazonCampaignId ?? adj.localCampaignId ?? 0,
+          adj.algorithmUsed // v334: 传递算法标识
         );
         
         if (apiResult) {

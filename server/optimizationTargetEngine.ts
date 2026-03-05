@@ -1343,6 +1343,7 @@ async function executeBidOptimization(
           amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           action: 'safety_pause',
+          algorithmUsed: 'safety_guard', // v335
           reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
         });
 
@@ -1559,6 +1560,7 @@ async function executeBidOptimization(
           campaignId: d.amazonCampaignId,
           reason: d.reason,
           isProductTarget: d.isProductTarget || false,
+          algorithmUsed: d.algorithmUsed, // v334: 传递算法标识到biddingLogs
         }))
       );
       
@@ -1714,7 +1716,7 @@ async function executeBidOptimization(
     } else {
       log.warn(`[BidOptimization] ${summaryMsg}`);
     }
-    details.push({ action: 'safety_summary', reason: summaryMsg, safetyPausedCount: safetyPausedCampaignCount, totalCampaigns, pauseRatio });
+    details.push({ action: 'safety_summary', algorithmUsed: 'safety_guard', reason: summaryMsg, safetyPausedCount: safetyPausedCampaignCount, totalCampaigns, pauseRatio });
   }
 
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
@@ -1806,6 +1808,7 @@ async function executePlacementOptimization(
           suggestedMultiplier: comboAdjustedMultiplier,
           originalSuggestedMultiplier: suggestion.suggestedMultiplier,
           reason: suggestion.reason + comboReason,
+          algorithmUsed: 'placement_optimizer', // v335: 添加算法标识
           apiSyncStatus: dryRun ? 'pending' : 'pending',
           comboGoldenCount: goldenCombos.length,
         };
@@ -2151,6 +2154,7 @@ async function executeDaypartingOptimization(
           currentBid: baseBid,
           newBid: adjustedBid,
           reason: `v183分时竞价: ${currentHour}:00 ${reasonParts.join(' × ')} = ${finalMultiplier.toFixed(3)}x, $${baseBid.toFixed(2)} → $${adjustedBid.toFixed(2)}`,
+          algorithmUsed: 'dayparting_engine', // v335: 添加算法标识
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
@@ -2303,6 +2307,7 @@ async function executeDaypartingBudgetOptimization(
         changePercent: currentBudget > 0 ? ((adjustedBudget - currentBudget) / currentBudget * 100).toFixed(2) : '0',
         comboBudgetMultiplier,
         reason: `分时预算: 星期${['\u65e5','\u4e00','\u4e8c','\u4e09','\u56db','\u4e94','\u516d'][currentDayOfWeek]} 倍数${budgetMultiplier.toFixed(2)}x${comboBudgetMultiplier !== 1.0 ? ` (含组合分析${comboBudgetMultiplier.toFixed(3)}x)` : ''}, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
+        algorithmUsed: 'dayparting_budget', // v335: 添加算法标识
         apiSyncStatus: 'pending',
       };
       
@@ -2713,6 +2718,7 @@ async function executeSearchTermAnalysis(
             searchTerm: stPerf.searchTerm,
             action: 'keyword_permanently_failed_skip',
             reason: `v310: 关键词已连续失败≥3次，标记为永久失败，不再重试`,
+            algorithmUsed: 'search_term_analyzer', // v335
             apiSyncStatus: 'permanently_failed',
           });
           continue;
@@ -2729,6 +2735,7 @@ async function executeSearchTermAnalysis(
               searchTerm: stPerf.searchTerm,
               action: 'brand_protect_skip',
               reason: `[品牌词保护] 搜索词"${stPerf.searchTerm}"含有品牌词，跳过否定`,
+              algorithmUsed: 'search_term_analyzer', // v335
             });
             continue;
           }
@@ -2748,6 +2755,7 @@ async function executeSearchTermAnalysis(
                 searchTerm: stPerf.searchTerm,
                 action: 'exploration_protect_skip',
                 reason: `[探索期保护] 对应投放词在探索期内，跳过否定，给予充分的数据积累时间`,
+                algorithmUsed: 'search_term_analyzer', // v335
               });
               continue;
             }
@@ -2775,6 +2783,7 @@ async function executeSearchTermAnalysis(
                   searchTerm: decision.targetValue,
                   action: 'negative_validation_failed',
                   reason: `v204预验证失败: ${exactValidation.reasonMessage}`,
+                  algorithmUsed: 'search_term_analyzer', // v335
                 });
                 continue;
               }
@@ -2787,6 +2796,7 @@ async function executeSearchTermAnalysis(
                 searchTerm: decision.targetValue,
                 action: 'negative_validation_failed',
                 reason: `v204预验证失败: ${negValidation.reasonMessage}`,
+                algorithmUsed: 'search_term_analyzer', // v335
               });
               continue;
             }
@@ -2822,6 +2832,7 @@ async function executeSearchTermAnalysis(
             matchType: negMatchType,
             action: 'add_negative',
             reason: `v204智能否定: ${decision.reason}`,
+            algorithmUsed: 'search_term_analyzer', // v335
             apiSyncStatus: negativeAlreadyExists ? 'already_exists' : 'pending',
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel,
@@ -2868,6 +2879,7 @@ async function executeSearchTermAnalysis(
               action: 'add_product_target',
               reason: `v194: ASIN搜索词自动重定向为product target: ${decision.reason}`,
               suggestedBid: ptBid,
+              algorithmUsed: 'search_term_analyzer', // v335
               apiSyncStatus: 'pending',
               confidence: decision.confidence,
               dataMaturityLevel: decision.dataMaturityLevel,
@@ -2887,6 +2899,7 @@ async function executeSearchTermAnalysis(
               searchTerm: decision.targetValue,
               action: 'keyword_validation_failed',
               reason: `v204预验证失败: ${posValidation.reasonMessage}`,
+              algorithmUsed: 'search_term_analyzer', // v335
             });
             continue;
           }
@@ -2906,6 +2919,7 @@ async function executeSearchTermAnalysis(
             action: 'add_keyword',
             reason: `v204智能投放: ${decision.reason}`,
             suggestedBid: bid,
+            algorithmUsed: 'search_term_analyzer', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel,
@@ -3033,6 +3047,7 @@ async function executeSearchTermAnalysis(
             action: 'add_product_target',
             reason: `v191智能ASIN定向: ${decision.reason}`,
             suggestedBid: bid,
+            algorithmUsed: 'search_term_analyzer', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel,
@@ -3276,6 +3291,7 @@ async function executeBudgetAllocation(
         changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
         expectedImpact: (suggestion as any).expectedRoasChange || 0,
+        algorithmUsed: 'budget_allocator', // v335
         apiSyncStatus: 'pending',
       };
       
@@ -3474,6 +3490,7 @@ async function executeKeywordStatusChanges(
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
                 action: 'exploration_protect',
+                algorithmUsed: 'keyword_status_manager', // v335
                 reason: `[探索期保护] 关键词在探索期内(剩余${explorationInfo.explorationDaysRemaining}天)，策略:${explorationInfo.strategy}，不执行暂停`,
                 currentStatus: keyword.keywordStatus,
               });
@@ -3494,6 +3511,7 @@ async function executeKeywordStatusChanges(
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
                 action: 'brand_protect',
+                algorithmUsed: 'keyword_status_manager', // v335
                 reason: `[品牌词保护] 品牌关键词"${keyword.keywordText}"不自动暂停，建议人工评估`,
                 currentStatus: keyword.keywordStatus,
               });
@@ -3511,6 +3529,7 @@ async function executeKeywordStatusChanges(
               keywordId: keyword.id,
               keywordText: keyword.keywordText,
               action: 'observe',
+              algorithmUsed: 'keyword_status_manager', // v335
               reason: `[观察期] 数据量不足(点击${clicks},花费$${spend.toFixed(2)})，继续观察而非直接暂停`,
               currentStatus: keyword.keywordStatus,
             });
@@ -3550,6 +3569,7 @@ async function executeKeywordStatusChanges(
             reason: pauseReason,
             currentStatus: keyword.keywordStatus,
             newStatus: 'paused',
+            algorithmUsed: 'keyword_status_manager', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
@@ -3607,6 +3627,7 @@ async function executeKeywordStatusChanges(
             reason: enableReason,
             currentStatus: keyword.keywordStatus,
             newStatus: 'enabled',
+            algorithmUsed: 'keyword_status_manager', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
@@ -3783,6 +3804,7 @@ async function executeCampaignStatusChanges(
           clicks: clicks,
           conversions: conversions,
           acos: acos,
+          algorithmUsed: 'campaign_status_manager', // v335
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         details.push(action);
@@ -3833,6 +3855,7 @@ async function executeCampaignStatusChanges(
           clicks: clicks,
           conversions: conversions,
           acos: acos,
+          algorithmUsed: 'campaign_status_manager', // v335
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         details.push(action);
@@ -3977,6 +4000,7 @@ async function executeAdGroupStatusChanges(
             clicks: clicks,
             conversions: conversions,
             acos: acos,
+            algorithmUsed: 'adgroup_status_manager', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           details.push(action);
@@ -4026,6 +4050,7 @@ async function executeAdGroupStatusChanges(
             clicks: clicks,
             conversions: conversions,
             acos: acos,
+            algorithmUsed: 'adgroup_status_manager', // v335
             apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           details.push(action);
@@ -4179,6 +4204,7 @@ async function executeBidCoordination(
         circuitBreakerTriggered: coordinatedResult.circuitBreakerTriggered,
         circuitBreakerReason: coordinatedResult.circuitBreakerReason,
         warnings: coordinatedResult.warnings,
+        algorithmUsed: 'bid_coordinator', // v335
       };
       
       details.push(coordinationDetail);
@@ -4226,6 +4252,32 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       log.debug(`[recordExecutionLog] v250: 出价调整日志(双写): details=${result.bidOptimization.details.length}`);
       
       for (const detail of result.bidOptimization.details) {
+        // v335: 将safety_pause和safety_summary记录到单独的logCategory，避免污染bid_adjustment日志
+        if (detail.action === 'safety_pause' || detail.action === 'safety_summary') {
+          try {
+            await db.createOptimizationLog({
+              performanceGroupId: result.targetId,
+              performanceGroupName: result.targetName,
+              accountId: result.accountId || detail.accountId || 0,
+              logCategory: 'safety_check',
+              actionType: detail.action === 'safety_summary' ? 'safety_summary' : 'safety_pause',
+              campaignId: detail.localCampaignId,
+              campaignName: detail.campaignName,
+              actionDetail: JSON.stringify(detail),
+              previousValue: null,
+              newValue: null,
+              changeReason: detail.reason || `安全检查`,
+              status: 'success',
+              apiSyncStatus: 'not_applicable',
+              createdAt: now,
+              executedAt: now,
+            } as any);
+          } catch (safetyLogErr: any) {
+            log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${safetyLogErr.message}`);
+          }
+          continue; // 跳过后续的bid_adjustment日志写入
+        }
+        
         const itemSyncStatus = detail.apiSyncStatus || 'pending';
         const itemSyncDetail = detail.apiSyncDetail || null;
         

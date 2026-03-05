@@ -952,3 +952,100 @@ export async function runScheduleCheckWithRetry(): Promise<{ executed: number; f
 
   return { executed, failed, retried };
 }
+
+
+// ==================== v334: 卡死任务清理 ====================
+
+/**
+ * v334: 清理卡死的同步任务
+ * 当进程重启时，内存中的activeSyncs被清空，但DB中的running状态永远不会被更新
+ * 此函数检测超过maxRunningMinutes的running任务，将其标记为failed
+ * 
+ * @param maxRunningMinutes 最大允许运行时间（分钟），默认120分钟
+ * @returns 清理的任务数量
+ */
+export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise<{ cleaned: number; jobIds: number[] }> {
+  const db = await getDb();
+  if (!db) return { cleaned: 0, jobIds: [] };
+
+  try {
+    const cutoffTime = new Date(Date.now() - maxRunningMinutes * 60 * 1000);
+    const cutoffStr = cutoffTime.toISOString().slice(0, 19).replace('T', ' ');
+
+    // 查找所有卡死的running任务
+    const staleJobs = await db.select({
+      id: dataSyncJobs.id,
+      accountId: dataSyncJobs.accountId,
+      startedAt: dataSyncJobs.startedAt,
+      syncType: dataSyncJobs.syncType,
+    }).from(dataSyncJobs)
+      .where(and(
+        eq(dataSyncJobs.status, 'running'),
+        sql`${dataSyncJobs.startedAt} < ${cutoffStr}`
+      ));
+
+    if (staleJobs.length === 0) {
+      return { cleaned: 0, jobIds: [] };
+    }
+
+    const jobIds = staleJobs.map(j => j.id);
+
+    // 批量更新为failed状态
+    await db.update(dataSyncJobs)
+      .set({
+        status: 'failed',
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        errorMessage: `v334: 任务超时（超过${maxRunningMinutes}分钟），由卡死任务清理机制自动标记为失败`,
+      })
+      .where(and(
+        eq(dataSyncJobs.status, 'running'),
+        sql`${dataSyncJobs.startedAt} < ${cutoffStr}`
+      ));
+
+    // 记录清理日志
+    for (const job of staleJobs) {
+      log.warn(`[DataSync] v334: 清理卡死任务 Job#${job.id} (账户${job.accountId}, 类型${job.syncType}, 启动时间${job.startedAt})`);
+      await logSyncActivity(0, 'cleanup_stale', 'success', 
+        `v334: 清理卡死任务 Job#${job.id}, 账户${job.accountId}, 运行超过${maxRunningMinutes}分钟`);
+    }
+
+    log.info(`[DataSync] v334: 卡死任务清理完成，共清理 ${staleJobs.length} 个任务: ${jobIds.join(', ')}`);
+    return { cleaned: staleJobs.length, jobIds };
+  } catch (error: any) {
+    log.error(`[DataSync] v334: 卡死任务清理失败: ${error.message}`);
+    return { cleaned: 0, jobIds: [] };
+  }
+}
+
+/**
+ * v334: 清理所有pending状态超过1小时的任务（可能是创建后未被执行的孤儿任务）
+ */
+export async function cleanupOrphanedPendingJobs(maxPendingMinutes: number = 60): Promise<{ cleaned: number }> {
+  const db = await getDb();
+  if (!db) return { cleaned: 0 };
+
+  try {
+    const cutoffTime = new Date(Date.now() - maxPendingMinutes * 60 * 1000);
+    const cutoffStr = cutoffTime.toISOString().slice(0, 19).replace('T', ' ');
+
+    const result = await db.update(dataSyncJobs)
+      .set({
+        status: 'cancelled',
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        errorMessage: `v334: 任务在pending状态超过${maxPendingMinutes}分钟，自动取消`,
+      })
+      .where(and(
+        eq(dataSyncJobs.status, 'pending'),
+        sql`${dataSyncJobs.createdAt} < ${cutoffStr}`
+      ));
+
+    const cleaned = (result as any)[0]?.affectedRows || 0;
+    if (cleaned > 0) {
+      log.info(`[DataSync] v334: 清理了 ${cleaned} 个孤儿pending任务`);
+    }
+    return { cleaned };
+  } catch (error: any) {
+    log.error(`[DataSync] v334: 孤儿pending任务清理失败: ${error.message}`);
+    return { cleaned: 0 };
+  }
+}
