@@ -1592,8 +1592,33 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   // 获取执行锁
   if (!acquireLock(taskType)) return;
   
+  // v329: 内存预算检查 - 超过80%时跳过非关键任务，超过90%时跳过所有任务
+  const mem = process.memoryUsage();
+  const heapUtilization = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  
+  // 关键任务：出价优化、风控扫描、日内节奏
+  const criticalTasks: OptimizationTaskType[] = ['daily_bid_optimization', 'risk_scan', 'intraday_pacing'];
+  const isCritical = criticalTasks.includes(taskType);
+  
+  if (heapUtilization > 90) {
+    // 内存危急: 跳过所有任务，触发GC
+    log.warn(`[OptimizationScheduler] v329: 内存危急(${heapUtilization}%, ${heapUsedMB}MB)，跳过任务: ${taskType}`);
+    if (typeof global.gc === 'function') global.gc();
+    releaseLock(taskType);
+    return;
+  }
+  
+  if (heapUtilization > 80 && !isCritical) {
+    // 内存紧张: 跳过非关键任务
+    log.warn(`[OptimizationScheduler] v329: 内存紧张(${heapUtilization}%, ${heapUsedMB}MB)，跳过非关键任务: ${taskType}`);
+    if (typeof global.gc === 'function') global.gc();
+    releaseLock(taskType);
+    return;
+  }
+  
   const config = OPTIMIZATION_SCHEDULE[taskType];
-  log.info(`[OptimizationScheduler] 开始执行: ${config.description} - ${new Date().toISOString()}`);
+  log.info(`[OptimizationScheduler] 开始执行: ${config.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${new Date().toISOString()}`);
   
   try {
     // 直接导入优化目标引擎

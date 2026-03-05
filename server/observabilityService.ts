@@ -296,7 +296,13 @@ export function endTrace(traceId: string, status: 'completed' | 'failed' = 'comp
   
   // 聚合指标
   const key = `latency_${trace.operationType}`;
+  // v329: 限制metricAggregates的key数量，防止operationType种类无限增长导致内存泄漏
   if (!metricAggregates.has(key)) {
+    if (metricAggregates.size >= 200) {
+      // 达到上限时，删除最早的key
+      const firstKey = metricAggregates.keys().next().value;
+      if (firstKey) metricAggregates.delete(firstKey);
+    }
     metricAggregates.set(key, []);
   }
   const values = metricAggregates.get(key)!;

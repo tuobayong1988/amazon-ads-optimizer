@@ -15,11 +15,11 @@ var __export = (target, all3) => {
   for (var name2 in all3)
     __defProp(target, name2, { get: all3[name2], enumerable: true });
 };
-var __copyProps = (to, from, except2, desc23) => {
+var __copyProps = (to, from, except2, desc24) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except2)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc(from, key)) || desc23.enumerable });
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc(from, key)) || desc24.enumerable });
   }
   return to;
 };
@@ -1327,10 +1327,10 @@ var require_http_errors = __commonJS({
       return ServerError;
     }
     function nameFunc(func, name2) {
-      var desc23 = Object.getOwnPropertyDescriptor(func, "name");
-      if (desc23 && desc23.configurable) {
-        desc23.value = name2;
-        Object.defineProperty(func, "name", desc23);
+      var desc24 = Object.getOwnPropertyDescriptor(func, "name");
+      if (desc24 && desc24.configurable) {
+        desc24.value = name2;
+        Object.defineProperty(func, "name", desc24);
       }
     }
     function populateConstructorExports(exports3, codes, HttpError2) {
@@ -15974,14 +15974,14 @@ var require_get = __commonJS({
         throw e6;
       }
     }
-    var desc23 = !!hasProtoAccessor && gOPD && gOPD(
+    var desc24 = !!hasProtoAccessor && gOPD && gOPD(
       Object.prototype,
       /** @type {keyof typeof Object.prototype} */
       "__proto__"
     );
     var $Object = Object;
     var $getPrototypeOf = $Object.getPrototypeOf;
-    module2.exports = desc23 && typeof desc23.get === "function" ? callBind([desc23.get]) : typeof $getPrototypeOf === "function" ? (
+    module2.exports = desc24 && typeof desc24.get === "function" ? callBind([desc24.get]) : typeof $getPrototypeOf === "function" ? (
       /** @type {import('./get')} */
       function getDunder(value2) {
         return $getPrototypeOf(value2 == null ? value2 : $Object(value2));
@@ -16331,10 +16331,10 @@ var require_get_intrinsic = __commonJS({
             return void undefined2;
           }
           if ($gOPD && i4 + 1 >= parts.length) {
-            var desc23 = $gOPD(value2, part);
-            isOwn = !!desc23;
-            if (isOwn && "get" in desc23 && !("originalValue" in desc23.get)) {
-              value2 = desc23.get;
+            var desc24 = $gOPD(value2, part);
+            isOwn = !!desc24;
+            if (isOwn && "get" in desc24 && !("originalValue" in desc24.get)) {
+              value2 = desc24.get;
             } else {
               value2 = value2[part];
             }
@@ -25700,12 +25700,12 @@ var init_getErrorShape_vC8mUXJD = __esm({
     __commonJS2 = (cb, mod) => function() {
       return mod || (0, cb[__getOwnPropNames2(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
     };
-    __copyProps2 = (to, from, except2, desc23) => {
+    __copyProps2 = (to, from, except2, desc24) => {
       if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames2(from), i4 = 0, n7 = keys.length, key; i4 < n7; i4++) {
         key = keys[i4];
         if (!__hasOwnProp2.call(to, key) && key !== except2) __defProp2(to, key, {
           get: ((k5) => from[k5]).bind(null, key),
-          enumerable: !(desc23 = __getOwnPropDesc2(from, key)) || desc23.enumerable
+          enumerable: !(desc24 = __getOwnPropDesc2(from, key)) || desc24.enumerable
         });
       }
       return to;
@@ -48415,8 +48415,8 @@ var init_validator = __esm({
     });
     deprecatedWarnings = {};
     validators.transitional = function transitional(validator, version5, message2) {
-      function formatMessage(opt, desc23) {
-        return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc23 + (message2 ? ". " + message2 : "");
+      function formatMessage(opt, desc24) {
+        return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc24 + (message2 ? ". " + message2 : "");
       }
       return (value2, opt, opts) => {
         if (validator === false) {
@@ -57893,36 +57893,52 @@ var init_amazonAdsApi = __esm({
         const allErrors = [];
         let totalSuccess = 0;
         const formattedAll = updates.map((u5) => ({
-          adGroupId: Number(u5.adGroupId),
+          adGroupId: String(u5.adGroupId),
           state: u5.state.toLowerCase()
         }));
         const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log5.info(`[SD API] v310-fix: updateSdAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        log5.info(`[SD API] v328: updateSdAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
           try {
-            const response = await this.axiosInstance.put("/sd/adGroups", batch);
+            const response = await this.axiosInstance.put("/sd/adGroups", batch, {
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              }
+            });
+            log5.info(`[SD API] v328: \u7B2C${batchIdx + 1}\u6279\u54CD\u5E94: status=${response.status}, data=${JSON.stringify(response.data).substring(0, 500)}`);
             if (Array.isArray(response.data)) {
               const errors = response.data.filter((r5) => r5.code && r5.code !== "SUCCESS");
               const successes = response.data.filter((r5) => !r5.code || r5.code === "SUCCESS");
               totalSuccess += successes.length;
               for (const err2 of errors) {
-                allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description || JSON.stringify(err2) });
+              }
+            } else if (response.data && typeof response.data === "object") {
+              if (response.data.errors) {
+                for (const err2 of Array.isArray(response.data.errors) ? response.data.errors : [response.data.errors]) {
+                  allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description || JSON.stringify(err2) });
+                }
+              } else {
+                totalSuccess += batch.length;
               }
             } else {
               totalSuccess += batch.length;
             }
           } catch (batchErr) {
-            log5.error(`[SD API] v310-fix: \u7B2C${batchIdx + 1}\u6279SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            const errorDetail = batchErr.response?.data ? JSON.stringify(batchErr.response.data).substring(0, 500) : batchErr.message;
+            const errorStatus = batchErr.response?.status || "N/A";
+            log5.error(`[SD API] v328: \u7B2C${batchIdx + 1}\u6279SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: status=${errorStatus}, detail=${errorDetail}`);
             for (const item of batch) {
-              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
+              allErrors.push({ adGroupId: item.adGroupId, code: `HTTP_${errorStatus}`, details: errorDetail });
             }
           }
           if (batchIdx < totalBatches - 1) {
             await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        log5.warn(`[SD API] v310-fix: SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        log5.warn(`[SD API] v328: SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
         return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
       }
       // ==================== 否定关键词 API ====================
@@ -65628,24 +65644,24 @@ async function backfillRewards(accountId) {
         }
         if (dataSource === "none" || rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
           try {
-            const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+            const { optimizationEvents: optimizationEvents8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
             const entityConditions = [
-              eq(optimizationEvents7.accountId, log89.accountId),
-              sql`${optimizationEvents7.eventCategory} = 'bid_adjustment'`,
-              sql`${optimizationEvents7.status} = 'success'`,
-              gte(optimizationEvents7.createdAt, new Date(logDate.getTime() - 36e5).toISOString()),
-              lte(optimizationEvents7.createdAt, new Date(logDate.getTime() + 48 * 36e5).toISOString())
+              eq(optimizationEvents8.accountId, log89.accountId),
+              sql`${optimizationEvents8.eventCategory} = 'bid_adjustment'`,
+              sql`${optimizationEvents8.status} = 'success'`,
+              gte(optimizationEvents8.createdAt, new Date(logDate.getTime() - 36e5).toISOString()),
+              lte(optimizationEvents8.createdAt, new Date(logDate.getTime() + 48 * 36e5).toISOString())
             ];
             if (log89.keywordId) {
-              entityConditions.push(eq(optimizationEvents7.keywordId, log89.keywordId));
+              entityConditions.push(eq(optimizationEvents8.keywordId, log89.keywordId));
             } else if (log89.targetId) {
-              entityConditions.push(eq(optimizationEvents7.targetId, log89.targetId));
+              entityConditions.push(eq(optimizationEvents8.targetId, log89.targetId));
             }
             const eventData = await db.select({
-              performanceData: optimizationEvents7.performanceData,
-              previousBid: optimizationEvents7.previousBid,
-              newBid: optimizationEvents7.newBid
-            }).from(optimizationEvents7).where(and(...entityConditions)).orderBy(sql`created_at DESC`).limit(1);
+              performanceData: optimizationEvents8.performanceData,
+              previousBid: optimizationEvents8.previousBid,
+              newBid: optimizationEvents8.newBid
+            }).from(optimizationEvents8).where(and(...entityConditions)).orderBy(sql`created_at DESC`).limit(1);
             if (eventData[0]?.performanceData) {
               const perfData = typeof eventData[0].performanceData === "string" ? JSON.parse(eventData[0].performanceData) : eventData[0].performanceData;
               if (perfData) {
@@ -67032,6 +67048,10 @@ async function getOrTrainCQLModel(accountId) {
     return model2;
   }
   const model = await trainCQL(accountId, cached2 || null);
+  if (modelCache.size >= MAX_MODEL_CACHE_SIZE && !modelCache.has(accountId)) {
+    const firstKey = modelCache.keys().next().value;
+    if (firstKey !== void 0) modelCache.delete(firstKey);
+  }
   modelCache.set(accountId, model);
   await saveModelToDb(accountId, model);
   return model;
@@ -67052,7 +67072,7 @@ async function makeCQLBidDecision(accountId, context, currentBid) {
     return null;
   }
 }
-var log21, ACTIONS, NUM_ACTIONS, STATE_DIM, modelCache;
+var log21, ACTIONS, NUM_ACTIONS, STATE_DIM, modelCache, MAX_MODEL_CACHE_SIZE;
 var init_offlineRLService = __esm({
   "server/offlineRLService.ts"() {
     "use strict";
@@ -67066,6 +67086,7 @@ var init_offlineRLService = __esm({
     NUM_ACTIONS = ACTIONS.length;
     STATE_DIM = FEATURE_DIM + 1;
     modelCache = /* @__PURE__ */ new Map();
+    MAX_MODEL_CACHE_SIZE = 10;
   }
 });
 
@@ -78066,6 +78087,7 @@ function updateConfig(key, value2, updatedBy = "system", reason = "") {
     reason,
     timestamp: /* @__PURE__ */ new Date()
   });
+  while (changeLogs.length > MAX_CHANGE_LOGS) changeLogs.shift();
   param2.value = value2;
   param2.updatedAt = /* @__PURE__ */ new Date();
   param2.updatedBy = updatedBy;
@@ -78101,6 +78123,7 @@ function resetAllConfig(resetBy = "system") {
     reason: "\u91CD\u7F6E\u6240\u6709\u53C2\u6570\u4E3A\u9ED8\u8BA4\u503C",
     timestamp: /* @__PURE__ */ new Date()
   });
+  while (changeLogs.length > MAX_CHANGE_LOGS) changeLogs.shift();
 }
 function getAllConfig(category) {
   const all3 = Array.from(runtimeConfig.values());
@@ -78131,7 +78154,7 @@ function importConfig(config2, importedBy = "system") {
   }
   return { success: success2, failed };
 }
-var log29, DEFAULT_CONFIG3, runtimeConfig, changeLogs;
+var log29, DEFAULT_CONFIG3, runtimeConfig, changeLogs, MAX_CHANGE_LOGS;
 var init_systemConfigService = __esm({
   "server/systemConfigService.ts"() {
     "use strict";
@@ -78323,6 +78346,7 @@ var init_systemConfigService = __esm({
     };
     runtimeConfig = /* @__PURE__ */ new Map();
     changeLogs = [];
+    MAX_CHANGE_LOGS = 200;
     initializeConfig();
   }
 });
@@ -78651,6 +78675,10 @@ function endTrace(traceId, status = "completed", additionalMetadata) {
   }
   const key = `latency_${trace.operationType}`;
   if (!metricAggregates.has(key)) {
+    if (metricAggregates.size >= 200) {
+      const firstKey = metricAggregates.keys().next().value;
+      if (firstKey) metricAggregates.delete(firstKey);
+    }
     metricAggregates.set(key, []);
   }
   const values = metricAggregates.get(key);
@@ -79201,9 +79229,9 @@ var init_algorithmObservabilityService = __esm({
     init_observabilityService();
     log32 = createModuleLogger("AlgorithmObservability");
     decisionTraces = [];
-    MAX_TRACE_BUFFER = 1e4;
+    MAX_TRACE_BUFFER = 2e3;
     metricBuffer = [];
-    MAX_METRIC_BUFFER = 5e3;
+    MAX_METRIC_BUFFER = 1e3;
   }
 });
 
@@ -79272,25 +79300,25 @@ async function isInCooldownPeriod(accountId, keywordId, targetId) {
   try {
     const db = await getDb();
     if (!db) return { inCooldown: false, reason: "", recentAdjustments: 0 };
-    const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+    const { optimizationEvents: optimizationEvents8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
     const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const hoursAgo24 = new Date(Date.now() - 24 * 36e5).toISOString();
     const cooldownCutoff = new Date(Date.now() - BID_COOLDOWN_CONFIG.cooldownHours * 36e5).toISOString();
     const conditions = [
-      eqOp(optimizationEvents7.accountId, accountId),
-      sqlOp`${optimizationEvents7.eventCategory} = 'bid_adjustment'`,
-      sqlOp`${optimizationEvents7.status} = 'success'`,
-      gteOp(optimizationEvents7.createdAt, hoursAgo24)
+      eqOp(optimizationEvents8.accountId, accountId),
+      sqlOp`${optimizationEvents8.eventCategory} = 'bid_adjustment'`,
+      sqlOp`${optimizationEvents8.status} = 'success'`,
+      gteOp(optimizationEvents8.createdAt, hoursAgo24)
     ];
     if (keywordId) {
-      conditions.push(eqOp(optimizationEvents7.keywordId, keywordId));
+      conditions.push(eqOp(optimizationEvents8.keywordId, keywordId));
     } else if (targetId) {
-      conditions.push(eqOp(optimizationEvents7.targetId, targetId));
+      conditions.push(eqOp(optimizationEvents8.targetId, targetId));
     }
     const recentEvents = await db.select({
-      id: optimizationEvents7.id,
-      createdAt: optimizationEvents7.createdAt
-    }).from(optimizationEvents7).where(andOp(...conditions)).orderBy(sqlOp`created_at DESC`).limit(10);
+      id: optimizationEvents8.id,
+      createdAt: optimizationEvents8.createdAt
+    }).from(optimizationEvents8).where(andOp(...conditions)).orderBy(sqlOp`created_at DESC`).limit(10);
     const recentAdjustments = recentEvents.length;
     if (recentAdjustments >= BID_COOLDOWN_CONFIG.maxAdjustmentsPerDay) {
       return {
@@ -79329,26 +79357,26 @@ async function checkCircuitBreaker(accountId, keywordId, targetId, currentBid, p
   try {
     const db = await getDb();
     if (!db) return { tripped: false, reason: "", guardrailInfo: {} };
-    const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+    const { optimizationEvents: optimizationEvents8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
     const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp, desc: descOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const daysAgo7 = new Date(Date.now() - 7 * 24 * 36e5).toISOString();
     const conditions = [
-      eqOp(optimizationEvents7.accountId, accountId),
-      sqlOp`${optimizationEvents7.eventCategory} = 'bid_adjustment'`,
-      sqlOp`${optimizationEvents7.status} = 'success'`,
-      gteOp(optimizationEvents7.createdAt, daysAgo7)
+      eqOp(optimizationEvents8.accountId, accountId),
+      sqlOp`${optimizationEvents8.eventCategory} = 'bid_adjustment'`,
+      sqlOp`${optimizationEvents8.status} = 'success'`,
+      gteOp(optimizationEvents8.createdAt, daysAgo7)
     ];
     if (keywordId) {
-      conditions.push(eqOp(optimizationEvents7.keywordId, keywordId));
+      conditions.push(eqOp(optimizationEvents8.keywordId, keywordId));
     } else if (targetId) {
-      conditions.push(eqOp(optimizationEvents7.targetId, targetId));
+      conditions.push(eqOp(optimizationEvents8.targetId, targetId));
     }
     const recentEvents = await db.select({
-      id: optimizationEvents7.id,
-      previousBid: optimizationEvents7.previousBid,
-      newBid: optimizationEvents7.newBid,
-      createdAt: optimizationEvents7.createdAt
-    }).from(optimizationEvents7).where(andOp(...conditions)).orderBy(sqlOp`created_at DESC`).limit(20);
+      id: optimizationEvents8.id,
+      previousBid: optimizationEvents8.previousBid,
+      newBid: optimizationEvents8.newBid,
+      createdAt: optimizationEvents8.createdAt
+    }).from(optimizationEvents8).where(andOp(...conditions)).orderBy(sqlOp`created_at DESC`).limit(20);
     const guardrailInfo = {
       recentEventsCount: recentEvents.length,
       circuitBreakerConfig: BID_CIRCUIT_BREAKER_CONFIG
@@ -85294,6 +85322,13 @@ async function runAutoCorrection(accountId) {
     }
     const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     for (const accId of accountIds) {
+      const memCheck = process.memoryUsage();
+      const heapCheck = Math.round(memCheck.heapUsed / memCheck.heapTotal * 100);
+      if (heapCheck > 85) {
+        log40.warn(`[AutoCorrector] v329: \u5185\u5B58\u8D85\u9650(${heapCheck}%)\uFF0C\u4E2D\u65AD\u5269\u4F59\u8D26\u6237\u7EA0\u9519\u626B\u63CF\uFF0C\u5DF2\u5904\u7406${accountIds.indexOf(accId)}/${accountIds.length}\u4E2A\u8D26\u6237`);
+        if (typeof global.gc === "function") global.gc();
+        break;
+      }
       try {
         const bidRetries = await retryFailedBidAdjustments(database, accId);
         corrections.push(...bidRetries);
@@ -85569,9 +85604,25 @@ async function correctBidMismatches(database, accountId) {
         arbitrationSkipped++;
         continue;
       }
+      const recentCorrectionQuery = sql`
+        SELECT id FROM optimization_events 
+        WHERE keyword_id = ${row.keyword_id}
+          AND event_category = 'bid_adjustment'
+          AND change_reason LIKE '%AutoCorrector%'
+          AND created_at > DATE_SUB(NOW(), INTERVAL 8 HOUR)
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+      const recentCorrResult = await database.execute(recentCorrectionQuery);
+      const recentCorrRows = recentCorrResult[0] || recentCorrResult;
+      if (Array.isArray(recentCorrRows) && recentCorrRows.length > 0) {
+        log40.info(`v328\u51B7\u5374: \u8DF3\u8FC7keyword=${row.keyword_id}\u7684\u7EA0\u6B63, 8\u5C0F\u65F6\u5185\u5DF2\u7EA0\u6B63\u8FC7(event#${recentCorrRows[0].id})`);
+        arbitrationSkipped++;
+        continue;
+      }
       arbitratedRows.push(row);
     }
-    log40.info(`v258\u4EF2\u88C1\u7ED3\u679C: \u8D26\u6237${accountId} \u539F\u59CB${rows.length}\u6761, \u4EF2\u88C1\u8DF3\u8FC7${arbitrationSkipped}\u6761, \u5B9E\u9645\u7EA0\u6B63${arbitratedRows.length}\u6761`);
+    log40.info(`v328\u4EF2\u88C1\u7ED3\u679C: \u8D26\u6237${accountId} \u539F\u59CB${rows.length}\u6761, \u4EF2\u88C1\u8DF3\u8FC7${arbitrationSkipped}\u6761, \u5B9E\u9645\u7EA0\u6B63${arbitratedRows.length}\u6761`);
     if (arbitratedRows.length === 0) return results;
     const correctionItems = arbitratedRows.map((row) => {
       let targetBid = parseFloat(String(row.expected_bid));
@@ -87633,7 +87684,14 @@ function startAutoCorrector() {
   const intervalMs = AUTO_CORRECTION_CONFIG.scanIntervalHours ? AUTO_CORRECTION_CONFIG.scanIntervalHours * 60 * 60 * 1e3 : 4 * 60 * 60 * 1e3;
   correctionInterval = setInterval(async () => {
     try {
-      log40.info("\u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5F00\u59CB...");
+      const mem = process.memoryUsage();
+      const heapUtil = Math.round(mem.heapUsed / mem.heapTotal * 100);
+      if (heapUtil > 80) {
+        log40.warn(`[AutoCorrector] v329: \u5185\u5B58\u7D27\u5F20(${heapUtil}%)\uFF0C\u8DF3\u8FC7\u672C\u6B21\u7EA0\u9519\u626B\u63CF`);
+        if (typeof global.gc === "function") global.gc();
+        return;
+      }
+      log40.info(`\u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5F00\u59CB... heap=${heapUtil}%`);
       const result = await runAutoCorrection();
       log40.warn(`\u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
       try {
@@ -88045,8 +88103,10 @@ var init_optimizationAutoCorrector = __esm({
       maxRetryAttempts: 3,
       // 认为优化事件“过期”的天数（超过此天数不再重试）
       retryExpiryDays: 7,
-      // v204: 出价容差基准值（USD）— 实际容差会根据账户货币动态计算
-      bidToleranceBaseUSD: 0.01,
+      // v328: 出价容差基准值（USD）— 从$0.01提升到$0.03
+      // 根因：$0.01容差太小，导致AutoCorrector在803个关键词上与优化器形成“拉锯战”（最高23次/周），
+      // 产生23.9%的无效操作。$0.03容差可以容纳正常的算法微调和四舍五入差异。
+      bidToleranceBaseUSD: 0.03,
       // v204: 预算容差基准值（USD）— 实际容差会根据账户货币动态计算
       budgetToleranceBaseUSD: 2,
       // 位置倾斜不一致的容差范围（百分比）
@@ -91791,18 +91851,18 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         FROM optimization_logs 
         WHERE performance_group_id = ${config2.performanceGroupId}
           AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
-          AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
       `);
       for (const row of recentLogs[0] || []) {
         if (row.search_term && row.campaign_id) {
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
         }
       }
-      log44.info(`[SearchTermAnalysis] v310: \u9884\u52A0\u8F7D${recentlyProcessedSearchTerms.size}\u4E2A\u5DF2\u5904\u7406\u641C\u7D22\u8BCD\u7528\u4E8E\u53BB\u91CD`);
+      log44.info(`[SearchTermAnalysis] v328: \u9884\u52A0\u8F7D${recentlyProcessedSearchTerms.size}\u4E2A\u5DF2\u5904\u7406\u641C\u7D22\u8BCD\u7528\u4E8E\u53BB\u91CD(7\u5929\u7A97\u53E3)`);
     }
   } catch (dedupErr) {
-    log44.warn(`[SearchTermAnalysis] v310: \u53BB\u91CD\u9884\u52A0\u8F7D\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${dedupErr.message}`);
+    log44.warn(`[SearchTermAnalysis] v328: \u53BB\u91CD\u9884\u52A0\u8F7D\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${dedupErr.message}`);
   }
   const permanentlyFailedKeywords = /* @__PURE__ */ new Set();
   try {
@@ -92035,7 +92095,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         }
         const dedupKey = `${campaignAmazonId}::${stPerf.searchTerm.toLowerCase().trim()}`;
         if (recentlyProcessedSearchTerms.has(dedupKey)) {
-          log44.debug(`[SearchTermAnalysis] v310: \u8DF3\u8FC7\u5DF2\u5904\u7406\u641C\u7D22\u8BCD: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
+          log44.debug(`[SearchTermAnalysis] v328: \u8DF3\u8FC7\u5DF2\u5904\u7406\u641C\u7D22\u8BCD: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
           continue;
         }
         if (decision.action === "CREATE_KEYWORD" && permanentlyFailedKeywords.has(stPerf.searchTerm.toLowerCase().trim())) {
@@ -93066,6 +93126,26 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
           }
         }
         if (shouldPause) {
+          try {
+            const dbInstance = await getDb();
+            if (dbInstance) {
+              const { sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+              const failHistory = await dbInstance.execute(sqlTag`
+                SELECT COUNT(*) as fail_count FROM optimization_logs
+                WHERE action_type = 'adgroup_pause'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.adGroupId')) = ${String(adGroup.id)}
+                  AND api_sync_status = 'failed'
+                  AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+              `);
+              const failCount = failHistory[0]?.[0]?.fail_count || 0;
+              if (failCount >= 3) {
+                log44.warn(`[AdGroupStatus] v328: \u8DF3\u8FC7\u5E7F\u544A\u7EC4"${adGroup.adGroupName}" \u2014 \u5DF2\u8FDE\u7EED\u5931\u8D25${failCount}\u6B21\uFF0C\u7B49\u5F85\u4EBA\u5DE5\u5904\u7406`);
+                continue;
+              }
+            }
+          } catch (failCheckErr) {
+            log44.warn(`[AdGroupStatus] v328: \u5931\u8D25\u5386\u53F2\u68C0\u67E5\u5F02\u5E38: ${failCheckErr.message}`);
+          }
           const action = {
             accountId: config2.accountId,
             entityType: "adGroup",
@@ -100790,9 +100870,9 @@ function __rest(s4, e6) {
     }
   return t7;
 }
-function __decorate(decorators, target, key, desc23) {
-  var c5 = arguments.length, r5 = c5 < 3 ? target : desc23 === null ? desc23 = Object.getOwnPropertyDescriptor(target, key) : desc23, d5;
-  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r5 = Reflect.decorate(decorators, target, key, desc23);
+function __decorate(decorators, target, key, desc24) {
+  var c5 = arguments.length, r5 = c5 < 3 ? target : desc24 === null ? desc24 = Object.getOwnPropertyDescriptor(target, key) : desc24, d5;
+  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r5 = Reflect.decorate(decorators, target, key, desc24);
   else for (var i4 = decorators.length - 1; i4 >= 0; i4--) if (d5 = decorators[i4]) r5 = (c5 < 3 ? d5(r5) : c5 > 3 ? d5(target, key, r5) : d5(target, key)) || r5;
   return c5 > 3 && r5 && Object.defineProperty(target, key, r5), r5;
 }
@@ -101193,13 +101273,13 @@ var init_tslib_es6 = __esm({
     };
     __createBinding = Object.create ? (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
-      var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-      if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) {
-        desc23 = { enumerable: true, get: function() {
+      var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+      if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) {
+        desc24 = { enumerable: true, get: function() {
           return m4[k5];
         } };
       }
-      Object.defineProperty(o6, k22, desc23);
+      Object.defineProperty(o6, k22, desc24);
     }) : (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
       o6[k22] = m4[k5];
@@ -117972,13 +118052,13 @@ var require_fromWebToken = __commonJS({
     "use strict";
     var __createBinding2 = exports2 && exports2.__createBinding || (Object.create ? (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
-      var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-      if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) {
-        desc23 = { enumerable: true, get: function() {
+      var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+      if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) {
+        desc24 = { enumerable: true, get: function() {
           return m4[k5];
         } };
       }
-      Object.defineProperty(o6, k22, desc23);
+      Object.defineProperty(o6, k22, desc24);
     }) : (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
       o6[k22] = m4[k5];
@@ -124013,6 +124093,19 @@ var init_budgetAllocationService = __esm({
   }
 });
 
+// server/utils/systemVersion.ts
+var systemVersion_exports = {};
+__export(systemVersion_exports, {
+  SYSTEM_VERSION: () => SYSTEM_VERSION
+});
+var SYSTEM_VERSION;
+var init_systemVersion = __esm({
+  "server/utils/systemVersion.ts"() {
+    "use strict";
+    SYSTEM_VERSION = 329;
+  }
+});
+
 // server/searchTermHarvester.ts
 async function identifyHarvestCandidates(accountId, config2 = {}) {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
@@ -125205,8 +125298,25 @@ function stopOptimizationScheduler2() {
 }
 async function executeOptimizationTask(taskType) {
   if (!acquireLock(taskType)) return;
+  const mem = process.memoryUsage();
+  const heapUtilization = Math.round(mem.heapUsed / mem.heapTotal * 100);
+  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing"];
+  const isCritical = criticalTasks.includes(taskType);
+  if (heapUtilization > 90) {
+    log64.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u5371\u6025(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
+    if (typeof global.gc === "function") global.gc();
+    releaseLock(taskType);
+    return;
+  }
+  if (heapUtilization > 80 && !isCritical) {
+    log64.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u7D27\u5F20(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u975E\u5173\u952E\u4EFB\u52A1: ${taskType}`);
+    if (typeof global.gc === "function") global.gc();
+    releaseLock(taskType);
+    return;
+  }
   const config2 = OPTIMIZATION_SCHEDULE[taskType];
-  log64.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  log64.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${(/* @__PURE__ */ new Date()).toISOString()}`);
   try {
     const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
     switch (taskType) {
@@ -125956,85 +126066,108 @@ __export(postDeployOptimizer_exports, {
   runPostDeployOptimization: () => runPostDeployOptimization
 });
 async function getLastDeployedVersion() {
-  try {
-    const database = await getDb();
-    if (!database) return null;
-    const result = await database.select({ actionDetail: optimizationEvents.actionDetail }).from(optimizationEvents).where(
-      and(
-        eq(optimizationEvents.eventCategory, "settings_change"),
-        eq(optimizationEvents.actionType, "settings_update"),
-        eq(optimizationEvents.status, "success"),
-        sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
-      )
-    ).orderBy(desc(optimizationEvents.createdAt)).limit(1);
-    if (result.length > 0 && result[0].actionDetail) {
-      try {
-        const detail = JSON.parse(result[0].actionDetail);
-        return detail.systemVersion || null;
-      } catch {
-        return null;
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) return null;
+      const result = await database.execute(sql`
+        SELECT action_detail FROM optimization_events
+        WHERE event_category = 'settings_change'
+          AND action_type = 'settings_update'
+          AND status = 'success'
+          AND JSON_EXTRACT(action_detail, '$.type') = 'system_deploy'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      const rows = result[0] || [];
+      if (rows.length > 0 && rows[0].action_detail) {
+        try {
+          const detail = typeof rows[0].action_detail === "string" ? JSON.parse(rows[0].action_detail) : rows[0].action_detail;
+          return detail.systemVersion || null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    } catch (error51) {
+      log67.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25 (\u5C1D\u8BD5${attempt}/${maxRetries}): ${error51.message}`);
+      if (attempt < maxRetries) {
+        await sleep4(5e3 * attempt);
       }
     }
-    return null;
-  } catch (error51) {
-    log67.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error51.message}`);
-    return null;
   }
+  log67.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25: \u5DF2\u8017\u5C3D\u6240\u6709\u91CD\u8BD5`);
+  return null;
 }
 async function recordDeployVersion(version5, result) {
-  try {
-    const database = await getDb();
-    if (!database) return;
-    await database.insert(optimizationEvents).values({
-      accountId: 0,
-      // 系统级事件
-      eventCategory: "settings_change",
-      actionType: "settings_update",
-      actionDetail: JSON.stringify({
-        type: "system_deploy",
-        systemVersion: version5,
-        previousVersion: result.previousVersion,
-        versionsApplied: result.versionsToApply,
-        affectedModules: result.affectedModules,
-        targetsProcessed: result.targetsProcessed,
-        targetsSucceeded: result.targetsSucceeded,
-        targetsFailed: result.targetsFailed,
-        totalActions: result.totalOptimizationActions
-      }),
-      changeReason: `\u7CFB\u7EDF\u90E8\u7F72 v${version5}`,
-      previousValue: result.previousVersion?.toString() || "none",
-      newValue: version5.toString(),
-      algorithmVersion: `v${version5}`,
-      status: result.targetsFailed === 0 ? "success" : "pending",
-      apiSyncStatus: "not_applicable"
-    });
-    log67.info(`[PostDeployOptimizer] \u5DF2\u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5}`);
-  } catch (error51) {
-    log67.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error51.message}`);
+  const actionDetail = JSON.stringify({
+    type: "system_deploy",
+    systemVersion: version5,
+    previousVersion: result.previousVersion,
+    versionsApplied: result.versionsToApply,
+    affectedModules: result.affectedModules,
+    targetsProcessed: result.targetsProcessed,
+    targetsSucceeded: result.targetsSucceeded,
+    targetsFailed: result.targetsFailed,
+    totalActions: result.totalOptimizationActions
+  });
+  const statusValue = result.targetsFailed === 0 ? "success" : "partial_success";
+  const changeReason = `\u7CFB\u7EDF\u90E8\u7F72 v${version5}`;
+  const prevValue = result.previousVersion?.toString() || "none";
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) {
+        log67.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25: \u6570\u636E\u5E93\u8FDE\u63A5\u4E0D\u53EF\u7528 (\u5C1D\u8BD5${attempt}/${maxRetries})`);
+        if (attempt < maxRetries) await sleep4(1e4 * attempt);
+        continue;
+      }
+      await database.execute(sql`
+        INSERT INTO optimization_events 
+          (account_id, event_category, action_type, action_detail, change_reason, 
+           previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
+        VALUES 
+          (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
+           ${prevValue}, ${version5.toString()}, ${`v${version5}`}, ${statusValue}, 'not_applicable', NOW())
+      `);
+      log67.info(`[PostDeployOptimizer] \u2713 \u5DF2\u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5} (status=${statusValue})`);
+      return;
+    } catch (error51) {
+      log67.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25 (\u5C1D\u8BD5${attempt}/${maxRetries}): ${error51.message}`);
+      if (attempt < maxRetries) {
+        await sleep4(1e4 * attempt);
+      }
+    }
   }
+  log67.error(`[PostDeployOptimizer] \u2717 \u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5} \u5931\u8D25: \u5DF2\u8017\u5C3D\u6240\u6709\u91CD\u8BD5\uFF0C\u4E0B\u6B21\u91CD\u542F\u5C06\u91CD\u65B0\u89E6\u53D1PostDeploy`);
 }
 async function updateTargetOptimizedVersion(targetId, version5) {
-  try {
-    const database = await getDb();
-    if (!database) return;
-    await database.insert(optimizationEvents).values({
-      accountId: 0,
-      eventCategory: "settings_change",
-      actionType: "settings_update",
-      actionDetail: JSON.stringify({
-        type: "target_reoptimized",
-        systemVersion: version5,
-        targetId
-      }),
-      changeReason: `\u4F18\u5316\u76EE\u6807 ${targetId} \u90E8\u7F72\u540E\u91CD\u4F18\u5316 v${version5}`,
-      previousValue: "reoptimize_triggered",
-      newValue: `v${version5}`,
-      algorithmVersion: `v${version5}`,
-      status: "success",
-      apiSyncStatus: "not_applicable"
-    });
-  } catch (error51) {
-    log67.error(`[PostDeployOptimizer] \u66F4\u65B0\u76EE\u6807\u7248\u672C\u5931\u8D25: ${error51.message}`);
+  const actionDetail = JSON.stringify({
+    type: "target_reoptimized",
+    systemVersion: version5,
+    targetId
+  });
+  const changeReason = `\u4F18\u5316\u76EE\u6807 ${targetId} \u90E8\u7F72\u540E\u91CD\u4F18\u5316 v${version5}`;
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) return;
+      await database.execute(sql`
+        INSERT INTO optimization_events 
+          (account_id, event_category, action_type, action_detail, change_reason,
+           previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
+        VALUES 
+          (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
+           'reoptimize_triggered', ${`v${version5}`}, ${`v${version5}`}, 'success', 'not_applicable', NOW())
+      `);
+      return;
+    } catch (error51) {
+      log67.error(`[PostDeployOptimizer] \u66F4\u65B0\u76EE\u6807\u7248\u672C\u5931\u8D25 (targetId=${targetId}, \u5C1D\u8BD5${attempt}/${maxRetries}): ${error51.message}`);
+      if (attempt < maxRetries) await sleep4(5e3);
+    }
   }
 }
 function getVersionsToApply(lastVersion) {
@@ -126806,7 +126939,7 @@ function getSystemVersionInfo() {
 function sleep4(ms) {
   return new Promise((resolve8) => setTimeout(resolve8, ms));
 }
-var log67, SYSTEM_VERSION, VERSION_CHANGELOG, POST_DEPLOY_CONFIG;
+var log67, VERSION_CHANGELOG, POST_DEPLOY_CONFIG;
 var init_postDeployOptimizer = __esm({
   "server/postDeployOptimizer.ts"() {
     "use strict";
@@ -126815,8 +126948,8 @@ var init_postDeployOptimizer = __esm({
     init_schema2();
     init_drizzle_orm();
     init_logger2();
+    init_systemVersion();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 327;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -127130,6 +127263,18 @@ var init_postDeployOptimizer = __esm({
         description: "v311: [PT campaign\u5E95\u5C42\u4FEE\u590D+\u4E09\u5C42\u9632\u5FA1\u4F53\u7CFB] \u2014 (1)P0-Campaign\u7EA7\u522BPT\u7C7B\u578B\u68C0\u67E5: \u65B0\u589EisProductTargetingCampaign()\u51FD\u6570\uFF0C\u901A\u8FC7\u547D\u540D\u7EA6\u5B9A(POE/POB/PT/ASIN)\u8BC6\u522BProduct Targeting campaign (2)P0-\u4E09\u5C42\u9632\u5FA1\u4F53\u7CFB: executeSearchTermAnalysis\u904D\u5386\u5F00\u5934\u8DF3\u8FC7PT campaign + canAddPositiveKeyword\u53CC\u91CD\u68C0\u67E5 + adGroupHasProductTargets\u5E95\u5C42\u62E6\u622A (3)P0-AutoCorrector PT\u68C0\u67E5: retryHistoricalFailedKeywordHarvests\u91CD\u8BD5\u524D\u68C0\u67E5campaign\u7C7B\u578B\uFF0CPT campaign\u76F4\u63A5\u6807\u8BB0invalid_legacy (4)P0-SearchTermHarvester PT\u8FC7\u6EE4: findTargetAdGroup\u8FC7\u6EE4\u6389PT\u7C7B\u578Bcampaign (5)P1-30019\u914D\u7F6E\u4FEE\u590D: \u5173\u95EDkeywordAutoEnabled\u963B\u6B62\u5411POE campaign\u6DFB\u52A0keyword (6)P1-keywords\u8868\u53BB\u91CD\u7D22\u5F15: uk_keyword_dedup(adGroupId,keywordText,matchType)\u6570\u636E\u5E93\u5C42\u9762\u9632\u91CD\u590D",
         affectedModules: ["keyword", "searchterm"],
         correctionActions: ["cleanup_stale_pending"]
+      },
+      {
+        version: 328,
+        description: "v328: [\u6DF1\u5EA6\u5206\u6790\u4FEE\u590D] \u2014 (1)P0-keyword_create\u53BB\u91CD\u7A97\u53E3\u4ECE24h\u6269\u5C55\u52307\u5929: \u6D88\u966546.5%\u7684already_exists\u91CD\u590D\u521B\u5EFA\u95EE\u9898 (2)P0-SD adgroup_pause API\u4FEE\u590D: String\u7C7B\u578BadGroupId\u907F\u514D\u5927\u6570\u5B57\u7CBE\u5EA6\u4E22\u5931+\u6DFB\u52A0Content-Type header (3)P0-adgroup_pause\u8FDE\u7EED\u5931\u8D25\u4FDD\u62A4: \u540C\u4E00adGroup\u5931\u8D25\u22653\u6B21\u540E\u505C\u6B62\u91CD\u8BD5 (4)P1-AutoCorrector\u5BB9\u5DEE\u589E\u5927: \u4ECE$0.01\u63D0\u5347\u5230$0.03\u6D88\u9664\u62C9\u952F\u6218 (5)P1-AutoCorrector\u7EA0\u9519\u51B7\u5374: \u540C\u4E00keyword 8\u5C0F\u65F6\u5185\u6700\u591A\u7EA0\u6B631\u6B21",
+        affectedModules: ["keyword", "sync", "bid"],
+        correctionActions: ["rerun_optimization", "cleanup_stale_pending", "revalidate_pending_commands"]
+      },
+      {
+        version: 329,
+        description: "v329: [\u67B6\u6784\u7EA7\u7A33\u5B9A\u6027\u91CD\u6784] \u2014 (1)P0-\u7248\u672C\u53F7\u7EDF\u4E00\u5355\u4E00\u6765\u6E90: \u6D88\u9664systemVersion.ts\u548CpostDeployOptimizer.ts\u53CC\u6E90\u4E0D\u540C\u6B65\u95EE\u9898,\u5FC3\u8DF3/\u751F\u547D\u5468\u671F/PostDeploy\u7EDF\u4E00\u4F7F\u7528systemVersion.ts (2)P0-PostDeployOptimizer\u5BB9\u9519\u91CD\u6784: recordDeployVersion/updateTargetOptimizedVersion/getLastDeployedVersion\u5168\u90E8\u6539\u7528raw SQL+3\u6B21\u91CD\u8BD5,\u907F\u514DDrizzle ORM schema\u4E0D\u5339\u914D\u548C\u6570\u636E\u5E93\u77AC\u65F6\u4E2D\u65AD\u5BFC\u81F4\u90E8\u7F72\u540E\u4F18\u5316\u5931\u8D25 (3)P0-deployLifecycleManager\u9519\u8BEF\u9694\u79BB: \u6B65\u9AA44b-4e\u6BCF\u4E2A\u6B65\u9AA4\u72EC\u7ACBtry-catch,PostDeploy\u5931\u8D25\u4E0D\u963B\u585EAutoCorrector,\u6B65\u9AA44d/4e\u6539\u7528raw SQL\u8BB0\u5F55 (4)P0-\u5185\u5B58\u7BA1\u7406\u91CD\u6784: V8\u5806\u9650\u5236\u4ECE2048MB\u964D\u81F31400MB\u4E3AOS\u9884\u7559600MB,decisionTraces\u7F13\u5B5810000\u21922000,metricBuffer 5000\u21921000,metricAggregates/modelCache/efficiencyHistoryBuffer/changeLogs\u5168\u90E8\u6DFB\u52A0\u5927\u5C0F\u4E0A\u9650 (5)P1-\u4EFB\u52A1\u5206\u5C42\u5185\u5B58\u9884\u7B97: executeOptimizationTask\u6DFB\u52A080%\u5185\u5B58\u9884\u7B97\u68C0\u67E5,AutoCorrector\u6BCF\u8D26\u6237\u5904\u7406\u524D85%\u5185\u5B58\u68C0\u67E5,startAutoCorrector\u6DFB\u52A090%\u5185\u5B58\u4FDD\u62A4",
+        affectedModules: ["bid", "sync", "keyword"],
+        correctionActions: ["rerun_optimization", "cleanup_stale_pending", "revalidate_pending_commands"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -128588,19 +128733,6 @@ var init_auditLogService = __esm({
   }
 });
 
-// server/utils/systemVersion.ts
-var systemVersion_exports = {};
-__export(systemVersion_exports, {
-  SYSTEM_VERSION: () => SYSTEM_VERSION2
-});
-var SYSTEM_VERSION2;
-var init_systemVersion = __esm({
-  "server/utils/systemVersion.ts"() {
-    "use strict";
-    SYSTEM_VERSION2 = 311;
-  }
-});
-
 // server/optimizationMonitoringService.ts
 var optimizationMonitoringService_exports = {};
 __export(optimizationMonitoringService_exports, {
@@ -128865,15 +128997,15 @@ async function checkAlgorithmHealth(db, teamId, since, alerts) {
 }
 async function checkVersionConsistency(alerts) {
   try {
-    const { SYSTEM_VERSION: SYSTEM_VERSION3 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
+    const { SYSTEM_VERSION: SYSTEM_VERSION2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
     const { SYSTEM_VERSION: UTIL_VERSION } = await Promise.resolve().then(() => (init_systemVersion(), systemVersion_exports));
-    if (Number(SYSTEM_VERSION3) !== Number(UTIL_VERSION)) {
+    if (Number(SYSTEM_VERSION2) !== Number(UTIL_VERSION)) {
       alerts.push({
         id: `version-mismatch-${Date.now()}`,
         category: "version_mismatch",
         severity: "critical",
         title: "SYSTEM_VERSION\u4E0D\u4E00\u81F4",
-        message: `postDeployOptimizer.SYSTEM_VERSION=${SYSTEM_VERSION3}\uFF0CsystemVersion.SYSTEM_VERSION=${UTIL_VERSION}`,
+        message: `postDeployOptimizer.SYSTEM_VERSION=${SYSTEM_VERSION2}\uFF0CsystemVersion.SYSTEM_VERSION=${UTIL_VERSION}`,
         metric: "version_consistency",
         currentValue: 0,
         threshold: 1,
@@ -134079,14 +134211,14 @@ var init_chunk = __esm({
       }
       return target;
     };
-    __copyProps3 = (to, from, except2, desc23) => {
+    __copyProps3 = (to, from, except2, desc24) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (var keys = __getOwnPropNames3(from), i4 = 0, n7 = keys.length, key; i4 < n7; i4++) {
           key = keys[i4];
           if (!__hasOwnProp3.call(to, key) && key !== except2) {
             __defProp3(to, key, {
               get: ((k5) => from[k5]).bind(null, key),
-              enumerable: !(desc23 = __getOwnPropDesc3(from, key)) || desc23.enumerable
+              enumerable: !(desc24 = __getOwnPropDesc3(from, key)) || desc24.enumerable
             });
           }
         }
@@ -138171,11 +138303,11 @@ var require_main2 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc23) => {
+    var __copyProps4 = (to, from, except2, desc24) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
       }
       return to;
     };
@@ -182476,8 +182608,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc23 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc23 && (desc23.get || desc23.set)) Object.defineProperty(newObj, key, desc23);
+          var desc24 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc24 && (desc24.get || desc24.set)) Object.defineProperty(newObj, key, desc24);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -183791,8 +183923,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc23 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc23 && (desc23.get || desc23.set)) Object.defineProperty(newObj, key, desc23);
+          var desc24 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc24 && (desc24.get || desc24.set)) Object.defineProperty(newObj, key, desc24);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -184021,8 +184153,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc23 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc23 && (desc23.get || desc23.set)) Object.defineProperty(newObj, key, desc23);
+          var desc24 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc24 && (desc24.get || desc24.set)) Object.defineProperty(newObj, key, desc24);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -185114,8 +185246,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc23 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc23 && (desc23.get || desc23.set)) Object.defineProperty(newObj, key, desc23);
+          var desc24 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc24 && (desc24.get || desc24.set)) Object.defineProperty(newObj, key, desc24);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -195985,9 +196117,9 @@ function isErrorStackTraceLimitWritable() {
     if (import_node_v8.default.startupSnapshot.isBuildingSnapshot()) return false;
   } catch {
   }
-  const desc23 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
-  if (desc23 === void 0) return Object.isExtensible(Error);
-  return own$1.call(desc23, "writable") && desc23.writable !== void 0 ? desc23.writable : desc23.set !== void 0;
+  const desc24 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
+  if (desc24 === void 0) return Object.isExtensible(Error);
+  return own$1.call(desc24, "writable") && desc24.writable !== void 0 ? desc24.writable : desc24.set !== void 0;
 }
 function hideStackFrames(wrappedFunction) {
   const hidden = nodeInternalPrefix + wrappedFunction.name;
@@ -220393,14 +220525,14 @@ Error: ${e$1.message}`);
     require_web_outgoing = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$3 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) desc23 = {
+        var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) desc24 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc23);
+        Object.defineProperty(o$1, k22, desc24);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -220937,14 +221069,14 @@ Error: ${e$1.message}`);
     require_web_incoming = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$2 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) desc23 = {
+        var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) desc24 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc23);
+        Object.defineProperty(o$1, k22, desc24);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -221079,14 +221211,14 @@ Error: ${e$1.message}`);
     require_ws_incoming = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$1 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) desc23 = {
+        var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) desc24 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc23);
+        Object.defineProperty(o$1, k22, desc24);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -221286,14 +221418,14 @@ Error: ${e$1.message}`);
     require_http_proxy = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding2 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc23 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc23 || ("get" in desc23 ? !m4.__esModule : desc23.writable || desc23.configurable)) desc23 = {
+        var desc24 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc24 || ("get" in desc24 ? !m4.__esModule : desc24.writable || desc24.configurable)) desc24 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc23);
+        Object.defineProperty(o$1, k22, desc24);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -243710,8 +243842,8 @@ var require_lib8 = __commonJS({
             ++this.state.pos;
           }
           if (semi) {
-            const desc23 = this.input.slice(startPos, this.state.pos);
-            const entity = entities[desc23];
+            const desc24 = this.input.slice(startPos, this.state.pos);
+            const entity = entities[desc24];
             ++this.state.pos;
             if (entity) {
               return entity;
@@ -257954,11 +258086,11 @@ var require_sourcemap_codec_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc23) => {
+      var __copyProps4 = (to, from, except2, desc24) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
         }
         return to;
       };
@@ -258599,11 +258731,11 @@ var require_trace_mapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc23) => {
+      var __copyProps4 = (to, from, except2, desc24) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
         }
         return to;
       };
@@ -259139,11 +259271,11 @@ var require_gen_mapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc23) => {
+      var __copyProps4 = (to, from, except2, desc24) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
         }
         return to;
       };
@@ -279254,7 +279386,7 @@ var require_config_descriptors = __commonJS({
       const dirname7 = cache6.using((dir) => dir);
       return (0, _caching.makeStrongCacheSync)((alias2) => (0, _caching.makeStrongCache)(function* (passPerPreset) {
         const descriptors = yield* createPresetDescriptors(items, dirname7, alias2, passPerPreset);
-        return descriptors.map((desc23) => loadCachedDescriptor(PRESET_DESCRIPTOR_CACHE, desc23));
+        return descriptors.map((desc24) => loadCachedDescriptor(PRESET_DESCRIPTOR_CACHE, desc24));
       }));
     });
     var PLUGIN_DESCRIPTOR_CACHE = /* @__PURE__ */ new WeakMap();
@@ -279262,16 +279394,16 @@ var require_config_descriptors = __commonJS({
       const dirname7 = cache6.using((dir) => dir);
       return (0, _caching.makeStrongCache)(function* (alias2) {
         const descriptors = yield* createPluginDescriptors(items, dirname7, alias2);
-        return descriptors.map((desc23) => loadCachedDescriptor(PLUGIN_DESCRIPTOR_CACHE, desc23));
+        return descriptors.map((desc24) => loadCachedDescriptor(PLUGIN_DESCRIPTOR_CACHE, desc24));
       });
     });
     var DEFAULT_OPTIONS = {};
-    function loadCachedDescriptor(cache6, desc23) {
+    function loadCachedDescriptor(cache6, desc24) {
       const {
         value: value2,
         options = DEFAULT_OPTIONS
-      } = desc23;
-      if (options === false) return desc23;
+      } = desc24;
+      if (options === false) return desc24;
       let cacheByOptions = cache6.get(value2);
       if (!cacheByOptions) {
         cacheByOptions = /* @__PURE__ */ new WeakMap();
@@ -279282,14 +279414,14 @@ var require_config_descriptors = __commonJS({
         possibilities = [];
         cacheByOptions.set(options, possibilities);
       }
-      if (!possibilities.includes(desc23)) {
-        const matches2 = possibilities.filter((possibility) => isEqualDescriptor(possibility, desc23));
+      if (!possibilities.includes(desc24)) {
+        const matches2 = possibilities.filter((possibility) => isEqualDescriptor(possibility, desc24));
         if (matches2.length > 0) {
           return matches2[0];
         }
-        possibilities.push(desc23);
+        possibilities.push(desc24);
       }
-      return desc23;
+      return desc24;
     }
     function* createPresetDescriptors(items, dirname7, alias2, passPerPreset) {
       return yield* createDescriptors("preset", items, dirname7, alias2, passPerPreset);
@@ -279311,9 +279443,9 @@ var require_config_descriptors = __commonJS({
       alias: alias2,
       ownPass
     }) {
-      const desc23 = (0, _item.getItemDescriptor)(pair);
-      if (desc23) {
-        return desc23;
+      const desc24 = (0, _item.getItemDescriptor)(pair);
+      if (desc24) {
+        return desc24;
       }
       let name2;
       let options;
@@ -279405,8 +279537,8 @@ var require_item = __commonJS({
       return data2;
     }
     var _configDescriptors = require_config_descriptors();
-    function createItemFromDescriptor(desc23) {
-      return new ConfigItem(desc23);
+    function createItemFromDescriptor(desc24) {
+      return new ConfigItem(desc24);
     }
     function* createConfigItem(value2, {
       dirname: dirname7 = ".",
@@ -280556,15 +280688,15 @@ File already loaded following the config chain:
             nameMap = /* @__PURE__ */ new Map();
             map4.set(fnKey, nameMap);
           }
-          let desc23 = nameMap.get(item.name);
-          if (!desc23) {
-            desc23 = {
+          let desc24 = nameMap.get(item.name);
+          if (!desc24) {
+            desc24 = {
               value: item
             };
-            descriptors.push(desc23);
-            if (!item.ownPass) nameMap.set(item.name, desc23);
+            descriptors.push(desc24);
+            if (!item.ownPass) nameMap.set(item.name, desc24);
           } else {
-            desc23.value = item;
+            desc24.value = item;
           }
         } else {
           descriptors.push({
@@ -280572,8 +280704,8 @@ File already loaded following the config chain:
           });
         }
       }
-      return descriptors.reduce((acc, desc23) => {
-        acc.push(desc23.value);
+      return descriptors.reduce((acc, desc24) => {
+        acc.push(desc24.value);
         return acc;
       }, []);
     }
@@ -280946,11 +281078,11 @@ var require_full = __commonJS({
         targets: options.targets
       });
       const toDescriptor = (item) => {
-        const desc23 = (0, _item.getItemDescriptor)(item);
-        if (!desc23) {
+        const desc24 = (0, _item.getItemDescriptor)(item);
+        if (!desc24) {
           throw new Error("Assertion failure - must be config item");
         }
-        return desc23;
+        return desc24;
       };
       const presetsDescriptors = presets.map(toDescriptor);
       const initialPluginsDescriptors = plugins.map(toDescriptor);
@@ -282328,11 +282460,11 @@ var require_remapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc23) => {
+      var __copyProps4 = (to, from, except2, desc24) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
         }
         return to;
       };
@@ -283504,11 +283636,11 @@ var require_import_meta_resolve = __commonJS({
         }
       } catch (_unused) {
       }
-      const desc23 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
-      if (desc23 === void 0) {
+      const desc24 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
+      if (desc24 === void 0) {
         return Object.isExtensible(Error);
       }
-      return own$12.call(desc23, "writable") && desc23.writable !== void 0 ? desc23.writable : desc23.set !== void 0;
+      return own$12.call(desc24, "writable") && desc24.writable !== void 0 ? desc24.writable : desc24.set !== void 0;
     }
     function hideStackFrames2(wrappedFunction) {
       const hidden = nodeInternalPrefix2 + wrappedFunction.name;
@@ -302409,11 +302541,11 @@ var require_dist5 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc23) => {
+    var __copyProps4 = (to, from, except2, desc24) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
       }
       return to;
     };
@@ -302591,11 +302723,11 @@ var require_dist6 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc23) => {
+    var __copyProps4 = (to, from, except2, desc24) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc23 = __getOwnPropDesc4(from, key)) || desc23.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc24 = __getOwnPropDesc4(from, key)) || desc24.enumerable });
       }
       return to;
     };
@@ -309355,8 +309487,8 @@ function handleCatchall(proms, input, payload2, ctx, def, inst) {
 }
 var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
   $ZodType.init(inst, def);
-  const desc23 = Object.getOwnPropertyDescriptor(def, "shape");
-  if (!desc23?.get) {
+  const desc24 = Object.getOwnPropertyDescriptor(def, "shape");
+  if (!desc24?.get) {
     const sh = def.shape;
     Object.defineProperty(def, "shape", {
       get: () => {
@@ -325615,8 +325747,8 @@ var optimizationRouter = router({
     if (!dbInstance) return [];
     try {
       const { optimizationLogs: optimizationLogs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const { desc: desc23 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const logs = await dbInstance.select().from(optimizationLogs2).orderBy(desc23(optimizationLogs2.id)).limit(input.limit);
+      const { desc: desc24 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const logs = await dbInstance.select().from(optimizationLogs2).orderBy(desc24(optimizationLogs2.id)).limit(input.limit);
       return logs.map((log89) => ({
         id: log89.id,
         campaignId: log89.campaignId,
@@ -339930,17 +340062,17 @@ var postDeployRouter = router({
   // 查询部署历史记录（从optimization_events中查询system_deploy事件）
   getDeployHistory: publicProcedure.query(async () => {
     const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
-    const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-    const { desc: desc23, and: and10, eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { optimizationEvents: optimizationEvents8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+    const { desc: desc24, and: and10, eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const database = await getDb2();
     if (!database) return [];
-    const events = await database.select().from(optimizationEvents7).where(
+    const events = await database.select().from(optimizationEvents8).where(
       and10(
-        eq7(optimizationEvents7.eventCategory, "settings_change"),
-        eq7(optimizationEvents7.actionType, "settings_update"),
-        sql`JSON_EXTRACT(${optimizationEvents7.actionDetail}, '$.type') IN ('system_deploy', 'target_reoptimized')`
+        eq7(optimizationEvents8.eventCategory, "settings_change"),
+        eq7(optimizationEvents8.actionType, "settings_update"),
+        sql`JSON_EXTRACT(${optimizationEvents8.actionDetail}, '$.type') IN ('system_deploy', 'target_reoptimized')`
       )
-    ).orderBy(desc23(optimizationEvents7.createdAt)).limit(50);
+    ).orderBy(desc24(optimizationEvents8.createdAt)).limit(50);
     return events.map((e6) => ({
       id: e6.id,
       type: e6.actionDetail ? JSON.parse(e6.actionDetail).type : "unknown",
@@ -350040,15 +350172,15 @@ async function persistShutdownState() {
         actionType: "settings_update",
         actionDetail: JSON.stringify({
           type: "system_shutdown",
-          systemVersion: SYSTEM_VERSION2,
+          systemVersion: SYSTEM_VERSION,
           shutdownReason: shutdownState2.shutdownReason,
           shutdownType: "graceful",
           activeTasksAtShutdown: activeTasks2.size,
           interruptedTasks,
           shutdownDuration: Date.now() - (shutdownState2.shutdownStartedAt?.getTime() || Date.now())
         }),
-        changeReason: `\u7CFB\u7EDF\u4F18\u96C5\u5173\u95ED v${SYSTEM_VERSION2} (${shutdownState2.shutdownReason})`,
-        algorithmVersion: `v${SYSTEM_VERSION2}`,
+        changeReason: `\u7CFB\u7EDF\u4F18\u96C5\u5173\u95ED v${SYSTEM_VERSION} (${shutdownState2.shutdownReason})`,
+        algorithmVersion: `v${SYSTEM_VERSION}`,
         status: "success",
         apiSyncStatus: "not_applicable"
       });
@@ -350097,13 +350229,13 @@ async function writeHeartbeat(shutdownType) {
       (0, 'settings_change', 'settings_update', 
        ${JSON.stringify({
     type: "system_heartbeat",
-    systemVersion: SYSTEM_VERSION2,
+    systemVersion: SYSTEM_VERSION,
     shutdownType,
     activeTaskCount: activeTasks2.size,
     uptime: process.uptime()
   })},
        'system_heartbeat',
-       ${`v${SYSTEM_VERSION2}`},
+       ${`v${SYSTEM_VERSION}`},
        'success',
        'not_applicable',
        NOW())
@@ -350121,7 +350253,7 @@ async function runStartupDiagnostics() {
     pendingTasks: 0,
     versionChanged: false,
     previousVersion: null,
-    currentVersion: SYSTEM_VERSION2
+    currentVersion: SYSTEM_VERSION
   };
   try {
     const database = await getDb();
@@ -350170,7 +350302,7 @@ async function runStartupDiagnostics() {
       diagnostics.pendingTasks = pendingResult?.[0]?.[0]?.cnt || 0;
     } catch {
     }
-    diagnostics.versionChanged = diagnostics.previousVersion !== null && diagnostics.previousVersion < SYSTEM_VERSION2;
+    diagnostics.versionChanged = diagnostics.previousVersion !== null && diagnostics.previousVersion < SYSTEM_VERSION;
   } catch (error51) {
     log80.error(`[LifecycleManager] \u542F\u52A8\u8BCA\u65AD\u5931\u8D25: ${error51.message}`);
   }
@@ -350179,7 +350311,7 @@ async function runStartupDiagnostics() {
   log80.debug(`  \u4E0A\u6B21\u5FC3\u8DF3\u8DDD\u4ECA: ${diagnostics.lastHeartbeatAge >= 0 ? Math.round(diagnostics.lastHeartbeatAge) + "\u79D2" : "\u65E0\u8BB0\u5F55"}`);
   log80.debug(`  \u88AB\u4E2D\u65AD\u7684\u4EFB\u52A1: ${diagnostics.interruptedTasks}`);
   log80.info(`  \u5F85\u5904\u7406\u7684\u4EFB\u52A1: ${diagnostics.pendingTasks}`);
-  log80.info(`  \u7248\u672C\u53D8\u5316: ${diagnostics.versionChanged ? `v${diagnostics.previousVersion} \u2192 v${SYSTEM_VERSION2}` : "\u65E0"}`);
+  log80.info(`  \u7248\u672C\u53D8\u5316: ${diagnostics.versionChanged ? `v${diagnostics.previousVersion} \u2192 v${SYSTEM_VERSION}` : "\u65E0"}`);
   return diagnostics;
 }
 async function recoverInterruptedTasks() {
@@ -350202,12 +350334,12 @@ async function recoverInterruptedTasks() {
         actionType: "auto_correction",
         actionDetail: JSON.stringify({
           type: "task_recovery",
-          systemVersion: SYSTEM_VERSION2,
+          systemVersion: SYSTEM_VERSION,
           recoveredTasks: recovered,
           recoveryReason: "restart_after_deploy"
         }),
-        changeReason: `v${SYSTEM_VERSION2} \u542F\u52A8\u6062\u590D: \u91CD\u7F6E ${recovered} \u4E2A\u88AB\u4E2D\u65AD\u7684\u4EFB\u52A1`,
-        algorithmVersion: `v${SYSTEM_VERSION2}`,
+        changeReason: `v${SYSTEM_VERSION} \u542F\u52A8\u6062\u590D: \u91CD\u7F6E ${recovered} \u4E2A\u88AB\u4E2D\u65AD\u7684\u4EFB\u52A1`,
+        algorithmVersion: `v${SYSTEM_VERSION}`,
         status: "success",
         apiSyncStatus: "not_applicable"
       });
@@ -350233,7 +350365,7 @@ async function flushPendingTasks() {
 async function orchestrateStartup(server) {
   log80.debug(`
 [LifecycleManager] ========================================`);
-  log80.info(`[LifecycleManager] v${SYSTEM_VERSION2}: \u7CFB\u7EDF\u542F\u52A8\u534F\u8C03\u5F00\u59CB`);
+  log80.info(`[LifecycleManager] v${SYSTEM_VERSION}: \u7CFB\u7EDF\u542F\u52A8\u534F\u8C03\u5F00\u59CB`);
   log80.debug(`[LifecycleManager] ========================================
 `);
   registerGracefulShutdown(server);
@@ -350248,92 +350380,80 @@ async function orchestrateStartup(server) {
         log80.info(`[LifecycleManager] \u5904\u7406 ${diagnostics.pendingTasks + diagnostics.interruptedTasks} \u4E2A\u5F85\u5904\u7406/\u6062\u590D\u7684\u4EFB\u52A1...`);
         await flushPendingTasks();
       }
-      log80.info("[LifecycleManager] v261: \u8FD0\u884C\u90E8\u7F72\u540E\u91CD\u4F18\u5316\uFF08\u65B0\u7B97\u6CD5\u4F18\u5148\uFF09...");
-      const { runPostDeployOptimization: runPostDeployOptimization2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
-      const deployResult = await runPostDeployOptimization2();
-      if (deployResult.triggered) {
-        log80.info(`[LifecycleManager] \u2713 \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210: ${deployResult.targetsProcessed}\u4E2A\u76EE\u6807, ${deployResult.targetsSucceeded}\u4E2A\u6210\u529F, ${deployResult.totalOptimizationActions}\u4E2A\u4F18\u5316\u52A8\u4F5C`);
-      } else {
-        log80.debug(`[LifecycleManager] \u2713 ${deployResult.reason}`);
+      let deployResult = { triggered: false, reason: "not_executed", targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
+      try {
+        log80.info("[LifecycleManager] v329: \u8FD0\u884C\u90E8\u7F72\u540E\u91CD\u4F18\u5316\uFF08\u65B0\u7B97\u6CD5\u4F18\u5148\uFF09...");
+        const { runPostDeployOptimization: runPostDeployOptimization2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
+        deployResult = await runPostDeployOptimization2();
+        if (deployResult.triggered) {
+          log80.info(`[LifecycleManager] \u2713 \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210: ${deployResult.targetsProcessed}\u4E2A\u76EE\u6807, ${deployResult.targetsSucceeded}\u4E2A\u6210\u529F, ${deployResult.totalOptimizationActions}\u4E2A\u4F18\u5316\u52A8\u4F5C`);
+        } else {
+          log80.debug(`[LifecycleManager] \u2713 ${deployResult.reason}`);
+        }
+      } catch (deployErr) {
+        log80.error(`[LifecycleManager] v329: \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5931\u8D25\uFF08\u5DF2\u9694\u79BB\uFF0C\u7EE7\u7EED\u6267\u884C\u7EA0\u9519\uFF09: ${deployErr.message}`);
       }
-      log80.info("[LifecycleManager] v261: \u8FD0\u884CAPI\u6267\u884C\u7EA7\u7EA0\u9519\uFF08\u786E\u4FDD\u540C\u6B65\u4E00\u81F4\u6027\uFF09...");
-      const { runAutoCorrection: runAutoCorrection2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
-      const corrResult = await runAutoCorrection2();
-      log80.info(`[LifecycleManager] \u2713 \u7EA0\u9519\u5B8C\u6210: \u53D1\u73B0${corrResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${corrResult.totalCorrected}\u4E2A`);
+      let corrResult = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
+      try {
+        log80.info("[LifecycleManager] v329: \u8FD0\u884CAPI\u6267\u884C\u7EA7\u7EA0\u9519\uFF08\u786E\u4FDD\u540C\u6B65\u4E00\u81F4\u6027\uFF09...");
+        const { runAutoCorrection: runAutoCorrection2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
+        corrResult = await runAutoCorrection2();
+        log80.info(`[LifecycleManager] \u2713 \u7EA0\u9519\u5B8C\u6210: \u53D1\u73B0${corrResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${corrResult.totalCorrected}\u4E2A`);
+      } catch (corrErr) {
+        log80.error(`[LifecycleManager] v329: \u7EA0\u9519\u626B\u63CF\u5931\u8D25\uFF08\u5DF2\u9694\u79BB\uFF0C\u7EE7\u7EED\u6267\u884C\u9A8C\u8BC1\uFF09: ${corrErr.message}`);
+      }
       if (deployResult.triggered && deployResult.totalOptimizationActions > 0) {
         try {
-          log80.info("[LifecycleManager] v261: \u542F\u52A8\u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1\uFF08\u7B49\u5F8560\u79D2\u8BA9Amazon\u5904\u7406\u6307\u4EE4\uFF09...");
+          log80.info("[LifecycleManager] v329: \u542F\u52A8\u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1\uFF08\u7B49\u5F8560\u79D2\u8BA9Amazon\u5904\u7406\u6307\u4EE4\uFF09...");
           await new Promise((resolve8) => setTimeout(resolve8, 60 * 1e3));
-          const verifyResult = await runAutoCorrection2();
+          const { runAutoCorrection: runVerify } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
+          const verifyResult = await runVerify();
           const newIssues = verifyResult.totalIssuesFound;
           const newCorrected = verifyResult.totalCorrected;
           if (newIssues === 0) {
-            log80.info(`[LifecycleManager] v261: \u2713 \u6548\u679C\u9A8C\u8BC1\u901A\u8FC7 \u2014 \u6240\u6709\u91CD\u4F18\u5316\u6307\u4EE4\u5DF2\u88ABAmazon\u6210\u529F\u63A5\u53D7`);
+            log80.info(`[LifecycleManager] v329: \u2713 \u6548\u679C\u9A8C\u8BC1\u901A\u8FC7 \u2014 \u6240\u6709\u91CD\u4F18\u5316\u6307\u4EE4\u5DF2\u88ABAmazon\u6210\u529F\u63A5\u53D7`);
           } else {
-            log80.warn(`[LifecycleManager] v261: \u26A0 \u6548\u679C\u9A8C\u8BC1\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4, \u5DF2\u81EA\u52A8\u7EA0\u6B63${newCorrected}\u4E2A`);
+            log80.warn(`[LifecycleManager] v329: \u26A0 \u6548\u679C\u9A8C\u8BC1\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4, \u5DF2\u81EA\u52A8\u7EA0\u6B63${newCorrected}\u4E2A`);
           }
-          const database = await getDb();
-          if (database) {
-            await database.insert(optimizationEvents).values({
-              accountId: 0,
-              eventCategory: "settings_change",
-              actionType: "auto_correction",
-              actionDetail: JSON.stringify({
+          try {
+            const database = await getDb();
+            if (database) {
+              const detail = JSON.stringify({
                 type: "post_deploy_verification",
-                systemVersion: SYSTEM_VERSION2,
-                deployResult: {
-                  triggered: deployResult.triggered,
-                  targetsProcessed: deployResult.targetsProcessed,
-                  targetsSucceeded: deployResult.targetsSucceeded,
-                  targetsFailed: deployResult.targetsFailed,
-                  totalActions: deployResult.totalOptimizationActions
-                },
-                correctionResult: {
-                  issuesFound: corrResult.totalIssuesFound,
-                  corrected: corrResult.totalCorrected
-                },
-                verificationResult: {
-                  issuesFound: newIssues,
-                  corrected: newCorrected,
-                  passed: newIssues === 0
-                }
-              }),
-              changeReason: `v${SYSTEM_VERSION2} \u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1: ${newIssues === 0 ? "\u901A\u8FC7" : `\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4`}`,
-              algorithmVersion: `v${SYSTEM_VERSION2}`,
-              status: newIssues === 0 ? "success" : "pending",
-              apiSyncStatus: "not_applicable"
-            });
+                systemVersion: SYSTEM_VERSION,
+                deployResult: { triggered: deployResult.triggered, targetsProcessed: deployResult.targetsProcessed, targetsSucceeded: deployResult.targetsSucceeded, targetsFailed: deployResult.targetsFailed, totalActions: deployResult.totalOptimizationActions },
+                correctionResult: { issuesFound: corrResult.totalIssuesFound, corrected: corrResult.totalCorrected },
+                verificationResult: { issuesFound: newIssues, corrected: newCorrected, passed: newIssues === 0 }
+              });
+              const reason = `v${SYSTEM_VERSION} \u90E8\u7F72\u540E\u6548\u679C\u9A8C\u8BC1: ${newIssues === 0 ? "\u901A\u8FC7" : `\u53D1\u73B0${newIssues}\u4E2A\u4E0D\u4E00\u81F4`}`;
+              const algVer = `v${SYSTEM_VERSION}`;
+              const status = newIssues === 0 ? "success" : "pending";
+              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
+            }
+          } catch (logErr) {
+            log80.warn(`[LifecycleManager] v329: \u8BB0\u5F55\u9A8C\u8BC1\u7ED3\u679C\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u8FD0\u884C\uFF09: ${logErr.message}`);
           }
         } catch (verifyErr) {
-          log80.warn(`[LifecycleManager] v261: \u6548\u679C\u9A8C\u8BC1\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u8FD0\u884C\uFF09: ${verifyErr.message}`);
+          log80.warn(`[LifecycleManager] v329: \u6548\u679C\u9A8C\u8BC1\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u8FD0\u884C\uFF09: ${verifyErr.message}`);
         }
       }
       if (diagnostics.lastShutdownType === "crash") {
-        const database = await getDb();
-        if (database) {
-          await database.insert(optimizationEvents).values({
-            accountId: 0,
-            eventCategory: "settings_change",
-            actionType: "auto_correction",
-            actionDetail: JSON.stringify({
+        try {
+          const database = await getDb();
+          if (database) {
+            const detail = JSON.stringify({
               type: "crash_recovery_complete",
-              systemVersion: SYSTEM_VERSION2,
+              systemVersion: SYSTEM_VERSION,
               diagnostics,
-              correctionResult: {
-                issuesFound: corrResult.totalIssuesFound,
-                corrected: corrResult.totalCorrected
-              },
-              deployResult: {
-                triggered: deployResult.triggered,
-                targetsProcessed: deployResult.targetsProcessed,
-                targetsSucceeded: deployResult.targetsSucceeded
-              }
-            }),
-            changeReason: `v${SYSTEM_VERSION2} crash\u6062\u590D\u5B8C\u6210`,
-            algorithmVersion: `v${SYSTEM_VERSION2}`,
-            status: "success",
-            apiSyncStatus: "not_applicable"
-          });
+              correctionResult: { issuesFound: corrResult.totalIssuesFound, corrected: corrResult.totalCorrected },
+              deployResult: { triggered: deployResult.triggered, targetsProcessed: deployResult.targetsProcessed, targetsSucceeded: deployResult.targetsSucceeded }
+            });
+            const reason = `v${SYSTEM_VERSION} crash\u6062\u590D\u5B8C\u6210`;
+            const algVer = `v${SYSTEM_VERSION}`;
+            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
+          }
+        } catch (crashLogErr) {
+          log80.warn(`[LifecycleManager] v329: \u8BB0\u5F55crash\u6062\u590D\u4E8B\u4EF6\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u8FD0\u884C\uFF09: ${crashLogErr.message}`);
         }
       }
       try {
@@ -350354,7 +350474,7 @@ async function orchestrateStartup(server) {
       }
       log80.debug(`
 [LifecycleManager] ========================================`);
-      log80.info(`[LifecycleManager] v${SYSTEM_VERSION2}: \u542F\u52A8\u534F\u8C03\u5B8C\u6210\uFF0C\u7CFB\u7EDF\u8FDB\u5165\u6B63\u5E38\u8FD0\u884C`);
+      log80.info(`[LifecycleManager] v${SYSTEM_VERSION}: \u542F\u52A8\u534F\u8C03\u5B8C\u6210\uFF0C\u7CFB\u7EDF\u8FDB\u5165\u6B63\u5E38\u8FD0\u884C`);
       log80.debug(`[LifecycleManager] ========================================
 `);
     } catch (err2) {
@@ -350366,7 +350486,7 @@ async function orchestrateStartup(server) {
 }
 function getSystemInfo() {
   return {
-    version: SYSTEM_VERSION2,
+    version: SYSTEM_VERSION,
     isShuttingDown: shutdownState2.isShuttingDown,
     activeTasks: activeTasks2.size,
     uptime: process.uptime()

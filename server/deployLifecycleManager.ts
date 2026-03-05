@@ -636,111 +636,95 @@ export async function orchestrateStartup(server: any): Promise<void> {
         await flushPendingTasks();
       }
       
-      // v261: 重构启动协调顺序 — 确保"新版本算法优先"原则
-      // 原顺序: AutoCorrector → PostDeploy（问题：AutoCorrector可能基于旧逻辑"纠正"回去，PostDeploy再覆盖，浪费API调用）
-      // 新顺序: PostDeploy → AutoCorrector → 效果验证
+      // v329: 重构启动协调 — 每个步骤独立错误隔离，确保任何步骤失败不阻塞后续步骤
+      // 顺序: PostDeploy → AutoCorrector → 效果验证
       // 理由: 先用新算法重优化所有目标，再用纠错器确保API同步一致性，最后验证效果
       
-      // 步骤4b: 运行部署后重优化（优先执行，确保新算法立即生效）
-      log.info('[LifecycleManager] v261: 运行部署后重优化（新算法优先）...');
-      const { runPostDeployOptimization } = await import('./postDeployOptimizer');
-      const deployResult = await runPostDeployOptimization();
-      if (deployResult.triggered) {
-        log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功, ${deployResult.totalOptimizationActions}个优化动作`);
-      } else {
-        log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
+      // 步骤4b: 运行部署后重优化（独立错误隔离）
+      let deployResult: any = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
+      try {
+        log.info('[LifecycleManager] v329: 运行部署后重优化（新算法优先）...');
+        const { runPostDeployOptimization } = await import('./postDeployOptimizer');
+        deployResult = await runPostDeployOptimization();
+        if (deployResult.triggered) {
+          log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功, ${deployResult.totalOptimizationActions}个优化动作`);
+        } else {
+          log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
+        }
+      } catch (deployErr: any) {
+        log.error(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${deployErr.message}`);
       }
       
-      // 步骤4c: 运行API执行级纠错（在重优化之后执行，确保所有指令的API同步一致性）
-      log.info('[LifecycleManager] v261: 运行API执行级纠错（确保同步一致性）...');
-      const { runAutoCorrection } = await import('./optimizationAutoCorrector');
-      const corrResult = await runAutoCorrection();
-      log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+      // 步骤4c: 运行API执行级纠错（独立错误隔离）
+      let corrResult: any = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
+      try {
+        log.info('[LifecycleManager] v329: 运行API执行级纠错（确保同步一致性）...');
+        const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+        corrResult = await runAutoCorrection();
+        log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+      } catch (corrErr: any) {
+        log.error(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${corrErr.message}`);
+      }
       
-      // 步骤4d: v261 部署后效果验证 — 确认重优化指令已被Amazon API接受
+      // 步骤4d: v329 部署后效果验证（独立错误隔离 + raw SQL记录）
       if (deployResult.triggered && deployResult.totalOptimizationActions > 0) {
         try {
-          log.info('[LifecycleManager] v261: 启动部署后效果验证（等待60秒让Amazon处理指令）...');
+          log.info('[LifecycleManager] v329: 启动部署后效果验证（等待60秒让Amazon处理指令）...');
           await new Promise(resolve => setTimeout(resolve, 60 * 1000));
           
-          // 重新运行纠错扫描，检查是否有新的不一致（即PostDeploy的指令未被Amazon接受）
-          const verifyResult = await runAutoCorrection();
+          const { runAutoCorrection: runVerify } = await import('./optimizationAutoCorrector');
+          const verifyResult = await runVerify();
           const newIssues = verifyResult.totalIssuesFound;
           const newCorrected = verifyResult.totalCorrected;
           
           if (newIssues === 0) {
-            log.info(`[LifecycleManager] v261: ✓ 效果验证通过 — 所有重优化指令已被Amazon成功接受`);
+            log.info(`[LifecycleManager] v329: ✓ 效果验证通过 — 所有重优化指令已被Amazon成功接受`);
           } else {
-            log.warn(`[LifecycleManager] v261: ⚠ 效果验证发现${newIssues}个不一致, 已自动纠正${newCorrected}个`);
+            log.warn(`[LifecycleManager] v329: ⚠ 效果验证发现${newIssues}个不一致, 已自动纠正${newCorrected}个`);
           }
           
-          // 记录验证结果到数据库
-          const database = await getDb();
-          if (database) {
-            await database.insert(optimizationEvents).values({
-              accountId: 0,
-              eventCategory: 'settings_change',
-              actionType: 'auto_correction',
-              actionDetail: JSON.stringify({
-                type: 'post_deploy_verification',
-                systemVersion: SYSTEM_VERSION,
-                deployResult: {
-                  triggered: deployResult.triggered,
-                  targetsProcessed: deployResult.targetsProcessed,
-                  targetsSucceeded: deployResult.targetsSucceeded,
-                  targetsFailed: deployResult.targetsFailed,
-                  totalActions: deployResult.totalOptimizationActions,
-                },
-                correctionResult: {
-                  issuesFound: corrResult.totalIssuesFound,
-                  corrected: corrResult.totalCorrected,
-                },
-                verificationResult: {
-                  issuesFound: newIssues,
-                  corrected: newCorrected,
-                  passed: newIssues === 0,
-                },
-              }),
-              changeReason: `v${SYSTEM_VERSION} 部署后效果验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个不一致`}`,
-              algorithmVersion: `v${SYSTEM_VERSION}`,
-              status: newIssues === 0 ? 'success' : 'pending',
-              apiSyncStatus: 'not_applicable',
-            });
+          // v329: 使用raw SQL记录验证结果，避免Drizzle ORM的schema不匹配问题
+          try {
+            const database = await getDb();
+            if (database) {
+              const detail = JSON.stringify({
+                type: 'post_deploy_verification', systemVersion: SYSTEM_VERSION,
+                deployResult: { triggered: deployResult.triggered, targetsProcessed: deployResult.targetsProcessed, targetsSucceeded: deployResult.targetsSucceeded, targetsFailed: deployResult.targetsFailed, totalActions: deployResult.totalOptimizationActions },
+                correctionResult: { issuesFound: corrResult.totalIssuesFound, corrected: corrResult.totalCorrected },
+                verificationResult: { issuesFound: newIssues, corrected: newCorrected, passed: newIssues === 0 },
+              });
+              const reason = `v${SYSTEM_VERSION} 部署后效果验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个不一致`}`;
+              const algVer = `v${SYSTEM_VERSION}`;
+              const status = newIssues === 0 ? 'success' : 'pending';
+              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
+            }
+          } catch (logErr: any) {
+            log.warn(`[LifecycleManager] v329: 记录验证结果失败（不影响系统运行）: ${logErr.message}`);
           }
         } catch (verifyErr: any) {
-          log.warn(`[LifecycleManager] v261: 效果验证失败（不影响系统运行）: ${verifyErr.message}`);
+          log.warn(`[LifecycleManager] v329: 效果验证失败（不影响系统运行）: ${verifyErr.message}`);
         }
       }
       
-      // 步骤4e: 如果是crash恢复，记录恢复完成事件
+      // 步骤4e: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
       if (diagnostics.lastShutdownType === 'crash') {
-        const database = await getDb();
-        if (database) {
-          await database.insert(optimizationEvents).values({
-            accountId: 0,
-            eventCategory: 'settings_change',
-            actionType: 'auto_correction',
-            actionDetail: JSON.stringify({
-              type: 'crash_recovery_complete',
-              systemVersion: SYSTEM_VERSION,
-              diagnostics,
-              correctionResult: {
-                issuesFound: corrResult.totalIssuesFound,
-                corrected: corrResult.totalCorrected,
-              },
-              deployResult: {
-                triggered: deployResult.triggered,
-                targetsProcessed: deployResult.targetsProcessed,
-                targetsSucceeded: deployResult.targetsSucceeded,
-              },
-            }),
-            changeReason: `v${SYSTEM_VERSION} crash恢复完成`,
-            algorithmVersion: `v${SYSTEM_VERSION}`,
-            status: 'success',
-            apiSyncStatus: 'not_applicable',
-          });
+        try {
+          const database = await getDb();
+          if (database) {
+            const detail = JSON.stringify({
+              type: 'crash_recovery_complete', systemVersion: SYSTEM_VERSION, diagnostics,
+              correctionResult: { issuesFound: corrResult.totalIssuesFound, corrected: corrResult.totalCorrected },
+              deployResult: { triggered: deployResult.triggered, targetsProcessed: deployResult.targetsProcessed, targetsSucceeded: deployResult.targetsSucceeded },
+            });
+            const reason = `v${SYSTEM_VERSION} crash恢复完成`;
+            const algVer = `v${SYSTEM_VERSION}`;
+            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
+          }
+        } catch (crashLogErr: any) {
+          log.warn(`[LifecycleManager] v329: 记录crash恢复事件失败（不影响系统运行）: ${crashLogErr.message}`);
         }
       }
+
       
       // 步骤4f: v239 运行系统监控检查
       try {

@@ -253,6 +253,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     
     for (const accId of accountIds) {
+      // v329: 每个账户处理前检查内存 - 超过85%则中断剩余账户的纠错
+      const memCheck = process.memoryUsage();
+      const heapCheck = Math.round((memCheck.heapUsed / memCheck.heapTotal) * 100);
+      if (heapCheck > 85) {
+        log.warn(`[AutoCorrector] v329: 内存超限(${heapCheck}%)，中断剩余账户纠错扫描，已处理${accountIds.indexOf(accId)}/${accountIds.length}个账户`);
+        if (typeof global.gc === 'function') global.gc();
+        break;
+      }
       try {
         // 1. 重试API同步失败的出价调整
         const bidRetries = await retryFailedBidAdjustments(database, accId);
@@ -3516,7 +3524,15 @@ export function startAutoCorrector(): void {
     : 4 * 60 * 60 * 1000;
   correctionInterval = setInterval(async () => {
     try {
-      log.info('定时纠错扫描开始...');
+      // v329: 内存预算检查 - 纠错扫描是非关键任务，内存紧张时跳过
+      const mem = process.memoryUsage();
+      const heapUtil = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+      if (heapUtil > 80) {
+        log.warn(`[AutoCorrector] v329: 内存紧张(${heapUtil}%)，跳过本次纠错扫描`);
+        if (typeof global.gc === 'function') global.gc();
+        return;
+      }
+      log.info(`定时纠错扫描开始... heap=${heapUtil}%`);
       const result = await runAutoCorrection();
       log.warn(`定时纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
       

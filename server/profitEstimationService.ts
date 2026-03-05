@@ -616,6 +616,7 @@ export function isBidProfitable(
 /** 效率历史缓冲区 */
 const efficiencyHistoryBuffer = new Map<string, Array<{ timestamp: Date; roas: number; acos: number }>>();
 const MAX_HISTORY_ENTRIES = 100;
+const MAX_EFFICIENCY_TARGETS = 500; // v329: 限制缓存的target数量，防止无限增长
 
 /**
  * 记录广告效率快照用于趋势追踪
@@ -627,6 +628,11 @@ export function recordProfitSnapshot(
 ): void {
   const key = `target_${targetId}`;
   if (!efficiencyHistoryBuffer.has(key)) {
+    // v329: 限制缓存的target数量
+    if (efficiencyHistoryBuffer.size >= MAX_EFFICIENCY_TARGETS) {
+      const firstKey = efficiencyHistoryBuffer.keys().next().value;
+      if (firstKey) efficiencyHistoryBuffer.delete(firstKey);
+    }
     efficiencyHistoryBuffer.set(key, []);
   }
   

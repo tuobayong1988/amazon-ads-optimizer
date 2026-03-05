@@ -480,7 +480,9 @@ export function cqlDecide(
 // ==================== v230: 模型持久化（内存缓存 + 数据库双层存储） ====================
 
 // 内存缓存
+// v329: 添加大小限制，最多缓存10个账户的模型，超出时删除最早的缓存
 const modelCache = new Map<number, CQLModel>();
+const MAX_MODEL_CACHE_SIZE = 10;
 
 /**
  * v230: 从数据库加载CQL模型
@@ -595,6 +597,11 @@ export async function getOrTrainCQLModel(accountId: number): Promise<CQLModel> {
   
   // 第3层：新训练
   const model = await trainCQL(accountId, cached || null);
+  // v329: 缓存大小限制
+  if (modelCache.size >= MAX_MODEL_CACHE_SIZE && !modelCache.has(accountId)) {
+    const firstKey = modelCache.keys().next().value;
+    if (firstKey !== undefined) modelCache.delete(firstKey);
+  }
   modelCache.set(accountId, model);
   await saveModelToDb(accountId, model);
   return model;

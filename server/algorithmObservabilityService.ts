@@ -119,7 +119,7 @@ export interface AlgorithmDashboardMetrics {
 // ==================== 内存存储 ====================
 
 const decisionTraces: AlgorithmDecisionTrace[] = [];
-const MAX_TRACE_BUFFER = 10000; // 保留最近10000条追踪
+const MAX_TRACE_BUFFER = 2000; // v329: 从10000降至2000，减少内存占用约80%
 
 // ==================== 核心函数 ====================
 
@@ -338,7 +338,7 @@ export function cleanupOldTraces(maxAgeDays: number = 7): number {
 
 /** 通用指标缓冲区 */
 const metricBuffer: Array<{ type: string; data: Record<string, any>; timestamp: Date }> = [];
-const MAX_METRIC_BUFFER = 5000;
+const MAX_METRIC_BUFFER = 1000; // v329: 从5000降至1000，减少内存占用约80%
 
 /**
  * v272 P0-1: 记录通用可观测性指标

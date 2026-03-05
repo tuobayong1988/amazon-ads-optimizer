@@ -246,6 +246,7 @@ const runtimeConfig: Map<string, ConfigParameter> = new Map();
 
 /** 配置变更日志 */
 const changeLogs: ConfigChangeLog[] = [];
+const MAX_CHANGE_LOGS = 200; // v329: 限制变更日志数量，防止无限增长
 
 // 初始化运行时配置
 function initializeConfig(): void {
@@ -317,6 +318,8 @@ export function updateConfig(
     reason,
     timestamp: new Date(),
   });
+  // v329: 限制变更日志数量
+  while (changeLogs.length > MAX_CHANGE_LOGS) changeLogs.shift();
 
   // 更新值
   param.value = value;
@@ -374,6 +377,8 @@ export function resetAllConfig(resetBy: string = 'system'): void {
     reason: '重置所有参数为默认值',
     timestamp: new Date(),
   });
+  // v329: 限制变更日志数量
+  while (changeLogs.length > MAX_CHANGE_LOGS) changeLogs.shift();
 }
 
 /**

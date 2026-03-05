@@ -26,12 +26,15 @@ import * as db from './db';
 import { performanceGroups, campaigns, keywords, optimizationEvents } from '../drizzle/schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import { createModuleLogger } from './utils/logger';
+import { SYSTEM_VERSION } from './utils/systemVersion';
 
 const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
-// 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 328;  // v328: [keyword_create去重增强+SD_adgroup_pause修复+AutoCorrector纠错循环修复]
+// v329重构: SYSTEM_VERSION 统一从 utils/systemVersion.ts 导入，消除双源不同步问题
+// 每次发版时只需修改 utils/systemVersion.ts 中的版本号
+// 重新导出以保持向后兼容（_core/index.ts 和 routes/ops.ts 从此文件导入）
+export { SYSTEM_VERSION };
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -389,6 +392,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['keyword', 'sync', 'bid'],
     correctionActions: ['rerun_optimization', 'cleanup_stale_pending', 'revalidate_pending_commands'],
   },
+  {
+    version: 329,
+    description: 'v329: [架构级稳定性重构] — (1)P0-版本号统一单一来源: 消除systemVersion.ts和postDeployOptimizer.ts双源不同步问题,心跳/生命周期/PostDeploy统一使用systemVersion.ts (2)P0-PostDeployOptimizer容错重构: recordDeployVersion/updateTargetOptimizedVersion/getLastDeployedVersion全部改用raw SQL+3次重试,避免Drizzle ORM schema不匹配和数据库瞬时中断导致部署后优化失败 (3)P0-deployLifecycleManager错误隔离: 步骤4b-4e每个步骤独立try-catch,PostDeploy失败不阻塞AutoCorrector,步骤4d/4e改用raw SQL记录 (4)P0-内存管理重构: V8堆限制从2048MB降至1400MB为OS预留600MB,decisionTraces缓存10000→2000,metricBuffer 5000→1000,metricAggregates/modelCache/efficiencyHistoryBuffer/changeLogs全部添加大小上限 (5)P1-任务分层内存预算: executeOptimizationTask添加80%内存预算检查,AutoCorrector每账户处理前85%内存检查,startAutoCorrector添加90%内存保护',
+    affectedModules: ['bid', 'sync', 'keyword'],
+    correctionActions: ['rerun_optimization', 'cleanup_stale_pending', 'revalidate_pending_commands'],
+  },
 ];
 
 // ==================== 配置 ====================
@@ -459,105 +468,129 @@ interface TargetReoptimizeResult {
  * 为简化实现，使用 optimization_events 表记录版本部署事件
  */
 async function getLastDeployedVersion(): Promise<number | null> {
-  try {
-    const database = await getDb();
-    if (!database) return null;
-    
-    // 使用 settings_update + actionDetail 中的 type='system_deploy' 来识别部署事件
-    const result = await database
-      .select({ actionDetail: optimizationEvents.actionDetail })
-      .from(optimizationEvents)
-      .where(
-        and(
-          eq(optimizationEvents.eventCategory, 'settings_change'),
-          eq(optimizationEvents.actionType, 'settings_update'),
-          eq(optimizationEvents.status, 'success'),
-          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
-        )
-      )
-      .orderBy(desc(optimizationEvents.createdAt))
-      .limit(1);
-    
-    if (result.length > 0 && result[0].actionDetail) {
-      try {
-        const detail = JSON.parse(result[0].actionDetail);
-        return detail.systemVersion || null;
-      } catch {
-        return null;
+  // v329重构: 改用raw SQL替代Drizzle ORM，避免部署重启时schema不匹配导致查询失败
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) return null;
+      
+      const result = await database.execute(sql`
+        SELECT action_detail FROM optimization_events
+        WHERE event_category = 'settings_change'
+          AND action_type = 'settings_update'
+          AND status = 'success'
+          AND JSON_EXTRACT(action_detail, '$.type') = 'system_deploy'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `);
+      
+      const rows = (result as any)[0] || [];
+      if (rows.length > 0 && rows[0].action_detail) {
+        try {
+          const detail = typeof rows[0].action_detail === 'string' 
+            ? JSON.parse(rows[0].action_detail) 
+            : rows[0].action_detail;
+          return detail.systemVersion || null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    } catch (error: any) {
+      log.error(`[PostDeployOptimizer] 获取上次部署版本失败 (尝试${attempt}/${maxRetries}): ${error.message}`);
+      if (attempt < maxRetries) {
+        await sleep(5000 * attempt); // 递增等待
       }
     }
-    return null;
-  } catch (error: any) {
-    log.error(`[PostDeployOptimizer] 获取上次部署版本失败: ${error.message}`);
-    return null;
   }
+  log.error(`[PostDeployOptimizer] 获取上次部署版本失败: 已耗尽所有重试`);
+  return null;
 }
 
 /**
  * 记录当前版本的部署事件
  */
 async function recordDeployVersion(version: number, result: PostDeployResult): Promise<void> {
-  try {
-    const database = await getDb();
-    if (!database) return;
-    
-    await database.insert(optimizationEvents).values({
-      accountId: 0, // 系统级事件
-      eventCategory: 'settings_change',
-      actionType: 'settings_update',
-      actionDetail: JSON.stringify({
-        type: 'system_deploy',
-        systemVersion: version,
-        previousVersion: result.previousVersion,
-        versionsApplied: result.versionsToApply,
-        affectedModules: result.affectedModules,
-        targetsProcessed: result.targetsProcessed,
-        targetsSucceeded: result.targetsSucceeded,
-        targetsFailed: result.targetsFailed,
-        totalActions: result.totalOptimizationActions,
-      }),
-      changeReason: `系统部署 v${version}`,
-      previousValue: result.previousVersion?.toString() || 'none',
-      newValue: version.toString(),
-      algorithmVersion: `v${version}`,
-      status: result.targetsFailed === 0 ? 'success' : 'pending',
-      apiSyncStatus: 'not_applicable',
-    });
-    
-    log.info(`[PostDeployOptimizer] 已记录部署版本 v${version}`);
-  } catch (error: any) {
-    log.error(`[PostDeployOptimizer] 记录部署版本失败: ${error.message}`);
+  // v329重构: 改用raw SQL替代Drizzle ORM，避免部署重启时schema不匹配导致insert失败
+  // 添加重试机制，确保部署版本一定被记录（否则下次重启会重复触发PostDeploy）
+  const actionDetail = JSON.stringify({
+    type: 'system_deploy',
+    systemVersion: version,
+    previousVersion: result.previousVersion,
+    versionsApplied: result.versionsToApply,
+    affectedModules: result.affectedModules,
+    targetsProcessed: result.targetsProcessed,
+    targetsSucceeded: result.targetsSucceeded,
+    targetsFailed: result.targetsFailed,
+    totalActions: result.totalOptimizationActions,
+  });
+  const statusValue = result.targetsFailed === 0 ? 'success' : 'partial_success';
+  const changeReason = `系统部署 v${version}`;
+  const prevValue = result.previousVersion?.toString() || 'none';
+  
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) {
+        log.error(`[PostDeployOptimizer] 记录部署版本失败: 数据库连接不可用 (尝试${attempt}/${maxRetries})`);
+        if (attempt < maxRetries) await sleep(10000 * attempt);
+        continue;
+      }
+      
+      await database.execute(sql`
+        INSERT INTO optimization_events 
+          (account_id, event_category, action_type, action_detail, change_reason, 
+           previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
+        VALUES 
+          (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
+           ${prevValue}, ${version.toString()}, ${`v${version}`}, ${statusValue}, 'not_applicable', NOW())
+      `);
+      
+      log.info(`[PostDeployOptimizer] ✓ 已记录部署版本 v${version} (status=${statusValue})`);
+      return; // 成功，直接返回
+    } catch (error: any) {
+      log.error(`[PostDeployOptimizer] 记录部署版本失败 (尝试${attempt}/${maxRetries}): ${error.message}`);
+      if (attempt < maxRetries) {
+        await sleep(10000 * attempt); // 递增等待: 10s, 20s
+      }
+    }
   }
+  log.error(`[PostDeployOptimizer] ✗ 记录部署版本 v${version} 失败: 已耗尽所有重试，下次重启将重新触发PostDeploy`);
 }
 
 /**
  * 更新优化目标的"上次优化版本"
  */
 async function updateTargetOptimizedVersion(targetId: number, version: number): Promise<void> {
-  try {
-    const database = await getDb();
-    if (!database) return;
-    
-    // 使用 lastOptimizationAt 字段更新时间，同时在 description 中追加版本信息
-    // 由于 performanceGroups 表没有专门的版本字段，我们通过 optimization_events 追踪
-    await database.insert(optimizationEvents).values({
-      accountId: 0,
-      eventCategory: 'settings_change',
-      actionType: 'settings_update',
-      actionDetail: JSON.stringify({
-        type: 'target_reoptimized',
-        systemVersion: version,
-        targetId: targetId,
-      }),
-      changeReason: `优化目标 ${targetId} 部署后重优化 v${version}`,
-      previousValue: 'reoptimize_triggered',
-      newValue: `v${version}`,
-      algorithmVersion: `v${version}`,
-      status: 'success',
-      apiSyncStatus: 'not_applicable',
-    });
-  } catch (error: any) {
-    log.error(`[PostDeployOptimizer] 更新目标版本失败: ${error.message}`);
+  // v329重构: 改用raw SQL替代Drizzle ORM，避免部署重启时schema不匹配导致insert失败
+  const actionDetail = JSON.stringify({
+    type: 'target_reoptimized',
+    systemVersion: version,
+    targetId: targetId,
+  });
+  const changeReason = `优化目标 ${targetId} 部署后重优化 v${version}`;
+  
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const database = await getDb();
+      if (!database) return;
+      
+      await database.execute(sql`
+        INSERT INTO optimization_events 
+          (account_id, event_category, action_type, action_detail, change_reason,
+           previous_value, new_value, algorithm_version, status, api_sync_status, created_at)
+        VALUES 
+          (0, 'settings_change', 'settings_update', ${actionDetail}, ${changeReason},
+           'reoptimize_triggered', ${`v${version}`}, ${`v${version}`}, 'success', 'not_applicable', NOW())
+      `);
+      return; // 成功
+    } catch (error: any) {
+      log.error(`[PostDeployOptimizer] 更新目标版本失败 (targetId=${targetId}, 尝试${attempt}/${maxRetries}): ${error.message}`);
+      if (attempt < maxRetries) await sleep(5000);
+    }
   }
 }
 
@@ -565,28 +598,28 @@ async function updateTargetOptimizedVersion(targetId: number, version: number): 
  * 获取优化目标上次被重优化的版本号
  */
 async function getTargetLastOptimizedVersion(targetId: number): Promise<number | null> {
+  // v329重构: 改用raw SQL替代Drizzle ORM
   try {
     const database = await getDb();
     if (!database) return null;
     
-    const result = await database
-      .select({ actionDetail: optimizationEvents.actionDetail })
-      .from(optimizationEvents)
-      .where(
-        and(
-          eq(optimizationEvents.eventCategory, 'settings_change'),
-          eq(optimizationEvents.actionType, 'settings_update'),
-          eq(optimizationEvents.status, 'success'),
-          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'target_reoptimized'`,
-          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.targetId') = ${targetId}`
-        )
-      )
-      .orderBy(desc(optimizationEvents.createdAt))
-      .limit(1);
+    const result = await database.execute(sql`
+      SELECT action_detail FROM optimization_events
+      WHERE event_category = 'settings_change'
+        AND action_type = 'settings_update'
+        AND status = 'success'
+        AND JSON_EXTRACT(action_detail, '$.type') = 'target_reoptimized'
+        AND JSON_EXTRACT(action_detail, '$.targetId') = ${targetId}
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
     
-    if (result.length > 0 && result[0].actionDetail) {
+    const rows = (result as any)[0] || [];
+    if (rows.length > 0 && rows[0].action_detail) {
       try {
-        const detail = JSON.parse(result[0].actionDetail);
+        const detail = typeof rows[0].action_detail === 'string'
+          ? JSON.parse(rows[0].action_detail)
+          : rows[0].action_detail;
         return detail.systemVersion || null;
       } catch {
         return null;
