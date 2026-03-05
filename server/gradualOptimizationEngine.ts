@@ -502,6 +502,19 @@ export function performSafetyCheck(
     }
   }
   
+  // v332: ACoS持续超标检测 — 当加权ACoS超过合理阈值时发出警告
+  // 这是对LERUCCI US ACoS 132.7%问题的底层修复
+  if (metrics.weightedAcos > 0) {
+    if (metrics.weightedAcos > 1.5) {
+      // ACoS > 150%: 严重超标，触发安全暂停
+      warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，严重超标，建议紧急审查广告活动`);
+      shouldPause = true;
+    } else if (metrics.weightedAcos > 0.8) {
+      // ACoS > 80%: 明显超标，发出警告
+      warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，明显偏高`);
+    }
+  }
+  
   return {
     safe: !shouldPause,
     warnings,

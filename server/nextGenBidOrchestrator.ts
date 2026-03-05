@@ -937,20 +937,37 @@ function ruleEngineDecision(
         confidence: 0.5 + dataConfidence * 0.15,
         reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v259温和降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
       };
-    } else {
-      // v259: ACOS严重超标（>2倍）— 果断但有限降价
+    } else if (acosRatio <= 3.0) {
+      // v259: ACOS严重超标（2-3倍）— 果断但有限降价
       // 核心改进：即使严重超标也不超过20%降幅，防止死亡螺旋
       const isHighCtr = ctr > 0.008;
       // v259: 高CTR关键词降价更保守（相关性好，可能是归因延迟导致）
       const maxReduceLimit = isHighCtr ? 0.12 : 0.20;
-      const baseReduceRatio = (acosRatio - 1) * 0.15; // v259: 从0.20进一步降低到0.15
+      const baseReduceRatio = (acosRatio - 1) * 0.15;
       const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
-      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier; // v267 P3-3
+      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
 
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.5 + dataConfidence * 0.2,
         reason: `ACOS严重超标(${(actualAcos * 100).toFixed(1)}%, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%, 置信度${(dataConfidence * 100).toFixed(0)}%${trendLabel}): v259降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
+      };
+    } else {
+      // v332: ACOS极端超标（>3倍）— 更激进的降价策略
+      // 针对LERUCCI US ACoS 132.7%（目标35%，acosRatio=3.79）这类极端情况
+      // 原来最大降幅20%远远不够，需要更果断的止损
+      const isHighCtr = ctr > 0.008;
+      // 极端超标时，即使高CTR也需要更大降幅，但仍然保留差异化
+      const maxReduceLimit = isHighCtr ? 0.20 : 0.30;
+      // 使用更陡峭的系数，让降幅更快触及上限
+      const baseReduceRatio = (acosRatio - 1) * 0.12;
+      const rawReduceRatio = Math.min(maxReduceLimit, baseReduceRatio);
+      const reduceRatio = rawReduceRatio * dataConfidence * trendReduceFactor * elasticityModifier;
+
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.6 + dataConfidence * 0.2,
+        reason: `ACOS极端超标(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%, acosRatio=${acosRatio.toFixed(1)}x, ${clicks}次点击, CTR=${(ctr * 100).toFixed(2)}%${trendLabel}): v332激进降低${(reduceRatio * 100).toFixed(1)}%(上限${(maxReduceLimit * 100)}%)`,
       };
     }
   }

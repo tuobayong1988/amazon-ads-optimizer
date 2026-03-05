@@ -2409,6 +2409,7 @@ async function executeSearchTermAnalysis(
           AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
           AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
+          AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
       `);
       for (const row of (recentLogs as any)[0] || []) {
         if (row.search_term && row.campaign_id) {
@@ -2418,7 +2419,7 @@ async function executeSearchTermAnalysis(
       log.info(`[SearchTermAnalysis] v328: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重(7天窗口)`);
     }
   } catch (dedupErr: any) {
-    log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${dedupErr.message}`);
+    log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${dedupErr.message}`, dedupErr.stack?.slice(0, 300));
   }
   
   // v310-fix: 预加载永久失败的关键词列表，避免反复尝试已知会失败的关键词
@@ -2437,6 +2438,7 @@ async function executeSearchTermAnalysis(
           WHERE performance_group_id = ${config.performanceGroupId}
             AND action_type = 'keyword_create'
             AND api_sync_status = 'permanently_failed'
+            AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
           GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
           UNION ALL
           SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
@@ -2445,8 +2447,9 @@ async function executeSearchTermAnalysis(
           WHERE performance_group_id = ${config.performanceGroupId}
             AND action_type = 'keyword_create'
             AND api_sync_status = 'failed'
+            AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
           GROUP BY LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm'))))
-          HAVING fail_count >= 3
+          HAVING COUNT(*) >= 3
         ) combined
         GROUP BY search_term
       `);
@@ -2460,7 +2463,7 @@ async function executeSearchTermAnalysis(
       }
     }
   } catch (failErr: any) {
-    log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${failErr.message}`);
+    log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${failErr.message}`, failErr.stack?.slice(0, 300));
   }
   
   // v310: 处理pending积压 - 尝试重新同步pending的keyword_create和add_product_target
@@ -2636,7 +2639,7 @@ async function executeSearchTermAnalysis(
       }
     }
   } catch (timeoutErr: any) {
-    log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${timeoutErr.message}`);
+    log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${timeoutErr.message}`, timeoutErr.stack?.slice(0, 300));
   }
   
   for (const campaign of campaigns) {

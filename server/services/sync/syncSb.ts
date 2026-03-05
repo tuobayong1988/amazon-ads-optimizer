@@ -376,8 +376,14 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error) {
-    log.error('Error syncing SB keywords:', error);
+  } catch (error: any) {
+    // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
+    const statusCode = error?.response?.status || 'unknown';
+    const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
+    log.error(`Error syncing SB keywords: HTTP ${statusCode} - ${errorMsg}`);
+    if (statusCode === 404) {
+      log.warn('[SB Sync] v332: SB keywords API返回404，该账户可能未开通SB关键词定向或API端点已变更');
+    }
     return { synced: 0, skipped: 0 };
   }
 };
@@ -517,8 +523,14 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
 
     log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error) {
-    log.error('Error syncing SB product targets:', error);
+  } catch (error: any) {
+    // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
+    const statusCode = error?.response?.status || 'unknown';
+    const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
+    log.error(`Error syncing SB product targets: HTTP ${statusCode} - ${errorMsg}`);
+    if (statusCode === 404) {
+      log.warn('[SB Sync] v332: SB targets API返回404，该账户可能未开通SB商品定向或API端点已变更');
+    }
     return { synced: 0, skipped: 0 };
   }
 };

@@ -3220,20 +3220,29 @@ export class AmazonAdsApiClient {
         body.nextToken = nextToken;
       }
       
-      const response = await this.axiosInstance.post('/sb/v4/keywords/list', 
-        body,
-        {
-          headers: {
-            'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
-            'Accept': 'application/vnd.sbkeywordresource.v4+json',
-          },
+      // v332: 添加404降级处理，与listSbTargets保持一致
+      try {
+        const response = await this.axiosInstance.post('/sb/v4/keywords/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+              'Accept': 'application/vnd.sbkeywordresource.v4+json',
+            },
+          }
+        );
+        
+        const keywords = response.data.keywords || [];
+        allKeywords.push(...keywords);
+        nextToken = response.data.nextToken;
+        log.debug(`[SB API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          log.warn(`[SB API] v332: SB keywords/list返回404，该账户可能未开通SB关键词定向功能，跳过`);
+          return [];
         }
-      );
-      
-      const keywords = response.data.keywords || [];
-      allKeywords.push(...keywords);
-      nextToken = response.data.nextToken;
-      log.debug(`[SB API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+        throw error;
+      }
     } while (nextToken);
     
     log.debug(`[SB API] Total keywords fetched: ${allKeywords.length}`);

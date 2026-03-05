@@ -190,51 +190,36 @@ async function evaluateAlgorithms(
   const db = await getDbInstance();
   const scores: AlgorithmScore[] = [];
   
-  // 获取数据量统计
-  const rlLogCount = await db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(rlTrainingLogs)
-    .where(and(
-      eq(rlTrainingLogs.accountId, accountId),
-      isNotNull(rlTrainingLogs.rewardFilledAt)
-    ));
+  // v332: 性能优化 — 将原6+1次串行数据库查询改为并行执行，显著降低算法决策耗时
+  const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
+  const [rlLogCount, featureCount, stats, totalRLLogsIncPending, historyEventCount, recentDataCount] = await Promise.all([
+    // 获取已回填RL日志数
+    db.select({ count: sql<number>`COUNT(*)` }).from(rlTrainingLogs)
+      .where(and(eq(rlTrainingLogs.accountId, accountId), isNotNull(rlTrainingLogs.rewardFilledAt))),
+    // 获取特征缓存状态
+    db.select({ count: sql<number>`COUNT(*)` }).from(contextualFeatures)
+      .where(eq(contextualFeatures.accountId, accountId)),
+    // 获取Thompson Sampling统计
+    getAlgorithmStats(accountId),
+    // v258: 统计未回填的RL日志（包含已记录但未回填reward的）
+    db.select({ count: sql<number>`COUNT(*)` }).from(rlTrainingLogs)
+      .where(eq(rlTrainingLogs.accountId, accountId)),
+    // v259: 从optimiaztion_events中统计历史优化事件作为虚拟RL数据
+    db.select({ count: sql<number>`COUNT(*)` }).from(sql`optimization_events`)
+      .where(and(
+        sql`account_id = ${accountId}`,
+        sql`event_category = 'bid_adjustment'`,
+        sql`status = 'success'`,
+        sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
+      )),
+    // v332: 数据新鲜度检测（原为独立查询，现合并到并行执行）
+    db.select({ count: sql<number>`COUNT(*)` }).from(rlTrainingLogs)
+      .where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24))),
+  ]);
+  
   const totalRLLogs = Number(rlLogCount[0]?.count) || 0;
-  
-  // 获取特征缓存状态
-  const featureCount = await db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(contextualFeatures)
-    .where(eq(contextualFeatures.accountId, accountId));
   const hasFeatures = Number(featureCount[0]?.count) > 0;
-  
-  // 获取Thompson Sampling统计
-  const stats = await getAlgorithmStats(accountId);
-  
-  // v258: 同时统计未回填的RL日志（包含已记录但未回填reward的）
-  // 这些日志表明系统已经在产生数据，只是还未完成reward回填
-  const totalRLLogsIncPending = await db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(rlTrainingLogs)
-    .where(eq(rlTrainingLogs.accountId, accountId));
   const pendingRLLogs = Number(totalRLLogsIncPending[0]?.count) || 0;
-  
-  // v259: 强制激活高级算法 — 核心策略重构
-  // 问题诊断：v258中尽管降低了门槛，但因为RL回填链路断裂，实际上只有rule_based和ucb被激活
-  // v259策略：
-  //   1. 引入“历史数据合成”：从optimiaztion_events中合成虚拟RL日志，绕过回填链路断裂
-  //   2. UCB强制优先：给予UCB更高的基础分，确保它被选中而不是rule_based
-  //   3. 算法混合模式：即使只有rule_based和ucb，也尝试融合两者的建议
-  
-  // v259: 从optimiaztion_events中统计历史优化事件作为虚拟RL数据
-  const historyEventCount = await db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(sql`optimization_events`)
-    .where(and(
-      sql`account_id = ${accountId}`,
-      sql`event_category = 'bid_adjustment'`,
-      sql`status = 'success'`,
-      sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
-    ));
   const totalHistoryEvents = Number(historyEventCount[0]?.count) || 0;
   
   // v259: 综合数据量 = RL日志 + 历史优化事件(按比例折算)
@@ -266,11 +251,7 @@ async function evaluateAlgorithms(
     return failRate > 0.75 ? 0.20 : failRate > 0.60 ? 0.10 : 0;
   };
   
-  // v272: 数据新鲜度检测
-  const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
-  const recentDataCount = await db.select({ count: sql<number>`COUNT(*)` })
-    .from(rlTrainingLogs)
-    .where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24)));
+  // v332: 数据新鲜度检测——已合并到上方Promise.all中并行执行
   const hasRecentData = Number(recentDataCount[0]?.count) > 0;
   
   // v272: 使用策略级别化探索率计算（替代v270的全局硬编码）
