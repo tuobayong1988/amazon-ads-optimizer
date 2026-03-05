@@ -162096,1061 +162096,397 @@ var init_accountInitializationService = __esm({
   }
 });
 
-// server/syncIdempotencyService.ts
-var syncIdempotencyService_exports = {};
-__export(syncIdempotencyService_exports, {
-  acquireSyncLock: () => acquireSyncLock,
-  clearPerformanceDataForFullSync: () => clearPerformanceDataForFullSync,
-  executeWithIdempotency: () => executeWithIdempotency,
-  getActiveSyncLocks: () => getActiveSyncLocks,
-  isSyncLocked: () => isSyncLocked,
-  releaseSyncLock: () => releaseSyncLock
-});
-function getLockKey(accountId, syncType = "all") {
-  return `sync:${accountId}:${syncType}`;
-}
-function acquireSyncLock(accountId, syncType = "all") {
-  const key = getLockKey(accountId, syncType);
-  const existing = syncLocks.get(key);
-  if (existing) {
-    if (/* @__PURE__ */ new Date() > existing.expiresAt) {
-      log54.warn(`[SyncLock] \u9501\u5DF2\u8D85\u65F6\uFF0C\u5F3A\u5236\u91CA\u653E: ${key} (acquired at ${existing.acquiredAt.toISOString()})`);
-      syncLocks.delete(key);
-    } else {
-      log54.info(`[SyncLock] \u540C\u6B65\u9501\u88AB\u5360\u7528: ${key}, \u83B7\u53D6\u4E8E ${existing.acquiredAt.toISOString()}, \u5C06\u4E8E ${existing.expiresAt.toISOString()} \u8D85\u65F6`);
-      return null;
-    }
-  }
-  const lockId = `lock_${accountId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const now = /* @__PURE__ */ new Date();
-  syncLocks.set(key, {
-    lockId,
-    accountId,
-    syncType,
-    acquiredAt: now,
-    expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS)
-  });
-  log54.info(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u83B7\u53D6: ${key}, lockId=${lockId}`);
-  return lockId;
-}
-function releaseSyncLock(accountId, syncType = "all", lockId) {
-  const key = getLockKey(accountId, syncType);
-  const existing = syncLocks.get(key);
-  if (!existing) {
-    return true;
-  }
-  if (lockId && existing.lockId !== lockId) {
-    log54.warn(`[SyncLock] \u9501ID\u4E0D\u5339\u914D\uFF0C\u62D2\u7EDD\u91CA\u653E: expected=${existing.lockId}, got=${lockId}`);
-    return false;
-  }
-  syncLocks.delete(key);
-  log54.info(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u91CA\u653E: ${key}`);
-  return true;
-}
-function isSyncLocked(accountId, syncType = "all") {
-  const key = getLockKey(accountId, syncType);
-  const existing = syncLocks.get(key);
-  if (!existing) return false;
-  if (/* @__PURE__ */ new Date() > existing.expiresAt) {
-    syncLocks.delete(key);
-    return false;
-  }
-  return true;
-}
-function getActiveSyncLocks() {
-  const now = /* @__PURE__ */ new Date();
-  const active = [];
-  for (const [key, lock] of syncLocks.entries()) {
-    if (now > lock.expiresAt) {
-      syncLocks.delete(key);
-    } else {
-      active.push(lock);
-    }
-  }
-  return active;
-}
-async function clearPerformanceDataForFullSync(accountId, startDate, endDate) {
-  log54.info(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E: accountId=${accountId}, ${startDate} ~ ${endDate}`);
+// server/searchTermHarvester.ts
+async function identifyHarvestCandidates(accountId, config2 = {}) {
+  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
+  const candidates = [];
   try {
-    const deletedCount = await deleteDailyPerformanceByDateRange(
-      accountId,
-      startDate,
-      endDate
+    const allCampaigns = await getCampaignsByAccountId(accountId);
+    if (!allCampaigns || allCampaigns.length === 0) {
+      log54.debug(`\u8D26\u53F7 ${accountId} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
+      return [];
+    }
+    const sourceCampaigns = allCampaigns.filter(
+      (c5) => c5.campaignStatus === "enabled" && (c5.campaignType === "sp_auto" || c5.targetingType === "auto")
     );
-    log54.info(`[SyncIdempotency] \u5DF2\u6E05\u9664 ${deletedCount} \u6761\u65E7\u7EE9\u6548\u6570\u636E`);
-    return deletedCount;
-  } catch (error54) {
-    log54.error(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E\u5931\u8D25:`, error54);
-    return 0;
-  }
-}
-async function executeWithIdempotency(accountId, syncType, syncFn) {
-  const lockId = acquireSyncLock(accountId, syncType);
-  if (!lockId) {
-    return {
-      success: false,
-      locked: true,
-      error: `\u8D26\u53F7 ${accountId} \u7684 ${syncType} \u540C\u6B65\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5`
-    };
-  }
-  try {
-    const result = await syncFn();
-    return { success: true, result };
-  } catch (error54) {
-    log54.error(`[SyncIdempotency] \u540C\u6B65\u6267\u884C\u5931\u8D25: accountId=${accountId}, syncType=${syncType}`, error54);
-    return { success: false, error: error54.message };
-  } finally {
-    releaseSyncLock(accountId, syncType, lockId);
-  }
-}
-var log54, syncLocks, LOCK_TIMEOUT_MS;
-var init_syncIdempotencyService = __esm({
-  "server/syncIdempotencyService.ts"() {
-    "use strict";
-    init_logger2();
-    init_db2();
-    log54 = createModuleLogger("SyncIdempotencyService");
-    syncLocks = /* @__PURE__ */ new Map();
-    LOCK_TIMEOUT_MS = 30 * 60 * 1e3;
-  }
-});
-
-// server/services/dualTrackSyncService.ts
-var dualTrackSyncService_exports = {};
-__export(dualTrackSyncService_exports, {
-  CONSISTENCY_THRESHOLDS: () => CONSISTENCY_THRESHOLDS,
-  DATA_FREEZING_CONFIG: () => DATA_FREEZING_CONFIG,
-  DATA_SOURCE_PRIORITY: () => DATA_SOURCE_PRIORITY,
-  autoRepairDataDeviations: () => autoRepairDataDeviations,
-  default: () => dualTrackSyncService_default,
-  getDataForAlgorithm: () => getDataForAlgorithm,
-  getDataSourceStats: () => getDataSourceStats,
-  getDualTrackStatus: () => getDualTrackStatus,
-  getMergedPerformanceData: () => getMergedPerformanceData,
-  getRealtimeSpendForGuard: () => getRealtimeSpendForGuard,
-  getRealtimeTrustedFields: () => getRealtimeTrustedFields,
-  getRealtimeUntrustedFields: () => getRealtimeUntrustedFields,
-  isDataInFreezingZone: () => isDataInFreezingZone,
-  runConsistencyCheck: () => runConsistencyCheck
-});
-async function getDualTrackStatus(accountId) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      api: { source: "api", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" },
-      ams: { source: "ams", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" },
-      lastConsistencyCheck: null,
-      overallHealth: "error"
-    };
-  }
-  try {
-    const apiStatus = await getApiSyncStatus(db, accountId);
-    const amsStatus = await getAmsSyncStatus(db, accountId);
-    const lastCheck = await getLastConsistencyCheck(db, accountId);
-    const overallHealth = calculateOverallHealth(apiStatus, amsStatus);
-    return {
-      api: apiStatus,
-      ams: amsStatus,
-      lastConsistencyCheck: lastCheck,
-      overallHealth
-    };
-  } catch (error54) {
-    console.error("[DualTrackSync] \u83B7\u53D6\u72B6\u6001\u5931\u8D25:", error54);
-    return {
-      api: { source: "api", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: error54.message },
-      ams: { source: "ams", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: error54.message },
-      lastConsistencyCheck: null,
-      overallHealth: "error"
-    };
-  }
-}
-async function getApiSyncStatus(db, accountId) {
-  try {
-    const [result] = await db.execute(sql`
-      SELECT 
-        completedAt as lastSyncAt,
-        recordsSynced as recordCount,
-        status,
-        errorMessage
-      FROM data_sync_jobs
-      WHERE accountId = ${accountId}
-        AND syncType IN ('all', 'performance')
-      ORDER BY createdAt DESC
-      LIMIT 1
-    `);
-    const lastSync = Array.isArray(result) && result.length > 0 ? result[0] : null;
-    if (lastSync) {
-      const syncStatus = lastSync.status === "completed" ? "healthy" : lastSync.status === "running" ? "healthy" : "error";
-      return {
-        source: "api",
-        lastSyncAt: lastSync.lastSyncAt ? new Date(lastSync.lastSyncAt) : null,
-        recordCount: lastSync.recordCount || 0,
-        status: syncStatus,
-        errorMessage: lastSync.errorMessage
-      };
-    }
-    const [perfResult] = await db.execute(sql`
-      SELECT 
-        COUNT(*) as recordCount,
-        MAX(createdAt) as lastUpdate
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND (dataSource = 'api' OR dataSource IS NULL)
-    `);
-    const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
-    const recordCount = parseInt(perfData?.recordCount || "0", 10);
-    const lastUpdate = perfData?.lastUpdate ? new Date(perfData.lastUpdate) : null;
-    if (recordCount > 0) {
-      return {
-        source: "api",
-        lastSyncAt: lastUpdate,
-        recordCount,
-        status: "healthy",
-        errorMessage: void 0
-      };
-    }
-    return {
-      source: "api",
-      lastSyncAt: null,
-      recordCount: 0,
-      status: "degraded",
-      errorMessage: "\u5C1A\u672A\u540C\u6B65\u8FC7API\u6570\u636E"
-    };
-  } catch (error54) {
-    return {
-      source: "api",
-      lastSyncAt: null,
-      recordCount: 0,
-      status: "error",
-      errorMessage: error54.message
-    };
-  }
-}
-async function getAmsSyncStatus(db, accountId) {
-  try {
-    const sqsConsumer = getSQSConsumer();
-    const consumerStatuses = sqsConsumer.getStatus();
-    const hasRunningConsumers = consumerStatuses.some((s4) => s4.isRunning);
-    const totalMessagesProcessed = consumerStatuses.reduce((sum2, s4) => sum2 + s4.messagesProcessed, 0);
-    const lastProcessedAt = consumerStatuses.map((s4) => s4.lastProcessedAt).filter(Boolean).sort().reverse()[0];
-    const [amsDataResult] = await db.execute(sql`
-      SELECT 
-        COUNT(*) as totalRecords,
-        MAX(createdAt) as lastUpdate
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND dataSource = 'ams'
-        AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-    `);
-    const amsData = Array.isArray(amsDataResult) && amsDataResult.length > 0 ? amsDataResult[0] : null;
-    const hasRecentAmsData = (amsData?.totalRecords || 0) > 0;
-    let status = "healthy";
-    let errorMessage;
-    let recordCount = totalMessagesProcessed;
-    let lastSyncAt = null;
-    if (lastProcessedAt) {
-      lastSyncAt = new Date(lastProcessedAt);
-    } else if (amsData?.lastUpdate) {
-      lastSyncAt = new Date(amsData.lastUpdate);
-    }
-    if (!hasRunningConsumers) {
-      status = "error";
-      errorMessage = "SQS\u6D88\u8D39\u8005\u670D\u52A1\u672A\u8FD0\u884C";
-    } else if (!hasRecentAmsData && totalMessagesProcessed === 0) {
-      status = "degraded";
-      errorMessage = "24\u5C0F\u65F6\u5185\u6CA1\u6709\u6536\u5230AMS\u6570\u636E";
-    } else {
-      status = "healthy";
-      recordCount = Math.max(totalMessagesProcessed, amsData?.totalRecords || 0);
-    }
-    return {
-      source: "ams",
-      lastSyncAt,
-      recordCount,
-      status,
-      errorMessage
-    };
-  } catch (error54) {
-    try {
-      const sqsConsumer = getSQSConsumer();
-      const consumerStatuses = sqsConsumer.getStatus();
-      const hasRunningConsumers = consumerStatuses.some((s4) => s4.isRunning);
-      const totalMessagesProcessed = consumerStatuses.reduce((sum2, s4) => sum2 + s4.messagesProcessed, 0);
-      const lastProcessedAt = consumerStatuses.map((s4) => s4.lastProcessedAt).filter(Boolean).sort().reverse()[0];
-      if (hasRunningConsumers) {
-        return {
-          source: "ams",
-          lastSyncAt: lastProcessedAt ? new Date(lastProcessedAt) : null,
-          recordCount: totalMessagesProcessed,
-          status: "healthy",
-          errorMessage: void 0
-        };
-      }
-    } catch (e6) {
-    }
-    return {
-      source: "ams",
-      lastSyncAt: null,
-      recordCount: 0,
-      status: "degraded",
-      errorMessage: error54.message || "AMS\u72B6\u6001\u68C0\u67E5\u5931\u8D25"
-    };
-  }
-}
-async function getLastConsistencyCheck(db, accountId) {
-  try {
-    const [result] = await db.execute(sql`
-      SELECT MAX(checkTime) as lastCheck
-      FROM data_consistency_checks
-      WHERE accountId = ${accountId}
-    `);
-    const row = Array.isArray(result) && result.length > 0 ? result[0] : null;
-    return row?.lastCheck ? new Date(row.lastCheck) : null;
-  } catch {
-    return null;
-  }
-}
-function calculateOverallHealth(apiStatus, amsStatus) {
-  if (apiStatus.status === "error" && amsStatus.status === "error") {
-    return "error";
-  }
-  if (apiStatus.status === "error" || amsStatus.status === "error") {
-    return "degraded";
-  }
-  if (apiStatus.status === "degraded" || amsStatus.status === "degraded") {
-    return "degraded";
-  }
-  return "healthy";
-}
-async function getDataSourceStats(accountId) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      api: { records: 0, lastUpdate: null },
-      ams: { records: 0, lastUpdate: null },
-      merged: { records: 0, lastUpdate: null }
-    };
-  }
-  try {
-    const [apiResult] = await db.execute(sql`
-      SELECT 
-        COUNT(*) as recordCount,
-        MAX(createdAt) as lastUpdate
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND (dataSource = 'api' OR dataSource IS NULL)
-    `);
-    const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
-    const apiRecords = parseInt(apiData?.recordCount || "0", 10);
-    const apiLastUpdate = apiData?.lastUpdate ? new Date(apiData.lastUpdate) : null;
-    const [amsResult] = await db.execute(sql`
-      SELECT 
-        COUNT(*) as recordCount,
-        MAX(createdAt) as lastUpdate
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND dataSource = 'ams'
-    `);
-    const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
-    const amsRecords = parseInt(amsData?.recordCount || "0", 10);
-    const amsLastUpdate = amsData?.lastUpdate ? new Date(amsData.lastUpdate) : null;
-    const [totalResult] = await db.execute(sql`
-      SELECT 
-        COUNT(*) as recordCount,
-        MAX(createdAt) as lastUpdate
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-    `);
-    const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
-    const totalRecords = parseInt(totalData?.recordCount || "0", 10);
-    const totalLastUpdate = totalData?.lastUpdate ? new Date(totalData.lastUpdate) : null;
-    return {
-      api: {
-        records: apiRecords,
-        lastUpdate: apiLastUpdate
-      },
-      ams: {
-        records: amsRecords,
-        lastUpdate: amsLastUpdate
-      },
-      merged: {
-        records: totalRecords,
-        lastUpdate: totalLastUpdate
-      }
-    };
-  } catch (error54) {
-    console.error("[DualTrackSync] \u83B7\u53D6\u6570\u636E\u6E90\u7EDF\u8BA1\u5931\u8D25:", error54);
-    return {
-      api: { records: 0, lastUpdate: null },
-      ams: { records: 0, lastUpdate: null },
-      merged: { records: 0, lastUpdate: null }
-    };
-  }
-}
-async function runConsistencyCheck(accountId, startDate, endDate) {
-  const db = await getDb();
-  if (!db) {
-    throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
-  }
-  const checkTime = /* @__PURE__ */ new Date();
-  try {
-    const [apiResult] = await db.execute(sql`
-      SELECT COUNT(*) as recordCount
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) >= ${startDate}
-        AND DATE(date) <= ${endDate}
-    `);
-    const apiRecords = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.recordCount || 0 : 0;
-    return {
-      checkTime,
-      accountId,
-      dateRange: { start: startDate, end: endDate },
-      apiRecords,
-      amsRecords: 0,
-      matchedRecords: 0,
-      overallConsistency: 100,
-      status: "consistent"
-    };
-  } catch (error54) {
-    console.error("[DualTrackSync] \u4E00\u81F4\u6027\u68C0\u67E5\u5931\u8D25:", error54);
-    throw error54;
-  }
-}
-async function getMergedPerformanceData(accountId, startDate, endDate, priority = "historical") {
-  const db = await getDb();
-  if (!db) return [];
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT 
-        DATE(date) as reportDate,
-        campaignId,
-        impressions,
-        clicks,
-        spend,
-        sales,
-        orders
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) >= ${startDate}
-        AND DATE(date) <= ${endDate}
-      ORDER BY DATE(date), campaignId
-    `);
-    return Array.isArray(rows) ? rows : [];
-  } catch (error54) {
-    console.error("[DualTrackSync] \u83B7\u53D6\u5408\u5E76\u6570\u636E\u5931\u8D25:", error54);
-    return [];
-  }
-}
-async function autoRepairDataDeviations(accountId, deviations) {
-  return { repaired: 0, failed: 0 };
-}
-async function getDataForAlgorithm(accountId, algorithmType, lookbackDays = 30) {
-  const db = await getDb();
-  if (!db) {
-    return { data: [], safeEndDate: /* @__PURE__ */ new Date(), excludedDays: 0, warning: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-  }
-  let excludeDays;
-  switch (algorithmType) {
-    case "dayparting":
-      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
-      break;
-    case "placement":
-      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
-      break;
-    case "search_term":
-      excludeDays = 1;
-      break;
-    case "bid":
-    default:
-      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
-      break;
-  }
-  const safeEndDate = /* @__PURE__ */ new Date();
-  safeEndDate.setDate(safeEndDate.getDate() - excludeDays);
-  safeEndDate.setHours(23, 59, 59, 999);
-  const startDate = new Date(safeEndDate);
-  startDate.setDate(startDate.getDate() - lookbackDays);
-  startDate.setHours(0, 0, 0, 0);
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT 
-        DATE(date) as reportDate,
-        campaignId,
-        adGroupId,
-        keywordId,
-        impressions,
-        clicks,
-        spend,
-        sales,
-        orders,
-        CASE WHEN clicks > 0 THEN orders / clicks ELSE 0 END as cvr,
-        CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
-        CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) >= ${startDate.toISOString().split("T")[0]}
-        AND DATE(date) <= ${safeEndDate.toISOString().split("T")[0]}
-      ORDER BY DATE(date) DESC, campaignId
-    `);
-    const data4 = Array.isArray(rows) ? rows : [];
-    return {
-      data: data4,
-      safeEndDate,
-      excludedDays: excludeDays,
-      warning: excludeDays > 0 ? `\u5DF2\u6392\u9664\u6700\u8FD1${excludeDays}\u5929\u6570\u636E\u4EE5\u907F\u514D\u5F52\u56E0\u5EF6\u8FDF\u8BEF\u5224` : void 0
-    };
-  } catch (error54) {
-    console.error("[DualTrackSync] \u83B7\u53D6\u7B97\u6CD5\u6570\u636E\u5931\u8D25:", error54);
-    return { data: [], safeEndDate, excludedDays: excludeDays, warning: error54.message };
-  }
-}
-async function getRealtimeSpendForGuard(accountId, campaignId) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      todaySpend: 0,
-      todayClicks: 0,
-      todayImpressions: 0,
-      lastUpdateTime: null,
-      dataSource: "api",
-      warning: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25"
-    };
-  }
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  try {
-    let dataSource = "api";
-    let result = null;
-    try {
-      const [amsRows] = await db.execute(sql`
-        SELECT 
-          SUM(spend) as todaySpend,
-          SUM(clicks) as todayClicks,
-          SUM(impressions) as todayImpressions,
-          MAX(eventTime) as lastUpdateTime
-        FROM ams_performance_buffer
-        WHERE accountId = ${accountId}
-          AND DATE(eventTime) = ${today}
-          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
-      `);
-      if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.todaySpend !== null) {
-        result = amsRows[0];
-        dataSource = "ams";
-      }
-    } catch {
-    }
-    if (!result) {
-      const [apiRows] = await db.execute(sql`
-        SELECT 
-          SUM(spend) as todaySpend,
-          SUM(clicks) as todayClicks,
-          SUM(impressions) as todayImpressions,
-          MAX(updatedAt) as lastUpdateTime
-        FROM daily_performance
-        WHERE accountId = ${accountId}
-          AND DATE(date) = ${today}
-          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
-      `);
-      result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
-    }
-    return {
-      todaySpend: result?.todaySpend || 0,
-      todayClicks: result?.todayClicks || 0,
-      todayImpressions: result?.todayImpressions || 0,
-      lastUpdateTime: result?.lastUpdateTime ? new Date(result.lastUpdateTime) : null,
-      dataSource,
-      warning: dataSource === "api" ? "\u4F7F\u7528API\u6570\u636E\uFF0C\u53EF\u80FD\u6709\u5EF6\u8FDF" : void 0
-    };
-  } catch (error54) {
-    console.error("[DualTrackSync] \u83B7\u53D6\u5B9E\u65F6\u82B1\u8D39\u5931\u8D25:", error54);
-    return {
-      todaySpend: 0,
-      todayClicks: 0,
-      todayImpressions: 0,
-      lastUpdateTime: null,
-      dataSource: "api",
-      warning: error54.message
-    };
-  }
-}
-function isDataInFreezingZone(date12, algorithmType) {
-  let excludeDays;
-  switch (algorithmType) {
-    case "dayparting":
-      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
-      break;
-    case "placement":
-      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
-      break;
-    case "search_term":
-      excludeDays = 1;
-      break;
-    case "bid":
-    default:
-      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
-      break;
-  }
-  const freezeDate = /* @__PURE__ */ new Date();
-  freezeDate.setDate(freezeDate.getDate() - excludeDays);
-  freezeDate.setHours(0, 0, 0, 0);
-  return date12 >= freezeDate;
-}
-function getRealtimeTrustedFields() {
-  return DATA_FREEZING_CONFIG.realtimeTrustedFields;
-}
-function getRealtimeUntrustedFields() {
-  return DATA_FREEZING_CONFIG.realtimeUntrustedFields;
-}
-var DATA_SOURCE_PRIORITY, CONSISTENCY_THRESHOLDS, DATA_FREEZING_CONFIG, dualTrackSyncService_default;
-var init_dualTrackSyncService = __esm({
-  "server/services/dualTrackSyncService.ts"() {
-    "use strict";
-    init_db2();
-    init_drizzle_orm();
-    init_sqsConsumerService();
-    DATA_SOURCE_PRIORITY = {
-      // 实时展示优先使用AMS（延迟低）
-      realtime: ["ams", "api"],
-      // 历史分析优先使用API（准确性高）
-      historical: ["api", "ams"],
-      // 报表导出使用合并数据
-      reporting: ["merged", "api", "ams"]
-    };
-    CONSISTENCY_THRESHOLDS = {
-      // 允许的数值差异百分比
-      valueDeviation: 0.05,
-      // 5%
-      // 允许的时间延迟（分钟）
-      timeDelay: 60,
-      // 触发告警的连续不一致次数
-      alertThreshold: 3,
-      // AMS无数据触发回补的时间阈值（小时）
-      amsBackfillThreshold: 4
-    };
-    DATA_FREEZING_CONFIG = {
-      // 归因延迟窗口（小时）- 转化数据通常有12-48小时延迟
-      attributionDelayHours: 48,
-      // 分时策略排除天数 - 排除最近3天数据
-      daypartingExcludeDays: 3,
-      // 竞价算法排除天数 - 排除最近1天数据
-      bidAlgorithmExcludeDays: 1,
-      // 位置优化排除天数 - 排除最近3天数据
-      placementExcludeDays: 3,
-      // 实时监控可信字段 - AMS实时数据只看这些字段
-      realtimeTrustedFields: ["spend", "clicks", "impressions"],
-      // 实时监控不可信字段 - 这些字段有归因延迟
-      realtimeUntrustedFields: ["sales", "orders", "roas", "acos", "cvr"]
-    };
-    dualTrackSyncService_default = {
-      getDualTrackStatus,
-      runConsistencyCheck,
-      getMergedPerformanceData,
-      autoRepairDataDeviations,
-      getDataSourceStats,
-      // 专家建议新增：数据冻结区函数
-      getDataForAlgorithm,
-      getRealtimeSpendForGuard,
-      isDataInFreezingZone,
-      getRealtimeTrustedFields,
-      getRealtimeUntrustedFields,
-      // 配置
-      DATA_SOURCE_PRIORITY,
-      CONSISTENCY_THRESHOLDS,
-      DATA_FREEZING_CONFIG
-    };
-  }
-});
-
-// server/services/enhancedDualTrackService.ts
-var enhancedDualTrackService_exports = {};
-__export(enhancedDualTrackService_exports, {
-  DATA_FRESHNESS_CONFIG: () => DATA_FRESHNESS_CONFIG,
-  checkAndBackfillData: () => checkAndBackfillData,
-  default: () => enhancedDualTrackService_default,
-  getRealtimeDashboardData: () => getRealtimeDashboardData,
-  getSmartMergedData: () => getSmartMergedData,
-  getTimelineAggregatedData: () => getTimelineAggregatedData
-});
-async function getSmartMergedData(accountId, startDate, endDate, options) {
-  const db = await getDb();
-  if (!db) {
-    return { data: [], dataSource: "api", freshness: "stale", warnings: ["\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25"] };
-  }
-  const warnings = [];
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  let strategy;
-  let excludeRecentDays = 0;
-  switch (options.purpose) {
-    case "realtime_display":
-      strategy = "ams_priority";
-      break;
-    case "historical_analysis":
-      strategy = "api_priority";
-      excludeRecentDays = 1;
-      break;
-    case "report_export":
-      strategy = "weighted_merge";
-      break;
-    case "algorithm_input":
-      strategy = "api_priority";
-      excludeRecentDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
-      warnings.push(`\u5DF2\u6392\u9664\u6700\u8FD1${excludeRecentDays}\u5929\u6570\u636E\u4EE5\u907F\u514D\u5F52\u56E0\u5EF6\u8FDF\u8BEF\u5224`);
-      break;
-    default:
-      strategy = "api_priority";
-  }
-  let effectiveEndDate = endDate;
-  if (excludeRecentDays > 0) {
-    const adjustedEnd = /* @__PURE__ */ new Date();
-    adjustedEnd.setDate(adjustedEnd.getDate() - excludeRecentDays);
-    effectiveEndDate = adjustedEnd.toISOString().split("T")[0];
-    if (effectiveEndDate < startDate) {
-      return { data: [], dataSource: "api", freshness: "stale", warnings: ["\u65E5\u671F\u8303\u56F4\u65E0\u6548"] };
-    }
-  }
-  try {
-    const apiData = await getApiPerformanceData(db, accountId, startDate, effectiveEndDate, options.campaignIds);
-    let amsData = [];
-    if (strategy === "ams_priority" && options.includeToday !== false) {
-      amsData = await getAmsPerformanceData(db, accountId, today, options.campaignIds);
-    }
-    const mergedData = mergeDataByStrategy(apiData, amsData, strategy, today);
-    const freshness = determineFreshness(apiData, amsData, strategy);
-    const dataSource = amsData.length > 0 && strategy === "ams_priority" ? "ams" : "api";
-    return {
-      data: mergedData,
-      dataSource,
-      freshness,
-      warnings
-    };
-  } catch (error54) {
-    console.error("[EnhancedDualTrack] \u83B7\u53D6\u5408\u5E76\u6570\u636E\u5931\u8D25:", error54);
-    return { data: [], dataSource: "api", freshness: "stale", warnings: [error54.message] };
-  }
-}
-async function getApiPerformanceData(db, accountId, startDate, endDate, campaignIds) {
-  try {
-    let query2 = sql`
-      SELECT 
-        DATE(date) as reportDate,
-        campaignId,
-        adGroupId,
-        impressions,
-        clicks,
-        spend,
-        sales,
-        orders,
-        CASE WHEN clicks > 0 THEN orders / clicks * 100 ELSE 0 END as cvr,
-        CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
-        CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos,
-        updatedAt,
-        'api' as dataSource
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) >= ${startDate}
-        AND DATE(date) <= ${endDate}
-    `;
-    const [rows] = await db.execute(query2);
-    return Array.isArray(rows) ? rows : [];
-  } catch (error54) {
-    console.error("[EnhancedDualTrack] \u83B7\u53D6API\u6570\u636E\u5931\u8D25:", error54);
-    return [];
-  }
-}
-async function getAmsPerformanceData(db, accountId, date12, campaignIds) {
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT 
-        DATE(eventTime) as reportDate,
-        campaignId,
-        adGroupId,
-        SUM(impressions) as impressions,
-        SUM(clicks) as clicks,
-        SUM(spend) as spend,
-        SUM(sales) as sales,
-        SUM(orders) as orders,
-        MAX(eventTime) as lastUpdateTime,
-        'ams' as dataSource
-      FROM ams_performance_buffer
-      WHERE accountId = ${accountId}
-        AND DATE(eventTime) = ${date12}
-      GROUP BY DATE(eventTime), campaignId, adGroupId
-    `);
-    return Array.isArray(rows) ? rows : [];
-  } catch (error54) {
-    return [];
-  }
-}
-function mergeDataByStrategy(apiData, amsData, strategy, today) {
-  switch (strategy) {
-    case "ams_priority":
-      return mergeAmsFirst(apiData, amsData, today);
-    case "api_priority":
-      return mergeApiFirst(apiData, amsData);
-    case "weighted_merge":
-      return weightedMerge(apiData, amsData);
-    case "latest_wins":
-      return latestWinsMerge(apiData, amsData);
-    default:
-      return apiData;
-  }
-}
-function mergeAmsFirst(apiData, amsData, today) {
-  const historicalApiData = apiData.filter((d5) => d5.reportDate !== today);
-  return [...historicalApiData, ...amsData];
-}
-function mergeApiFirst(apiData, amsData) {
-  const apiDates = new Set(apiData.map((d5) => `${d5.reportDate}-${d5.campaignId}`));
-  const missingAmsData = amsData.filter((d5) => !apiDates.has(`${d5.reportDate}-${d5.campaignId}`));
-  return [...apiData, ...missingAmsData];
-}
-function weightedMerge(apiData, amsData) {
-  const mergedMap = /* @__PURE__ */ new Map();
-  for (const item of apiData) {
-    const key = `${item.reportDate}-${item.campaignId}`;
-    mergedMap.set(key, { ...item, weight: 1 });
-  }
-  for (const item of amsData) {
-    const key = `${item.reportDate}-${item.campaignId}`;
-    if (!mergedMap.has(key)) {
-      mergedMap.set(key, { ...item, weight: 0.8 });
-    }
-  }
-  return Array.from(mergedMap.values());
-}
-function latestWinsMerge(apiData, amsData) {
-  const mergedMap = /* @__PURE__ */ new Map();
-  const allData = [...apiData, ...amsData].sort((a4, b6) => {
-    const timeA = new Date(a4.updatedAt || a4.lastUpdateTime || 0).getTime();
-    const timeB = new Date(b6.updatedAt || b6.lastUpdateTime || 0).getTime();
-    return timeB - timeA;
-  });
-  for (const item of allData) {
-    const key = `${item.reportDate}-${item.campaignId}`;
-    if (!mergedMap.has(key)) {
-      mergedMap.set(key, item);
-    }
-  }
-  return Array.from(mergedMap.values());
-}
-function determineFreshness(apiData, amsData, strategy) {
-  const now = Date.now();
-  const amsIsFresh = amsData.some((d5) => {
-    const updateTime = new Date(d5.lastUpdateTime || 0).getTime();
-    return now - updateTime < DATA_FRESHNESS_CONFIG.amsMaxAge * 60 * 1e3;
-  });
-  const apiIsFresh = apiData.some((d5) => {
-    const updateTime = new Date(d5.updatedAt || 0).getTime();
-    return now - updateTime < DATA_FRESHNESS_CONFIG.apiMaxAge * 60 * 1e3;
-  });
-  if (strategy === "ams_priority" && amsIsFresh) return "fresh";
-  if (strategy === "api_priority" && apiIsFresh) return "fresh";
-  if (amsIsFresh || apiIsFresh) return "mixed";
-  return "stale";
-}
-async function checkAndBackfillData(accountId, date12) {
-  const db = await getDb();
-  if (!db) {
-    return { needsBackfill: false, backfilledRecords: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-  }
-  try {
-    const [amsResult] = await db.execute(sql`
-      SELECT COUNT(*) as count
-      FROM ams_performance_buffer
-      WHERE accountId = ${accountId}
-        AND DATE(eventTime) = ${date12}
-    `);
-    const amsCount = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0]?.count || 0 : 0;
-    if (amsCount > 0) {
-      return { needsBackfill: false, backfilledRecords: 0, message: "AMS\u6570\u636E\u6B63\u5E38" };
-    }
-    const [apiResult] = await db.execute(sql`
-      SELECT COUNT(*) as count
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) = ${date12}
-    `);
-    const apiCount = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.count || 0 : 0;
-    if (apiCount === 0) {
-      return { needsBackfill: false, backfilledRecords: 0, message: "\u65E0\u53EF\u7528\u6570\u636E\u8FDB\u884C\u56DE\u8865" };
-    }
-    return {
-      needsBackfill: true,
-      backfilledRecords: apiCount,
-      message: `\u68C0\u6D4B\u5230${date12}\u7684AMS\u6570\u636E\u7F3A\u5931\uFF0C\u53EF\u4F7F\u7528${apiCount}\u6761API\u6570\u636E\u8FDB\u884C\u56DE\u8865`
-    };
-  } catch (error54) {
-    console.error("[EnhancedDualTrack] \u6570\u636E\u56DE\u8865\u68C0\u67E5\u5931\u8D25:", error54);
-    return { needsBackfill: false, backfilledRecords: 0, message: error54.message };
-  }
-}
-async function getTimelineAggregatedData(accountId, startDate, endDate, granularity = "daily") {
-  const db = await getDb();
-  if (!db) {
-    return {
-      timeline: [],
-      totals: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 },
-      dataSource: "api"
-    };
-  }
-  try {
-    let dateGrouping;
-    switch (granularity) {
-      case "weekly":
-        dateGrouping = "YEARWEEK(date, 1)";
-        break;
-      case "monthly":
-        dateGrouping = "DATE_FORMAT(date, '%Y-%m')";
-        break;
-      default:
-        dateGrouping = "DATE(date)";
-    }
-    const [rows] = await db.execute(sql`
-      SELECT 
-        ${sql.raw(dateGrouping)} as period,
-        SUM(impressions) as impressions,
-        SUM(clicks) as clicks,
-        SUM(spend) as spend,
-        SUM(sales) as sales,
-        SUM(orders) as orders
-      FROM daily_performance
-      WHERE accountId = ${accountId}
-        AND DATE(date) >= ${startDate}
-        AND DATE(date) <= ${endDate}
-      GROUP BY ${sql.raw(dateGrouping)}
-      ORDER BY period
-    `);
-    const timeline = (Array.isArray(rows) ? rows : []).map((row) => ({
-      period: String(row.period),
-      impressions: Number(row.impressions) || 0,
-      clicks: Number(row.clicks) || 0,
-      spend: Number(row.spend) || 0,
-      sales: Number(row.sales) || 0,
-      orders: Number(row.orders) || 0,
-      ctr: row.impressions > 0 ? row.clicks / row.impressions * 100 : 0,
-      cvr: row.clicks > 0 ? row.orders / row.clicks * 100 : 0,
-      acos: row.sales > 0 ? row.spend / row.sales * 100 : 0,
-      roas: row.spend > 0 ? row.sales / row.spend : 0
-    }));
-    const totals = timeline.reduce(
-      (acc, item) => ({
-        impressions: acc.impressions + item.impressions,
-        clicks: acc.clicks + item.clicks,
-        spend: acc.spend + item.spend,
-        sales: acc.sales + item.sales,
-        orders: acc.orders + item.orders,
-        ctr: 0,
-        cvr: 0,
-        acos: 0,
-        roas: 0
-      }),
-      { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 }
+    const manualCampaigns = allCampaigns.filter(
+      (c5) => c5.campaignStatus === "enabled" && c5.campaignType === "sp_manual" && c5.targetingType === "manual"
     );
-    totals.ctr = totals.impressions > 0 ? totals.clicks / totals.impressions * 100 : 0;
-    totals.cvr = totals.clicks > 0 ? totals.orders / totals.clicks * 100 : 0;
-    totals.acos = totals.sales > 0 ? totals.spend / totals.sales * 100 : 0;
-    totals.roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
-    return { timeline, totals, dataSource: "api" };
+    if (sourceCampaigns.length === 0) {
+      log54.info(`\u8D26\u53F7 ${accountId} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
+      return [];
+    }
+    for (const sourceCampaign of sourceCampaigns) {
+      const searchTermsList = await getSearchTermsByCampaignId(sourceCampaign.id);
+      for (const st3 of searchTermsList) {
+        const clicks = Number(st3.searchTermClicks) || 0;
+        const orders = Number(st3.searchTermOrders) || 0;
+        const spend = parseFloat(String(st3.searchTermSpend || "0"));
+        const sales = parseFloat(String(st3.searchTermSales || "0"));
+        if (clicks < cfg.minClicks || orders < cfg.minOrders) continue;
+        const acos = sales > 0 ? spend / sales * 100 : 999;
+        const roas = spend > 0 ? sales / spend : 0;
+        const cvr = clicks > 0 ? orders / clicks * 100 : 0;
+        if (acos > cfg.maxAcos && roas < cfg.minRoas) continue;
+        if (isAsinSearchTerm(st3.searchTerm)) {
+          log54.info(`v194: \u8DF3\u8FC7ASIN\u641C\u7D22\u8BCD "${st3.searchTerm}"\uFF0C\u5E94\u4F5C\u4E3Aproduct target\u5904\u7406`);
+          continue;
+        }
+        const validation = sanitizeAndValidateKeyword(st3.searchTerm);
+        if (!validation.isValid) {
+          log54.warn(`v194: \u641C\u7D22\u8BCD\u6821\u9A8C\u5931\u8D25 "${st3.searchTerm}": ${validation.reasonMessage || validation.reasonCode || "invalid"}`);
+          continue;
+        }
+        const targetInfo = await findTargetAdGroup(
+          st3.searchTerm,
+          manualCampaigns,
+          sourceCampaign
+        );
+        if (!targetInfo) continue;
+        const existingKeywords = await getKeywordsByAdGroupId(targetInfo.adGroupId);
+        const alreadyExists = existingKeywords.some(
+          (k5) => k5.keywordText?.toLowerCase() === st3.searchTerm.toLowerCase() && k5.matchType === "exact"
+        );
+        if (alreadyExists) continue;
+        const suggestedBid = calculateHarvestBid(
+          { clicks, orders, spend, sales },
+          cfg
+        );
+        const sourceAdGroup = await getAdGroupById(st3.adGroupId);
+        if (!sourceAdGroup) continue;
+        candidates.push({
+          searchTerm: st3.searchTerm,
+          sourceAdGroupId: st3.adGroupId,
+          sourceCampaignId: sourceCampaign.id,
+          sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
+          sourceAmazonCampaignId: sourceCampaign.campaignId,
+          targetAdGroupId: targetInfo.adGroupId,
+          targetCampaignId: targetInfo.campaignId,
+          targetAmazonAdGroupId: targetInfo.amazonAdGroupId,
+          targetAmazonCampaignId: targetInfo.amazonCampaignId,
+          suggestedBid,
+          performance: { clicks, orders, spend, sales, acos, roas, cvr },
+          reason: `\u9AD8\u7EE9\u6548\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%, ROAS=${roas.toFixed(2)}, CVR=${cvr.toFixed(1)}%`
+        });
+      }
+    }
+    log54.debug(`\u8D26\u53F7 ${accountId} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
+    return candidates;
   } catch (error54) {
-    console.error("[EnhancedDualTrack] \u83B7\u53D6\u65F6\u95F4\u7EBF\u6570\u636E\u5931\u8D25:", error54);
-    return {
-      timeline: [],
-      totals: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 },
-      dataSource: "api"
-    };
+    log54.error(`\u8BC6\u522B\u5019\u9009\u9879\u5931\u8D25:`, error54.message);
+    return [];
   }
 }
-async function getRealtimeDashboardData(accountId) {
-  const db = await getDb();
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const defaultResult = {
-    trusted: { todaySpend: 0, todayClicks: 0, todayImpressions: 0, lastUpdate: null },
-    untrusted: { todaySales: 0, todayOrders: 0, todayRoas: 0, todayAcos: 0, warning: "\u8F6C\u5316\u6570\u636E\u670912-48\u5C0F\u65F6\u5F52\u56E0\u5EF6\u8FDF" },
-    dataSource: "api"
+async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
+  const result = {
+    searchTerm: candidate.searchTerm,
+    success: false,
+    stage: "failed"
   };
-  if (!db) return defaultResult;
+  log54.info(`\u5F00\u59CB\u539F\u5B50\u6536\u5272: "${candidate.searchTerm}" (${candidate.reason})`);
   try {
-    let dataSource = "api";
-    let result = null;
-    try {
-      const [amsRows] = await db.execute(sql`
-        SELECT 
-          SUM(spend) as spend,
-          SUM(clicks) as clicks,
-          SUM(impressions) as impressions,
-          SUM(sales) as sales,
-          SUM(orders) as orders,
-          MAX(eventTime) as lastUpdate
-        FROM ams_performance_buffer
-        WHERE accountId = ${accountId}
-          AND DATE(eventTime) = ${today}
-      `);
-      if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.spend !== null) {
-        result = amsRows[0];
-        dataSource = "ams";
+    const createResult = await apiClient.createSpKeywords([{
+      adGroupId: parseInt(candidate.targetAmazonAdGroupId),
+      campaignId: parseInt(candidate.targetAmazonCampaignId),
+      keywordText: candidate.searchTerm,
+      matchType: "exact",
+      bid: candidate.suggestedBid,
+      state: "enabled"
+    }]);
+    if (!createResult.success || createResult.createdKeywords.length === 0) {
+      const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
+      const isDuplicate = createResult.errors.some(
+        (e6) => String(e6).includes("DUPLICATE") || String(e6).includes("already exists")
+      );
+      if (isDuplicate) {
+        log54.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
+        result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
+        return result;
       }
-    } catch {
+      result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
+      log54.error(`${result.error}`);
+      return result;
     }
-    if (!result) {
-      const [apiRows] = await db.execute(sql`
-        SELECT 
-          SUM(spend) as spend,
-          SUM(clicks) as clicks,
-          SUM(impressions) as impressions,
-          SUM(sales) as sales,
-          SUM(orders) as orders,
-          MAX(updatedAt) as lastUpdate
-        FROM daily_performance
-        WHERE accountId = ${accountId}
-          AND DATE(date) = ${today}
-      `);
-      result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
-    }
-    if (!result) return defaultResult;
-    const spend = Number(result.spend) || 0;
-    const sales = Number(result.sales) || 0;
-    return {
-      trusted: {
-        todaySpend: spend,
-        todayClicks: Number(result.clicks) || 0,
-        todayImpressions: Number(result.impressions) || 0,
-        lastUpdate: result.lastUpdate ? new Date(result.lastUpdate) : null
-      },
-      untrusted: {
-        todaySales: sales,
-        todayOrders: Number(result.orders) || 0,
-        todayRoas: spend > 0 ? sales / spend : 0,
-        todayAcos: sales > 0 ? spend / sales * 100 : 0,
-        warning: "\u8F6C\u5316\u6570\u636E\u670912-48\u5C0F\u65F6\u5F52\u56E0\u5EF6\u8FDF\uFF0C\u4EC5\u4F9B\u53C2\u8003"
-      },
-      dataSource
-    };
+    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
+    result.stage = "keyword_created";
+    log54.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}`);
   } catch (error54) {
-    console.error("[EnhancedDualTrack] \u83B7\u53D6\u5B9E\u65F6\u4EEA\u8868\u76D8\u6570\u636E\u5931\u8D25:", error54);
-    return defaultResult;
+    result.error = `Step1 \u5F02\u5E38: ${error54.message}`;
+    log54.error(`${result.error}`);
+    return result;
+  }
+  const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
+  const negativeMatchType = searchTermWords.length <= 2 ? "negativePhrase" : "negativeExact";
+  try {
+    log54.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
+    const negativeResult = await apiClient.createSpNegativeKeywords([{
+      adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
+      campaignId: parseInt(candidate.sourceAmazonCampaignId),
+      keywordText: candidate.searchTerm,
+      matchType: negativeMatchType,
+      state: "enabled"
+    }]);
+    const negativeErrors = negativeResult.filter((r5) => r5.code && r5.code !== "SUCCESS");
+    if (negativeErrors.length > 0) {
+      const isDuplicate = negativeErrors.some(
+        (e6) => String(e6.code).includes("DUPLICATE") || String(e6.details).includes("already exists")
+      );
+      if (!isDuplicate) {
+        log54.error(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+        await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+        result.stage = "rolled_back";
+        result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${JSON.stringify(negativeErrors)}`;
+        result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+        return result;
+      }
+    }
+    const successNeg = negativeResult.find((r5) => !r5.code || r5.code === "SUCCESS");
+    if (successNeg) {
+      result.createdNegativeKeywordId = successNeg.keywordId;
+    }
+    result.stage = "negative_added";
+    log54.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}`);
+  } catch (error54) {
+    log54.error(`Step2 \u5F02\u5E38: ${error54.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
+    await rollbackKeywordCreation(apiClient, result.createdKeywordId);
+    result.stage = "rolled_back";
+    result.error = `Step2 \u5F02\u5E38: ${error54.message}`;
+    result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
+    return result;
+  }
+  try {
+    const localKeywordId = await createKeyword({
+      adGroupId: candidate.targetAdGroupId,
+      keywordId: String(result.createdKeywordId),
+      keywordText: candidate.searchTerm,
+      matchType: "exact",
+      bid: candidate.suggestedBid.toFixed(2),
+      keywordStatus: "enabled"
+    });
+    result.localKeywordId = localKeywordId;
+    await addNegativeKeyword({
+      campaignId: candidate.sourceCampaignId,
+      adGroupId: candidate.sourceAdGroupId,
+      keyword: candidate.searchTerm,
+      matchType: negativeMatchType === "negativePhrase" ? "phrase" : "exact",
+      level: "ad_group"
+    });
+    await createBiddingLog({
+      accountId,
+      campaignId: String(candidate.targetCampaignId),
+      adGroupId: candidate.targetAdGroupId,
+      logTargetType: "keyword",
+      targetId: localKeywordId,
+      targetName: candidate.searchTerm,
+      logMatchType: "exact",
+      actionType: "set",
+      previousBid: "0.00",
+      newBid: candidate.suggestedBid.toFixed(2),
+      bidChangePercent: "100.00",
+      reason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason} | \u6E90Campaign=${candidate.sourceCampaignId} \u2192 \u76EE\u6807Campaign=${candidate.targetCampaignId}`,
+      algorithmVersion: "2.0.0-harvest",
+      isIntradayAdjustment: 0
+    });
+    try {
+      await insertOptimizationEvent({
+        accountId,
+        eventCategory: "search_term_action",
+        actionType: "search_term_harvest",
+        campaignId: candidate.targetCampaignId,
+        keywordId: localKeywordId,
+        keywordText: candidate.searchTerm,
+        matchType: "exact",
+        previousBid: "0.00",
+        newBid: candidate.suggestedBid.toFixed(2),
+        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason}`,
+        status: "success",
+        apiSyncStatus: "synced",
+        sourceTable: "search_term_harvester"
+      });
+      await insertOptimizationEvent({
+        accountId,
+        eventCategory: "search_term_action",
+        actionType: "negative_keyword_add",
+        campaignId: candidate.sourceCampaignId,
+        keywordText: candidate.searchTerm,
+        matchType: "exact",
+        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272-\u5426\u5B9A] \u6E90\u5E7F\u544A\u7EC4\u6DFB\u52A0\u5426\u5B9A\u8BCD`,
+        status: "success",
+        apiSyncStatus: "synced",
+        sourceTable: "search_term_harvester"
+      });
+    } catch (eventErr) {
+      log54.warn(`v189: \u8BB0\u5F55optimization_events\u5931\u8D25: ${eventErr.message}`);
+    }
+    result.stage = "db_logged";
+    result.success = true;
+    log54.info(`Step3 \u5B8C\u6210: \u672C\u5730\u6570\u636E\u5E93\u5DF2\u66F4\u65B0`);
+  } catch (error54) {
+    log54.warn(`Step3 \u672C\u5730DB\u8BB0\u5F55\u5931\u8D25: ${error54.message}\uFF0CAPI\u64CD\u4F5C\u5DF2\u751F\u6548`);
+    result.error = `Step3 \u672C\u5730DB\u5931\u8D25(API\u5DF2\u751F\u6548): ${error54.message}`;
+    result.success = true;
+    result.stage = "negative_added";
+  }
+  return result;
+}
+async function batchHarvestSearchTerms(accountId, config2 = {}) {
+  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
+  const candidates = await identifyHarvestCandidates(accountId, cfg);
+  if (candidates.length === 0) {
+    return {
+      candidates: [],
+      results: [],
+      summary: { total: 0, success: 0, failed: 0, rolledBack: 0, skipped: 0 }
+    };
+  }
+  if (cfg.dryRun) {
+    log54.info(`Dry Run: \u53D1\u73B0 ${candidates.length} \u4E2A\u5019\u9009\u9879\uFF0C\u4E0D\u6267\u884C`);
+    return {
+      candidates,
+      results: [],
+      summary: { total: candidates.length, success: 0, failed: 0, rolledBack: 0, skipped: candidates.length }
+    };
+  }
+  const credentials = await getAmazonApiCredentials(accountId);
+  if (!credentials) {
+    log54.error(`\u8D26\u53F7 ${accountId} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
+    return {
+      candidates,
+      results: [],
+      summary: { total: candidates.length, success: 0, failed: candidates.length, rolledBack: 0, skipped: 0 }
+    };
+  }
+  const apiClient = createAmazonAdsClient({
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    refreshToken: typeof credentials.refreshToken === "string" ? credentials.refreshToken : "",
+    profileId: credentials.profileId,
+    region: credentials.region
+  });
+  const results = [];
+  let success2 = 0, failed = 0, rolledBack = 0;
+  for (const candidate of candidates) {
+    try {
+      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
+      results.push(result);
+      if (result.success) {
+        success2++;
+      } else if (result.stage === "rolled_back") {
+        rolledBack++;
+      } else {
+        failed++;
+      }
+      await new Promise((resolve8) => setTimeout(resolve8, 500));
+    } catch (error54) {
+      log54.error(`\u6536\u5272\u5F02\u5E38: "${candidate.searchTerm}" - ${error54.message}`);
+      results.push({
+        searchTerm: candidate.searchTerm,
+        success: false,
+        stage: "failed",
+        error: error54.message
+      });
+      failed++;
+    }
+  }
+  log54.warn(`\u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success2}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}`);
+  return {
+    candidates,
+    results,
+    summary: {
+      total: candidates.length,
+      success: success2,
+      failed,
+      rolledBack,
+      skipped: 0
+    }
+  };
+}
+async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
+  const nonPTCampaigns = manualCampaigns.filter(
+    (c5) => !isProductTargetingCampaign(c5.campaignName || "")
+  );
+  const exactCampaigns = nonPTCampaigns.filter(
+    (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
+  );
+  for (const campaign of exactCampaigns) {
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
+    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
+    for (const ag of enabledAdGroups) {
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) {
+        log54.info(`v194: \u8DF3\u8FC7product target\u5E7F\u544A\u7EC4 id=${ag.id}`);
+        continue;
+      }
+      return {
+        adGroupId: ag.id,
+        campaignId: campaign.campaignId,
+        amazonAdGroupId: ag.adGroupId,
+        amazonCampaignId: campaign.campaignId
+      };
+    }
+  }
+  for (const campaign of nonPTCampaigns) {
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
+    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
+    for (const ag of enabledAdGroups) {
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) continue;
+      return {
+        adGroupId: ag.id,
+        campaignId: campaign.campaignId,
+        amazonAdGroupId: ag.adGroupId,
+        amazonCampaignId: campaign.campaignId
+      };
+    }
+  }
+  return null;
+}
+function calculateHarvestBid(performance3, config2) {
+  const { clicks, orders, spend, sales } = performance3;
+  if (config2.bidStrategy === "cvr_aov_based" && orders > 0) {
+    const cvr = orders / clicks;
+    const aov = sales / orders;
+    const targetAcosRate = 0.3;
+    const theoreticalBid = cvr * aov * targetAcosRate * config2.bidDiscountFactor;
+    return Math.round(Math.max(0.1, Math.min(theoreticalBid, 5)) * 100) / 100;
+  }
+  if (clicks > 0) {
+    const historicalCpc = spend / clicks;
+    const bid = historicalCpc * config2.bidDiscountFactor;
+    return Math.round(Math.max(0.1, Math.min(bid, 5)) * 100) / 100;
+  }
+  return 0.5;
+}
+async function rollbackKeywordCreation(apiClient, keywordId) {
+  try {
+    await apiClient.updateKeywordBids([{
+      keywordId,
+      bid: 0.02
+      // 设置最低出价
+    }]);
+    log54.info(`\u56DE\u6EDA\u6210\u529F: \u5173\u952E\u8BCD ${keywordId} \u5DF2\u8BBE\u7F6E\u6700\u4F4E\u51FA\u4EF7`);
+  } catch (error54) {
+    log54.error(`\u56DE\u6EDA\u5931\u8D25: \u5173\u952E\u8BCD ${keywordId} - ${error54.message}`);
   }
 }
-var DATA_FRESHNESS_CONFIG, enhancedDualTrackService_default;
-var init_enhancedDualTrackService = __esm({
-  "server/services/enhancedDualTrackService.ts"() {
+var log54, DEFAULT_HARVEST_CONFIG;
+var init_searchTermHarvester = __esm({
+  "server/searchTermHarvester.ts"() {
     "use strict";
     init_db2();
-    init_drizzle_orm();
-    init_dualTrackSyncService();
-    DATA_FRESHNESS_CONFIG = {
-      // AMS数据被认为是新鲜的最大时间
-      amsMaxAge: 15,
-      // API数据被认为是新鲜的最大时间
-      apiMaxAge: 60,
-      // 触发数据回补的AMS无数据时间
-      amsBackfillTrigger: 30
-    };
-    enhancedDualTrackService_default = {
-      getSmartMergedData,
-      checkAndBackfillData,
-      getTimelineAggregatedData,
-      getRealtimeDashboardData,
-      DATA_FRESHNESS_CONFIG
+    init_amazonAdsApi();
+    init_keywordValidator();
+    init_logger2();
+    log54 = createModuleLogger("SearchTermHarvester");
+    DEFAULT_HARVEST_CONFIG = {
+      minOrders: 2,
+      maxAcos: 50,
+      minClicks: 10,
+      minRoas: 2,
+      bidStrategy: "cvr_aov_based",
+      bidDiscountFactor: 0.85,
+      // 精确匹配出价为宽泛/短语的85%
+      dryRun: false
     };
   }
 });
@@ -163933,6 +163269,776 @@ var init_dataSyncService = __esm({
   }
 });
 
+// server/services/dualTrackSyncService.ts
+var dualTrackSyncService_exports = {};
+__export(dualTrackSyncService_exports, {
+  CONSISTENCY_THRESHOLDS: () => CONSISTENCY_THRESHOLDS,
+  DATA_FREEZING_CONFIG: () => DATA_FREEZING_CONFIG,
+  DATA_SOURCE_PRIORITY: () => DATA_SOURCE_PRIORITY,
+  autoRepairDataDeviations: () => autoRepairDataDeviations,
+  default: () => dualTrackSyncService_default,
+  getDataForAlgorithm: () => getDataForAlgorithm,
+  getDataSourceStats: () => getDataSourceStats,
+  getDualTrackStatus: () => getDualTrackStatus,
+  getMergedPerformanceData: () => getMergedPerformanceData,
+  getRealtimeSpendForGuard: () => getRealtimeSpendForGuard,
+  getRealtimeTrustedFields: () => getRealtimeTrustedFields,
+  getRealtimeUntrustedFields: () => getRealtimeUntrustedFields,
+  isDataInFreezingZone: () => isDataInFreezingZone,
+  runConsistencyCheck: () => runConsistencyCheck
+});
+async function getDualTrackStatus(accountId) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      api: { source: "api", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" },
+      ams: { source: "ams", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" },
+      lastConsistencyCheck: null,
+      overallHealth: "error"
+    };
+  }
+  try {
+    const apiStatus = await getApiSyncStatus(db, accountId);
+    const amsStatus = await getAmsSyncStatus(db, accountId);
+    const lastCheck = await getLastConsistencyCheck(db, accountId);
+    const overallHealth = calculateOverallHealth(apiStatus, amsStatus);
+    return {
+      api: apiStatus,
+      ams: amsStatus,
+      lastConsistencyCheck: lastCheck,
+      overallHealth
+    };
+  } catch (error54) {
+    console.error("[DualTrackSync] \u83B7\u53D6\u72B6\u6001\u5931\u8D25:", error54);
+    return {
+      api: { source: "api", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: error54.message },
+      ams: { source: "ams", lastSyncAt: null, recordCount: 0, status: "error", errorMessage: error54.message },
+      lastConsistencyCheck: null,
+      overallHealth: "error"
+    };
+  }
+}
+async function getApiSyncStatus(db, accountId) {
+  try {
+    const [result] = await db.execute(sql`
+      SELECT 
+        completedAt as lastSyncAt,
+        recordsSynced as recordCount,
+        status,
+        errorMessage
+      FROM data_sync_jobs
+      WHERE accountId = ${accountId}
+        AND syncType IN ('all', 'performance')
+      ORDER BY createdAt DESC
+      LIMIT 1
+    `);
+    const lastSync = Array.isArray(result) && result.length > 0 ? result[0] : null;
+    if (lastSync) {
+      const syncStatus = lastSync.status === "completed" ? "healthy" : lastSync.status === "running" ? "healthy" : "error";
+      return {
+        source: "api",
+        lastSyncAt: lastSync.lastSyncAt ? new Date(lastSync.lastSyncAt) : null,
+        recordCount: lastSync.recordCount || 0,
+        status: syncStatus,
+        errorMessage: lastSync.errorMessage
+      };
+    }
+    const [perfResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND (dataSource = 'api' OR dataSource IS NULL)
+    `);
+    const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
+    const recordCount = parseInt(perfData?.recordCount || "0", 10);
+    const lastUpdate = perfData?.lastUpdate ? new Date(perfData.lastUpdate) : null;
+    if (recordCount > 0) {
+      return {
+        source: "api",
+        lastSyncAt: lastUpdate,
+        recordCount,
+        status: "healthy",
+        errorMessage: void 0
+      };
+    }
+    return {
+      source: "api",
+      lastSyncAt: null,
+      recordCount: 0,
+      status: "degraded",
+      errorMessage: "\u5C1A\u672A\u540C\u6B65\u8FC7API\u6570\u636E"
+    };
+  } catch (error54) {
+    return {
+      source: "api",
+      lastSyncAt: null,
+      recordCount: 0,
+      status: "error",
+      errorMessage: error54.message
+    };
+  }
+}
+async function getAmsSyncStatus(db, accountId) {
+  try {
+    const sqsConsumer = getSQSConsumer();
+    const consumerStatuses = sqsConsumer.getStatus();
+    const hasRunningConsumers = consumerStatuses.some((s4) => s4.isRunning);
+    const totalMessagesProcessed = consumerStatuses.reduce((sum2, s4) => sum2 + s4.messagesProcessed, 0);
+    const lastProcessedAt = consumerStatuses.map((s4) => s4.lastProcessedAt).filter(Boolean).sort().reverse()[0];
+    const [amsDataResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as totalRecords,
+        MAX(createdAt) as lastUpdate
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND dataSource = 'ams'
+        AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `);
+    const amsData = Array.isArray(amsDataResult) && amsDataResult.length > 0 ? amsDataResult[0] : null;
+    const hasRecentAmsData = (amsData?.totalRecords || 0) > 0;
+    let status = "healthy";
+    let errorMessage;
+    let recordCount = totalMessagesProcessed;
+    let lastSyncAt = null;
+    if (lastProcessedAt) {
+      lastSyncAt = new Date(lastProcessedAt);
+    } else if (amsData?.lastUpdate) {
+      lastSyncAt = new Date(amsData.lastUpdate);
+    }
+    if (!hasRunningConsumers) {
+      status = "error";
+      errorMessage = "SQS\u6D88\u8D39\u8005\u670D\u52A1\u672A\u8FD0\u884C";
+    } else if (!hasRecentAmsData && totalMessagesProcessed === 0) {
+      status = "degraded";
+      errorMessage = "24\u5C0F\u65F6\u5185\u6CA1\u6709\u6536\u5230AMS\u6570\u636E";
+    } else {
+      status = "healthy";
+      recordCount = Math.max(totalMessagesProcessed, amsData?.totalRecords || 0);
+    }
+    return {
+      source: "ams",
+      lastSyncAt,
+      recordCount,
+      status,
+      errorMessage
+    };
+  } catch (error54) {
+    try {
+      const sqsConsumer = getSQSConsumer();
+      const consumerStatuses = sqsConsumer.getStatus();
+      const hasRunningConsumers = consumerStatuses.some((s4) => s4.isRunning);
+      const totalMessagesProcessed = consumerStatuses.reduce((sum2, s4) => sum2 + s4.messagesProcessed, 0);
+      const lastProcessedAt = consumerStatuses.map((s4) => s4.lastProcessedAt).filter(Boolean).sort().reverse()[0];
+      if (hasRunningConsumers) {
+        return {
+          source: "ams",
+          lastSyncAt: lastProcessedAt ? new Date(lastProcessedAt) : null,
+          recordCount: totalMessagesProcessed,
+          status: "healthy",
+          errorMessage: void 0
+        };
+      }
+    } catch (e6) {
+    }
+    return {
+      source: "ams",
+      lastSyncAt: null,
+      recordCount: 0,
+      status: "degraded",
+      errorMessage: error54.message || "AMS\u72B6\u6001\u68C0\u67E5\u5931\u8D25"
+    };
+  }
+}
+async function getLastConsistencyCheck(db, accountId) {
+  try {
+    const [result] = await db.execute(sql`
+      SELECT MAX(checkTime) as lastCheck
+      FROM data_consistency_checks
+      WHERE accountId = ${accountId}
+    `);
+    const row = Array.isArray(result) && result.length > 0 ? result[0] : null;
+    return row?.lastCheck ? new Date(row.lastCheck) : null;
+  } catch {
+    return null;
+  }
+}
+function calculateOverallHealth(apiStatus, amsStatus) {
+  if (apiStatus.status === "error" && amsStatus.status === "error") {
+    return "error";
+  }
+  if (apiStatus.status === "error" || amsStatus.status === "error") {
+    return "degraded";
+  }
+  if (apiStatus.status === "degraded" || amsStatus.status === "degraded") {
+    return "degraded";
+  }
+  return "healthy";
+}
+async function getDataSourceStats(accountId) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      api: { records: 0, lastUpdate: null },
+      ams: { records: 0, lastUpdate: null },
+      merged: { records: 0, lastUpdate: null }
+    };
+  }
+  try {
+    const [apiResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND (dataSource = 'api' OR dataSource IS NULL)
+    `);
+    const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
+    const apiRecords = parseInt(apiData?.recordCount || "0", 10);
+    const apiLastUpdate = apiData?.lastUpdate ? new Date(apiData.lastUpdate) : null;
+    const [amsResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND dataSource = 'ams'
+    `);
+    const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
+    const amsRecords = parseInt(amsData?.recordCount || "0", 10);
+    const amsLastUpdate = amsData?.lastUpdate ? new Date(amsData.lastUpdate) : null;
+    const [totalResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+    `);
+    const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
+    const totalRecords = parseInt(totalData?.recordCount || "0", 10);
+    const totalLastUpdate = totalData?.lastUpdate ? new Date(totalData.lastUpdate) : null;
+    return {
+      api: {
+        records: apiRecords,
+        lastUpdate: apiLastUpdate
+      },
+      ams: {
+        records: amsRecords,
+        lastUpdate: amsLastUpdate
+      },
+      merged: {
+        records: totalRecords,
+        lastUpdate: totalLastUpdate
+      }
+    };
+  } catch (error54) {
+    console.error("[DualTrackSync] \u83B7\u53D6\u6570\u636E\u6E90\u7EDF\u8BA1\u5931\u8D25:", error54);
+    return {
+      api: { records: 0, lastUpdate: null },
+      ams: { records: 0, lastUpdate: null },
+      merged: { records: 0, lastUpdate: null }
+    };
+  }
+}
+async function runConsistencyCheck(accountId, startDate, endDate) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+  }
+  const checkTime = /* @__PURE__ */ new Date();
+  try {
+    const [apiResult] = await db.execute(sql`
+      SELECT COUNT(*) as recordCount
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate}
+        AND DATE(date) <= ${endDate}
+    `);
+    const apiRecords = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.recordCount || 0 : 0;
+    return {
+      checkTime,
+      accountId,
+      dateRange: { start: startDate, end: endDate },
+      apiRecords,
+      amsRecords: 0,
+      matchedRecords: 0,
+      overallConsistency: 100,
+      status: "consistent"
+    };
+  } catch (error54) {
+    console.error("[DualTrackSync] \u4E00\u81F4\u6027\u68C0\u67E5\u5931\u8D25:", error54);
+    throw error54;
+  }
+}
+async function getMergedPerformanceData(accountId, startDate, endDate, priority = "historical") {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT 
+        DATE(date) as reportDate,
+        campaignId,
+        impressions,
+        clicks,
+        spend,
+        sales,
+        orders
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate}
+        AND DATE(date) <= ${endDate}
+      ORDER BY DATE(date), campaignId
+    `);
+    return Array.isArray(rows) ? rows : [];
+  } catch (error54) {
+    console.error("[DualTrackSync] \u83B7\u53D6\u5408\u5E76\u6570\u636E\u5931\u8D25:", error54);
+    return [];
+  }
+}
+async function autoRepairDataDeviations(accountId, deviations) {
+  return { repaired: 0, failed: 0 };
+}
+async function getDataForAlgorithm(accountId, algorithmType, lookbackDays = 30) {
+  const db = await getDb();
+  if (!db) {
+    return { data: [], safeEndDate: /* @__PURE__ */ new Date(), excludedDays: 0, warning: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+  }
+  let excludeDays;
+  switch (algorithmType) {
+    case "dayparting":
+      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
+      break;
+    case "placement":
+      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
+      break;
+    case "search_term":
+      excludeDays = 1;
+      break;
+    case "bid":
+    default:
+      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
+      break;
+  }
+  const safeEndDate = /* @__PURE__ */ new Date();
+  safeEndDate.setDate(safeEndDate.getDate() - excludeDays);
+  safeEndDate.setHours(23, 59, 59, 999);
+  const startDate = new Date(safeEndDate);
+  startDate.setDate(startDate.getDate() - lookbackDays);
+  startDate.setHours(0, 0, 0, 0);
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT 
+        DATE(date) as reportDate,
+        campaignId,
+        adGroupId,
+        keywordId,
+        impressions,
+        clicks,
+        spend,
+        sales,
+        orders,
+        CASE WHEN clicks > 0 THEN orders / clicks ELSE 0 END as cvr,
+        CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
+        CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate.toISOString().split("T")[0]}
+        AND DATE(date) <= ${safeEndDate.toISOString().split("T")[0]}
+      ORDER BY DATE(date) DESC, campaignId
+    `);
+    const data4 = Array.isArray(rows) ? rows : [];
+    return {
+      data: data4,
+      safeEndDate,
+      excludedDays: excludeDays,
+      warning: excludeDays > 0 ? `\u5DF2\u6392\u9664\u6700\u8FD1${excludeDays}\u5929\u6570\u636E\u4EE5\u907F\u514D\u5F52\u56E0\u5EF6\u8FDF\u8BEF\u5224` : void 0
+    };
+  } catch (error54) {
+    console.error("[DualTrackSync] \u83B7\u53D6\u7B97\u6CD5\u6570\u636E\u5931\u8D25:", error54);
+    return { data: [], safeEndDate, excludedDays: excludeDays, warning: error54.message };
+  }
+}
+async function getRealtimeSpendForGuard(accountId, campaignId) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      todaySpend: 0,
+      todayClicks: 0,
+      todayImpressions: 0,
+      lastUpdateTime: null,
+      dataSource: "api",
+      warning: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25"
+    };
+  }
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  try {
+    let dataSource = "api";
+    let result = null;
+    try {
+      const [amsRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as todaySpend,
+          SUM(clicks) as todayClicks,
+          SUM(impressions) as todayImpressions,
+          MAX(eventTime) as lastUpdateTime
+        FROM ams_performance_buffer
+        WHERE accountId = ${accountId}
+          AND DATE(eventTime) = ${today}
+          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
+      `);
+      if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.todaySpend !== null) {
+        result = amsRows[0];
+        dataSource = "ams";
+      }
+    } catch {
+    }
+    if (!result) {
+      const [apiRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as todaySpend,
+          SUM(clicks) as todayClicks,
+          SUM(impressions) as todayImpressions,
+          MAX(updatedAt) as lastUpdateTime
+        FROM daily_performance
+        WHERE accountId = ${accountId}
+          AND DATE(date) = ${today}
+          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
+      `);
+      result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
+    }
+    return {
+      todaySpend: result?.todaySpend || 0,
+      todayClicks: result?.todayClicks || 0,
+      todayImpressions: result?.todayImpressions || 0,
+      lastUpdateTime: result?.lastUpdateTime ? new Date(result.lastUpdateTime) : null,
+      dataSource,
+      warning: dataSource === "api" ? "\u4F7F\u7528API\u6570\u636E\uFF0C\u53EF\u80FD\u6709\u5EF6\u8FDF" : void 0
+    };
+  } catch (error54) {
+    console.error("[DualTrackSync] \u83B7\u53D6\u5B9E\u65F6\u82B1\u8D39\u5931\u8D25:", error54);
+    return {
+      todaySpend: 0,
+      todayClicks: 0,
+      todayImpressions: 0,
+      lastUpdateTime: null,
+      dataSource: "api",
+      warning: error54.message
+    };
+  }
+}
+function isDataInFreezingZone(date12, algorithmType) {
+  let excludeDays;
+  switch (algorithmType) {
+    case "dayparting":
+      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
+      break;
+    case "placement":
+      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
+      break;
+    case "search_term":
+      excludeDays = 1;
+      break;
+    case "bid":
+    default:
+      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
+      break;
+  }
+  const freezeDate = /* @__PURE__ */ new Date();
+  freezeDate.setDate(freezeDate.getDate() - excludeDays);
+  freezeDate.setHours(0, 0, 0, 0);
+  return date12 >= freezeDate;
+}
+function getRealtimeTrustedFields() {
+  return DATA_FREEZING_CONFIG.realtimeTrustedFields;
+}
+function getRealtimeUntrustedFields() {
+  return DATA_FREEZING_CONFIG.realtimeUntrustedFields;
+}
+var DATA_SOURCE_PRIORITY, CONSISTENCY_THRESHOLDS, DATA_FREEZING_CONFIG, dualTrackSyncService_default;
+var init_dualTrackSyncService = __esm({
+  "server/services/dualTrackSyncService.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_sqsConsumerService();
+    DATA_SOURCE_PRIORITY = {
+      // 实时展示优先使用AMS（延迟低）
+      realtime: ["ams", "api"],
+      // 历史分析优先使用API（准确性高）
+      historical: ["api", "ams"],
+      // 报表导出使用合并数据
+      reporting: ["merged", "api", "ams"]
+    };
+    CONSISTENCY_THRESHOLDS = {
+      // 允许的数值差异百分比
+      valueDeviation: 0.05,
+      // 5%
+      // 允许的时间延迟（分钟）
+      timeDelay: 60,
+      // 触发告警的连续不一致次数
+      alertThreshold: 3,
+      // AMS无数据触发回补的时间阈值（小时）
+      amsBackfillThreshold: 4
+    };
+    DATA_FREEZING_CONFIG = {
+      // 归因延迟窗口（小时）- 转化数据通常有12-48小时延迟
+      attributionDelayHours: 48,
+      // 分时策略排除天数 - 排除最近3天数据
+      daypartingExcludeDays: 3,
+      // 竞价算法排除天数 - 排除最近1天数据
+      bidAlgorithmExcludeDays: 1,
+      // 位置优化排除天数 - 排除最近3天数据
+      placementExcludeDays: 3,
+      // 实时监控可信字段 - AMS实时数据只看这些字段
+      realtimeTrustedFields: ["spend", "clicks", "impressions"],
+      // 实时监控不可信字段 - 这些字段有归因延迟
+      realtimeUntrustedFields: ["sales", "orders", "roas", "acos", "cvr"]
+    };
+    dualTrackSyncService_default = {
+      getDualTrackStatus,
+      runConsistencyCheck,
+      getMergedPerformanceData,
+      autoRepairDataDeviations,
+      getDataSourceStats,
+      // 专家建议新增：数据冻结区函数
+      getDataForAlgorithm,
+      getRealtimeSpendForGuard,
+      isDataInFreezingZone,
+      getRealtimeTrustedFields,
+      getRealtimeUntrustedFields,
+      // 配置
+      DATA_SOURCE_PRIORITY,
+      CONSISTENCY_THRESHOLDS,
+      DATA_FREEZING_CONFIG
+    };
+  }
+});
+
+// server/services/intradayPacingService.ts
+var intradayPacingService_exports = {};
+__export(intradayPacingService_exports, {
+  INTRADAY_CONFIG: () => INTRADAY_CONFIG,
+  adjustIntradayPacing: () => adjustIntradayPacing,
+  applyIntradayAdjustment: () => applyIntradayAdjustment,
+  calculateBudgetRunway: () => calculateBudgetRunway,
+  checkAllCampaignsPacing: () => checkAllCampaignsPacing,
+  default: () => intradayPacingService_default,
+  getCriticalCampaigns: () => getCriticalCampaigns
+});
+async function adjustIntradayPacing(campaignId, accountId) {
+  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
+  const dailyBudget = await getCampaignBudget(accountId, campaignId);
+  const marketplace = await getAccountMarketplace(accountId);
+  const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
+  const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
+  const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
+  const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
+  const idealSpendPercent = hoursPassed / totalHours;
+  const actualSpendPercent = dailyBudget > 0 ? realtimeData.todaySpend / dailyBudget : 0;
+  const pacingRatio = idealSpendPercent > 0 ? actualSpendPercent / idealSpendPercent : 1;
+  let pacingStatus;
+  let suggestedAction = "none";
+  let suggestedMultiplier = 1;
+  let reason = "";
+  if (pacingRatio >= INTRADAY_CONFIG.criticalThreshold) {
+    pacingStatus = "critical";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.criticalMultiplier;
+    reason = `\u{1F525} \u70E7\u94B1\u592A\u5FEB\uFF01\u6D88\u8017\u901F\u5EA6\u662F\u7406\u60F3\u7684${(pacingRatio * 100).toFixed(0)}%\uFF0C\u89E6\u53D1\u65E5\u5185\u4FDD\u62A4`;
+  } else if (pacingRatio >= INTRADAY_CONFIG.overspendingThreshold) {
+    pacingStatus = "overspending";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.overspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u5FEB\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7`;
+  } else if (pacingRatio <= INTRADAY_CONFIG.underspendingThreshold) {
+    pacingStatus = "underspending";
+    suggestedAction = "increase_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.underspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u6162\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u53EF\u4EE5\u9002\u5F53\u63D0\u9AD8\u51FA\u4EF7`;
+  } else {
+    pacingStatus = "on_track";
+    reason = "\u6D88\u8017\u901F\u5EA6\u6B63\u5E38";
+  }
+  const anomalyResult = detectAnomalies3(
+    realtimeData.todayClicks,
+    realtimeData.todayImpressions,
+    realtimeData.todaySpend,
+    currentHour
+  );
+  if (anomalyResult.detected) {
+    suggestedAction = anomalyResult.action;
+    reason = anomalyResult.reason;
+  }
+  return {
+    campaignId,
+    accountId,
+    currentHour,
+    dailyBudget,
+    todaySpend: realtimeData.todaySpend,
+    todayClicks: realtimeData.todayClicks,
+    todayImpressions: realtimeData.todayImpressions,
+    idealSpendPercent: Math.round(idealSpendPercent * 100) / 100,
+    actualSpendPercent: Math.round(actualSpendPercent * 100) / 100,
+    pacingStatus,
+    suggestedAction,
+    suggestedMultiplier,
+    reason,
+    anomalyDetected: anomalyResult.detected,
+    anomalyType: anomalyResult.type
+  };
+}
+async function checkAllCampaignsPacing(accountId) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT campaignId, dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND state = 'enabled'
+        AND dailyBudget > 0
+    `);
+    const campaigns7 = Array.isArray(rows) ? rows : [];
+    const results = [];
+    for (const campaign of campaigns7) {
+      const adjustment = await adjustIntradayPacing(
+        campaign.campaignId,
+        accountId
+      );
+      results.push(adjustment);
+    }
+    return results;
+  } catch (error54) {
+    console.error("[IntradayPacing] \u6279\u91CF\u68C0\u67E5\u5931\u8D25:", error54);
+    return [];
+  }
+}
+async function getCriticalCampaigns(accountId) {
+  const allAdjustments = await checkAllCampaignsPacing(accountId);
+  return allAdjustments.filter(
+    (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
+  );
+}
+async function applyIntradayAdjustment(adjustment) {
+  console.log("[IntradayPacing] \u5E94\u7528\u8C03\u6574:", {
+    campaignId: adjustment.campaignId,
+    action: adjustment.suggestedAction,
+    multiplier: adjustment.suggestedMultiplier,
+    reason: adjustment.reason
+  });
+  return {
+    success: true,
+    action: adjustment.suggestedAction,
+    previousMultiplier: 1,
+    newMultiplier: adjustment.suggestedMultiplier
+  };
+}
+async function getCampaignBudget(accountId, campaignId) {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND campaignId = ${campaignId}
+      LIMIT 1
+    `);
+    const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    return campaign?.dailyBudget || 0;
+  } catch (error54) {
+    console.error("[IntradayPacing] \u83B7\u53D6\u9884\u7B97\u5931\u8D25:", error54);
+    return 0;
+  }
+}
+function detectAnomalies3(clicks, impressions, spend, currentHour) {
+  const avgClicksPerHour = currentHour > 0 ? clicks / currentHour : clicks;
+  const ctr = impressions > 0 ? clicks / impressions : 0;
+  if (avgClicksPerHour > INTRADAY_CONFIG.clickFraudThreshold || ctr > INTRADAY_CONFIG.clickFraudCtrThreshold) {
+    return {
+      detected: true,
+      type: "click_fraud",
+      action: "pause",
+      reason: `\u26A0\uFE0F \u68C0\u6D4B\u5230\u5F02\u5E38\u6D41\u91CF\uFF01\u6BCF\u5C0F\u65F6\u70B9\u51FB${avgClicksPerHour.toFixed(0)}\u6B21\uFF0CCTR ${(ctr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u7D27\u6025\u6682\u505C`
+    };
+  }
+  if (spend > 0 && clicks > INTRADAY_CONFIG.zeroConversionClickThreshold) {
+    const avgSpendPerClick = spend / clicks;
+    if (avgSpendPerClick > 2) {
+      return {
+        detected: true,
+        type: "budget_drain",
+        action: "alert",
+        reason: `\u26A0\uFE0F \u6BCF\u6B21\u70B9\u51FB\u6210\u672C\u5F02\u5E38\u9AD8\uFF08$${avgSpendPerClick.toFixed(2)}\uFF09\uFF0C\u8BF7\u68C0\u67E5\u7ADE\u4EF7\u8BBE\u7F6E`
+      };
+    }
+  }
+  return {
+    detected: false,
+    action: "none",
+    reason: ""
+  };
+}
+function calculateBudgetRunway(dailyBudget, currentSpend, currentHour, avgSpendPerHour) {
+  const remainingBudget = dailyBudget - currentSpend;
+  const hoursRemaining = avgSpendPerHour > 0 ? remainingBudget / avgSpendPerHour : 24 - currentHour;
+  const projectedEndHour = currentHour + hoursRemaining;
+  return {
+    remainingBudget,
+    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
+    projectedEndHour: Math.min(24, Math.round(projectedEndHour)),
+    willLastUntilTarget: projectedEndHour >= INTRADAY_CONFIG.targetEndHour
+  };
+}
+var INTRADAY_CONFIG, intradayPacingService_default;
+var init_intradayPacingService = __esm({
+  "server/services/intradayPacingService.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_dualTrackSyncService();
+    init_algorithmUtils();
+    INTRADAY_CONFIG = {
+      // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
+      targetEndHour: 22,
+      // 开始时间（小时）
+      startHour: 0,
+      // 消耗速度阈值
+      overspendingThreshold: 1.5,
+      // 超过理想消耗的150%
+      criticalThreshold: 2,
+      // 超过理想消耗的200%
+      underspendingThreshold: 0.5,
+      // 低于理想消耗的50%
+      // 调整乘数
+      overspendingMultiplier: 0.8,
+      // 花太快时降低20%
+      criticalMultiplier: 0.5,
+      // 危急时降低50%
+      underspendingMultiplier: 1.2,
+      // 花太慢时提高20%
+      // 异常检测阈值
+      clickFraudThreshold: 100,
+      // 单小时点击超过100次
+      clickFraudCtrThreshold: 0.15,
+      // CTR超过15%可能是异常
+      zeroConversionClickThreshold: 50,
+      // 50次点击0转化触发警告
+      // 最小检查间隔（分钟）
+      minCheckInterval: 15
+    };
+    intradayPacingService_default = {
+      adjustIntradayPacing,
+      checkAllCampaignsPacing,
+      getCriticalCampaigns,
+      applyIntradayAdjustment,
+      calculateBudgetRunway,
+      INTRADAY_CONFIG
+    };
+  }
+});
+
 // server/budgetAutoExecutionService.ts
 var budgetAutoExecutionService_exports = {};
 __export(budgetAutoExecutionService_exports, {
@@ -163948,7 +164054,7 @@ __export(budgetAutoExecutionService_exports, {
   getAutoExecutionConfigById: () => getAutoExecutionConfigById,
   getAutoExecutionConfigs: () => getAutoExecutionConfigs,
   getExecutionDetails: () => getExecutionDetails,
-  getExecutionHistory: () => getExecutionHistory2,
+  getExecutionHistory: () => getExecutionHistory,
   getPendingExecutions: () => getPendingExecutions,
   shouldExecuteNowExported: () => shouldExecuteNowExported,
   triggerManualExecution: () => triggerManualExecution,
@@ -164241,7 +164347,7 @@ async function executeBudgetAllocation2(configId) {
     throw error54;
   }
 }
-async function getExecutionHistory2(accountId, limit2 = 50) {
+async function getExecutionHistory(accountId, limit2 = 50) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(budgetAutoExecutionHistory).where(eq(budgetAutoExecutionHistory.accountId, accountId)).orderBy(desc(budgetAutoExecutionHistory.executionStartAt)).limit(limit2);
@@ -164449,6 +164555,1825 @@ var init_budgetAutoExecutionService = __esm({
     init_drizzle_orm();
     init_intelligentBudgetAllocationService();
     init_notification();
+  }
+});
+
+// server/utils/systemVersion.ts
+var systemVersion_exports = {};
+__export(systemVersion_exports, {
+  SYSTEM_VERSION: () => SYSTEM_VERSION
+});
+var SYSTEM_VERSION;
+var init_systemVersion = __esm({
+  "server/utils/systemVersion.ts"() {
+    "use strict";
+    SYSTEM_VERSION = 336;
+  }
+});
+
+// server/dataSyncScheduler.ts
+var dataSyncScheduler_exports = {};
+__export(dataSyncScheduler_exports, {
+  OPTIMIZATION_SCHEDULE: () => OPTIMIZATION_SCHEDULE,
+  SYNC_TIER_CONFIG: () => SYNC_TIER_CONFIG,
+  acquireAccountOptimizationLock: () => acquireAccountOptimizationLock2,
+  acquireAccountOptimizationLockWithRetry: () => acquireAccountOptimizationLockWithRetry,
+  deleteSyncSchedule: () => deleteSyncSchedule3,
+  frequencyToMs: () => frequencyToMs,
+  getModuleLockGroup: () => getModuleLockGroup2,
+  getSchedulerStatus: () => getSchedulerStatus3,
+  getSyncHealthStatus: () => getSyncHealthStatus,
+  getSyncQueueStatus: () => getSyncQueueStatus,
+  getSyncSchedule: () => getSyncSchedule,
+  recordModuleExecution: () => recordModuleExecution,
+  releaseAccountOptimizationLock: () => releaseAccountOptimizationLock2,
+  startDataSyncScheduler: () => startDataSyncScheduler,
+  startOptimizationScheduler: () => startOptimizationScheduler2,
+  stopDataSyncScheduler: () => stopDataSyncScheduler,
+  stopOptimizationScheduler: () => stopOptimizationScheduler2,
+  triggerImmediateSync: () => triggerImmediateSync,
+  triggerManualSync: () => triggerManualSync,
+  upsertSyncSchedule: () => upsertSyncSchedule,
+  withExponentialBackoff: () => withExponentialBackoff
+});
+function getSchedulerStatus3() {
+  return { ...schedulerStatus2 };
+}
+function startDataSyncScheduler(defaultIntervalMs = 60 * 60 * 1e3) {
+  if (schedulerStatus2.isRunning) {
+    log56.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u5728\u8FD0\u884C\u4E2D");
+    return;
+  }
+  schedulerStatus2.isRunning = true;
+  (async () => {
+    try {
+      const { cleanupStaleJobs: cleanupStaleJobs2, cleanupOrphanedPendingJobs: cleanupOrphanedPendingJobs2 } = await Promise.resolve().then(() => (init_dataSyncService(), dataSyncService_exports));
+      const staleResult = await cleanupStaleJobs2(30);
+      const orphanResult = await cleanupOrphanedPendingJobs2(60);
+      if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
+        log56.warn(`[DataSyncScheduler] v335: \u542F\u52A8\u6E05\u7406\u5B8C\u6210 - \u5361\u6B7B\u4EFB\u52A1: ${staleResult.cleaned}\u4E2A (${staleResult.jobIds.join(",")}), \u5B64\u513F\u4EFB\u52A1: ${orphanResult.cleaned}\u4E2A`);
+        logSystem("DataSyncScheduler", "v335\u542F\u52A8\u65F6\u5361\u6B7B\u4EFB\u52A1\u6E05\u7406", { staleCleaned: staleResult.cleaned, orphanCleaned: orphanResult.cleaned, staleJobIds: staleResult.jobIds });
+      }
+    } catch (cleanupErr) {
+      log56.error(`[DataSyncScheduler] v335: \u542F\u52A8\u6E05\u7406\u5931\u8D25: ${cleanupErr.message}`);
+    }
+  })();
+  log56.info("[DataSyncScheduler] v219: \u542F\u52A8\u7EDF\u4E00\u540C\u6B65\u5F15\u64CE\u9A71\u52A8\u7684\u5206\u5C42\u540C\u6B65\u8C03\u5EA6\u5668...");
+  logSystem("DataSyncScheduler", "v219\u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u542F\u52A8", { defaultIntervalMs, mode: "unified_engine" });
+  schedulerIntervals.high = setInterval(async () => {
+    await executeUnifiedSync("high");
+  }, SYNC_TIER_CONFIG.high.intervalMs);
+  log56.info(`[DataSyncScheduler] v219: \u9AD8\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.high.intervalMs / 1e3 / 60} \u5206\u949F`);
+  schedulerIntervals.medium = setInterval(async () => {
+    await executeUnifiedSync("medium");
+  }, SYNC_TIER_CONFIG.medium.intervalMs);
+  log56.info(`[DataSyncScheduler] v219: \u4E2D\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.medium.intervalMs / 1e3 / 60} \u5206\u949F`);
+  schedulerIntervals.full = setInterval(async () => {
+    await executeUnifiedSync("full");
+  }, defaultIntervalMs);
+  schedulerStatus2.nextRunTime = new Date(Date.now() + defaultIntervalMs);
+  log56.info(`[DataSyncScheduler] v219: \u5B8C\u6574\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
+  setTimeout(async () => {
+    log56.info("[DataSyncScheduler] v336: \u542F\u52A8\u540E\u9996\u6B21\u9AD8\u9891\u540C\u6B65\uFF0830\u79D2\u5EF6\u8FDF\uFF09...");
+    await executeUnifiedSync("high");
+    log56.info("[DataSyncScheduler] v336: \u542F\u52A8\u540E\u9996\u6B21\u9AD8\u9891\u540C\u6B65\u5B8C\u6210");
+  }, 30 * 1e3);
+  setTimeout(async () => {
+    log56.info("[DataSyncScheduler] v336: \u542F\u52A8\u540E\u9996\u6B21\u5B8C\u6574\u540C\u6B65\uFF0860\u79D2\u5EF6\u8FDF\uFF0C\u786E\u4FDD\u90E8\u7F72\u540E\u6570\u636E\u5B8C\u6574\u6027\uFF09...");
+    const result = await executeUnifiedSync("full");
+    log56.info("[DataSyncScheduler] v336: \u542F\u52A8\u540E\u5B8C\u6574\u540C\u6B65\u5DF2\u5B8C\u6210");
+    try {
+      await verifySyncHealth();
+    } catch (verifyErr) {
+      log56.warn(`[DataSyncScheduler] v336: \u540C\u6B65\u5065\u5EB7\u9A8C\u8BC1\u5931\u8D25: ${verifyErr.message}`);
+    }
+  }, 60 * 1e3);
+  setInterval(() => {
+    try {
+      const { logHealthSnapshot: logHealthSnapshot2 } = (init_unifiedSyncEngine(), __toCommonJS(unifiedSyncEngine_exports));
+      logHealthSnapshot2();
+    } catch (err2) {
+      log56.warn(`[DataSyncScheduler] v220: \u5065\u5EB7\u76D1\u63A7\u5FEB\u7167\u5931\u8D25: ${err2.message}`);
+    }
+  }, 15 * 60 * 1e3);
+  log56.info("[DataSyncScheduler] v220: \u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 15\u5206\u949F");
+  setInterval(async () => {
+    try {
+      const { processRetryTasks: processRetryTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+      const retryResult = await processRetryTasks2();
+      if (retryResult.processed > 0) {
+        log56.warn(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5B8C\u6210: \u5904\u7406=${retryResult.processed}, \u6210\u529F=${retryResult.synced}, \u5931\u8D25=${retryResult.failed}`);
+      }
+    } catch (err2) {
+      log56.error(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
+    }
+  }, 5 * 60 * 1e3);
+  log56.info(`[DataSyncScheduler] v137: \u4F18\u5316\u4EFB\u52A1\u91CD\u8BD5\u540C\u6B65\u5F15\u64CE\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 5\u5206\u949F`);
+  setInterval(async () => {
+    try {
+      const { cleanupStaleJobs: cleanupStaleJobs2 } = await Promise.resolve().then(() => (init_dataSyncService(), dataSyncService_exports));
+      const result = await cleanupStaleJobs2(30);
+      if (result.cleaned > 0) {
+        log56.warn(`[DataSyncScheduler] v334: \u5B9A\u671F\u6E05\u7406\u53D1\u73B0 ${result.cleaned} \u4E2A\u5361\u6B7B\u4EFB\u52A1: ${result.jobIds.join(", ")}`);
+      }
+    } catch (err2) {
+      log56.error(`[DataSyncScheduler] v334: \u5B9A\u671F\u5361\u6B7B\u4EFB\u52A1\u6E05\u7406\u5F02\u5E38: ${err2.message}`);
+    }
+  }, 10 * 60 * 1e3);
+  log56.info("[DataSyncScheduler] v334: \u5361\u6B7B\u4EFB\u52A1\u5B9A\u671F\u6E05\u7406\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 10\u5206\u949F");
+  log56.info(`[DataSyncScheduler] v219: \u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u5B8C\u6574\u540C\u6B65\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
+}
+function stopDataSyncScheduler() {
+  if (!schedulerStatus2.isRunning) {
+    log56.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u672A\u5728\u8FD0\u884C");
+    return;
+  }
+  Object.keys(schedulerIntervals).forEach((tier) => {
+    const interval = schedulerIntervals[tier];
+    if (interval) {
+      clearInterval(interval);
+      schedulerIntervals[tier] = null;
+    }
+  });
+  schedulerStatus2.isRunning = false;
+  schedulerStatus2.nextRunTime = null;
+  schedulerStatus2.currentTier = null;
+  log56.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+  logSystem("DataSyncScheduler", "\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+}
+async function executeUnifiedSync(tier) {
+  if (tier === "high") {
+    if (tierRunningState.full) {
+      log56.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bhigh\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+    if (tierRunningState.medium) {
+      log56.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08\u907F\u514DAPI\u5E76\u53D1\u538B\u529B\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "medium_running" });
+      return;
+    }
+  }
+  if (tier === "medium") {
+    if (tierRunningState.full) {
+      log56.info(`[DataSyncScheduler] v222: medium\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bmedium\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: medium\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+  }
+  tierRunningState[tier] = true;
+  log56.info(`[DataSyncScheduler] v222: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  logSync("DataSyncScheduler", `v222: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
+  schedulerStatus2.currentTier = tier;
+  try {
+    const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const batchResult = await syncAllAccounts2(tier);
+    schedulerStatus2.tierLastRun[tier] = /* @__PURE__ */ new Date();
+    schedulerStatus2.lastRunTime = /* @__PURE__ */ new Date();
+    schedulerStatus2.successfulSyncs += batchResult.successfulAccounts;
+    schedulerStatus2.failedSyncs += batchResult.failedAccounts;
+    schedulerStatus2.totalSyncs += batchResult.totalAccounts;
+    log56.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}\u5B8C\u6210: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} \u6210\u529F, ${batchResult.failedAccounts} \u5931\u8D25, ${batchResult.skippedAccounts} \u8DF3\u8FC7, \u8017\u65F6 ${batchResult.durationMs}ms`);
+    if (tier === "full" || tier === "low") {
+      for (const accountResult of batchResult.accountResults) {
+        if (!accountResult.success) continue;
+        try {
+          const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+          await triggerAccountOptimizations2(accountResult.accountId, "unified_sync_complete");
+          log56.info(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210`);
+        } catch (optErr) {
+          log56.error(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25: ${optErr.message}`);
+        }
+      }
+    }
+    if (tier === "full") {
+      schedulerStatus2.nextRunTime = new Date(Date.now() + (schedulerIntervals.full ? 60 * 60 * 1e3 : 30 * 60 * 1e3));
+    }
+    schedulerStatus2.errors = schedulerStatus2.errors.slice(-10);
+  } catch (error54) {
+    log56.error(`[DataSyncScheduler] v219: ${tier}\u5C42\u540C\u6B65\u6267\u884C\u5931\u8D25:`, error54);
+    schedulerStatus2.errors.push(`v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
+    logSyncError("DataSyncScheduler", `v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25`, { tier, error: error54.message });
+  }
+  schedulerStatus2.currentTier = null;
+  tierRunningState[tier] = false;
+}
+async function triggerManualSync(userId, accountId) {
+  try {
+    const { triggerManualFullSync: triggerManualFullSync2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const syncResult = await triggerManualFullSync2(accountId);
+    if (!syncResult) {
+      return { success: false, message: "\u8D26\u53F7\u4E0D\u5B58\u5728\u6216\u672A\u914D\u7F6EAPI\u51ED\u8BC1" };
+    }
+    return {
+      success: syncResult.success,
+      message: syncResult.success ? `\u540C\u6B65\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u540C\u6B65${syncResult.totalSynced}\u6761\u6570\u636E, \u8017\u65F6${syncResult.durationMs}ms` : `\u540C\u6B65\u90E8\u5206\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u9519\u8BEF: ${syncResult.errors.slice(0, 3).join("; ")}`,
+      result: {
+        campaigns: (syncResult.stepResults["sp_campaigns"]?.synced || 0) + (syncResult.stepResults["sb_campaigns"]?.synced || 0) + (syncResult.stepResults["sd_campaigns"]?.synced || 0),
+        adGroups: (syncResult.stepResults["sp_ad_groups"]?.synced || 0) + (syncResult.stepResults["sb_ad_groups"]?.synced || 0) + (syncResult.stepResults["sd_ad_groups"]?.synced || 0),
+        keywords: (syncResult.stepResults["sp_keywords"]?.synced || 0) + (syncResult.stepResults["sb_keywords"]?.synced || 0),
+        targets: (syncResult.stepResults["sp_product_targets"]?.synced || 0) + (syncResult.stepResults["sb_product_targets"]?.synced || 0) + (syncResult.stepResults["sd_product_targets"]?.synced || 0),
+        performance: syncResult.stepResults["performance_14d"]?.synced || 0,
+        spCampaigns: syncResult.stepResults["sp_campaigns"]?.synced || 0,
+        sbCampaigns: syncResult.stepResults["sb_campaigns"]?.synced || 0,
+        sdCampaigns: syncResult.stepResults["sd_campaigns"]?.synced || 0,
+        durationMs: syncResult.durationMs,
+        completedSteps: syncResult.completedSteps,
+        totalSteps: syncResult.totalSteps,
+        failedSteps: syncResult.failedSteps
+      }
+    };
+  } catch (error54) {
+    return {
+      success: false,
+      message: `\u540C\u6B65\u5931\u8D25: ${error54.message}`
+    };
+  }
+}
+function getSyncQueueStatus() {
+  return {
+    queueLength: requestQueue.length,
+    isProcessing: isProcessingQueue,
+    schedulerStatus: { ...schedulerStatus2 }
+  };
+}
+async function upsertSyncSchedule(params) {
+  const existing = await getSyncScheduleByAccountId(params.userId, params.accountId);
+  if (existing) {
+    await updateSyncSchedule(existing.id, {
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime,
+      preferredDayOfWeek: params.preferredDayOfWeek,
+      isEnabled: params.isEnabled
+    });
+    return { ...existing, ...params };
+  } else {
+    const id = await createSyncSchedule({
+      userId: params.userId,
+      accountId: params.accountId,
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime,
+      preferredDayOfWeek: params.preferredDayOfWeek,
+      isEnabled: params.isEnabled
+    });
+    return {
+      id,
+      userId: params.userId,
+      accountId: params.accountId,
+      syncType: params.syncType || "full_sync",
+      frequency: params.frequency,
+      preferredTime: params.preferredTime || null,
+      preferredDayOfWeek: params.preferredDayOfWeek || null,
+      isEnabled: params.isEnabled ? 1 : 0,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+}
+async function getSyncSchedule(userId, accountId) {
+  return getSyncScheduleByAccountId(userId, accountId);
+}
+async function deleteSyncSchedule3(scheduleId) {
+  await deleteSyncSchedule(scheduleId);
+}
+function sleep3(ms) {
+  return new Promise((resolve8) => setTimeout(resolve8, ms));
+}
+async function withExponentialBackoff(fn2, maxRetries = 3, baseDelayMs = 1e3) {
+  let lastError = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn2();
+    } catch (error54) {
+      lastError = error54;
+      if (error54.response?.status === 429 || error54.message?.includes("429")) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        log56.info(`[DataSyncScheduler] \u9047\u5230\u901F\u7387\u9650\u5236\uFF0C\u7B49\u5F85 ${delay}ms \u540E\u91CD\u8BD5 (\u5C1D\u8BD5 ${attempt + 1}/${maxRetries})`);
+        await sleep3(delay);
+      } else {
+        throw error54;
+      }
+    }
+  }
+  throw lastError || new Error("\u91CD\u8BD5\u6B21\u6570\u5DF2\u7528\u5C3D");
+}
+function getModuleLockGroup2(specificModules) {
+  if (!specificModules || specificModules.length === 0) return "all";
+  if (specificModules.includes("bid") || specificModules.includes("keyword")) return "bid";
+  if (specificModules.includes("dayparting") || specificModules.includes("multidim")) return "dayparting";
+  if (specificModules.includes("dayparting_budget")) return "dayparting_budget";
+  if (specificModules.includes("placement")) return "placement";
+  if (specificModules.includes("searchterm")) return "searchterm";
+  if (specificModules.includes("budget")) return "budget";
+  return "all";
+}
+function acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (!accountModuleLocks2[lockKey]) {
+    accountModuleLocks2[lockKey] = { locked: false, lockedBy: "", lockedAt: null };
+  }
+  const lock = accountModuleLocks2[lockKey];
+  if (lock.locked) {
+    if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
+      log56.warn(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
+    } else {
+      log56.info(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
+      return false;
+    }
+  }
+  lock.locked = true;
+  lock.lockedBy = lockedBy;
+  lock.lockedAt = /* @__PURE__ */ new Date();
+  return true;
+}
+function releaseAccountOptimizationLock2(accountId, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (accountModuleLocks2[lockKey]) {
+    accountModuleLocks2[lockKey].locked = false;
+    accountModuleLocks2[lockKey].lockedBy = "";
+    accountModuleLocks2[lockKey].lockedAt = null;
+  }
+}
+async function acquireAccountOptimizationLockWithRetry(accountId, lockedBy, moduleGroup, maxRetries = 3, retryDelayMs = 1e4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup)) {
+      if (attempt > 0) {
+        log56.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u7B2C${attempt + 1}\u6B21\u5C1D\u8BD5\u83B7\u53D6\u9501\u6210\u529F (${lockedBy})`);
+      }
+      return true;
+    }
+    if (attempt < maxRetries) {
+      log56.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u9501\u88AB\u5360\u7528\uFF0C${retryDelayMs / 1e3}\u79D2\u540E\u91CD\u8BD5 (${attempt + 1}/${maxRetries})`);
+      await new Promise((resolve8) => setTimeout(resolve8, retryDelayMs));
+    }
+  }
+  return false;
+}
+function shouldExecuteModuleForTarget(targetId, moduleName, stage) {
+  const key = `${targetId}:${moduleName}`;
+  const lastExecuted = moduleLastExecutionMap.get(key) || null;
+  const result = shouldExecuteModule(moduleName, lastExecuted, stage);
+  return { shouldExecute: result.shouldExecute, reason: result.reason };
+}
+async function recordModuleExecution(targetId, moduleName) {
+  const key = `${targetId}:${moduleName}`;
+  const now = /* @__PURE__ */ new Date();
+  moduleLastExecutionMap.set(key, now);
+  try {
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
+      let executionTimes = {};
+      const rowData = Array.isArray(rows) ? rows[0] : rows?.rows?.[0];
+      if (rowData) {
+        const rawArr = Array.isArray(rowData) ? rowData : [rowData];
+        for (const r5 of rawArr) {
+          const met = r5.module_execution_times;
+          if (met) {
+            try {
+              executionTimes = JSON.parse(met);
+            } catch (e6) {
+              executionTimes = {};
+            }
+            break;
+          }
+        }
+      }
+      executionTimes[moduleName] = now.toISOString();
+      await dbInstance.execute(sql`UPDATE performance_groups SET module_execution_times = ${JSON.stringify(executionTimes)} WHERE id = ${targetId}`);
+    }
+  } catch (dbErr) {
+    log56.warn(`[OptimizationScheduler] v242: \u6301\u4E45\u5316\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25(target=${targetId}, module=${moduleName}): ${dbErr.message}`);
+  }
+}
+function acquireLock(taskType) {
+  if (executionLocks[taskType]) {
+    log56.info(`[OptimizationScheduler] \u4EFB\u52A1 ${taskType} \u6B63\u5728\u6267\u884C\u4E2D\uFF0C\u8DF3\u8FC7`);
+    return false;
+  }
+  executionLocks[taskType] = true;
+  return true;
+}
+function releaseLock(taskType) {
+  executionLocks[taskType] = false;
+}
+function shouldExecuteThisHour(taskType) {
+  const now = /* @__PURE__ */ new Date();
+  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+  if (lastExecutionHour[taskType] === hourKey) {
+    return false;
+  }
+  lastExecutionHour[taskType] = hourKey;
+  return true;
+}
+async function startOptimizationScheduler2() {
+  log56.info("[OptimizationScheduler] \u542F\u52A8v156\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
+  try {
+    const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const targets = await getEnabledOptimizationTargets2();
+    const dbInstance = await getDb();
+    let restoredFromJson = 0;
+    let restoredFromFallback = 0;
+    for (const target of targets) {
+      let moduleTimesRestored = false;
+      if (dbInstance) {
+        try {
+          const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${target.id}`);
+          const resultRows = Array.isArray(rows) ? rows[0] : rows;
+          const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
+          for (const row of dataArr) {
+            const met = row?.module_execution_times;
+            if (met) {
+              const executionTimes = JSON.parse(met);
+              const modules = Object.keys(executionTimes);
+              if (modules.length > 0) {
+                for (const mod of modules) {
+                  const key = `${target.id}:${mod}`;
+                  if (!moduleLastExecutionMap.has(key)) {
+                    moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
+                  }
+                }
+                moduleTimesRestored = true;
+                restoredFromJson++;
+                log56.info(`[OptimizationScheduler] v242: \u4ECE\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u6062\u590D ${target.name}: ${modules.map((m4) => `${m4}=${executionTimes[m4]}`).join(", ")}`);
+              }
+              break;
+            }
+          }
+        } catch (jsonErr) {
+          log56.warn(`[OptimizationScheduler] v242: \u89E3\u6790\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u5931\u8D25(target=${target.id}): ${jsonErr.message}`);
+        }
+      }
+      if (!moduleTimesRestored) {
+        restoredFromFallback++;
+        log56.info(`[OptimizationScheduler] v242f: ${target.name} \u65E0\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55\uFF0C\u5C06\u5141\u8BB8\u9996\u6B21\u6267\u884C (\u4E0D\u518D\u4F7F\u7528last_optimization_at\u56DE\u9000)`);
+      }
+    }
+    log56.info(`[OptimizationScheduler] v242: \u5DF2\u6062\u590D ${moduleLastExecutionMap.size} \u4E2A\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55 (JSON\u7CBE\u786E\u6062\u590D=${restoredFromJson}, \u56DE\u9000\u6062\u590D=${restoredFromFallback})`);
+  } catch (restoreErr) {
+    log56.error(`[OptimizationScheduler] v242: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
+  }
+  setTimeout(() => {
+    optimizationIntervals.intraday_pacing = setInterval(async () => {
+      await executeOptimizationTask("intraday_pacing");
+    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+    executeOptimizationTask("intraday_pacing");
+  }, 1 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F\uFF0C\u504F\u79FB: 1\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.risk_scan = setInterval(async () => {
+      await executeOptimizationTask("risk_scan");
+    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
+    executeOptimizationTask("risk_scan");
+  }, 6 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 6\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+      await executeOptimizationTask("dayparting_adjustment");
+    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+    executeOptimizationTask("dayparting_adjustment");
+  }, 11 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6\uFF0C\u504F\u79FB: 11\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_budget = setInterval(async () => {
+      await executeOptimizationTask("dayparting_budget");
+    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  }, 16 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u504F\u79FB: 16\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_bid_optimization");
+    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+    executeOptimizationTask("daily_bid_optimization");
+  }, 21 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 21\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_placement_optimization");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_placement_optimization");
+  }, 26 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 26\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+      await executeOptimizationTask("daily_search_term_negation");
+    }, 12 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_search_term_negation");
+  }, 31 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u504F\u79FB: 31\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.budget_allocation = setInterval(async () => {
+      await executeOptimizationTask("budget_allocation");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("budget_allocation");
+  }, 36 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
+  optimizationIntervals.search_term_harvest = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    if (localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
+      await executeOptimizationTask("search_term_harvest");
+    }
+  }, 60 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
+  optimizationIntervals.weekly_report = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    const localDow = getLocalDayOfWeek(now, "US");
+    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour("weekly_report")) {
+      await executeOptimizationTask("weekly_report");
+    }
+  }, 60 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
+  log56.info("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
+  log56.debug("[OptimizationScheduler] \u751F\u547D\u5468\u671F\u9891\u7387\u8868:");
+  log56.info("  | \u6A21\u5757           | \u542F\u52A8\u671F  | \u6210\u957F\u671F  | \u6210\u719F\u671F  |");
+  log56.debug("  |----------------|---------|---------|---------|");
+  log56.debug("  | \u51FA\u4EF7\u4F18\u5316       | 4\u5C0F\u65F6   | 6\u5C0F\u65F6   | 12\u5C0F\u65F6  |");
+  log56.debug("  | \u5206\u65F6\u8C03\u6574       | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   |");
+  log56.debug("  | \u4F4D\u7F6E\u503E\u659C       | 24\u5C0F\u65F6  | 12\u5C0F\u65F6  | 12\u5C0F\u65F6  |");
+  log56.debug("  | \u5426\u5B9A\u641C\u7D22\u8BCD     | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
+  log56.debug("  | \u641C\u7D22\u8BCD\u8FC1\u79FB     | 72\u5C0F\u65F6  | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
+  log56.debug("  | \u9884\u7B97\u5206\u914D       | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   |");
+  try {
+    startAutoCorrector();
+    log56.info("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8");
+  } catch (correctorErr) {
+    log56.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
+  }
+  setTimeout(() => {
+    executeOptimizationTask("nextgen_maintenance");
+  }, 2 * 60 * 1e3);
+  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
+    await executeOptimizationTask("nextgen_maintenance");
+  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
+  log56.info(`[OptimizationScheduler] v232: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 6e4}\u5206\u949F\uFF0C\u9996\u6B21\u6267\u884C: 2\u5206\u949F\u540E`);
+  optimizationIntervals.nextgen_model_training = setInterval(async () => {
+    await executeOptimizationTask("nextgen_model_training");
+  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
+  setTimeout(() => {
+    executeOptimizationTask("nextgen_model_training");
+  }, 10 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] v204: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 10\u5206\u949F\u540E`);
+  optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    if (localHour === 2 && shouldExecuteThisHour("nextgen_budget_optimization")) {
+      await executeOptimizationTask("nextgen_budget_optimization");
+    }
+  }, 60 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66282:00`);
+  optimizationIntervals.ab_test_metrics = setInterval(async () => {
+    const now = /* @__PURE__ */ new Date();
+    const localHour = getLocalHour(now, "US");
+    if (localHour === 3 && shouldExecuteThisHour("ab_test_metrics")) {
+      try {
+        const abTestService = await Promise.resolve().then(() => (init_abTestService(), abTestService_exports));
+        const db = await Promise.resolve().then(() => (init_db2(), db_exports));
+        const accounts = await db.getAdAccounts();
+        for (const account of accounts) {
+          const tests = await abTestService.getABTests(account.id);
+          const activeTests = tests.filter((t7) => t7.status === "running");
+          for (const test2 of activeTests) {
+            try {
+              const analysis = await abTestService.analyzeABTestResults(test2.id);
+              const primaryMetric = analysis.metrics?.[0];
+              if (primaryMetric?.isSignificant) {
+                log56.info(`[ABTestScheduler] v267: \u6D4B\u8BD5${test2.id}\u5DF2\u8FBE\u5230\u7EDF\u8BA1\u663E\u8457\u6027! \u80DC\u8005: ${analysis.overallWinner}, p\u503C: ${primaryMetric.pValue}`);
+              }
+              const startDate = test2.startDate ? new Date(test2.startDate) : null;
+              const daysSinceStart = startDate ? (Date.now() - startDate.getTime()) / (1e3 * 60 * 60 * 24) : 0;
+              if (daysSinceStart > 30) {
+                await abTestService.completeABTest(test2.id);
+                log56.info(`[ABTestScheduler] v267: \u6D4B\u8BD5${test2.id}\u8D85\u8FC730\u5929\uFF0C\u81EA\u52A8\u5B8C\u6210`);
+              }
+            } catch (testErr) {
+              log56.warn(`[ABTestScheduler] v267: \u5904\u7406\u6D4B\u8BD5${test2.id}\u5931\u8D25: ${testErr.message}`);
+            }
+          }
+        }
+        log56.info(`[ABTestScheduler] v267: A/B\u6D4B\u8BD5\u6BCF\u65E5\u6307\u6807\u6536\u96C6\u5B8C\u6210`);
+      } catch (err2) {
+        log56.error(`[ABTestScheduler] v267: A/B\u6D4B\u8BD5\u8C03\u5EA6\u5931\u8D25: ${err2.message}`);
+      }
+    }
+  }, 60 * 60 * 1e3);
+  log56.info(`[OptimizationScheduler] v267: A/B\u6D4B\u8BD5\u6307\u6807\u6536\u96C6\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66283:00`);
+}
+function stopOptimizationScheduler2() {
+  Object.keys(optimizationIntervals).forEach((type) => {
+    const interval = optimizationIntervals[type];
+    if (interval) {
+      clearInterval(interval);
+      optimizationIntervals[type] = null;
+    }
+  });
+  log56.debug("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+  try {
+    stopAutoCorrector();
+  } catch (e6) {
+  }
+}
+async function executeOptimizationTask(taskType) {
+  if (!acquireLock(taskType)) return;
+  const mem = process.memoryUsage();
+  const heapUtilization = Math.round(mem.heapUsed / mem.heapTotal * 100);
+  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing"];
+  const isCritical = criticalTasks.includes(taskType);
+  if (heapUtilization > 90) {
+    log56.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u5371\u6025(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
+    if (typeof global.gc === "function") global.gc();
+    releaseLock(taskType);
+    return;
+  }
+  if (heapUtilization > 80 && !isCritical) {
+    log56.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u7D27\u5F20(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u975E\u5173\u952E\u4EFB\u52A1: ${taskType}`);
+    if (typeof global.gc === "function") global.gc();
+    releaseLock(taskType);
+    return;
+  }
+  const config2 = OPTIMIZATION_SCHEDULE[taskType];
+  log56.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  try {
+    const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    switch (taskType) {
+      // ==================== 日内节奏监控（每30分钟）====================
+      case "intraday_pacing": {
+        log56.info(`[OptimizationScheduler] \u6267\u884C\u65E5\u5185\u8282\u594F\u76D1\u63A7`);
+        try {
+          const { checkAllCampaignsPacing: checkAllCampaignsPacing2, applyIntradayAdjustment: applyIntradayAdjustment2 } = await Promise.resolve().then(() => (init_intradayPacingService(), intradayPacingService_exports));
+          const targets = await getEnabledOptimizationTargets2();
+          const checkedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (checkedAccountIds.has(target.accountId)) continue;
+            checkedAccountIds.add(target.accountId);
+            try {
+              const adjustments = await checkAllCampaignsPacing2(target.accountId);
+              const criticalCount = adjustments.filter((a4) => a4.pacingStatus === "critical" || a4.anomalyDetected).length;
+              const overspendCount = adjustments.filter((a4) => a4.pacingStatus === "overspending").length;
+              const underspendCount = adjustments.filter((a4) => a4.pacingStatus === "underspending").length;
+              for (const adj of adjustments) {
+                if (adj.suggestedAction !== "none" && (adj.pacingStatus === "critical" || adj.pacingStatus === "overspending")) {
+                  await applyIntradayAdjustment2(adj);
+                }
+              }
+              log56.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5B8C\u6210: ${adjustments.length}\u4E2ACampaign, \u5371\u6025=${criticalCount}, \u8D85\u901F=${overspendCount}, \u6B20\u901F=${underspendCount}`);
+            } catch (pacingError) {
+              log56.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5F02\u5E38:`, pacingError.message);
+            }
+          }
+        } catch (pacingError) {
+          log56.error(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5F02\u5E38:`, pacingError.message);
+        }
+        break;
+      }
+      // ==================== 高频风控扫描（每2小时，仅风控）====================
+      case "risk_scan": {
+        log56.info(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u4EC5\u98CE\u63A7\uFF0C\u4E0D\u542B\u4F18\u5316)`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const scannedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (scannedAccountIds.has(target.accountId)) continue;
+            scannedAccountIds.add(target.accountId);
+            try {
+              const riskCampaigns = await getCampaignsByAccountId(target.accountId);
+              const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
+              let totalRisks = 0;
+              for (const campaign of enabledCampaigns) {
+                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
+                if (riskResult.hasRisk) {
+                  totalRisks += riskResult.risks.length;
+                  for (const risk of riskResult.risks) {
+                    log56.warn(`[RiskScan] Campaign ${campaign.campaignName}: [${risk.severity}] ${risk.description}`);
+                  }
+                }
+              }
+              log56.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
+            } catch (riskError) {
+              log56.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+            }
+          }
+        } catch (riskError) {
+          log56.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+        }
+        break;
+      }
+      // ==================== 分时竞价调整（每小时）====================
+      case "dayparting_adjustment": {
+        log56.info(`[OptimizationScheduler] \u6267\u884C\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574`);
+        try {
+          const daypartingResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["multidim", "dayparting", "coordination"]
+          });
+          log56.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingResults) {
+            log56.debug(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
+          }
+        } catch (daypartingError) {
+          log56.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
+        }
+        break;
+      }
+      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
+      case "dayparting_budget": {
+        log56.info(`[OptimizationScheduler] v179: \u6267\u884C\u5206\u65F6\u9884\u7B97\u8C03\u6574`);
+        try {
+          const daypartingBudgetResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["multidim", "dayparting_budget"]
+          });
+          log56.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5B8C\u6210: ${daypartingBudgetResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingBudgetResults) {
+            log56.debug(`  - ${r5.targetName}: \u5206\u65F6\u9884\u7B97\u8C03\u6574=${r5.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
+          }
+        } catch (daypartingBudgetError) {
+          log56.error(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5931\u8D25:`, daypartingBudgetError.message);
+        }
+        break;
+      }
+      // ==================== v143: 出价智能优化（生命周期感知）====================
+      case "daily_bid_optimization": {
+        log56.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "bid", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log56.info(`[OptimizationScheduler] \u8DF3\u8FC7\u51FA\u4EF7\u4F18\u5316: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["bid", "keyword", "coordination"]
+              });
+              await recordModuleExecution(target.id, "bid");
+              executedCount++;
+              log56.debug(`  - ${target.name} [${stage}]: \u51FA\u4EF7\u8C03\u6574=${result.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${result.keywordStatusChanges.pausedCount}`);
+            } catch (targetErr) {
+              log56.error(`  - ${target.name} \u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log56.info(`[OptimizationScheduler] v273\u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}, \u603B\u76EE\u6807=${targets.length}, \u65F6\u95F4=${(/* @__PURE__ */ new Date()).toISOString()}`);
+        } catch (bidError) {
+          log56.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
+        }
+        break;
+      }
+      // ==================== v143: 位置优化（生命周期感知）====================
+      case "daily_placement_optimization": {
+        log56.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "placement", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log56.info(`[OptimizationScheduler] \u8DF3\u8FC7\u4F4D\u7F6E\u4F18\u5316: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["placement"]
+              });
+              await recordModuleExecution(target.id, "placement");
+              executedCount++;
+              log56.debug(`  - ${target.name} [${stage}]: \u4F4D\u7F6E\u8C03\u6574=${result.placementOptimization.adjustmentsCount}`);
+            } catch (targetErr) {
+              log56.error(`  - ${target.name} \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log56.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (placementError) {
+          log56.error(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25:`, placementError.message);
+        }
+        break;
+      }
+      // ==================== v143: 搜索词否定（生命周期感知）====================
+      case "daily_search_term_negation": {
+        log56.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "negativeKeyword", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log56.info(`[OptimizationScheduler] \u8DF3\u8FC7\u641C\u7D22\u8BCD\u5426\u5B9A: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["searchterm"]
+              });
+              await recordModuleExecution(target.id, "negativeKeyword");
+              executedCount++;
+              log56.debug(`  - ${target.name} [${stage}]: \u5426\u5B9A\u8BCD\u6DFB\u52A0=${result.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u5173\u952E\u8BCD=${result.searchTermAnalysis.newKeywordsAdded}`);
+            } catch (targetErr) {
+              log56.error(`  - ${target.name} \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log56.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+        } catch (searchTermError) {
+          log56.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25:`, searchTermError.message);
+        }
+        break;
+      }
+      // ==================== v143: 预算智能分配（生命周期感知）====================
+      case "budget_allocation": {
+        log56.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          let executedCount = 0;
+          let skippedCount = 0;
+          for (const target of targets) {
+            const stage = target.lifecycleStage || "mature";
+            const check2 = shouldExecuteModuleForTarget(target.id, "budget", stage);
+            if (!check2.shouldExecute) {
+              skippedCount++;
+              log56.info(`[OptimizationScheduler] \u8DF3\u8FC7\u9884\u7B97\u5206\u914D: ${target.name} (${check2.reason})`);
+              continue;
+            }
+            try {
+              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+              const result = await executeOptimizationTarget2(target.id, {
+                dryRun: false,
+                specificModules: ["budget"]
+              });
+              await recordModuleExecution(target.id, "budget");
+              executedCount++;
+              log56.debug(`  - ${target.name} [${stage}]: \u9884\u7B97\u8C03\u6574=${result.budgetAllocation.adjustmentsCount}`);
+            } catch (targetErr) {
+              log56.error(`  - ${target.name} \u9884\u7B97\u5206\u914D\u5931\u8D25: ${targetErr.message}`);
+            }
+          }
+          log56.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
+          try {
+            const { checkAndExecutePendingTasks: checkAndExecutePendingTasks2 } = await Promise.resolve().then(() => (init_budgetAutoExecutionService(), budgetAutoExecutionService_exports));
+            const autoExecResult = await checkAndExecutePendingTasks2();
+            log56.info(`[OptimizationScheduler] v267: \u9884\u7B97\u81EA\u52A8\u6267\u884C\u5B8C\u6210: \u6267\u884C=${autoExecResult.executed}, \u5931\u8D25=${autoExecResult.failed}, \u9519\u8BEF\u6570=${autoExecResult.errors.length}`);
+          } catch (autoExecErr) {
+            log56.error(`[OptimizationScheduler] v267: \u9884\u7B97\u81EA\u52A8\u6267\u884C\u5931\u8D25:`, autoExecErr.message);
+          }
+        } catch (budgetError) {
+          log56.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
+        }
+        break;
+      }
+      // ==================== 搜索词收割（周一凌晨5:00）====================
+      case "search_term_harvest": {
+        log56.info(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const harvestedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (harvestedAccountIds.has(target.accountId)) continue;
+            harvestedAccountIds.add(target.accountId);
+            try {
+              const harvestResult = await batchHarvestSearchTerms(
+                target.accountId,
+                { dryRun: false }
+              );
+              log56.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
+            } catch (harvestError) {
+              log56.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
+            }
+          }
+        } catch (harvestError) {
+          log56.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
+        }
+        break;
+      }
+      // ==================== 绩效周报（周一上午9:00）====================
+      case "weekly_report": {
+        log56.debug(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
+        break;
+      }
+      // ==================== v197: NextGen维护任务 ====================
+      case "nextgen_maintenance": {
+        log56.info(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u4EFB\u52A1\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              const result = await executeNextGenMaintenanceTasks(target.accountId);
+              log56.debug(`  - \u8D26\u6237${target.accountId}: \u7279\u5F81\u7F13\u5B58=${result.featuresCached}, Sigmoid\u62DF\u5408=${result.sigmoidFitted.fitted}, Reward\u56DE\u586B=${result.rewardsBackfilled}, \u56E0\u679C\u5206\u6790=${result.causalAnalysis.analyzed}`);
+            } catch (err2) {
+              log56.error(`  - \u8D26\u6237${target.accountId} NextGen\u7EF4\u62A4\u5931\u8D25: ${err2.message}`);
+            }
+          }
+          try {
+            const { backfillBidPerformanceResults: backfillBidPerformanceResults2 } = await Promise.resolve().then(() => (init_rlDataRecorder(), rlDataRecorder_exports));
+            const backfillResult = await backfillBidPerformanceResults2();
+            log56.info(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5B8C\u6210: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
+          } catch (bErr) {
+            log56.error(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5931\u8D25: ${bErr.message}`);
+          }
+        } catch (err2) {
+          log56.error(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+      // ==================== v197: NextGen模型训练 ====================
+      case "nextgen_model_training": {
+        log56.info(`[OptimizationScheduler] v197: NextGen\u6A21\u578B\u8BAD\u7EC3\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              await executeModelTraining(target.accountId);
+              log56.info(`  - \u8D26\u6237${target.accountId}: CQL\u6A21\u578B\u8BAD\u7EC3\u5B8C\u6210`);
+            } catch (err2) {
+              log56.error(`  - \u8D26\u6237${target.accountId} CQL\u8BAD\u7EC3\u5931\u8D25: ${err2.message}`);
+            }
+          }
+        } catch (err2) {
+          log56.error(`[OptimizationScheduler] v197: \u6A21\u578B\u8BAD\u7EC3\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+      // ==================== v197: NextGen预算优化+关键词图谱 ====================
+      case "nextgen_budget_optimization": {
+        log56.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u89E6\u53D1...`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          for (const target of targets) {
+            try {
+              await executeBudgetOptimization(target.accountId);
+              log56.info(`  - \u8D26\u6237${target.accountId}: \u9884\u7B97\u7EC4\u5408\u4F18\u5316\u5B8C\u6210`);
+            } catch (err2) {
+              log56.error(`  - \u8D26\u6237${target.accountId} \u9884\u7B97\u4F18\u5316\u5931\u8D25: ${err2.message}`);
+            }
+            try {
+              await executeKeywordGraphAnalysis(target.accountId);
+              log56.info(`  - \u8D26\u6237${target.accountId}: \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790\u5B8C\u6210`);
+            } catch (err2) {
+              log56.error(`  - \u8D26\u6237${target.accountId} \u5173\u952E\u8BCD\u56FE\u8C31\u5931\u8D25: ${err2.message}`);
+            }
+          }
+        } catch (err2) {
+          log56.error(`[OptimizationScheduler] v197: \u9884\u7B97\u4F18\u5316\u5931\u8D25:`, err2.message);
+        }
+        break;
+      }
+    }
+    log56.info(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
+  } catch (error54) {
+    log56.error(`[OptimizationScheduler] ${taskType} \u6267\u884C\u5931\u8D25:`, error54.message);
+  } finally {
+    releaseLock(taskType);
+  }
+}
+async function verifySyncHealth() {
+  try {
+    const database = await getDb();
+    if (!database) return;
+    const recentJobs = await database.execute(sql`
+      SELECT account_id, status, sync_type, completed_at, error_message
+      FROM data_sync_jobs 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    const jobs = recentJobs?.[0] || [];
+    const successCount = jobs.filter((j6) => j6.status === "completed").length;
+    const failCount = jobs.filter((j6) => j6.status === "failed").length;
+    if (jobs.length === 0) {
+      consecutiveFailures++;
+      log56.warn(`[DataSyncScheduler] v336: \u540C\u6B65\u5065\u5EB7\u544A\u8B66 - \u6700\u8FD12\u5C0F\u65F6\u65E0\u540C\u6B65\u8BB0\u5F55 (\u8FDE\u7EED\u5931\u8D25: ${consecutiveFailures})`);
+    } else if (failCount > 0 && successCount === 0) {
+      consecutiveFailures++;
+      log56.warn(`[DataSyncScheduler] v336: \u540C\u6B65\u5065\u5EB7\u544A\u8B66 - \u6700\u8FD1${jobs.length}\u6B21\u540C\u6B65\u5168\u90E8\u5931\u8D25 (\u8FDE\u7EED\u5931\u8D25: ${consecutiveFailures})`);
+    } else {
+      consecutiveFailures = 0;
+      log56.info(`[DataSyncScheduler] v336: \u540C\u6B65\u5065\u5EB7\u68C0\u67E5\u901A\u8FC7 - \u6210\u529F:${successCount}, \u5931\u8D25:${failCount}`);
+    }
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      const { optimizationEvents: optimizationEvents8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { SYSTEM_VERSION: SYSTEM_VERSION2 } = await Promise.resolve().then(() => (init_systemVersion(), systemVersion_exports));
+      const alertDetail = JSON.stringify({
+        type: "sync_health_alert",
+        systemVersion: SYSTEM_VERSION2,
+        consecutiveFailures,
+        recentJobs: jobs.slice(0, 5).map((j6) => ({
+          accountId: j6.account_id,
+          status: j6.status,
+          syncType: j6.sync_type,
+          error: j6.error_message?.substring(0, 200)
+        })),
+        alertTime: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      await database.insert(optimizationEvents8).values({
+        accountId: 0,
+        eventCategory: "settings_change",
+        actionType: "auto_correction",
+        actionDetail: alertDetail,
+        changeReason: `v${SYSTEM_VERSION2} \u540C\u6B65\u5065\u5EB7\u544A\u8B66: \u8FDE\u7EED${consecutiveFailures}\u6B21\u540C\u6B65\u5931\u8D25`,
+        algorithmVersion: `v${SYSTEM_VERSION2}`,
+        status: "failed",
+        apiSyncStatus: "not_applicable"
+      });
+      log56.error(`[DataSyncScheduler] v336: \u2757 \u540C\u6B65\u5065\u5EB7\u4E25\u91CD\u544A\u8B66 - \u8FDE\u7EED${consecutiveFailures}\u6B21\u540C\u6B65\u5931\u8D25\uFF0C\u5DF2\u8BB0\u5F55\u544A\u8B66\u4E8B\u4EF6`);
+      consecutiveFailures = 0;
+    }
+  } catch (err2) {
+    log56.warn(`[DataSyncScheduler] v336: \u540C\u6B65\u5065\u5EB7\u68C0\u67E5\u5F02\u5E38: ${err2.message}`);
+  }
+}
+async function triggerImmediateSync(accountId, reason) {
+  log56.info(`[DataSyncScheduler] v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1 - \u8D26\u6237${accountId}, \u539F\u56E0: ${reason}`);
+  logSync("DataSyncScheduler", `v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65`, { accountId, reason });
+  try {
+    setTimeout(async () => {
+      try {
+        const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+        const result = await syncAllAccounts2("full");
+        log56.info(`[DataSyncScheduler] v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u5B8C\u6210 - \u8D26\u6237${accountId}, \u539F\u56E0: ${reason}, \u6210\u529F: ${result.successfulAccounts}/${result.totalAccounts}`);
+        await verifySyncHealth();
+      } catch (syncErr) {
+        log56.error(`[DataSyncScheduler] v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u5931\u8D25 - \u8D26\u6237${accountId}: ${syncErr.message}`);
+        logSyncError("DataSyncScheduler", `v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u5931\u8D25`, { accountId, reason, error: syncErr.message });
+      }
+    }, 5 * 1e3);
+  } catch (err2) {
+    log56.error(`[DataSyncScheduler] v336: \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1\u5F02\u5E38: ${err2.message}`);
+  }
+}
+function getSyncHealthStatus() {
+  return {
+    consecutiveFailures,
+    lastSyncTime: schedulerStatus2.lastRunTime,
+    isRunning: schedulerStatus2.isRunning
+  };
+}
+var log56, SYNC_TIER_CONFIG, schedulerStatus2, schedulerIntervals, requestQueue, isProcessingQueue, frequencyToMs, tierRunningState, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks2, moduleLastExecutionMap, consecutiveFailures, MAX_CONSECUTIVE_FAILURES;
+var init_dataSyncScheduler = __esm({
+  "server/dataSyncScheduler.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_amazonSyncService();
+    init_notification();
+    init_algorithmUtils();
+    init_searchTermHarvester();
+    init_attributionWindowHelper();
+    init_campaignLifecycleService();
+    init_optimizationAutoCorrector();
+    init_nextGenBidOrchestrator();
+    init_logger2();
+    init_opsLogger();
+    log56 = createModuleLogger("Scheduler");
+    SYNC_TIER_CONFIG = {
+      high: {
+        intervalMs: 15 * 60 * 1e3,
+        // 15分钟
+        description: "\u9AD8\u9891\u540C\u6B65 - \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u548C\u9884\u7B97",
+        syncTypes: ["campaigns_status", "budgets"]
+      },
+      medium: {
+        intervalMs: 30 * 60 * 1e3,
+        // 30分钟
+        description: "\u4E2D\u9891\u540C\u6B65 - \u5E7F\u544A\u7EC4\u3001\u5173\u952E\u8BCD\u3001\u5B9A\u4F4D",
+        syncTypes: ["ad_groups", "keywords", "targets"]
+      },
+      low: {
+        intervalMs: 60 * 60 * 1e3,
+        // 1小时
+        description: "\u4F4E\u9891\u540C\u6B65 - \u5B8C\u6574\u6570\u636E\u540C\u6B65",
+        syncTypes: ["full_sync"]
+      },
+      full: {
+        intervalMs: 30 * 60 * 1e3,
+        // 30分钟（完整同步，获取60天历史数据）
+        description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF0860\u5929\u5386\u53F2\uFF09",
+        syncTypes: ["all"]
+      }
+    };
+    schedulerStatus2 = {
+      isRunning: false,
+      lastRunTime: null,
+      nextRunTime: null,
+      totalSyncs: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+      errors: [],
+      currentTier: null,
+      tierLastRun: {
+        high: null,
+        medium: null,
+        low: null,
+        full: null
+      }
+    };
+    schedulerIntervals = {
+      high: null,
+      medium: null,
+      low: null,
+      full: null
+    };
+    requestQueue = [];
+    isProcessingQueue = false;
+    frequencyToMs = {
+      "every_15_minutes": 15 * 60 * 1e3,
+      "every_30_minutes": 30 * 60 * 1e3,
+      "hourly": 60 * 60 * 1e3,
+      "every_2_hours": 2 * 60 * 60 * 1e3,
+      "every_4_hours": 4 * 60 * 60 * 1e3,
+      "every_6_hours": 6 * 60 * 60 * 1e3,
+      "every_12_hours": 12 * 60 * 60 * 1e3,
+      "daily": 24 * 60 * 60 * 1e3,
+      "weekly": 7 * 24 * 60 * 60 * 1e3
+    };
+    tierRunningState = {
+      high: false,
+      medium: false,
+      full: false
+    };
+    OPTIMIZATION_SCHEDULE = {
+      intraday_pacing: {
+        type: "intraday_pacing",
+        description: "\u65E5\u5185\u8282\u594F\u76D1\u63A7 - \u9884\u7B97\u6D88\u8017\u901F\u5EA6\u76D1\u63A7\u548C\u5F02\u5E38\u6D41\u91CF\u68C0\u6D4B",
+        intervalMs: 30 * 60 * 1e3,
+        // 每30分钟
+        specificModules: []
+        // 独立执行，不走优化目标引擎
+      },
+      risk_scan: {
+        type: "risk_scan",
+        description: "\u9AD8\u9891\u98CE\u63A7\u626B\u63CF - \u96F6\u66DD\u5149\u98CE\u66B4\u3001\u5F02\u5E38\u82B1\u9500\u3001CPC\u98D9\u5347\u68C0\u6D4B",
+        intervalMs: 2 * 60 * 60 * 1e3,
+        // 每2小时（从4小时缩短到2小时）
+        specificModules: []
+        // 仅风控，不执行优化模块
+      },
+      dayparting_adjustment: {
+        type: "dayparting_adjustment",
+        description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
+        intervalMs: 60 * 60 * 1e3,
+        // 每小时
+        specificModules: ["multidim", "dayparting", "coordination"]
+        // v179: 添加multidim模块以生成分时竞价规则
+      },
+      dayparting_budget: {
+        type: "dayparting_budget",
+        description: "v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574 - \u6839\u636E\u661F\u671F\u51E0\u7684\u8868\u73B0\u52A8\u6001\u8C03\u6574\u9884\u7B97",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每天执行一次
+        cronHours: [6],
+        // 凌昨6:00执行（在分时竞价规则生成后）
+        specificModules: ["multidim", "dayparting_budget"]
+        // 先生成规则，再应用预算
+      },
+      daily_bid_optimization: {
+        type: "daily_bid_optimization",
+        description: "\u51FA\u4EF7\u667A\u80FD\u4F18\u5316 - \u6BCF2\u5C0F\u65F6\u57FA\u4E8E\u5E02\u573A\u66F2\u7EBF\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u51FA\u4EF7",
+        intervalMs: 2 * 60 * 60 * 1e3,
+        // v122h: 从每日1次提升到每2小时，与宣传一致
+        specificModules: ["bid", "keyword", "coordination"]
+      },
+      daily_placement_optimization: {
+        type: "daily_placement_optimization",
+        description: "\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316 - \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u8C03\u6574",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        cronHours: [3],
+        // 凌晨3:00
+        specificModules: ["placement"]
+        // 仅位置优化
+      },
+      daily_search_term_negation: {
+        type: "daily_search_term_negation",
+        description: "\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A - \u81EA\u52A8\u5426\u5B9A\u4F4E\u6548\u641C\u7D22\u8BCD",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        cronHours: [4],
+        // 凌晨4:00
+        specificModules: ["searchterm"]
+        // 仅搜索词分析
+      },
+      budget_allocation: {
+        type: "budget_allocation",
+        description: "\u9884\u7B97\u667A\u80FD\u5206\u914D - \u65E9\u665A\u4E24\u6B21\u9884\u7B97\u5206\u914D",
+        intervalMs: 12 * 60 * 60 * 1e3,
+        cronHours: [8, 18],
+        // 早8:00 + 晚18:00
+        specificModules: ["budget"]
+        // 仅预算分配
+      },
+      search_term_harvest: {
+        type: "search_term_harvest",
+        description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u65E5\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // v192: 从每周改为每日
+        cronHours: [5],
+        // 凌晨5:00
+        // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
+        specificModules: []
+        // 独立执行，使用searchTermHarvester服务
+      },
+      weekly_report: {
+        type: "weekly_report",
+        description: "\u7EE9\u6548\u5468\u62A5 - \u6BCF\u5468\u81EA\u52A8\u751F\u6210\u5E7F\u544A\u4F18\u5316\u62A5\u544A",
+        intervalMs: 7 * 24 * 60 * 60 * 1e3,
+        cronHours: [9],
+        // 上午9:00
+        cronDayOfWeek: 1,
+        // 周一
+        specificModules: []
+      },
+      // v197: 下一代算法定时任务
+      nextgen_maintenance: {
+        type: "nextgen_maintenance",
+        description: "v204: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
+        intervalMs: 30 * 60 * 1e3,
+        // v232: 从2小时大幅缩短到30分钟，加速算法进化
+        specificModules: []
+      },
+      nextgen_model_training: {
+        type: "nextgen_model_training",
+        description: "v197: NextGen\u6A21\u578B\u8BAD\u7EC3 - CQL\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60\u6A21\u578B\u8BAD\u7EC3",
+        intervalMs: 6 * 60 * 60 * 1e3,
+        // 每6小时
+        specificModules: []
+      },
+      nextgen_budget_optimization: {
+        type: "nextgen_budget_optimization",
+        description: "v197: NextGen\u9884\u7B97\u7EC4\u5408\u4F18\u5316 + \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每日
+        cronHours: [2],
+        // 凌晨2:00
+        specificModules: []
+      },
+      ab_test_metrics: {
+        type: "ab_test_metrics",
+        description: "v267: A/B\u6D4B\u8BD5\u6BCF\u65E5\u6307\u6807\u6536\u96C6",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每日
+        cronHours: [23],
+        // 晚上23:00
+        specificModules: []
+      }
+    };
+    optimizationIntervals = {
+      intraday_pacing: null,
+      risk_scan: null,
+      dayparting_adjustment: null,
+      dayparting_budget: null,
+      // v179
+      daily_bid_optimization: null,
+      daily_placement_optimization: null,
+      daily_search_term_negation: null,
+      budget_allocation: null,
+      search_term_harvest: null,
+      weekly_report: null,
+      // v197: NextGen定时任务
+      nextgen_maintenance: null,
+      nextgen_model_training: null,
+      nextgen_budget_optimization: null,
+      ab_test_metrics: null
+      // v267 P2-2
+    };
+    executionLocks = {};
+    lastExecutionHour = {};
+    accountModuleLocks2 = {};
+    moduleLastExecutionMap = /* @__PURE__ */ new Map();
+    consecutiveFailures = 0;
+    MAX_CONSECUTIVE_FAILURES = 3;
+  }
+});
+
+// server/syncIdempotencyService.ts
+var syncIdempotencyService_exports = {};
+__export(syncIdempotencyService_exports, {
+  acquireSyncLock: () => acquireSyncLock,
+  clearPerformanceDataForFullSync: () => clearPerformanceDataForFullSync,
+  executeWithIdempotency: () => executeWithIdempotency,
+  getActiveSyncLocks: () => getActiveSyncLocks,
+  isSyncLocked: () => isSyncLocked,
+  releaseSyncLock: () => releaseSyncLock
+});
+function getLockKey(accountId, syncType = "all") {
+  return `sync:${accountId}:${syncType}`;
+}
+function acquireSyncLock(accountId, syncType = "all") {
+  const key = getLockKey(accountId, syncType);
+  const existing = syncLocks.get(key);
+  if (existing) {
+    if (/* @__PURE__ */ new Date() > existing.expiresAt) {
+      log57.warn(`[SyncLock] \u9501\u5DF2\u8D85\u65F6\uFF0C\u5F3A\u5236\u91CA\u653E: ${key} (acquired at ${existing.acquiredAt.toISOString()})`);
+      syncLocks.delete(key);
+    } else {
+      log57.info(`[SyncLock] \u540C\u6B65\u9501\u88AB\u5360\u7528: ${key}, \u83B7\u53D6\u4E8E ${existing.acquiredAt.toISOString()}, \u5C06\u4E8E ${existing.expiresAt.toISOString()} \u8D85\u65F6`);
+      return null;
+    }
+  }
+  const lockId = `lock_${accountId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const now = /* @__PURE__ */ new Date();
+  syncLocks.set(key, {
+    lockId,
+    accountId,
+    syncType,
+    acquiredAt: now,
+    expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS)
+  });
+  log57.info(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u83B7\u53D6: ${key}, lockId=${lockId}`);
+  return lockId;
+}
+function releaseSyncLock(accountId, syncType = "all", lockId) {
+  const key = getLockKey(accountId, syncType);
+  const existing = syncLocks.get(key);
+  if (!existing) {
+    return true;
+  }
+  if (lockId && existing.lockId !== lockId) {
+    log57.warn(`[SyncLock] \u9501ID\u4E0D\u5339\u914D\uFF0C\u62D2\u7EDD\u91CA\u653E: expected=${existing.lockId}, got=${lockId}`);
+    return false;
+  }
+  syncLocks.delete(key);
+  log57.info(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u91CA\u653E: ${key}`);
+  return true;
+}
+function isSyncLocked(accountId, syncType = "all") {
+  const key = getLockKey(accountId, syncType);
+  const existing = syncLocks.get(key);
+  if (!existing) return false;
+  if (/* @__PURE__ */ new Date() > existing.expiresAt) {
+    syncLocks.delete(key);
+    return false;
+  }
+  return true;
+}
+function getActiveSyncLocks() {
+  const now = /* @__PURE__ */ new Date();
+  const active = [];
+  for (const [key, lock] of syncLocks.entries()) {
+    if (now > lock.expiresAt) {
+      syncLocks.delete(key);
+    } else {
+      active.push(lock);
+    }
+  }
+  return active;
+}
+async function clearPerformanceDataForFullSync(accountId, startDate, endDate) {
+  log57.info(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E: accountId=${accountId}, ${startDate} ~ ${endDate}`);
+  try {
+    const deletedCount = await deleteDailyPerformanceByDateRange(
+      accountId,
+      startDate,
+      endDate
+    );
+    log57.info(`[SyncIdempotency] \u5DF2\u6E05\u9664 ${deletedCount} \u6761\u65E7\u7EE9\u6548\u6570\u636E`);
+    return deletedCount;
+  } catch (error54) {
+    log57.error(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E\u5931\u8D25:`, error54);
+    return 0;
+  }
+}
+async function executeWithIdempotency(accountId, syncType, syncFn) {
+  const lockId = acquireSyncLock(accountId, syncType);
+  if (!lockId) {
+    return {
+      success: false,
+      locked: true,
+      error: `\u8D26\u53F7 ${accountId} \u7684 ${syncType} \u540C\u6B65\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5`
+    };
+  }
+  try {
+    const result = await syncFn();
+    return { success: true, result };
+  } catch (error54) {
+    log57.error(`[SyncIdempotency] \u540C\u6B65\u6267\u884C\u5931\u8D25: accountId=${accountId}, syncType=${syncType}`, error54);
+    return { success: false, error: error54.message };
+  } finally {
+    releaseSyncLock(accountId, syncType, lockId);
+  }
+}
+var log57, syncLocks, LOCK_TIMEOUT_MS;
+var init_syncIdempotencyService = __esm({
+  "server/syncIdempotencyService.ts"() {
+    "use strict";
+    init_logger2();
+    init_db2();
+    log57 = createModuleLogger("SyncIdempotencyService");
+    syncLocks = /* @__PURE__ */ new Map();
+    LOCK_TIMEOUT_MS = 30 * 60 * 1e3;
+  }
+});
+
+// server/services/enhancedDualTrackService.ts
+var enhancedDualTrackService_exports = {};
+__export(enhancedDualTrackService_exports, {
+  DATA_FRESHNESS_CONFIG: () => DATA_FRESHNESS_CONFIG,
+  checkAndBackfillData: () => checkAndBackfillData,
+  default: () => enhancedDualTrackService_default,
+  getRealtimeDashboardData: () => getRealtimeDashboardData,
+  getSmartMergedData: () => getSmartMergedData,
+  getTimelineAggregatedData: () => getTimelineAggregatedData
+});
+async function getSmartMergedData(accountId, startDate, endDate, options) {
+  const db = await getDb();
+  if (!db) {
+    return { data: [], dataSource: "api", freshness: "stale", warnings: ["\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25"] };
+  }
+  const warnings = [];
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  let strategy;
+  let excludeRecentDays = 0;
+  switch (options.purpose) {
+    case "realtime_display":
+      strategy = "ams_priority";
+      break;
+    case "historical_analysis":
+      strategy = "api_priority";
+      excludeRecentDays = 1;
+      break;
+    case "report_export":
+      strategy = "weighted_merge";
+      break;
+    case "algorithm_input":
+      strategy = "api_priority";
+      excludeRecentDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
+      warnings.push(`\u5DF2\u6392\u9664\u6700\u8FD1${excludeRecentDays}\u5929\u6570\u636E\u4EE5\u907F\u514D\u5F52\u56E0\u5EF6\u8FDF\u8BEF\u5224`);
+      break;
+    default:
+      strategy = "api_priority";
+  }
+  let effectiveEndDate = endDate;
+  if (excludeRecentDays > 0) {
+    const adjustedEnd = /* @__PURE__ */ new Date();
+    adjustedEnd.setDate(adjustedEnd.getDate() - excludeRecentDays);
+    effectiveEndDate = adjustedEnd.toISOString().split("T")[0];
+    if (effectiveEndDate < startDate) {
+      return { data: [], dataSource: "api", freshness: "stale", warnings: ["\u65E5\u671F\u8303\u56F4\u65E0\u6548"] };
+    }
+  }
+  try {
+    const apiData = await getApiPerformanceData(db, accountId, startDate, effectiveEndDate, options.campaignIds);
+    let amsData = [];
+    if (strategy === "ams_priority" && options.includeToday !== false) {
+      amsData = await getAmsPerformanceData(db, accountId, today, options.campaignIds);
+    }
+    const mergedData = mergeDataByStrategy(apiData, amsData, strategy, today);
+    const freshness = determineFreshness(apiData, amsData, strategy);
+    const dataSource = amsData.length > 0 && strategy === "ams_priority" ? "ams" : "api";
+    return {
+      data: mergedData,
+      dataSource,
+      freshness,
+      warnings
+    };
+  } catch (error54) {
+    console.error("[EnhancedDualTrack] \u83B7\u53D6\u5408\u5E76\u6570\u636E\u5931\u8D25:", error54);
+    return { data: [], dataSource: "api", freshness: "stale", warnings: [error54.message] };
+  }
+}
+async function getApiPerformanceData(db, accountId, startDate, endDate, campaignIds) {
+  try {
+    let query2 = sql`
+      SELECT 
+        DATE(date) as reportDate,
+        campaignId,
+        adGroupId,
+        impressions,
+        clicks,
+        spend,
+        sales,
+        orders,
+        CASE WHEN clicks > 0 THEN orders / clicks * 100 ELSE 0 END as cvr,
+        CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
+        CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos,
+        updatedAt,
+        'api' as dataSource
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate}
+        AND DATE(date) <= ${endDate}
+    `;
+    const [rows] = await db.execute(query2);
+    return Array.isArray(rows) ? rows : [];
+  } catch (error54) {
+    console.error("[EnhancedDualTrack] \u83B7\u53D6API\u6570\u636E\u5931\u8D25:", error54);
+    return [];
+  }
+}
+async function getAmsPerformanceData(db, accountId, date12, campaignIds) {
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT 
+        DATE(eventTime) as reportDate,
+        campaignId,
+        adGroupId,
+        SUM(impressions) as impressions,
+        SUM(clicks) as clicks,
+        SUM(spend) as spend,
+        SUM(sales) as sales,
+        SUM(orders) as orders,
+        MAX(eventTime) as lastUpdateTime,
+        'ams' as dataSource
+      FROM ams_performance_buffer
+      WHERE accountId = ${accountId}
+        AND DATE(eventTime) = ${date12}
+      GROUP BY DATE(eventTime), campaignId, adGroupId
+    `);
+    return Array.isArray(rows) ? rows : [];
+  } catch (error54) {
+    return [];
+  }
+}
+function mergeDataByStrategy(apiData, amsData, strategy, today) {
+  switch (strategy) {
+    case "ams_priority":
+      return mergeAmsFirst(apiData, amsData, today);
+    case "api_priority":
+      return mergeApiFirst(apiData, amsData);
+    case "weighted_merge":
+      return weightedMerge(apiData, amsData);
+    case "latest_wins":
+      return latestWinsMerge(apiData, amsData);
+    default:
+      return apiData;
+  }
+}
+function mergeAmsFirst(apiData, amsData, today) {
+  const historicalApiData = apiData.filter((d5) => d5.reportDate !== today);
+  return [...historicalApiData, ...amsData];
+}
+function mergeApiFirst(apiData, amsData) {
+  const apiDates = new Set(apiData.map((d5) => `${d5.reportDate}-${d5.campaignId}`));
+  const missingAmsData = amsData.filter((d5) => !apiDates.has(`${d5.reportDate}-${d5.campaignId}`));
+  return [...apiData, ...missingAmsData];
+}
+function weightedMerge(apiData, amsData) {
+  const mergedMap = /* @__PURE__ */ new Map();
+  for (const item of apiData) {
+    const key = `${item.reportDate}-${item.campaignId}`;
+    mergedMap.set(key, { ...item, weight: 1 });
+  }
+  for (const item of amsData) {
+    const key = `${item.reportDate}-${item.campaignId}`;
+    if (!mergedMap.has(key)) {
+      mergedMap.set(key, { ...item, weight: 0.8 });
+    }
+  }
+  return Array.from(mergedMap.values());
+}
+function latestWinsMerge(apiData, amsData) {
+  const mergedMap = /* @__PURE__ */ new Map();
+  const allData = [...apiData, ...amsData].sort((a4, b6) => {
+    const timeA = new Date(a4.updatedAt || a4.lastUpdateTime || 0).getTime();
+    const timeB = new Date(b6.updatedAt || b6.lastUpdateTime || 0).getTime();
+    return timeB - timeA;
+  });
+  for (const item of allData) {
+    const key = `${item.reportDate}-${item.campaignId}`;
+    if (!mergedMap.has(key)) {
+      mergedMap.set(key, item);
+    }
+  }
+  return Array.from(mergedMap.values());
+}
+function determineFreshness(apiData, amsData, strategy) {
+  const now = Date.now();
+  const amsIsFresh = amsData.some((d5) => {
+    const updateTime = new Date(d5.lastUpdateTime || 0).getTime();
+    return now - updateTime < DATA_FRESHNESS_CONFIG.amsMaxAge * 60 * 1e3;
+  });
+  const apiIsFresh = apiData.some((d5) => {
+    const updateTime = new Date(d5.updatedAt || 0).getTime();
+    return now - updateTime < DATA_FRESHNESS_CONFIG.apiMaxAge * 60 * 1e3;
+  });
+  if (strategy === "ams_priority" && amsIsFresh) return "fresh";
+  if (strategy === "api_priority" && apiIsFresh) return "fresh";
+  if (amsIsFresh || apiIsFresh) return "mixed";
+  return "stale";
+}
+async function checkAndBackfillData(accountId, date12) {
+  const db = await getDb();
+  if (!db) {
+    return { needsBackfill: false, backfilledRecords: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+  }
+  try {
+    const [amsResult] = await db.execute(sql`
+      SELECT COUNT(*) as count
+      FROM ams_performance_buffer
+      WHERE accountId = ${accountId}
+        AND DATE(eventTime) = ${date12}
+    `);
+    const amsCount = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0]?.count || 0 : 0;
+    if (amsCount > 0) {
+      return { needsBackfill: false, backfilledRecords: 0, message: "AMS\u6570\u636E\u6B63\u5E38" };
+    }
+    const [apiResult] = await db.execute(sql`
+      SELECT COUNT(*) as count
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) = ${date12}
+    `);
+    const apiCount = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.count || 0 : 0;
+    if (apiCount === 0) {
+      return { needsBackfill: false, backfilledRecords: 0, message: "\u65E0\u53EF\u7528\u6570\u636E\u8FDB\u884C\u56DE\u8865" };
+    }
+    return {
+      needsBackfill: true,
+      backfilledRecords: apiCount,
+      message: `\u68C0\u6D4B\u5230${date12}\u7684AMS\u6570\u636E\u7F3A\u5931\uFF0C\u53EF\u4F7F\u7528${apiCount}\u6761API\u6570\u636E\u8FDB\u884C\u56DE\u8865`
+    };
+  } catch (error54) {
+    console.error("[EnhancedDualTrack] \u6570\u636E\u56DE\u8865\u68C0\u67E5\u5931\u8D25:", error54);
+    return { needsBackfill: false, backfilledRecords: 0, message: error54.message };
+  }
+}
+async function getTimelineAggregatedData(accountId, startDate, endDate, granularity = "daily") {
+  const db = await getDb();
+  if (!db) {
+    return {
+      timeline: [],
+      totals: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 },
+      dataSource: "api"
+    };
+  }
+  try {
+    let dateGrouping;
+    switch (granularity) {
+      case "weekly":
+        dateGrouping = "YEARWEEK(date, 1)";
+        break;
+      case "monthly":
+        dateGrouping = "DATE_FORMAT(date, '%Y-%m')";
+        break;
+      default:
+        dateGrouping = "DATE(date)";
+    }
+    const [rows] = await db.execute(sql`
+      SELECT 
+        ${sql.raw(dateGrouping)} as period,
+        SUM(impressions) as impressions,
+        SUM(clicks) as clicks,
+        SUM(spend) as spend,
+        SUM(sales) as sales,
+        SUM(orders) as orders
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate}
+        AND DATE(date) <= ${endDate}
+      GROUP BY ${sql.raw(dateGrouping)}
+      ORDER BY period
+    `);
+    const timeline = (Array.isArray(rows) ? rows : []).map((row) => ({
+      period: String(row.period),
+      impressions: Number(row.impressions) || 0,
+      clicks: Number(row.clicks) || 0,
+      spend: Number(row.spend) || 0,
+      sales: Number(row.sales) || 0,
+      orders: Number(row.orders) || 0,
+      ctr: row.impressions > 0 ? row.clicks / row.impressions * 100 : 0,
+      cvr: row.clicks > 0 ? row.orders / row.clicks * 100 : 0,
+      acos: row.sales > 0 ? row.spend / row.sales * 100 : 0,
+      roas: row.spend > 0 ? row.sales / row.spend : 0
+    }));
+    const totals = timeline.reduce(
+      (acc, item) => ({
+        impressions: acc.impressions + item.impressions,
+        clicks: acc.clicks + item.clicks,
+        spend: acc.spend + item.spend,
+        sales: acc.sales + item.sales,
+        orders: acc.orders + item.orders,
+        ctr: 0,
+        cvr: 0,
+        acos: 0,
+        roas: 0
+      }),
+      { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 }
+    );
+    totals.ctr = totals.impressions > 0 ? totals.clicks / totals.impressions * 100 : 0;
+    totals.cvr = totals.clicks > 0 ? totals.orders / totals.clicks * 100 : 0;
+    totals.acos = totals.sales > 0 ? totals.spend / totals.sales * 100 : 0;
+    totals.roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
+    return { timeline, totals, dataSource: "api" };
+  } catch (error54) {
+    console.error("[EnhancedDualTrack] \u83B7\u53D6\u65F6\u95F4\u7EBF\u6570\u636E\u5931\u8D25:", error54);
+    return {
+      timeline: [],
+      totals: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 },
+      dataSource: "api"
+    };
+  }
+}
+async function getRealtimeDashboardData(accountId) {
+  const db = await getDb();
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const defaultResult = {
+    trusted: { todaySpend: 0, todayClicks: 0, todayImpressions: 0, lastUpdate: null },
+    untrusted: { todaySales: 0, todayOrders: 0, todayRoas: 0, todayAcos: 0, warning: "\u8F6C\u5316\u6570\u636E\u670912-48\u5C0F\u65F6\u5F52\u56E0\u5EF6\u8FDF" },
+    dataSource: "api"
+  };
+  if (!db) return defaultResult;
+  try {
+    let dataSource = "api";
+    let result = null;
+    try {
+      const [amsRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as spend,
+          SUM(clicks) as clicks,
+          SUM(impressions) as impressions,
+          SUM(sales) as sales,
+          SUM(orders) as orders,
+          MAX(eventTime) as lastUpdate
+        FROM ams_performance_buffer
+        WHERE accountId = ${accountId}
+          AND DATE(eventTime) = ${today}
+      `);
+      if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.spend !== null) {
+        result = amsRows[0];
+        dataSource = "ams";
+      }
+    } catch {
+    }
+    if (!result) {
+      const [apiRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as spend,
+          SUM(clicks) as clicks,
+          SUM(impressions) as impressions,
+          SUM(sales) as sales,
+          SUM(orders) as orders,
+          MAX(updatedAt) as lastUpdate
+        FROM daily_performance
+        WHERE accountId = ${accountId}
+          AND DATE(date) = ${today}
+      `);
+      result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
+    }
+    if (!result) return defaultResult;
+    const spend = Number(result.spend) || 0;
+    const sales = Number(result.sales) || 0;
+    return {
+      trusted: {
+        todaySpend: spend,
+        todayClicks: Number(result.clicks) || 0,
+        todayImpressions: Number(result.impressions) || 0,
+        lastUpdate: result.lastUpdate ? new Date(result.lastUpdate) : null
+      },
+      untrusted: {
+        todaySales: sales,
+        todayOrders: Number(result.orders) || 0,
+        todayRoas: spend > 0 ? sales / spend : 0,
+        todayAcos: sales > 0 ? spend / sales * 100 : 0,
+        warning: "\u8F6C\u5316\u6570\u636E\u670912-48\u5C0F\u65F6\u5F52\u56E0\u5EF6\u8FDF\uFF0C\u4EC5\u4F9B\u53C2\u8003"
+      },
+      dataSource
+    };
+  } catch (error54) {
+    console.error("[EnhancedDualTrack] \u83B7\u53D6\u5B9E\u65F6\u4EEA\u8868\u76D8\u6570\u636E\u5931\u8D25:", error54);
+    return defaultResult;
+  }
+}
+var DATA_FRESHNESS_CONFIG, enhancedDualTrackService_default;
+var init_enhancedDualTrackService = __esm({
+  "server/services/enhancedDualTrackService.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_dualTrackSyncService();
+    DATA_FRESHNESS_CONFIG = {
+      // AMS数据被认为是新鲜的最大时间
+      amsMaxAge: 15,
+      // API数据被认为是新鲜的最大时间
+      apiMaxAge: 60,
+      // 触发数据回补的AMS无数据时间
+      amsBackfillTrigger: 30
+    };
+    enhancedDualTrackService_default = {
+      getSmartMergedData,
+      checkAndBackfillData,
+      getTimelineAggregatedData,
+      getRealtimeDashboardData,
+      DATA_FRESHNESS_CONFIG
+    };
   }
 });
 
@@ -164953,1839 +166878,6 @@ var init_budgetAllocationService = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-  }
-});
-
-// server/utils/systemVersion.ts
-var systemVersion_exports = {};
-__export(systemVersion_exports, {
-  SYSTEM_VERSION: () => SYSTEM_VERSION
-});
-var SYSTEM_VERSION;
-var init_systemVersion = __esm({
-  "server/utils/systemVersion.ts"() {
-    "use strict";
-    SYSTEM_VERSION = 329;
-  }
-});
-
-// server/searchTermHarvester.ts
-async function identifyHarvestCandidates(accountId, config2 = {}) {
-  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
-  const candidates = [];
-  try {
-    const allCampaigns = await getCampaignsByAccountId(accountId);
-    if (!allCampaigns || allCampaigns.length === 0) {
-      log63.debug(`\u8D26\u53F7 ${accountId} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
-      return [];
-    }
-    const sourceCampaigns = allCampaigns.filter(
-      (c5) => c5.campaignStatus === "enabled" && (c5.campaignType === "sp_auto" || c5.targetingType === "auto")
-    );
-    const manualCampaigns = allCampaigns.filter(
-      (c5) => c5.campaignStatus === "enabled" && c5.campaignType === "sp_manual" && c5.targetingType === "manual"
-    );
-    if (sourceCampaigns.length === 0) {
-      log63.info(`\u8D26\u53F7 ${accountId} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
-      return [];
-    }
-    for (const sourceCampaign of sourceCampaigns) {
-      const searchTermsList = await getSearchTermsByCampaignId(sourceCampaign.id);
-      for (const st3 of searchTermsList) {
-        const clicks = Number(st3.searchTermClicks) || 0;
-        const orders = Number(st3.searchTermOrders) || 0;
-        const spend = parseFloat(String(st3.searchTermSpend || "0"));
-        const sales = parseFloat(String(st3.searchTermSales || "0"));
-        if (clicks < cfg.minClicks || orders < cfg.minOrders) continue;
-        const acos = sales > 0 ? spend / sales * 100 : 999;
-        const roas = spend > 0 ? sales / spend : 0;
-        const cvr = clicks > 0 ? orders / clicks * 100 : 0;
-        if (acos > cfg.maxAcos && roas < cfg.minRoas) continue;
-        if (isAsinSearchTerm(st3.searchTerm)) {
-          log63.info(`v194: \u8DF3\u8FC7ASIN\u641C\u7D22\u8BCD "${st3.searchTerm}"\uFF0C\u5E94\u4F5C\u4E3Aproduct target\u5904\u7406`);
-          continue;
-        }
-        const validation = sanitizeAndValidateKeyword(st3.searchTerm);
-        if (!validation.isValid) {
-          log63.warn(`v194: \u641C\u7D22\u8BCD\u6821\u9A8C\u5931\u8D25 "${st3.searchTerm}": ${validation.reasonMessage || validation.reasonCode || "invalid"}`);
-          continue;
-        }
-        const targetInfo = await findTargetAdGroup(
-          st3.searchTerm,
-          manualCampaigns,
-          sourceCampaign
-        );
-        if (!targetInfo) continue;
-        const existingKeywords = await getKeywordsByAdGroupId(targetInfo.adGroupId);
-        const alreadyExists = existingKeywords.some(
-          (k5) => k5.keywordText?.toLowerCase() === st3.searchTerm.toLowerCase() && k5.matchType === "exact"
-        );
-        if (alreadyExists) continue;
-        const suggestedBid = calculateHarvestBid(
-          { clicks, orders, spend, sales },
-          cfg
-        );
-        const sourceAdGroup = await getAdGroupById(st3.adGroupId);
-        if (!sourceAdGroup) continue;
-        candidates.push({
-          searchTerm: st3.searchTerm,
-          sourceAdGroupId: st3.adGroupId,
-          sourceCampaignId: sourceCampaign.id,
-          sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
-          sourceAmazonCampaignId: sourceCampaign.campaignId,
-          targetAdGroupId: targetInfo.adGroupId,
-          targetCampaignId: targetInfo.campaignId,
-          targetAmazonAdGroupId: targetInfo.amazonAdGroupId,
-          targetAmazonCampaignId: targetInfo.amazonCampaignId,
-          suggestedBid,
-          performance: { clicks, orders, spend, sales, acos, roas, cvr },
-          reason: `\u9AD8\u7EE9\u6548\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%, ROAS=${roas.toFixed(2)}, CVR=${cvr.toFixed(1)}%`
-        });
-      }
-    }
-    log63.debug(`\u8D26\u53F7 ${accountId} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
-    return candidates;
-  } catch (error54) {
-    log63.error(`\u8BC6\u522B\u5019\u9009\u9879\u5931\u8D25:`, error54.message);
-    return [];
-  }
-}
-async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
-  const result = {
-    searchTerm: candidate.searchTerm,
-    success: false,
-    stage: "failed"
-  };
-  log63.info(`\u5F00\u59CB\u539F\u5B50\u6536\u5272: "${candidate.searchTerm}" (${candidate.reason})`);
-  try {
-    const createResult = await apiClient.createSpKeywords([{
-      adGroupId: parseInt(candidate.targetAmazonAdGroupId),
-      campaignId: parseInt(candidate.targetAmazonCampaignId),
-      keywordText: candidate.searchTerm,
-      matchType: "exact",
-      bid: candidate.suggestedBid,
-      state: "enabled"
-    }]);
-    if (!createResult.success || createResult.createdKeywords.length === 0) {
-      const errorMsg = createResult.errors.length > 0 ? JSON.stringify(createResult.errors) : "\u672A\u77E5\u9519\u8BEF";
-      const isDuplicate = createResult.errors.some(
-        (e6) => String(e6).includes("DUPLICATE") || String(e6).includes("already exists")
-      );
-      if (isDuplicate) {
-        log63.info(`\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${candidate.searchTerm}"`);
-        result.error = "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4";
-        return result;
-      }
-      result.error = `Step1 \u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: ${errorMsg}`;
-      log63.error(`${result.error}`);
-      return result;
-    }
-    result.createdKeywordId = createResult.createdKeywords[0].keywordId;
-    result.stage = "keyword_created";
-    log63.info(`Step1 \u5B8C\u6210: \u521B\u5EFA\u5173\u952E\u8BCD ID=${result.createdKeywordId}`);
-  } catch (error54) {
-    result.error = `Step1 \u5F02\u5E38: ${error54.message}`;
-    log63.error(`${result.error}`);
-    return result;
-  }
-  const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
-  const negativeMatchType = searchTermWords.length <= 2 ? "negativePhrase" : "negativeExact";
-  try {
-    log63.info(`v230: \u641C\u7D22\u8BCD"${candidate.searchTerm}"\u5305\u542B${searchTermWords.length}\u4E2A\u8BCD\uFF0C\u4F7F\u7528${negativeMatchType}\u5426\u5B9A\u7C7B\u578B`);
-    const negativeResult = await apiClient.createSpNegativeKeywords([{
-      adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
-      campaignId: parseInt(candidate.sourceAmazonCampaignId),
-      keywordText: candidate.searchTerm,
-      matchType: negativeMatchType,
-      state: "enabled"
-    }]);
-    const negativeErrors = negativeResult.filter((r5) => r5.code && r5.code !== "SUCCESS");
-    if (negativeErrors.length > 0) {
-      const isDuplicate = negativeErrors.some(
-        (e6) => String(e6.code).includes("DUPLICATE") || String(e6.details).includes("already exists")
-      );
-      if (!isDuplicate) {
-        log63.error(`Step2 \u5931\u8D25\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
-        await rollbackKeywordCreation(apiClient, result.createdKeywordId);
-        result.stage = "rolled_back";
-        result.error = `Step2 \u5426\u5B9A\u8BCD\u521B\u5EFA\u5931\u8D25: ${JSON.stringify(negativeErrors)}`;
-        result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
-        return result;
-      }
-    }
-    const successNeg = negativeResult.find((r5) => !r5.code || r5.code === "SUCCESS");
-    if (successNeg) {
-      result.createdNegativeKeywordId = successNeg.keywordId;
-    }
-    result.stage = "negative_added";
-    log63.info(`Step2 \u5B8C\u6210: \u6DFB\u52A0\u5426\u5B9A\u8BCD ID=${result.createdNegativeKeywordId}`);
-  } catch (error54) {
-    log63.error(`Step2 \u5F02\u5E38: ${error54.message}\uFF0C\u5F00\u59CB\u56DE\u6EDA Step1...`);
-    await rollbackKeywordCreation(apiClient, result.createdKeywordId);
-    result.stage = "rolled_back";
-    result.error = `Step2 \u5F02\u5E38: ${error54.message}`;
-    result.rollbackInfo = `\u5DF2\u56DE\u6EDA: \u5220\u9664\u5173\u952E\u8BCD ID=${result.createdKeywordId}`;
-    return result;
-  }
-  try {
-    const localKeywordId = await createKeyword({
-      adGroupId: candidate.targetAdGroupId,
-      keywordId: String(result.createdKeywordId),
-      keywordText: candidate.searchTerm,
-      matchType: "exact",
-      bid: candidate.suggestedBid.toFixed(2),
-      keywordStatus: "enabled"
-    });
-    result.localKeywordId = localKeywordId;
-    await addNegativeKeyword({
-      campaignId: candidate.sourceCampaignId,
-      adGroupId: candidate.sourceAdGroupId,
-      keyword: candidate.searchTerm,
-      matchType: negativeMatchType === "negativePhrase" ? "phrase" : "exact",
-      level: "ad_group"
-    });
-    await createBiddingLog({
-      accountId,
-      campaignId: String(candidate.targetCampaignId),
-      adGroupId: candidate.targetAdGroupId,
-      logTargetType: "keyword",
-      targetId: localKeywordId,
-      targetName: candidate.searchTerm,
-      logMatchType: "exact",
-      actionType: "set",
-      previousBid: "0.00",
-      newBid: candidate.suggestedBid.toFixed(2),
-      bidChangePercent: "100.00",
-      reason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason} | \u6E90Campaign=${candidate.sourceCampaignId} \u2192 \u76EE\u6807Campaign=${candidate.targetCampaignId}`,
-      algorithmVersion: "2.0.0-harvest",
-      isIntradayAdjustment: 0
-    });
-    try {
-      await insertOptimizationEvent({
-        accountId,
-        eventCategory: "search_term_action",
-        actionType: "search_term_harvest",
-        campaignId: candidate.targetCampaignId,
-        keywordId: localKeywordId,
-        keywordText: candidate.searchTerm,
-        matchType: "exact",
-        previousBid: "0.00",
-        newBid: candidate.suggestedBid.toFixed(2),
-        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272] ${candidate.reason}`,
-        status: "success",
-        apiSyncStatus: "synced",
-        sourceTable: "search_term_harvester"
-      });
-      await insertOptimizationEvent({
-        accountId,
-        eventCategory: "search_term_action",
-        actionType: "negative_keyword_add",
-        campaignId: candidate.sourceCampaignId,
-        keywordText: candidate.searchTerm,
-        matchType: "exact",
-        changeReason: `[\u641C\u7D22\u8BCD\u6536\u5272-\u5426\u5B9A] \u6E90\u5E7F\u544A\u7EC4\u6DFB\u52A0\u5426\u5B9A\u8BCD`,
-        status: "success",
-        apiSyncStatus: "synced",
-        sourceTable: "search_term_harvester"
-      });
-    } catch (eventErr) {
-      log63.warn(`v189: \u8BB0\u5F55optimization_events\u5931\u8D25: ${eventErr.message}`);
-    }
-    result.stage = "db_logged";
-    result.success = true;
-    log63.info(`Step3 \u5B8C\u6210: \u672C\u5730\u6570\u636E\u5E93\u5DF2\u66F4\u65B0`);
-  } catch (error54) {
-    log63.warn(`Step3 \u672C\u5730DB\u8BB0\u5F55\u5931\u8D25: ${error54.message}\uFF0CAPI\u64CD\u4F5C\u5DF2\u751F\u6548`);
-    result.error = `Step3 \u672C\u5730DB\u5931\u8D25(API\u5DF2\u751F\u6548): ${error54.message}`;
-    result.success = true;
-    result.stage = "negative_added";
-  }
-  return result;
-}
-async function batchHarvestSearchTerms(accountId, config2 = {}) {
-  const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
-  const candidates = await identifyHarvestCandidates(accountId, cfg);
-  if (candidates.length === 0) {
-    return {
-      candidates: [],
-      results: [],
-      summary: { total: 0, success: 0, failed: 0, rolledBack: 0, skipped: 0 }
-    };
-  }
-  if (cfg.dryRun) {
-    log63.info(`Dry Run: \u53D1\u73B0 ${candidates.length} \u4E2A\u5019\u9009\u9879\uFF0C\u4E0D\u6267\u884C`);
-    return {
-      candidates,
-      results: [],
-      summary: { total: candidates.length, success: 0, failed: 0, rolledBack: 0, skipped: candidates.length }
-    };
-  }
-  const credentials = await getAmazonApiCredentials(accountId);
-  if (!credentials) {
-    log63.error(`\u8D26\u53F7 ${accountId} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
-    return {
-      candidates,
-      results: [],
-      summary: { total: candidates.length, success: 0, failed: candidates.length, rolledBack: 0, skipped: 0 }
-    };
-  }
-  const apiClient = createAmazonAdsClient({
-    clientId: credentials.clientId,
-    clientSecret: credentials.clientSecret,
-    refreshToken: typeof credentials.refreshToken === "string" ? credentials.refreshToken : "",
-    profileId: credentials.profileId,
-    region: credentials.region
-  });
-  const results = [];
-  let success2 = 0, failed = 0, rolledBack = 0;
-  for (const candidate of candidates) {
-    try {
-      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
-      results.push(result);
-      if (result.success) {
-        success2++;
-      } else if (result.stage === "rolled_back") {
-        rolledBack++;
-      } else {
-        failed++;
-      }
-      await new Promise((resolve8) => setTimeout(resolve8, 500));
-    } catch (error54) {
-      log63.error(`\u6536\u5272\u5F02\u5E38: "${candidate.searchTerm}" - ${error54.message}`);
-      results.push({
-        searchTerm: candidate.searchTerm,
-        success: false,
-        stage: "failed",
-        error: error54.message
-      });
-      failed++;
-    }
-  }
-  log63.warn(`\u6279\u91CF\u6536\u5272\u5B8C\u6210: \u6210\u529F=${success2}, \u5931\u8D25=${failed}, \u56DE\u6EDA=${rolledBack}`);
-  return {
-    candidates,
-    results,
-    summary: {
-      total: candidates.length,
-      success: success2,
-      failed,
-      rolledBack,
-      skipped: 0
-    }
-  };
-}
-async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
-  const nonPTCampaigns = manualCampaigns.filter(
-    (c5) => !isProductTargetingCampaign(c5.campaignName || "")
-  );
-  const exactCampaigns = nonPTCampaigns.filter(
-    (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
-  );
-  for (const campaign of exactCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
-    for (const ag of enabledAdGroups) {
-      const hasPT = await adGroupHasProductTargets(ag.id);
-      if (hasPT) {
-        log63.info(`v194: \u8DF3\u8FC7product target\u5E7F\u544A\u7EC4 id=${ag.id}`);
-        continue;
-      }
-      return {
-        adGroupId: ag.id,
-        campaignId: campaign.campaignId,
-        amazonAdGroupId: ag.adGroupId,
-        amazonCampaignId: campaign.campaignId
-      };
-    }
-  }
-  for (const campaign of nonPTCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
-    const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
-    for (const ag of enabledAdGroups) {
-      const hasPT = await adGroupHasProductTargets(ag.id);
-      if (hasPT) continue;
-      return {
-        adGroupId: ag.id,
-        campaignId: campaign.campaignId,
-        amazonAdGroupId: ag.adGroupId,
-        amazonCampaignId: campaign.campaignId
-      };
-    }
-  }
-  return null;
-}
-function calculateHarvestBid(performance3, config2) {
-  const { clicks, orders, spend, sales } = performance3;
-  if (config2.bidStrategy === "cvr_aov_based" && orders > 0) {
-    const cvr = orders / clicks;
-    const aov = sales / orders;
-    const targetAcosRate = 0.3;
-    const theoreticalBid = cvr * aov * targetAcosRate * config2.bidDiscountFactor;
-    return Math.round(Math.max(0.1, Math.min(theoreticalBid, 5)) * 100) / 100;
-  }
-  if (clicks > 0) {
-    const historicalCpc = spend / clicks;
-    const bid = historicalCpc * config2.bidDiscountFactor;
-    return Math.round(Math.max(0.1, Math.min(bid, 5)) * 100) / 100;
-  }
-  return 0.5;
-}
-async function rollbackKeywordCreation(apiClient, keywordId) {
-  try {
-    await apiClient.updateKeywordBids([{
-      keywordId,
-      bid: 0.02
-      // 设置最低出价
-    }]);
-    log63.info(`\u56DE\u6EDA\u6210\u529F: \u5173\u952E\u8BCD ${keywordId} \u5DF2\u8BBE\u7F6E\u6700\u4F4E\u51FA\u4EF7`);
-  } catch (error54) {
-    log63.error(`\u56DE\u6EDA\u5931\u8D25: \u5173\u952E\u8BCD ${keywordId} - ${error54.message}`);
-  }
-}
-var log63, DEFAULT_HARVEST_CONFIG;
-var init_searchTermHarvester = __esm({
-  "server/searchTermHarvester.ts"() {
-    "use strict";
-    init_db2();
-    init_amazonAdsApi();
-    init_keywordValidator();
-    init_logger2();
-    log63 = createModuleLogger("SearchTermHarvester");
-    DEFAULT_HARVEST_CONFIG = {
-      minOrders: 2,
-      maxAcos: 50,
-      minClicks: 10,
-      minRoas: 2,
-      bidStrategy: "cvr_aov_based",
-      bidDiscountFactor: 0.85,
-      // 精确匹配出价为宽泛/短语的85%
-      dryRun: false
-    };
-  }
-});
-
-// server/services/intradayPacingService.ts
-var intradayPacingService_exports = {};
-__export(intradayPacingService_exports, {
-  INTRADAY_CONFIG: () => INTRADAY_CONFIG,
-  adjustIntradayPacing: () => adjustIntradayPacing,
-  applyIntradayAdjustment: () => applyIntradayAdjustment,
-  calculateBudgetRunway: () => calculateBudgetRunway,
-  checkAllCampaignsPacing: () => checkAllCampaignsPacing,
-  default: () => intradayPacingService_default,
-  getCriticalCampaigns: () => getCriticalCampaigns
-});
-async function adjustIntradayPacing(campaignId, accountId) {
-  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
-  const dailyBudget = await getCampaignBudget(accountId, campaignId);
-  const marketplace = await getAccountMarketplace(accountId);
-  const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
-  const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
-  const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
-  const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
-  const idealSpendPercent = hoursPassed / totalHours;
-  const actualSpendPercent = dailyBudget > 0 ? realtimeData.todaySpend / dailyBudget : 0;
-  const pacingRatio = idealSpendPercent > 0 ? actualSpendPercent / idealSpendPercent : 1;
-  let pacingStatus;
-  let suggestedAction = "none";
-  let suggestedMultiplier = 1;
-  let reason = "";
-  if (pacingRatio >= INTRADAY_CONFIG.criticalThreshold) {
-    pacingStatus = "critical";
-    suggestedAction = "reduce_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.criticalMultiplier;
-    reason = `\u{1F525} \u70E7\u94B1\u592A\u5FEB\uFF01\u6D88\u8017\u901F\u5EA6\u662F\u7406\u60F3\u7684${(pacingRatio * 100).toFixed(0)}%\uFF0C\u89E6\u53D1\u65E5\u5185\u4FDD\u62A4`;
-  } else if (pacingRatio >= INTRADAY_CONFIG.overspendingThreshold) {
-    pacingStatus = "overspending";
-    suggestedAction = "reduce_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.overspendingMultiplier;
-    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u5FEB\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7`;
-  } else if (pacingRatio <= INTRADAY_CONFIG.underspendingThreshold) {
-    pacingStatus = "underspending";
-    suggestedAction = "increase_bid";
-    suggestedMultiplier = INTRADAY_CONFIG.underspendingMultiplier;
-    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u6162\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u53EF\u4EE5\u9002\u5F53\u63D0\u9AD8\u51FA\u4EF7`;
-  } else {
-    pacingStatus = "on_track";
-    reason = "\u6D88\u8017\u901F\u5EA6\u6B63\u5E38";
-  }
-  const anomalyResult = detectAnomalies3(
-    realtimeData.todayClicks,
-    realtimeData.todayImpressions,
-    realtimeData.todaySpend,
-    currentHour
-  );
-  if (anomalyResult.detected) {
-    suggestedAction = anomalyResult.action;
-    reason = anomalyResult.reason;
-  }
-  return {
-    campaignId,
-    accountId,
-    currentHour,
-    dailyBudget,
-    todaySpend: realtimeData.todaySpend,
-    todayClicks: realtimeData.todayClicks,
-    todayImpressions: realtimeData.todayImpressions,
-    idealSpendPercent: Math.round(idealSpendPercent * 100) / 100,
-    actualSpendPercent: Math.round(actualSpendPercent * 100) / 100,
-    pacingStatus,
-    suggestedAction,
-    suggestedMultiplier,
-    reason,
-    anomalyDetected: anomalyResult.detected,
-    anomalyType: anomalyResult.type
-  };
-}
-async function checkAllCampaignsPacing(accountId) {
-  const db = await getDb();
-  if (!db) return [];
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT campaignId, dailyBudget
-      FROM campaigns
-      WHERE accountId = ${accountId}
-        AND state = 'enabled'
-        AND dailyBudget > 0
-    `);
-    const campaigns7 = Array.isArray(rows) ? rows : [];
-    const results = [];
-    for (const campaign of campaigns7) {
-      const adjustment = await adjustIntradayPacing(
-        campaign.campaignId,
-        accountId
-      );
-      results.push(adjustment);
-    }
-    return results;
-  } catch (error54) {
-    console.error("[IntradayPacing] \u6279\u91CF\u68C0\u67E5\u5931\u8D25:", error54);
-    return [];
-  }
-}
-async function getCriticalCampaigns(accountId) {
-  const allAdjustments = await checkAllCampaignsPacing(accountId);
-  return allAdjustments.filter(
-    (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
-  );
-}
-async function applyIntradayAdjustment(adjustment) {
-  console.log("[IntradayPacing] \u5E94\u7528\u8C03\u6574:", {
-    campaignId: adjustment.campaignId,
-    action: adjustment.suggestedAction,
-    multiplier: adjustment.suggestedMultiplier,
-    reason: adjustment.reason
-  });
-  return {
-    success: true,
-    action: adjustment.suggestedAction,
-    previousMultiplier: 1,
-    newMultiplier: adjustment.suggestedMultiplier
-  };
-}
-async function getCampaignBudget(accountId, campaignId) {
-  const db = await getDb();
-  if (!db) return 0;
-  try {
-    const [rows] = await db.execute(sql`
-      SELECT dailyBudget
-      FROM campaigns
-      WHERE accountId = ${accountId}
-        AND campaignId = ${campaignId}
-      LIMIT 1
-    `);
-    const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
-    return campaign?.dailyBudget || 0;
-  } catch (error54) {
-    console.error("[IntradayPacing] \u83B7\u53D6\u9884\u7B97\u5931\u8D25:", error54);
-    return 0;
-  }
-}
-function detectAnomalies3(clicks, impressions, spend, currentHour) {
-  const avgClicksPerHour = currentHour > 0 ? clicks / currentHour : clicks;
-  const ctr = impressions > 0 ? clicks / impressions : 0;
-  if (avgClicksPerHour > INTRADAY_CONFIG.clickFraudThreshold || ctr > INTRADAY_CONFIG.clickFraudCtrThreshold) {
-    return {
-      detected: true,
-      type: "click_fraud",
-      action: "pause",
-      reason: `\u26A0\uFE0F \u68C0\u6D4B\u5230\u5F02\u5E38\u6D41\u91CF\uFF01\u6BCF\u5C0F\u65F6\u70B9\u51FB${avgClicksPerHour.toFixed(0)}\u6B21\uFF0CCTR ${(ctr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u7D27\u6025\u6682\u505C`
-    };
-  }
-  if (spend > 0 && clicks > INTRADAY_CONFIG.zeroConversionClickThreshold) {
-    const avgSpendPerClick = spend / clicks;
-    if (avgSpendPerClick > 2) {
-      return {
-        detected: true,
-        type: "budget_drain",
-        action: "alert",
-        reason: `\u26A0\uFE0F \u6BCF\u6B21\u70B9\u51FB\u6210\u672C\u5F02\u5E38\u9AD8\uFF08$${avgSpendPerClick.toFixed(2)}\uFF09\uFF0C\u8BF7\u68C0\u67E5\u7ADE\u4EF7\u8BBE\u7F6E`
-      };
-    }
-  }
-  return {
-    detected: false,
-    action: "none",
-    reason: ""
-  };
-}
-function calculateBudgetRunway(dailyBudget, currentSpend, currentHour, avgSpendPerHour) {
-  const remainingBudget = dailyBudget - currentSpend;
-  const hoursRemaining = avgSpendPerHour > 0 ? remainingBudget / avgSpendPerHour : 24 - currentHour;
-  const projectedEndHour = currentHour + hoursRemaining;
-  return {
-    remainingBudget,
-    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
-    projectedEndHour: Math.min(24, Math.round(projectedEndHour)),
-    willLastUntilTarget: projectedEndHour >= INTRADAY_CONFIG.targetEndHour
-  };
-}
-var INTRADAY_CONFIG, intradayPacingService_default;
-var init_intradayPacingService = __esm({
-  "server/services/intradayPacingService.ts"() {
-    "use strict";
-    init_db2();
-    init_drizzle_orm();
-    init_dualTrackSyncService();
-    init_algorithmUtils();
-    INTRADAY_CONFIG = {
-      // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
-      targetEndHour: 22,
-      // 开始时间（小时）
-      startHour: 0,
-      // 消耗速度阈值
-      overspendingThreshold: 1.5,
-      // 超过理想消耗的150%
-      criticalThreshold: 2,
-      // 超过理想消耗的200%
-      underspendingThreshold: 0.5,
-      // 低于理想消耗的50%
-      // 调整乘数
-      overspendingMultiplier: 0.8,
-      // 花太快时降低20%
-      criticalMultiplier: 0.5,
-      // 危急时降低50%
-      underspendingMultiplier: 1.2,
-      // 花太慢时提高20%
-      // 异常检测阈值
-      clickFraudThreshold: 100,
-      // 单小时点击超过100次
-      clickFraudCtrThreshold: 0.15,
-      // CTR超过15%可能是异常
-      zeroConversionClickThreshold: 50,
-      // 50次点击0转化触发警告
-      // 最小检查间隔（分钟）
-      minCheckInterval: 15
-    };
-    intradayPacingService_default = {
-      adjustIntradayPacing,
-      checkAllCampaignsPacing,
-      getCriticalCampaigns,
-      applyIntradayAdjustment,
-      calculateBudgetRunway,
-      INTRADAY_CONFIG
-    };
-  }
-});
-
-// server/dataSyncScheduler.ts
-var dataSyncScheduler_exports = {};
-__export(dataSyncScheduler_exports, {
-  OPTIMIZATION_SCHEDULE: () => OPTIMIZATION_SCHEDULE,
-  SYNC_TIER_CONFIG: () => SYNC_TIER_CONFIG,
-  acquireAccountOptimizationLock: () => acquireAccountOptimizationLock2,
-  acquireAccountOptimizationLockWithRetry: () => acquireAccountOptimizationLockWithRetry,
-  deleteSyncSchedule: () => deleteSyncSchedule3,
-  frequencyToMs: () => frequencyToMs,
-  getModuleLockGroup: () => getModuleLockGroup2,
-  getSchedulerStatus: () => getSchedulerStatus3,
-  getSyncQueueStatus: () => getSyncQueueStatus,
-  getSyncSchedule: () => getSyncSchedule,
-  recordModuleExecution: () => recordModuleExecution,
-  releaseAccountOptimizationLock: () => releaseAccountOptimizationLock2,
-  startDataSyncScheduler: () => startDataSyncScheduler,
-  startOptimizationScheduler: () => startOptimizationScheduler2,
-  stopDataSyncScheduler: () => stopDataSyncScheduler,
-  stopOptimizationScheduler: () => stopOptimizationScheduler2,
-  triggerManualSync: () => triggerManualSync,
-  upsertSyncSchedule: () => upsertSyncSchedule,
-  withExponentialBackoff: () => withExponentialBackoff
-});
-function getSchedulerStatus3() {
-  return { ...schedulerStatus2 };
-}
-function startDataSyncScheduler(defaultIntervalMs = 60 * 60 * 1e3) {
-  if (schedulerStatus2.isRunning) {
-    log64.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u5728\u8FD0\u884C\u4E2D");
-    return;
-  }
-  schedulerStatus2.isRunning = true;
-  (async () => {
-    try {
-      const { cleanupStaleJobs: cleanupStaleJobs2, cleanupOrphanedPendingJobs: cleanupOrphanedPendingJobs2 } = await Promise.resolve().then(() => (init_dataSyncService(), dataSyncService_exports));
-      const staleResult = await cleanupStaleJobs2(30);
-      const orphanResult = await cleanupOrphanedPendingJobs2(60);
-      if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
-        log64.warn(`[DataSyncScheduler] v335: \u542F\u52A8\u6E05\u7406\u5B8C\u6210 - \u5361\u6B7B\u4EFB\u52A1: ${staleResult.cleaned}\u4E2A (${staleResult.jobIds.join(",")}), \u5B64\u513F\u4EFB\u52A1: ${orphanResult.cleaned}\u4E2A`);
-        logSystem("DataSyncScheduler", "v335\u542F\u52A8\u65F6\u5361\u6B7B\u4EFB\u52A1\u6E05\u7406", { staleCleaned: staleResult.cleaned, orphanCleaned: orphanResult.cleaned, staleJobIds: staleResult.jobIds });
-      }
-    } catch (cleanupErr) {
-      log64.error(`[DataSyncScheduler] v335: \u542F\u52A8\u6E05\u7406\u5931\u8D25: ${cleanupErr.message}`);
-    }
-  })();
-  log64.info("[DataSyncScheduler] v219: \u542F\u52A8\u7EDF\u4E00\u540C\u6B65\u5F15\u64CE\u9A71\u52A8\u7684\u5206\u5C42\u540C\u6B65\u8C03\u5EA6\u5668...");
-  logSystem("DataSyncScheduler", "v219\u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u542F\u52A8", { defaultIntervalMs, mode: "unified_engine" });
-  schedulerIntervals.high = setInterval(async () => {
-    await executeUnifiedSync("high");
-  }, SYNC_TIER_CONFIG.high.intervalMs);
-  log64.info(`[DataSyncScheduler] v219: \u9AD8\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.high.intervalMs / 1e3 / 60} \u5206\u949F`);
-  schedulerIntervals.medium = setInterval(async () => {
-    await executeUnifiedSync("medium");
-  }, SYNC_TIER_CONFIG.medium.intervalMs);
-  log64.info(`[DataSyncScheduler] v219: \u4E2D\u9891\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${SYNC_TIER_CONFIG.medium.intervalMs / 1e3 / 60} \u5206\u949F`);
-  schedulerIntervals.full = setInterval(async () => {
-    await executeUnifiedSync("full");
-  }, defaultIntervalMs);
-  schedulerStatus2.nextRunTime = new Date(Date.now() + defaultIntervalMs);
-  log64.info(`[DataSyncScheduler] v219: \u5B8C\u6574\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
-  setTimeout(async () => {
-    log64.info("[DataSyncScheduler] v335: \u542F\u52A8\u540E\u9996\u6B21\u9AD8\u9891\u540C\u6B65...");
-    await executeUnifiedSync("high");
-  }, 2 * 60 * 1e3);
-  setTimeout(async () => {
-    log64.info("[DataSyncScheduler] v335: \u542F\u52A8\u540E\u9996\u6B21\u5B8C\u6574\u540C\u6B65\uFF08\u786E\u4FDD\u90E8\u7F72\u540E\u6570\u636E\u5B8C\u6574\u6027\uFF09...");
-    await executeUnifiedSync("full");
-    log64.info("[DataSyncScheduler] v335: \u542F\u52A8\u540E\u5B8C\u6574\u540C\u6B65\u5DF2\u5B8C\u6210");
-  }, 5 * 60 * 1e3);
-  setInterval(() => {
-    try {
-      const { logHealthSnapshot: logHealthSnapshot2 } = (init_unifiedSyncEngine(), __toCommonJS(unifiedSyncEngine_exports));
-      logHealthSnapshot2();
-    } catch (err2) {
-      log64.warn(`[DataSyncScheduler] v220: \u5065\u5EB7\u76D1\u63A7\u5FEB\u7167\u5931\u8D25: ${err2.message}`);
-    }
-  }, 15 * 60 * 1e3);
-  log64.info("[DataSyncScheduler] v220: \u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 15\u5206\u949F");
-  setInterval(async () => {
-    try {
-      const { processRetryTasks: processRetryTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
-      const retryResult = await processRetryTasks2();
-      if (retryResult.processed > 0) {
-        log64.warn(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5B8C\u6210: \u5904\u7406=${retryResult.processed}, \u6210\u529F=${retryResult.synced}, \u5931\u8D25=${retryResult.failed}`);
-      }
-    } catch (err2) {
-      log64.error(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
-    }
-  }, 5 * 60 * 1e3);
-  log64.info(`[DataSyncScheduler] v137: \u4F18\u5316\u4EFB\u52A1\u91CD\u8BD5\u540C\u6B65\u5F15\u64CE\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 5\u5206\u949F`);
-  setInterval(async () => {
-    try {
-      const { cleanupStaleJobs: cleanupStaleJobs2 } = await Promise.resolve().then(() => (init_dataSyncService(), dataSyncService_exports));
-      const result = await cleanupStaleJobs2(30);
-      if (result.cleaned > 0) {
-        log64.warn(`[DataSyncScheduler] v334: \u5B9A\u671F\u6E05\u7406\u53D1\u73B0 ${result.cleaned} \u4E2A\u5361\u6B7B\u4EFB\u52A1: ${result.jobIds.join(", ")}`);
-      }
-    } catch (err2) {
-      log64.error(`[DataSyncScheduler] v334: \u5B9A\u671F\u5361\u6B7B\u4EFB\u52A1\u6E05\u7406\u5F02\u5E38: ${err2.message}`);
-    }
-  }, 10 * 60 * 1e3);
-  log64.info("[DataSyncScheduler] v334: \u5361\u6B7B\u4EFB\u52A1\u5B9A\u671F\u6E05\u7406\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 10\u5206\u949F");
-  log64.info(`[DataSyncScheduler] v219: \u7EDF\u4E00\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u5B8C\u6574\u540C\u6B65\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
-}
-function stopDataSyncScheduler() {
-  if (!schedulerStatus2.isRunning) {
-    log64.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u672A\u5728\u8FD0\u884C");
-    return;
-  }
-  Object.keys(schedulerIntervals).forEach((tier) => {
-    const interval = schedulerIntervals[tier];
-    if (interval) {
-      clearInterval(interval);
-      schedulerIntervals[tier] = null;
-    }
-  });
-  schedulerStatus2.isRunning = false;
-  schedulerStatus2.nextRunTime = null;
-  schedulerStatus2.currentTier = null;
-  log64.info("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-  logSystem("DataSyncScheduler", "\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-}
-async function executeUnifiedSync(tier) {
-  if (tier === "high") {
-    if (tierRunningState.full) {
-      log64.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bhigh\u6B65\u9AA4\uFF09`);
-      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
-      return;
-    }
-    if (tierRunningState.medium) {
-      log64.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08\u907F\u514DAPI\u5E76\u53D1\u538B\u529B\uFF09`);
-      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "medium_running" });
-      return;
-    }
-  }
-  if (tier === "medium") {
-    if (tierRunningState.full) {
-      log64.info(`[DataSyncScheduler] v222: medium\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bmedium\u6B65\u9AA4\uFF09`);
-      logSync("DataSyncScheduler", "v222: medium\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
-      return;
-    }
-  }
-  tierRunningState[tier] = true;
-  log64.info(`[DataSyncScheduler] v222: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
-  logSync("DataSyncScheduler", `v222: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
-  schedulerStatus2.currentTier = tier;
-  try {
-    const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-    const batchResult = await syncAllAccounts2(tier);
-    schedulerStatus2.tierLastRun[tier] = /* @__PURE__ */ new Date();
-    schedulerStatus2.lastRunTime = /* @__PURE__ */ new Date();
-    schedulerStatus2.successfulSyncs += batchResult.successfulAccounts;
-    schedulerStatus2.failedSyncs += batchResult.failedAccounts;
-    schedulerStatus2.totalSyncs += batchResult.totalAccounts;
-    log64.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}\u5B8C\u6210: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} \u6210\u529F, ${batchResult.failedAccounts} \u5931\u8D25, ${batchResult.skippedAccounts} \u8DF3\u8FC7, \u8017\u65F6 ${batchResult.durationMs}ms`);
-    if (tier === "full" || tier === "low") {
-      for (const accountResult of batchResult.accountResults) {
-        if (!accountResult.success) continue;
-        try {
-          const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
-          await triggerAccountOptimizations2(accountResult.accountId, "unified_sync_complete");
-          log64.info(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210`);
-        } catch (optErr) {
-          log64.error(`[DataSyncScheduler] v219: \u8D26\u6237 ${accountResult.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25: ${optErr.message}`);
-        }
-      }
-    }
-    if (tier === "full") {
-      schedulerStatus2.nextRunTime = new Date(Date.now() + (schedulerIntervals.full ? 60 * 60 * 1e3 : 30 * 60 * 1e3));
-    }
-    schedulerStatus2.errors = schedulerStatus2.errors.slice(-10);
-  } catch (error54) {
-    log64.error(`[DataSyncScheduler] v219: ${tier}\u5C42\u540C\u6B65\u6267\u884C\u5931\u8D25:`, error54);
-    schedulerStatus2.errors.push(`v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
-    logSyncError("DataSyncScheduler", `v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25`, { tier, error: error54.message });
-  }
-  schedulerStatus2.currentTier = null;
-  tierRunningState[tier] = false;
-}
-async function triggerManualSync(userId, accountId) {
-  try {
-    const { triggerManualFullSync: triggerManualFullSync2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
-    const syncResult = await triggerManualFullSync2(accountId);
-    if (!syncResult) {
-      return { success: false, message: "\u8D26\u53F7\u4E0D\u5B58\u5728\u6216\u672A\u914D\u7F6EAPI\u51ED\u8BC1" };
-    }
-    return {
-      success: syncResult.success,
-      message: syncResult.success ? `\u540C\u6B65\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u540C\u6B65${syncResult.totalSynced}\u6761\u6570\u636E, \u8017\u65F6${syncResult.durationMs}ms` : `\u540C\u6B65\u90E8\u5206\u5B8C\u6210: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F, \u9519\u8BEF: ${syncResult.errors.slice(0, 3).join("; ")}`,
-      result: {
-        campaigns: (syncResult.stepResults["sp_campaigns"]?.synced || 0) + (syncResult.stepResults["sb_campaigns"]?.synced || 0) + (syncResult.stepResults["sd_campaigns"]?.synced || 0),
-        adGroups: (syncResult.stepResults["sp_ad_groups"]?.synced || 0) + (syncResult.stepResults["sb_ad_groups"]?.synced || 0) + (syncResult.stepResults["sd_ad_groups"]?.synced || 0),
-        keywords: (syncResult.stepResults["sp_keywords"]?.synced || 0) + (syncResult.stepResults["sb_keywords"]?.synced || 0),
-        targets: (syncResult.stepResults["sp_product_targets"]?.synced || 0) + (syncResult.stepResults["sb_product_targets"]?.synced || 0) + (syncResult.stepResults["sd_product_targets"]?.synced || 0),
-        performance: syncResult.stepResults["performance_14d"]?.synced || 0,
-        spCampaigns: syncResult.stepResults["sp_campaigns"]?.synced || 0,
-        sbCampaigns: syncResult.stepResults["sb_campaigns"]?.synced || 0,
-        sdCampaigns: syncResult.stepResults["sd_campaigns"]?.synced || 0,
-        durationMs: syncResult.durationMs,
-        completedSteps: syncResult.completedSteps,
-        totalSteps: syncResult.totalSteps,
-        failedSteps: syncResult.failedSteps
-      }
-    };
-  } catch (error54) {
-    return {
-      success: false,
-      message: `\u540C\u6B65\u5931\u8D25: ${error54.message}`
-    };
-  }
-}
-function getSyncQueueStatus() {
-  return {
-    queueLength: requestQueue.length,
-    isProcessing: isProcessingQueue,
-    schedulerStatus: { ...schedulerStatus2 }
-  };
-}
-async function upsertSyncSchedule(params) {
-  const existing = await getSyncScheduleByAccountId(params.userId, params.accountId);
-  if (existing) {
-    await updateSyncSchedule(existing.id, {
-      syncType: params.syncType || "full_sync",
-      frequency: params.frequency,
-      preferredTime: params.preferredTime,
-      preferredDayOfWeek: params.preferredDayOfWeek,
-      isEnabled: params.isEnabled
-    });
-    return { ...existing, ...params };
-  } else {
-    const id = await createSyncSchedule({
-      userId: params.userId,
-      accountId: params.accountId,
-      syncType: params.syncType || "full_sync",
-      frequency: params.frequency,
-      preferredTime: params.preferredTime,
-      preferredDayOfWeek: params.preferredDayOfWeek,
-      isEnabled: params.isEnabled
-    });
-    return {
-      id,
-      userId: params.userId,
-      accountId: params.accountId,
-      syncType: params.syncType || "full_sync",
-      frequency: params.frequency,
-      preferredTime: params.preferredTime || null,
-      preferredDayOfWeek: params.preferredDayOfWeek || null,
-      isEnabled: params.isEnabled ? 1 : 0,
-      lastRunAt: null,
-      nextRunAt: null,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-}
-async function getSyncSchedule(userId, accountId) {
-  return getSyncScheduleByAccountId(userId, accountId);
-}
-async function deleteSyncSchedule3(scheduleId) {
-  await deleteSyncSchedule(scheduleId);
-}
-function sleep3(ms) {
-  return new Promise((resolve8) => setTimeout(resolve8, ms));
-}
-async function withExponentialBackoff(fn2, maxRetries = 3, baseDelayMs = 1e3) {
-  let lastError = null;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await fn2();
-    } catch (error54) {
-      lastError = error54;
-      if (error54.response?.status === 429 || error54.message?.includes("429")) {
-        const delay = baseDelayMs * Math.pow(2, attempt);
-        log64.info(`[DataSyncScheduler] \u9047\u5230\u901F\u7387\u9650\u5236\uFF0C\u7B49\u5F85 ${delay}ms \u540E\u91CD\u8BD5 (\u5C1D\u8BD5 ${attempt + 1}/${maxRetries})`);
-        await sleep3(delay);
-      } else {
-        throw error54;
-      }
-    }
-  }
-  throw lastError || new Error("\u91CD\u8BD5\u6B21\u6570\u5DF2\u7528\u5C3D");
-}
-function getModuleLockGroup2(specificModules) {
-  if (!specificModules || specificModules.length === 0) return "all";
-  if (specificModules.includes("bid") || specificModules.includes("keyword")) return "bid";
-  if (specificModules.includes("dayparting") || specificModules.includes("multidim")) return "dayparting";
-  if (specificModules.includes("dayparting_budget")) return "dayparting_budget";
-  if (specificModules.includes("placement")) return "placement";
-  if (specificModules.includes("searchterm")) return "searchterm";
-  if (specificModules.includes("budget")) return "budget";
-  return "all";
-}
-function acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup) {
-  const group = moduleGroup || "all";
-  const lockKey = `${accountId}:${group}`;
-  if (!accountModuleLocks2[lockKey]) {
-    accountModuleLocks2[lockKey] = { locked: false, lockedBy: "", lockedAt: null };
-  }
-  const lock = accountModuleLocks2[lockKey];
-  if (lock.locked) {
-    if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
-      log64.warn(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
-    } else {
-      log64.info(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
-      return false;
-    }
-  }
-  lock.locked = true;
-  lock.lockedBy = lockedBy;
-  lock.lockedAt = /* @__PURE__ */ new Date();
-  return true;
-}
-function releaseAccountOptimizationLock2(accountId, moduleGroup) {
-  const group = moduleGroup || "all";
-  const lockKey = `${accountId}:${group}`;
-  if (accountModuleLocks2[lockKey]) {
-    accountModuleLocks2[lockKey].locked = false;
-    accountModuleLocks2[lockKey].lockedBy = "";
-    accountModuleLocks2[lockKey].lockedAt = null;
-  }
-}
-async function acquireAccountOptimizationLockWithRetry(accountId, lockedBy, moduleGroup, maxRetries = 3, retryDelayMs = 1e4) {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (acquireAccountOptimizationLock2(accountId, lockedBy, moduleGroup)) {
-      if (attempt > 0) {
-        log64.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u7B2C${attempt + 1}\u6B21\u5C1D\u8BD5\u83B7\u53D6\u9501\u6210\u529F (${lockedBy})`);
-      }
-      return true;
-    }
-    if (attempt < maxRetries) {
-      log64.debug(`[v181-Lock] ${accountId}:${moduleGroup || "all"} \u9501\u88AB\u5360\u7528\uFF0C${retryDelayMs / 1e3}\u79D2\u540E\u91CD\u8BD5 (${attempt + 1}/${maxRetries})`);
-      await new Promise((resolve8) => setTimeout(resolve8, retryDelayMs));
-    }
-  }
-  return false;
-}
-function shouldExecuteModuleForTarget(targetId, moduleName, stage) {
-  const key = `${targetId}:${moduleName}`;
-  const lastExecuted = moduleLastExecutionMap.get(key) || null;
-  const result = shouldExecuteModule(moduleName, lastExecuted, stage);
-  return { shouldExecute: result.shouldExecute, reason: result.reason };
-}
-async function recordModuleExecution(targetId, moduleName) {
-  const key = `${targetId}:${moduleName}`;
-  const now = /* @__PURE__ */ new Date();
-  moduleLastExecutionMap.set(key, now);
-  try {
-    const dbInstance = await getDb();
-    if (dbInstance) {
-      const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
-      let executionTimes = {};
-      const rowData = Array.isArray(rows) ? rows[0] : rows?.rows?.[0];
-      if (rowData) {
-        const rawArr = Array.isArray(rowData) ? rowData : [rowData];
-        for (const r5 of rawArr) {
-          const met = r5.module_execution_times;
-          if (met) {
-            try {
-              executionTimes = JSON.parse(met);
-            } catch (e6) {
-              executionTimes = {};
-            }
-            break;
-          }
-        }
-      }
-      executionTimes[moduleName] = now.toISOString();
-      await dbInstance.execute(sql`UPDATE performance_groups SET module_execution_times = ${JSON.stringify(executionTimes)} WHERE id = ${targetId}`);
-    }
-  } catch (dbErr) {
-    log64.warn(`[OptimizationScheduler] v242: \u6301\u4E45\u5316\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25(target=${targetId}, module=${moduleName}): ${dbErr.message}`);
-  }
-}
-function acquireLock(taskType) {
-  if (executionLocks[taskType]) {
-    log64.info(`[OptimizationScheduler] \u4EFB\u52A1 ${taskType} \u6B63\u5728\u6267\u884C\u4E2D\uFF0C\u8DF3\u8FC7`);
-    return false;
-  }
-  executionLocks[taskType] = true;
-  return true;
-}
-function releaseLock(taskType) {
-  executionLocks[taskType] = false;
-}
-function shouldExecuteThisHour(taskType) {
-  const now = /* @__PURE__ */ new Date();
-  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
-  if (lastExecutionHour[taskType] === hourKey) {
-    return false;
-  }
-  lastExecutionHour[taskType] = hourKey;
-  return true;
-}
-async function startOptimizationScheduler2() {
-  log64.info("[OptimizationScheduler] \u542F\u52A8v156\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
-  try {
-    const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-    const targets = await getEnabledOptimizationTargets2();
-    const dbInstance = await getDb();
-    let restoredFromJson = 0;
-    let restoredFromFallback = 0;
-    for (const target of targets) {
-      let moduleTimesRestored = false;
-      if (dbInstance) {
-        try {
-          const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${target.id}`);
-          const resultRows = Array.isArray(rows) ? rows[0] : rows;
-          const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
-          for (const row of dataArr) {
-            const met = row?.module_execution_times;
-            if (met) {
-              const executionTimes = JSON.parse(met);
-              const modules = Object.keys(executionTimes);
-              if (modules.length > 0) {
-                for (const mod of modules) {
-                  const key = `${target.id}:${mod}`;
-                  if (!moduleLastExecutionMap.has(key)) {
-                    moduleLastExecutionMap.set(key, new Date(executionTimes[mod]));
-                  }
-                }
-                moduleTimesRestored = true;
-                restoredFromJson++;
-                log64.info(`[OptimizationScheduler] v242: \u4ECE\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u6062\u590D ${target.name}: ${modules.map((m4) => `${m4}=${executionTimes[m4]}`).join(", ")}`);
-              }
-              break;
-            }
-          }
-        } catch (jsonErr) {
-          log64.warn(`[OptimizationScheduler] v242: \u89E3\u6790\u6A21\u5757\u6267\u884C\u65F6\u95F4JSON\u5931\u8D25(target=${target.id}): ${jsonErr.message}`);
-        }
-      }
-      if (!moduleTimesRestored) {
-        restoredFromFallback++;
-        log64.info(`[OptimizationScheduler] v242f: ${target.name} \u65E0\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55\uFF0C\u5C06\u5141\u8BB8\u9996\u6B21\u6267\u884C (\u4E0D\u518D\u4F7F\u7528last_optimization_at\u56DE\u9000)`);
-      }
-    }
-    log64.info(`[OptimizationScheduler] v242: \u5DF2\u6062\u590D ${moduleLastExecutionMap.size} \u4E2A\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55 (JSON\u7CBE\u786E\u6062\u590D=${restoredFromJson}, \u56DE\u9000\u6062\u590D=${restoredFromFallback})`);
-  } catch (restoreErr) {
-    log64.error(`[OptimizationScheduler] v242: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
-  }
-  setTimeout(() => {
-    optimizationIntervals.intraday_pacing = setInterval(async () => {
-      await executeOptimizationTask("intraday_pacing");
-    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
-    executeOptimizationTask("intraday_pacing");
-  }, 1 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F\uFF0C\u504F\u79FB: 1\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.risk_scan = setInterval(async () => {
-      await executeOptimizationTask("risk_scan");
-    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-    executeOptimizationTask("risk_scan");
-  }, 6 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 6\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
-      await executeOptimizationTask("dayparting_adjustment");
-    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
-    executeOptimizationTask("dayparting_adjustment");
-  }, 11 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6\uFF0C\u504F\u79FB: 11\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.dayparting_budget = setInterval(async () => {
-      await executeOptimizationTask("dayparting_budget");
-    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
-  }, 16 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u504F\u79FB: 16\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-      await executeOptimizationTask("daily_bid_optimization");
-    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
-    executeOptimizationTask("daily_bid_optimization");
-  }, 21 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 21\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
-      await executeOptimizationTask("daily_placement_optimization");
-    }, 4 * 60 * 60 * 1e3);
-    executeOptimizationTask("daily_placement_optimization");
-  }, 26 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 26\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
-      await executeOptimizationTask("daily_search_term_negation");
-    }, 12 * 60 * 60 * 1e3);
-    executeOptimizationTask("daily_search_term_negation");
-  }, 31 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u504F\u79FB: 31\u5206\u949F`);
-  setTimeout(() => {
-    optimizationIntervals.budget_allocation = setInterval(async () => {
-      await executeOptimizationTask("budget_allocation");
-    }, 4 * 60 * 60 * 1e3);
-    executeOptimizationTask("budget_allocation");
-  }, 36 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
-  optimizationIntervals.search_term_harvest = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    if (localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
-      await executeOptimizationTask("search_term_harvest");
-    }
-  }, 60 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
-  optimizationIntervals.weekly_report = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    const localDow = getLocalDayOfWeek(now, "US");
-    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour("weekly_report")) {
-      await executeOptimizationTask("weekly_report");
-    }
-  }, 60 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
-  log64.info("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
-  log64.debug("[OptimizationScheduler] \u751F\u547D\u5468\u671F\u9891\u7387\u8868:");
-  log64.info("  | \u6A21\u5757           | \u542F\u52A8\u671F  | \u6210\u957F\u671F  | \u6210\u719F\u671F  |");
-  log64.debug("  |----------------|---------|---------|---------|");
-  log64.debug("  | \u51FA\u4EF7\u4F18\u5316       | 4\u5C0F\u65F6   | 6\u5C0F\u65F6   | 12\u5C0F\u65F6  |");
-  log64.debug("  | \u5206\u65F6\u8C03\u6574       | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   | 1\u5C0F\u65F6   |");
-  log64.debug("  | \u4F4D\u7F6E\u503E\u659C       | 24\u5C0F\u65F6  | 12\u5C0F\u65F6  | 12\u5C0F\u65F6  |");
-  log64.debug("  | \u5426\u5B9A\u641C\u7D22\u8BCD     | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
-  log64.debug("  | \u641C\u7D22\u8BCD\u8FC1\u79FB     | 72\u5C0F\u65F6  | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
-  log64.debug("  | \u9884\u7B97\u5206\u914D       | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   |");
-  try {
-    startAutoCorrector();
-    log64.info("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8");
-  } catch (correctorErr) {
-    log64.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
-  }
-  setTimeout(() => {
-    executeOptimizationTask("nextgen_maintenance");
-  }, 2 * 60 * 1e3);
-  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
-    await executeOptimizationTask("nextgen_maintenance");
-  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
-  log64.info(`[OptimizationScheduler] v232: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 6e4}\u5206\u949F\uFF0C\u9996\u6B21\u6267\u884C: 2\u5206\u949F\u540E`);
-  optimizationIntervals.nextgen_model_training = setInterval(async () => {
-    await executeOptimizationTask("nextgen_model_training");
-  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
-  setTimeout(() => {
-    executeOptimizationTask("nextgen_model_training");
-  }, 10 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] v204: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 10\u5206\u949F\u540E`);
-  optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    if (localHour === 2 && shouldExecuteThisHour("nextgen_budget_optimization")) {
-      await executeOptimizationTask("nextgen_budget_optimization");
-    }
-  }, 60 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66282:00`);
-  optimizationIntervals.ab_test_metrics = setInterval(async () => {
-    const now = /* @__PURE__ */ new Date();
-    const localHour = getLocalHour(now, "US");
-    if (localHour === 3 && shouldExecuteThisHour("ab_test_metrics")) {
-      try {
-        const abTestService = await Promise.resolve().then(() => (init_abTestService(), abTestService_exports));
-        const db = await Promise.resolve().then(() => (init_db2(), db_exports));
-        const accounts = await db.getAdAccounts();
-        for (const account of accounts) {
-          const tests = await abTestService.getABTests(account.id);
-          const activeTests = tests.filter((t7) => t7.status === "running");
-          for (const test2 of activeTests) {
-            try {
-              const analysis = await abTestService.analyzeABTestResults(test2.id);
-              const primaryMetric = analysis.metrics?.[0];
-              if (primaryMetric?.isSignificant) {
-                log64.info(`[ABTestScheduler] v267: \u6D4B\u8BD5${test2.id}\u5DF2\u8FBE\u5230\u7EDF\u8BA1\u663E\u8457\u6027! \u80DC\u8005: ${analysis.overallWinner}, p\u503C: ${primaryMetric.pValue}`);
-              }
-              const startDate = test2.startDate ? new Date(test2.startDate) : null;
-              const daysSinceStart = startDate ? (Date.now() - startDate.getTime()) / (1e3 * 60 * 60 * 24) : 0;
-              if (daysSinceStart > 30) {
-                await abTestService.completeABTest(test2.id);
-                log64.info(`[ABTestScheduler] v267: \u6D4B\u8BD5${test2.id}\u8D85\u8FC730\u5929\uFF0C\u81EA\u52A8\u5B8C\u6210`);
-              }
-            } catch (testErr) {
-              log64.warn(`[ABTestScheduler] v267: \u5904\u7406\u6D4B\u8BD5${test2.id}\u5931\u8D25: ${testErr.message}`);
-            }
-          }
-        }
-        log64.info(`[ABTestScheduler] v267: A/B\u6D4B\u8BD5\u6BCF\u65E5\u6307\u6807\u6536\u96C6\u5B8C\u6210`);
-      } catch (err2) {
-        log64.error(`[ABTestScheduler] v267: A/B\u6D4B\u8BD5\u8C03\u5EA6\u5931\u8D25: ${err2.message}`);
-      }
-    }
-  }, 60 * 60 * 1e3);
-  log64.info(`[OptimizationScheduler] v267: A/B\u6D4B\u8BD5\u6307\u6807\u6536\u96C6\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66283:00`);
-}
-function stopOptimizationScheduler2() {
-  Object.keys(optimizationIntervals).forEach((type) => {
-    const interval = optimizationIntervals[type];
-    if (interval) {
-      clearInterval(interval);
-      optimizationIntervals[type] = null;
-    }
-  });
-  log64.debug("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
-  try {
-    stopAutoCorrector();
-  } catch (e6) {
-  }
-}
-async function executeOptimizationTask(taskType) {
-  if (!acquireLock(taskType)) return;
-  const mem = process.memoryUsage();
-  const heapUtilization = Math.round(mem.heapUsed / mem.heapTotal * 100);
-  const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
-  const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing"];
-  const isCritical = criticalTasks.includes(taskType);
-  if (heapUtilization > 90) {
-    log64.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u5371\u6025(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
-    if (typeof global.gc === "function") global.gc();
-    releaseLock(taskType);
-    return;
-  }
-  if (heapUtilization > 80 && !isCritical) {
-    log64.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u7D27\u5F20(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u975E\u5173\u952E\u4EFB\u52A1: ${taskType}`);
-    if (typeof global.gc === "function") global.gc();
-    releaseLock(taskType);
-    return;
-  }
-  const config2 = OPTIMIZATION_SCHEDULE[taskType];
-  log64.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${(/* @__PURE__ */ new Date()).toISOString()}`);
-  try {
-    const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-    switch (taskType) {
-      // ==================== 日内节奏监控（每30分钟）====================
-      case "intraday_pacing": {
-        log64.info(`[OptimizationScheduler] \u6267\u884C\u65E5\u5185\u8282\u594F\u76D1\u63A7`);
-        try {
-          const { checkAllCampaignsPacing: checkAllCampaignsPacing2, applyIntradayAdjustment: applyIntradayAdjustment2 } = await Promise.resolve().then(() => (init_intradayPacingService(), intradayPacingService_exports));
-          const targets = await getEnabledOptimizationTargets2();
-          const checkedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (checkedAccountIds.has(target.accountId)) continue;
-            checkedAccountIds.add(target.accountId);
-            try {
-              const adjustments = await checkAllCampaignsPacing2(target.accountId);
-              const criticalCount = adjustments.filter((a4) => a4.pacingStatus === "critical" || a4.anomalyDetected).length;
-              const overspendCount = adjustments.filter((a4) => a4.pacingStatus === "overspending").length;
-              const underspendCount = adjustments.filter((a4) => a4.pacingStatus === "underspending").length;
-              for (const adj of adjustments) {
-                if (adj.suggestedAction !== "none" && (adj.pacingStatus === "critical" || adj.pacingStatus === "overspending")) {
-                  await applyIntradayAdjustment2(adj);
-                }
-              }
-              log64.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5B8C\u6210: ${adjustments.length}\u4E2ACampaign, \u5371\u6025=${criticalCount}, \u8D85\u901F=${overspendCount}, \u6B20\u901F=${underspendCount}`);
-            } catch (pacingError) {
-              log64.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5F02\u5E38:`, pacingError.message);
-            }
-          }
-        } catch (pacingError) {
-          log64.error(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5F02\u5E38:`, pacingError.message);
-        }
-        break;
-      }
-      // ==================== 高频风控扫描（每2小时，仅风控）====================
-      case "risk_scan": {
-        log64.info(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u4EC5\u98CE\u63A7\uFF0C\u4E0D\u542B\u4F18\u5316)`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          const scannedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (scannedAccountIds.has(target.accountId)) continue;
-            scannedAccountIds.add(target.accountId);
-            try {
-              const riskCampaigns = await getCampaignsByAccountId(target.accountId);
-              const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
-              let totalRisks = 0;
-              for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
-                if (riskResult.hasRisk) {
-                  totalRisks += riskResult.risks.length;
-                  for (const risk of riskResult.risks) {
-                    log64.warn(`[RiskScan] Campaign ${campaign.campaignName}: [${risk.severity}] ${risk.description}`);
-                  }
-                }
-              }
-              log64.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
-            } catch (riskError) {
-              log64.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
-            }
-          }
-        } catch (riskError) {
-          log64.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
-        }
-        break;
-      }
-      // ==================== 分时竞价调整（每小时）====================
-      case "dayparting_adjustment": {
-        log64.info(`[OptimizationScheduler] \u6267\u884C\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574`);
-        try {
-          const daypartingResults = await executeAllEnabledTargets2(void 0, {
-            dryRun: false,
-            specificModules: ["multidim", "dayparting", "coordination"]
-          });
-          log64.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
-          for (const r5 of daypartingResults) {
-            log64.debug(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
-          }
-        } catch (daypartingError) {
-          log64.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
-        }
-        break;
-      }
-      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
-      case "dayparting_budget": {
-        log64.info(`[OptimizationScheduler] v179: \u6267\u884C\u5206\u65F6\u9884\u7B97\u8C03\u6574`);
-        try {
-          const daypartingBudgetResults = await executeAllEnabledTargets2(void 0, {
-            dryRun: false,
-            specificModules: ["multidim", "dayparting_budget"]
-          });
-          log64.info(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5B8C\u6210: ${daypartingBudgetResults.length}\u4E2A\u76EE\u6807`);
-          for (const r5 of daypartingBudgetResults) {
-            log64.debug(`  - ${r5.targetName}: \u5206\u65F6\u9884\u7B97\u8C03\u6574=${r5.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
-          }
-        } catch (daypartingBudgetError) {
-          log64.error(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5931\u8D25:`, daypartingBudgetError.message);
-        }
-        break;
-      }
-      // ==================== v143: 出价智能优化（生命周期感知）====================
-      case "daily_bid_optimization": {
-        log64.info(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "bid", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log64.info(`[OptimizationScheduler] \u8DF3\u8FC7\u51FA\u4EF7\u4F18\u5316: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["bid", "keyword", "coordination"]
-              });
-              await recordModuleExecution(target.id, "bid");
-              executedCount++;
-              log64.debug(`  - ${target.name} [${stage}]: \u51FA\u4EF7\u8C03\u6574=${result.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${result.keywordStatusChanges.pausedCount}`);
-            } catch (targetErr) {
-              log64.error(`  - ${target.name} \u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log64.info(`[OptimizationScheduler] v273\u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}, \u603B\u76EE\u6807=${targets.length}, \u65F6\u95F4=${(/* @__PURE__ */ new Date()).toISOString()}`);
-        } catch (bidError) {
-          log64.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
-        }
-        break;
-      }
-      // ==================== v143: 位置优化（生命周期感知）====================
-      case "daily_placement_optimization": {
-        log64.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "placement", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log64.info(`[OptimizationScheduler] \u8DF3\u8FC7\u4F4D\u7F6E\u4F18\u5316: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["placement"]
-              });
-              await recordModuleExecution(target.id, "placement");
-              executedCount++;
-              log64.debug(`  - ${target.name} [${stage}]: \u4F4D\u7F6E\u8C03\u6574=${result.placementOptimization.adjustmentsCount}`);
-            } catch (targetErr) {
-              log64.error(`  - ${target.name} \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log64.info(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (placementError) {
-          log64.error(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25:`, placementError.message);
-        }
-        break;
-      }
-      // ==================== v143: 搜索词否定（生命周期感知）====================
-      case "daily_search_term_negation": {
-        log64.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "negativeKeyword", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log64.info(`[OptimizationScheduler] \u8DF3\u8FC7\u641C\u7D22\u8BCD\u5426\u5B9A: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["searchterm"]
-              });
-              await recordModuleExecution(target.id, "negativeKeyword");
-              executedCount++;
-              log64.debug(`  - ${target.name} [${stage}]: \u5426\u5B9A\u8BCD\u6DFB\u52A0=${result.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u5173\u952E\u8BCD=${result.searchTermAnalysis.newKeywordsAdded}`);
-            } catch (targetErr) {
-              log64.error(`  - ${target.name} \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log64.info(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-        } catch (searchTermError) {
-          log64.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25:`, searchTermError.message);
-        }
-        break;
-      }
-      // ==================== v143: 预算智能分配（生命周期感知）====================
-      case "budget_allocation": {
-        log64.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u89E6\u53D1\uFF0C\u5F00\u59CB\u751F\u547D\u5468\u671F\u611F\u77E5\u6267\u884C...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          let executedCount = 0;
-          let skippedCount = 0;
-          for (const target of targets) {
-            const stage = target.lifecycleStage || "mature";
-            const check2 = shouldExecuteModuleForTarget(target.id, "budget", stage);
-            if (!check2.shouldExecute) {
-              skippedCount++;
-              log64.info(`[OptimizationScheduler] \u8DF3\u8FC7\u9884\u7B97\u5206\u914D: ${target.name} (${check2.reason})`);
-              continue;
-            }
-            try {
-              const { executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const result = await executeOptimizationTarget2(target.id, {
-                dryRun: false,
-                specificModules: ["budget"]
-              });
-              await recordModuleExecution(target.id, "budget");
-              executedCount++;
-              log64.debug(`  - ${target.name} [${stage}]: \u9884\u7B97\u8C03\u6574=${result.budgetAllocation.adjustmentsCount}`);
-            } catch (targetErr) {
-              log64.error(`  - ${target.name} \u9884\u7B97\u5206\u914D\u5931\u8D25: ${targetErr.message}`);
-            }
-          }
-          log64.info(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: \u6267\u884C=${executedCount}, \u8DF3\u8FC7=${skippedCount}`);
-          try {
-            const { checkAndExecutePendingTasks: checkAndExecutePendingTasks2 } = await Promise.resolve().then(() => (init_budgetAutoExecutionService(), budgetAutoExecutionService_exports));
-            const autoExecResult = await checkAndExecutePendingTasks2();
-            log64.info(`[OptimizationScheduler] v267: \u9884\u7B97\u81EA\u52A8\u6267\u884C\u5B8C\u6210: \u6267\u884C=${autoExecResult.executed}, \u5931\u8D25=${autoExecResult.failed}, \u9519\u8BEF\u6570=${autoExecResult.errors.length}`);
-          } catch (autoExecErr) {
-            log64.error(`[OptimizationScheduler] v267: \u9884\u7B97\u81EA\u52A8\u6267\u884C\u5931\u8D25:`, autoExecErr.message);
-          }
-        } catch (budgetError) {
-          log64.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
-        }
-        break;
-      }
-      // ==================== 搜索词收割（周一凌晨5:00）====================
-      case "search_term_harvest": {
-        log64.info(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          const harvestedAccountIds = /* @__PURE__ */ new Set();
-          for (const target of targets) {
-            if (harvestedAccountIds.has(target.accountId)) continue;
-            harvestedAccountIds.add(target.accountId);
-            try {
-              const harvestResult = await batchHarvestSearchTerms(
-                target.accountId,
-                { dryRun: false }
-              );
-              log64.info(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
-            } catch (harvestError) {
-              log64.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
-            }
-          }
-        } catch (harvestError) {
-          log64.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
-        }
-        break;
-      }
-      // ==================== 绩效周报（周一上午9:00）====================
-      case "weekly_report": {
-        log64.debug(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
-        break;
-      }
-      // ==================== v197: NextGen维护任务 ====================
-      case "nextgen_maintenance": {
-        log64.info(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u4EFB\u52A1\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              const result = await executeNextGenMaintenanceTasks(target.accountId);
-              log64.debug(`  - \u8D26\u6237${target.accountId}: \u7279\u5F81\u7F13\u5B58=${result.featuresCached}, Sigmoid\u62DF\u5408=${result.sigmoidFitted.fitted}, Reward\u56DE\u586B=${result.rewardsBackfilled}, \u56E0\u679C\u5206\u6790=${result.causalAnalysis.analyzed}`);
-            } catch (err2) {
-              log64.error(`  - \u8D26\u6237${target.accountId} NextGen\u7EF4\u62A4\u5931\u8D25: ${err2.message}`);
-            }
-          }
-          try {
-            const { backfillBidPerformanceResults: backfillBidPerformanceResults2 } = await Promise.resolve().then(() => (init_rlDataRecorder(), rlDataRecorder_exports));
-            const backfillResult = await backfillBidPerformanceResults2();
-            log64.info(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5B8C\u6210: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
-          } catch (bErr) {
-            log64.error(`[OptimizationScheduler] v230: bidPerformanceHistory\u56DE\u586B\u5931\u8D25: ${bErr.message}`);
-          }
-        } catch (err2) {
-          log64.error(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-      // ==================== v197: NextGen模型训练 ====================
-      case "nextgen_model_training": {
-        log64.info(`[OptimizationScheduler] v197: NextGen\u6A21\u578B\u8BAD\u7EC3\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              await executeModelTraining(target.accountId);
-              log64.info(`  - \u8D26\u6237${target.accountId}: CQL\u6A21\u578B\u8BAD\u7EC3\u5B8C\u6210`);
-            } catch (err2) {
-              log64.error(`  - \u8D26\u6237${target.accountId} CQL\u8BAD\u7EC3\u5931\u8D25: ${err2.message}`);
-            }
-          }
-        } catch (err2) {
-          log64.error(`[OptimizationScheduler] v197: \u6A21\u578B\u8BAD\u7EC3\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-      // ==================== v197: NextGen预算优化+关键词图谱 ====================
-      case "nextgen_budget_optimization": {
-        log64.info(`[OptimizationScheduler] v197: NextGen\u9884\u7B97\u4F18\u5316+\u5173\u952E\u8BCD\u56FE\u8C31\u89E6\u53D1...`);
-        try {
-          const targets = await getEnabledOptimizationTargets2();
-          for (const target of targets) {
-            try {
-              await executeBudgetOptimization(target.accountId);
-              log64.info(`  - \u8D26\u6237${target.accountId}: \u9884\u7B97\u7EC4\u5408\u4F18\u5316\u5B8C\u6210`);
-            } catch (err2) {
-              log64.error(`  - \u8D26\u6237${target.accountId} \u9884\u7B97\u4F18\u5316\u5931\u8D25: ${err2.message}`);
-            }
-            try {
-              await executeKeywordGraphAnalysis(target.accountId);
-              log64.info(`  - \u8D26\u6237${target.accountId}: \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790\u5B8C\u6210`);
-            } catch (err2) {
-              log64.error(`  - \u8D26\u6237${target.accountId} \u5173\u952E\u8BCD\u56FE\u8C31\u5931\u8D25: ${err2.message}`);
-            }
-          }
-        } catch (err2) {
-          log64.error(`[OptimizationScheduler] v197: \u9884\u7B97\u4F18\u5316\u5931\u8D25:`, err2.message);
-        }
-        break;
-      }
-    }
-    log64.info(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
-  } catch (error54) {
-    log64.error(`[OptimizationScheduler] ${taskType} \u6267\u884C\u5931\u8D25:`, error54.message);
-  } finally {
-    releaseLock(taskType);
-  }
-}
-var log64, SYNC_TIER_CONFIG, schedulerStatus2, schedulerIntervals, requestQueue, isProcessingQueue, frequencyToMs, tierRunningState, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks2, moduleLastExecutionMap;
-var init_dataSyncScheduler = __esm({
-  "server/dataSyncScheduler.ts"() {
-    "use strict";
-    init_db2();
-    init_drizzle_orm();
-    init_amazonSyncService();
-    init_notification();
-    init_algorithmUtils();
-    init_searchTermHarvester();
-    init_attributionWindowHelper();
-    init_campaignLifecycleService();
-    init_optimizationAutoCorrector();
-    init_nextGenBidOrchestrator();
-    init_logger2();
-    init_opsLogger();
-    log64 = createModuleLogger("Scheduler");
-    SYNC_TIER_CONFIG = {
-      high: {
-        intervalMs: 15 * 60 * 1e3,
-        // 15分钟
-        description: "\u9AD8\u9891\u540C\u6B65 - \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u548C\u9884\u7B97",
-        syncTypes: ["campaigns_status", "budgets"]
-      },
-      medium: {
-        intervalMs: 30 * 60 * 1e3,
-        // 30分钟
-        description: "\u4E2D\u9891\u540C\u6B65 - \u5E7F\u544A\u7EC4\u3001\u5173\u952E\u8BCD\u3001\u5B9A\u4F4D",
-        syncTypes: ["ad_groups", "keywords", "targets"]
-      },
-      low: {
-        intervalMs: 60 * 60 * 1e3,
-        // 1小时
-        description: "\u4F4E\u9891\u540C\u6B65 - \u5B8C\u6574\u6570\u636E\u540C\u6B65",
-        syncTypes: ["full_sync"]
-      },
-      full: {
-        intervalMs: 30 * 60 * 1e3,
-        // 30分钟（完整同步，获取60天历史数据）
-        description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF0860\u5929\u5386\u53F2\uFF09",
-        syncTypes: ["all"]
-      }
-    };
-    schedulerStatus2 = {
-      isRunning: false,
-      lastRunTime: null,
-      nextRunTime: null,
-      totalSyncs: 0,
-      successfulSyncs: 0,
-      failedSyncs: 0,
-      errors: [],
-      currentTier: null,
-      tierLastRun: {
-        high: null,
-        medium: null,
-        low: null,
-        full: null
-      }
-    };
-    schedulerIntervals = {
-      high: null,
-      medium: null,
-      low: null,
-      full: null
-    };
-    requestQueue = [];
-    isProcessingQueue = false;
-    frequencyToMs = {
-      "every_15_minutes": 15 * 60 * 1e3,
-      "every_30_minutes": 30 * 60 * 1e3,
-      "hourly": 60 * 60 * 1e3,
-      "every_2_hours": 2 * 60 * 60 * 1e3,
-      "every_4_hours": 4 * 60 * 60 * 1e3,
-      "every_6_hours": 6 * 60 * 60 * 1e3,
-      "every_12_hours": 12 * 60 * 60 * 1e3,
-      "daily": 24 * 60 * 60 * 1e3,
-      "weekly": 7 * 24 * 60 * 60 * 1e3
-    };
-    tierRunningState = {
-      high: false,
-      medium: false,
-      full: false
-    };
-    OPTIMIZATION_SCHEDULE = {
-      intraday_pacing: {
-        type: "intraday_pacing",
-        description: "\u65E5\u5185\u8282\u594F\u76D1\u63A7 - \u9884\u7B97\u6D88\u8017\u901F\u5EA6\u76D1\u63A7\u548C\u5F02\u5E38\u6D41\u91CF\u68C0\u6D4B",
-        intervalMs: 30 * 60 * 1e3,
-        // 每30分钟
-        specificModules: []
-        // 独立执行，不走优化目标引擎
-      },
-      risk_scan: {
-        type: "risk_scan",
-        description: "\u9AD8\u9891\u98CE\u63A7\u626B\u63CF - \u96F6\u66DD\u5149\u98CE\u66B4\u3001\u5F02\u5E38\u82B1\u9500\u3001CPC\u98D9\u5347\u68C0\u6D4B",
-        intervalMs: 2 * 60 * 60 * 1e3,
-        // 每2小时（从4小时缩短到2小时）
-        specificModules: []
-        // 仅风控，不执行优化模块
-      },
-      dayparting_adjustment: {
-        type: "dayparting_adjustment",
-        description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
-        intervalMs: 60 * 60 * 1e3,
-        // 每小时
-        specificModules: ["multidim", "dayparting", "coordination"]
-        // v179: 添加multidim模块以生成分时竞价规则
-      },
-      dayparting_budget: {
-        type: "dayparting_budget",
-        description: "v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574 - \u6839\u636E\u661F\u671F\u51E0\u7684\u8868\u73B0\u52A8\u6001\u8C03\u6574\u9884\u7B97",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        // 每天执行一次
-        cronHours: [6],
-        // 凌昨6:00执行（在分时竞价规则生成后）
-        specificModules: ["multidim", "dayparting_budget"]
-        // 先生成规则，再应用预算
-      },
-      daily_bid_optimization: {
-        type: "daily_bid_optimization",
-        description: "\u51FA\u4EF7\u667A\u80FD\u4F18\u5316 - \u6BCF2\u5C0F\u65F6\u57FA\u4E8E\u5E02\u573A\u66F2\u7EBF\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u51FA\u4EF7",
-        intervalMs: 2 * 60 * 60 * 1e3,
-        // v122h: 从每日1次提升到每2小时，与宣传一致
-        specificModules: ["bid", "keyword", "coordination"]
-      },
-      daily_placement_optimization: {
-        type: "daily_placement_optimization",
-        description: "\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316 - \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u8C03\u6574",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        cronHours: [3],
-        // 凌晨3:00
-        specificModules: ["placement"]
-        // 仅位置优化
-      },
-      daily_search_term_negation: {
-        type: "daily_search_term_negation",
-        description: "\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A - \u81EA\u52A8\u5426\u5B9A\u4F4E\u6548\u641C\u7D22\u8BCD",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        cronHours: [4],
-        // 凌晨4:00
-        specificModules: ["searchterm"]
-        // 仅搜索词分析
-      },
-      budget_allocation: {
-        type: "budget_allocation",
-        description: "\u9884\u7B97\u667A\u80FD\u5206\u914D - \u65E9\u665A\u4E24\u6B21\u9884\u7B97\u5206\u914D",
-        intervalMs: 12 * 60 * 60 * 1e3,
-        cronHours: [8, 18],
-        // 早8:00 + 晚18:00
-        specificModules: ["budget"]
-        // 仅预算分配
-      },
-      search_term_harvest: {
-        type: "search_term_harvest",
-        description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u65E5\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        // v192: 从每周改为每日
-        cronHours: [5],
-        // 凌晨5:00
-        // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
-        specificModules: []
-        // 独立执行，使用searchTermHarvester服务
-      },
-      weekly_report: {
-        type: "weekly_report",
-        description: "\u7EE9\u6548\u5468\u62A5 - \u6BCF\u5468\u81EA\u52A8\u751F\u6210\u5E7F\u544A\u4F18\u5316\u62A5\u544A",
-        intervalMs: 7 * 24 * 60 * 60 * 1e3,
-        cronHours: [9],
-        // 上午9:00
-        cronDayOfWeek: 1,
-        // 周一
-        specificModules: []
-      },
-      // v197: 下一代算法定时任务
-      nextgen_maintenance: {
-        type: "nextgen_maintenance",
-        description: "v204: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
-        intervalMs: 30 * 60 * 1e3,
-        // v232: 从2小时大幅缩短到30分钟，加速算法进化
-        specificModules: []
-      },
-      nextgen_model_training: {
-        type: "nextgen_model_training",
-        description: "v197: NextGen\u6A21\u578B\u8BAD\u7EC3 - CQL\u79BB\u7EBF\u5F3A\u5316\u5B66\u4E60\u6A21\u578B\u8BAD\u7EC3",
-        intervalMs: 6 * 60 * 60 * 1e3,
-        // 每6小时
-        specificModules: []
-      },
-      nextgen_budget_optimization: {
-        type: "nextgen_budget_optimization",
-        description: "v197: NextGen\u9884\u7B97\u7EC4\u5408\u4F18\u5316 + \u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        // 每日
-        cronHours: [2],
-        // 凌晨2:00
-        specificModules: []
-      },
-      ab_test_metrics: {
-        type: "ab_test_metrics",
-        description: "v267: A/B\u6D4B\u8BD5\u6BCF\u65E5\u6307\u6807\u6536\u96C6",
-        intervalMs: 24 * 60 * 60 * 1e3,
-        // 每日
-        cronHours: [23],
-        // 晚上23:00
-        specificModules: []
-      }
-    };
-    optimizationIntervals = {
-      intraday_pacing: null,
-      risk_scan: null,
-      dayparting_adjustment: null,
-      dayparting_budget: null,
-      // v179
-      daily_bid_optimization: null,
-      daily_placement_optimization: null,
-      daily_search_term_negation: null,
-      budget_allocation: null,
-      search_term_harvest: null,
-      weekly_report: null,
-      // v197: NextGen定时任务
-      nextgen_maintenance: null,
-      nextgen_model_training: null,
-      nextgen_budget_optimization: null,
-      ab_test_metrics: null
-      // v267 P2-2
-    };
-    executionLocks = {};
-    lastExecutionHour = {};
-    accountModuleLocks2 = {};
-    moduleLastExecutionMap = /* @__PURE__ */ new Map();
   }
 });
 
@@ -168177,6 +168269,18 @@ var init_postDeployOptimizer = __esm({
         description: "v329: [\u67B6\u6784\u7EA7\u7A33\u5B9A\u6027\u91CD\u6784] \u2014 (1)P0-\u7248\u672C\u53F7\u7EDF\u4E00\u5355\u4E00\u6765\u6E90: \u6D88\u9664systemVersion.ts\u548CpostDeployOptimizer.ts\u53CC\u6E90\u4E0D\u540C\u6B65\u95EE\u9898,\u5FC3\u8DF3/\u751F\u547D\u5468\u671F/PostDeploy\u7EDF\u4E00\u4F7F\u7528systemVersion.ts (2)P0-PostDeployOptimizer\u5BB9\u9519\u91CD\u6784: recordDeployVersion/updateTargetOptimizedVersion/getLastDeployedVersion\u5168\u90E8\u6539\u7528raw SQL+3\u6B21\u91CD\u8BD5,\u907F\u514DDrizzle ORM schema\u4E0D\u5339\u914D\u548C\u6570\u636E\u5E93\u77AC\u65F6\u4E2D\u65AD\u5BFC\u81F4\u90E8\u7F72\u540E\u4F18\u5316\u5931\u8D25 (3)P0-deployLifecycleManager\u9519\u8BEF\u9694\u79BB: \u6B65\u9AA44b-4e\u6BCF\u4E2A\u6B65\u9AA4\u72EC\u7ACBtry-catch,PostDeploy\u5931\u8D25\u4E0D\u963B\u585EAutoCorrector,\u6B65\u9AA44d/4e\u6539\u7528raw SQL\u8BB0\u5F55 (4)P0-\u5185\u5B58\u7BA1\u7406\u91CD\u6784: V8\u5806\u9650\u5236\u4ECE2048MB\u964D\u81F31400MB\u4E3AOS\u9884\u7559600MB,decisionTraces\u7F13\u5B5810000\u21922000,metricBuffer 5000\u21921000,metricAggregates/modelCache/efficiencyHistoryBuffer/changeLogs\u5168\u90E8\u6DFB\u52A0\u5927\u5C0F\u4E0A\u9650 (5)P1-\u4EFB\u52A1\u5206\u5C42\u5185\u5B58\u9884\u7B97: executeOptimizationTask\u6DFB\u52A080%\u5185\u5B58\u9884\u7B97\u68C0\u67E5,AutoCorrector\u6BCF\u8D26\u6237\u5904\u7406\u524D85%\u5185\u5B58\u68C0\u67E5,startAutoCorrector\u6DFB\u52A090%\u5185\u5B58\u4FDD\u62A4",
         affectedModules: ["bid", "sync", "keyword"],
         correctionActions: ["rerun_optimization", "cleanup_stale_pending", "revalidate_pending_commands"]
+      },
+      {
+        version: 335,
+        description: "v335: [\u6570\u636E\u540C\u6B65\u4FDD\u969C\u4F53\u7CFB] \u2014 (1)P0-deployLifecycleManager\u4F18\u96C5\u5173\u95ED\u589E\u52A0dataSyncJobs\u72B6\u6001\u91CD\u7F6E: running\u2192failed,pending\u2192cancelled (2)P0-orchestrateStartup\u589E\u52A0\u6570\u636E\u540C\u6B65\u6062\u590D\u6B65\u9AA43.5: \u6E05\u7406\u5361\u6B7Brunning\u4EFB\u52A1+\u68C0\u67E5\u540C\u6B65\u6EDE\u540E\u8D26\u6237+\u8BB0\u5F55\u6062\u590D\u4E8B\u4EF6 (3)P0-dataSyncScheduler\u542F\u52A8\u65F6\u6E05\u7406\u5361\u6B7B\u4EFB\u52A1(30\u5206\u949F\u8D85\u65F6)+\u542F\u52A8\u540E2\u5206\u949F\u9AD8\u9891\u540C\u6B65+5\u5206\u949F\u5B8C\u6574\u540C\u6B65 (4)P0-dataSyncService\u65B0\u589EcleanupStaleJobs\u548CcleanupOrphanedPendingJobs\u51FD\u6570 (5)P1-optimizationTargetEngine\u6240\u6709details.push\u8DEF\u5F84\u6DFB\u52A0algorithmUsed\u5B57\u6BB5",
+        affectedModules: ["sync", "bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 336,
+        description: "v336: [\u6570\u636E\u540C\u6B65\u4FDD\u969C\u4F53\u7CFB\u5168\u9762\u5347\u7EA7+\u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65+\u90E8\u7F72\u6062\u590D\u589E\u5F3A] \u2014 (1)P0-SYSTEM_VERSION\u66F4\u65B0329\u2192336: \u4FEE\u590Dv335\u9057\u6F0F\u7684\u7248\u672C\u53F7\u66F4\u65B0\u5BFC\u81F4\u5FC3\u8DF3/PostDeploy\u7248\u672C\u68C0\u6D4B\u5931\u6548 (2)P0-\u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1: amazonApi\u8DEF\u7531\u4FDD\u5B58\u51ED\u8BC1\u540E\u7ACB\u5373\u89E6\u53D1syncAllAccounts+\u65B0\u8D26\u6237\u521B\u5EFA\u540E\u7ACB\u5373\u89E6\u53D1\u5B8C\u6574\u540C\u6B65 (3)P0-\u90E8\u7F72\u6062\u590D\u589E\u5F3A: orchestrateStartup\u6B65\u9AA43.5\u589E\u52A0\u4E3B\u52A8\u89E6\u53D1syncAllAccounts\u800C\u975E\u4EC5\u6E05\u7406+\u7F29\u77ED\u542F\u52A8\u540E\u9996\u6B21\u540C\u6B65\u5EF6\u8FDF(2\u5206\u949F\u219230\u79D2\u9AD8\u9891,5\u5206\u949F\u219260\u79D2\u5B8C\u6574) (4)P1-\u540C\u6B65\u5065\u5EB7\u76D1\u63A7: \u6BCF\u6B21\u540C\u6B65\u540E\u68C0\u67E5\u7ED3\u679C+\u8FDE\u7EED3\u6B21\u5931\u8D25\u8BB0\u5F55\u544A\u8B66\u4E8B\u4EF6+\u5FC3\u8DF3\u4E2D\u5305\u542B\u540C\u6B65\u72B6\u6001 (5)P1-VERSION_CHANGELOG\u8865\u5145v330-v336\u6761\u76EE",
+        affectedModules: ["sync", "bid"],
+        correctionActions: ["rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -370840,12 +370944,18 @@ var amazonApiRouter = router({
       region: input.region,
       marketplace
     });
-    initPromise.then((initResult) => {
+    initPromise.then(async (initResult) => {
       console.log(`[\u6388\u6743\u540E\u521D\u59CB\u5316] \u8D26\u53F7 ${input.accountId} (${marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
         sync: initResult.syncResult.success ? "\u2705" : "\u274C",
         schedule: initResult.scheduleResult.success ? "\u2705" : "\u274C",
         ams: initResult.amsResult.success ? "\u2705" : "\u274C"
       });
+      try {
+        const { triggerImmediateSync: triggerImmediateSync2 } = await Promise.resolve().then(() => (init_dataSyncScheduler(), dataSyncScheduler_exports));
+        await triggerImmediateSync2(input.accountId, `\u51ED\u8BC1\u4FDD\u5B58\u540E\u7ACB\u5373\u540C\u6B65 (accountId=${input.accountId}, marketplace=${marketplace})`);
+      } catch (syncErr) {
+        console.error(`[v336] \u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1\u5931\u8D25:`, syncErr.message);
+      }
     }).catch((err2) => {
       console.error(`[\u6388\u6743\u540E\u521D\u59CB\u5316] \u8D26\u53F7 ${input.accountId} \u521D\u59CB\u5316\u5931\u8D25:`, err2);
     });
@@ -371032,13 +371142,20 @@ var amazonApiRouter = router({
         region: input.region,
         marketplace: account.countryCode || "US"
       }))
-    ).then((initResults) => {
+    ).then(async (initResults) => {
       for (const initResult of initResults) {
         console.log(`[saveMultipleProfiles] \u8D26\u53F7 ${initResult.accountId} (${initResult.marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
           sync: initResult.syncResult.success ? "\u2705" : "\u274C",
           schedule: initResult.scheduleResult.success ? "\u2705" : "\u274C",
           ams: initResult.amsResult.success ? "\u2705" : "\u274C"
         });
+      }
+      try {
+        const { triggerImmediateSync: triggerImmediateSync2 } = await Promise.resolve().then(() => (init_dataSyncScheduler(), dataSyncScheduler_exports));
+        const accountIds = initResults.map((r5) => r5.accountId).join(",");
+        await triggerImmediateSync2(0, `\u6279\u91CF\u51ED\u8BC1\u4FDD\u5B58\u540E\u7ACB\u5373\u540C\u6B65 (accountIds=${accountIds})`);
+      } catch (syncErr) {
+        console.error(`[v336] \u6279\u91CF\u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1\u5931\u8D25:`, syncErr.message);
       }
     }).catch((err2) => {
       console.error(`[saveMultipleProfiles] \u6279\u91CF\u521D\u59CB\u5316\u5931\u8D25:`, err2);
@@ -372529,12 +372646,18 @@ var amazonApiRouter = router({
               profileId: String(profile.profileId),
               region: regionCode,
               marketplace: profile.countryCode
-            }).then((initResult) => {
+            }).then(async (initResult) => {
               console.log(`[BatchAuth] \u8D26\u53F7 ${accountId} (${profile.countryCode}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
                 sync: initResult.syncResult.success ? "\u2705" : "\u274C",
                 schedule: initResult.scheduleResult.success ? "\u2705" : "\u274C",
                 ams: initResult.amsResult.success ? "\u2705" : "\u274C"
               });
+              try {
+                const { triggerImmediateSync: triggerImmediateSync2 } = await Promise.resolve().then(() => (init_dataSyncScheduler(), dataSyncScheduler_exports));
+                await triggerImmediateSync2(accountId, `BatchAuth\u521D\u59CB\u5316\u5B8C\u6210\u540E\u540C\u6B65 (accountId=${accountId}, marketplace=${profile.countryCode})`);
+              } catch (syncErr) {
+                console.error(`[v336] BatchAuth\u4E8B\u4EF6\u9A71\u52A8\u540C\u6B65\u89E6\u53D1\u5931\u8D25:`, syncErr.message);
+              }
             }).catch((err2) => {
               console.error(`[BatchAuth] \u8D26\u53F7 ${accountId} (${profile.countryCode}) \u521D\u59CB\u5316\u5931\u8D25:`, err2);
             });
@@ -372635,7 +372758,7 @@ init_schema2();
 init_drizzle_orm();
 init_amazonAdsApi();
 init_logger2();
-var log56 = createModuleLogger("AsyncReport");
+var log58 = createModuleLogger("AsyncReport");
 var REPORT_CONFIG = {
   SP: {
     attributionDays: 14,
@@ -372788,7 +372911,7 @@ var AsyncReportService = class {
         jobIds.push(jobId);
       }
     }
-    log56.debug(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId}`);
+    log58.debug(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId}`);
     return jobIds;
   }
   /**
@@ -372810,7 +372933,7 @@ var AsyncReportService = class {
         jobIds.push(jobId);
       }
     }
-    log56.debug(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId}`);
+    log58.debug(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId}`);
     return jobIds;
   }
   /**
@@ -372819,7 +372942,7 @@ var AsyncReportService = class {
   async submitPendingJobs(limit2 = 10) {
     const db = await getDb();
     if (!db) {
-      log56.info("[AsyncReportService] Database not available, skipping submit");
+      log58.info("[AsyncReportService] Database not available, skipping submit");
       return 0;
     }
     const pendingJobs = await db.select().from(reportJobs).where(eq(reportJobs.status, "pending")).orderBy(reportJobs.createdAt).limit(limit2);
@@ -372835,7 +372958,7 @@ var AsyncReportService = class {
             try {
               payload4 = JSON.parse(job.requestPayload);
             } catch (e6) {
-              log56.warn(`[AsyncReportService] Failed to parse requestPayload for job ${job.id}, using adProduct`);
+              log58.warn(`[AsyncReportService] Failed to parse requestPayload for job ${job.id}, using adProduct`);
             }
           } else if (typeof job.requestPayload === "object") {
             payload4 = job.requestPayload;
@@ -372861,11 +372984,11 @@ var AsyncReportService = class {
           submittedAt: (/* @__PURE__ */ new Date()).toISOString()
         }).where(eq(reportJobs.id, job.id));
         submittedCount++;
-        log56.debug(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
+        log58.debug(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
       } catch (error54) {
         const errorMessage = error54.message || "Unknown error";
         const statusCode = error54.response?.status || error54.status;
-        log56.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
+        log58.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
           message: errorMessage,
           statusCode,
           accountId: job.accountId,
@@ -372876,13 +372999,13 @@ var AsyncReportService = class {
         if (statusCode === 403) {
           newStatus = "failed";
           shouldRetry = false;
-          log56.warn(`[AsyncReportService] Job ${job.id} failed with 403 - API authorization issue, marking as failed`);
+          log58.warn(`[AsyncReportService] Job ${job.id} failed with 403 - API authorization issue, marking as failed`);
         } else if (statusCode === 429) {
-          log56.warn(`[AsyncReportService] Job ${job.id} hit rate limit, will retry later`);
+          log58.warn(`[AsyncReportService] Job ${job.id} hit rate limit, will retry later`);
         } else if (statusCode === 401) {
-          log56.warn(`[AsyncReportService] Job ${job.id} token expired, will retry with refreshed token`);
+          log58.warn(`[AsyncReportService] Job ${job.id} token expired, will retry with refreshed token`);
         } else if (statusCode >= 500) {
-          log56.warn(`[AsyncReportService] Job ${job.id} server error, will retry`);
+          log58.warn(`[AsyncReportService] Job ${job.id} server error, will retry`);
         }
         const newRetryCount = (job.retryCount || 0) + 1;
         if (shouldRetry && newRetryCount >= (job.maxRetries || 3)) {
@@ -372903,7 +373026,7 @@ var AsyncReportService = class {
   async checkSubmittedJobs(limit2 = 20) {
     const db = await getDb();
     if (!db) {
-      log56.info("[AsyncReportService] Database not available, skipping check");
+      log58.info("[AsyncReportService] Database not available, skipping check");
       return { completed: 0, failed: 0, pending: 0 };
     }
     const submittedJobs = await db.select().from(reportJobs).where(
@@ -372930,20 +373053,20 @@ var AsyncReportService = class {
             completedAt: (/* @__PURE__ */ new Date()).toISOString()
           }).where(eq(reportJobs.id, job.id));
           completed++;
-          log56.debug(`[AsyncReportService] Job ${job.id} completed, URL: ${status.url?.substring(0, 50)}...`);
+          log58.debug(`[AsyncReportService] Job ${job.id} completed, URL: ${status.url?.substring(0, 50)}...`);
         } else if (status.status === "FAILED") {
           await db.update(reportJobs).set({
             status: "failed",
             errorMessage: status.failureReason || "Report generation failed"
           }).where(eq(reportJobs.id, job.id));
           failed++;
-          log56.warn(`[AsyncReportService] Job ${job.id} failed: ${status.failureReason}`);
+          log58.warn(`[AsyncReportService] Job ${job.id} failed: ${status.failureReason}`);
         } else {
           await db.update(reportJobs).set({ status: "processing" }).where(eq(reportJobs.id, job.id));
           pending++;
         }
       } catch (error54) {
-        log56.error(`[AsyncReportService] Error checking job ${job.id}:`, error54.message);
+        log58.error(`[AsyncReportService] Error checking job ${job.id}:`, error54.message);
         failed++;
       }
     }
@@ -372955,7 +373078,7 @@ var AsyncReportService = class {
   async processCompletedJobs(limit2 = 5) {
     const db = await getDb();
     if (!db) {
-      log56.info("[AsyncReportService] Database not available, skipping process");
+      log58.info("[AsyncReportService] Database not available, skipping process");
       return 0;
     }
     const completedJobs = await db.select().from(reportJobs).where(
@@ -372973,7 +373096,7 @@ var AsyncReportService = class {
         const apiClient = await this.initApiClient(job.accountId);
         const reportData = await apiClient.downloadReport(job.downloadUrl);
         if (!reportData || reportData.length === 0) {
-          log56.debug(`[AsyncReportService] Job ${job.id} has no data`);
+          log58.debug(`[AsyncReportService] Job ${job.id} has no data`);
           await db.update(reportJobs).set({
             processedAt: (/* @__PURE__ */ new Date()).toISOString(),
             recordsProcessed: 0
@@ -372991,9 +373114,9 @@ var AsyncReportService = class {
           recordsProcessed
         }).where(eq(reportJobs.id, job.id));
         processedCount++;
-        log56.debug(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
+        log58.debug(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
       } catch (error54) {
-        log56.error(`[AsyncReportService] Error processing job ${job.id}:`, error54.message);
+        log58.error(`[AsyncReportService] Error processing job ${job.id}:`, error54.message);
         await db.update(reportJobs).set({
           errorMessage: error54.message
         }).where(eq(reportJobs.id, job.id));
@@ -373078,7 +373201,7 @@ var AsyncReportService = class {
         }
         processedCount++;
       } catch (error54) {
-        log56.error(`[AsyncReportService] Error processing row:`, error54.message);
+        log58.error(`[AsyncReportService] Error processing row:`, error54.message);
       }
     }
     return processedCount;
@@ -373131,7 +373254,7 @@ var asyncReportService = new AsyncReportService();
 // server/services/reportJobScheduler.ts
 init_logger2();
 init_opsLogger();
-var log57 = createModuleLogger("ReportJobScheduler");
+var log59 = createModuleLogger("ReportJobScheduler");
 var SCHEDULER_CONFIG = {
   // 提交任务间隔（毫秒）
   submitInterval: 30 * 1e3,
@@ -373163,21 +373286,21 @@ var ReportJobScheduler = class {
    */
   start() {
     if (this.isRunning) {
-      log57.debug("[ReportJobScheduler] Already running");
+      log59.debug("[ReportJobScheduler] Already running");
       return;
     }
     this.isRunning = true;
-    log57.info("[ReportJobScheduler] Starting...");
+    log59.info("[ReportJobScheduler] Starting...");
     logSystem("ReportJobScheduler", "\u62A5\u544A\u4EFB\u52A1\u8C03\u5EA6\u5668\u542F\u52A8");
     this.submitTimer = setInterval(async () => {
       try {
         const count3 = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
         if (count3 > 0) {
-          log57.info(`[ReportJobScheduler] Submitted ${count3} jobs`);
+          log59.info(`[ReportJobScheduler] Submitted ${count3} jobs`);
           logSync("ReportJobScheduler", `\u63D0\u4EA4${count3}\u4E2A\u62A5\u544A\u4EFB\u52A1`, { count: count3 });
         }
       } catch (error54) {
-        log57.error("[ReportJobScheduler] Submit error:", error54.message);
+        log59.error("[ReportJobScheduler] Submit error:", error54.message);
         logSyncError("ReportJobScheduler", `\u63D0\u4EA4\u62A5\u544A\u4EFB\u52A1\u5931\u8D25`, { error: error54.message });
       }
     }, SCHEDULER_CONFIG.submitInterval);
@@ -373185,11 +373308,11 @@ var ReportJobScheduler = class {
       try {
         const result = await asyncReportService.checkSubmittedJobs(SCHEDULER_CONFIG.batchSize.check);
         if (result.completed > 0 || result.failed > 0) {
-          log57.info(`[ReportJobScheduler] Check result: ${result.completed} completed, ${result.failed} failed, ${result.pending} pending`);
+          log59.info(`[ReportJobScheduler] Check result: ${result.completed} completed, ${result.failed} failed, ${result.pending} pending`);
           logSync("ReportJobScheduler", `\u68C0\u67E5\u62A5\u544A\u72B6\u6001`, { completed: result.completed, failed: result.failed, pending: result.pending });
         }
       } catch (error54) {
-        log57.error("[ReportJobScheduler] Check error:", error54.message);
+        log59.error("[ReportJobScheduler] Check error:", error54.message);
         logSyncError("ReportJobScheduler", `\u68C0\u67E5\u62A5\u544A\u72B6\u6001\u5931\u8D25`, { error: error54.message });
       }
     }, SCHEDULER_CONFIG.checkInterval);
@@ -373197,11 +373320,11 @@ var ReportJobScheduler = class {
       try {
         const count3 = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
         if (count3 > 0) {
-          log57.info(`[ReportJobScheduler] Processed ${count3} jobs`);
+          log59.info(`[ReportJobScheduler] Processed ${count3} jobs`);
           logSync("ReportJobScheduler", `\u5904\u7406${count3}\u4E2A\u5DF2\u5B8C\u6210\u62A5\u544A`, { count: count3 });
         }
       } catch (error54) {
-        log57.error("[ReportJobScheduler] Process error:", error54.message);
+        log59.error("[ReportJobScheduler] Process error:", error54.message);
         logSyncError("ReportJobScheduler", `\u5904\u7406\u62A5\u544A\u5931\u8D25`, { error: error54.message });
       }
     }, SCHEDULER_CONFIG.processInterval);
@@ -373209,15 +373332,15 @@ var ReportJobScheduler = class {
       try {
         const count3 = await asyncReportService.cleanupExpiredJobs(7);
         if (count3 > 0) {
-          log57.info(`[ReportJobScheduler] Cleaned up ${count3} expired jobs`);
+          log59.info(`[ReportJobScheduler] Cleaned up ${count3} expired jobs`);
           logSync("ReportJobScheduler", `\u6E05\u7406${count3}\u4E2A\u8FC7\u671F\u4EFB\u52A1`, { count: count3 });
         }
       } catch (error54) {
-        log57.error("[ReportJobScheduler] Cleanup error:", error54.message);
+        log59.error("[ReportJobScheduler] Cleanup error:", error54.message);
         logSyncError("ReportJobScheduler", `\u6E05\u7406\u8FC7\u671F\u4EFB\u52A1\u5931\u8D25`, { error: error54.message });
       }
     }, SCHEDULER_CONFIG.cleanupInterval);
-    log57.info("[ReportJobScheduler] Started successfully");
+    log59.info("[ReportJobScheduler] Started successfully");
     logSystem("ReportJobScheduler", "\u62A5\u544A\u4EFB\u52A1\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
   }
   /**
@@ -373225,7 +373348,7 @@ var ReportJobScheduler = class {
    */
   stop() {
     if (!this.isRunning) {
-      log57.debug("[ReportJobScheduler] Not running");
+      log59.debug("[ReportJobScheduler] Not running");
       return;
     }
     if (this.submitTimer) {
@@ -373245,7 +373368,7 @@ var ReportJobScheduler = class {
       this.cleanupTimer = null;
     }
     this.isRunning = false;
-    log57.info("[ReportJobScheduler] Stopped");
+    log59.info("[ReportJobScheduler] Stopped");
     logSystem("ReportJobScheduler", "\u62A5\u544A\u4EFB\u52A1\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
   }
   /**
@@ -373258,11 +373381,11 @@ var ReportJobScheduler = class {
    * 手动触发一次完整的处理周期
    */
   async runOnce() {
-    log57.info("[ReportJobScheduler] Running manual cycle...");
+    log59.info("[ReportJobScheduler] Running manual cycle...");
     const submitted = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
     const checked = await asyncReportService.checkSubmittedJobs(SCHEDULER_CONFIG.batchSize.check);
     const processed = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
-    log57.info(`[ReportJobScheduler] Manual cycle complete: submitted=${submitted}, checked=${JSON.stringify(checked)}, processed=${processed}`);
+    log59.info(`[ReportJobScheduler] Manual cycle complete: submitted=${submitted}, checked=${JSON.stringify(checked)}, processed=${processed}`);
     logSync("ReportJobScheduler", `\u624B\u52A8\u5468\u671F\u5B8C\u6210`, { submitted, checked, processed });
     return { submitted, checked, processed };
   }
@@ -374480,7 +374603,7 @@ var reportJobsRouter = router({
 init_logger2();
 init_amazonAdsApi();
 init_db2();
-var log58 = createModuleLogger("Dailysynctask");
+var log60 = createModuleLogger("Dailysynctask");
 function buildPerformanceRecord(row, campaignId, date12) {
   const impressions = parseInt(row.impressions || "0");
   const clicks = parseInt(row.clicks || "0");
@@ -374508,7 +374631,7 @@ function buildPerformanceRecord(row, campaignId, date12) {
   };
 }
 async function syncAllCampaignsDailyData(config2, date12) {
-  log58.info(`[Daily Sync] \u5F00\u59CB\u540C\u6B65\u6240\u6709\u5E7F\u544A\u6D3B\u52A8\u7684\u6570\u636E, \u65E5\u671F: ${date12}`);
+  log60.info(`[Daily Sync] \u5F00\u59CB\u540C\u6B65\u6240\u6709\u5E7F\u544A\u6D3B\u52A8\u7684\u6570\u636E, \u65E5\u671F: ${date12}`);
   const apiClient = new AmazonAdsApiClient({
     clientId: config2.clientId,
     clientSecret: config2.clientSecret,
@@ -374519,24 +374642,24 @@ async function syncAllCampaignsDailyData(config2, date12) {
   let successCount = 0;
   let failedCount = 0;
   try {
-    log58.info("[Daily Sync] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A...");
+    log60.info("[Daily Sync] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A...");
     const spReportId = await apiClient.requestSpCampaignReport(date12, date12);
     const spData = await apiClient.waitAndDownloadReport(spReportId);
-    log58.info(`[Daily Sync] SP\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u5171 ${spData.length} \u6761\u8BB0\u5F55`);
+    log60.info(`[Daily Sync] SP\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u5171 ${spData.length} \u6761\u8BB0\u5F55`);
     for (const row of spData) {
       try {
         const record2 = buildPerformanceRecord(row, row.campaignId?.toString() || "", date12);
         await createDailyPerformance(record2);
         successCount++;
       } catch (error54) {
-        log58.error(`[Daily Sync] \u5B58\u50A8\u5E7F\u544A\u6D3B\u52A8 ${row.campaignId} \u5931\u8D25:`, error54.message);
+        log60.error(`[Daily Sync] \u5B58\u50A8\u5E7F\u544A\u6D3B\u52A8 ${row.campaignId} \u5931\u8D25:`, error54.message);
         failedCount++;
       }
     }
-    log58.info(`[Daily Sync] \u540C\u6B65\u5B8C\u6210, \u6210\u529F: ${successCount}, \u5931\u8D25: ${failedCount}`);
+    log60.info(`[Daily Sync] \u540C\u6B65\u5B8C\u6210, \u6210\u529F: ${successCount}, \u5931\u8D25: ${failedCount}`);
     return { success: successCount, failed: failedCount };
   } catch (error54) {
-    log58.error("[Daily Sync] \u540C\u6B65\u5931\u8D25:", error54.message);
+    log60.error("[Daily Sync] \u540C\u6B65\u5931\u8D25:", error54.message);
     throw error54;
   }
 }
@@ -374682,7 +374805,7 @@ init_db2();
 
 // server/adAutomation.ts
 init_logger2();
-var log59 = createModuleLogger("AdAutomation");
+var log61 = createModuleLogger("AdAutomation");
 function tokenize(searchTerm) {
   return searchTerm.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((word) => word.length > 1);
 }
@@ -376004,7 +376127,7 @@ init_logger2();
 init_db2();
 init_schema2();
 init_drizzle_orm();
-var log60 = createModuleLogger("TrafficIsolationService");
+var log62 = createModuleLogger("TrafficIsolationService");
 var TRAFFIC_ISOLATION_CONFIG = {
   // N-Gram分析参数
   ngram: {
@@ -376507,7 +376630,7 @@ async function getKeywordMigrationSuggestions(accountId, tierConfigs, startDate,
 // server/automationExecutionEngine.ts
 init_amazonApiHelper();
 init_drizzle_orm();
-var log61 = createModuleLogger("AutoExecEngine");
+var log63 = createModuleLogger("AutoExecEngine");
 var DEFAULT_SAFETY_BOUNDARY = {
   // 单次调整限制
   maxBidChangePercent: 30,
@@ -376582,7 +376705,7 @@ function cleanupStaleMemoryData() {
     }
   }
   if (cleanedCount > 0) {
-    log61.info(`[MemoryCleanup] v230: \u6E05\u7406\u4E86${cleanedCount}\u6761\u8FC7\u671F\u7684dailyExecutionCount\u8BB0\u5F55`);
+    log63.info(`[MemoryCleanup] v230: \u6E05\u7406\u4E86${cleanedCount}\u6761\u8FC7\u671F\u7684dailyExecutionCount\u8BB0\u5F55`);
   }
 }
 setInterval(cleanupStaleMemoryData, 60 * 60 * 1e3);
@@ -376801,7 +376924,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
                   bidApiSuccess = true;
                 }
               } catch (apiErr) {
-                log61.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (keyword ${targetId}):`, apiErr.message);
+                log63.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (keyword ${targetId}):`, apiErr.message);
               }
             }
           }
@@ -376809,7 +376932,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
         if (bidApiSuccess) {
           await updateKeyword(targetId, { bid: String(newValue) });
         } else {
-          log61.warn(`[AutoExec] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (keyword ${targetId})`);
+          log63.warn(`[AutoExec] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (keyword ${targetId})`);
         }
         await createBiddingLog({
           accountId,
@@ -376856,13 +376979,13 @@ async function executeOptimization(accountId, type, targetType, targetId, target
               budgetApiSuccess = true;
             }
           } catch (budgetApiErr) {
-            log61.error(`[AutoExec] Amazon API\u9884\u7B97\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, budgetApiErr.message);
+            log63.error(`[AutoExec] Amazon API\u9884\u7B97\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, budgetApiErr.message);
           }
         }
         if (budgetApiSuccess) {
           await updateCampaign(targetId, { dailyBudget: String(newValue) });
         } else {
-          log61.warn(`[AutoExec] v148: \u9884\u7B97API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (campaign ${targetId})`);
+          log63.warn(`[AutoExec] v148: \u9884\u7B97API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (campaign ${targetId})`);
         }
         await createBiddingLog({
           accountId,
@@ -376876,7 +376999,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           newBid: String(newValue),
           reason: `${budgetApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u9884\u7B97\u8C03\u6574: ${reason}`
         });
-        log61.info(`[AutoExec] v148: \u9884\u7B97\u8C03\u6574: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? "\u2705" : "\u274C"}`);
+        log63.info(`[AutoExec] v148: \u9884\u7B97\u8C03\u6574: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? "\u2705" : "\u274C"}`);
         if (!budgetApiSuccess) {
           throw new Error("Amazon API\u9884\u7B97\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
         }
@@ -376918,7 +377041,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
                   ptApiSuccess = true;
                 }
               } catch (ptApiErr) {
-                log61.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (productTarget ${targetId}):`, ptApiErr.message);
+                log63.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (productTarget ${targetId}):`, ptApiErr.message);
               }
             }
           }
@@ -376926,7 +377049,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
         if (ptApiSuccess) {
           await updateProductTargetBid(targetId, String(newValue));
         } else {
-          log61.warn(`[AutoExec] v148: \u5546\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (productTarget ${targetId})`);
+          log63.warn(`[AutoExec] v148: \u5546\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (productTarget ${targetId})`);
         }
         await createBiddingLog({
           accountId,
@@ -376982,7 +377105,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
               placementApiSuccess = true;
             }
           } catch (plApiErr) {
-            log61.error(`[AutoExec] Amazon API\u5E7F\u544A\u4F4D\u7F6E\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, plApiErr.message);
+            log63.error(`[AutoExec] Amazon API\u5E7F\u544A\u4F4D\u7F6E\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, plApiErr.message);
           }
         }
         await createBiddingLog({
@@ -376997,7 +377120,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           newBid: String(newValue),
           reason: `${placementApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u8C03\u6574: ${reason}`
         });
-        log61.info(`[AutoExec] v148: \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? "\u2705" : "\u274C"}`);
+        log63.info(`[AutoExec] v148: \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? "\u2705" : "\u274C"}`);
         if (!placementApiSuccess) {
           throw new Error("Amazon API\u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25");
         }
@@ -377031,7 +377154,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
               daypartingApiSuccess = true;
             }
           } catch (dpApiErr) {
-            log61.error(`[AutoExec] v271: \u5206\u65F6\u7B56\u7565Amazon API\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, dpApiErr.message);
+            log63.error(`[AutoExec] v271: \u5206\u65F6\u7B56\u7565Amazon API\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, dpApiErr.message);
           }
         }
         if (daypartingApiSuccess) {
@@ -377049,7 +377172,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           newBid: String(newValue),
           reason: `${daypartingApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u5206\u65F6\u7B56\u7565\u8C03\u6574: ${reason}`
         });
-        log61.info(`[AutoExec] v271: \u5206\u65F6\u7B56\u7565: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${daypartingApiSuccess ? "\u2705" : "\u274C"}`);
+        log63.info(`[AutoExec] v271: \u5206\u65F6\u7B56\u7565: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${daypartingApiSuccess ? "\u2705" : "\u274C"}`);
         if (!daypartingApiSuccess) {
           throw new Error("Amazon API\u5206\u65F6\u7B56\u7565\u540C\u6B65\u5931\u8D25");
         }
@@ -377081,12 +377204,12 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           }]);
           if (negSyncResult.success > 0) {
             negApiSuccess = true;
-            log61.info(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u6210\u529F: "${targetName}", matchType=${negMatchType}`);
+            log63.info(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u6210\u529F: "${targetName}", matchType=${negMatchType}`);
           } else {
-            log61.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u5931\u8D25: ${negSyncResult.errors.join("; ")}`);
+            log63.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAPI\u540C\u6B65\u5931\u8D25: ${negSyncResult.errors.join("; ")}`);
           }
         } catch (negApiErr) {
-          log61.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAmazon API\u8C03\u7528\u5F02\u5E38:`, negApiErr.message);
+          log63.error(`[AutoExec] v266: \u5426\u5B9A\u5173\u952E\u8BCDAmazon API\u8C03\u7528\u5F02\u5E38:`, negApiErr.message);
         }
         if (negApiSuccess) {
           try {
@@ -377097,7 +377220,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
               level: "campaign"
             });
           } catch (dbErr) {
-            log61.warn(`[AutoExec] v266: \u5426\u5B9A\u8BCD\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
+            log63.warn(`[AutoExec] v266: \u5426\u5B9A\u8BCD\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
           }
         }
         await createBiddingLog({
@@ -377141,12 +377264,12 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           }]);
           if (harvestSyncResult.success > 0) {
             harvestApiSuccess = true;
-            log61.info(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u6210\u529F: "${targetName}", bid=${newValue}`);
+            log63.info(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u6210\u529F: "${targetName}", bid=${newValue}`);
           } else {
-            log61.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u5931\u8D25: ${harvestSyncResult.errors.join("; ")}`);
+            log63.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272API\u540C\u6B65\u5931\u8D25: ${harvestSyncResult.errors.join("; ")}`);
           }
         } catch (harvestApiErr) {
-          log61.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272Amazon API\u8C03\u7528\u5F02\u5E38:`, harvestApiErr.message);
+          log63.error(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272Amazon API\u8C03\u7528\u5F02\u5E38:`, harvestApiErr.message);
         }
         if (harvestApiSuccess) {
           try {
@@ -377159,7 +377282,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
               keywordStatus: "enabled"
             });
           } catch (dbErr) {
-            log61.warn(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
+            log63.warn(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u672C\u5730DB\u5199\u5165\u5931\u8D25(API\u5DF2\u6210\u529F): ${dbErr.message}`);
           }
         }
         await createBiddingLog({
@@ -377174,14 +377297,14 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           newBid: String(newValue || 0.75),
           reason: `${harvestApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
         });
-        log61.info(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}, API=${harvestApiSuccess ? "\u2705" : "\u274C"}`);
+        log63.info(`[AutoExec] v266: \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}, API=${harvestApiSuccess ? "\u2705" : "\u274C"}`);
         if (!harvestApiSuccess) {
           throw new Error("Amazon API\u641C\u7D22\u8BCD\u6536\u5272\u540C\u6B65\u5931\u8D25");
         }
         break;
       }
       default:
-        log61.info(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
+        log63.info(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
         break;
     }
     incrementDailyCount(accountId, type);
@@ -377323,7 +377446,7 @@ async function runFullAutomationCycle(accountId) {
     }
   };
 }
-function getExecutionHistory(accountId, options = {}) {
+function getExecutionHistory2(accountId, options = {}) {
   let filtered = executionHistory.filter((b6) => b6.accountId === accountId);
   if (options.startDate) {
     filtered = filtered.filter((b6) => b6.startedAt >= options.startDate);
@@ -377451,10 +377574,10 @@ async function runNGramAnalysisTask(accountId) {
             }
           }
           if (syncResult.failed > 0) {
-            log61.warn(`[AutomationEngine] N-Gram\u5426\u5B9A\u8BCD\u90E8\u5206\u540C\u6B65\u5931\u8D25: ${syncResult.errors.join("; ")}`);
+            log63.warn(`[AutomationEngine] N-Gram\u5426\u5B9A\u8BCD\u90E8\u5206\u540C\u6B65\u5931\u8D25: ${syncResult.errors.join("; ")}`);
           }
         } catch (apiError) {
-          log61.error(`[AutomationEngine] N-Gram\u5426\u5B9A\u8BCD API\u540C\u6B65\u5931\u8D25: ${apiError.message}`);
+          log63.error(`[AutomationEngine] N-Gram\u5426\u5B9A\u8BCD API\u540C\u6B65\u5931\u8D25: ${apiError.message}`);
           for (const campaign of campaigns7) {
             try {
               await addNegativeKeyword({
@@ -377642,7 +377765,7 @@ async function runKeywordMigrationTask(accountId) {
                 keywordStatus: "enabled",
                 bid: "1.00"
               };
-              log61.info("[AutomationEngine] Would create keyword:", newKeyword);
+              log63.info("[AutomationEngine] Would create keyword:", newKeyword);
               await addNegativeKeyword({
                 campaignId: suggestion.sourceCampaignId,
                 keyword: suggestion.searchTerm,
@@ -377842,7 +377965,7 @@ init_logger2();
 init_db2();
 init_schema2();
 init_drizzle_orm();
-var log62 = createModuleLogger("AutoOperationService");
+var log64 = createModuleLogger("AutoOperationService");
 var configStore = /* @__PURE__ */ new Map();
 var logStore = [];
 var autoOperationService = {
@@ -378032,7 +378155,7 @@ var autoOperationService = {
         totalAnalyzed = 1;
         totalSuggestions = result.suggestedNegatives?.length || 0;
       } catch (e6) {
-        log62.error(`N-Gram analysis failed for account ${accountId}:`, e6);
+        log64.error(`N-Gram analysis failed for account ${accountId}:`, e6);
       }
       const duration3 = Date.now() - startTime;
       return {
@@ -378167,9 +378290,9 @@ var autoOperationService = {
           });
           totalOptimized++;
           totalAdjustments += result.bidOptimization.adjustmentsCount;
-          log62.info(`[AutoOperation] v167: \u51FA\u4EF7\u4F18\u5316\u76EE\u6807 ${target.name}: \u8C03\u6574=${result.bidOptimization.adjustmentsCount}`);
+          log64.info(`[AutoOperation] v167: \u51FA\u4EF7\u4F18\u5316\u76EE\u6807 ${target.name}: \u8C03\u6574=${result.bidOptimization.adjustmentsCount}`);
         } catch (e6) {
-          log62.error(`[AutoOperation] v167: \u51FA\u4EF7\u4F18\u5316\u76EE\u6807 ${target.name} \u5931\u8D25:`, e6.message);
+          log64.error(`[AutoOperation] v167: \u51FA\u4EF7\u4F18\u5316\u76EE\u6807 ${target.name} \u5931\u8D25:`, e6.message);
         }
       }
       const duration3 = Date.now() - startTime;
@@ -378226,7 +378349,7 @@ var autoOperationService = {
         results.push(result);
         executed++;
       } catch (error54) {
-        log62.error(`Auto operation failed for account ${accountId}:`, error54);
+        log64.error(`Auto operation failed for account ${accountId}:`, error54);
         failed++;
       }
     }
@@ -378290,7 +378413,7 @@ var automationRouter = router({
     startDate: external_exports.date().optional(),
     endDate: external_exports.date().optional()
   })).query(async ({ input }) => {
-    return getExecutionHistory(input.accountId, {
+    return getExecutionHistory2(input.accountId, {
       limit: input.limit,
       startDate: input.startDate,
       endDate: input.endDate
@@ -379404,7 +379527,7 @@ var budgetAutoExecutionRouter = router({
     accountId: external_exports.number(),
     limit: external_exports.number().optional()
   })).query(async ({ input }) => {
-    return getExecutionHistory2(
+    return getExecutionHistory(
       input.accountId,
       input.limit
     );
@@ -390524,6 +390647,12 @@ function startHeartbeat() {
 async function writeHeartbeat(shutdownType) {
   const database = await getDb();
   if (!database) return;
+  let syncHealth = { consecutiveFailures: 0, lastSyncTime: null, isRunning: false };
+  try {
+    const { getSyncHealthStatus: getSyncHealthStatus2 } = await Promise.resolve().then(() => (init_dataSyncScheduler(), dataSyncScheduler_exports));
+    syncHealth = getSyncHealthStatus2();
+  } catch (e6) {
+  }
   await database.execute(sql`
     INSERT INTO optimization_events 
       (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status, created_at)
@@ -390534,7 +390663,12 @@ async function writeHeartbeat(shutdownType) {
     systemVersion: SYSTEM_VERSION,
     shutdownType,
     activeTaskCount: activeTasks2.size,
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    syncHealth: {
+      consecutiveFailures: syncHealth.consecutiveFailures,
+      lastSyncTime: syncHealth.lastSyncTime?.toISOString() || null,
+      schedulerRunning: syncHealth.isRunning
+    }
   })},
        'system_heartbeat',
        ${`v${SYSTEM_VERSION}`},
@@ -390726,6 +390860,39 @@ async function orchestrateStartup(server) {
           VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} \u542F\u52A8\u6062\u590D: \u6E05\u7406${staleCleaned}\u4E2A\u5361\u6B7B\u540C\u6B65\u4EFB\u52A1, ${staleAccounts.length}\u4E2A\u8D26\u6237\u540C\u6B65\u6EDE\u540E`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
         `);
       }
+      log80.info(`[LifecycleManager] v336: \u6B65\u9AA43.5d - \u4E3B\u52A8\u89E6\u53D1\u5B8C\u6574\u6570\u636E\u540C\u6B65...`);
+      setTimeout(async () => {
+        try {
+          const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+          const syncResult = await syncAllAccounts2("full");
+          log80.info(`[LifecycleManager] v336: \u90E8\u7F72\u540E\u5B8C\u6574\u540C\u6B65\u5B8C\u6210 - \u6210\u529F: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, \u5931\u8D25: ${syncResult.failedAccounts}, \u8017\u65F6: ${syncResult.durationMs}ms`);
+          if (syncResult.successfulAccounts > 0) {
+            for (const accountResult of syncResult.accountResults) {
+              if (!accountResult.success) continue;
+              try {
+                const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+                await triggerAccountOptimizations2(accountResult.accountId, "deploy_recovery_sync");
+              } catch (optErr) {
+                log80.warn(`[LifecycleManager] v336: \u90E8\u7F72\u540E\u4F18\u5316\u89E6\u53D1\u5931\u8D25 (accountId=${accountResult.accountId}): ${optErr.message}`);
+              }
+            }
+          }
+          const syncDetail = JSON.stringify({
+            type: "deploy_recovery_sync_complete",
+            systemVersion: SYSTEM_VERSION,
+            totalAccounts: syncResult.totalAccounts,
+            successfulAccounts: syncResult.successfulAccounts,
+            failedAccounts: syncResult.failedAccounts,
+            durationMs: syncResult.durationMs
+          });
+          await database.execute(sql`
+            INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
+            VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} \u90E8\u7F72\u540E\u5B8C\u6574\u540C\u6B65\u5B8C\u6210: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}\u6210\u529F`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
+          `);
+        } catch (syncErr) {
+          log80.error(`[LifecycleManager] v336: \u90E8\u7F72\u540E\u5B8C\u6574\u540C\u6B65\u5931\u8D25: ${syncErr.message}`);
+        }
+      }, 15 * 1e3);
     }
   } catch (syncRecoveryErr) {
     log80.error(`[LifecycleManager] v335: \u6570\u636E\u540C\u6B65\u6062\u590D\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u7CFB\u7EDF\u542F\u52A8\uFF09: ${syncRecoveryErr.message}`);

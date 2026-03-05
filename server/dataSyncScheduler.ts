@@ -180,19 +180,27 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
   
-  // v335: 首次启动时延迟2分钟执行一次高频同步，然后5分钟后执行完整同步
-  // 确保部署后快速恢复数据同步，不会因为等待定时器而延迟
+  // v336: 缩短启动后首次同步延迟（v335的2分钟→30秒，5分钟→60秒）
+  // 部署后尽快恢复数据同步，减少数据空窗期
   setTimeout(async () => {
-    log.info('[DataSyncScheduler] v335: 启动后首次高频同步...');
+    log.info('[DataSyncScheduler] v336: 启动后首次高频同步（30秒延迟）...');
     await executeUnifiedSync('high');
-  }, 2 * 60 * 1000);
+    log.info('[DataSyncScheduler] v336: 启动后首次高频同步完成');
+  }, 30 * 1000);
   
-  // v335: 启动后5分钟执行一次完整同步，确保部署后数据完整性
+  // v336: 启动后60秒执行完整同步（v335的5分钟→60秒）
   setTimeout(async () => {
-    log.info('[DataSyncScheduler] v335: 启动后首次完整同步（确保部署后数据完整性）...');
-    await executeUnifiedSync('full');
-    log.info('[DataSyncScheduler] v335: 启动后完整同步已完成');
-  }, 5 * 60 * 1000);
+    log.info('[DataSyncScheduler] v336: 启动后首次完整同步（60秒延迟，确保部署后数据完整性）...');
+    const result = await executeUnifiedSync('full');
+    log.info('[DataSyncScheduler] v336: 启动后完整同步已完成');
+    
+    // v336: 同步完成后验证结果
+    try {
+      await verifySyncHealth();
+    } catch (verifyErr: any) {
+      log.warn(`[DataSyncScheduler] v336: 同步健康验证失败: ${verifyErr.message}`);
+    }
+  }, 60 * 1000);
 
   // v220: 系统健康监控 - 每15分钟输出健康快照（内存/API速率/同步率/确认同步统计）
   setInterval(() => {
@@ -2069,6 +2077,130 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     // 确保释放执行锁
     releaseLock(taskType);
   }
+}
+
+// ==================== v336: 同步健康监控 ====================
+
+// v336: 连续失败计数器
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * v336: 同步健康验证
+ * 检查最近的同步是否成功，如果连续失败则记录告警事件
+ */
+async function verifySyncHealth(): Promise<void> {
+  try {
+    const database = await db.getDb();
+    if (!database) return;
+    
+    // 检查最近的dataSyncJobs状态
+    const recentJobs = await database.execute(sql`
+      SELECT account_id, status, sync_type, completed_at, error_message
+      FROM data_sync_jobs 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+      ORDER BY created_at DESC
+      LIMIT 20
+    `);
+    
+    const jobs = (recentJobs as any)?.[0] || [];
+    const successCount = jobs.filter((j: any) => j.status === 'completed').length;
+    const failCount = jobs.filter((j: any) => j.status === 'failed').length;
+    
+    if (jobs.length === 0) {
+      // 最近2小时没有任何同步记录，记录告警
+      consecutiveFailures++;
+      log.warn(`[DataSyncScheduler] v336: 同步健康告警 - 最近2小时无同步记录 (连续失败: ${consecutiveFailures})`);
+    } else if (failCount > 0 && successCount === 0) {
+      // 所有同步都失败
+      consecutiveFailures++;
+      log.warn(`[DataSyncScheduler] v336: 同步健康告警 - 最近${jobs.length}次同步全部失败 (连续失败: ${consecutiveFailures})`);
+    } else {
+      // 有成功的同步，重置计数器
+      consecutiveFailures = 0;
+      log.info(`[DataSyncScheduler] v336: 同步健康检查通过 - 成功:${successCount}, 失败:${failCount}`);
+    }
+    
+    // 连续失败超过阈值，记录告警事件
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      const { optimizationEvents } = await import('../drizzle/schema');
+      const { SYSTEM_VERSION } = await import('./utils/systemVersion');
+      
+      const alertDetail = JSON.stringify({
+        type: 'sync_health_alert',
+        systemVersion: SYSTEM_VERSION,
+        consecutiveFailures,
+        recentJobs: jobs.slice(0, 5).map((j: any) => ({
+          accountId: j.account_id,
+          status: j.status,
+          syncType: j.sync_type,
+          error: j.error_message?.substring(0, 200),
+        })),
+        alertTime: new Date().toISOString(),
+      });
+      
+      await database.insert(optimizationEvents).values({
+        accountId: 0,
+        eventCategory: 'settings_change',
+        actionType: 'auto_correction',
+        actionDetail: alertDetail,
+        changeReason: `v${SYSTEM_VERSION} 同步健康告警: 连续${consecutiveFailures}次同步失败`,
+        algorithmVersion: `v${SYSTEM_VERSION}`,
+        status: 'failed',
+        apiSyncStatus: 'not_applicable',
+      });
+      
+      log.error(`[DataSyncScheduler] v336: ❗ 同步健康严重告警 - 连续${consecutiveFailures}次同步失败，已记录告警事件`);
+      
+      // 重置计数器避免重复告警
+      consecutiveFailures = 0;
+    }
+  } catch (err: any) {
+    log.warn(`[DataSyncScheduler] v336: 同步健康检查异常: ${err.message}`);
+  }
+}
+
+/**
+ * v336: 事件驱动同步触发
+ * 当新账户创建、凭证保存、重新授权等事件发生时，立即触发完整同步
+ * 而不是等待定时器触发（最长15分钟）
+ * 
+ * @param accountId 触发同步的账户ID
+ * @param reason 触发原因
+ */
+export async function triggerImmediateSync(accountId: number, reason: string): Promise<void> {
+  log.info(`[DataSyncScheduler] v336: 事件驱动同步触发 - 账户${accountId}, 原因: ${reason}`);
+  logSync('DataSyncScheduler', `v336: 事件驱动同步`, { accountId, reason });
+  
+  try {
+    // 延迟5秒后执行，给数据库事务时间提交
+    setTimeout(async () => {
+      try {
+        const { syncAllAccounts } = await import('./unifiedSyncEngine');
+        const result = await syncAllAccounts('full');
+        log.info(`[DataSyncScheduler] v336: 事件驱动同步完成 - 账户${accountId}, 原因: ${reason}, 成功: ${result.successfulAccounts}/${result.totalAccounts}`);
+        
+        // 同步完成后验证健康
+        await verifySyncHealth();
+      } catch (syncErr: any) {
+        log.error(`[DataSyncScheduler] v336: 事件驱动同步失败 - 账户${accountId}: ${syncErr.message}`);
+        logSyncError('DataSyncScheduler', `v336: 事件驱动同步失败`, { accountId, reason, error: syncErr.message });
+      }
+    }, 5 * 1000);
+  } catch (err: any) {
+    log.error(`[DataSyncScheduler] v336: 事件驱动同步触发异常: ${err.message}`);
+  }
+}
+
+/**
+ * v336: 获取同步健康状态（供心跳和监控使用）
+ */
+export function getSyncHealthStatus(): { consecutiveFailures: number; lastSyncTime: Date | null; isRunning: boolean } {
+  return {
+    consecutiveFailures,
+    lastSyncTime: schedulerStatus.lastRunTime,
+    isRunning: schedulerStatus.isRunning,
+  };
 }
 
 // 导出同步层级配置和优化调度配置供外部使用

@@ -398,6 +398,18 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['bid', 'sync', 'keyword'],
     correctionActions: ['rerun_optimization', 'cleanup_stale_pending', 'revalidate_pending_commands'],
   },
+  {
+    version: 335,
+    description: 'v335: [数据同步保障体系] — (1)P0-deployLifecycleManager优雅关闭增加dataSyncJobs状态重置: running→failed,pending→cancelled (2)P0-orchestrateStartup增加数据同步恢复步骤3.5: 清理卡死running任务+检查同步滞后账户+记录恢复事件 (3)P0-dataSyncScheduler启动时清理卡死任务(30分钟超时)+启动后2分钟高频同步+5分钟完整同步 (4)P0-dataSyncService新增cleanupStaleJobs和cleanupOrphanedPendingJobs函数 (5)P1-optimizationTargetEngine所有details.push路径添加algorithmUsed字段',
+    affectedModules: ['sync', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 336,
+    description: 'v336: [数据同步保障体系全面升级+事件驱动同步+部署恢复增强] — (1)P0-SYSTEM_VERSION更新329→336: 修复v335遗漏的版本号更新导致心跳/PostDeploy版本检测失效 (2)P0-事件驱动同步触发: amazonApi路由保存凭证后立即触发syncAllAccounts+新账户创建后立即触发完整同步 (3)P0-部署恢复增强: orchestrateStartup步骤3.5增加主动触发syncAllAccounts而非仅清理+缩短启动后首次同步延迟(2分钟→30秒高频,5分钟→60秒完整) (4)P1-同步健康监控: 每次同步后检查结果+连续3次失败记录告警事件+心跳中包含同步状态 (5)P1-VERSION_CHANGELOG补充v330-v336条目',
+    affectedModules: ['sync', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
 ];
 
 // ==================== 配置 ====================

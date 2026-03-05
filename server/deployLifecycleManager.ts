@@ -444,6 +444,13 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
   const database = await getDb();
   if (!database) return;
   
+  // v336: 获取同步健康状态并包含在心跳中
+  let syncHealth = { consecutiveFailures: 0, lastSyncTime: null as Date | null, isRunning: false };
+  try {
+    const { getSyncHealthStatus } = await import('./dataSyncScheduler');
+    syncHealth = getSyncHealthStatus();
+  } catch (e) { /* 调度器可能未启动 */ }
+  
   // 使用 REPLACE INTO 确保只有一条心跳记录（通过 accountId=0 + type=system_heartbeat 唯一标识）
   await database.execute(sql`
     INSERT INTO optimization_events 
@@ -456,6 +463,11 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
          shutdownType,
          activeTaskCount: activeTasks.size,
          uptime: process.uptime(),
+         syncHealth: {
+           consecutiveFailures: syncHealth.consecutiveFailures,
+           lastSyncTime: syncHealth.lastSyncTime?.toISOString() || null,
+           schedulerRunning: syncHealth.isRunning,
+         },
        })},
        'system_heartbeat',
        ${`v${SYSTEM_VERSION}`},
@@ -718,6 +730,46 @@ export async function orchestrateStartup(server: any): Promise<void> {
           VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${`v${SYSTEM_VERSION} 启动恢复: 清理${staleCleaned}个卡死同步任务, ${staleAccounts.length}个账户同步滞后`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
         `);
       }
+      
+      // v336: 3.5d - 主动触发完整同步（而不仅仅是清理）
+      // 确保部署后立即恢复数据同步，不等待定时器
+      log.info(`[LifecycleManager] v336: 步骤3.5d - 主动触发完整数据同步...`);
+      setTimeout(async () => {
+        try {
+          const { syncAllAccounts } = await import('./unifiedSyncEngine');
+          const syncResult = await syncAllAccounts('full');
+          log.info(`[LifecycleManager] v336: 部署后完整同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
+          
+          // 同步完成后触发优化
+          if (syncResult.successfulAccounts > 0) {
+            for (const accountResult of syncResult.accountResults) {
+              if (!accountResult.success) continue;
+              try {
+                const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+                await triggerAccountOptimizations(accountResult.accountId, 'deploy_recovery_sync');
+              } catch (optErr: any) {
+                log.warn(`[LifecycleManager] v336: 部署后优化触发失败 (accountId=${accountResult.accountId}): ${optErr.message}`);
+              }
+            }
+          }
+          
+          // 记录部署后同步完成事件
+          const syncDetail = JSON.stringify({
+            type: 'deploy_recovery_sync_complete',
+            systemVersion: SYSTEM_VERSION,
+            totalAccounts: syncResult.totalAccounts,
+            successfulAccounts: syncResult.successfulAccounts,
+            failedAccounts: syncResult.failedAccounts,
+            durationMs: syncResult.durationMs,
+          });
+          await database.execute(sql`
+            INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
+            VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
+          `);
+        } catch (syncErr: any) {
+          log.error(`[LifecycleManager] v336: 部署后完整同步失败: ${syncErr.message}`);
+        }
+      }, 15 * 1000); // 延迟15秒，给系统时间完成初始化
     }
   } catch (syncRecoveryErr: any) {
     log.error(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${syncRecoveryErr.message}`);

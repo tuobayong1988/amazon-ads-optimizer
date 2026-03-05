@@ -217,12 +217,20 @@ export const amazonApiRouter = router({
         marketplace,
       });
       
-      initPromise.then(initResult => {
+      initPromise.then(async initResult => {
         console.log(`[授权后初始化] 账号 ${input.accountId} (${marketplace}) 初始化完成:`, {
           sync: initResult.syncResult.success ? '✅' : '❌',
           schedule: initResult.scheduleResult.success ? '✅' : '❌',
           ams: initResult.amsResult.success ? '✅' : '❌',
         });
+        
+        // v336: 初始化完成后触发事件驱动同步，确保新授权账户立即纳入定时同步体系
+        try {
+          const { triggerImmediateSync } = await import('../dataSyncScheduler');
+          await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
+        } catch (syncErr: any) {
+          console.error(`[v336] 事件驱动同步触发失败:`, syncErr.message);
+        }
       }).catch(err => {
         console.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
       });
@@ -454,13 +462,22 @@ export const amazonApiRouter = router({
           region: input.region as 'NA' | 'EU' | 'FE',
           marketplace: account.countryCode || 'US',
         }))
-      ).then(initResults => {
+      ).then(async initResults => {
         for (const initResult of initResults) {
           console.log(`[saveMultipleProfiles] 账号 ${initResult.accountId} (${initResult.marketplace}) 初始化完成:`, {
             sync: initResult.syncResult.success ? '✅' : '❌',
             schedule: initResult.scheduleResult.success ? '✅' : '❌',
             ams: initResult.amsResult.success ? '✅' : '❌',
           });
+        }
+        
+        // v336: 批量初始化完成后触发事件驱动同步
+        try {
+          const { triggerImmediateSync } = await import('../dataSyncScheduler');
+          const accountIds = initResults.map((r: any) => r.accountId).join(',');
+          await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
+        } catch (syncErr: any) {
+          console.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
         }
       }).catch(err => {
         console.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
@@ -2332,12 +2349,20 @@ export const amazonApiRouter = router({
                 profileId: String(profile.profileId),
                 region: regionCode as 'NA' | 'EU' | 'FE',
                 marketplace: profile.countryCode,
-              }).then(initResult => {
+              }).then(async initResult => {
                 console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
                   sync: initResult.syncResult.success ? '✅' : '❌',
                   schedule: initResult.scheduleResult.success ? '✅' : '❌',
                   ams: initResult.amsResult.success ? '✅' : '❌',
                 });
+                
+                // v336: 初始化完成后触发事件驱动同步
+                try {
+                  const { triggerImmediateSync } = await import('../dataSyncScheduler');
+                  await triggerImmediateSync(accountId, `BatchAuth初始化完成后同步 (accountId=${accountId}, marketplace=${profile.countryCode})`);
+                } catch (syncErr: any) {
+                  console.error(`[v336] BatchAuth事件驱动同步触发失败:`, syncErr.message);
+                }
               }).catch(err => {
                 console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
               });

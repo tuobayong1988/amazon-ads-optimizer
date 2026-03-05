@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 329;  // v329: PostDeployOptimizer容错重构+版本号统一+内存优化
+export const SYSTEM_VERSION = 336;  // v336: 数据同步保障体系全面升级+事件驱动同步+部署恢复增强
