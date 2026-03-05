@@ -93,8 +93,8 @@ export default function AuditLogs() {
     endDate: queryEndDate,
   });
 
-  // 获取用户操作统计
-  const { data: userStats } = trpc.audit.userStats.useQuery({ days: 30 });
+  // 获取用户操作统计（管理员查看全部用户汇总）
+  const { data: userStats } = trpc.audit.userStats.useQuery({ days: 30, viewAll: true });
 
   // 导出审计日志
   const exportMutation = trpc.audit.export.useMutation({

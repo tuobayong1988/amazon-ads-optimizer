@@ -244,7 +244,7 @@ export async function getAuditLogById(id: number): Promise<AuditLog | null> {
 /**
  * 获取用户的操作统计
  */
-export async function getUserAuditStats(userId: number, days: number = 30): Promise<{
+export async function getUserAuditStats(userId: number | undefined, days: number = 30): Promise<{
   totalActions: number;
   actionsByType: Record<string, number>;
   actionsByDay: { date: string; count: number }[];
@@ -259,10 +259,11 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
   const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
 
   // 获取总操作数
+  const userCondition = userId ? eq(auditLogs.userId, userId) : undefined;
   const [totalResult] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)));
+    .where(and(userCondition, gte(auditLogs.createdAt, startDateStr)));
   const totalActions = totalResult?.count || 0;
 
   // 按操作类型统计
@@ -272,7 +273,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
+    .where(and(userCondition, gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.actionType);
 
   const actionsByType: Record<string, number> = {};
@@ -289,7 +290,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
         count: sql<number>`COUNT(*)`,
       })
       .from(auditLogs)
-      .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
+      .where(and(userCondition, gte(auditLogs.createdAt, startDateStr)))
       .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
       .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
   } catch (error) {
@@ -306,7 +307,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
   const recentActions = await db
     .select()
     .from(auditLogs)
-    .where(eq(auditLogs.userId, userId))
+    .where(userCondition ? eq(auditLogs.userId, userId!) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(10);
 

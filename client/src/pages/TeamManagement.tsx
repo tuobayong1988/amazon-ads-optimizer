@@ -36,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type TeamMemberRole = "admin" | "editor" | "viewer";
+type TeamMemberRole = "owner" | "admin" | "editor" | "viewer";
 type TeamMemberStatus = "pending" | "active" | "inactive" | "revoked";
 
 interface Permission {
@@ -151,6 +151,7 @@ export default function TeamManagement() {
 
   const getRoleBadge = (role: TeamMemberRole) => {
     const roleConfig = {
+      owner: { label: "所有者", variant: "default" as const, className: "bg-gradient-to-r from-amber-500 to-orange-500" },
       admin: { label: "管理员", variant: "default" as const, className: "bg-purple-500" },
       editor: { label: "编辑", variant: "secondary" as const, className: "bg-blue-500" },
       viewer: { label: "只读", variant: "outline" as const, className: "" },
@@ -185,7 +186,7 @@ export default function TeamManagement() {
     total: members?.length || 0,
     active: members?.filter(m => m.status === "active").length || 0,
     pending: members?.filter(m => m.status === "pending").length || 0,
-    admins: members?.filter(m => m.role === "admin").length || 0,
+    admins: members?.filter(m => m.role === "admin" || m.role === "owner").length || 0,
   };
 
   return (
@@ -461,9 +462,14 @@ function MemberTable({
 
   if (members.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p>暂无团队成员</p>
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4">
+          <Users className="h-8 w-8 text-purple-400/50" />
+        </div>
+        <h3 className="text-base font-semibold mb-2">还没有团队成员</h3>
+        <p className="text-muted-foreground text-sm text-center max-w-sm mb-4">
+          邀请同事一起管理广告账户，您可以为每个成员分配不同的角色和账户权限。
+        </p>
       </div>
     );
   }
@@ -502,37 +508,41 @@ function MemberTable({
               {safeToLocaleDateString(member.createdAt, "zh-CN")}
             </TableCell>
             <TableCell className="text-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onOpenPermissions(member.id)}>
-                    <Key className="mr-2 h-4 w-4" />
-                    设置权限
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onUpdateRole(member.id, member.role === "admin" ? "editor" : "admin")}>
-                    <Shield className="mr-2 h-4 w-4" />
-                    {member.role === "admin" ? "降为编辑" : "升为管理员"}
-                  </DropdownMenuItem>
-                  {member.status === "pending" && (
-                    <DropdownMenuItem onClick={() => onResendInvite(member.id)}>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      重新发送邀请
+              {(member as any).isOwner || member.role === 'owner' ? (
+                <span className="text-xs text-muted-foreground">账户所有者</span>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => onOpenPermissions(member.id)}>
+                      <Key className="mr-2 h-4 w-4" />
+                      设置权限
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    className="text-red-500"
-                    onClick={() => onDelete(member.id)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    移除成员
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem onClick={() => onUpdateRole(member.id, member.role === "admin" ? "editor" : "admin")}>
+                      <Shield className="mr-2 h-4 w-4" />
+                      {member.role === "admin" ? "降为编辑" : "升为管理员"}
+                    </DropdownMenuItem>
+                    {member.status === "pending" && (
+                      <DropdownMenuItem onClick={() => onResendInvite(member.id)}>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        重新发送邀请
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      className="text-red-500"
+                      onClick={() => onDelete(member.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      移除成员
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </TableCell>
           </TableRow>
         ))}

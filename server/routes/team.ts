@@ -12,9 +12,21 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // ==================== Team Member Router ====================
 export const teamRouter = router({
-  // 获取团队成员列表
+  // 获取团队成员列表（P2优化: 自动包含所有者/管理员自身）
   list: protectedProcedure.query(async ({ ctx }) => {
-    return db.getTeamMembersByOwner(ctx.user.id);
+    const members = await db.getTeamMembersByOwner(ctx.user.id);
+    // P2优化: 将当前用户（所有者）作为第一个成员显示
+    const ownerEntry = {
+      id: ctx.user.id,
+      ownerId: ctx.user.id,
+      email: ctx.user.email || '',
+      name: ctx.user.username || ctx.user.email || '管理员',
+      role: 'owner' as const,
+      status: 'active' as const,
+      createdAt: ctx.user.createdAt || new Date(),
+      isOwner: true,
+    };
+    return [ownerEntry, ...members];
   }),
 
   // 获取单个团队成员

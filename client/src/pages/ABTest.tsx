@@ -198,7 +198,7 @@ export default function ABTest() {
               <FlaskConical className="h-6 w-6 text-purple-500" />
               A/B测试实验中心
             </h1>
-            <p className="text-muted-foreground text-sm">v276: 闭环A/B测试框架 — 科学评估优化策略效果</p>
+            <p className="text-muted-foreground text-sm">闭环A/B测试框架 — 科学评估优化策略效果</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <Select
@@ -445,10 +445,15 @@ export default function ABTest() {
             <CardContent>
               <div className="space-y-2 max-h-[600px] overflow-y-auto">
                 {tests?.length === 0 && (
-                  <div className="text-center py-8">
-                    <FlaskConical className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground">暂无实验</p>
-                    <p className="text-xs text-muted-foreground mt-1">点击"快速创建"或"自定义创建"开始</p>
+                  <div className="flex flex-col items-center justify-center py-10">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-4">
+                      <FlaskConical className="h-7 w-7 text-blue-400/50" />
+                    </div>
+                    <h3 className="text-sm font-semibold mb-1">开始您的第一个A/B实验</h3>
+                    <p className="text-xs text-muted-foreground text-center max-w-xs mb-3">
+                      通过A/B测试对比不同的竞价策略、关键词组合或广告创意，找到最优方案。
+                    </p>
+                    <p className="text-xs text-muted-foreground">点击上方"快速创建"或"自定义创建"开始</p>
                   </div>
                 )}
                 {tests?.map((test) => (

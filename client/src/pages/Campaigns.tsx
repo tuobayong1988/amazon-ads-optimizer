@@ -69,7 +69,9 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  LayoutList,
+  LayoutGrid
 } from "lucide-react";
 import { safeGetTime, safeParseDate, safeToISODateString, safeToISOString, safeToLocaleDateString, safeToLocaleString } from '../lib/safeDate';
 import {
@@ -779,6 +781,8 @@ export default function Campaigns() {
   
   // 导出加载状态
   const [isExporting, setIsExporting] = useState(false);
+  // P2优化: 紧凑/详细视图切换
+  const [isCompactView, setIsCompactView] = useState(false);
 
   // 保存列显示设置到localStorage
   useEffect(() => {
@@ -1249,7 +1253,7 @@ export default function Campaigns() {
 
   // 虚拟滚动配置 - 用于当前页数据优化
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const ROW_HEIGHT = 52; // 每行高度
+  const ROW_HEIGHT = isCompactView ? 40 : 52; // P2优化: 紧凑视图行高降低
   
   const rowVirtualizer = useVirtualizer({
     count: paginatedCampaigns.length,
@@ -1547,21 +1551,49 @@ export default function Campaigns() {
     const clicks = Number(campaign.clicks) || 0;
 
     switch (columnKey) {
-      case 'campaignName':
+      case 'campaignName': {
+        // P2优化: 自动提取广告活动名称中的关键信息生成简短标签
+        const name = campaign.campaignName;
+        const extractTags = (n: string) => {
+          const tags: { label: string; color: string }[] = [];
+          // 提取广告类型
+          if (/\bSP\b/i.test(n)) tags.push({ label: 'SP', color: 'bg-blue-500/15 text-blue-600' });
+          else if (/\bSB\b/i.test(n)) tags.push({ label: 'SB', color: 'bg-purple-500/15 text-purple-600' });
+          else if (/\bSD\b/i.test(n)) tags.push({ label: 'SD', color: 'bg-orange-500/15 text-orange-600' });
+          // 提取匹配方式
+          if (/Exact/i.test(n)) tags.push({ label: '精确', color: 'bg-green-500/15 text-green-600' });
+          else if (/Phrase/i.test(n)) tags.push({ label: '词组', color: 'bg-amber-500/15 text-amber-600' });
+          else if (/Broad/i.test(n)) tags.push({ label: '广泛', color: 'bg-red-500/15 text-red-600' });
+          // 提取ASIN
+          const asinMatch = n.match(/B0[A-Z0-9]{8}/i);
+          if (asinMatch) tags.push({ label: asinMatch[0], color: 'bg-gray-500/15 text-gray-600' });
+          return tags;
+        };
+        const tags = extractTags(name);
         return (
-          <div className="max-w-[250px] truncate font-medium" title={campaign.campaignName}>
+          <div className="max-w-[280px]" title={name}>
             <a 
               href={`/campaigns/${campaign.id}`}
-              className="text-primary hover:underline cursor-pointer"
+              className="text-primary hover:underline cursor-pointer text-sm font-medium block truncate"
               onClick={(e) => {
                 e.preventDefault();
                 window.location.href = `/campaigns/${campaign.id}`;
               }}
             >
-              {campaign.campaignName}
+              {name}
             </a>
+            {tags.length > 0 && (
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                {tags.map((tag, i) => (
+                  <span key={i} className={`text-[10px] px-1.5 py-0 rounded-sm font-medium ${tag.color}`}>
+                    {tag.label}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
+      }
       case 'campaignType':
         return (
           <Badge variant="outline" className={typeConfig.color}>
@@ -2038,6 +2070,16 @@ export default function Campaigns() {
               value={timeRangeValue}
               onChange={setTimeRangeValue}
             />
+            {/* P2优化: 紧凑/详细视图切换 */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCompactView(!isCompactView)}
+              title={isCompactView ? '切换到详细视图' : '切换到紧凑视图'}
+            >
+              {isCompactView ? <LayoutList className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+              {!isMobile && <span className="ml-2">{isCompactView ? '详细' : '紧凑'}</span>}
+            </Button>
             {/* 列设置 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -2713,7 +2755,7 @@ export default function Campaigns() {
                             key={campaign.id}
                             data-index={virtualRow.index}
                             ref={rowVirtualizer.measureElement}
-                            className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
+                            className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''} ${isCompactView ? 'text-xs' : 'text-sm'}`}
                             style={{
                               height: `${virtualRow.size}px`,
                             }}

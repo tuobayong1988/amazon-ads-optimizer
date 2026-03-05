@@ -306,17 +306,31 @@ export default function AutoCorrectionDashboard() {
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">扫描状态</span>
-                      <Badge variant={dashboard?.scanStatus?.isScanning ? "default" : "secondary"}>
-                        {dashboard?.scanStatus?.isScanning ? '扫描中' : '空闲'}
-                      </Badge>
+                      {dashboard?.scanStatus?.isScanning ? (
+                        <Badge variant="default" className="bg-blue-600">
+                          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />扫描中
+                        </Badge>
+                      ) : dashboard?.scanStatus?.lastScanTime ? (
+                        <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                          <CheckCircle className="h-3 w-3 mr-1" />就绪
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-gray-500/20 text-gray-400 border-gray-500/30">
+                          待初始化
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">上次扫描</span>
-                      <span className="text-gray-300">{formatDate(dashboard?.scanStatus?.lastScanTime)}</span>
+                      <span className="text-gray-300">
+                        {dashboard?.scanStatus?.lastScanTime 
+                          ? formatDate(dashboard.scanStatus.lastScanTime)
+                          : '尚未执行过扫描'}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-400">历史扫描数</span>
-                      <span className="text-gray-300">{dashboard?.scanStatus?.historyCount || 0}</span>
+                      <span className="text-gray-300">{dashboard?.scanStatus?.historyCount || 0} 次</span>
                     </div>
                     
                     {dashboard?.config && (
@@ -342,11 +356,11 @@ export default function AutoCorrectionDashboard() {
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">出价容差</span>
-                          <span className="text-gray-300">${(dashboard.config as any).bidToleranceDollar}</span>
+                          <span className="text-gray-300">${(dashboard.config as any).bidToleranceBaseUSD ?? '0.01'}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">预算容差</span>
-                          <span className="text-gray-300">${(dashboard.config as any).budgetToleranceDollar}</span>
+                          <span className="text-gray-300">${(dashboard.config as any).budgetToleranceBaseUSD ?? '2.00'}</span>
                         </div>
                         <div className="flex justify-between text-xs">
                           <span className="text-gray-400">扫描间隔</span>

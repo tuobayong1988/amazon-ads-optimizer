@@ -44,12 +44,15 @@ export const auditRouter = router({
       return getAuditLogById(input.id);
     }),
 
-  // 获取用户操作统计
+  // 获取用户操作统计（管理员可查看全部用户的汇总统计）
   userStats: protectedProcedure
-    .input(z.object({ days: z.number().default(30) }))
+    .input(z.object({ days: z.number().default(30), viewAll: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const { getUserAuditStats } = await import("../auditService");
-      return getUserAuditStats(ctx.user.id, input.days);
+      const isAdmin = ctx.user.role === 'admin';
+      // 管理员默认查看所有用户的汇总统计，普通用户只看自己的
+      const userId = (isAdmin && input.viewAll !== false) ? undefined : ctx.user.id;
+      return getUserAuditStats(userId, input.days);
     }),
 
   // 获取账号操作统计

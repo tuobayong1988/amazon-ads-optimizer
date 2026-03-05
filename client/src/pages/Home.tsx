@@ -6,6 +6,7 @@ import { lazy, Suspense } from "react";
 const LandingPage = lazy(() => import("./LandingPage"));
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { OnboardingGuide, NoBrandSelectedGuide } from "@/components/OnboardingGuide";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -821,6 +822,7 @@ function DashboardContent() {
   // v233: 默认显示近7天而非"今天"，让数据有分析价值
   const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('7days'));
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   // v234: 卡片顺序状态和持久化
   const [cardOrder, setCardOrder] = useState<string[]>(DEFAULT_CARD_ORDER);
@@ -837,6 +839,16 @@ function DashboardContent() {
   const updatePreferences = trpc.user.updatePreferences.useMutation();
   
   // 从服务器加载卡片顺序
+  // P1优化: 检查是否需要显示Onboarding引导
+  useEffect(() => {
+    if (userPreferences) {
+      const onboardingCompleted = (userPreferences as any).onboardingCompleted;
+      if (!onboardingCompleted) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [userPreferences]);
+
   useEffect(() => {
     if (userPreferences && (userPreferences as any).dashboardCardOrder) {
       const savedOrder = (userPreferences as any).dashboardCardOrder as string[];
@@ -1045,8 +1057,16 @@ function DashboardContent() {
   return (
     <DashboardLayout>
       <PageMeta {...PAGE_META_CONFIG.dashboard} />
+      {/* P1优化: 新用户Onboarding引导 */}
+      {showOnboarding && (
+        <OnboardingGuide onComplete={() => setShowOnboarding(false)} />
+      )}
       <PullToRefresh onRefresh={handlePullRefresh} className="h-full">
       <div className="space-y-6">
+        {/* P1优化: 未连接API时显示引导卡片 */}
+        {accountsData.length === 0 && !isRefreshing && (
+          <NoBrandSelectedGuide />
+        )}
         {/* 页面标题和时间范围选择器 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -1180,7 +1200,7 @@ function DashboardContent() {
                                     <Shield className="w-5 h-5 text-blue-500" />
                                     系统健康监控
                                   </CardTitle>
-                                  <CardDescription>v261 核心指标实时追踪</CardDescription>
+                                  <CardDescription>核心指标实时追踪</CardDescription>
                                 </div>
                                 <Badge variant="outline" className="text-xs">
                                   每5分钟刷新
@@ -1451,7 +1471,11 @@ function DashboardContent() {
                                   </div>
                                 ))}
                                 {accountsData.length === 0 && (
-                                  <div className="text-center text-muted-foreground py-8">暂无账户数据</div>
+                                  <div className="flex flex-col items-center justify-center py-8">
+                                    <Globe className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                                    <p className="text-sm text-muted-foreground">暂无账户数据</p>
+                                    <p className="text-xs text-muted-foreground mt-1">请先连接Amazon API同步广告数据</p>
+                                  </div>
                                 )}
                               </div>
                             </CardContent>

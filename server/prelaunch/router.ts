@@ -11,17 +11,18 @@ export const prelaunchRouter = router({
 
   // ==================== 项目管理 ====================
 
-  /** 获取所有预发布项目 */
+  /** 获取所有预发布项目（增强版：支持搜索和模块统计） */
   listProjects: adminProcedure
     .input(z.object({
       status: z.enum(['draft', 'running', 'completed', 'archived']).optional(),
+      search: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
     }).optional())
     .query(async ({ ctx, input }) => {
       const { PrelaunchProjectService } = await import('./services/project');
       const svc = new PrelaunchProjectService();
-      return svc.listProjects(ctx.user.id, input?.status, input?.page ?? 1, input?.pageSize ?? 20);
+      return svc.listProjects(ctx.user.id, input?.status, input?.page ?? 1, input?.pageSize ?? 20, input?.search);
     }),
 
   /** 获取单个项目详情 */

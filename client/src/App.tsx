@@ -79,6 +79,13 @@ const AutoCorrectionDashboard = lazy(() => import("./pages/AutoCorrectionDashboa
 
 // 预发布引擎页面（仅admin可见）
 const PrelaunchDashboard = lazy(() => import("./pages/PrelaunchDashboard"));
+const PrelaunchM1Keywords = lazy(() => import("./pages/PrelaunchM1Keywords"));
+const PrelaunchM2Competitors = lazy(() => import("./pages/PrelaunchM2Competitors"));
+const PrelaunchM3Persona = lazy(() => import("./pages/PrelaunchM3Persona"));
+const PrelaunchM4XCopy = lazy(() => import("./pages/PrelaunchM4XCopy"));
+const PrelaunchM5Visual = lazy(() => import("./pages/PrelaunchM5Visual"));
+const PrelaunchM6Video = lazy(() => import("./pages/PrelaunchM6Video"));
+const PrelaunchM7AdFramework = lazy(() => import("./pages/PrelaunchM7AdFramework"));
 
 // 加载中组件
 function PageLoading() {
@@ -182,6 +189,13 @@ function Router() {
       <Route path="/auto-correction">{() => <LazyRoute component={AutoCorrectionDashboard} />}</Route>
       {/* 预发布引擎（仅admin可见，前端路由可访问，后端由adminProcedure保护） */}
       <Route path="/prelaunch">{() => <LazyRoute component={PrelaunchDashboard} />}</Route>
+      <Route path="/prelaunch/m1-keywords">{() => <LazyRoute component={PrelaunchM1Keywords} />}</Route>
+      <Route path="/prelaunch/m2-competitors">{() => <LazyRoute component={PrelaunchM2Competitors} />}</Route>
+      <Route path="/prelaunch/m3-persona">{() => <LazyRoute component={PrelaunchM3Persona} />}</Route>
+      <Route path="/prelaunch/m4x-copy">{() => <LazyRoute component={PrelaunchM4XCopy} />}</Route>
+      <Route path="/prelaunch/m5-visual">{() => <LazyRoute component={PrelaunchM5Visual} />}</Route>
+      <Route path="/prelaunch/m6-video">{() => <LazyRoute component={PrelaunchM6Video} />}</Route>
+      <Route path="/prelaunch/m7-ads">{() => <LazyRoute component={PrelaunchM7AdFramework} />}</Route>
       {/* v151: 高级分析已融合到优化目标详情页的"分析洞察"Tab */}
       <Route path="/advanced-analytics">{() => <Redirect to="/strategy-center" />}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>

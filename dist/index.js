@@ -88838,12 +88838,13 @@ async function getUserAuditStats(userId, days = 30) {
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)));
+  const userCondition = userId ? eq(auditLogs.userId, userId) : void 0;
+  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(userCondition, gte(auditLogs.createdAt, startDateStr)));
   const totalActions = totalResult?.count || 0;
   const typeStats = await db.select({
     actionType: auditLogs.actionType,
     count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
+  }).from(auditLogs).where(and(userCondition, gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
   const actionsByType = {};
   for (const stat of typeStats) {
     actionsByType[stat.actionType] = stat.count;
@@ -88853,7 +88854,7 @@ async function getUserAuditStats(userId, days = 30) {
     dayStats = await db.select({
       date: sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
       count: sql`COUNT(*)`
-    }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`).orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
+    }).from(auditLogs).where(and(userCondition, gte(auditLogs.createdAt, startDateStr))).groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`).orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
   } catch (error51) {
     log42.warn("Failed to get audit logs by day:", error51);
     dayStats = [];
@@ -88862,7 +88863,7 @@ async function getUserAuditStats(userId, days = 30) {
     date: stat.date,
     count: stat.count
   }));
-  const recentActions = await db.select().from(auditLogs).where(eq(auditLogs.userId, userId)).orderBy(desc(auditLogs.createdAt)).limit(10);
+  const recentActions = await db.select().from(auditLogs).where(userCondition ? eq(auditLogs.userId, userId) : void 0).orderBy(desc(auditLogs.createdAt)).limit(10);
   return {
     totalActions,
     actionsByType,
@@ -129075,30 +129076,71 @@ var init_project = __esm({
     init_schema2();
     init_drizzle_orm();
     PrelaunchProjectService = class {
-      async listProjects(userId, status, page = 1, pageSize = 20) {
+      /**
+       * 获取项目列表（增强版）
+       * - 支持状态筛选
+       * - 支持关键词搜索（项目名称、ASIN、类目）
+       * - 返回每个项目的各模块数据统计
+       */
+      async listProjects(userId, status, page = 1, pageSize = 20, search) {
         const db = await getDb();
         if (!db) return { success: false, error: "Database not available", data: [], total: 0 };
         try {
           const conditions = [];
           if (status) conditions.push(eq(prelaunchProjects.status, status));
-          const data2 = await db.select().from(prelaunchProjects).where(conditions.length > 0 ? and(...conditions) : void 0).orderBy(desc(prelaunchProjects.createdAt)).limit(pageSize).offset((page - 1) * pageSize);
-          const [countResult] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchProjects).where(conditions.length > 0 ? and(...conditions) : void 0);
-          return { success: true, data: data2, total: countResult?.count ?? 0, page, pageSize };
+          if (search) {
+            conditions.push(
+              or(
+                like(prelaunchProjects.projectName, `%${search}%`),
+                like(prelaunchProjects.asin, `%${search}%`),
+                like(prelaunchProjects.category, `%${search}%`)
+              )
+            );
+          }
+          const whereClause = conditions.length > 0 ? and(...conditions) : void 0;
+          const data2 = await db.select().from(prelaunchProjects).where(whereClause).orderBy(desc(prelaunchProjects.createdAt)).limit(pageSize).offset((page - 1) * pageSize);
+          const [countResult] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchProjects).where(whereClause);
+          const enrichedData = await Promise.all(data2.map(async (project) => {
+            const moduleStats = await this.getProjectModuleStats(db, project.id);
+            return {
+              ...project,
+              // 解析seedKeywords（存储为JSON字符串）
+              seedKeywords: this.parseSeedKeywords(project.seedKeywords),
+              moduleStats
+            };
+          }));
+          return { success: true, data: enrichedData, total: countResult?.count ?? 0, page, pageSize };
         } catch (error51) {
           return { success: false, error: error51.message, data: [], total: 0 };
         }
       }
+      /**
+       * 获取单个项目详情（增强版）
+       * - 包含各模块数据统计
+       * - 解析seedKeywords
+       */
       async getProject(projectId) {
         const db = await getDb();
         if (!db) return { success: false, error: "Database not available" };
         try {
           const [project] = await db.select().from(prelaunchProjects).where(eq(prelaunchProjects.id, projectId)).limit(1);
           if (!project) return { success: false, error: "Project not found" };
-          return { success: true, data: project };
+          const moduleStats = await this.getProjectModuleStats(db, projectId);
+          return {
+            success: true,
+            data: {
+              ...project,
+              seedKeywords: this.parseSeedKeywords(project.seedKeywords),
+              moduleStats
+            }
+          };
         } catch (error51) {
           return { success: false, error: error51.message };
         }
       }
+      /**
+       * 创建预发布项目
+       */
       async createProject(input) {
         const db = await getDb();
         if (!db) return { success: false, error: "Database not available" };
@@ -129113,32 +129155,116 @@ var init_project = __esm({
             createdBy: input.createdBy,
             status: "draft"
           });
-          return { success: true, projectId: result.insertId };
+          const projectId = result.insertId;
+          return {
+            success: true,
+            projectId,
+            data: {
+              id: projectId,
+              projectName: input.projectName,
+              accountId: input.accountId,
+              asin: input.asin || null,
+              marketplace: input.marketplace || "US",
+              category: input.category || null,
+              seedKeywords: input.seedKeywords || [],
+              status: "draft",
+              createdBy: input.createdBy,
+              createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+              moduleStats: { M1: 0, M2: 0, M3: 0, M4X: 0, M5: 0, M6: 0, M7: 0 }
+            }
+          };
         } catch (error51) {
           return { success: false, error: error51.message };
         }
       }
+      /**
+       * 更新项目
+       */
       async updateProject(projectId, updates) {
         const db = await getDb();
         if (!db) return { success: false, error: "Database not available" };
         try {
           const { projectId: _3, ...fields } = updates;
-          if (fields.seedKeywords) fields.seedKeywords = JSON.stringify(fields.seedKeywords);
+          if (fields.seedKeywords && Array.isArray(fields.seedKeywords)) {
+            fields.seedKeywords = JSON.stringify(fields.seedKeywords);
+          }
           await db.update(prelaunchProjects).set(fields).where(eq(prelaunchProjects.id, projectId));
-          return { success: true };
+          const updatedProject = await this.getProject(projectId);
+          return { success: true, data: updatedProject.success ? updatedProject.data : null };
         } catch (error51) {
           return { success: false, error: error51.message };
         }
       }
+      /**
+       * 删除项目（级联删除所有模块数据）
+       */
       async deleteProject(projectId) {
         const db = await getDb();
         if (!db) return { success: false, error: "Database not available" };
         try {
+          await Promise.all([
+            db.delete(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchCompetitors).where(eq(prelaunchCompetitors.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchPersonas).where(eq(prelaunchPersonas.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchCopyVersions).where(eq(prelaunchCopyVersions.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchVisualBriefs).where(eq(prelaunchVisualBriefs.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchVideoScripts).where(eq(prelaunchVideoScripts.projectId, projectId)).catch(() => {
+            }),
+            db.delete(prelaunchAdFrameworks).where(eq(prelaunchAdFrameworks.projectId, projectId)).catch(() => {
+            })
+          ]);
           await db.delete(prelaunchProjects).where(eq(prelaunchProjects.id, projectId));
           return { success: true };
         } catch (error51) {
           return { success: false, error: error51.message };
         }
+      }
+      // ==================== 私有辅助方法 ====================
+      /**
+       * 获取项目各模块的数据条数统计
+       */
+      async getProjectModuleStats(db, projectId) {
+        try {
+          const [kwCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId));
+          const [compCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchCompetitors).where(eq(prelaunchCompetitors.projectId, projectId));
+          const [personaCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchPersonas).where(eq(prelaunchPersonas.projectId, projectId));
+          const [copyCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchCopyVersions).where(eq(prelaunchCopyVersions.projectId, projectId));
+          const [visualCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchVisualBriefs).where(eq(prelaunchVisualBriefs.projectId, projectId));
+          const [videoCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchVideoScripts).where(eq(prelaunchVideoScripts.projectId, projectId));
+          const [adCount] = await db.select({ count: sql`COUNT(*)` }).from(prelaunchAdFrameworks).where(eq(prelaunchAdFrameworks.projectId, projectId));
+          return {
+            M1: kwCount?.count ?? 0,
+            M2: compCount?.count ?? 0,
+            M3: personaCount?.count ?? 0,
+            M4X: copyCount?.count ?? 0,
+            M5: visualCount?.count ?? 0,
+            M6: videoCount?.count ?? 0,
+            M7: adCount?.count ?? 0
+          };
+        } catch {
+          return { M1: 0, M2: 0, M3: 0, M4X: 0, M5: 0, M6: 0, M7: 0 };
+        }
+      }
+      /**
+       * 安全解析seedKeywords
+       */
+      parseSeedKeywords(raw) {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          try {
+            return JSON.parse(raw);
+          } catch {
+            return [];
+          }
+        }
+        return [];
       }
     };
   }
@@ -341907,9 +342033,20 @@ var collaborationRouter = router({
 init_dist();
 init_db2();
 var teamRouter = router({
-  // 获取团队成员列表
+  // 获取团队成员列表（P2优化: 自动包含所有者/管理员自身）
   list: protectedProcedure.query(async ({ ctx }) => {
-    return getTeamMembersByOwner(ctx.user.id);
+    const members = await getTeamMembersByOwner(ctx.user.id);
+    const ownerEntry = {
+      id: ctx.user.id,
+      ownerId: ctx.user.id,
+      email: ctx.user.email || "",
+      name: ctx.user.username || ctx.user.email || "\u7BA1\u7406\u5458",
+      role: "owner",
+      status: "active",
+      createdAt: ctx.user.createdAt || /* @__PURE__ */ new Date(),
+      isOwner: true
+    };
+    return [ownerEntry, ...members];
   }),
   // 获取单个团队成员
   getById: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
@@ -343635,10 +343772,12 @@ var auditRouter = router({
     const { getAuditLogById: getAuditLogById2 } = await Promise.resolve().then(() => (init_auditService(), auditService_exports));
     return getAuditLogById2(input.id);
   }),
-  // 获取用户操作统计
-  userStats: protectedProcedure.input(external_exports.object({ days: external_exports.number().default(30) })).query(async ({ ctx, input }) => {
+  // 获取用户操作统计（管理员可查看全部用户的汇总统计）
+  userStats: protectedProcedure.input(external_exports.object({ days: external_exports.number().default(30), viewAll: external_exports.boolean().optional() })).query(async ({ ctx, input }) => {
     const { getUserAuditStats: getUserAuditStats2 } = await Promise.resolve().then(() => (init_auditService(), auditService_exports));
-    return getUserAuditStats2(ctx.user.id, input.days);
+    const isAdmin = ctx.user.role === "admin";
+    const userId = isAdmin && input.viewAll !== false ? void 0 : ctx.user.id;
+    return getUserAuditStats2(userId, input.days);
   }),
   // 获取账号操作统计
   accountStats: protectedProcedure.input(external_exports.object({ accountId: external_exports.number(), days: external_exports.number().default(30) })).query(async ({ input }) => {
@@ -349069,15 +349208,16 @@ var systemConfigRouter = router({
 // server/prelaunch/router.ts
 var prelaunchRouter = router({
   // ==================== 项目管理 ====================
-  /** 获取所有预发布项目 */
+  /** 获取所有预发布项目（增强版：支持搜索和模块统计） */
   listProjects: adminProcedure.input(external_exports.object({
     status: external_exports.enum(["draft", "running", "completed", "archived"]).optional(),
+    search: external_exports.string().optional(),
     page: external_exports.number().default(1),
     pageSize: external_exports.number().default(20)
   }).optional()).query(async ({ ctx, input }) => {
     const { PrelaunchProjectService: PrelaunchProjectService2 } = await Promise.resolve().then(() => (init_project(), project_exports));
     const svc = new PrelaunchProjectService2();
-    return svc.listProjects(ctx.user.id, input?.status, input?.page ?? 1, input?.pageSize ?? 20);
+    return svc.listProjects(ctx.user.id, input?.status, input?.page ?? 1, input?.pageSize ?? 20, input?.search);
   }),
   /** 获取单个项目详情 */
   getProject: adminProcedure.input(external_exports.object({ projectId: external_exports.number() })).query(async ({ input }) => {
