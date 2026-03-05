@@ -5,6 +5,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerAmazonAuthCallbackRoutes } from "./amazonAuthCallback";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -124,6 +125,8 @@ async function startServer() {
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // v325: Amazon Ads API OAuth callback under /api/auth/callback
+  registerAmazonAuthCallbackRoutes(app);
   // v210: 运维诊断API路由
   app.use("/api/ops", opsRouter);
   // Sitemap routes

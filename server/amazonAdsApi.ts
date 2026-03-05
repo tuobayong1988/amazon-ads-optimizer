@@ -35,7 +35,7 @@ export const OAUTH_AUTH_ENDPOINTS = {
 } as const;
 
 // 默认回调地址
-export const DEFAULT_REDIRECT_URI = 'https://sellerps.com';
+export const DEFAULT_REDIRECT_URI = 'https://www.ppcopt.com/api/auth/callback';
 
 // 市场到区域的映射
 export const MARKETPLACE_TO_REGION: Record<string, keyof typeof API_ENDPOINTS> = {

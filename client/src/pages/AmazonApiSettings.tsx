@@ -233,6 +233,11 @@ export default function AmazonApiSettings() {
   const [authStep, setAuthStep] = useState<'idle' | 'oauth' | 'exchanging' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [authProgress, setAuthProgress] = useState(0);
   const [authError, setAuthError] = useState<{ step: string; message: string; canRetry: boolean } | null>(null);
+  // v325: 存储从OAuth回调接收到的数据
+  const [oauthCallbackData, setOauthCallbackData] = useState<{
+    refreshToken: string;
+    profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string }>;
+  } | null>(null);
   const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
   const [activeTab, setActiveTab] = useState("accounts");
   const [useIncrementalSync, setUseIncrementalSync] = useState(true);
@@ -431,6 +436,142 @@ export default function AmazonApiSettings() {
       }));
     }
   }, [credentialsStatus]);
+
+  // v325: 处理Amazon OAuth回调参数
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authSuccess = params.get('auth_success');
+    const authErrorParam = params.get('auth_error');
+    const refreshToken = params.get('refresh_token');
+    const profilesJson = params.get('profiles');
+
+    // 清除URL中的授权参数，避免刷新时重复处理
+    if (authSuccess || authErrorParam) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+    }
+
+    if (authErrorParam) {
+      toast.error(`Amazon授权失败: ${authErrorParam}`);
+      return;
+    }
+
+    if (authSuccess === 'true' && refreshToken) {
+      console.log('[v325 OAuth Callback] 收到授权回调数据');
+      
+      let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string }> = [];
+      if (profilesJson) {
+        try {
+          profiles = JSON.parse(profilesJson);
+        } catch (e) {
+          console.error('[v325 OAuth Callback] 解析profiles失败:', e);
+        }
+      }
+
+      // 存储回调数据，待saveMultipleProfilesMutation可用时处理
+      setOauthCallbackData({ refreshToken, profiles });
+      
+      toast.success(
+        profiles.length > 0
+          ? `Amazon授权成功！检测到 ${profiles.length} 个站点，正在自动保存凭证并同步数据...`
+          : 'Amazon授权成功！正在保存凭证...'
+      );
+
+      // 自动填充refreshToken
+      setCredentials(prev => ({
+        ...prev,
+        refreshToken,
+        profileId: profiles.length > 0 ? profiles[0].profileId : prev.profileId,
+      }));
+
+      // 切换到授权tab
+      setActiveTab('authorization');
+      setAuthStep('saving');
+      setAuthProgress(75);
+    }
+  }, []); // 只在组件挂载时执行一次
+
+  // v325: 当oauthCallbackData和saveMultipleProfilesMutation都准备好时，自动保存凭证
+  useEffect(() => {
+    if (!oauthCallbackData) return;
+
+    const processCallback = async () => {
+      try {
+        const { refreshToken, profiles } = oauthCallbackData;
+        const clientId = import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6';
+        const clientSecret = '';
+
+        if (profiles.length > 0) {
+          // 使用当前选中的店铺名称，或从第一个profile获取
+          const storeName = selectedAccount?.storeName || formData.storeName || profiles[0].accountName || '我的店铺';
+          
+          console.log('[v325 OAuth Callback] 保存多站点授权:', {
+            storeName,
+            profileCount: profiles.length,
+          });
+
+          await saveMultipleProfilesMutation.mutateAsync({
+            storeName,
+            existingStoreName: selectedAccount?.storeName || undefined,
+            clientId,
+            clientSecret,
+            refreshToken,
+            region: 'NA', // 服务端会根据profile自动判断区域
+            profiles: profiles.map(p => ({
+              profileId: p.profileId,
+              countryCode: p.countryCode,
+              currencyCode: 'USD',
+              accountName: p.accountName || storeName,
+            })),
+          });
+
+          setAuthProgress(100);
+          setAuthStep('complete');
+          toast.success(`授权完成！已自动创建 ${profiles.length} 个站点账号并开始同步数据。`);
+        } else if (selectedAccountId) {
+          // 没有profiles信息，但有选中的账号，直接保存到该账号
+          await saveCredentialsMutation.mutateAsync({
+            accountId: selectedAccountId,
+            clientId,
+            clientSecret,
+            refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region,
+          });
+
+          setAuthProgress(100);
+          setAuthStep('complete');
+          toast.success('授权完成！已自动保存凭证。');
+        } else {
+          // 没有profiles也没有选中账号，只填充表单
+          toast.success('Token获取成功！请选择店铺后保存。');
+          setAuthStep('idle');
+          setAuthProgress(0);
+        }
+
+        // 清除回调数据
+        setOauthCallbackData(null);
+
+        // 5秒后重置状态
+        setTimeout(() => {
+          setAuthStep('idle');
+          setAuthProgress(0);
+        }, 5000);
+      } catch (error: any) {
+        console.error('[v325 OAuth Callback] 保存失败:', error);
+        setAuthStep('error');
+        setAuthError({
+          step: '保存凭证',
+          message: error.message || '保存失败',
+          canRetry: true,
+        });
+        toast.error(`保存失败: ${error.message}`);
+        setOauthCallbackData(null);
+      }
+    };
+
+    processCallback();
+  }, [oauthCallbackData]);
 
   // Create account mutation
   const createAccountMutation = trpc.adAccount.create.useMutation({
@@ -2081,7 +2222,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'NA' });
                           window.open(
-                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开北美区域授权页面，授权后将获得美国、加拿大、墨西哥、巴西站点的数据访问权限');
@@ -2097,7 +2238,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'EU' });
                           window.open(
-                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开欧洲区域授权页面，授权后将获得英国、德国、法国等站点的数据访问权限');
@@ -2113,7 +2254,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'FE' });
                           window.open(
-                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开远东区域授权页面，授权后将获得日本、澳大利亚、新加坡站点的数据访问权限');
@@ -2130,8 +2271,7 @@ export default function AmazonApiSettings() {
                     <div className="space-y-4">
                       <h4 className="font-medium">换取Refresh Token</h4>
                       <p className="text-sm text-muted-foreground">
-                        授权成功后，您将被重定向到 <code className="bg-muted px-1 rounded">https://sellerps.com?code=xxx</code>，
-                        请复制URL中的code参数值并粘贴到下方输入框：
+                        授权成功后，系统将自动接收授权码并完成Token换取。如果自动回调未生效，请手动复制URL中的code参数值粘贴到下方输入框：
                       </p>
                       <div className="flex gap-2">
                         <Input
@@ -2511,8 +2651,8 @@ export default function AmazonApiSettings() {
                       <AlertCircle className="h-4 w-4 text-amber-600" />
                       <AlertTitle className="text-amber-800">回调地址说明</AlertTitle>
                       <AlertDescription className="text-amber-700">
-                        当前配置的回调地址为 <code className="bg-amber-100 px-1 rounded">https://sellerps.com</code>。
-                        授权成功后您将被重定向到该地址，请从浏览器地址栏复制完整的URL中的code参数。
+                        当前配置的回调地址为 <code className="bg-amber-100 px-1 rounded">https://www.ppcopt.com/api/auth/callback</code>。
+                        授权成功后系统将自动接收授权码并完成授权流程。
                       </AlertDescription>
                     </Alert>
                   </CardContent>
@@ -2592,7 +2732,7 @@ export default function AmazonApiSettings() {
                             ]
                           },
                         ].map((item) => {
-                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`;
+                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                           const isSelected = credentials.region === item.region;
                           return (
                             <div 
@@ -2667,11 +2807,11 @@ export default function AmazonApiSettings() {
                     <div className="space-y-3">
                       <Label className="text-purple-400 font-medium">粘贴授权完成后的URL</Label>
                       <p className="text-sm text-purple-300">
-                        授权完成后，浏览器地址栏会显示类似 <code className="bg-purple-900/50 px-1 rounded">https://sellerps.com?code=ANxxxxxx&scope=...</code> 的URL，
+                        授权完成后，浏览器地址栏会显示类似 <code className="bg-purple-900/50 px-1 rounded">https://www.ppcopt.com/api/auth/callback?code=ANxxxxxx&scope=...</code> 的URL，
                         请复制完整的URL粘贴到下方：
                       </p>
                       <Textarea
-                        placeholder="粘贴完整的回调URL，例如: https://sellerps.com?code=ANxxxxxx&scope=advertising::campaign_management"
+                        placeholder="粘贴完整的回调URL，例如: https://www.ppcopt.com/api/auth/callback?code=ANxxxxxx&scope=advertising::campaign_management"
                         id="manualAuthUrl"
                         className="min-h-[80px] font-mono text-sm bg-purple-900/20 border-purple-500/30"
                       />

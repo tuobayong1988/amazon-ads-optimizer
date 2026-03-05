@@ -64,7 +64,7 @@ export const amazonApiRouter = router({
         // 使用服务器端环境变量作为默认值，确保紫鸟浏览器手动授权流程能正常工作
         const clientId = input.clientId || process.env.AMAZON_ADS_CLIENT_ID || '';
         const clientSecret = input.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || '';
-        const redirectUri = input.redirectUri || 'https://sellerps.com';
+        const redirectUri = input.redirectUri || 'https://www.ppcopt.com/api/auth/callback';
         const region = input.region || 'NA';
         
         if (!clientId || !clientSecret) {
@@ -2185,7 +2185,7 @@ export const amazonApiRouter = router({
       
       // 生成每个区域的授权URL
       const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
-      const redirectUri = 'https://sellerps.com';
+      const redirectUri = 'https://www.ppcopt.com/api/auth/callback';
       
       const authEndpoints: Record<string, string> = {
         NA: 'https://www.amazon.com/ap/oa',
@@ -2229,7 +2229,7 @@ export const amazonApiRouter = router({
     .mutation(async ({ ctx, input }) => {
       const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
       const clientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
-      const redirectUri = 'https://sellerps.com';
+      const redirectUri = 'https://www.ppcopt.com/api/auth/callback';
       
       if (!clientId || !clientSecret) {
         throw new TRPCError({

@@ -52149,6 +52149,5910 @@ var require_jsonwebtoken = __commonJS({
   }
 });
 
+// node_modules/bignumber.js/bignumber.js
+var require_bignumber = __commonJS({
+  "node_modules/bignumber.js/bignumber.js"(exports2, module2) {
+    (function(globalObject) {
+      "use strict";
+      var BigNumber, isNumeric = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i, mathceil = Math.ceil, mathfloor = Math.floor, bignumberError = "[BigNumber Error] ", tooManyDigits = bignumberError + "Number primitive has more than 15 significant digits: ", BASE = 1e14, LOG_BASE = 14, MAX_SAFE_INTEGER = 9007199254740991, POWS_TEN = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13], SQRT_BASE = 1e7, MAX = 1e9;
+      function clone3(configObject) {
+        var div, convertBase, parseNumeric, P4 = BigNumber2.prototype = { constructor: BigNumber2, toString: null, valueOf: null }, ONE = new BigNumber2(1), DECIMAL_PLACES = 20, ROUNDING_MODE = 4, TO_EXP_NEG = -7, TO_EXP_POS = 21, MIN_EXP = -1e7, MAX_EXP = 1e7, CRYPTO = false, MODULO_MODE = 1, POW_PRECISION = 0, FORMAT = {
+          prefix: "",
+          groupSize: 3,
+          secondaryGroupSize: 0,
+          groupSeparator: ",",
+          decimalSeparator: ".",
+          fractionGroupSize: 0,
+          fractionGroupSeparator: "\xA0",
+          // non-breaking space
+          suffix: ""
+        }, ALPHABET2 = "0123456789abcdefghijklmnopqrstuvwxyz", alphabetHasNormalDecimalDigits = true;
+        function BigNumber2(v6, b6) {
+          var alphabet, c5, caseChanged, e6, i4, isNum, len, str2, x6 = this;
+          if (!(x6 instanceof BigNumber2)) return new BigNumber2(v6, b6);
+          if (b6 == null) {
+            if (v6 && v6._isBigNumber === true) {
+              x6.s = v6.s;
+              if (!v6.c || v6.e > MAX_EXP) {
+                x6.c = x6.e = null;
+              } else if (v6.e < MIN_EXP) {
+                x6.c = [x6.e = 0];
+              } else {
+                x6.e = v6.e;
+                x6.c = v6.c.slice();
+              }
+              return;
+            }
+            if ((isNum = typeof v6 == "number") && v6 * 0 == 0) {
+              x6.s = 1 / v6 < 0 ? (v6 = -v6, -1) : 1;
+              if (v6 === ~~v6) {
+                for (e6 = 0, i4 = v6; i4 >= 10; i4 /= 10, e6++) ;
+                if (e6 > MAX_EXP) {
+                  x6.c = x6.e = null;
+                } else {
+                  x6.e = e6;
+                  x6.c = [v6];
+                }
+                return;
+              }
+              str2 = String(v6);
+            } else {
+              if (!isNumeric.test(str2 = String(v6))) return parseNumeric(x6, str2, isNum);
+              x6.s = str2.charCodeAt(0) == 45 ? (str2 = str2.slice(1), -1) : 1;
+            }
+            if ((e6 = str2.indexOf(".")) > -1) str2 = str2.replace(".", "");
+            if ((i4 = str2.search(/e/i)) > 0) {
+              if (e6 < 0) e6 = i4;
+              e6 += +str2.slice(i4 + 1);
+              str2 = str2.substring(0, i4);
+            } else if (e6 < 0) {
+              e6 = str2.length;
+            }
+          } else {
+            intCheck(b6, 2, ALPHABET2.length, "Base");
+            if (b6 == 10 && alphabetHasNormalDecimalDigits) {
+              x6 = new BigNumber2(v6);
+              return round(x6, DECIMAL_PLACES + x6.e + 1, ROUNDING_MODE);
+            }
+            str2 = String(v6);
+            if (isNum = typeof v6 == "number") {
+              if (v6 * 0 != 0) return parseNumeric(x6, str2, isNum, b6);
+              x6.s = 1 / v6 < 0 ? (str2 = str2.slice(1), -1) : 1;
+              if (BigNumber2.DEBUG && str2.replace(/^0\.0*|\./, "").length > 15) {
+                throw Error(tooManyDigits + v6);
+              }
+            } else {
+              x6.s = str2.charCodeAt(0) === 45 ? (str2 = str2.slice(1), -1) : 1;
+            }
+            alphabet = ALPHABET2.slice(0, b6);
+            e6 = i4 = 0;
+            for (len = str2.length; i4 < len; i4++) {
+              if (alphabet.indexOf(c5 = str2.charAt(i4)) < 0) {
+                if (c5 == ".") {
+                  if (i4 > e6) {
+                    e6 = len;
+                    continue;
+                  }
+                } else if (!caseChanged) {
+                  if (str2 == str2.toUpperCase() && (str2 = str2.toLowerCase()) || str2 == str2.toLowerCase() && (str2 = str2.toUpperCase())) {
+                    caseChanged = true;
+                    i4 = -1;
+                    e6 = 0;
+                    continue;
+                  }
+                }
+                return parseNumeric(x6, String(v6), isNum, b6);
+              }
+            }
+            isNum = false;
+            str2 = convertBase(str2, b6, 10, x6.s);
+            if ((e6 = str2.indexOf(".")) > -1) str2 = str2.replace(".", "");
+            else e6 = str2.length;
+          }
+          for (i4 = 0; str2.charCodeAt(i4) === 48; i4++) ;
+          for (len = str2.length; str2.charCodeAt(--len) === 48; ) ;
+          if (str2 = str2.slice(i4, ++len)) {
+            len -= i4;
+            if (isNum && BigNumber2.DEBUG && len > 15 && (v6 > MAX_SAFE_INTEGER || v6 !== mathfloor(v6))) {
+              throw Error(tooManyDigits + x6.s * v6);
+            }
+            if ((e6 = e6 - i4 - 1) > MAX_EXP) {
+              x6.c = x6.e = null;
+            } else if (e6 < MIN_EXP) {
+              x6.c = [x6.e = 0];
+            } else {
+              x6.e = e6;
+              x6.c = [];
+              i4 = (e6 + 1) % LOG_BASE;
+              if (e6 < 0) i4 += LOG_BASE;
+              if (i4 < len) {
+                if (i4) x6.c.push(+str2.slice(0, i4));
+                for (len -= LOG_BASE; i4 < len; ) {
+                  x6.c.push(+str2.slice(i4, i4 += LOG_BASE));
+                }
+                i4 = LOG_BASE - (str2 = str2.slice(i4)).length;
+              } else {
+                i4 -= len;
+              }
+              for (; i4--; str2 += "0") ;
+              x6.c.push(+str2);
+            }
+          } else {
+            x6.c = [x6.e = 0];
+          }
+        }
+        BigNumber2.clone = clone3;
+        BigNumber2.ROUND_UP = 0;
+        BigNumber2.ROUND_DOWN = 1;
+        BigNumber2.ROUND_CEIL = 2;
+        BigNumber2.ROUND_FLOOR = 3;
+        BigNumber2.ROUND_HALF_UP = 4;
+        BigNumber2.ROUND_HALF_DOWN = 5;
+        BigNumber2.ROUND_HALF_EVEN = 6;
+        BigNumber2.ROUND_HALF_CEIL = 7;
+        BigNumber2.ROUND_HALF_FLOOR = 8;
+        BigNumber2.EUCLID = 9;
+        BigNumber2.config = BigNumber2.set = function(obj) {
+          var p4, v6;
+          if (obj != null) {
+            if (typeof obj == "object") {
+              if (obj.hasOwnProperty(p4 = "DECIMAL_PLACES")) {
+                v6 = obj[p4];
+                intCheck(v6, 0, MAX, p4);
+                DECIMAL_PLACES = v6;
+              }
+              if (obj.hasOwnProperty(p4 = "ROUNDING_MODE")) {
+                v6 = obj[p4];
+                intCheck(v6, 0, 8, p4);
+                ROUNDING_MODE = v6;
+              }
+              if (obj.hasOwnProperty(p4 = "EXPONENTIAL_AT")) {
+                v6 = obj[p4];
+                if (v6 && v6.pop) {
+                  intCheck(v6[0], -MAX, 0, p4);
+                  intCheck(v6[1], 0, MAX, p4);
+                  TO_EXP_NEG = v6[0];
+                  TO_EXP_POS = v6[1];
+                } else {
+                  intCheck(v6, -MAX, MAX, p4);
+                  TO_EXP_NEG = -(TO_EXP_POS = v6 < 0 ? -v6 : v6);
+                }
+              }
+              if (obj.hasOwnProperty(p4 = "RANGE")) {
+                v6 = obj[p4];
+                if (v6 && v6.pop) {
+                  intCheck(v6[0], -MAX, -1, p4);
+                  intCheck(v6[1], 1, MAX, p4);
+                  MIN_EXP = v6[0];
+                  MAX_EXP = v6[1];
+                } else {
+                  intCheck(v6, -MAX, MAX, p4);
+                  if (v6) {
+                    MIN_EXP = -(MAX_EXP = v6 < 0 ? -v6 : v6);
+                  } else {
+                    throw Error(bignumberError + p4 + " cannot be zero: " + v6);
+                  }
+                }
+              }
+              if (obj.hasOwnProperty(p4 = "CRYPTO")) {
+                v6 = obj[p4];
+                if (v6 === !!v6) {
+                  if (v6) {
+                    if (typeof crypto != "undefined" && crypto && (crypto.getRandomValues || crypto.randomBytes)) {
+                      CRYPTO = v6;
+                    } else {
+                      CRYPTO = !v6;
+                      throw Error(bignumberError + "crypto unavailable");
+                    }
+                  } else {
+                    CRYPTO = v6;
+                  }
+                } else {
+                  throw Error(bignumberError + p4 + " not true or false: " + v6);
+                }
+              }
+              if (obj.hasOwnProperty(p4 = "MODULO_MODE")) {
+                v6 = obj[p4];
+                intCheck(v6, 0, 9, p4);
+                MODULO_MODE = v6;
+              }
+              if (obj.hasOwnProperty(p4 = "POW_PRECISION")) {
+                v6 = obj[p4];
+                intCheck(v6, 0, MAX, p4);
+                POW_PRECISION = v6;
+              }
+              if (obj.hasOwnProperty(p4 = "FORMAT")) {
+                v6 = obj[p4];
+                if (typeof v6 == "object") FORMAT = v6;
+                else throw Error(bignumberError + p4 + " not an object: " + v6);
+              }
+              if (obj.hasOwnProperty(p4 = "ALPHABET")) {
+                v6 = obj[p4];
+                if (typeof v6 == "string" && !/^.?$|[+\-.\s]|(.).*\1/.test(v6)) {
+                  alphabetHasNormalDecimalDigits = v6.slice(0, 10) == "0123456789";
+                  ALPHABET2 = v6;
+                } else {
+                  throw Error(bignumberError + p4 + " invalid: " + v6);
+                }
+              }
+            } else {
+              throw Error(bignumberError + "Object expected: " + obj);
+            }
+          }
+          return {
+            DECIMAL_PLACES,
+            ROUNDING_MODE,
+            EXPONENTIAL_AT: [TO_EXP_NEG, TO_EXP_POS],
+            RANGE: [MIN_EXP, MAX_EXP],
+            CRYPTO,
+            MODULO_MODE,
+            POW_PRECISION,
+            FORMAT,
+            ALPHABET: ALPHABET2
+          };
+        };
+        BigNumber2.isBigNumber = function(v6) {
+          if (!v6 || v6._isBigNumber !== true) return false;
+          if (!BigNumber2.DEBUG) return true;
+          var i4, n7, c5 = v6.c, e6 = v6.e, s4 = v6.s;
+          out: if ({}.toString.call(c5) == "[object Array]") {
+            if ((s4 === 1 || s4 === -1) && e6 >= -MAX && e6 <= MAX && e6 === mathfloor(e6)) {
+              if (c5[0] === 0) {
+                if (e6 === 0 && c5.length === 1) return true;
+                break out;
+              }
+              i4 = (e6 + 1) % LOG_BASE;
+              if (i4 < 1) i4 += LOG_BASE;
+              if (String(c5[0]).length == i4) {
+                for (i4 = 0; i4 < c5.length; i4++) {
+                  n7 = c5[i4];
+                  if (n7 < 0 || n7 >= BASE || n7 !== mathfloor(n7)) break out;
+                }
+                if (n7 !== 0) return true;
+              }
+            }
+          } else if (c5 === null && e6 === null && (s4 === null || s4 === 1 || s4 === -1)) {
+            return true;
+          }
+          throw Error(bignumberError + "Invalid BigNumber: " + v6);
+        };
+        BigNumber2.maximum = BigNumber2.max = function() {
+          return maxOrMin(arguments, -1);
+        };
+        BigNumber2.minimum = BigNumber2.min = function() {
+          return maxOrMin(arguments, 1);
+        };
+        BigNumber2.random = (function() {
+          var pow2_53 = 9007199254740992;
+          var random53bitInt = Math.random() * pow2_53 & 2097151 ? function() {
+            return mathfloor(Math.random() * pow2_53);
+          } : function() {
+            return (Math.random() * 1073741824 | 0) * 8388608 + (Math.random() * 8388608 | 0);
+          };
+          return function(dp) {
+            var a4, b6, e6, k5, v6, i4 = 0, c5 = [], rand = new BigNumber2(ONE);
+            if (dp == null) dp = DECIMAL_PLACES;
+            else intCheck(dp, 0, MAX);
+            k5 = mathceil(dp / LOG_BASE);
+            if (CRYPTO) {
+              if (crypto.getRandomValues) {
+                a4 = crypto.getRandomValues(new Uint32Array(k5 *= 2));
+                for (; i4 < k5; ) {
+                  v6 = a4[i4] * 131072 + (a4[i4 + 1] >>> 11);
+                  if (v6 >= 9e15) {
+                    b6 = crypto.getRandomValues(new Uint32Array(2));
+                    a4[i4] = b6[0];
+                    a4[i4 + 1] = b6[1];
+                  } else {
+                    c5.push(v6 % 1e14);
+                    i4 += 2;
+                  }
+                }
+                i4 = k5 / 2;
+              } else if (crypto.randomBytes) {
+                a4 = crypto.randomBytes(k5 *= 7);
+                for (; i4 < k5; ) {
+                  v6 = (a4[i4] & 31) * 281474976710656 + a4[i4 + 1] * 1099511627776 + a4[i4 + 2] * 4294967296 + a4[i4 + 3] * 16777216 + (a4[i4 + 4] << 16) + (a4[i4 + 5] << 8) + a4[i4 + 6];
+                  if (v6 >= 9e15) {
+                    crypto.randomBytes(7).copy(a4, i4);
+                  } else {
+                    c5.push(v6 % 1e14);
+                    i4 += 7;
+                  }
+                }
+                i4 = k5 / 7;
+              } else {
+                CRYPTO = false;
+                throw Error(bignumberError + "crypto unavailable");
+              }
+            }
+            if (!CRYPTO) {
+              for (; i4 < k5; ) {
+                v6 = random53bitInt();
+                if (v6 < 9e15) c5[i4++] = v6 % 1e14;
+              }
+            }
+            k5 = c5[--i4];
+            dp %= LOG_BASE;
+            if (k5 && dp) {
+              v6 = POWS_TEN[LOG_BASE - dp];
+              c5[i4] = mathfloor(k5 / v6) * v6;
+            }
+            for (; c5[i4] === 0; c5.pop(), i4--) ;
+            if (i4 < 0) {
+              c5 = [e6 = 0];
+            } else {
+              for (e6 = -1; c5[0] === 0; c5.splice(0, 1), e6 -= LOG_BASE) ;
+              for (i4 = 1, v6 = c5[0]; v6 >= 10; v6 /= 10, i4++) ;
+              if (i4 < LOG_BASE) e6 -= LOG_BASE - i4;
+            }
+            rand.e = e6;
+            rand.c = c5;
+            return rand;
+          };
+        })();
+        BigNumber2.sum = function() {
+          var i4 = 1, args = arguments, sum2 = new BigNumber2(args[0]);
+          for (; i4 < args.length; ) sum2 = sum2.plus(args[i4++]);
+          return sum2;
+        };
+        convertBase = /* @__PURE__ */ (function() {
+          var decimal2 = "0123456789";
+          function toBaseOut(str2, baseIn, baseOut, alphabet) {
+            var j6, arr = [0], arrL, i4 = 0, len = str2.length;
+            for (; i4 < len; ) {
+              for (arrL = arr.length; arrL--; arr[arrL] *= baseIn) ;
+              arr[0] += alphabet.indexOf(str2.charAt(i4++));
+              for (j6 = 0; j6 < arr.length; j6++) {
+                if (arr[j6] > baseOut - 1) {
+                  if (arr[j6 + 1] == null) arr[j6 + 1] = 0;
+                  arr[j6 + 1] += arr[j6] / baseOut | 0;
+                  arr[j6] %= baseOut;
+                }
+              }
+            }
+            return arr.reverse();
+          }
+          return function(str2, baseIn, baseOut, sign, callerIsToString) {
+            var alphabet, d5, e6, k5, r5, x6, xc, y4, i4 = str2.indexOf("."), dp = DECIMAL_PLACES, rm = ROUNDING_MODE;
+            if (i4 >= 0) {
+              k5 = POW_PRECISION;
+              POW_PRECISION = 0;
+              str2 = str2.replace(".", "");
+              y4 = new BigNumber2(baseIn);
+              x6 = y4.pow(str2.length - i4);
+              POW_PRECISION = k5;
+              y4.c = toBaseOut(
+                toFixedPoint(coeffToString(x6.c), x6.e, "0"),
+                10,
+                baseOut,
+                decimal2
+              );
+              y4.e = y4.c.length;
+            }
+            xc = toBaseOut(str2, baseIn, baseOut, callerIsToString ? (alphabet = ALPHABET2, decimal2) : (alphabet = decimal2, ALPHABET2));
+            e6 = k5 = xc.length;
+            for (; xc[--k5] == 0; xc.pop()) ;
+            if (!xc[0]) return alphabet.charAt(0);
+            if (i4 < 0) {
+              --e6;
+            } else {
+              x6.c = xc;
+              x6.e = e6;
+              x6.s = sign;
+              x6 = div(x6, y4, dp, rm, baseOut);
+              xc = x6.c;
+              r5 = x6.r;
+              e6 = x6.e;
+            }
+            d5 = e6 + dp + 1;
+            i4 = xc[d5];
+            k5 = baseOut / 2;
+            r5 = r5 || d5 < 0 || xc[d5 + 1] != null;
+            r5 = rm < 4 ? (i4 != null || r5) && (rm == 0 || rm == (x6.s < 0 ? 3 : 2)) : i4 > k5 || i4 == k5 && (rm == 4 || r5 || rm == 6 && xc[d5 - 1] & 1 || rm == (x6.s < 0 ? 8 : 7));
+            if (d5 < 1 || !xc[0]) {
+              str2 = r5 ? toFixedPoint(alphabet.charAt(1), -dp, alphabet.charAt(0)) : alphabet.charAt(0);
+            } else {
+              xc.length = d5;
+              if (r5) {
+                for (--baseOut; ++xc[--d5] > baseOut; ) {
+                  xc[d5] = 0;
+                  if (!d5) {
+                    ++e6;
+                    xc = [1].concat(xc);
+                  }
+                }
+              }
+              for (k5 = xc.length; !xc[--k5]; ) ;
+              for (i4 = 0, str2 = ""; i4 <= k5; str2 += alphabet.charAt(xc[i4++])) ;
+              str2 = toFixedPoint(str2, e6, alphabet.charAt(0));
+            }
+            return str2;
+          };
+        })();
+        div = /* @__PURE__ */ (function() {
+          function multiply(x6, k5, base2) {
+            var m4, temp, xlo, xhi, carry = 0, i4 = x6.length, klo = k5 % SQRT_BASE, khi = k5 / SQRT_BASE | 0;
+            for (x6 = x6.slice(); i4--; ) {
+              xlo = x6[i4] % SQRT_BASE;
+              xhi = x6[i4] / SQRT_BASE | 0;
+              m4 = khi * xlo + xhi * klo;
+              temp = klo * xlo + m4 % SQRT_BASE * SQRT_BASE + carry;
+              carry = (temp / base2 | 0) + (m4 / SQRT_BASE | 0) + khi * xhi;
+              x6[i4] = temp % base2;
+            }
+            if (carry) x6 = [carry].concat(x6);
+            return x6;
+          }
+          function compare3(a4, b6, aL, bL) {
+            var i4, cmp;
+            if (aL != bL) {
+              cmp = aL > bL ? 1 : -1;
+            } else {
+              for (i4 = cmp = 0; i4 < aL; i4++) {
+                if (a4[i4] != b6[i4]) {
+                  cmp = a4[i4] > b6[i4] ? 1 : -1;
+                  break;
+                }
+              }
+            }
+            return cmp;
+          }
+          function subtract(a4, b6, aL, base2) {
+            var i4 = 0;
+            for (; aL--; ) {
+              a4[aL] -= i4;
+              i4 = a4[aL] < b6[aL] ? 1 : 0;
+              a4[aL] = i4 * base2 + a4[aL] - b6[aL];
+            }
+            for (; !a4[0] && a4.length > 1; a4.splice(0, 1)) ;
+          }
+          return function(x6, y4, dp, rm, base2) {
+            var cmp, e6, i4, more, n7, prod, prodL, q7, qc, rem, remL, rem0, xi3, xL, yc0, yL, yz, s4 = x6.s == y4.s ? 1 : -1, xc = x6.c, yc = y4.c;
+            if (!xc || !xc[0] || !yc || !yc[0]) {
+              return new BigNumber2(
+                // Return NaN if either NaN, or both Infinity or 0.
+                !x6.s || !y4.s || (xc ? yc && xc[0] == yc[0] : !yc) ? NaN : (
+                  // Return ±0 if x is ±0 or y is ±Infinity, or return ±Infinity as y is ±0.
+                  xc && xc[0] == 0 || !yc ? s4 * 0 : s4 / 0
+                )
+              );
+            }
+            q7 = new BigNumber2(s4);
+            qc = q7.c = [];
+            e6 = x6.e - y4.e;
+            s4 = dp + e6 + 1;
+            if (!base2) {
+              base2 = BASE;
+              e6 = bitFloor(x6.e / LOG_BASE) - bitFloor(y4.e / LOG_BASE);
+              s4 = s4 / LOG_BASE | 0;
+            }
+            for (i4 = 0; yc[i4] == (xc[i4] || 0); i4++) ;
+            if (yc[i4] > (xc[i4] || 0)) e6--;
+            if (s4 < 0) {
+              qc.push(1);
+              more = true;
+            } else {
+              xL = xc.length;
+              yL = yc.length;
+              i4 = 0;
+              s4 += 2;
+              n7 = mathfloor(base2 / (yc[0] + 1));
+              if (n7 > 1) {
+                yc = multiply(yc, n7, base2);
+                xc = multiply(xc, n7, base2);
+                yL = yc.length;
+                xL = xc.length;
+              }
+              xi3 = yL;
+              rem = xc.slice(0, yL);
+              remL = rem.length;
+              for (; remL < yL; rem[remL++] = 0) ;
+              yz = yc.slice();
+              yz = [0].concat(yz);
+              yc0 = yc[0];
+              if (yc[1] >= base2 / 2) yc0++;
+              do {
+                n7 = 0;
+                cmp = compare3(yc, rem, yL, remL);
+                if (cmp < 0) {
+                  rem0 = rem[0];
+                  if (yL != remL) rem0 = rem0 * base2 + (rem[1] || 0);
+                  n7 = mathfloor(rem0 / yc0);
+                  if (n7 > 1) {
+                    if (n7 >= base2) n7 = base2 - 1;
+                    prod = multiply(yc, n7, base2);
+                    prodL = prod.length;
+                    remL = rem.length;
+                    while (compare3(prod, rem, prodL, remL) == 1) {
+                      n7--;
+                      subtract(prod, yL < prodL ? yz : yc, prodL, base2);
+                      prodL = prod.length;
+                      cmp = 1;
+                    }
+                  } else {
+                    if (n7 == 0) {
+                      cmp = n7 = 1;
+                    }
+                    prod = yc.slice();
+                    prodL = prod.length;
+                  }
+                  if (prodL < remL) prod = [0].concat(prod);
+                  subtract(rem, prod, remL, base2);
+                  remL = rem.length;
+                  if (cmp == -1) {
+                    while (compare3(yc, rem, yL, remL) < 1) {
+                      n7++;
+                      subtract(rem, yL < remL ? yz : yc, remL, base2);
+                      remL = rem.length;
+                    }
+                  }
+                } else if (cmp === 0) {
+                  n7++;
+                  rem = [0];
+                }
+                qc[i4++] = n7;
+                if (rem[0]) {
+                  rem[remL++] = xc[xi3] || 0;
+                } else {
+                  rem = [xc[xi3]];
+                  remL = 1;
+                }
+              } while ((xi3++ < xL || rem[0] != null) && s4--);
+              more = rem[0] != null;
+              if (!qc[0]) qc.splice(0, 1);
+            }
+            if (base2 == BASE) {
+              for (i4 = 1, s4 = qc[0]; s4 >= 10; s4 /= 10, i4++) ;
+              round(q7, dp + (q7.e = i4 + e6 * LOG_BASE - 1) + 1, rm, more);
+            } else {
+              q7.e = e6;
+              q7.r = +more;
+            }
+            return q7;
+          };
+        })();
+        function format8(n7, i4, rm, id) {
+          var c0, e6, ne5, len, str2;
+          if (rm == null) rm = ROUNDING_MODE;
+          else intCheck(rm, 0, 8);
+          if (!n7.c) return n7.toString();
+          c0 = n7.c[0];
+          ne5 = n7.e;
+          if (i4 == null) {
+            str2 = coeffToString(n7.c);
+            str2 = id == 1 || id == 2 && (ne5 <= TO_EXP_NEG || ne5 >= TO_EXP_POS) ? toExponential(str2, ne5) : toFixedPoint(str2, ne5, "0");
+          } else {
+            n7 = round(new BigNumber2(n7), i4, rm);
+            e6 = n7.e;
+            str2 = coeffToString(n7.c);
+            len = str2.length;
+            if (id == 1 || id == 2 && (i4 <= e6 || e6 <= TO_EXP_NEG)) {
+              for (; len < i4; str2 += "0", len++) ;
+              str2 = toExponential(str2, e6);
+            } else {
+              i4 -= ne5 + (id === 2 && e6 > ne5);
+              str2 = toFixedPoint(str2, e6, "0");
+              if (e6 + 1 > len) {
+                if (--i4 > 0) for (str2 += "."; i4--; str2 += "0") ;
+              } else {
+                i4 += e6 - len;
+                if (i4 > 0) {
+                  if (e6 + 1 == len) str2 += ".";
+                  for (; i4--; str2 += "0") ;
+                }
+              }
+            }
+          }
+          return n7.s < 0 && c0 ? "-" + str2 : str2;
+        }
+        function maxOrMin(args, n7) {
+          var k5, y4, i4 = 1, x6 = new BigNumber2(args[0]);
+          for (; i4 < args.length; i4++) {
+            y4 = new BigNumber2(args[i4]);
+            if (!y4.s || (k5 = compare2(x6, y4)) === n7 || k5 === 0 && x6.s === n7) {
+              x6 = y4;
+            }
+          }
+          return x6;
+        }
+        function normalise(n7, c5, e6) {
+          var i4 = 1, j6 = c5.length;
+          for (; !c5[--j6]; c5.pop()) ;
+          for (j6 = c5[0]; j6 >= 10; j6 /= 10, i4++) ;
+          if ((e6 = i4 + e6 * LOG_BASE - 1) > MAX_EXP) {
+            n7.c = n7.e = null;
+          } else if (e6 < MIN_EXP) {
+            n7.c = [n7.e = 0];
+          } else {
+            n7.e = e6;
+            n7.c = c5;
+          }
+          return n7;
+        }
+        parseNumeric = /* @__PURE__ */ (function() {
+          var basePrefix = /^(-?)0([xbo])(?=\w[\w.]*$)/i, dotAfter = /^([^.]+)\.$/, dotBefore = /^\.([^.]+)$/, isInfinityOrNaN = /^-?(Infinity|NaN)$/, whitespaceOrPlus = /^\s*\+(?=[\w.])|^\s+|\s+$/g;
+          return function(x6, str2, isNum, b6) {
+            var base2, s4 = isNum ? str2 : str2.replace(whitespaceOrPlus, "");
+            if (isInfinityOrNaN.test(s4)) {
+              x6.s = isNaN(s4) ? null : s4 < 0 ? -1 : 1;
+            } else {
+              if (!isNum) {
+                s4 = s4.replace(basePrefix, function(m4, p1, p22) {
+                  base2 = (p22 = p22.toLowerCase()) == "x" ? 16 : p22 == "b" ? 2 : 8;
+                  return !b6 || b6 == base2 ? p1 : m4;
+                });
+                if (b6) {
+                  base2 = b6;
+                  s4 = s4.replace(dotAfter, "$1").replace(dotBefore, "0.$1");
+                }
+                if (str2 != s4) return new BigNumber2(s4, base2);
+              }
+              if (BigNumber2.DEBUG) {
+                throw Error(bignumberError + "Not a" + (b6 ? " base " + b6 : "") + " number: " + str2);
+              }
+              x6.s = null;
+            }
+            x6.c = x6.e = null;
+          };
+        })();
+        function round(x6, sd, rm, r5) {
+          var d5, i4, j6, k5, n7, ni2, rd, xc = x6.c, pows10 = POWS_TEN;
+          if (xc) {
+            out: {
+              for (d5 = 1, k5 = xc[0]; k5 >= 10; k5 /= 10, d5++) ;
+              i4 = sd - d5;
+              if (i4 < 0) {
+                i4 += LOG_BASE;
+                j6 = sd;
+                n7 = xc[ni2 = 0];
+                rd = mathfloor(n7 / pows10[d5 - j6 - 1] % 10);
+              } else {
+                ni2 = mathceil((i4 + 1) / LOG_BASE);
+                if (ni2 >= xc.length) {
+                  if (r5) {
+                    for (; xc.length <= ni2; xc.push(0)) ;
+                    n7 = rd = 0;
+                    d5 = 1;
+                    i4 %= LOG_BASE;
+                    j6 = i4 - LOG_BASE + 1;
+                  } else {
+                    break out;
+                  }
+                } else {
+                  n7 = k5 = xc[ni2];
+                  for (d5 = 1; k5 >= 10; k5 /= 10, d5++) ;
+                  i4 %= LOG_BASE;
+                  j6 = i4 - LOG_BASE + d5;
+                  rd = j6 < 0 ? 0 : mathfloor(n7 / pows10[d5 - j6 - 1] % 10);
+                }
+              }
+              r5 = r5 || sd < 0 || // Are there any non-zero digits after the rounding digit?
+              // The expression  n % pows10[d - j - 1]  returns all digits of n to the right
+              // of the digit at j, e.g. if n is 908714 and j is 2, the expression gives 714.
+              xc[ni2 + 1] != null || (j6 < 0 ? n7 : n7 % pows10[d5 - j6 - 1]);
+              r5 = rm < 4 ? (rd || r5) && (rm == 0 || rm == (x6.s < 0 ? 3 : 2)) : rd > 5 || rd == 5 && (rm == 4 || r5 || rm == 6 && // Check whether the digit to the left of the rounding digit is odd.
+              (i4 > 0 ? j6 > 0 ? n7 / pows10[d5 - j6] : 0 : xc[ni2 - 1]) % 10 & 1 || rm == (x6.s < 0 ? 8 : 7));
+              if (sd < 1 || !xc[0]) {
+                xc.length = 0;
+                if (r5) {
+                  sd -= x6.e + 1;
+                  xc[0] = pows10[(LOG_BASE - sd % LOG_BASE) % LOG_BASE];
+                  x6.e = -sd || 0;
+                } else {
+                  xc[0] = x6.e = 0;
+                }
+                return x6;
+              }
+              if (i4 == 0) {
+                xc.length = ni2;
+                k5 = 1;
+                ni2--;
+              } else {
+                xc.length = ni2 + 1;
+                k5 = pows10[LOG_BASE - i4];
+                xc[ni2] = j6 > 0 ? mathfloor(n7 / pows10[d5 - j6] % pows10[j6]) * k5 : 0;
+              }
+              if (r5) {
+                for (; ; ) {
+                  if (ni2 == 0) {
+                    for (i4 = 1, j6 = xc[0]; j6 >= 10; j6 /= 10, i4++) ;
+                    j6 = xc[0] += k5;
+                    for (k5 = 1; j6 >= 10; j6 /= 10, k5++) ;
+                    if (i4 != k5) {
+                      x6.e++;
+                      if (xc[0] == BASE) xc[0] = 1;
+                    }
+                    break;
+                  } else {
+                    xc[ni2] += k5;
+                    if (xc[ni2] != BASE) break;
+                    xc[ni2--] = 0;
+                    k5 = 1;
+                  }
+                }
+              }
+              for (i4 = xc.length; xc[--i4] === 0; xc.pop()) ;
+            }
+            if (x6.e > MAX_EXP) {
+              x6.c = x6.e = null;
+            } else if (x6.e < MIN_EXP) {
+              x6.c = [x6.e = 0];
+            }
+          }
+          return x6;
+        }
+        function valueOf(n7) {
+          var str2, e6 = n7.e;
+          if (e6 === null) return n7.toString();
+          str2 = coeffToString(n7.c);
+          str2 = e6 <= TO_EXP_NEG || e6 >= TO_EXP_POS ? toExponential(str2, e6) : toFixedPoint(str2, e6, "0");
+          return n7.s < 0 ? "-" + str2 : str2;
+        }
+        P4.absoluteValue = P4.abs = function() {
+          var x6 = new BigNumber2(this);
+          if (x6.s < 0) x6.s = 1;
+          return x6;
+        };
+        P4.comparedTo = function(y4, b6) {
+          return compare2(this, new BigNumber2(y4, b6));
+        };
+        P4.decimalPlaces = P4.dp = function(dp, rm) {
+          var c5, n7, v6, x6 = this;
+          if (dp != null) {
+            intCheck(dp, 0, MAX);
+            if (rm == null) rm = ROUNDING_MODE;
+            else intCheck(rm, 0, 8);
+            return round(new BigNumber2(x6), dp + x6.e + 1, rm);
+          }
+          if (!(c5 = x6.c)) return null;
+          n7 = ((v6 = c5.length - 1) - bitFloor(this.e / LOG_BASE)) * LOG_BASE;
+          if (v6 = c5[v6]) for (; v6 % 10 == 0; v6 /= 10, n7--) ;
+          if (n7 < 0) n7 = 0;
+          return n7;
+        };
+        P4.dividedBy = P4.div = function(y4, b6) {
+          return div(this, new BigNumber2(y4, b6), DECIMAL_PLACES, ROUNDING_MODE);
+        };
+        P4.dividedToIntegerBy = P4.idiv = function(y4, b6) {
+          return div(this, new BigNumber2(y4, b6), 0, 1);
+        };
+        P4.exponentiatedBy = P4.pow = function(n7, m4) {
+          var half, isModExp, i4, k5, more, nIsBig, nIsNeg, nIsOdd, y4, x6 = this;
+          n7 = new BigNumber2(n7);
+          if (n7.c && !n7.isInteger()) {
+            throw Error(bignumberError + "Exponent not an integer: " + valueOf(n7));
+          }
+          if (m4 != null) m4 = new BigNumber2(m4);
+          nIsBig = n7.e > 14;
+          if (!x6.c || !x6.c[0] || x6.c[0] == 1 && !x6.e && x6.c.length == 1 || !n7.c || !n7.c[0]) {
+            y4 = new BigNumber2(Math.pow(+valueOf(x6), nIsBig ? n7.s * (2 - isOdd(n7)) : +valueOf(n7)));
+            return m4 ? y4.mod(m4) : y4;
+          }
+          nIsNeg = n7.s < 0;
+          if (m4) {
+            if (m4.c ? !m4.c[0] : !m4.s) return new BigNumber2(NaN);
+            isModExp = !nIsNeg && x6.isInteger() && m4.isInteger();
+            if (isModExp) x6 = x6.mod(m4);
+          } else if (n7.e > 9 && (x6.e > 0 || x6.e < -1 || (x6.e == 0 ? x6.c[0] > 1 || nIsBig && x6.c[1] >= 24e7 : x6.c[0] < 8e13 || nIsBig && x6.c[0] <= 9999975e7))) {
+            k5 = x6.s < 0 && isOdd(n7) ? -0 : 0;
+            if (x6.e > -1) k5 = 1 / k5;
+            return new BigNumber2(nIsNeg ? 1 / k5 : k5);
+          } else if (POW_PRECISION) {
+            k5 = mathceil(POW_PRECISION / LOG_BASE + 2);
+          }
+          if (nIsBig) {
+            half = new BigNumber2(0.5);
+            if (nIsNeg) n7.s = 1;
+            nIsOdd = isOdd(n7);
+          } else {
+            i4 = Math.abs(+valueOf(n7));
+            nIsOdd = i4 % 2;
+          }
+          y4 = new BigNumber2(ONE);
+          for (; ; ) {
+            if (nIsOdd) {
+              y4 = y4.times(x6);
+              if (!y4.c) break;
+              if (k5) {
+                if (y4.c.length > k5) y4.c.length = k5;
+              } else if (isModExp) {
+                y4 = y4.mod(m4);
+              }
+            }
+            if (i4) {
+              i4 = mathfloor(i4 / 2);
+              if (i4 === 0) break;
+              nIsOdd = i4 % 2;
+            } else {
+              n7 = n7.times(half);
+              round(n7, n7.e + 1, 1);
+              if (n7.e > 14) {
+                nIsOdd = isOdd(n7);
+              } else {
+                i4 = +valueOf(n7);
+                if (i4 === 0) break;
+                nIsOdd = i4 % 2;
+              }
+            }
+            x6 = x6.times(x6);
+            if (k5) {
+              if (x6.c && x6.c.length > k5) x6.c.length = k5;
+            } else if (isModExp) {
+              x6 = x6.mod(m4);
+            }
+          }
+          if (isModExp) return y4;
+          if (nIsNeg) y4 = ONE.div(y4);
+          return m4 ? y4.mod(m4) : k5 ? round(y4, POW_PRECISION, ROUNDING_MODE, more) : y4;
+        };
+        P4.integerValue = function(rm) {
+          var n7 = new BigNumber2(this);
+          if (rm == null) rm = ROUNDING_MODE;
+          else intCheck(rm, 0, 8);
+          return round(n7, n7.e + 1, rm);
+        };
+        P4.isEqualTo = P4.eq = function(y4, b6) {
+          return compare2(this, new BigNumber2(y4, b6)) === 0;
+        };
+        P4.isFinite = function() {
+          return !!this.c;
+        };
+        P4.isGreaterThan = P4.gt = function(y4, b6) {
+          return compare2(this, new BigNumber2(y4, b6)) > 0;
+        };
+        P4.isGreaterThanOrEqualTo = P4.gte = function(y4, b6) {
+          return (b6 = compare2(this, new BigNumber2(y4, b6))) === 1 || b6 === 0;
+        };
+        P4.isInteger = function() {
+          return !!this.c && bitFloor(this.e / LOG_BASE) > this.c.length - 2;
+        };
+        P4.isLessThan = P4.lt = function(y4, b6) {
+          return compare2(this, new BigNumber2(y4, b6)) < 0;
+        };
+        P4.isLessThanOrEqualTo = P4.lte = function(y4, b6) {
+          return (b6 = compare2(this, new BigNumber2(y4, b6))) === -1 || b6 === 0;
+        };
+        P4.isNaN = function() {
+          return !this.s;
+        };
+        P4.isNegative = function() {
+          return this.s < 0;
+        };
+        P4.isPositive = function() {
+          return this.s > 0;
+        };
+        P4.isZero = function() {
+          return !!this.c && this.c[0] == 0;
+        };
+        P4.minus = function(y4, b6) {
+          var i4, j6, t7, xLTy, x6 = this, a4 = x6.s;
+          y4 = new BigNumber2(y4, b6);
+          b6 = y4.s;
+          if (!a4 || !b6) return new BigNumber2(NaN);
+          if (a4 != b6) {
+            y4.s = -b6;
+            return x6.plus(y4);
+          }
+          var xe3 = x6.e / LOG_BASE, ye3 = y4.e / LOG_BASE, xc = x6.c, yc = y4.c;
+          if (!xe3 || !ye3) {
+            if (!xc || !yc) return xc ? (y4.s = -b6, y4) : new BigNumber2(yc ? x6 : NaN);
+            if (!xc[0] || !yc[0]) {
+              return yc[0] ? (y4.s = -b6, y4) : new BigNumber2(xc[0] ? x6 : (
+                // IEEE 754 (2008) 6.3: n - n = -0 when rounding to -Infinity
+                ROUNDING_MODE == 3 ? -0 : 0
+              ));
+            }
+          }
+          xe3 = bitFloor(xe3);
+          ye3 = bitFloor(ye3);
+          xc = xc.slice();
+          if (a4 = xe3 - ye3) {
+            if (xLTy = a4 < 0) {
+              a4 = -a4;
+              t7 = xc;
+            } else {
+              ye3 = xe3;
+              t7 = yc;
+            }
+            t7.reverse();
+            for (b6 = a4; b6--; t7.push(0)) ;
+            t7.reverse();
+          } else {
+            j6 = (xLTy = (a4 = xc.length) < (b6 = yc.length)) ? a4 : b6;
+            for (a4 = b6 = 0; b6 < j6; b6++) {
+              if (xc[b6] != yc[b6]) {
+                xLTy = xc[b6] < yc[b6];
+                break;
+              }
+            }
+          }
+          if (xLTy) {
+            t7 = xc;
+            xc = yc;
+            yc = t7;
+            y4.s = -y4.s;
+          }
+          b6 = (j6 = yc.length) - (i4 = xc.length);
+          if (b6 > 0) for (; b6--; xc[i4++] = 0) ;
+          b6 = BASE - 1;
+          for (; j6 > a4; ) {
+            if (xc[--j6] < yc[j6]) {
+              for (i4 = j6; i4 && !xc[--i4]; xc[i4] = b6) ;
+              --xc[i4];
+              xc[j6] += BASE;
+            }
+            xc[j6] -= yc[j6];
+          }
+          for (; xc[0] == 0; xc.splice(0, 1), --ye3) ;
+          if (!xc[0]) {
+            y4.s = ROUNDING_MODE == 3 ? -1 : 1;
+            y4.c = [y4.e = 0];
+            return y4;
+          }
+          return normalise(y4, xc, ye3);
+        };
+        P4.modulo = P4.mod = function(y4, b6) {
+          var q7, s4, x6 = this;
+          y4 = new BigNumber2(y4, b6);
+          if (!x6.c || !y4.s || y4.c && !y4.c[0]) {
+            return new BigNumber2(NaN);
+          } else if (!y4.c || x6.c && !x6.c[0]) {
+            return new BigNumber2(x6);
+          }
+          if (MODULO_MODE == 9) {
+            s4 = y4.s;
+            y4.s = 1;
+            q7 = div(x6, y4, 0, 3);
+            y4.s = s4;
+            q7.s *= s4;
+          } else {
+            q7 = div(x6, y4, 0, MODULO_MODE);
+          }
+          y4 = x6.minus(q7.times(y4));
+          if (!y4.c[0] && MODULO_MODE == 1) y4.s = x6.s;
+          return y4;
+        };
+        P4.multipliedBy = P4.times = function(y4, b6) {
+          var c5, e6, i4, j6, k5, m4, xcL, xlo, xhi, ycL, ylo, yhi, zc, base2, sqrtBase, x6 = this, xc = x6.c, yc = (y4 = new BigNumber2(y4, b6)).c;
+          if (!xc || !yc || !xc[0] || !yc[0]) {
+            if (!x6.s || !y4.s || xc && !xc[0] && !yc || yc && !yc[0] && !xc) {
+              y4.c = y4.e = y4.s = null;
+            } else {
+              y4.s *= x6.s;
+              if (!xc || !yc) {
+                y4.c = y4.e = null;
+              } else {
+                y4.c = [0];
+                y4.e = 0;
+              }
+            }
+            return y4;
+          }
+          e6 = bitFloor(x6.e / LOG_BASE) + bitFloor(y4.e / LOG_BASE);
+          y4.s *= x6.s;
+          xcL = xc.length;
+          ycL = yc.length;
+          if (xcL < ycL) {
+            zc = xc;
+            xc = yc;
+            yc = zc;
+            i4 = xcL;
+            xcL = ycL;
+            ycL = i4;
+          }
+          for (i4 = xcL + ycL, zc = []; i4--; zc.push(0)) ;
+          base2 = BASE;
+          sqrtBase = SQRT_BASE;
+          for (i4 = ycL; --i4 >= 0; ) {
+            c5 = 0;
+            ylo = yc[i4] % sqrtBase;
+            yhi = yc[i4] / sqrtBase | 0;
+            for (k5 = xcL, j6 = i4 + k5; j6 > i4; ) {
+              xlo = xc[--k5] % sqrtBase;
+              xhi = xc[k5] / sqrtBase | 0;
+              m4 = yhi * xlo + xhi * ylo;
+              xlo = ylo * xlo + m4 % sqrtBase * sqrtBase + zc[j6] + c5;
+              c5 = (xlo / base2 | 0) + (m4 / sqrtBase | 0) + yhi * xhi;
+              zc[j6--] = xlo % base2;
+            }
+            zc[j6] = c5;
+          }
+          if (c5) {
+            ++e6;
+          } else {
+            zc.splice(0, 1);
+          }
+          return normalise(y4, zc, e6);
+        };
+        P4.negated = function() {
+          var x6 = new BigNumber2(this);
+          x6.s = -x6.s || null;
+          return x6;
+        };
+        P4.plus = function(y4, b6) {
+          var t7, x6 = this, a4 = x6.s;
+          y4 = new BigNumber2(y4, b6);
+          b6 = y4.s;
+          if (!a4 || !b6) return new BigNumber2(NaN);
+          if (a4 != b6) {
+            y4.s = -b6;
+            return x6.minus(y4);
+          }
+          var xe3 = x6.e / LOG_BASE, ye3 = y4.e / LOG_BASE, xc = x6.c, yc = y4.c;
+          if (!xe3 || !ye3) {
+            if (!xc || !yc) return new BigNumber2(a4 / 0);
+            if (!xc[0] || !yc[0]) return yc[0] ? y4 : new BigNumber2(xc[0] ? x6 : a4 * 0);
+          }
+          xe3 = bitFloor(xe3);
+          ye3 = bitFloor(ye3);
+          xc = xc.slice();
+          if (a4 = xe3 - ye3) {
+            if (a4 > 0) {
+              ye3 = xe3;
+              t7 = yc;
+            } else {
+              a4 = -a4;
+              t7 = xc;
+            }
+            t7.reverse();
+            for (; a4--; t7.push(0)) ;
+            t7.reverse();
+          }
+          a4 = xc.length;
+          b6 = yc.length;
+          if (a4 - b6 < 0) {
+            t7 = yc;
+            yc = xc;
+            xc = t7;
+            b6 = a4;
+          }
+          for (a4 = 0; b6; ) {
+            a4 = (xc[--b6] = xc[b6] + yc[b6] + a4) / BASE | 0;
+            xc[b6] = BASE === xc[b6] ? 0 : xc[b6] % BASE;
+          }
+          if (a4) {
+            xc = [a4].concat(xc);
+            ++ye3;
+          }
+          return normalise(y4, xc, ye3);
+        };
+        P4.precision = P4.sd = function(sd, rm) {
+          var c5, n7, v6, x6 = this;
+          if (sd != null && sd !== !!sd) {
+            intCheck(sd, 1, MAX);
+            if (rm == null) rm = ROUNDING_MODE;
+            else intCheck(rm, 0, 8);
+            return round(new BigNumber2(x6), sd, rm);
+          }
+          if (!(c5 = x6.c)) return null;
+          v6 = c5.length - 1;
+          n7 = v6 * LOG_BASE + 1;
+          if (v6 = c5[v6]) {
+            for (; v6 % 10 == 0; v6 /= 10, n7--) ;
+            for (v6 = c5[0]; v6 >= 10; v6 /= 10, n7++) ;
+          }
+          if (sd && x6.e + 1 > n7) n7 = x6.e + 1;
+          return n7;
+        };
+        P4.shiftedBy = function(k5) {
+          intCheck(k5, -MAX_SAFE_INTEGER, MAX_SAFE_INTEGER);
+          return this.times("1e" + k5);
+        };
+        P4.squareRoot = P4.sqrt = function() {
+          var m4, n7, r5, rep, t7, x6 = this, c5 = x6.c, s4 = x6.s, e6 = x6.e, dp = DECIMAL_PLACES + 4, half = new BigNumber2("0.5");
+          if (s4 !== 1 || !c5 || !c5[0]) {
+            return new BigNumber2(!s4 || s4 < 0 && (!c5 || c5[0]) ? NaN : c5 ? x6 : 1 / 0);
+          }
+          s4 = Math.sqrt(+valueOf(x6));
+          if (s4 == 0 || s4 == 1 / 0) {
+            n7 = coeffToString(c5);
+            if ((n7.length + e6) % 2 == 0) n7 += "0";
+            s4 = Math.sqrt(+n7);
+            e6 = bitFloor((e6 + 1) / 2) - (e6 < 0 || e6 % 2);
+            if (s4 == 1 / 0) {
+              n7 = "5e" + e6;
+            } else {
+              n7 = s4.toExponential();
+              n7 = n7.slice(0, n7.indexOf("e") + 1) + e6;
+            }
+            r5 = new BigNumber2(n7);
+          } else {
+            r5 = new BigNumber2(s4 + "");
+          }
+          if (r5.c[0]) {
+            e6 = r5.e;
+            s4 = e6 + dp;
+            if (s4 < 3) s4 = 0;
+            for (; ; ) {
+              t7 = r5;
+              r5 = half.times(t7.plus(div(x6, t7, dp, 1)));
+              if (coeffToString(t7.c).slice(0, s4) === (n7 = coeffToString(r5.c)).slice(0, s4)) {
+                if (r5.e < e6) --s4;
+                n7 = n7.slice(s4 - 3, s4 + 1);
+                if (n7 == "9999" || !rep && n7 == "4999") {
+                  if (!rep) {
+                    round(t7, t7.e + DECIMAL_PLACES + 2, 0);
+                    if (t7.times(t7).eq(x6)) {
+                      r5 = t7;
+                      break;
+                    }
+                  }
+                  dp += 4;
+                  s4 += 4;
+                  rep = 1;
+                } else {
+                  if (!+n7 || !+n7.slice(1) && n7.charAt(0) == "5") {
+                    round(r5, r5.e + DECIMAL_PLACES + 2, 1);
+                    m4 = !r5.times(r5).eq(x6);
+                  }
+                  break;
+                }
+              }
+            }
+          }
+          return round(r5, r5.e + DECIMAL_PLACES + 1, ROUNDING_MODE, m4);
+        };
+        P4.toExponential = function(dp, rm) {
+          if (dp != null) {
+            intCheck(dp, 0, MAX);
+            dp++;
+          }
+          return format8(this, dp, rm, 1);
+        };
+        P4.toFixed = function(dp, rm) {
+          if (dp != null) {
+            intCheck(dp, 0, MAX);
+            dp = dp + this.e + 1;
+          }
+          return format8(this, dp, rm);
+        };
+        P4.toFormat = function(dp, rm, format9) {
+          var str2, x6 = this;
+          if (format9 == null) {
+            if (dp != null && rm && typeof rm == "object") {
+              format9 = rm;
+              rm = null;
+            } else if (dp && typeof dp == "object") {
+              format9 = dp;
+              dp = rm = null;
+            } else {
+              format9 = FORMAT;
+            }
+          } else if (typeof format9 != "object") {
+            throw Error(bignumberError + "Argument not an object: " + format9);
+          }
+          str2 = x6.toFixed(dp, rm);
+          if (x6.c) {
+            var i4, arr = str2.split("."), g1 = +format9.groupSize, g22 = +format9.secondaryGroupSize, groupSeparator = format9.groupSeparator || "", intPart = arr[0], fractionPart = arr[1], isNeg = x6.s < 0, intDigits = isNeg ? intPart.slice(1) : intPart, len = intDigits.length;
+            if (g22) {
+              i4 = g1;
+              g1 = g22;
+              g22 = i4;
+              len -= i4;
+            }
+            if (g1 > 0 && len > 0) {
+              i4 = len % g1 || g1;
+              intPart = intDigits.substr(0, i4);
+              for (; i4 < len; i4 += g1) intPart += groupSeparator + intDigits.substr(i4, g1);
+              if (g22 > 0) intPart += groupSeparator + intDigits.slice(i4);
+              if (isNeg) intPart = "-" + intPart;
+            }
+            str2 = fractionPart ? intPart + (format9.decimalSeparator || "") + ((g22 = +format9.fractionGroupSize) ? fractionPart.replace(
+              new RegExp("\\d{" + g22 + "}\\B", "g"),
+              "$&" + (format9.fractionGroupSeparator || "")
+            ) : fractionPart) : intPart;
+          }
+          return (format9.prefix || "") + str2 + (format9.suffix || "");
+        };
+        P4.toFraction = function(md) {
+          var d5, d0, d1, d22, e6, exp, n7, n04, n1, q7, r5, s4, x6 = this, xc = x6.c;
+          if (md != null) {
+            n7 = new BigNumber2(md);
+            if (!n7.isInteger() && (n7.c || n7.s !== 1) || n7.lt(ONE)) {
+              throw Error(bignumberError + "Argument " + (n7.isInteger() ? "out of range: " : "not an integer: ") + valueOf(n7));
+            }
+          }
+          if (!xc) return new BigNumber2(x6);
+          d5 = new BigNumber2(ONE);
+          n1 = d0 = new BigNumber2(ONE);
+          d1 = n04 = new BigNumber2(ONE);
+          s4 = coeffToString(xc);
+          e6 = d5.e = s4.length - x6.e - 1;
+          d5.c[0] = POWS_TEN[(exp = e6 % LOG_BASE) < 0 ? LOG_BASE + exp : exp];
+          md = !md || n7.comparedTo(d5) > 0 ? e6 > 0 ? d5 : n1 : n7;
+          exp = MAX_EXP;
+          MAX_EXP = 1 / 0;
+          n7 = new BigNumber2(s4);
+          n04.c[0] = 0;
+          for (; ; ) {
+            q7 = div(n7, d5, 0, 1);
+            d22 = d0.plus(q7.times(d1));
+            if (d22.comparedTo(md) == 1) break;
+            d0 = d1;
+            d1 = d22;
+            n1 = n04.plus(q7.times(d22 = n1));
+            n04 = d22;
+            d5 = n7.minus(q7.times(d22 = d5));
+            n7 = d22;
+          }
+          d22 = div(md.minus(d0), d1, 0, 1);
+          n04 = n04.plus(d22.times(n1));
+          d0 = d0.plus(d22.times(d1));
+          n04.s = n1.s = x6.s;
+          e6 = e6 * 2;
+          r5 = div(n1, d1, e6, ROUNDING_MODE).minus(x6).abs().comparedTo(
+            div(n04, d0, e6, ROUNDING_MODE).minus(x6).abs()
+          ) < 1 ? [n1, d1] : [n04, d0];
+          MAX_EXP = exp;
+          return r5;
+        };
+        P4.toNumber = function() {
+          return +valueOf(this);
+        };
+        P4.toPrecision = function(sd, rm) {
+          if (sd != null) intCheck(sd, 1, MAX);
+          return format8(this, sd, rm, 2);
+        };
+        P4.toString = function(b6) {
+          var str2, n7 = this, s4 = n7.s, e6 = n7.e;
+          if (e6 === null) {
+            if (s4) {
+              str2 = "Infinity";
+              if (s4 < 0) str2 = "-" + str2;
+            } else {
+              str2 = "NaN";
+            }
+          } else {
+            if (b6 == null) {
+              str2 = e6 <= TO_EXP_NEG || e6 >= TO_EXP_POS ? toExponential(coeffToString(n7.c), e6) : toFixedPoint(coeffToString(n7.c), e6, "0");
+            } else if (b6 === 10 && alphabetHasNormalDecimalDigits) {
+              n7 = round(new BigNumber2(n7), DECIMAL_PLACES + e6 + 1, ROUNDING_MODE);
+              str2 = toFixedPoint(coeffToString(n7.c), n7.e, "0");
+            } else {
+              intCheck(b6, 2, ALPHABET2.length, "Base");
+              str2 = convertBase(toFixedPoint(coeffToString(n7.c), e6, "0"), 10, b6, s4, true);
+            }
+            if (s4 < 0 && n7.c[0]) str2 = "-" + str2;
+          }
+          return str2;
+        };
+        P4.valueOf = P4.toJSON = function() {
+          return valueOf(this);
+        };
+        P4._isBigNumber = true;
+        if (configObject != null) BigNumber2.set(configObject);
+        return BigNumber2;
+      }
+      function bitFloor(n7) {
+        var i4 = n7 | 0;
+        return n7 > 0 || n7 === i4 ? i4 : i4 - 1;
+      }
+      function coeffToString(a4) {
+        var s4, z4, i4 = 1, j6 = a4.length, r5 = a4[0] + "";
+        for (; i4 < j6; ) {
+          s4 = a4[i4++] + "";
+          z4 = LOG_BASE - s4.length;
+          for (; z4--; s4 = "0" + s4) ;
+          r5 += s4;
+        }
+        for (j6 = r5.length; r5.charCodeAt(--j6) === 48; ) ;
+        return r5.slice(0, j6 + 1 || 1);
+      }
+      function compare2(x6, y4) {
+        var a4, b6, xc = x6.c, yc = y4.c, i4 = x6.s, j6 = y4.s, k5 = x6.e, l6 = y4.e;
+        if (!i4 || !j6) return null;
+        a4 = xc && !xc[0];
+        b6 = yc && !yc[0];
+        if (a4 || b6) return a4 ? b6 ? 0 : -j6 : i4;
+        if (i4 != j6) return i4;
+        a4 = i4 < 0;
+        b6 = k5 == l6;
+        if (!xc || !yc) return b6 ? 0 : !xc ^ a4 ? 1 : -1;
+        if (!b6) return k5 > l6 ^ a4 ? 1 : -1;
+        j6 = (k5 = xc.length) < (l6 = yc.length) ? k5 : l6;
+        for (i4 = 0; i4 < j6; i4++) if (xc[i4] != yc[i4]) return xc[i4] > yc[i4] ^ a4 ? 1 : -1;
+        return k5 == l6 ? 0 : k5 > l6 ^ a4 ? 1 : -1;
+      }
+      function intCheck(n7, min2, max2, name2) {
+        if (n7 < min2 || n7 > max2 || n7 !== mathfloor(n7)) {
+          throw Error(bignumberError + (name2 || "Argument") + (typeof n7 == "number" ? n7 < min2 || n7 > max2 ? " out of range: " : " not an integer: " : " not a primitive number: ") + String(n7));
+        }
+      }
+      function isOdd(n7) {
+        var k5 = n7.c.length - 1;
+        return bitFloor(n7.e / LOG_BASE) == k5 && n7.c[k5] % 2 != 0;
+      }
+      function toExponential(str2, e6) {
+        return (str2.length > 1 ? str2.charAt(0) + "." + str2.slice(1) : str2) + (e6 < 0 ? "e" : "e+") + e6;
+      }
+      function toFixedPoint(str2, e6, z4) {
+        var len, zs;
+        if (e6 < 0) {
+          for (zs = z4 + "."; ++e6; zs += z4) ;
+          str2 = zs + str2;
+        } else {
+          len = str2.length;
+          if (++e6 > len) {
+            for (zs = z4, e6 -= len; --e6; zs += z4) ;
+            str2 += zs;
+          } else if (e6 < len) {
+            str2 = str2.slice(0, e6) + "." + str2.slice(e6);
+          }
+        }
+        return str2;
+      }
+      BigNumber = clone3();
+      BigNumber["default"] = BigNumber.BigNumber = BigNumber;
+      if (typeof define == "function" && define.amd) {
+        define(function() {
+          return BigNumber;
+        });
+      } else if (typeof module2 != "undefined" && module2.exports) {
+        module2.exports = BigNumber;
+      } else {
+        if (!globalObject) {
+          globalObject = typeof self != "undefined" && self ? self : window;
+        }
+        globalObject.BigNumber = BigNumber;
+      }
+    })(exports2);
+  }
+});
+
+// node_modules/json-bigint/lib/stringify.js
+var require_stringify2 = __commonJS({
+  "node_modules/json-bigint/lib/stringify.js"(exports2, module2) {
+    var BigNumber = require_bignumber();
+    var JSON2 = module2.exports;
+    (function() {
+      "use strict";
+      function f6(n7) {
+        return n7 < 10 ? "0" + n7 : n7;
+      }
+      var cx = /[\u0000\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, gap, indent, meta = {
+        // table of character substitutions
+        "\b": "\\b",
+        "	": "\\t",
+        "\n": "\\n",
+        "\f": "\\f",
+        "\r": "\\r",
+        '"': '\\"',
+        "\\": "\\\\"
+      }, rep;
+      function quote(string4) {
+        escapable.lastIndex = 0;
+        return escapable.test(string4) ? '"' + string4.replace(escapable, function(a4) {
+          var c5 = meta[a4];
+          return typeof c5 === "string" ? c5 : "\\u" + ("0000" + a4.charCodeAt(0).toString(16)).slice(-4);
+        }) + '"' : '"' + string4 + '"';
+      }
+      function str2(key, holder) {
+        var i4, k5, v6, length, mind = gap, partial2, value2 = holder[key], isBigNumber = value2 != null && (value2 instanceof BigNumber || BigNumber.isBigNumber(value2));
+        if (value2 && typeof value2 === "object" && typeof value2.toJSON === "function") {
+          value2 = value2.toJSON(key);
+        }
+        if (typeof rep === "function") {
+          value2 = rep.call(holder, key, value2);
+        }
+        switch (typeof value2) {
+          case "string":
+            if (isBigNumber) {
+              return value2;
+            } else {
+              return quote(value2);
+            }
+          case "number":
+            return isFinite(value2) ? String(value2) : "null";
+          case "boolean":
+          case "null":
+          case "bigint":
+            return String(value2);
+          // If the type is 'object', we might be dealing with an object or an array or
+          // null.
+          case "object":
+            if (!value2) {
+              return "null";
+            }
+            gap += indent;
+            partial2 = [];
+            if (Object.prototype.toString.apply(value2) === "[object Array]") {
+              length = value2.length;
+              for (i4 = 0; i4 < length; i4 += 1) {
+                partial2[i4] = str2(i4, value2) || "null";
+              }
+              v6 = partial2.length === 0 ? "[]" : gap ? "[\n" + gap + partial2.join(",\n" + gap) + "\n" + mind + "]" : "[" + partial2.join(",") + "]";
+              gap = mind;
+              return v6;
+            }
+            if (rep && typeof rep === "object") {
+              length = rep.length;
+              for (i4 = 0; i4 < length; i4 += 1) {
+                if (typeof rep[i4] === "string") {
+                  k5 = rep[i4];
+                  v6 = str2(k5, value2);
+                  if (v6) {
+                    partial2.push(quote(k5) + (gap ? ": " : ":") + v6);
+                  }
+                }
+              }
+            } else {
+              Object.keys(value2).forEach(function(k6) {
+                var v7 = str2(k6, value2);
+                if (v7) {
+                  partial2.push(quote(k6) + (gap ? ": " : ":") + v7);
+                }
+              });
+            }
+            v6 = partial2.length === 0 ? "{}" : gap ? "{\n" + gap + partial2.join(",\n" + gap) + "\n" + mind + "}" : "{" + partial2.join(",") + "}";
+            gap = mind;
+            return v6;
+        }
+      }
+      if (typeof JSON2.stringify !== "function") {
+        JSON2.stringify = function(value2, replacer, space) {
+          var i4;
+          gap = "";
+          indent = "";
+          if (typeof space === "number") {
+            for (i4 = 0; i4 < space; i4 += 1) {
+              indent += " ";
+            }
+          } else if (typeof space === "string") {
+            indent = space;
+          }
+          rep = replacer;
+          if (replacer && typeof replacer !== "function" && (typeof replacer !== "object" || typeof replacer.length !== "number")) {
+            throw new Error("JSON.stringify");
+          }
+          return str2("", { "": value2 });
+        };
+      }
+    })();
+  }
+});
+
+// node_modules/json-bigint/lib/parse.js
+var require_parse3 = __commonJS({
+  "node_modules/json-bigint/lib/parse.js"(exports2, module2) {
+    var BigNumber = null;
+    var suspectProtoRx = /(?:_|\\u005[Ff])(?:_|\\u005[Ff])(?:p|\\u0070)(?:r|\\u0072)(?:o|\\u006[Ff])(?:t|\\u0074)(?:o|\\u006[Ff])(?:_|\\u005[Ff])(?:_|\\u005[Ff])/;
+    var suspectConstructorRx = /(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)/;
+    var json_parse = function(options) {
+      "use strict";
+      var _options = {
+        strict: false,
+        // not being strict means do not generate syntax errors for "duplicate key"
+        storeAsString: false,
+        // toggles whether the values should be stored as BigNumber (default) or a string
+        alwaysParseAsBig: false,
+        // toggles whether all numbers should be Big
+        useNativeBigInt: false,
+        // toggles whether to use native BigInt instead of bignumber.js
+        protoAction: "error",
+        constructorAction: "error"
+      };
+      if (options !== void 0 && options !== null) {
+        if (options.strict === true) {
+          _options.strict = true;
+        }
+        if (options.storeAsString === true) {
+          _options.storeAsString = true;
+        }
+        _options.alwaysParseAsBig = options.alwaysParseAsBig === true ? options.alwaysParseAsBig : false;
+        _options.useNativeBigInt = options.useNativeBigInt === true ? options.useNativeBigInt : false;
+        if (typeof options.constructorAction !== "undefined") {
+          if (options.constructorAction === "error" || options.constructorAction === "ignore" || options.constructorAction === "preserve") {
+            _options.constructorAction = options.constructorAction;
+          } else {
+            throw new Error(
+              `Incorrect value for constructorAction option, must be "error", "ignore" or undefined but passed ${options.constructorAction}`
+            );
+          }
+        }
+        if (typeof options.protoAction !== "undefined") {
+          if (options.protoAction === "error" || options.protoAction === "ignore" || options.protoAction === "preserve") {
+            _options.protoAction = options.protoAction;
+          } else {
+            throw new Error(
+              `Incorrect value for protoAction option, must be "error", "ignore" or undefined but passed ${options.protoAction}`
+            );
+          }
+        }
+      }
+      var at2, ch, escapee = {
+        '"': '"',
+        "\\": "\\",
+        "/": "/",
+        b: "\b",
+        f: "\f",
+        n: "\n",
+        r: "\r",
+        t: "	"
+      }, text2, error54 = function(m4) {
+        throw {
+          name: "SyntaxError",
+          message: m4,
+          at: at2,
+          text: text2
+        };
+      }, next = function(c5) {
+        if (c5 && c5 !== ch) {
+          error54("Expected '" + c5 + "' instead of '" + ch + "'");
+        }
+        ch = text2.charAt(at2);
+        at2 += 1;
+        return ch;
+      }, number4 = function() {
+        var number5, string5 = "";
+        if (ch === "-") {
+          string5 = "-";
+          next("-");
+        }
+        while (ch >= "0" && ch <= "9") {
+          string5 += ch;
+          next();
+        }
+        if (ch === ".") {
+          string5 += ".";
+          while (next() && ch >= "0" && ch <= "9") {
+            string5 += ch;
+          }
+        }
+        if (ch === "e" || ch === "E") {
+          string5 += ch;
+          next();
+          if (ch === "-" || ch === "+") {
+            string5 += ch;
+            next();
+          }
+          while (ch >= "0" && ch <= "9") {
+            string5 += ch;
+            next();
+          }
+        }
+        number5 = +string5;
+        if (!isFinite(number5)) {
+          error54("Bad number");
+        } else {
+          if (BigNumber == null) BigNumber = require_bignumber();
+          if (string5.length > 15)
+            return _options.storeAsString ? string5 : _options.useNativeBigInt ? BigInt(string5) : new BigNumber(string5);
+          else
+            return !_options.alwaysParseAsBig ? number5 : _options.useNativeBigInt ? BigInt(number5) : new BigNumber(number5);
+        }
+      }, string4 = function() {
+        var hex3, i4, string5 = "", uffff;
+        if (ch === '"') {
+          var startAt = at2;
+          while (next()) {
+            if (ch === '"') {
+              if (at2 - 1 > startAt) string5 += text2.substring(startAt, at2 - 1);
+              next();
+              return string5;
+            }
+            if (ch === "\\") {
+              if (at2 - 1 > startAt) string5 += text2.substring(startAt, at2 - 1);
+              next();
+              if (ch === "u") {
+                uffff = 0;
+                for (i4 = 0; i4 < 4; i4 += 1) {
+                  hex3 = parseInt(next(), 16);
+                  if (!isFinite(hex3)) {
+                    break;
+                  }
+                  uffff = uffff * 16 + hex3;
+                }
+                string5 += String.fromCharCode(uffff);
+              } else if (typeof escapee[ch] === "string") {
+                string5 += escapee[ch];
+              } else {
+                break;
+              }
+              startAt = at2;
+            }
+          }
+        }
+        error54("Bad string");
+      }, white = function() {
+        while (ch && ch <= " ") {
+          next();
+        }
+      }, word = function() {
+        switch (ch) {
+          case "t":
+            next("t");
+            next("r");
+            next("u");
+            next("e");
+            return true;
+          case "f":
+            next("f");
+            next("a");
+            next("l");
+            next("s");
+            next("e");
+            return false;
+          case "n":
+            next("n");
+            next("u");
+            next("l");
+            next("l");
+            return null;
+        }
+        error54("Unexpected '" + ch + "'");
+      }, value2, array2 = function() {
+        var array3 = [];
+        if (ch === "[") {
+          next("[");
+          white();
+          if (ch === "]") {
+            next("]");
+            return array3;
+          }
+          while (ch) {
+            array3.push(value2());
+            white();
+            if (ch === "]") {
+              next("]");
+              return array3;
+            }
+            next(",");
+            white();
+          }
+        }
+        error54("Bad array");
+      }, object2 = function() {
+        var key, object3 = /* @__PURE__ */ Object.create(null);
+        if (ch === "{") {
+          next("{");
+          white();
+          if (ch === "}") {
+            next("}");
+            return object3;
+          }
+          while (ch) {
+            key = string4();
+            white();
+            next(":");
+            if (_options.strict === true && Object.hasOwnProperty.call(object3, key)) {
+              error54('Duplicate key "' + key + '"');
+            }
+            if (suspectProtoRx.test(key) === true) {
+              if (_options.protoAction === "error") {
+                error54("Object contains forbidden prototype property");
+              } else if (_options.protoAction === "ignore") {
+                value2();
+              } else {
+                object3[key] = value2();
+              }
+            } else if (suspectConstructorRx.test(key) === true) {
+              if (_options.constructorAction === "error") {
+                error54("Object contains forbidden constructor property");
+              } else if (_options.constructorAction === "ignore") {
+                value2();
+              } else {
+                object3[key] = value2();
+              }
+            } else {
+              object3[key] = value2();
+            }
+            white();
+            if (ch === "}") {
+              next("}");
+              return object3;
+            }
+            next(",");
+            white();
+          }
+        }
+        error54("Bad object");
+      };
+      value2 = function() {
+        white();
+        switch (ch) {
+          case "{":
+            return object2();
+          case "[":
+            return array2();
+          case '"':
+            return string4();
+          case "-":
+            return number4();
+          default:
+            return ch >= "0" && ch <= "9" ? number4() : word();
+        }
+      };
+      return function(source, reviver) {
+        var result;
+        text2 = source + "";
+        at2 = 0;
+        ch = " ";
+        result = value2();
+        white();
+        if (ch) {
+          error54("Syntax error");
+        }
+        return typeof reviver === "function" ? (function walk2(holder, key) {
+          var k5, v6, value3 = holder[key];
+          if (value3 && typeof value3 === "object") {
+            Object.keys(value3).forEach(function(k6) {
+              v6 = walk2(value3, k6);
+              if (v6 !== void 0) {
+                value3[k6] = v6;
+              } else {
+                delete value3[k6];
+              }
+            });
+          }
+          return reviver.call(holder, key, value3);
+        })({ "": result }, "") : result;
+      };
+    };
+    module2.exports = json_parse;
+  }
+});
+
+// node_modules/json-bigint/index.js
+var require_json_bigint = __commonJS({
+  "node_modules/json-bigint/index.js"(exports2, module2) {
+    var json_stringify = require_stringify2().stringify;
+    var json_parse = require_parse3();
+    module2.exports = function(options) {
+      return {
+        parse: json_parse(options),
+        stringify: json_stringify
+      };
+    };
+    module2.exports.parse = json_parse();
+    module2.exports.stringify = json_stringify;
+  }
+});
+
+// server/amazonAdsApi.ts
+function generateUuidV4() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c5) => {
+    const r5 = Math.random() * 16 | 0;
+    const v6 = c5 === "x" ? r5 : r5 & 3 | 8;
+    return v6.toString(16);
+  });
+}
+function createAmazonAdsClient(credentials) {
+  return new AmazonAdsApiClient(credentials);
+}
+async function validateCredentials(credentials) {
+  log5.info("[validateCredentials] \u5F00\u59CB\u9A8C\u8BC1\u51ED\u8BC1:", {
+    clientIdPrefix: credentials.clientId?.substring(0, 30) + "...",
+    clientSecretPrefix: credentials.clientSecret?.substring(0, 20) + "...",
+    refreshTokenPrefix: credentials.refreshToken?.substring(0, 20) + "...",
+    profileId: credentials.profileId,
+    region: credentials.region
+  });
+  try {
+    const client = new AmazonAdsApiClient(credentials);
+    log5.info("[validateCredentials] \u5BA2\u6237\u7AEF\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u83B7\u53D6profiles...");
+    const profiles = await client.getProfiles();
+    log5.debug(`[validateCredentials] \u83B7\u53D6\u5230 ${profiles.length} \u4E2Aprofiles`);
+    return true;
+  } catch (error54) {
+    log5.error("[validateCredentials] \u9A8C\u8BC1\u5931\u8D25:", {
+      message: error54.message,
+      response: error54.response?.data,
+      status: error54.response?.status
+    });
+    return false;
+  }
+}
+var import_json_bigint, log5, JSONBigString, API_ENDPOINTS, OAUTH_TOKEN_URL, OAUTH_AUTH_ENDPOINTS, DEFAULT_REDIRECT_URI, MARKETPLACE_TO_REGION, AmazonAdsApiClient, VALID_TRAFFIC_DATASETS;
+var init_amazonAdsApi = __esm({
+  "server/amazonAdsApi.ts"() {
+    "use strict";
+    init_axios2();
+    import_json_bigint = __toESM(require_json_bigint());
+    init_logger2();
+    log5 = createModuleLogger("AmazonAPI");
+    JSONBigString = (0, import_json_bigint.default)({ storeAsString: true });
+    API_ENDPOINTS = {
+      NA: "https://advertising-api.amazon.com",
+      EU: "https://advertising-api-eu.amazon.com",
+      FE: "https://advertising-api-fe.amazon.com"
+    };
+    OAUTH_TOKEN_URL = "https://api.amazon.com/auth/o2/token";
+    OAUTH_AUTH_ENDPOINTS = {
+      NA: "https://www.amazon.com/ap/oa",
+      EU: "https://eu.account.amazon.com/ap/oa",
+      FE: "https://apac.account.amazon.com/ap/oa"
+    };
+    DEFAULT_REDIRECT_URI = "https://www.ppcopt.com/api/auth/callback";
+    MARKETPLACE_TO_REGION = {
+      US: "NA",
+      CA: "NA",
+      MX: "NA",
+      BR: "NA",
+      UK: "EU",
+      DE: "EU",
+      FR: "EU",
+      IT: "EU",
+      ES: "EU",
+      NL: "EU",
+      SE: "EU",
+      PL: "EU",
+      TR: "EU",
+      AE: "EU",
+      SA: "EU",
+      EG: "EU",
+      IN: "EU",
+      JP: "FE",
+      AU: "FE",
+      SG: "FE"
+    };
+    AmazonAdsApiClient = class {
+      credentials;
+      accessToken = null;
+      tokenExpiry = null;
+      axiosInstance;
+      // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
+      tokenRefreshPromise = null;
+      constructor(credentials) {
+        this.credentials = credentials;
+        this.axiosInstance = axios_default.create({
+          baseURL: API_ENDPOINTS[credentials.region],
+          headers: {
+            "Amazon-Advertising-API-ClientId": credentials.clientId,
+            "Amazon-Advertising-API-Scope": credentials.profileId,
+            "Content-Type": "application/json"
+          },
+          // 设置responseType为text，确保axios返回原始字符串
+          // 这样json-bigint才能正确解析BigInt
+          responseType: "text",
+          // 使用json-bigint解析响应，防止BigInt精度丢失
+          transformResponse: [(data4) => {
+            if (typeof data4 === "string") {
+              try {
+                return JSONBigString.parse(data4);
+              } catch (e6) {
+                return data4;
+              }
+            }
+            return data4;
+          }]
+        });
+        this.axiosInstance.interceptors.request.use(async (config2) => {
+          const token = await this.getAccessToken();
+          config2.headers.Authorization = `Bearer ${token}`;
+          return config2;
+        });
+        this.axiosInstance.interceptors.response.use(
+          (response) => response,
+          async (error54) => {
+            const config2 = error54.config;
+            const status = error54.response?.status;
+            if (!config2._retryCount) {
+              config2._retryCount = 0;
+            }
+            const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+            const MAX_RETRIES = 3;
+            if (isRetryable && config2._retryCount < MAX_RETRIES) {
+              config2._retryCount++;
+              let baseDelay = status === 429 ? 5e3 : 2e3;
+              const retryAfter = error54.response?.headers?.["retry-after"];
+              if (retryAfter) {
+                const retryAfterMs = parseInt(retryAfter) * 1e3;
+                if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
+                  baseDelay = Math.max(baseDelay, retryAfterMs);
+                }
+              }
+              const delay = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
+              log5.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay)}ms, URL: ${config2.url}`);
+              await new Promise((resolve8) => setTimeout(resolve8, delay));
+              return this.axiosInstance(config2);
+            }
+            if (error54.response) {
+              const contentType = error54.response.headers?.["content-type"] || "";
+              const data4 = error54.response.data;
+              if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
+                log5.error(`[Amazon API] v148: HTML\u54CD\u5E94 status=${status}, URL=${config2?.url}`);
+                let errorMessage = "Amazon API returned an error page";
+                if (status === 401) {
+                  errorMessage = "Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743";
+                } else if (status === 403) {
+                  errorMessage = "\u6CA1\u6709\u8BBF\u95EE\u6743\u9650\uFF0C\u8BF7\u68C0\u67E5API\u51ED\u8BC1\u548C\u6743\u9650\u8BBE\u7F6E";
+                } else if (status === 404) {
+                  errorMessage = "API\u7AEF\u70B9\u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8BF7\u6C42URL";
+                } else if (status === 429) {
+                  errorMessage = `API\u9650\u6D41\uFF0C\u5DF2\u91CD\u8BD5${MAX_RETRIES}\u6B21\u4ECD\u5931\u8D25`;
+                } else if (status >= 500) {
+                  errorMessage = `Amazon API\u670D\u52A1\u5668\u9519\u8BEF(${status})\uFF0C\u5DF2\u91CD\u8BD5${config2._retryCount}\u6B21`;
+                }
+                const enhancedError = new Error(errorMessage);
+                enhancedError.originalError = error54;
+                enhancedError.status = status;
+                enhancedError.isHtmlResponse = true;
+                enhancedError.retryCount = config2._retryCount;
+                throw enhancedError;
+              }
+            }
+            if (config2._retryCount > 0) {
+              error54.retryCount = config2._retryCount;
+            }
+            throw error54;
+          }
+        );
+      }
+      /**
+       * 动态设置Profile ID
+       * 用于在同一个API客户端实例中切换不同的广告配置文件
+       * @param profileId - 新的Profile ID
+       */
+      setProfileId(profileId) {
+        this.credentials.profileId = profileId;
+        this.axiosInstance.defaults.headers["Amazon-Advertising-API-Scope"] = profileId;
+      }
+      /**
+       * 获取当前Profile ID
+       */
+      getProfileId() {
+        return this.credentials.profileId;
+      }
+      /**
+       * 生成OAuth授权URL
+       * @param clientId - 客户端编号
+       * @param redirectUri - 回调地址
+       * @param region - 地区（NA/EU/FE），默认NA
+       * @param state - 状态参数，用于防止CSRF攻击
+       */
+      static generateAuthUrl(clientId, redirectUri, region = "NA", state6) {
+        const params = new URLSearchParams({
+          client_id: clientId,
+          scope: "advertising::campaign_management",
+          response_type: "code",
+          redirect_uri: redirectUri
+        });
+        if (state6) {
+          params.append("state", state6);
+        }
+        const authEndpoint = OAUTH_AUTH_ENDPOINTS[region];
+        return `${authEndpoint}?${params.toString()}`;
+      }
+      /**
+       * 生成所有地区的OAuth授权URL
+       */
+      static generateAllRegionAuthUrls(clientId, redirectUri, state6) {
+        return {
+          NA: this.generateAuthUrl(clientId, redirectUri, "NA", state6),
+          EU: this.generateAuthUrl(clientId, redirectUri, "EU", state6),
+          FE: this.generateAuthUrl(clientId, redirectUri, "FE", state6)
+        };
+      }
+      /**
+       * 使用授权码获取Token
+       */
+      static async exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
+        const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          client_secret: clientSecret
+        }), {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" }
+        });
+        return response.data;
+      }
+      /**
+       * 获取Access Token（自动刷新）
+       */
+      async getAccessToken() {
+        if (this.accessToken && this.tokenExpiry && /* @__PURE__ */ new Date() < this.tokenExpiry) {
+          return this.accessToken;
+        }
+        if (this.tokenRefreshPromise) {
+          return this.tokenRefreshPromise;
+        }
+        this.tokenRefreshPromise = this.doRefreshToken();
+        try {
+          const token = await this.tokenRefreshPromise;
+          return token;
+        } finally {
+          this.tokenRefreshPromise = null;
+        }
+      }
+      /**
+       * v148: 实际执行Token刷新的内部方法
+       */
+      async doRefreshToken() {
+        const MAX_TOKEN_RETRIES = 3;
+        let lastError = null;
+        for (let attempt = 1; attempt <= MAX_TOKEN_RETRIES; attempt++) {
+          try {
+            log5.debug(`[Amazon API] Refreshing access token... (attempt ${attempt}/${MAX_TOKEN_RETRIES})`);
+            const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: this.credentials.refreshToken,
+              client_id: this.credentials.clientId,
+              client_secret: this.credentials.clientSecret
+            }), {
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              timeout: 15e3
+            });
+            this.accessToken = response.data.access_token;
+            this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1e3);
+            log5.debug("[Amazon API] Access token refreshed successfully");
+            return this.accessToken;
+          } catch (error54) {
+            lastError = error54;
+            if (error54.response) {
+              const contentType = error54.response.headers?.["content-type"] || "";
+              const data4 = error54.response.data;
+              if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
+                log5.error("[Amazon API] Token refresh returned HTML instead of JSON");
+                this.accessToken = null;
+                this.tokenExpiry = null;
+                throw new Error("Token\u5237\u65B0\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002\u53EF\u80FD\u539F\u56E0\uFF1ARefresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548");
+              }
+              if (error54.response.status === 400) {
+                const errorData = error54.response.data;
+                if (errorData?.error === "invalid_grant") {
+                  this.accessToken = null;
+                  this.tokenExpiry = null;
+                  throw new Error("Refresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743");
+                }
+              }
+              if (error54.response.status === 401 || error54.response.status === 403) {
+                this.accessToken = null;
+                this.tokenExpiry = null;
+                throw new Error(`Token\u5237\u65B0\u8BA4\u8BC1\u5931\u8D25(${error54.response.status})\uFF0C\u8BF7\u68C0\u67E5API\u51ED\u8BC1`);
+              }
+            }
+            log5.warn(`[Amazon API] Token refresh attempt ${attempt}/${MAX_TOKEN_RETRIES} failed: ${error54.message}`);
+            if (attempt < MAX_TOKEN_RETRIES) {
+              const delay = Math.pow(2, attempt) * 1e3 + Math.random() * 1e3;
+              log5.debug(`[Amazon API] Retrying token refresh in ${Math.round(delay)}ms...`);
+              await new Promise((r5) => setTimeout(r5, delay));
+            }
+          }
+        }
+        this.accessToken = null;
+        this.tokenExpiry = null;
+        log5.error(`[Amazon API] Token refresh failed after ${MAX_TOKEN_RETRIES} attempts: ${lastError?.message}`);
+        throw lastError;
+      }
+      /**
+       * 获取广告配置文件列表
+       * 注意：获取profiles时不需要Amazon-Advertising-API-Scope header
+       */
+      async getProfiles() {
+        const token = await this.getAccessToken();
+        const response = await axios_default.get(`${API_ENDPOINTS[this.credentials.region]}/v2/profiles`, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Amazon-Advertising-API-ClientId": this.credentials.clientId,
+            "Content-Type": "application/json"
+          }
+        });
+        return response.data;
+      }
+      // ==================== Sponsored Products API ====================
+      /**
+       * 获取SP广告活动列表
+       * 注意：SP API v3需要特定的Content-Type header
+       * 如果vendor MIME type失败，回退到application/json
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpCampaigns(filters) {
+        const allCampaigns = [];
+        let nextToken;
+        const headerVariants = [
+          { "Content-Type": "application/vnd.spCampaign.v3+json", "Accept": "application/vnd.spCampaign.v3+json" },
+          { "Content-Type": "application/json", "Accept": "application/json" }
+        ];
+        let workingHeaders = null;
+        let lastError = null;
+        do {
+          const body = {
+            maxResults: 100,
+            // 请求扩展字段，包括startDate和endDate
+            includeExtendedDataFields: true
+          };
+          if (filters?.stateFilter) {
+            body.stateFilter = { include: [filters.stateFilter] };
+          }
+          if (filters?.nameFilter) {
+            body.nameFilter = { queryTermMatchType: "BROAD_MATCH", include: [filters.nameFilter] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          if (workingHeaders) {
+            try {
+              const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers: workingHeaders });
+              const campaigns7 = response.data.campaigns || [];
+              allCampaigns.push(...campaigns7);
+              nextToken = response.data.nextToken;
+              log5.debug(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+            } catch (error54) {
+              log5.error("[SP API] Error fetching campaigns:", error54.message);
+              throw error54;
+            }
+          } else {
+            for (const headers of headerVariants) {
+              try {
+                const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers });
+                workingHeaders = headers;
+                const campaigns7 = response.data.campaigns || [];
+                allCampaigns.push(...campaigns7);
+                nextToken = response.data.nextToken;
+                log5.debug(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+                break;
+              } catch (error54) {
+                lastError = error54;
+                if (error54.response?.status === 415) {
+                  log5.warn(`SP campaigns list failed with headers ${JSON.stringify(headers)}, trying next variant...`);
+                  continue;
+                }
+                throw error54;
+              }
+            }
+            if (!workingHeaders) {
+              throw lastError;
+            }
+          }
+        } while (nextToken);
+        log5.debug(`[SP API] Total campaigns fetched: ${allCampaigns.length}`);
+        if (allCampaigns.length > 0) {
+          log5.debug("[SP API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
+          log5.debug("[SP API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
+          log5.debug("[SP API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
+        }
+        return allCampaigns;
+      }
+      /**
+       * 创建SP广告活动
+       */
+      async createSpCampaign(campaign) {
+        const response = await this.axiosInstance.post("/sp/campaigns", {
+          campaigns: [campaign]
+        }, {
+          headers: {
+            "Content-Type": "application/vnd.spCampaign.v3+json",
+            "Accept": "application/vnd.spCampaign.v3+json"
+          }
+        });
+        return response.data.campaigns[0];
+      }
+      /**
+       * 更新SP广告活动
+       */
+      async updateSpCampaign(campaignId, updates) {
+        const formattedUpdates = { ...updates };
+        if (formattedUpdates.dailyBudget !== void 0) {
+          formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
+        }
+        const requestBody = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
+        log5.debug(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
+        await this.axiosInstance.put("/sp/campaigns", requestBody, {
+          headers: {
+            "Content-Type": "application/vnd.spCampaign.v3+json",
+            "Accept": "application/vnd.spCampaign.v3+json"
+          }
+        });
+      }
+      /**
+       * 获取SP广告组列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpAdGroups(campaignId) {
+        const allAdGroups = [];
+        let nextToken;
+        const headerVariants = [
+          { "Content-Type": "application/vnd.spAdGroup.v3+json", "Accept": "application/vnd.spAdGroup.v3+json" },
+          { "Content-Type": "application/json", "Accept": "application/json" }
+        ];
+        let workingHeaders = null;
+        let lastError = null;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          if (workingHeaders) {
+            try {
+              const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers: workingHeaders });
+              const adGroups4 = response.data.adGroups || [];
+              allAdGroups.push(...adGroups4);
+              nextToken = response.data.nextToken;
+              log5.debug(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+            } catch (error54) {
+              log5.error("[SP API] Error fetching ad groups:", error54.message);
+              throw error54;
+            }
+          } else {
+            for (const headers of headerVariants) {
+              try {
+                const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers });
+                workingHeaders = headers;
+                const adGroups4 = response.data.adGroups || [];
+                allAdGroups.push(...adGroups4);
+                nextToken = response.data.nextToken;
+                log5.debug(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+                break;
+              } catch (error54) {
+                lastError = error54;
+                if (error54.response?.status === 415) {
+                  continue;
+                }
+                throw error54;
+              }
+            }
+            if (!workingHeaders) {
+              throw lastError;
+            }
+          }
+        } while (nextToken);
+        log5.debug(`[SP API] Total ad groups fetched: ${allAdGroups.length}`);
+        return allAdGroups;
+      }
+      /**
+       * 获取SP关键词列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpKeywords(adGroupId) {
+        const allKeywords = [];
+        let nextToken;
+        const headerVariants = [
+          { "Content-Type": "application/vnd.spKeyword.v3+json", "Accept": "application/vnd.spKeyword.v3+json" },
+          { "Content-Type": "application/json", "Accept": "application/json" }
+        ];
+        let workingHeaders = null;
+        let lastError = null;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          body.stateFilter = { include: ["ENABLED", "PAUSED", "ARCHIVED"] };
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          if (workingHeaders) {
+            try {
+              const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers: workingHeaders });
+              const keywords9 = response.data.keywords || [];
+              allKeywords.push(...keywords9);
+              nextToken = response.data.nextToken;
+              log5.debug(`[SP API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+            } catch (error54) {
+              log5.error(`[SP API] Error fetching keywords: ${error54.message} ${error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : ""}`);
+              throw error54;
+            }
+          } else {
+            for (const headers of headerVariants) {
+              try {
+                const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers });
+                workingHeaders = headers;
+                const keywords9 = response.data.keywords || [];
+                allKeywords.push(...keywords9);
+                nextToken = response.data.nextToken;
+                log5.debug(`[SP API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+                break;
+              } catch (error54) {
+                lastError = error54;
+                log5.warn(`[SP API] listSpKeywords header variant failed (status=${error54.response?.status}):`, error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : error54.message);
+                if (error54.response?.status === 415 || error54.response?.status === 400) {
+                  continue;
+                }
+                throw error54;
+              }
+            }
+            if (!workingHeaders) {
+              throw lastError;
+            }
+          }
+        } while (nextToken);
+        log5.debug(`[SP API] Total keywords fetched: ${allKeywords.length}`);
+        return allKeywords;
+      }
+      /**
+       * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
+       */
+      async createSpKeywords(keywords9) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allCreatedKeywords = [];
+        const allErrors = [];
+        const totalBatches = Math.ceil(keywords9.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: createSpKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywords9.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchKeywords = keywords9.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.info(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchKeywords.length}\u4E2A\u5173\u952E\u8BCD\u521B\u5EFA`);
+          try {
+            const formattedKeywords = batchKeywords.map((k5) => ({
+              adGroupId: String(k5.adGroupId),
+              campaignId: String(k5.campaignId),
+              keywordText: k5.keywordText,
+              matchType: (k5.matchType || "EXACT").toUpperCase(),
+              bid: Number(k5.bid.toFixed(2)),
+              state: (k5.state || "enabled").toUpperCase()
+            }));
+            const requestBody = { keywords: formattedKeywords };
+            const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords && typeof responseKeywords === "object" && !Array.isArray(responseKeywords)) {
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                for (const item of responseKeywords.success) {
+                  const idx = item.index || 0;
+                  allCreatedKeywords.push({
+                    keywordId: item.keywordId,
+                    keywordText: batchKeywords[idx]?.keywordText || "",
+                    code: "SUCCESS"
+                  });
+                }
+              }
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const item of responseKeywords.error) {
+                  allErrors.push(item);
+                  const errorDetail = item.description || item.details || item.message || "";
+                  allCreatedKeywords.push({
+                    keywordId: null,
+                    keywordText: batchKeywords[item.index]?.keywordText || "",
+                    code: item.code || "ERROR"
+                  });
+                  log5.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${batchKeywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}"`);
+                }
+              }
+            } else if (Array.isArray(responseKeywords)) {
+              for (const k5 of responseKeywords) {
+                allCreatedKeywords.push({
+                  keywordId: k5.keywordId,
+                  keywordText: k5.keywordText || "",
+                  code: k5.code || "SUCCESS"
+                });
+                if (k5.code && k5.code !== "SUCCESS") allErrors.push(k5);
+              }
+            }
+          } catch (error54) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5173\u952E\u8BCD\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error54.response?.data || error54.message}`);
+            for (const kw of batchKeywords) {
+              allCreatedKeywords.push({ keywordId: null, keywordText: kw.keywordText, code: "BATCH_ERROR" });
+              allErrors.push({ keywordText: kw.keywordText, code: "BATCH_ERROR", details: error54.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5173\u952E\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${keywords9.length}, \u6210\u529F=${allCreatedKeywords.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, createdKeywords: allCreatedKeywords, errors: allErrors };
+      }
+      /**
+       * 更新关键词出价
+       */
+      async updateKeywordBids(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          keywordId: String(u5.keywordId),
+          bid: Number(u5.bid.toFixed(2))
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: updateKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { keywords: batch };
+          log5.info(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
+          try {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords) {
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const err2 of responseKeywords.error) {
+                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  log5.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                totalSuccess += responseKeywords.success.length;
+              }
+            }
+          } catch (batchErr) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u51FA\u4EF7\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, errors: allErrors };
+      }
+      /**
+       * v134: 更新关键词状态（enabled/paused/archived）
+       * 通过 PUT /sp/keywords API 更新关键词的 state 字段
+       * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
+       */
+      async updateKeywordStatus(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          keywordId: String(u5.keywordId),
+          state: u5.state.toUpperCase()
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: updateKeywordStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { keywords: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords) {
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const err2 of responseKeywords.error) {
+                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  log5.error(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                totalSuccess += responseKeywords.success.length;
+              }
+            }
+          } catch (batchErr) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u72B6\u6001\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+      }
+      /**
+       * v134: 更新商品定向状态（enabled/paused/archived）
+       * 通过 PUT /sp/targets API 更新商品定向的 state 字段
+       */
+      async updateProductTargetStatus(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          targetId: String(u5.targetId),
+          state: u5.state.toUpperCase()
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: updateProductTargetStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { targetingClauses: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets) {
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const err2 of responseTargets.error) {
+                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                }
+              }
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                totalSuccess += responseTargets.success.length;
+              }
+            }
+          } catch (batchErr) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+      }
+      /**
+       * v135: 更新SP广告组状态
+       * 通过 PUT /sp/adGroups 更新广告组的state字段
+       */
+      async updateSpAdGroupStatus(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          adGroupId: String(u5.adGroupId),
+          state: u5.state.toUpperCase()
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: updateSpAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { adGroups: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/adGroups", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spAdGroup.v3+json",
+                "Accept": "application/vnd.spAdGroup.v3+json"
+              }
+            });
+            const responseAdGroups = response.data?.adGroups;
+            if (responseAdGroups) {
+              if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
+                for (const err2 of responseAdGroups.error) {
+                  allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                }
+              }
+              if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
+                totalSuccess += responseAdGroups.success.length;
+              }
+            }
+          } catch (batchErr) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+      }
+      /**
+       * 获取SP商品定位列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpProductTargets(adGroupId) {
+        const allTargets = [];
+        let nextToken;
+        const headerVariants = [
+          { "Content-Type": "application/vnd.spTargetingClause.v3+json", "Accept": "application/vnd.spTargetingClause.v3+json" },
+          { "Content-Type": "application/json", "Accept": "application/json" }
+        ];
+        let workingHeaders = null;
+        let lastError = null;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          if (workingHeaders) {
+            try {
+              const response = await this.axiosInstance.post("/sp/targets/list", body, { headers: workingHeaders });
+              const targets = response.data.targetingClauses || [];
+              allTargets.push(...targets);
+              nextToken = response.data.nextToken;
+              log5.debug(`[SP API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+            } catch (error54) {
+              log5.error("[SP API] Error fetching targets:", error54.message);
+              throw error54;
+            }
+          } else {
+            for (const headers of headerVariants) {
+              try {
+                const response = await this.axiosInstance.post("/sp/targets/list", body, { headers });
+                workingHeaders = headers;
+                const targets = response.data.targetingClauses || [];
+                allTargets.push(...targets);
+                nextToken = response.data.nextToken;
+                log5.debug(`[SP API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+                break;
+              } catch (error54) {
+                lastError = error54;
+                if (error54.response?.status === 415) {
+                  continue;
+                }
+                throw error54;
+              }
+            }
+            if (!workingHeaders) {
+              throw lastError;
+            }
+          }
+        } while (nextToken);
+        log5.debug(`[SP API] Total targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * 更新商品定位出价
+       */
+      async updateProductTargetBids(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          targetId: String(u5.targetId),
+          bid: Number(u5.bid.toFixed(2))
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: updateProductTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { targetingClauses: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets) {
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const err2 of responseTargets.error) {
+                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  log5.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${err2.targetId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                totalSuccess += responseTargets.success.length;
+              }
+            }
+          } catch (batchErr) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v199: \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, errors: allErrors };
+      }
+      /**
+       * v310: 创建SP商品定向 (Product Targeting)
+       * 端点: POST /sp/targets
+       * 参照 createSpKeywords 的模式，支持分批处理和限流重试
+       */
+      async createSpProductTargets(targets) {
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 500;
+        const allCreatedTargets = [];
+        const allErrors = [];
+        const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
+        log5.info(`[SP API] v310: createSpProductTargets \u5206\u6279\u5904\u7406: \u603B\u8BA1${targets.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchTargets = targets.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.info(`[SP API] v310: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchTargets.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u521B\u5EFA`);
+          try {
+            const formattedTargets = batchTargets.map((t7) => ({
+              adGroupId: String(t7.adGroupId),
+              campaignId: String(t7.campaignId),
+              expression: t7.expression,
+              expressionType: t7.expressionType || "manual",
+              bid: Number(t7.bid.toFixed(2)),
+              state: (t7.state || "enabled").toUpperCase()
+            }));
+            const requestBody = { targetingClauses: formattedTargets };
+            const response = await this.axiosInstance.post("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets && typeof responseTargets === "object" && !Array.isArray(responseTargets)) {
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                for (const item of responseTargets.success) {
+                  const idx = item.index || 0;
+                  allCreatedTargets.push({
+                    targetId: item.targetId || null,
+                    expression: batchTargets[idx]?.expression || [],
+                    code: "SUCCESS"
+                  });
+                }
+              }
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const item of responseTargets.error) {
+                  allErrors.push(item);
+                  allCreatedTargets.push({
+                    targetId: null,
+                    expression: batchTargets[item.index]?.expression || [],
+                    code: item.code || "ERROR"
+                  });
+                  log5.error(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: code=${item.code}, description="${item.description || item.details || ""}"`);
+                }
+              }
+            } else if (Array.isArray(responseTargets)) {
+              for (const t7 of responseTargets) {
+                allCreatedTargets.push({
+                  targetId: t7.targetId || null,
+                  expression: t7.expression || [],
+                  code: t7.code || "SUCCESS"
+                });
+                if (t7.code && t7.code !== "SUCCESS") allErrors.push(t7);
+              }
+            }
+          } catch (error54) {
+            log5.error(`[SP API] v310: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error54.response?.data || error54.message}`);
+            for (const t7 of batchTargets) {
+              allCreatedTargets.push({ targetId: null, expression: t7.expression, code: "BATCH_ERROR" });
+              allErrors.push({ expression: t7.expression, code: "BATCH_ERROR", details: error54.message });
+            }
+            if (error54.response?.status === 429) {
+              const throttleWait = BATCH_DELAY_MS * 5;
+              log5.debug(`[SP API] v310: \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED...`);
+              await new Promise((resolve8) => setTimeout(resolve8, throttleWait));
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u6210\u529F=${allCreatedTargets.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, createdTargets: allCreatedTargets, errors: allErrors };
+      }
+      // ==================== 报告 API ====================
+      /**
+       * 请求SP广告活动绩效报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 重要: SP报表可以直接获取campaignBudget和campaignStatus
+       * 
+       * Report API v3 支持的字段（2026年1月更新）:
+       * - campaignBudgetAmount: 预算金额
+       * - campaignBudgetType: 预算类型 (DAILY/LIFETIME)
+       * - campaignBudgetCurrencyCode: 预算货币代码
+       * - unitsSoldClicks14d: 14天点击归因销售单位数
+       * - unitsSoldSameSku14d: 14天同SKU销售单位数
+       * - dpv14d: 14天详情页浏览量
+       * - addToCart14d: 14天加购数
+       * 注意: topOfSearchImpressionShare 目前不支持通过 Report API v3 获取
+       */
+      async requestSpCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedSales7d", "attributedConversions7d"]) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Campaign Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["campaign"],
+              columns: [
+                // 基础信息 - 根据Excel文档SP Campaign sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                "campaignStatus",
+                // Excel: campaignStatus - 状态
+                "campaignBudgetAmount",
+                // Excel: campaignBudgetAmount - 预算金额
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "campaignBudgetType",
+                // Excel: campaignBudgetType - 预算类型
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "clickThroughRate",
+                // Excel: clickThroughRate - 点击率
+                // 花费指标 (SP使用cost)
+                "cost",
+                // Excel: cost - 支出 (注意: Excel显示为cost而非spend)
+                "costPerClick",
+                // Excel: costPerClick - 每次点击费用
+                // 7天归因销售指标 (SP专用)
+                "sales7d",
+                // Excel: sales7d - 7天总销售额
+                "purchases7d",
+                // Excel: purchases7d - 7天订单总数
+                "unitsSoldClicks7d",
+                // Excel: unitsSoldClicks7d - 7天总销量
+                // 同SKU指标
+                "attributedSalesSameSku7d",
+                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+                "unitsSoldSameSku7d"
+                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+                // 'salesOtherSku7d' and 'unitsSoldOtherSku7d' are NOT valid SP Campaign columns (removed in v104)
+                // Use attributedSalesSameSku7d and unitsSoldSameSku7d instead
+              ],
+              // 添加filters配置
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "spCampaigns",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP关键词绩效报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       */
+      async requestSpKeywordReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5173\u952E\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Keyword Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["targeting"],
+              columns: [
+                // 基础信息 - v242: 移除不属于keyword报告的字段(advertisedSku/Asin/targetId/targetingExpression/targetingText)
+                // v242: 使用startDate/endDate替代date (SUMMARY模式不支持date)
+                "startDate",
+                "endDate",
+                "campaignId",
+                "campaignName",
+                // 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // 货币
+                "adGroupId",
+                "adGroupName",
+                // 广告组名称
+                "keywordId",
+                // 关键词ID
+                "keyword",
+                // 关键词文本
+                "keywordBid",
+                // 关键词出价
+                "keywordType",
+                "matchType",
+                "targeting",
+                // 定位表达式
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "clickThroughRate",
+                // Excel: clickThroughRate - 点击率
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                "costPerClick",
+                // Excel: costPerClick - 每次点击费用
+                // 7天归因销售指标
+                "sales7d",
+                // Excel: sales7d - 7天总销售额
+                "acosClicks7d",
+                // Excel: acosClicks7d - ACOS
+                "roasClicks7d",
+                // Excel: roasClicks7d - ROAS
+                "purchases7d",
+                // Excel: purchases7d - 7天订单总数
+                "unitsSoldClicks7d",
+                // Excel: unitsSoldClicks7d - 7天总销量
+                // 同SKU/其他SKU指标
+                "unitsSoldSameSku7d",
+                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+                "unitsSoldOtherSku7d",
+                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+                "attributedSalesSameSku7d",
+                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+                "salesOtherSku7d"
+                // Excel: salesOtherSku7d - 7天其他SKU销售额
+              ],
+              reportTypeId: "spTargeting",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] \u5173\u952E\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u5173\u952E\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB品牌广告活动报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d 字段
+       * 使用 sales/purchases 会导致数据为空！
+       * 
+       * Report API v3 支持的SB字段（2026年1月更新）:
+       * - attributedSales14d: 14天归因销售额
+       * - attributedConversions14d: 14天归因转化数
+       * - brandedSearches14d: 14天品牌搜索数
+       * - brandedSearchesClicks14d: 14天品牌搜索点击数
+       * - dpv14d: 14天详情页浏览量
+       */
+      async requestSbCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d"]) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SB\u54C1\u724C\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SB Campaign Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["campaign"],
+              columns: [
+                // 基础信息 - 根据Excel文档SB Campaign sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignStatus",
+                "campaignBudgetAmount",
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "campaignBudgetType",
+                "costType",
+                // Excel: costType - 费用类型
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "viewableImpressions",
+                // Excel: viewableImpressions - 可见展示次数
+                "viewabilityRate",
+                // Excel: viewabilityRate - 观看率 (VTR)
+                "viewClickThroughRate",
+                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
+                // 花费指标 (SB使用cost)
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标 (SB使用14天归因)
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单量
+                "unitsSold",
+                // Excel: unitsSold - 14天总单位数
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks",
+                // Excel: purchasesClicks - 14天订单总数(点击)
+                "unitsSoldClicks",
+                // Excel: unitsSoldClicks - 14天总数量(点击)
+                // 详情页浏览
+                "detailPageViews",
+                // Excel: detailPageViews - 14天详情页浏览量
+                // 视频指标
+                "videoFirstQuartileViews",
+                // Excel: videoFirstQuartileViews - 视频第一四分位观看次数
+                "videoMidpointViews",
+                // Excel: videoMidpointViews - 视频中间点观看次数
+                "videoThirdQuartileViews",
+                // Excel: videoThirdQuartileViews - 视频第三四分位观看次数
+                "videoCompleteViews",
+                // Excel: videoCompleteViews - 视频完整观看次数
+                "videoUnmutes",
+                // Excel: videoUnmutes - 视频取消静音次数
+                "video5SecondViews",
+                // Excel: video5SecondViews - 5秒观看次数
+                "video5SecondViewRate",
+                // Excel: video5SecondViewRate - 5秒观看率
+                // 品牌搜索
+                "brandedSearches",
+                // Excel: brandedSearches - 14天品牌搜索次数
+                "brandedSearchesClicks",
+                // Excel: brandedSearchesClicks - 品牌搜索点击转化率
+                // 新客指标
+                "newToBrandPurchases",
+                // Excel: newToBrandPurchases - 14天品牌新客户订单数
+                "newToBrandPurchasesPercentage",
+                // Excel: newToBrandPurchasesPercentage - 14天订单占比新品牌
+                "newToBrandSales",
+                // Excel: newToBrandSales - 14天新品牌销售额
+                "newToBrandSalesPercentage",
+                // Excel: newToBrandSalesPercentage - 14天新品牌销售额占比
+                "newToBrandUnitsSold",
+                // Excel: newToBrandUnitsSold - 14天新品牌数量
+                "newToBrandUnitsSoldPercentage",
+                // Excel: newToBrandUnitsSoldPercentage - 14天新品牌数量占比
+                "newToBrandPurchasesRate",
+                // Excel: newToBrandPurchasesRate - 14天新品牌订单率
+                // 新品牌详情页
+                "newToBrandDetailPageViews",
+                // Excel: newToBrandDetailPageViews - 新品牌详情页浏览量
+                "newToBrandDetailPageViewsClicks",
+                // Excel: newToBrandDetailPageViewsClicks - 新品牌详情页浏览点击转化率
+                "newToBrandDetailPageViewRate",
+                // Excel: newToBrandDetailPageViewRate - 新品牌详情页浏览率
+                "newToBrandECPDetailPageView",
+                // Excel: newToBrandECPDetailPageView - 新品牌详情页每次浏览有效费用
+                // 加购指标
+                "addToCart",
+                // Excel: addToCart - 14天ATC
+                "addToCartClicks",
+                // Excel: addToCartClicks - 14天ATC点击次数
+                "addToCartRate",
+                // Excel: addToCartRate - 14天ATCR
+                "eCPAddToCart"
+                // Excel: eCPAddToCart - 每次加入购物车有效费用
+              ],
+              // ⚠️ 关键修复: 添加filters配置 - 基于专家Postman配置
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbCampaigns",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD展示广告活动报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 重要修复: SD报告必须使用 attributedSales14d 和 attributedConversions14d 字段
+       * SD还需要 viewAttributedSales14d 来获取浏览归因数据
+       * 
+       * Report API v3 支持的SD字段（2026年1月更新）:
+       * - attributedSales14d: 14天点击归因销售额
+       * - attributedConversions14d: 14天点击归因转化数
+       * - viewAttributedSales14d: 14天浏览归因销售额 (vCPM核心)
+       * - viewAttributedConversions14d: 14天浏览归因转化数
+       * - viewableImpressions: 可见曝光数
+       * - dpv14d: 14天详情页浏览量
+       * - newToBrandPurchases14d: 14天新客购买数
+       * - newToBrandSales14d: 14天新客销售额
+       */
+      async requestSdCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d", "viewAttributedSales14d"]) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SD\u5C55\u793A\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SD Campaign Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["campaign"],
+              columns: [
+                // 基础信息 - 根据Excel文档SD Campaign sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                "campaignStatus",
+                // Excel: campaignStatus - 状态
+                "campaignBudgetAmount",
+                // Excel: campaignBudgetAmount - 预算
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "costType",
+                // Excel: costType - 费用类型
+                // 流量指标
+                "impressions",
+                "impressionsViews",
+                "impressionsFrequencyAverage",
+                "cumulativeReach",
+                "clicks",
+                "viewClickThroughRate",
+                "viewabilityRate",
+                // 花费指标 (SD使用cost)
+                "cost",
+                // 销售指标 (SD使用Clicks后缀 - 基于专家Postman配置)
+                "sales",
+                "salesClicks",
+                "salesPromotedClicks",
+                "purchases",
+                "purchasesClicks",
+                "purchasesPromotedClicks",
+                "unitsSold",
+                "unitsSoldClicks",
+                // 详情页浏览
+                "detailPageViews",
+                "detailPageViewsClicks",
+                // 加购指标
+                "addToCart",
+                "addToCartClicks",
+                "addToCartViews",
+                "addToCartRate",
+                "eCPAddToCart",
+                // 品牌搜索
+                "brandedSearches",
+                "brandedSearchesClicks",
+                "brandedSearchesViews",
+                "brandedSearchRate",
+                "eCPBrandSearch",
+                // 新客指标
+                "newToBrandPurchases",
+                "newToBrandPurchasesClicks",
+                "newToBrandSales",
+                "newToBrandSalesClicks",
+                "newToBrandUnitsSold",
+                "newToBrandUnitsSoldClicks",
+                "newToBrandDetailPageViews",
+                "newToBrandDetailPageViewClicks",
+                "newToBrandDetailPageViewViews",
+                "newToBrandDetailPageViewRate",
+                "newToBrandECPDetailPageView",
+                // 视频指标
+                "videoCompleteViews",
+                "videoFirstQuartileViews",
+                "videoMidpointViews",
+                "videoThirdQuartileViews",
+                "videoUnmutes"
+              ],
+              // SD reports do NOT support filters (removed in v104 - causes 400 error)
+              reportTypeId: "sdCampaigns",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP广告位置报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 
+       * 广告位置类型:
+       * - TOP_OF_SEARCH: 搜索结果顶部
+       * - DETAIL_PAGE: 商品详情页
+       * - OTHER: 其他位置
+       */
+      async requestSpPlacementReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Placement Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["campaign", "campaignPlacement"],
+              columns: [
+                // 基础信息 - 根据Excel文档SP Placement sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBiddingStrategy",
+                // Excel: campaignBiddingStrategy - 出价策略
+                // 'placementClassification' is NOT a valid column (removed in v104)
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                "costPerClick",
+                // Excel: costPerClick - 每次点击费用
+                // 7天归因销售指标
+                "sales7d",
+                // Excel: sales7d - 7天总销售额
+                "purchases7d",
+                // Excel: purchases7d - 7天总订单量
+                "unitsSoldClicks7d"
+                // Excel: unitsSoldClicks7d - 7天总单位数
+              ],
+              reportTypeId: "spCampaigns",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u4F4D\u7F6E\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u4F4D\u7F6E\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP搜索词报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 
+       * 搜索词报告字段:
+       * - searchTerm: 客户实际搜索的关键词
+       * - keywordId/keyword: 触发广告的投放词
+       * - matchType: 匹配类型
+       */
+      async requestSpSearchTermReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Search Term Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["searchTerm"],
+              columns: [
+                // 基础信息 - 根据Excel文档SP Search term sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "targeting",
+                // Excel: targeting - 定位
+                "keywordType",
+                // Excel: keywordType - 匹配类型
+                "searchTerm",
+                // Excel: searchTerm - 客户搜索词
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "clickThroughRate",
+                // Excel: clickThroughRate - 点击率
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                "costPerClick",
+                // Excel: costPerClick - 每次点击费用
+                // 7天归因销售指标
+                "sales7d",
+                // Excel: sales7d - 7天总销售额
+                "acosClicks7d",
+                // Excel: acosClicks7d - ACOS
+                "roasClicks7d",
+                // Excel: roasClicks7d - ROAS
+                "purchases7d",
+                // Excel: purchases7d - 7天订单总数
+                "unitsSoldClicks7d",
+                // Excel: unitsSoldClicks7d - 7天总销量
+                // 同SKU/其他SKU指标
+                "unitsSoldSameSku7d",
+                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+                "unitsSoldOtherSku7d",
+                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+                "attributedSalesSameSku7d",
+                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+                "salesOtherSku7d"
+                // Excel: salesOtherSku7d - 7天其他SKU销售额
+              ],
+              reportTypeId: "spSearchTerm",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u641C\u7D22\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u641C\u7D22\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP已推广商品报告 (Amazon Ads API v3)
+       * 根据Excel文档: SP Advertised Product sheet
+       * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, impressions, clicks,
+       *       clickThroughRate, costPerClick, cost, sales7d, acosClicks7d, roasClicks7d, purchases7d,
+       *       unitsSoldClicks7d, unitsSoldSameSku7d, unitsSoldOtherSku7d, attributedSalesSameSku7d, salesOtherSku7d
+       */
+      async requestSpAdvertisedProductReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Advertised Product Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["advertiser"],
+              columns: [
+                // 基础信息 - 根据Excel文档SP Advertised Product sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "advertisedSku",
+                // Excel: advertisedSku - 已投放广告的SKU
+                "advertisedAsin",
+                // Excel: advertisedAsin - 已投放广告的ASIN
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "clickThroughRate",
+                // Excel: clickThroughRate - 点击率
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                "costPerClick",
+                // Excel: costPerClick - 每次点击费用
+                // 7天归因销售指标
+                "sales7d",
+                // Excel: sales7d - 7天总销售额
+                "acosClicks7d",
+                // Excel: acosClicks7d - ACOS
+                "roasClicks7d",
+                // Excel: roasClicks7d - ROAS
+                "purchases7d",
+                // Excel: purchases7d - 7天订单总数
+                "unitsSoldClicks7d",
+                // Excel: unitsSoldClicks7d - 7天总销量
+                // 同SKU/其他SKU指标
+                "unitsSoldSameSku7d",
+                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+                "unitsSoldOtherSku7d",
+                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+                "attributedSalesSameSku7d",
+                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+                "salesOtherSku7d"
+                // Excel: salesOtherSku7d - 7天其他SKU销售额
+              ],
+              reportTypeId: "spAdvertisedProduct",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP已购买商品报告 (Amazon Ads API v3)
+       * 根据Excel文档: SP Purchased Product sheet
+       * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, keyword, matchType,
+       *       purchasedAsin, unitsSoldOtherSku14d, purchasesOtherSku7d, salesOtherSku14d
+       */
+      async requestSpPurchasedProductReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Purchased Product Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["asin"],
+              columns: [
+                // 基础信息 - 根据Excel文档SP Purchased Product sheet
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "advertisedSku",
+                // Excel: advertisedSku - 已投放SKU
+                "advertisedAsin",
+                // Excel: advertisedAsin - 已投放ASIN
+                "keyword",
+                // Excel: keyword - 定位
+                "matchType",
+                // Excel: matchType - 匹配类型
+                "purchasedAsin",
+                // Excel: purchasedAsin - 已购买ASIN
+                // 销售指标
+                "unitsSoldOtherSku7d",
+                // Excel: unitsSoldOtherSku14d - 7天其他SKU数量
+                "purchasesOtherSku7d",
+                // Excel: purchasesOtherSku7d - 7天其他SKU订单
+                "salesOtherSku7d"
+                // Excel: salesOtherSku14d - 7天其他SKU销量
+              ],
+              reportTypeId: "spPurchasedProduct",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP自动定向报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 
+       * 自动广告匹配组类型:
+       * - CLOSE_MATCH: 紧密匹配
+       * - LOOSE_MATCH: 宽泛匹配
+       * - SUBSTITUTES: 同类商品
+       * - COMPLEMENTS: 关联商品
+       */
+      async requestSpAutoTargetingReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP Auto Targeting Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["targeting"],
+              columns: [
+                // v242: 修复无效列名 - 移除targetId/targetingExpression/targetingText/targetingType/date
+                "startDate",
+                "endDate",
+                "campaignId",
+                "campaignName",
+                "adGroupId",
+                "adGroupName",
+                "keywordId",
+                // 替代targetId
+                "keyword",
+                // 替代targetingText
+                "targeting",
+                // 替代targetingExpression
+                "keywordType",
+                // 替代targetingType
+                "matchType",
+                "impressions",
+                "clicks",
+                "cost",
+                "sales7d",
+                "unitsSoldClicks7d",
+                "purchases7d"
+              ],
+              reportTypeId: "spTargeting",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP广告组绩效报告 (Amazon Ads API v3)
+       * 用于同步广告组级别的绩效数据（曝光、点击、花费、销售、订单等）
+       */
+      async requestSpAdGroupReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SP AdGroup Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["adGroup"],
+              columns: [
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为spAdGroup
+                "campaignId",
+                "campaignName",
+                "adGroupId",
+                "adGroupName",
+                "impressions",
+                "clicks",
+                "cost",
+                "sales7d",
+                "purchases7d",
+                "unitsSoldClicks7d",
+                "attributedSalesSameSku7d",
+                "unitsSoldSameSku7d",
+                "salesOtherSku7d",
+                "unitsSoldOtherSku7d"
+              ],
+              reportTypeId: "spAdGroup",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB广告组绩效报告 (Amazon Ads API v3)
+       * SB使用14天归因窗口
+       */
+      async requestSbAdGroupReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SB AdGroup Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["adGroup"],
+              columns: [
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sbAdGroup
+                "campaignId",
+                "campaignName",
+                "adGroupId",
+                "adGroupName",
+                "impressions",
+                "clicks",
+                "cost",
+                "salesClicks14d",
+                "purchasesClicks14d",
+                "unitsSoldClicks14d",
+                "dpv14d",
+                "attributedSalesNewToBrand14d",
+                "attributedOrdersNewToBrand14d"
+              ],
+              reportTypeId: "sbAdGroup",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD广告组绩效报告 (Amazon Ads API v3)
+       * SD使用14天归因窗口 + 浏览归因
+       */
+      async requestSdAdGroupReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SD AdGroup Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["adGroup"],
+              columns: [
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sdAdGroup
+                "campaignId",
+                "campaignName",
+                "adGroupId",
+                "adGroupName",
+                "impressions",
+                "clicks",
+                "cost",
+                "sales",
+                "purchases",
+                "unitsSold",
+                "newToBrandPurchases",
+                "newToBrandSales"
+              ],
+              reportTypeId: "sdAdGroup",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD定向报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       * 
+       * SD定向类型:
+       * - 受众定向: 浏览再营销、购买再营销等
+       * - 商品定向: ASIN/品类定向
+       */
+      async requestSdTargetingReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SD\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SD Targeting Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["targeting"],
+              columns: [
+                // 基础信息 - 根据Excel文档SD Targeting sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "targetingText",
+                // Excel: targetingText - 定位
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "impressionsViews",
+                // Excel: impressionsViews - 可见展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "detailPageViews",
+                // Excel: detailPageViews - 14天详情页浏览量
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标 (SD使用14天归因)
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单数
+                "unitsSold",
+                // Excel: unitsSold - 14天总单位数
+                // 新客指标
+                "newToBrandPurchases",
+                // Excel: newToBrandPurchases - 14天新品牌订单数
+                "newToBrandSales",
+                // Excel: newToBrandSales - 14天新品牌销售额
+                "newToBrandUnitsSold",
+                // Excel: newToBrandUnitsSold - 14天新品牌单位数
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks",
+                // Excel: purchasesClicks - 14天总订单数(点击)
+                "unitsSoldClicks",
+                // Excel: unitsSoldClicks - 14天总单位数(点击)
+                "newToBrandPurchasesClicks",
+                // Excel: newToBrandPurchasesClicks - 14天新品牌订单(点击)
+                "newToBrandSalesClicks",
+                // Excel: newToBrandSalesClicks - 14天新品牌销售额(点击)
+                "newToBrandUnitsSoldClicks"
+                // Excel: newToBrandUnitsSoldClicks - 14天新品牌单位(点击)
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdTargeting",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD已推广商品报告 (Amazon Ads API v3)
+       * 根据Excel文档: SD Advertised product sheet
+       * 字段: date, campaignName, adGroupName, bidOptimization, promotedSku, promotedAsin,
+       *       impressions, impressionsViews, clicks, detailPageViews, cost, sales, purchases,
+       *       unitsSold, newToBrandPurchases, newToBrandSales, newToBrandUnitsSold,
+       *       salesClicks, purchasesClicks, unitsSoldClicks, newToBrandPurchasesClicks,
+       *       newToBrandSalesClicks, newToBrandUnitsSoldClicks
+       */
+      async requestSdAdvertisedProductReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SD Advertised Product Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["advertiser"],
+              columns: [
+                // 基础信息 - 根据Excel文档SD Advertised product sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "bidOptimization",
+                // Excel: bidOptimization - 出价优化
+                "promotedSku",
+                // Excel: promotedSku - 已投放SKU
+                "promotedAsin",
+                // Excel: promotedAsin - 已投放ASIN
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "impressionsViews",
+                // Excel: impressionsViews - 可见展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "detailPageViews",
+                // Excel: detailPageViews - 14天详情页浏览量
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单数
+                "unitsSold",
+                // Excel: unitsSold - 14天总销量
+                // 新客指标
+                "newToBrandPurchases",
+                // Excel: newToBrandPurchases - 14天新品牌订单数
+                "newToBrandSales",
+                // Excel: newToBrandSales - 14天新品牌销售额
+                "newToBrandUnitsSold",
+                // Excel: newToBrandUnitsSold - 14天新品牌销量
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks",
+                // Excel: purchasesClicks - 14天总订单数(点击)
+                "unitsSoldClicks",
+                // Excel: unitsSoldClicks - 14天总销量(点击)
+                "newToBrandPurchasesClicks",
+                // Excel: newToBrandPurchasesClicks - 14天新品牌订单数(点击)
+                "newToBrandSalesClicks",
+                // Excel: newToBrandSalesClicks - 14天新品牌销量(点击)
+                "newToBrandUnitsSoldClicks"
+                // Excel: newToBrandUnitsSoldClicks - 14天新品牌销量(点击)
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdAdvertisedProduct",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD匹配目标报告 (Amazon Ads API v3)
+       * 根据Excel文档: SD Matchd Target sheet
+       * 字段: date, campaignName, targetingText, matchedTargetAsin, impressions, clicks,
+       *       cost, sales, purchases, unitsSold
+       */
+      async requestSdMatchedTargetReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SD\u5339\u914D\u76EE\u6807\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SD Matched Target Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["matchedTarget"],
+              columns: [
+                // 基础信息 - 根据Excel文档SD Matchd Target sheet
+                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "targetingText",
+                // Excel: targetingText - 定位
+                "matchedTargetAsin",
+                // Excel: matchedTargetAsin - 匹配目标
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标
+                "sales",
+                // Excel: sales - 14天销售总额
+                "purchases",
+                // Excel: purchases - 14天订单总数
+                "unitsSold"
+                // Excel: unitsSold - 14天单位总数
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdMatchedTarget",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5339\u914D\u76EE\u6807\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5339\u914D\u76EE\u6807\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB定向报告 (Amazon Ads API v3)
+       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+       */
+      async requestSbTargetingReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SB\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SB Targeting Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["targeting"],
+              columns: [
+                // 基础信息 - 根据Excel文档SB Keyword sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 币种
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "targetingText",
+                // Excel: targetingText - 定位
+                "matchType",
+                // Excel: matchType - 匹配类型
+                "costType",
+                // Excel: costType - 费用类型
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "topOfSearchImpressionShare",
+                // Excel: topOfSearchImpressionShare - 搜索结果顶部展示次数份额
+                "clicks",
+                // Excel: clicks - 点击次数
+                "viewabilityRate",
+                // Excel: viewabilityRate - 观看率 (VTR)
+                "viewClickThroughRate",
+                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单量
+                "unitsSold",
+                // Excel: unitsSold - 14天总单位数
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks",
+                // Excel: purchasesClicks - 14天总订单数(点击)
+                "unitsSoldClicks",
+                // Excel: unitsSoldClicks - 14天总单位数(点击)
+                // 视频指标
+                "videoFirstQuartileViews",
+                // Excel: videoFirstQuartileViews
+                "videoMidpointViews",
+                // Excel: videoMidpointViews
+                "videoThirdQuartileViews",
+                // Excel: videoThirdQuartileViews
+                "videoCompleteViews",
+                // Excel: videoCompleteViews
+                "videoUnmutes",
+                // Excel: videoUnmutes
+                "video5SecondViews",
+                // Excel: video5SecondViews
+                "video5SecondViewRate",
+                // Excel: video5SecondViewRate
+                // 品牌搜索
+                "brandedSearches",
+                // Excel: brandedSearches
+                // 详情页浏览
+                "detailPageViews",
+                // Excel: detailPageViews
+                // 新客指标
+                "newToBrandPurchases",
+                // Excel: newToBrandPurchases
+                "newToBrandPurchasesPercentage",
+                // Excel: newToBrandPurchasesPercentage
+                "newToBrandSales",
+                // Excel: newToBrandSales
+                "newToBrandSalesPercentage",
+                // Excel: newToBrandSalesPercentage
+                "newToBrandUnitsSold",
+                // Excel: newToBrandUnitsSold
+                "newToBrandUnitsSoldPercentage",
+                // Excel: newToBrandUnitsSoldPercentage
+                "newToBrandPurchasesRate"
+                // Excel: newToBrandPurchasesRate
+              ],
+              // 添加filters配置
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbTargeting",
+              timeUnit: "SUMMARY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB搜索词报告 (Amazon Ads API v3)
+       * 根据Excel文档: SB Search term sheet
+       * 字段: date, campaignName, adGroupName, keywordText, matchType, searchTerm, costType,
+       *       impressions, viewableImpressions, clicks, cost, sales, purchases, unitsSold,
+       *       salesClicks, purchasesClicks
+       */
+      async requestSbSearchTermReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SB\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SB Search Term Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["searchTerm"],
+              columns: [
+                // 基础信息 - 根据Excel文档SB Search term sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 货币
+                "adGroupId",
+                "adGroupName",
+                // Excel: adGroupName - 广告组名称
+                "keywordText",
+                // Excel: keywordText - 定位
+                "matchType",
+                // Excel: matchType - 匹配类型
+                "searchTerm",
+                // Excel: searchTerm - 客户搜索词
+                "costType",
+                // Excel: costType - 费用类型
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "viewableImpressions",
+                // Excel: viewableImpressions - 可见展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单数
+                "unitsSold",
+                // Excel: unitsSold - 14天总单位数
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks"
+                // Excel: purchasesClicks - 14天总订单数(点击)
+              ],
+              // 添加filters配置
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbSearchTerm",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u641C\u7D22\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u641C\u7D22\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB广告位置报告 (Amazon Ads API v3)
+       * 根据Excel文档: SB Campaign Placement sheet
+       * 字段: date, campaignName, costType, placementClassification, impressions, viewableImpressions,
+       *       clicks, cost, sales, purchases, unitsSold, viewabilityRate, viewClickThroughRate,
+       *       videoFirstQuartileViews, videoMidpointViews, videoThirdQuartileViews, videoCompleteViews,
+       *       videoUnmutes, video5SecondViews, video5SecondViewRate, brandedSearches, detailPageViews,
+       *       newToBrandPurchases, newToBrandSales, newToBrandUnitsSold, salesClicks, purchasesClicks, unitsSoldClicks
+       */
+      async requestSbCampaignPlacementReport(startDate, endDate) {
+        try {
+          log5.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
+          const requestBody = {
+            name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["campaign", "placement"],
+              columns: [
+                // 基础信息 - 根据Excel文档SB Campaign Placement sheet
+                "date",
+                "campaignId",
+                "campaignName",
+                // Excel: campaignName - 广告系列名称
+                "campaignBudgetCurrencyCode",
+                // Excel: campaignBudgetCurrencyCode - 币种
+                "costType",
+                // Excel: costType - 费用类型
+                "placementClassification",
+                // Excel: placementClassification - 展示位置
+                // 流量指标
+                "impressions",
+                // Excel: impressions - 展示次数
+                "viewableImpressions",
+                // Excel: viewableImpressions - 可见展示次数
+                "clicks",
+                // Excel: clicks - 点击次数
+                "viewabilityRate",
+                // Excel: viewabilityRate - 观看率 (VTR)
+                "viewClickThroughRate",
+                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
+                // 花费指标
+                "cost",
+                // Excel: cost - 支出
+                // 14天归因销售指标
+                "sales",
+                // Excel: sales - 14天总销售额
+                "purchases",
+                // Excel: purchases - 14天总订单量
+                "unitsSold",
+                // Excel: unitsSold - 14天总单位数
+                // 点击归因指标
+                "salesClicks",
+                // Excel: salesClicks - 14天总销售额(点击)
+                "purchasesClicks",
+                // Excel: purchasesClicks - 14天总订单数量(点击)
+                "unitsSoldClicks",
+                // Excel: unitsSoldClicks - 14天总单位数量(点击)
+                // 视频指标
+                "videoFirstQuartileViews",
+                // Excel: videoFirstQuartileViews
+                "videoMidpointViews",
+                // Excel: videoMidpointViews
+                "videoThirdQuartileViews",
+                // Excel: videoThirdQuartileViews
+                "videoCompleteViews",
+                // Excel: videoCompleteViews
+                "videoUnmutes",
+                // Excel: videoUnmutes
+                "video5SecondViews",
+                // Excel: video5SecondViews
+                "video5SecondViewRate",
+                // Excel: video5SecondViewRate
+                // 品牌搜索
+                "brandedSearches",
+                // Excel: brandedSearches
+                // 详情页浏览
+                "detailPageViews",
+                // Excel: detailPageViews
+                // 新客指标
+                "newToBrandPurchases",
+                // Excel: newToBrandPurchases
+                "newToBrandPurchasesPercentage",
+                // Excel: newToBrandPurchasesPercentage
+                "newToBrandSales",
+                // Excel: newToBrandSales
+                "newToBrandSalesPercentage",
+                // Excel: newToBrandSalesPercentage
+                "newToBrandUnitsSold",
+                // Excel: newToBrandUnitsSold
+                "newToBrandUnitsSoldPercentage",
+                // Excel: newToBrandUnitsSoldPercentage
+                "newToBrandPurchasesRate"
+                // Excel: newToBrandPurchasesRate
+              ],
+              // 添加filters配置
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbCampaigns",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB广告报告 (广告素材级别)
+       * 基于Postman文档: reportTypeId = sbAds, groupBy = ["ads"]
+       */
+      async requestSbAdsReport(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SB Ads Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["ads"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "campaignStatus",
+                "campaignBudgetAmount",
+                "adGroupId",
+                "adGroupName",
+                "adId",
+                "adStatus",
+                "impressions",
+                "clicks",
+                "clickThroughRate",
+                "cost",
+                "costPerClick",
+                "sales",
+                "salesClicks",
+                "purchases",
+                "purchasesClicks",
+                "unitsSold",
+                "unitsSoldClicks",
+                "newToBrandSales",
+                "newToBrandPurchases",
+                "newToBrandUnitsSold",
+                "video5SecondViews",
+                "video5SecondViewRate",
+                "videoFirstQuartileViews",
+                "videoMidpointViews",
+                "videoThirdQuartileViews",
+                "videoCompleteViews",
+                "videoUnmutes",
+                "viewClickThroughRate"
+              ],
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbAds",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u5E7F\u544A\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD广告组报告
+       * 基于Postman文档: reportTypeId = sdAdGroup, groupBy = ["adGroup"]
+       */
+      async requestSdAdGroupReportDetailed(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SD AdGroup Report Detailed ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["adGroup"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "campaignStatus",
+                "campaignBudgetAmount",
+                "adGroupId",
+                "adGroupName",
+                "costType",
+                "bidOptimization",
+                "impressions",
+                "impressionsViews",
+                "clicks",
+                "clickThroughRate",
+                "cost",
+                "costPerClick",
+                "detailPageViews",
+                "detailPageViewsClicks",
+                "sales",
+                "salesClicks",
+                "purchases",
+                "purchasesClicks",
+                "unitsSold",
+                "unitsSoldClicks",
+                "newToBrandSales",
+                "newToBrandSalesClicks",
+                "newToBrandPurchases",
+                "newToBrandPurchasesClicks",
+                "newToBrandUnitsSold",
+                "newToBrandUnitsSoldClicks",
+                "salesBrandHalo",
+                "salesBrandHaloClicks",
+                "unitsSoldBrandHalo",
+                "unitsSoldBrandHaloClicks",
+                "viewabilityRate",
+                "viewClickThroughRate"
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdAdGroup",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD已购买商品报告
+       * 基于Postman文档: reportTypeId = sdPurchasedProduct, groupBy = ["asin"]
+       */
+      async requestSdPurchasedProductReport(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SD Purchased Product Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["asin"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "adGroupId",
+                "adGroupName",
+                "purchasedAsin",
+                "impressions",
+                "clicks",
+                "cost",
+                "sales",
+                "salesClicks",
+                "purchases",
+                "purchasesClicks",
+                "unitsSold",
+                "unitsSoldClicks",
+                "newToBrandSales",
+                "newToBrandPurchases",
+                "newToBrandUnitsSold"
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdPurchasedProduct",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SP无效流量报告
+       * 基于Postman文档: reportTypeId = spGrossAndInvalids, groupBy = ["campaign"]
+       * 数据保留天数: 365天
+       */
+      async requestSpGrossAndInvalidsReport(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SP Gross And Invalids Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_PRODUCTS",
+              groupBy: ["campaign"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "grossImpressions",
+                "grossClickThroughs",
+                "invalidImpressions",
+                "invalidClickThroughs",
+                "invalidImpressionRate",
+                "invalidClickThroughRate"
+              ],
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "spGrossAndInvalids",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SP\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SP\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SB无效流量报告
+       * 基于Postman文档: reportTypeId = sbGrossAndInvalids, groupBy = ["campaign"]
+       * 数据保留天数: 365天
+       */
+      async requestSbGrossAndInvalidsReport(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SB Gross And Invalids Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_BRANDS",
+              groupBy: ["campaign"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "grossImpressions",
+                "grossClickThroughs",
+                "invalidImpressions",
+                "invalidClickThroughs",
+                "invalidImpressionRate",
+                "invalidClickThroughRate"
+              ],
+              filters: [
+                {
+                  field: "campaignStatus",
+                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
+                }
+              ],
+              reportTypeId: "sbGrossAndInvalids",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SB\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SB\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 请求SD无效流量报告
+       * 基于Postman文档: reportTypeId = sdGrossAndInvalids, groupBy = ["campaign"]
+       * 数据保留天数: 365天
+       */
+      async requestSdGrossAndInvalidsReport(profileId, startDate, endDate) {
+        try {
+          this.setProfileId(profileId);
+          const requestBody = {
+            name: `SD Gross And Invalids Report ${startDate} to ${endDate}`,
+            startDate,
+            endDate,
+            configuration: {
+              adProduct: "SPONSORED_DISPLAY",
+              groupBy: ["campaign"],
+              columns: [
+                "date",
+                "campaignId",
+                "campaignName",
+                "grossImpressions",
+                "grossClickThroughs",
+                "invalidImpressions",
+                "invalidClickThroughs",
+                "invalidImpressionRate",
+                "invalidClickThroughRate"
+              ],
+              // v230: SD报告不支持filters参数（会导致400错误），已移除
+              reportTypeId: "sdGrossAndInvalids",
+              timeUnit: "DAILY",
+              format: "GZIP_JSON"
+            }
+          };
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
+              "Accept": "application/vnd.createasyncreportrequest.v3+json"
+            }
+          });
+          log5.info(`[Amazon API] SD\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
+          return response.data.reportId;
+        } catch (error54) {
+          log5.error("[Amazon API] \u8BF7\u6C42SD\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 获取报告状态
+       */
+      async getReportStatus(reportId) {
+        try {
+          const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`);
+          log5.info(`[Amazon API] \u62A5\u544A\u72B6\u6001\u54CD\u5E94:`, JSON.stringify(response.data, null, 2));
+          return {
+            status: response.data.status,
+            url: response.data.url,
+            failureReason: response.data.failureReason
+          };
+        } catch (error54) {
+          log5.error(`[Amazon API] \u83B7\u53D6\u62A5\u544A\u72B6\u6001\u5931\u8D25:`, error54.response?.data || error54.message);
+          throw error54;
+        }
+      }
+      /**
+       * 下载报告数据
+       */
+      async downloadReport(url3) {
+        const response = await axios_default.get(url3, {
+          responseType: "stream"
+        });
+        const zlib3 = await import("zlib");
+        const { Readable: Readable2 } = await import("stream");
+        return new Promise((resolve8, reject) => {
+          const chunks = [];
+          let totalSize = 0;
+          const MAX_SIZE = 500 * 1024 * 1024;
+          const gunzip = zlib3.createGunzip();
+          response.data.pipe(gunzip).on("data", (chunk) => {
+            totalSize += chunk.length;
+            if (totalSize > MAX_SIZE) {
+              gunzip.destroy();
+              reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
+              return;
+            }
+            chunks.push(chunk);
+          }).on("end", () => {
+            try {
+              const data4 = Buffer.concat(chunks).toString("utf-8");
+              const result = JSON.parse(data4);
+              log5.info(`[Amazon API] \u62A5\u544A\u89E3\u538B\u5B8C\u6210\uFF0C\u539F\u59CB\u5927\u5C0F: ${totalSize} bytes, \u6570\u636E\u6761\u6570: ${result?.length || 0}`);
+              resolve8(result);
+            } catch (parseError3) {
+              reject(new Error(`Failed to parse report JSON: ${parseError3.message}`));
+            }
+          }).on("error", (err2) => {
+            reject(new Error(`Failed to decompress report: ${err2.message}`));
+          });
+        });
+      }
+      /**
+       * 等待报告完成并下载
+       */
+      async waitAndDownloadReport(reportId, maxWaitMs = 9e5) {
+        const startTime = Date.now();
+        log5.info(`[Amazon API] \u5F00\u59CB\u7B49\u5F85\u62A5\u544A\u5B8C\u6210: ${reportId}`);
+        while (Date.now() - startTime < maxWaitMs) {
+          const status = await this.getReportStatus(reportId);
+          log5.info(`[Amazon API] \u62A5\u544A\u72B6\u6001: ${status.status}, url: ${status.url ? "\u6709" : "\u65E0"}`);
+          if (status.status === "COMPLETED" && status.url) {
+            log5.info(`[Amazon API] \u62A5\u544A\u5DF2\u5B8C\u6210\uFF0C\u5F00\u59CB\u4E0B\u8F7D...`);
+            const data4 = await this.downloadReport(status.url);
+            log5.info(`[Amazon API] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u6570\u636E\u6761\u6570: ${data4?.length || 0}`);
+            return data4;
+          }
+          if (status.status === "FAILED") {
+            log5.error(`[Amazon API] \u62A5\u544A\u751F\u6210\u5931\u8D25`);
+            throw new Error("Report generation failed");
+          }
+          log5.info(`[Amazon API] \u62A5\u544A\u672A\u5B8C\u6210\uFF0C\u7B49\u5F855\u79D2\u540E\u91CD\u8BD5...`);
+          await new Promise((resolve8) => setTimeout(resolve8, 5e3));
+        }
+        log5.error(`[Amazon API] \u62A5\u544A\u751F\u6210\u8D85\u65F6`);
+        throw new Error("Report generation timeout");
+      }
+      // ==================== Sponsored Brands API ====================
+      /**
+       * 获取SB广告活动列表
+       * 注意：SB v4 API需要特定的Content-Type header
+       */
+      async listSbCampaigns() {
+        const allCampaigns = [];
+        let nextToken;
+        let pageCount = 0;
+        do {
+          const body = { maxResults: 100 };
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post(
+            "/sb/v4/campaigns/list",
+            body,
+            {
+              headers: {
+                "Content-Type": "application/vnd.sbcampaignresource.v4+json",
+                "Accept": "application/vnd.sbcampaignresource.v4+json"
+              }
+            }
+          );
+          const campaigns7 = response.data.campaigns || [];
+          if (pageCount === 0 && campaigns7.length > 0) {
+            log5.debug("[SB API DEBUG] First campaign full structure:");
+            log5.debug(JSON.stringify(campaigns7[0], null, 2));
+            log5.debug("[SB API DEBUG] First campaign startDate:", campaigns7[0].startDate);
+            log5.debug("[SB API DEBUG] First campaign keys:", Object.keys(campaigns7[0]));
+            log5.debug("[SB API] \u9884\u7B97\u5B57\u6BB5\u68C0\u67E5:");
+            log5.debug("  - budget:", campaigns7[0].budget);
+            log5.debug("  - dailyBudget:", campaigns7[0].dailyBudget);
+            log5.debug("  - state:", campaigns7[0].state);
+            log5.debug("  - status:", campaigns7[0].status);
+          }
+          allCampaigns.push(...campaigns7);
+          nextToken = response.data.nextToken;
+          pageCount++;
+          log5.debug(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns7.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
+        } while (nextToken);
+        log5.debug(`[SB API] \u5171\u83B7\u53D6\u5230 ${allCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
+        return allCampaigns;
+      }
+      /**
+       * 获取SB广告组列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSbAdGroups(campaignId) {
+        const allAdGroups = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post(
+            "/sb/v4/adGroups/list",
+            body,
+            {
+              headers: {
+                "Content-Type": "application/vnd.sbadgroupresource.v4+json",
+                "Accept": "application/vnd.sbadgroupresource.v4+json"
+              }
+            }
+          );
+          const adGroups4 = response.data.adGroups || [];
+          allAdGroups.push(...adGroups4);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SB API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SB API] Total ad groups fetched: ${allAdGroups.length}`);
+        return allAdGroups;
+      }
+      /**
+       * 获取SB关键词列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSbKeywords(adGroupId) {
+        const allKeywords = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post(
+            "/sb/v4/keywords/list",
+            body,
+            {
+              headers: {
+                "Content-Type": "application/vnd.sbkeywordresource.v4+json",
+                "Accept": "application/vnd.sbkeywordresource.v4+json"
+              }
+            }
+          );
+          const keywords9 = response.data.keywords || [];
+          allKeywords.push(...keywords9);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SB API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SB API] Total keywords fetched: ${allKeywords.length}`);
+        return allKeywords;
+      }
+      /**
+       * 获取SB商品定位列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSbTargets(adGroupId) {
+        const allTargets = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/v4/targets/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/vnd.sbtargetresource.v4+json",
+                  "Accept": "application/vnd.sbtargetresource.v4+json"
+                }
+              }
+            );
+            const targets = response.data.targets || [];
+            allTargets.push(...targets);
+            nextToken = response.data.nextToken;
+            log5.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+          } catch (error54) {
+            if (error54.response?.status === 404) {
+              log5.warn(`[SB API] v230: SB targets/list\u8FD4\u56DE404\uFF0C\u8BE5\u8D26\u6237\u53EF\u80FD\u672A\u5F00\u901ASB\u5546\u54C1\u5B9A\u5411\u529F\u80FD\uFF0C\u8DF3\u8FC7`);
+              return [];
+            }
+            throw error54;
+          }
+        } while (nextToken);
+        log5.debug(`[SB API] Total targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * 更新SB广告活动
+       */
+      async updateSbCampaign(campaignId, updates) {
+        await this.axiosInstance.put(
+          "/sb/v4/campaigns",
+          { campaigns: [{ campaignId, ...updates }] },
+          {
+            headers: {
+              "Content-Type": "application/vnd.sbcampaignresource.v4+json",
+              "Accept": "application/vnd.sbcampaignresource.v4+json"
+            }
+          }
+        );
+      }
+      /**
+       * 更新SB关键词出价
+       */
+      async updateSbKeywordBids(updates) {
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+        log5.info(`[SB API] v199: updateSbKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.info(`[SB API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
+          await this.axiosInstance.put(
+            "/sb/v4/keywords",
+            { keywords: batch },
+            {
+              headers: {
+                "Content-Type": "application/vnd.sbkeywordresource.v4+json",
+                "Accept": "application/vnd.sbkeywordresource.v4+json"
+              }
+            }
+          );
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.info(`[SB API] v199: SB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
+      }
+      // ==================== Sponsored Display API ====================
+      /**
+       * 获取SD广告活动列表
+       * 注意：SD API使用GET方法，使用startIndex和count参数进行分页
+       * 使用extended端点获取更多字段，包括startDate
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSdCampaigns() {
+        const allCampaigns = [];
+        let startIndex = 0;
+        const count3 = 100;
+        while (true) {
+          let response;
+          try {
+            response = await this.axiosInstance.get("/sd/campaigns/extended", {
+              params: { startIndex, count: count3 }
+            });
+            log5.debug("[SD API] Using extended endpoint for more fields");
+          } catch (error54) {
+            log5.warn("[SD API] Extended endpoint failed, falling back to standard endpoint");
+            response = await this.axiosInstance.get("/sd/campaigns", {
+              params: { startIndex, count: count3 }
+            });
+          }
+          const campaigns7 = response.data || [];
+          allCampaigns.push(...campaigns7);
+          log5.debug(`[SD API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}`);
+          if (allCampaigns.length > 0 && startIndex === 0) {
+            log5.debug("[SD API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
+            log5.debug("[SD API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
+            log5.debug("[SD API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
+          }
+          if (campaigns7.length < count3) {
+            break;
+          }
+          startIndex += count3;
+        }
+        log5.debug(`[SD API] Total campaigns fetched: ${allCampaigns.length}`);
+        return allCampaigns;
+      }
+      /**
+       * 获取SD广告组列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSdAdGroups(campaignId) {
+        const allAdGroups = [];
+        let startIndex = 0;
+        const count3 = 100;
+        while (true) {
+          const params = { startIndex, count: count3 };
+          if (campaignId) {
+            params.campaignIdFilter = campaignId;
+          }
+          const response = await this.axiosInstance.get("/sd/adGroups", { params });
+          const adGroups4 = response.data || [];
+          allAdGroups.push(...adGroups4);
+          log5.debug(`[SD API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}`);
+          if (adGroups4.length < count3) {
+            break;
+          }
+          startIndex += count3;
+        }
+        log5.debug(`[SD API] Total ad groups fetched: ${allAdGroups.length}`);
+        return allAdGroups;
+      }
+      /**
+       * 获取SD商品定位列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSdTargets(adGroupId) {
+        const allTargets = [];
+        let startIndex = 0;
+        const count3 = 100;
+        while (true) {
+          const params = { startIndex, count: count3 };
+          if (adGroupId) {
+            params.adGroupIdFilter = adGroupId;
+          }
+          const response = await this.axiosInstance.get("/sd/targets", { params });
+          const targets = response.data || [];
+          allTargets.push(...targets);
+          log5.debug(`[SD API] Fetched ${targets.length} targets, total: ${allTargets.length}`);
+          if (targets.length < count3) {
+            break;
+          }
+          startIndex += count3;
+        }
+        log5.debug(`[SD API] Total targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * 更新SD广告活动
+       */
+      async updateSdCampaign(campaignId, updates) {
+        await this.axiosInstance.put("/sd/campaigns", [{ campaignId, ...updates }]);
+      }
+      /**
+       * 更新SD商品定位出价
+       */
+      async updateSdTargetBids(updates) {
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 300;
+        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+        log5.info(`[SD API] v199: updateSdTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.info(`[SD API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0`);
+          await this.axiosInstance.put("/sd/targets", batch);
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.info(`[SD API] v199: SD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
+      }
+      /**
+       * v310-fix: 更新SD广告组状态
+       * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
+       */
+      async updateSdAdGroupStatus(updates) {
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
+          adGroupId: Number(u5.adGroupId),
+          state: u5.state.toLowerCase()
+        }));
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        log5.info(`[SD API] v310-fix: updateSdAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          try {
+            const response = await this.axiosInstance.put("/sd/adGroups", batch);
+            if (Array.isArray(response.data)) {
+              const errors = response.data.filter((r5) => r5.code && r5.code !== "SUCCESS");
+              const successes = response.data.filter((r5) => !r5.code || r5.code === "SUCCESS");
+              totalSuccess += successes.length;
+              for (const err2 of errors) {
+                allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+              }
+            } else {
+              totalSuccess += batch.length;
+            }
+          } catch (batchErr) {
+            log5.error(`[SD API] v310-fix: \u7B2C${batchIdx + 1}\u6279SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.warn(`[SD API] v310-fix: SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
+      }
+      // ==================== 否定关键词 API ====================
+      /**
+       * 获取SP活动级别否定关键词列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpCampaignNegativeKeywords(campaignId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords/list", body, {
+            headers: {
+              "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+              "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+            }
+          });
+          const negatives = response.data.campaignNegativeKeywords || [];
+          allNegatives.push(...negatives);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SP API] Fetched ${negatives.length} campaign negative keywords, total: ${allNegatives.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SP API] Total campaign negative keywords fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
+      /**
+       * 创建SP活动级别否定关键词
+       */
+      async createSpCampaignNegativeKeywords(negatives) {
+        const formatMatchType = (mt3) => {
+          const upper = mt3.toUpperCase();
+          if (upper.includes("_")) return upper;
+          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
+          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
+          return upper;
+        };
+        const formattedNegatives = negatives.map((n7) => ({
+          campaignId: String(n7.campaignId),
+          keywordText: n7.keywordText,
+          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
+          state: "ENABLED"
+        }));
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allResults = [];
+        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: createSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.debug(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2Acampaign\u7EA7\u5426\u5B9A\u8BCD`);
+          try {
+            const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
+              campaignNegativeKeywords: batch
+            }, {
+              headers: {
+                "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+                "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+              }
+            });
+            const responseData = response.data.campaignNegativeKeywords || {};
+            const successItems = responseData.success || [];
+            const errorItems = responseData.error || [];
+            for (const s4 of successItems) {
+              allResults.push({
+                keywordId: s4.campaignNegativeKeywordId || s4.keywordId,
+                code: "SUCCESS",
+                details: "",
+                index: s4.index !== void 0 ? s4.index + batchIdx * BATCH_SIZE : void 0
+              });
+            }
+            for (const e6 of errorItems) {
+              const errorMsg = e6.errors?.map((err2) => {
+                const val = err2.errorValue || {};
+                const detail = val.malformedValueError || val.duplicateValueError || val;
+                return detail.message || err2.errorType || "Unknown error";
+              }).join("; ") || "Unknown error";
+              allResults.push({
+                keywordId: 0,
+                code: "ERROR",
+                details: errorMsg,
+                index: e6.index !== void 0 ? e6.index + batchIdx * BATCH_SIZE : void 0
+              });
+            }
+            if (errorItems.length > 0) {
+              log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5426\u5B9A\u8BCD\u5931\u8D25\u8BE6\u60C5:`);
+              for (const e6 of errorItems) {
+                const errDetail = JSON.stringify(e6.errors || e6).substring(0, 300);
+                const kwText = batch[e6.index]?.keywordText || "unknown";
+                const campId = batch[e6.index]?.campaignId || "unknown";
+                log5.error(`  - \u7D22\u5F15${e6.index}: campaignId=${campId}, keyword="${kwText}", \u9519\u8BEF: ${errDetail}`);
+              }
+            }
+            log5.warn(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
+          } catch (err2) {
+            const errData = err2.response?.data;
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
+            for (let i4 = 0; i4 < batch.length; i4++) {
+              allResults.push({
+                keywordId: 0,
+                code: "BATCH_ERROR",
+                details: err2.message,
+                index: i4 + batchIdx * BATCH_SIZE
+              });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        const successCount = allResults.filter((r5) => r5.code === "SUCCESS").length;
+        const failCount = allResults.length - successCount;
+        log5.warn(`[SP API] v199: campaign\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u6210\u529F=${successCount}, \u5931\u8D25=${failCount}`);
+        return allResults;
+      }
+      /**
+       * 删除SP活动级别否定关键词
+       */
+      async deleteSpCampaignNegativeKeywords(keywordIds) {
+        const BATCH_SIZE = 1e3;
+        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: deleteSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          await this.axiosInstance.post("/sp/campaignNegativeKeywords/delete", {
+            keywordIdFilter: { include: batch }
+          }, {
+            headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
+          });
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, 300));
+          }
+        }
+      }
+      /**
+       * 获取SP广告组级别否定关键词列表
+       * 已修复：添加分页逻辑，确保获取所有数据
+       */
+      async listSpNegativeKeywords(adGroupId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/negativeKeywords/list", body, {
+            headers: {
+              "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
+              "Accept": "application/vnd.spNegativeKeyword.v3+json"
+            }
+          });
+          const negatives = response.data.negativeKeywords || [];
+          allNegatives.push(...negatives);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SP API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SP API] Total negative keywords fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
+      /**
+       * 创建SP广告组级别否定关键词
+       */
+      async createSpNegativeKeywords(negatives) {
+        const formatNegMatchType = (mt3) => {
+          const upper = mt3.toUpperCase();
+          if (upper.includes("_")) return upper;
+          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
+          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
+          return upper;
+        };
+        const formattedNegatives = negatives.map((n7) => ({
+          adGroupId: String(n7.adGroupId),
+          campaignId: String(n7.campaignId),
+          keywordText: n7.keywordText,
+          matchType: formatNegMatchType(n7.matchType || "NEGATIVE_EXACT"),
+          state: (n7.state || "enabled").toUpperCase()
+        }));
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allResults = [];
+        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: createSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log5.debug(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
+          try {
+            const response = await this.axiosInstance.post("/sp/negativeKeywords", {
+              negativeKeywords: batch
+            }, {
+              headers: {
+                "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
+                "Accept": "application/vnd.spNegativeKeyword.v3+json"
+              }
+            });
+            const batchResults = response.data.negativeKeywords || [];
+            allResults.push(...batchResults);
+            log5.info(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: ${batchResults.length}\u4E2A\u7ED3\u679C`);
+          } catch (err2) {
+            log5.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: ${err2.response?.status} ${err2.message}`);
+            for (let i4 = 0; i4 < batch.length; i4++) {
+              allResults.push({ keywordId: 0, code: "BATCH_ERROR", details: err2.message });
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        log5.info(`[SP API] v199: \u5E7F\u544A\u7EC4\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
+        return allResults;
+      }
+      /**
+       * 删除SP广告组级别否定关键词
+       */
+      async deleteSpNegativeKeywords(keywordIds) {
+        const BATCH_SIZE = 1e3;
+        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+        log5.info(`[SP API] v199: deleteSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          await this.axiosInstance.post("/sp/negativeKeywords/delete", {
+            keywordIdFilter: { include: batch }
+          }, {
+            headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
+          });
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, 300));
+          }
+        }
+      }
+      /**
+       * 获取SP否定商品定位列表（活动级别）
+       */
+      async listSpCampaignNegativeTargets(campaignId) {
+        const allTargets = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/campaignNegativeTargets/list", body, {
+            headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
+          });
+          const targets = response.data.campaignNegativeTargetingClauses || [];
+          allTargets.push(...targets);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SP API] Fetched ${targets.length} campaign negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SP API] Total campaign negative targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * 创建SP否定商品定位（活动级别）
+       */
+      async createSpCampaignNegativeTargets(negatives) {
+        const response = await this.axiosInstance.post("/sp/campaignNegativeTargets", {
+          campaignNegativeTargetingClauses: negatives.map((n7) => ({
+            ...n7,
+            campaignId: String(n7.campaignId),
+            state: (n7.state || "enabled").toUpperCase()
+          }))
+        }, {
+          headers: {
+            "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json",
+            "Accept": "application/vnd.spCampaignNegativeTargetingClause.v3+json"
+          }
+        });
+        return response.data.campaignNegativeTargetingClauses || [];
+      }
+      /**
+       * 获取SP否定商品定位列表（广告组级别）
+       */
+      async listSpNegativeTargets(adGroupId) {
+        const allTargets = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
+            headers: {
+              "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
+              "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
+            }
+          });
+          const targets = response.data.negativeTargetingClauses || [];
+          allTargets.push(...targets);
+          nextToken = response.data.nextToken;
+          log5.debug(`[SP API] Fetched ${targets.length} negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        log5.debug(`[SP API] Total negative targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * 创建SP否定商品定位（广告组级别）
+       */
+      async createSpNegativeTargets(negatives) {
+        const response = await this.axiosInstance.post("/sp/negativeTargets", {
+          negativeTargetingClauses: negatives.map((n7) => ({
+            ...n7,
+            adGroupId: String(n7.adGroupId),
+            campaignId: String(n7.campaignId),
+            state: (n7.state || "enabled").toUpperCase()
+          }))
+        }, {
+          headers: {
+            "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
+            "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
+          }
+        });
+        return response.data.negativeTargetingClauses || [];
+      }
+      // ==================== 出价建议 API ====================
+      /**
+       * 获取关键词出价建议
+       */
+      async getKeywordBidRecommendations(adGroupId, keywords9) {
+        const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
+          adGroupId,
+          keywords: keywords9
+        });
+        return response.data.recommendations || [];
+      }
+      /**
+       * 获取商品定位出价建议
+       */
+      async getTargetBidRecommendations(adGroupId, expressions) {
+        const response = await this.axiosInstance.post("/sp/targets/bidRecommendations", {
+          adGroupId,
+          expressions
+        });
+        return response.data.recommendations || [];
+      }
+      // ==================== Amazon Marketing Stream (AMS) Methods ====================
+      /**
+       * 创建AMS订阅
+       * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/stream-api
+       * 
+       * 注意: 
+       * 1. AMS API端点与普通广告API端点不同
+       * 2. 必须使用嵌套结构: destination: { type, arn }, dataSet: { id }
+       * 3. clientRequestToken必须是UUID-v4格式，不超过36字符
+       */
+      async createAmsSubscription(dataSetId, destinationArn, name2) {
+        const clientRequestToken = generateUuidV4();
+        log5.info(`[AMS] \u521B\u5EFA\u8BA2\u9605: dataSetId=${dataSetId}, destinationArn=${destinationArn}`);
+        log5.debug(`[AMS] clientRequestToken: ${clientRequestToken} (\u957F\u5EA6: ${clientRequestToken.length})`);
+        const requestBody = {
+          clientRequestToken,
+          name: name2 || `${dataSetId}-subscription`,
+          destination: {
+            type: "SQS",
+            arn: destinationArn
+          },
+          dataSet: {
+            id: dataSetId
+            // 注意: key是 "dataSet" (驼峰), 内部是 "id"
+          }
+        };
+        log5.debug(`[AMS] \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody, null, 2));
+        const response = await this.axiosInstance.post("/streams/subscriptions", requestBody);
+        log5.info(`[AMS] \u8BA2\u9605\u521B\u5EFA\u6210\u529F:`, response.data);
+        return response.data;
+      }
+      /**
+       * 获取所有AMS订阅列表
+       */
+      async listAmsSubscriptions() {
+        log5.debug("[AMS] \u83B7\u53D6\u8BA2\u9605\u5217\u8868...");
+        const response = await this.axiosInstance.get("/streams/subscriptions");
+        const subscriptions = response.data.subscriptions || response.data || [];
+        log5.debug(`[AMS] \u83B7\u53D6\u5230 ${subscriptions.length} \u4E2A\u8BA2\u9605`);
+        return subscriptions;
+      }
+      /**
+       * 获取单个AMS订阅详情
+       */
+      async getAmsSubscription(subscriptionId) {
+        try {
+          const response = await this.axiosInstance.get(`/streams/subscriptions/${subscriptionId}`);
+          return response.data;
+        } catch (error54) {
+          if (error54.response?.status === 404) {
+            return null;
+          }
+          throw error54;
+        }
+      }
+      /**
+       * 更新AMS订阅状态
+       */
+      async updateAmsSubscription(subscriptionId, updates) {
+        log5.info(`[AMS] \u66F4\u65B0\u8BA2\u9605 ${subscriptionId}:`, updates);
+        const response = await this.axiosInstance.put(
+          `/streams/subscriptions/${subscriptionId}`,
+          updates
+        );
+        return response.data;
+      }
+      /**
+       * 删除/归档AMS订阅
+       */
+      async archiveAmsSubscription(subscriptionId) {
+        log5.debug(`[AMS] \u5F52\u6863\u8BA2\u9605 ${subscriptionId}`);
+        await this.updateAmsSubscription(subscriptionId, { status: "ARCHIVED" });
+      }
+      /**
+       * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
+       * 
+       * 快车道数据集 (有效的Dataset ID白名单):
+       * - sp-traffic: SP实时流量（每小时推送，延迟2-5分钟）
+       * - sp-conversion: SP转化数据
+       * - sp-budget-usage: SP预算监控（秒级/分钟级推送）
+       * - sb-traffic: SB实时流量
+       * - sb-conversion: SB转化数据 (beta)
+       * - sb-budget-usage: SB预算监控
+       * - sd-traffic: SD实时流量
+       * - sd-conversion: SD转化数据 (beta)
+       * - sd-budget-usage: SD预算监控
+       */
+      /**
+       * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
+       * 支持两种调用方式:
+       * 1. 传入队列ARN映射对象 - 每个数据集使用对应的队列
+       * 2. 传入单一ARN字符串 - 所有数据集使用同一队列（向后兼容）
+       */
+      async createAllTrafficSubscriptions(queueArnOrMapping) {
+        const trafficDatasets = VALID_TRAFFIC_DATASETS;
+        const created = [];
+        const failed = [];
+        const isMapping = typeof queueArnOrMapping === "object";
+        for (const dataSetId of trafficDatasets) {
+          try {
+            let destinationArn;
+            if (isMapping) {
+              destinationArn = queueArnOrMapping[dataSetId];
+              if (!destinationArn) {
+                log5.warn(`[AMS] \u6570\u636E\u96C6 ${dataSetId} \u672A\u914D\u7F6E\u961F\u5217ARN\uFF0C\u8DF3\u8FC7`);
+                failed.push({ dataSetId, error: `\u672A\u914D\u7F6E\u961F\u5217ARN` });
+                continue;
+              }
+            } else {
+              destinationArn = queueArnOrMapping;
+            }
+            const existing = await this.listAmsSubscriptions();
+            const existingSubscription = existing.find(
+              (s4) => s4.dataSetId === dataSetId && s4.status === "ACTIVE"
+            );
+            if (existingSubscription) {
+              log5.info(`[AMS] \u8BA2\u9605 ${dataSetId} \u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA`);
+              created.push(existingSubscription);
+              continue;
+            }
+            log5.info(`[AMS] \u521B\u5EFA\u8BA2\u9605: ${dataSetId} -> ${destinationArn}`);
+            const subscription = await this.createAmsSubscription(
+              dataSetId,
+              destinationArn,
+              `Fast lane subscription for ${dataSetId}`
+            );
+            created.push(subscription);
+            await new Promise((resolve8) => setTimeout(resolve8, 1e3));
+          } catch (error54) {
+            log5.error(`[AMS] \u521B\u5EFA\u8BA2\u9605 ${dataSetId} \u5931\u8D25:`, error54.message);
+            failed.push({
+              dataSetId,
+              error: error54.response?.data?.message || error54.message
+            });
+          }
+        }
+        return { created, failed };
+      }
+      // ==================== V2 SB报告API（用于获取旧版SB广告数据） ====================
+      /**
+       * 请求V2 SB广告活动报告
+       * V2 API用于获取2023年5月之前创建的旧版SB广告活动数据
+       */
+      async requestSbCampaignReportV2(reportDate, metrics = [
+        "campaignName",
+        "campaignId",
+        "campaignStatus",
+        "campaignBudget",
+        "campaignBudgetType",
+        "impressions",
+        "clicks",
+        "cost",
+        "attributedSales14d",
+        "attributedConversions14d"
+      ]) {
+        log5.debug("[Amazon API V2] \u8BF7\u6C42SB\u62A5\u544A, \u65E5\u671F:", reportDate);
+        const response = await this.axiosInstance.post("/v2/hsa/campaigns/report", {
+          reportDate,
+          metrics
+        }, {
+          headers: { "Content-Type": "application/json" }
+        });
+        log5.info("[Amazon API V2] SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId:", response.data.reportId);
+        return { reportId: response.data.reportId };
+      }
+      /**
+       * 请求V2 SB视频广告报告
+       */
+      async requestSbVideoCampaignReportV2(reportDate, metrics = [
+        "campaignName",
+        "campaignId",
+        "campaignStatus",
+        "campaignBudget",
+        "campaignBudgetType",
+        "impressions",
+        "clicks",
+        "cost",
+        "attributedSales14d",
+        "attributedConversions14d",
+        "videoCompleteViews",
+        "videoFirstQuartileViews",
+        "videoMidpointViews",
+        "videoThirdQuartileViews"
+      ]) {
+        log5.debug("[Amazon API V2] \u8BF7\u6C42SB\u89C6\u9891\u62A5\u544A, \u65E5\u671F:", reportDate);
+        const response = await this.axiosInstance.post("/v2/hsa/campaigns/report", {
+          reportDate,
+          metrics,
+          creativeType: "video"
+        }, {
+          headers: { "Content-Type": "application/json" }
+        });
+        log5.info("[Amazon API V2] SB\u89C6\u9891\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId:", response.data.reportId);
+        return { reportId: response.data.reportId };
+      }
+      /**
+       * 获取V2报告状态
+       */
+      async getReportStatusV2(reportId) {
+        const response = await this.axiosInstance.get(`/v2/reports/${reportId}`, {
+          headers: { "Content-Type": "application/json" }
+        });
+        log5.info("[Amazon API V2] \u62A5\u544A\u72B6\u6001:", response.data.status);
+        return {
+          status: response.data.status,
+          location: response.data.location
+        };
+      }
+      /**
+       * 等待并下载V2报告
+       */
+      async waitAndDownloadReportV2(reportId, maxWaitMs = 3e5) {
+        const startTime = Date.now();
+        const pollInterval = 3e3;
+        while (Date.now() - startTime < maxWaitMs) {
+          try {
+            const status = await this.getReportStatusV2(reportId);
+            if (status.status === "SUCCESS" && status.location) {
+              log5.info("[Amazon API V2] \u62A5\u544A\u5DF2\u5B8C\u6210\uFF0C\u5F00\u59CB\u4E0B\u8F7D...");
+              const reportResponse = await this.axiosInstance.get(status.location, {
+                responseType: "arraybuffer",
+                headers: { "Accept-Encoding": "gzip" }
+              });
+              const zlib3 = await import("zlib");
+              const decompressed = zlib3.gunzipSync(Buffer.from(reportResponse.data));
+              const reportData = JSON.parse(decompressed.toString("utf-8"));
+              log5.info(`[Amazon API V2] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u5171 ${Array.isArray(reportData) ? reportData.length : 0} \u6761\u8BB0\u5F55`);
+              return Array.isArray(reportData) ? reportData : [];
+            } else if (status.status === "FAILURE") {
+              log5.error("[Amazon API V2] \u62A5\u544A\u751F\u6210\u5931\u8D25");
+              return [];
+            }
+            await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
+          } catch (error54) {
+            log5.error("[Amazon API V2] \u8F6E\u8BE2\u62A5\u544A\u72B6\u6001\u5931\u8D25:", error54.message);
+            await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
+          }
+        }
+        log5.error("[Amazon API V2] \u62A5\u544A\u7B49\u5F85\u8D85\u65F6");
+        return [];
+      }
+      /**
+       * 获取完整的SB广告活动报告（结合V2和V3）
+       */
+      async getCompleteSbCampaignReport(startDate, endDate) {
+        const allData = [];
+        const seenCampaignIds = /* @__PURE__ */ new Set();
+        try {
+          log5.debug("[Amazon API] \u5C1D\u8BD5V3 SB\u62A5\u544A...");
+          const v3ReportId = await this.requestSbCampaignReport(startDate, endDate);
+          const v3Data = await this.waitAndDownloadReport(v3ReportId);
+          for (const row of v3Data) {
+            const campaignId = row.campaignId?.toString();
+            if (campaignId && !seenCampaignIds.has(campaignId)) {
+              seenCampaignIds.add(campaignId);
+              allData.push(row);
+            }
+          }
+          log5.debug(`[Amazon API] V3 SB\u62A5\u544A\u83B7\u53D6 ${v3Data.length} \u6761\u8BB0\u5F55`);
+        } catch (error54) {
+          log5.error("[Amazon API] V3 SB\u62A5\u544A\u5931\u8D25:", error54.message);
+        }
+        try {
+          log5.debug("[Amazon API] \u5C1D\u8BD5V2 SB\u62A5\u544A...");
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          for (let d5 = new Date(start); d5 <= end; d5.setDate(d5.getDate() + 1)) {
+            const dateStr = d5.toISOString().split("T")[0].replace(/-/g, "");
+            try {
+              const v2Report = await this.requestSbCampaignReportV2(dateStr);
+              const v2Data = await this.waitAndDownloadReportV2(v2Report.reportId);
+              for (const row of v2Data) {
+                const campaignId = row.campaignId?.toString();
+                if (campaignId && !seenCampaignIds.has(campaignId + "_" + dateStr)) {
+                  seenCampaignIds.add(campaignId + "_" + dateStr);
+                  allData.push({ ...row, date: d5.toISOString().split("T")[0] });
+                }
+              }
+              const v2VideoReport = await this.requestSbVideoCampaignReportV2(dateStr);
+              const v2VideoData = await this.waitAndDownloadReportV2(v2VideoReport.reportId);
+              for (const row of v2VideoData) {
+                const campaignId = row.campaignId?.toString();
+                if (campaignId && !seenCampaignIds.has(campaignId + "_video_" + dateStr)) {
+                  seenCampaignIds.add(campaignId + "_video_" + dateStr);
+                  allData.push({ ...row, date: d5.toISOString().split("T")[0], isVideo: true });
+                }
+              }
+            } catch (error54) {
+              log5.error(`[Amazon API V2] \u65E5\u671F ${dateStr} \u62A5\u544A\u5931\u8D25: ${error54.message}`);
+            }
+          }
+        } catch (error54) {
+          log5.error("[Amazon API] V2 SB\u62A5\u544A\u5931\u8D25:", error54.message);
+        }
+        log5.debug(`[Amazon API] \u5B8C\u6574SB\u62A5\u544A\u5171 ${allData.length} \u6761\u8BB0\u5F55`);
+        return allData;
+      }
+      /**
+       * 获取SB广告素材列表（品牌广告的创意素材）
+       * 包含headline, brandLogo, customImage, video等素材信息
+       */
+      async listSbAds(campaignId) {
+        const allAds = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/v4/ads/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/vnd.sbadresource.v4+json",
+                  "Accept": "application/vnd.sbadresource.v4+json"
+                }
+              }
+            );
+            const ads = response.data.ads || [];
+            allAds.push(...ads);
+            nextToken = response.data.nextToken;
+            log5.debug(`[SB API] Fetched ${ads.length} ads, total: ${allAds.length}, hasMore: ${!!nextToken}`);
+          } catch (error54) {
+            log5.error("[SB API] Error fetching SB ads:", error54.message);
+            break;
+          }
+        } while (nextToken);
+        log5.debug(`[SB API] Total ads fetched: ${allAds.length}`);
+        return allAds;
+      }
+      /**
+       * 获取SB否定关键词列表
+       */
+      async listSbNegativeKeywords(campaignId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.get("/sb/negativeKeywords", {
+              params: campaignId ? { campaignIdFilter: campaignId } : {},
+              headers: {
+                "Accept": "application/json"
+              }
+            });
+            const negatives = response.data.negativeKeywords || [];
+            allNegatives.push(...negatives);
+            nextToken = response.data.nextToken;
+            log5.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
+          } catch (error54) {
+            const statusCode = error54.response?.status;
+            if (statusCode === 403) {
+              log5.warn("[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions");
+            } else {
+              log5.error("[SB API] Error fetching SB negative keywords:", error54.message);
+            }
+            break;
+          }
+        } while (nextToken);
+        log5.debug(`[SB API] Total SB negative keywords fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
+      /**
+       * 获取SB否定商品定向列表
+       */
+      async listSbNegativeTargets(campaignId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/negativeTargets/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  "Accept": "application/json"
+                }
+              }
+            );
+            const negatives = response.data.negativeTargets || [];
+            allNegatives.push(...negatives);
+            nextToken = response.data.nextToken;
+            log5.debug(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
+          } catch (error54) {
+            const statusCode = error54.response?.status;
+            if (statusCode === 403) {
+              log5.warn("[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions");
+            } else {
+              log5.error("[SB API] Error fetching SB negative targets:", error54.message);
+            }
+            break;
+          }
+        } while (nextToken);
+        log5.debug(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
+      /**
+       * 获取创意素材详情 - Creative Asset Library API
+       * GET /assets?assetId={assetId}
+       * 返回素材的完整URL（包括视频URL、缩略图等）
+       */
+      async getAssetDetails(assetId) {
+        try {
+          const headers = await this.getHeaders();
+          const response = await this.axiosInstance.get("/assets", {
+            params: { assetId },
+            headers: {
+              ...headers,
+              "Accept": "application/vnd.creativeassetsgetresponse.v3+json"
+            }
+          });
+          return response.data;
+        } catch (error54) {
+          log5.error(`[Assets API] Failed to get asset ${assetId}:`, error54.response?.data || error54.message);
+          return null;
+        }
+      }
+      /**
+       * 批量解析素材ID为实际URL
+       * 对每个assetId调用getAssetDetails，提取关键URL
+       */
+      async resolveAssetUrls(assetIds) {
+        const result = /* @__PURE__ */ new Map();
+        for (const assetId of assetIds) {
+          if (!assetId) continue;
+          try {
+            const assetData = await this.getAssetDetails(assetId);
+            if (!assetData) continue;
+            const version5 = assetData.assetVersionList?.[0];
+            const assetType = assetData.assetGlobal?.assetType;
+            let url3 = version5?.url || version5?.assetFiles?.defaultUrl || version5?.storageLocationUrls?.defaultUrl || "";
+            let thumbnailUrl = "";
+            if (version5?.assetFiles?.processedFiles) {
+              for (const file2 of version5.assetFiles.processedFiles) {
+                if (file2.profile === "VIDEO_DEFAULT_OPTIMIZED" && !url3) {
+                  url3 = file2.url;
+                }
+                if (file2.profile === "IMAGE_THUMBNAIL_500") {
+                  thumbnailUrl = file2.url;
+                }
+              }
+            }
+            if (version5?.storageLocationUrls?.processedUrls) {
+              const processedUrls = version5.storageLocationUrls.processedUrls;
+              if (processedUrls["VIDEO_DEFAULT_OPTIMIZED"] && !url3) {
+                url3 = processedUrls["VIDEO_DEFAULT_OPTIMIZED"];
+              }
+              if (processedUrls["IMAGE_THUMBNAIL_500"]) {
+                thumbnailUrl = processedUrls["IMAGE_THUMBNAIL_500"];
+              }
+            }
+            if (url3) {
+              result.set(assetId, { url: url3, thumbnailUrl, type: assetType });
+            }
+            await new Promise((resolve8) => setTimeout(resolve8, 200));
+          } catch (error54) {
+            log5.error(`[Assets API] Error resolving asset ${assetId}:`, error54.message);
+          }
+        }
+        return result;
+      }
+      /**
+       * 获取请求头（内部辅助方法）
+       */
+      async getHeaders() {
+        const token = await this.getAccessToken();
+        return {
+          "Authorization": `Bearer ${token}`,
+          "Amazon-Advertising-API-ClientId": this.credentials.clientId,
+          "Amazon-Advertising-API-Scope": this.credentials.profileId,
+          "Content-Type": "application/json"
+        };
+      }
+    };
+    VALID_TRAFFIC_DATASETS = [
+      "sp-traffic",
+      "sp-conversion",
+      "sp-budget-usage",
+      "sb-traffic",
+      "sb-conversion",
+      "sb-budget-usage",
+      "sd-traffic",
+      "sd-conversion",
+      "sd-budget-usage"
+    ];
+  }
+});
+
 // node_modules/@trpc/server/dist/index.mjs
 var init_dist = __esm({
   "node_modules/@trpc/server/dist/index.mjs"() {
@@ -53981,7 +59885,7 @@ __export(weightAutoTuningService_exports, {
 function getEffectiveWeights(strategyTemplateId, defaultWeights) {
   const cached2 = tuningCache.get(strategyTemplateId);
   if (cached2) {
-    log6.info(`[WeightAutoTuning] \u4F7F\u7528\u81EA\u5B66\u4E60\u6743\u91CD: strategy=${strategyTemplateId}, weights=${JSON.stringify(cached2)}`);
+    log7.info(`[WeightAutoTuning] \u4F7F\u7528\u81EA\u5B66\u4E60\u6743\u91CD: strategy=${strategyTemplateId}, weights=${JSON.stringify(cached2)}`);
     return { ...cached2 };
   }
   return { ...defaultWeights };
@@ -54097,18 +60001,18 @@ function applyWeightTuning(strategyTemplateId, result) {
   while (tuningHistory.length > 100) {
     tuningHistory.shift();
   }
-  log6.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u66F4\u65B0: strategy=${strategyTemplateId}, adjustments=${result.adjustments.filter((a4) => Math.abs(a4.delta) > 1e-3).length}\u4E2A\u7EF4\u5EA6`);
+  log7.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u66F4\u65B0: strategy=${strategyTemplateId}, adjustments=${result.adjustments.filter((a4) => Math.abs(a4.delta) > 1e-3).length}\u4E2A\u7EF4\u5EA6`);
 }
 function rollbackWeights(strategyTemplateId) {
   const history = tuningHistory.filter((h6) => h6.strategyTemplateId === strategyTemplateId);
   if (history.length < 2) {
     tuningCache.delete(strategyTemplateId);
-    log6.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u56DE\u6EDA\u5230\u9ED8\u8BA4: strategy=${strategyTemplateId}`);
+    log7.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u56DE\u6EDA\u5230\u9ED8\u8BA4: strategy=${strategyTemplateId}`);
     return true;
   }
   const previousResult = history[history.length - 2];
   tuningCache.set(strategyTemplateId, previousResult.newWeights);
-  log6.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u56DE\u6EDA\u5230\u4E0A\u4E00\u7248\u672C: strategy=${strategyTemplateId}`);
+  log7.info(`[WeightAutoTuning] \u6743\u91CD\u5DF2\u56DE\u6EDA\u5230\u4E0A\u4E00\u7248\u672C: strategy=${strategyTemplateId}`);
   return true;
 }
 function getTuningHistory(strategyTemplateId) {
@@ -54120,12 +60024,12 @@ function getTuningHistory(strategyTemplateId) {
 function getDefaultTuningConfig() {
   return { ...DEFAULT_TUNING_CONFIG };
 }
-var log6, DEFAULT_TUNING_CONFIG, DIMENSION_NAMES, tuningCache, tuningHistory;
+var log7, DEFAULT_TUNING_CONFIG, DIMENSION_NAMES, tuningCache, tuningHistory;
 var init_weightAutoTuningService = __esm({
   "server/weightAutoTuningService.ts"() {
     "use strict";
     init_logger2();
-    log6 = createModuleLogger("WeightAutoTuning");
+    log7 = createModuleLogger("WeightAutoTuning");
     DEFAULT_TUNING_CONFIG = {
       learningRate: 0.02,
       // 2%学习率
@@ -54157,7 +60061,7 @@ var init_weightAutoTuningService = __esm({
 // server/services/syncServiceProvider.ts
 function registerSyncServiceFactory(factory2) {
   _syncServiceFactory = factory2;
-  log8.debug("SyncService \u5DE5\u5382\u51FD\u6570\u5DF2\u6CE8\u518C");
+  log9.debug("SyncService \u5DE5\u5382\u51FD\u6570\u5DF2\u6CE8\u518C");
 }
 async function getAmazonSyncService(accountId) {
   if (!_syncServiceFactory) {
@@ -54171,20 +60075,20 @@ async function getAmazonSyncService(accountId) {
     try {
       const account = await getAdAccountById(accountId);
       if (!account) {
-        log8.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u4E0D\u5B58\u5728`);
+        log9.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u4E0D\u5B58\u5728`);
         return null;
       }
       const credentials = await getAmazonApiCredentials(accountId);
       if (!credentials) {
-        log8.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
+        log9.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
         return null;
       }
       if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-        log8.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} API\u51ED\u8BC1\u4E0D\u5B8C\u6574`);
+        log9.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} API\u51ED\u8BC1\u4E0D\u5B8C\u6574`);
         return null;
       }
       if (!account.profileId) {
-        log8.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u7F3A\u5C11profileId`);
+        log9.error(`[SyncServiceProvider] \u8D26\u53F7 ${accountId} \u7F3A\u5C11profileId`);
         return null;
       }
       const syncService = await _syncServiceFactory(
@@ -54204,23 +60108,23 @@ async function getAmazonSyncService(accountId) {
       const isRetryable = error54.code === "ECONNRESET" || error54.code === "ETIMEDOUT" || error54.code === "ECONNREFUSED" || error54.code === "PROTOCOL_CONNECTION_LOST" || error54.message?.includes("Connection lost") || error54.message?.includes("ECONNRESET");
       if (isRetryable && attempt < MAX_RETRIES) {
         const waitTime = RETRY_DELAY_MS * (attempt + 1);
-        log8.warn(`[SyncServiceProvider] \u521B\u5EFASyncService\u5931\u8D25(\u53EF\u91CD\u8BD5), \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5, \u7B49\u5F85${waitTime}ms... (accountId=${accountId}): ${error54.message}`);
+        log9.warn(`[SyncServiceProvider] \u521B\u5EFASyncService\u5931\u8D25(\u53EF\u91CD\u8BD5), \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5, \u7B49\u5F85${waitTime}ms... (accountId=${accountId}): ${error54.message}`);
         await new Promise((resolve8) => setTimeout(resolve8, waitTime));
         continue;
       }
-      log8.error(`[SyncServiceProvider] \u521B\u5EFASyncService\u5931\u8D25 (accountId=${accountId}, \u5DF2\u91CD\u8BD5${attempt}\u6B21):`, error54.message);
+      log9.error(`[SyncServiceProvider] \u521B\u5EFASyncService\u5931\u8D25 (accountId=${accountId}, \u5DF2\u91CD\u8BD5${attempt}\u6B21):`, error54.message);
       return null;
     }
   }
   return null;
 }
-var log8, _syncServiceFactory;
+var log9, _syncServiceFactory;
 var init_syncServiceProvider = __esm({
   "server/services/syncServiceProvider.ts"() {
     "use strict";
     init_db2();
     init_logger2();
-    log8 = createModuleLogger("SyncServiceProvider");
+    log9 = createModuleLogger("SyncServiceProvider");
     _syncServiceFactory = null;
   }
 });
@@ -54365,7 +60269,7 @@ async function ensureAmazonIdsReady(accountId) {
     totalMissingAfter: 0,
     errors: []
   };
-  log9.info(`========== \u5F00\u59CBPre-Sync ID Resolution: accountId=${accountId} ==========`);
+  log10.info(`========== \u5F00\u59CBPre-Sync ID Resolution: accountId=${accountId} ==========`);
   let directConn = null;
   try {
     const mysql2 = await import("mysql2/promise");
@@ -54392,13 +60296,13 @@ async function ensureAmazonIdsReady(accountId) {
       [accountId]
     );
     result.totalMissingAfter = (remainingKws[0]?.cnt || 0) + (remainingPts[0]?.cnt || 0);
-    log9.info(`========== Pre-Sync ID Resolution \u5B8C\u6210 ==========`);
-    log9.warn(`Keywords: \u56DE\u586B${result.keywordsResolved}, \u521B\u5EFA${result.keywordsCreated}, \u6E05\u7406${result.keywordsCleanedUp}, \u5931\u8D25${result.keywordsFailed}`);
-    log9.warn(`ProductTargets: \u56DE\u586B${result.productTargetsResolved}, \u5931\u8D25${result.productTargetsFailed}`);
-    log9.debug(`\u603B\u7F3A\u5931: ${result.totalMissingBefore} \u2192 ${result.totalMissingAfter}`);
+    log10.info(`========== Pre-Sync ID Resolution \u5B8C\u6210 ==========`);
+    log10.warn(`Keywords: \u56DE\u586B${result.keywordsResolved}, \u521B\u5EFA${result.keywordsCreated}, \u6E05\u7406${result.keywordsCleanedUp}, \u5931\u8D25${result.keywordsFailed}`);
+    log10.warn(`ProductTargets: \u56DE\u586B${result.productTargetsResolved}, \u5931\u8D25${result.productTargetsFailed}`);
+    log10.debug(`\u603B\u7F3A\u5931: ${result.totalMissingBefore} \u2192 ${result.totalMissingAfter}`);
   } catch (err2) {
     result.errors.push(`IdResolver\u5F02\u5E38: ${err2.message}`);
-    log9.error(`\u5F02\u5E38: ${err2.message}`);
+    log10.error(`\u5F02\u5E38: ${err2.message}`);
   } finally {
     if (directConn) {
       try {
@@ -54419,18 +60323,18 @@ async function resolveKeywordIds(accountId, conn, result) {
     [accountId]
   );
   if (missingKws.length === 0) {
-    log9.debug(`Keywords: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId`);
+    log10.debug(`Keywords: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId`);
     return;
   }
   result.totalMissingBefore += missingKws.length;
-  log9.info(`Keywords: \u53D1\u73B0${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId`);
+  log10.info(`Keywords: \u53D1\u73B0${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId`);
   const groupedByAdGroup = /* @__PURE__ */ new Map();
   for (const kw of missingKws) {
     const group = groupedByAdGroup.get(kw.adGroupId) || [];
     group.push(kw);
     groupedByAdGroup.set(kw.adGroupId, group);
   }
-  log9.debug(`Keywords: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
+  log10.debug(`Keywords: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId}\u7684API\u670D\u52A1`);
@@ -54444,7 +60348,7 @@ async function resolveKeywordIds(accountId, conn, result) {
         [adGroupLocalId]
       );
       if (!agRows[0] || !agRows[0].adGroupId) {
-        log9.error(`adGroup id=${adGroupLocalId} \u7F3A\u5C11Amazon adGroupId`);
+        log10.error(`adGroup id=${adGroupLocalId} \u7F3A\u5C11Amazon adGroupId`);
         result.keywordsFailed += kwsInGroup.length;
         continue;
       }
@@ -54465,9 +60369,9 @@ async function resolveKeywordIds(accountId, conn, result) {
       const isAdGroupSb = adGroupCampaignType === "sb";
       const amazonKeywords = isAdGroupSb ? await syncService.client.listSbKeywords(String(amazonAdGroupId)) : await syncService.client.listSpKeywords(amazonAdGroupId);
       if (isAdGroupSb) {
-        log9.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): \u4F7F\u7528SB API\u67E5\u627E\u5173\u952E\u8BCD, \u627E\u5230${amazonKeywords.length}\u4E2A`);
+        log10.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): \u4F7F\u7528SB API\u67E5\u627E\u5173\u952E\u8BCD, \u627E\u5230${amazonKeywords.length}\u4E2A`);
       }
-      log9.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon\u8FD4\u56DE${amazonKeywords.length}\u4E2Akeywords, \u672C\u5730\u7F3A\u5931${kwsInGroup.length}\u4E2A`);
+      log10.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon\u8FD4\u56DE${amazonKeywords.length}\u4E2Akeywords, \u672C\u5730\u7F3A\u5931${kwsInGroup.length}\u4E2A`);
       const amazonKwMap = /* @__PURE__ */ new Map();
       for (const ak of amazonKeywords) {
         const key = `${ak.keywordText?.toLowerCase()}|${ak.matchType?.toLowerCase()}`;
@@ -54475,7 +60379,7 @@ async function resolveKeywordIds(accountId, conn, result) {
       }
       const hasProductTargets = await adGroupHasProductTargets(adGroupLocalId, conn);
       if (hasProductTargets) {
-        log9.info(`\u26A0\uFE0F adGroup=${adGroupLocalId}: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u6E05\u7406${kwsInGroup.length}\u4E2A\u65E0\u6548keyword\u8BB0\u5F55`);
+        log10.info(`\u26A0\uFE0F adGroup=${adGroupLocalId}: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u6E05\u7406${kwsInGroup.length}\u4E2A\u65E0\u6548keyword\u8BB0\u5F55`);
         for (const kw of kwsInGroup) {
           await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
           result.keywordsCleanedUp++;
@@ -54485,7 +60389,7 @@ async function resolveKeywordIds(accountId, conn, result) {
       const toCreate = [];
       for (const kw of kwsInGroup) {
         if (isAsinSearchTerm(kw.keywordText || "")) {
-          log9.debug(`\u26A0\uFE0F \u6E05\u7406ASIN\u683C\u5F0F\u5173\u952E\u8BCD id=${kw.id} "${kw.keywordText}"`);
+          log10.debug(`\u26A0\uFE0F \u6E05\u7406ASIN\u683C\u5F0F\u5173\u952E\u8BCD id=${kw.id} "${kw.keywordText}"`);
           await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
           result.keywordsCleanedUp++;
           continue;
@@ -54499,15 +60403,15 @@ async function resolveKeywordIds(accountId, conn, result) {
               [amazonKeywordId, kw.id]
             );
             result.keywordsResolved++;
-            log9.debug(`\u2705 \u56DE\u586Bkeyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" \u2192 keywordId=${amazonKeywordId}`);
+            log10.debug(`\u2705 \u56DE\u586Bkeyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" \u2192 keywordId=${amazonKeywordId}`);
           } catch (updateErr) {
             if (updateErr.code === "ER_DUP_ENTRY" || updateErr.errno === 1062) {
               await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
               result.keywordsCleanedUp++;
-              log9.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dkeyword id=${kw.id} (keywordId=${amazonKeywordId}\u5DF2\u5B58\u5728)`);
+              log10.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dkeyword id=${kw.id} (keywordId=${amazonKeywordId}\u5DF2\u5B58\u5728)`);
             } else {
               result.keywordsFailed++;
-              log9.error(`\u274C \u56DE\u586Bkeyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`);
+              log10.error(`\u274C \u56DE\u586Bkeyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`);
             }
           }
         } else {
@@ -54515,7 +60419,7 @@ async function resolveKeywordIds(accountId, conn, result) {
         }
       }
       if (toCreate.length > 0) {
-        log9.info(`adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u9700\u8981\u5728Amazon\u521B\u5EFA`);
+        log10.info(`adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u9700\u8981\u5728Amazon\u521B\u5EFA`);
         const [campRows] = await conn.execute(
           `SELECT c.campaignId, c.targetingType FROM campaigns c
            INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId
@@ -54525,10 +60429,10 @@ async function resolveKeywordIds(accountId, conn, result) {
         const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
         const campaignTargetingType = campRows[0]?.targetingType || "manual";
         if (isAdGroupSb) {
-          log9.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7`);
+          log10.info(`[IdResolver] v224: SB\u5E7F\u544A\u7EC4 adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7`);
           result.keywordsFailed += toCreate.length;
         } else if (!canAddPositiveKeyword(campaignTargetingType)) {
-          log9.info(`\u26A0\uFE0F adGroup=${adGroupLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7${toCreate.length}\u4E2A\u6B63\u9762\u5173\u952E\u8BCD\u521B\u5EFA\uFF08\u81EA\u52A8\u5E7F\u544A\u53EA\u80FD\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD\uFF09`);
+          log10.info(`\u26A0\uFE0F adGroup=${adGroupLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7${toCreate.length}\u4E2A\u6B63\u9762\u5173\u952E\u8BCD\u521B\u5EFA\uFF08\u81EA\u52A8\u5E7F\u544A\u53EA\u80FD\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD\uFF09`);
           for (const kw of toCreate) {
             await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
             result.keywordsCleanedUp++;
@@ -54541,13 +60445,13 @@ async function resolveKeywordIds(accountId, conn, result) {
               kw.keywordText = validation.sanitizedText;
               validatedBatch.push(kw);
             } else {
-              log9.debug(`\u26A0\uFE0F \u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
+              log10.debug(`\u26A0\uFE0F \u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
               await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
               result.keywordsCleanedUp++;
             }
           }
           if (validatedBatch.length === 0) {
-            log9.info(`adGroup=${adGroupLocalId}: \u6240\u6709\u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7\uFF0C\u8DF3\u8FC7\u521B\u5EFA`);
+            log10.info(`adGroup=${adGroupLocalId}: \u6240\u6709\u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7\uFF0C\u8DF3\u8FC7\u521B\u5EFA`);
           }
           const batchSize = 10;
           for (let i4 = 0; i4 < validatedBatch.length; i4 += batchSize) {
@@ -54574,7 +60478,7 @@ async function resolveKeywordIds(accountId, conn, result) {
                       [String(created.keywordId), original.id]
                     );
                     result.keywordsCreated++;
-                    log9.info(`\u2705 \u521B\u5EFAkeyword id=${original.id} "${original.keywordText?.substring(0, 25)}" \u2192 keywordId=${created.keywordId}`);
+                    log10.info(`\u2705 \u521B\u5EFAkeyword id=${original.id} "${original.keywordText?.substring(0, 25)}" \u2192 keywordId=${created.keywordId}`);
                   } catch (upErr) {
                     if (upErr.code === "ER_DUP_ENTRY" || upErr.errno === 1062) {
                       await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [original.id]);
@@ -54592,7 +60496,7 @@ async function resolveKeywordIds(accountId, conn, result) {
                   if (existing.length > 0) {
                     await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [original.id]);
                     result.keywordsCleanedUp++;
-                    log9.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dkeyword id=${original.id} (\u5DF2\u6709\u6709\u6548\u8BB0\u5F55id=${existing[0].id})`);
+                    log10.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dkeyword id=${original.id} (\u5DF2\u6709\u6709\u6548\u8BB0\u5F55id=${existing[0].id})`);
                     resolved = true;
                   }
                   if (!resolved) {
@@ -54607,22 +60511,22 @@ async function resolveKeywordIds(accountId, conn, result) {
                           [String(matchedKw.keywordId), original.id]
                         );
                         result.keywordsCreated++;
-                        log9.debug(`\u2705 \u4ECEAmazon\u56DE\u586Bkeyword id=${original.id} "${original.keywordText?.substring(0, 25)}" \u2192 keywordId=${matchedKw.keywordId}`);
+                        log10.debug(`\u2705 \u4ECEAmazon\u56DE\u586Bkeyword id=${original.id} "${original.keywordText?.substring(0, 25)}" \u2192 keywordId=${matchedKw.keywordId}`);
                         resolved = true;
                       }
                     } catch (lookupErr) {
-                      log9.warn(`\u26A0\uFE0F Amazon\u5173\u952E\u8BCD\u67E5\u8BE2\u5931\u8D25: ${lookupErr.message}`);
+                      log10.warn(`\u26A0\uFE0F Amazon\u5173\u952E\u8BCD\u67E5\u8BE2\u5931\u8D25: ${lookupErr.message}`);
                     }
                   }
                   if (!resolved) {
                     result.keywordsFailed++;
                     const errDetail = created.details || created.code || "Unknown";
-                    log9.error(`\u274C \u521B\u5EFAkeyword\u5931\u8D25 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
+                    log10.error(`\u274C \u521B\u5EFAkeyword\u5931\u8D25 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
               }
             } catch (createErr) {
-              log9.error(`\u274C \u6279\u91CF\u521B\u5EFAkeywords\u5F02\u5E38: ${createErr.message}`);
+              log10.error(`\u274C \u6279\u91CF\u521B\u5EFAkeywords\u5F02\u5E38: ${createErr.message}`);
               result.keywordsFailed += batch.length;
             }
             if (i4 + batchSize < toCreate.length) {
@@ -54630,12 +60534,12 @@ async function resolveKeywordIds(accountId, conn, result) {
             }
           }
         } else {
-          log9.error(`adGroup=${adGroupLocalId} \u65E0\u6CD5\u83B7\u53D6Amazon campaignId`);
+          log10.error(`adGroup=${adGroupLocalId} \u65E0\u6CD5\u83B7\u53D6Amazon campaignId`);
           result.keywordsFailed += toCreate.length;
         }
       }
     } catch (agErr) {
-      log9.error(`adGroup=${adGroupLocalId}\u5904\u7406\u5F02\u5E38: ${agErr.message}`);
+      log10.error(`adGroup=${adGroupLocalId}\u5904\u7406\u5F02\u5E38: ${agErr.message}`);
       result.keywordsFailed += kwsInGroup.length;
     }
   }
@@ -54650,11 +60554,11 @@ async function resolveProductTargetIds(accountId, conn, result) {
     [accountId]
   );
   if (missingPts.length === 0) {
-    log9.debug(`ProductTargets: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709product_targets\u5747\u5DF2\u6709Amazon targetId`);
+    log10.debug(`ProductTargets: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709product_targets\u5747\u5DF2\u6709Amazon targetId`);
     return;
   }
   result.totalMissingBefore += missingPts.length;
-  log9.info(`ProductTargets: \u53D1\u73B0${missingPts.length}\u4E2Aproduct_targets\u7F3A\u5C11Amazon targetId`);
+  log10.info(`ProductTargets: \u53D1\u73B0${missingPts.length}\u4E2Aproduct_targets\u7F3A\u5C11Amazon targetId`);
   const ptGroupedByAdGroup = /* @__PURE__ */ new Map();
   for (const pt3 of missingPts) {
     const group = ptGroupedByAdGroup.get(pt3.adGroupId) || [];
@@ -54679,7 +60583,7 @@ async function resolveProductTargetIds(accountId, conn, result) {
       }
       const amazonAdGroupId = Number(agRows[0].adGroupId);
       const amazonTargets = await syncService.client.listSpProductTargets(amazonAdGroupId);
-      log9.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon\u8FD4\u56DE${amazonTargets.length}\u4E2Atargets, \u672C\u5730\u7F3A\u5931${ptsInGroup.length}\u4E2A`);
+      log10.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon\u8FD4\u56DE${amazonTargets.length}\u4E2Atargets, \u672C\u5730\u7F3A\u5931${ptsInGroup.length}\u4E2A`);
       const amazonPtMap = /* @__PURE__ */ new Map();
       for (const at2 of amazonTargets) {
         const atAny = at2;
@@ -54711,12 +60615,12 @@ async function resolveProductTargetIds(accountId, conn, result) {
               [amazonTargetId, pt3.id]
             );
             result.productTargetsResolved++;
-            log9.debug(`\u2705 \u56DE\u586Bproduct_target id=${pt3.id} \u2192 targetId=${amazonTargetId}`);
+            log10.debug(`\u2705 \u56DE\u586Bproduct_target id=${pt3.id} \u2192 targetId=${amazonTargetId}`);
           } catch (updateErr) {
             if (updateErr.code === "ER_DUP_ENTRY" || updateErr.errno === 1062) {
               await conn.execute("DELETE FROM product_targets WHERE id = ? AND targetId IS NULL", [pt3.id]);
               result.productTargetsResolved++;
-              log9.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dproduct_target id=${pt3.id}`);
+              log10.debug(`\u{1F9F9} \u6E05\u7406\u91CD\u590Dproduct_target id=${pt3.id}`);
             } else {
               result.productTargetsFailed++;
             }
@@ -54735,7 +60639,7 @@ async function resolveProductTargetIds(accountId, conn, result) {
         }
       }
     } catch (agErr) {
-      log9.error(`PT adGroup=${adGroupLocalId}\u5904\u7406\u5F02\u5E38: ${agErr.message}`);
+      log10.error(`PT adGroup=${adGroupLocalId}\u5904\u7406\u5F02\u5E38: ${agErr.message}`);
       result.productTargetsFailed += ptsInGroup.length;
     }
   }
@@ -54760,13 +60664,13 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
     const kw = kwRows[0];
     if (!kw.amazonAdGroupId) return null;
     if (isAsinSearchTerm(kw.keywordText || "")) {
-      log9.debug(`\u26A0\uFE0F \u5373\u65F6\u6E05\u7406ASIN\u683C\u5F0F\u5173\u952E\u8BCD id=${keywordLocalId} "${kw.keywordText}"`);
+      log10.debug(`\u26A0\uFE0F \u5373\u65F6\u6E05\u7406ASIN\u683C\u5F0F\u5173\u952E\u8BCD id=${keywordLocalId} "${kw.keywordText}"`);
       await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
       return null;
     }
     const hasProductTargets = await adGroupHasProductTargets(kw.adGroupId, conn);
     if (hasProductTargets) {
-      log9.debug(`\u26A0\uFE0F \u5373\u65F6\u6E05\u7406: keyword id=${keywordLocalId} \u5E7F\u544A\u7EC4\u5DF2\u6709product targets`);
+      log10.debug(`\u26A0\uFE0F \u5373\u65F6\u6E05\u7406: keyword id=${keywordLocalId} \u5E7F\u544A\u7EC4\u5DF2\u6709product targets`);
       await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
       return null;
     }
@@ -54787,7 +60691,7 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
     const amazonKeywords = isSbCampaign ? await syncService.client.listSbKeywords(String(amazonAdGroupId)) : await syncService.client.listSpKeywords(amazonAdGroupId);
     if (isSbCampaign) {
-      log9.info(`[IdResolver] v224: SB\u5173\u952E\u8BCDID\u89E3\u6790 - \u4F7F\u7528SB API, adGroupId=${amazonAdGroupId}, \u627E\u5230${amazonKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
+      log10.info(`[IdResolver] v224: SB\u5173\u952E\u8BCDID\u89E3\u6790 - \u4F7F\u7528SB API, adGroupId=${amazonAdGroupId}, \u627E\u5230${amazonKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
     }
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
@@ -54799,7 +60703,7 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
             "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
             [amazonKeywordId, keywordLocalId]
           );
-          log9.debug(`\u2705 \u5373\u65F6\u56DE\u586Bkeyword id=${keywordLocalId} \u2192 keywordId=${amazonKeywordId}`);
+          log10.debug(`\u2705 \u5373\u65F6\u56DE\u586Bkeyword id=${keywordLocalId} \u2192 keywordId=${amazonKeywordId}`);
           return amazonKeywordId;
         } catch (upErr) {
           if (upErr.code === "ER_DUP_ENTRY" || upErr.errno === 1062) {
@@ -54817,18 +60721,18 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
       );
       const campTargetingType = campTypeRows[0]?.targetingType || "manual";
       if (!canAddPositiveKeyword(campTargetingType)) {
-        log9.info(`\u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD`);
+        log10.info(`\u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD`);
         await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
         return null;
       }
       const kwValidation = sanitizeAndValidateKeyword(kw.keywordText || "", "positive");
       if (!kwValidation.isValid) {
-        log9.info(`\u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" \u6821\u9A8C\u4E0D\u901A\u8FC7: ${kwValidation.reasonMessage}`);
+        log10.info(`\u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" \u6821\u9A8C\u4E0D\u901A\u8FC7: ${kwValidation.reasonMessage}`);
         await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
         return null;
       }
       if (isSbCampaign) {
-        log9.info(`[IdResolver] v224: SB\u5173\u952E\u8BCD id=${keywordLocalId} \u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD`);
+        log10.info(`[IdResolver] v224: SB\u5173\u952E\u8BCD id=${keywordLocalId} \u5728Amazon\u4E0A\u4E0D\u5B58\u5728\uFF0CSB\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301API\u521B\u5EFA\u5173\u952E\u8BCD`);
         return null;
       }
       try {
@@ -54847,16 +60751,16 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
             "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
             [newKeywordId, keywordLocalId]
           );
-          log9.info(`\u2705 \u5373\u65F6\u521B\u5EFAkeyword id=${keywordLocalId} \u2192 keywordId=${newKeywordId}`);
+          log10.info(`\u2705 \u5373\u65F6\u521B\u5EFAkeyword id=${keywordLocalId} \u2192 keywordId=${newKeywordId}`);
           return newKeywordId;
         }
       } catch (createErr) {
-        log9.error(`\u5373\u65F6\u521B\u5EFAkeyword\u5931\u8D25: ${createErr.message}`);
+        log10.error(`\u5373\u65F6\u521B\u5EFAkeyword\u5931\u8D25: ${createErr.message}`);
       }
     }
     return null;
   } catch (err2) {
-    log9.error(`resolveKeywordIdOnDemand\u5F02\u5E38: ${err2.message}`);
+    log10.error(`resolveKeywordIdOnDemand\u5F02\u5E38: ${err2.message}`);
     return null;
   } finally {
     if (conn) {
@@ -54906,7 +60810,7 @@ async function resolveProductTargetIdOnDemand(accountId, ptLocalId) {
             "UPDATE product_targets SET targetId = ? WHERE id = ? AND targetId IS NULL",
             [amazonTargetId, ptLocalId]
           );
-          log9.debug(`\u2705 \u5373\u65F6\u56DE\u586Bproduct_target id=${ptLocalId} \u2192 targetId=${amazonTargetId}`);
+          log10.debug(`\u2705 \u5373\u65F6\u56DE\u586Bproduct_target id=${ptLocalId} \u2192 targetId=${amazonTargetId}`);
           return amazonTargetId;
         } catch (upErr) {
           if (upErr.code === "ER_DUP_ENTRY" || upErr.errno === 1062) {
@@ -54918,7 +60822,7 @@ async function resolveProductTargetIdOnDemand(accountId, ptLocalId) {
     }
     return null;
   } catch (err2) {
-    log9.error(`resolveProductTargetIdOnDemand\u5F02\u5E38: ${err2.message}`);
+    log10.error(`resolveProductTargetIdOnDemand\u5F02\u5E38: ${err2.message}`);
     return null;
   } finally {
     if (conn) {
@@ -54929,14 +60833,14 @@ async function resolveProductTargetIdOnDemand(accountId, ptLocalId) {
     }
   }
 }
-var log9;
+var log10;
 var init_amazonIdResolver = __esm({
   "server/services/amazonIdResolver.ts"() {
     "use strict";
     init_syncServiceProvider();
     init_keywordValidator();
     init_logger2();
-    log9 = createModuleLogger("IdResolver");
+    log10 = createModuleLogger("IdResolver");
   }
 });
 
@@ -54972,7 +60876,7 @@ async function withRetry(fn2, options = {}) {
         throw error54;
       }
       const delay = isThrottle ? Math.min(baseDelayMs * Math.pow(2, attempt), 3e4) : baseDelayMs * (attempt + 1);
-      log10.warn(`[AmazonApiHelper] ${label} \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5\uFF0C\u7B49\u5F85${delay}ms... (${error54.message?.substring(0, 80)})`);
+      log11.warn(`[AmazonApiHelper] ${label} \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5\uFF0C\u7B49\u5F85${delay}ms... (${error54.message?.substring(0, 80)})`);
       await new Promise((resolve8) => setTimeout(resolve8, delay));
     }
   }
@@ -54981,11 +60885,11 @@ async function withRetry(fn2, options = {}) {
 async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
   const result = { success: 0, failed: 0, errors: [], itemResults: /* @__PURE__ */ new Map() };
   if (adjustments.length === 0) return result;
-  log10.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574: accountId=${accountId}, \u603B\u8BA1=${adjustments.length}\u6761`);
+  log11.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574: accountId=${accountId}, \u603B\u8BA1=${adjustments.length}\u6761`);
   const syncService = await getAmazonSyncService2(accountId);
   if (!syncService) {
     const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
-    log10.error(`[AmazonApiHelper] ${errorMsg}`);
+    log11.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = adjustments.length;
     for (const adj of adjustments) {
@@ -54993,14 +60897,14 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     }
     return result;
   }
-  log10.info(`[AmazonApiHelper] API\u670D\u52A1\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574`);
+  log11.info(`[AmazonApiHelper] API\u670D\u52A1\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574`);
   const deduped = /* @__PURE__ */ new Map();
   for (const adj of adjustments) {
     deduped.set(adj.keywordId, adj);
   }
   const uniqueAdjustments = Array.from(deduped.values());
   if (uniqueAdjustments.length < adjustments.length) {
-    log10.debug(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: ${adjustments.length}\u6761 -> ${uniqueAdjustments.length}\u6761\uFF08\u53BB\u9664${adjustments.length - uniqueAdjustments.length}\u4E2A\u91CD\u590D\u5173\u952E\u8BCD\uFF09`);
+    log11.debug(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: ${adjustments.length}\u6761 -> ${uniqueAdjustments.length}\u6761\uFF08\u53BB\u9664${adjustments.length - uniqueAdjustments.length}\u4E2A\u91CD\u590D\u5173\u952E\u8BCD\uFF09`);
   }
   const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   let consecutiveThrottles = 0;
@@ -55013,9 +60917,9 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
       try {
         const targetType = adj.isProductTarget ? "product_target" : "keyword";
         if (retryCount === 0) {
-          log10.info(`[AmazonApiHelper] [${i4 + 1}/${uniqueAdjustments.length}] \u540C\u6B65\u51FA\u4EF7: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
+          log11.info(`[AmazonApiHelper] [${i4 + 1}/${uniqueAdjustments.length}] \u540C\u6B65\u51FA\u4EF7: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
         } else {
-          log10.debug(`[AmazonApiHelper] [${i4 + 1}/${uniqueAdjustments.length}] \u91CD\u8BD5#${retryCount}: ${targetType} id=${adj.keywordId}`);
+          log11.debug(`[AmazonApiHelper] [${i4 + 1}/${uniqueAdjustments.length}] \u91CD\u8BD5#${retryCount}: ${targetType} id=${adj.keywordId}`);
         }
         const actualTargetId = adj.isProductTarget && adj.productTargetId ? adj.productTargetId : adj.keywordId;
         const apiResult = await syncService.applyBidAdjustment(
@@ -55035,7 +60939,7 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
           const targetType2 = adj.isProductTarget ? "product_target" : "keyword";
           const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25: ${targetType2} ${adj.keywordId}`;
           result.errors.push(errorMsg);
-          log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+          log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
           result.itemResults.set(adj.keywordId, { status: "failed", error: "\u8BB0\u5F55\u4E0D\u5B58\u5728\u6216Amazon ID\u65E0\u6548" });
           break;
         }
@@ -55054,18 +60958,18 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
         if (isThrottle && retryCount <= maxRetries) {
           consecutiveThrottles++;
           const waitTime = Math.min(3e3 * consecutiveThrottles, 15e3);
-          log10.debug(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
+          log11.debug(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
           await delay(waitTime);
         } else if (retryCount <= maxRetries) {
           const waitTime = 2e3 * retryCount;
-          log10.warn(`[AmazonApiHelper] \u2139\uFE0F API\u9519\u8BEF\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
+          log11.warn(`[AmazonApiHelper] \u2139\uFE0F API\u9519\u8BEF\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
           await delay(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? "product_target" : "keyword";
           const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38(\u91CD\u8BD5${maxRetries}\u6B21\u540E): ${targetType} ${adj.keywordId} - ${error54.message}`;
           result.errors.push(errorMsg);
-          log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+          log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
           result.itemResults.set(adj.keywordId, { status: "failed", error: `API\u5F02\u5E38: ${error54.message?.substring(0, 100)}` });
           break;
         }
@@ -55077,14 +60981,14 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
   }
   const totalAttempts = result.success + result.failed;
   const failureRate = totalAttempts > 0 ? result.failed / totalAttempts * 100 : 0;
-  log10.warn(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u6210\u529F\u7387=${(100 - failureRate).toFixed(1)}%`);
+  log11.warn(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u6210\u529F\u7387=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
-    log10.error(`[AmazonApiHelper] \u9519\u8BEF\u8BE6\u60C5:`, result.errors.slice(0, 5).join("; "));
+    log11.error(`[AmazonApiHelper] \u9519\u8BEF\u8BE6\u60C5:`, result.errors.slice(0, 5).join("; "));
   }
   const FAILURE_RATE_THRESHOLD = 20;
   if (failureRate > FAILURE_RATE_THRESHOLD && totalAttempts >= 5) {
-    log10.error(`[ALERT] \u26A0\uFE0F Amazon API\u540C\u6B65\u5931\u8D25\u7387\u8FC7\u9AD8! \u5931\u8D25\u7387=${failureRate.toFixed(1)}% (\u9608\u503C=${FAILURE_RATE_THRESHOLD}%), \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
-    log10.error(`[ALERT] \u8BF7\u68C0\u67E5Amazon API\u51ED\u8BC1\u3001\u914D\u989D\u548C\u7F51\u7EDC\u72B6\u6001`);
+    log11.error(`[ALERT] \u26A0\uFE0F Amazon API\u540C\u6B65\u5931\u8D25\u7387\u8FC7\u9AD8! \u5931\u8D25\u7387=${failureRate.toFixed(1)}% (\u9608\u503C=${FAILURE_RATE_THRESHOLD}%), \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+    log11.error(`[ALERT] \u8BF7\u68C0\u67E5Amazon API\u51ED\u8BC1\u3001\u914D\u989D\u548C\u7F51\u7EDC\u72B6\u6001`);
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
@@ -55095,7 +60999,7 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
         await dbInstance.execute(sql18`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
-      log10.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
+      log11.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
     }
   }
   return result;
@@ -55108,7 +61012,7 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
     createdKeywords: []
   };
   if (newKeywords.length === 0) return result;
-  log10.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u65B0\u5173\u952E\u8BCD\u5230Amazon: accountId=${accountId}, \u603B\u8BA1=${newKeywords.length}\u4E2A`);
+  log11.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u65B0\u5173\u952E\u8BCD\u5230Amazon: accountId=${accountId}, \u603B\u8BA1=${newKeywords.length}\u4E2A`);
   const syncService = await getAmazonSyncService2(accountId);
   if (!syncService) {
     const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`;
@@ -55119,12 +61023,12 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
   const BATCH_SIZE = 50;
   const BATCH_DELAY_MS = 2e3;
   const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
-  log10.info(`[AmazonApiHelper] \u5206\u6279\u5904\u7406: \u603B\u8BA1${newKeywords.length}\u4E2A\u5173\u952E\u8BCD, \u5206${totalBatches}\u6279, \u6BCF\u6279\u6700\u591A${BATCH_SIZE}\u4E2A`);
+  log11.info(`[AmazonApiHelper] \u5206\u6279\u5904\u7406: \u603B\u8BA1${newKeywords.length}\u4E2A\u5173\u952E\u8BCD, \u5206${totalBatches}\u6279, \u6BCF\u6279\u6700\u591A${BATCH_SIZE}\u4E2A`);
   for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
     const batchStart = batchIdx * BATCH_SIZE;
     const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
     const batch = newKeywords.slice(batchStart, batchEnd);
-    log10.info(`[AmazonApiHelper] \u5904\u7406\u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD (\u7D22\u5F15 ${batchStart}-${batchEnd - 1})`);
+    log11.info(`[AmazonApiHelper] \u5904\u7406\u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD (\u7D22\u5F15 ${batchStart}-${batchEnd - 1})`);
     try {
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
@@ -55156,9 +61060,9 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
                 const { sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
                 try {
                   await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
-                  log10.info(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  log11.info(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
                 } catch (updateErr) {
-                  log10.warn(`[AmazonApiHelper] Drizzle execute\u5931\u8D25\uFF0C\u5C1D\u8BD5\u5E95\u5C42\u8FDE\u63A5:`, updateErr.message);
+                  log11.warn(`[AmazonApiHelper] Drizzle execute\u5931\u8D25\uFF0C\u5C1D\u8BD5\u5E95\u5C42\u8FDE\u63A5:`, updateErr.message);
                   const mysql2 = await import("mysql2/promise");
                   const rawConn = await mysql2.createConnection({
                     host: process.env.DB_HOST || process.env.DATABASE_HOST,
@@ -55169,11 +61073,11 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
                   });
                   await rawConn.execute("UPDATE keywords SET keywordId = ? WHERE id = ?", [String(created.keywordId), original.localKeywordId]);
                   await rawConn.end();
-                  log10.info(`[AmazonApiHelper] \u2705 (\u5E95\u5C42\u8FDE\u63A5) \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  log11.info(`[AmazonApiHelper] \u2705 (\u5E95\u5C42\u8FDE\u63A5) \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
                 }
               }
             } catch (dbError) {
-              log10.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);
+              log11.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);
             }
           }
         } else {
@@ -55181,7 +61085,7 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
           const errorCode = created.code || "UNKNOWN";
           const errorDetail = created.details || created.description || "";
           result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${errorCode}`);
-          log10.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
+          log11.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           const isPermanentError = errorCode === "INVALID_VALUE" || errorCode === "INVALID_ARGUMENT" || errorDetail.toLowerCase().includes("trademark") || errorDetail.toLowerCase().includes("brand") || errorDetail.toLowerCase().includes("restricted") || errorDetail.toLowerCase().includes("not eligible");
           if (isPermanentError && original.localKeywordId) {
             try {
@@ -55198,24 +61102,24 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
                   ORDER BY created_at DESC
                   LIMIT 1
                 `);
-                log10.warn(`[AmazonApiHelper] v310-fix: \u5173\u952E\u8BCD"${original.keywordText}"\u5DF2\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25 (${errorCode})`);
+                log11.warn(`[AmazonApiHelper] v310-fix: \u5173\u952E\u8BCD"${original.keywordText}"\u5DF2\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25 (${errorCode})`);
               }
             } catch (markErr) {
-              log10.error(`[AmazonApiHelper] v310-fix: \u6807\u8BB0\u6C38\u4E45\u5931\u8D25\u5F02\u5E38: ${markErr.message}`);
+              log11.error(`[AmazonApiHelper] v310-fix: \u6807\u8BB0\u6C38\u4E45\u5931\u8D25\u5F02\u5E38: ${markErr.message}`);
             }
           }
         }
       }
-      log10.info(`[AmazonApiHelper] \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u672C\u6279\u6210\u529F=${apiResult.createdKeywords.filter((k5) => k5.code === "SUCCESS").length}, \u7D2F\u8BA1\u6210\u529F=${result.success}`);
+      log11.info(`[AmazonApiHelper] \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u672C\u6279\u6210\u529F=${apiResult.createdKeywords.filter((k5) => k5.code === "SUCCESS").length}, \u7D2F\u8BA1\u6210\u529F=${result.success}`);
     } catch (error54) {
       const batchFailCount = batch.length;
       result.failed += batchFailCount;
       const errorMsg = `\u7B2C${batchIdx + 1}\u6279\u521B\u5EFA\u5173\u952E\u8BCDAPI\u8C03\u7528\u5931\u8D25: ${error54.message}`;
       result.errors.push(errorMsg);
-      log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`, error54.response?.data || "");
+      log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`, error54.response?.data || "");
       if (error54.response?.status === 429) {
         const throttleWait = BATCH_DELAY_MS * 5;
-        log10.debug(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED\u4E0B\u4E00\u6279...`);
+        log11.debug(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED\u4E0B\u4E00\u6279...`);
         await new Promise((resolve8) => setTimeout(resolve8, throttleWait));
       }
     }
@@ -55223,7 +61127,7 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
       await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
     }
   }
-  log10.warn(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
+  log11.warn(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
   return result;
 }
 async function syncNewProductTargetsToAmazon(accountId, newTargets) {
@@ -55262,11 +61166,11 @@ async function syncNewProductTargetsToAmazon(accountId, newTargets) {
           result.failed++;
           const errMsg = `ASIN ${batch[j6].asin}: ${created.code}`;
           result.errors.push(errMsg);
-          log10.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: ${errMsg}`);
+          log11.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: ${errMsg}`);
         }
       }
     } catch (batchErr) {
-      log10.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u6279\u6B21\u540C\u6B65\u5931\u8D25: ${batchErr.message}`);
+      log11.error(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u6279\u6B21\u540C\u6B65\u5931\u8D25: ${batchErr.message}`);
       result.failed += batch.length;
       result.errors.push(`Batch error: ${batchErr.message}`);
     }
@@ -55274,7 +61178,7 @@ async function syncNewProductTargetsToAmazon(accountId, newTargets) {
       await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
     }
   }
-  log10.warn(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newTargets.length}`);
+  log11.warn(`[AmazonApiHelper] v310: \u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newTargets.length}`);
   return result;
 }
 async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason, campaignType) {
@@ -55297,10 +61201,10 @@ async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, re
         });
       }
     }, { label: `\u9884\u7B97\u540C\u6B65 Campaign ${campaignId}` });
-    log10.info(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId} (${type}), \u65B0\u9884\u7B97=$${newBudget}`);
+    log11.info(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId} (${type}), \u65B0\u9884\u7B97=$${newBudget}`);
     return true;
   } catch (error54) {
-    log10.error(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u5931\u8D25(\u542B\u91CD\u8BD5): Campaign ${campaignId} (${campaignType}):`, error54.message);
+    log11.error(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u5931\u8D25(\u542B\u91CD\u8BD5): Campaign ${campaignId} (${campaignType}):`, error54.message);
     return false;
   }
 }
@@ -55318,10 +61222,10 @@ async function syncPlacementAdjustmentToAmazon(accountId, campaignId, topOfSearc
         }
       });
     }, { label: `\u4F4D\u7F6E\u503E\u659C\u540C\u6B65 Campaign ${campaignId}` });
-    log10.info(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
+    log11.info(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     return true;
   } catch (error54) {
-    log10.error(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25(\u542B\u91CD\u8BD5): Campaign ${campaignId}:`, error54.message);
+    log11.error(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25(\u542B\u91CD\u8BD5): Campaign ${campaignId}:`, error54.message);
     return false;
   }
 }
@@ -55354,7 +61258,7 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
             existingNegatives.add(key);
           }
         } catch (listErr) {
-          log10.warn(`[AmazonApiHelper] \u67E5\u8BE2campaign ${cid} \u5DF2\u6709\u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
+          log11.warn(`[AmazonApiHelper] \u67E5\u8BE2campaign ${cid} \u5DF2\u6709\u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
         }
       }
       const newCampaignNegatives = campaignLevel.filter((n7) => {
@@ -55363,7 +61267,7 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
       });
       const skippedCount = campaignLevel.length - newCampaignNegatives.length;
       if (skippedCount > 0) {
-        log10.info(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: \u8DF3\u8FC7${skippedCount}\u4E2A\u5DF2\u5B58\u5728\u7684campaign\u7EA7\u5426\u5B9A\u8BCD`);
+        log11.info(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: \u8DF3\u8FC7${skippedCount}\u4E2A\u5DF2\u5B58\u5728\u7684campaign\u7EA7\u5426\u5B9A\u8BCD`);
         result.success += skippedCount;
       }
       if (newCampaignNegatives.length > 0) {
@@ -55385,7 +61289,7 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
               if (r5.keywordId) {
                 result.keywordIdMap.set(mapKey, String(r5.keywordId));
               }
-              log10.info(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u521B\u5EFA\u6210\u529F: "${neg.keywordText}" -> keywordId=${r5.keywordId}`);
+              log11.info(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u521B\u5EFA\u6210\u529F: "${neg.keywordText}" -> keywordId=${r5.keywordId}`);
             }
           } else {
             result.failed++;
@@ -55412,7 +61316,7 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
             existingNegatives.add(key);
           }
         } catch (listErr) {
-          log10.warn(`[AmazonApiHelper] \u67E5\u8BE2adGroup ${agId} \u5DF2\u6709\u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
+          log11.warn(`[AmazonApiHelper] \u67E5\u8BE2adGroup ${agId} \u5DF2\u6709\u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
         }
       }
       const newAdGroupNegatives = adGroupLevel.filter((n7) => {
@@ -55421,7 +61325,7 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
       });
       const skippedCount = adGroupLevel.length - newAdGroupNegatives.length;
       if (skippedCount > 0) {
-        log10.info(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: \u8DF3\u8FC7${skippedCount}\u4E2A\u5DF2\u5B58\u5728\u7684adGroup\u7EA7\u5426\u5B9A\u8BCD`);
+        log11.info(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: \u8DF3\u8FC7${skippedCount}\u4E2A\u5DF2\u5B58\u5728\u7684adGroup\u7EA7\u5426\u5B9A\u8BCD`);
         result.success += skippedCount;
       }
       if (newAdGroupNegatives.length > 0) {
@@ -55456,17 +61360,17 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
       result.errors.push(`AdGroup\u5426\u5B9A\u8BCD\u6279\u91CF\u521B\u5EFA\u5931\u8D25: ${error54.message}`);
     }
   }
-  log10.warn(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  log11.warn(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
 async function syncKeywordStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
-  log10.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  log11.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
   const syncService = await getAmazonSyncService2(accountId);
   if (!syncService) {
     const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
-    log10.error(`[AmazonApiHelper] ${errorMsg}`);
+    log11.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -55475,7 +61379,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
   const keywordChanges = statusChanges.filter((s4) => !s4.isProductTarget);
   const productTargetChanges = statusChanges.filter((s4) => s4.isProductTarget);
   if (keywordChanges.length > 0) {
-    log10.info(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${keywordChanges.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4`);
+    log11.info(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${keywordChanges.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4`);
     const dbInstance = await getDb();
     const resolvedKeywordUpdates = [];
     if (dbInstance) {
@@ -55491,7 +61395,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
               kw = { keywordId: resolvedId };
             }
           } catch (resolveErr) {
-            log10.error(`[AmazonApiHelper] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+            log11.error(`[AmazonApiHelper] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
           }
           if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
             result.failed++;
@@ -55510,7 +61414,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
     }
     if (resolvedKeywordUpdates.length > 0) {
       try {
-        log10.info(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedKeywordUpdates.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
+        log11.info(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedKeywordUpdates.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
         const apiResult = await withRetry(
           () => syncService.client.updateKeywordStatus(resolvedKeywordUpdates),
           { maxRetries: 2, baseDelayMs: 2e3, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}` }
@@ -55522,16 +61426,16 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
             result.errors.push(`\u5173\u952E\u8BCD ${err2.keywordId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${err2.details || err2.code}`);
           }
         }
-        log10.warn(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
+        log11.warn(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
       } catch (batchErr) {
-        log10.error(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+        log11.error(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
         result.failed += resolvedKeywordUpdates.length;
         result.errors.push(`\u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
       }
     }
   }
   if (productTargetChanges.length > 0) {
-    log10.info(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${productTargetChanges.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u53D8\u66F4`);
+    log11.info(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${productTargetChanges.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u53D8\u66F4`);
     const ptDbInstance = await getDb();
     const resolvedTargetUpdates = [];
     if (ptDbInstance) {
@@ -55545,7 +61449,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
             const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
             resolvedTargetId = await resolveProductTargetIdOnDemand2(accountId, change.keywordId);
           } catch (resolveErr) {
-            log10.error(`[AmazonApiHelper] \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+            log11.error(`[AmazonApiHelper] \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
           }
         }
         if (resolvedTargetId) {
@@ -55564,7 +61468,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
     }
     if (resolvedTargetUpdates.length > 0) {
       try {
-        log10.info(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedTargetUpdates.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
+        log11.info(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedTargetUpdates.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
         const apiResult = await withRetry(
           () => syncService.client.updateProductTargetStatus(resolvedTargetUpdates),
           { maxRetries: 2, baseDelayMs: 2e3, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}` }
@@ -55576,26 +61480,26 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
             result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${err2.targetId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${err2.details || err2.code}`);
           }
         }
-        log10.warn(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
+        log11.warn(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
       } catch (batchErr) {
-        log10.error(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+        log11.error(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
         result.failed += resolvedTargetUpdates.length;
         result.errors.push(`\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
       }
     }
   }
-  log10.warn(`[AmazonApiHelper] \u5173\u952E\u8BCD\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  log11.warn(`[AmazonApiHelper] \u5173\u952E\u8BCD\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
 async function syncCampaignStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
   const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
-  log10.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  log11.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
   const syncService = await getAmazonSyncService2(accountId);
   if (!syncService) {
     const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
-    log10.error(`[AmazonApiHelper] ${errorMsg}`);
+    log11.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -55608,7 +61512,7 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
         continue;
       }
       const campaignType = (change.campaignType || "sp_manual").toLowerCase();
-      log10.info(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
+      log11.info(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
       const maxRetries = 2;
       let lastError = null;
       let success2 = false;
@@ -55616,7 +61520,7 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
         try {
           if (attempt > 0) {
             const waitTime = 2e3 * attempt;
-            log10.debug(`[AmazonApiHelper] \u91CD\u8BD5#${attempt}: "${change.campaignName}", \u7B49\u5F85${waitTime}ms`);
+            log11.debug(`[AmazonApiHelper] \u91CD\u8BD5#${attempt}: "${change.campaignName}", \u7B49\u5F85${waitTime}ms`);
             await delay(waitTime);
           }
           if (campaignType === "sb") {
@@ -55643,12 +61547,12 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
       }
       if (success2) {
         result.success++;
-        log10.info(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
+        log11.info(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
       } else {
         result.failed++;
         const errorMsg = `\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) \u72B6\u6001\u540C\u6B65\u5931\u8D25(\u5DF2\u91CD\u8BD5${maxRetries}\u6B21): ${lastError?.message}`;
         result.errors.push(errorMsg);
-        log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+        log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
         try {
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
@@ -55660,30 +61564,30 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
             `);
           }
         } catch (logError2) {
-          log10.warn(`[AmazonApiHelper] \u65E0\u6CD5\u8BB0\u5F55\u540C\u6B65\u5931\u8D25\u65E5\u5FD7:`, logError2.message);
+          log11.warn(`[AmazonApiHelper] \u65E0\u6CD5\u8BB0\u5F55\u540C\u6B65\u5931\u8D25\u65E5\u5FD7:`, logError2.message);
         }
       }
     } catch (error54) {
       result.failed++;
       const errorMsg = `\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`;
       result.errors.push(errorMsg);
-      log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+      log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
     }
     if (statusChanges.indexOf(change) % 5 === 4) {
       await delay(500);
     }
   }
-  log10.warn(`[AmazonApiHelper] \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  log11.warn(`[AmazonApiHelper] \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
 async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
-  log10.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  log11.info(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
   const syncService = await getAmazonSyncService2(accountId);
   if (!syncService) {
     const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
-    log10.error(`[AmazonApiHelper] ${errorMsg}`);
+    log11.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -55696,10 +61600,10 @@ async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
   }
   for (const change of validChanges) {
     try {
-      log10.info(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
+      log11.info(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
       const isSD = change.campaignType === "sd" || change.campaignType === "sponsoredDisplay" || change.campaignType === "SD";
       const apiLabel = isSD ? "updateSdAdGroupStatus" : "updateSpAdGroupStatus";
-      log10.info(`[AmazonApiHelper] v310-fix: \u4F7F\u7528${apiLabel}\u66F4\u65B0\u5E7F\u544A\u7EC4\u72B6\u6001 (campaignType=${change.campaignType || "sp"})`);
+      log11.info(`[AmazonApiHelper] v310-fix: \u4F7F\u7528${apiLabel}\u66F4\u65B0\u5E7F\u544A\u7EC4\u72B6\u6001 (campaignType=${change.campaignType || "sp"})`);
       const apiResult = await withRetry(
         () => isSD ? syncService.client.updateSdAdGroupStatus([{
           adGroupId: change.amazonAdGroupId,
@@ -55712,7 +61616,7 @@ async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
       );
       if (apiResult.successCount > 0) {
         result.success++;
-        log10.info(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.adGroupName}" -> ${change.newStatus}`);
+        log11.info(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.adGroupName}" -> ${change.newStatus}`);
       } else if (apiResult.errors.length > 0) {
         result.failed++;
         const errorDetail = apiResult.errors[0]?.details || "Unknown error";
@@ -55724,20 +61628,20 @@ async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
       result.failed++;
       const errorMsg = `\u5E7F\u544A\u7EC4 "${change.adGroupName}" (${change.amazonAdGroupId}) \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`;
       result.errors.push(errorMsg);
-      log10.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+      log11.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
     }
   }
-  log10.warn(`[AmazonApiHelper] \u5E7F\u544A\u7EC4\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  log11.warn(`[AmazonApiHelper] \u5E7F\u544A\u7EC4\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
-var log10;
+var log11;
 var init_amazonApiHelper = __esm({
   "server/services/amazonApiHelper.ts"() {
     "use strict";
     init_db2();
     init_logger2();
     init_syncServiceProvider();
-    log10 = createModuleLogger("ApiHelper");
+    log11 = createModuleLogger("ApiHelper");
   }
 });
 
@@ -55854,18 +61758,18 @@ async function getAlgorithmEfficacyForTarget(targetId, days = 30) {
       improvementTrend
     };
   } catch (err2) {
-    log11.error(`[algorithmEfficacyService] Error for target ${targetId}:`, err2.message);
+    log12.error(`[algorithmEfficacyService] Error for target ${targetId}:`, err2.message);
     return void 0;
   }
 }
-var log11;
+var log12;
 var init_algorithmEfficacyService = __esm({
   "server/algorithmEfficacyService.ts"() {
     "use strict";
     init_logger2();
     init_db2();
     init_drizzle_orm();
-    log11 = createModuleLogger("AlgorithmEfficacyService");
+    log12 = createModuleLogger("AlgorithmEfficacyService");
   }
 });
 
@@ -56121,10 +62025,10 @@ async function ensureDaypartingStrategy(accountId, campaignId, campaignName, opt
       }
     }
     await saveBidRules(strategyId, defaultBidRules);
-    log12.info(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
+    log13.info(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
     return await getDaypartingStrategy(strategyId);
   } catch (err2) {
-    log12.error(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565\u5931\u8D25: ${err2.message}`);
+    log13.error(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565\u5931\u8D25: ${err2.message}`);
     return null;
   }
 }
@@ -56247,7 +62151,7 @@ async function getHourlyRule(strategyId, dayOfWeek, hour2) {
     isEnabled: rule2.ruleEnabled ?? true
   };
 }
-var log12, DAY_OF_WEEK_LABELS, HOUR_LABELS, ATTRIBUTION_DELAY_DAYS;
+var log13, DAY_OF_WEEK_LABELS, HOUR_LABELS, ATTRIBUTION_DELAY_DAYS;
 var init_daypartingService = __esm({
   "server/daypartingService.ts"() {
     "use strict";
@@ -56255,7 +62159,7 @@ var init_daypartingService = __esm({
     init_drizzle_orm();
     init_db2();
     init_schema2();
-    log12 = createModuleLogger("DaypartingService");
+    log13 = createModuleLogger("DaypartingService");
     DAY_OF_WEEK_LABELS = ["\u5468\u65E5", "\u5468\u4E00", "\u5468\u4E8C", "\u5468\u4E09", "\u5468\u56DB", "\u5468\u4E94", "\u5468\u516D"];
     HOUR_LABELS = Array.from({ length: 24 }, (_3, i4) => `${i4.toString().padStart(2, "0")}:00`);
     ATTRIBUTION_DELAY_DAYS = 3;
@@ -56566,7 +62470,7 @@ async function calculateDynamicBenchmarks(accountId, days = 30) {
       cpcBaseline: Math.max(0.5, Math.min(5, (data4.avgCpc || 1) * 1.5))
     };
   } catch (error54) {
-    log13.error("[PlacementOptimization] \u8BA1\u7B97\u52A8\u6001\u57FA\u51C6\u5931\u8D25:", error54);
+    log14.error("[PlacementOptimization] \u8BA1\u7B97\u52A8\u6001\u57FA\u51C6\u5931\u8D25:", error54);
     return DEFAULT_BENCHMARKS;
   }
 }
@@ -56604,7 +62508,7 @@ async function checkAdjustmentCooldown(campaignId, accountId, placementType) {
       lastAdjustmentDate: lastDate
     };
   } catch (error54) {
-    log13.error("[PlacementOptimization] \u68C0\u67E5\u51B7\u5374\u671F\u5931\u8D25:", error54);
+    log14.error("[PlacementOptimization] \u68C0\u67E5\u51B7\u5374\u671F\u5931\u8D25:", error54);
     return { inCooldown: false };
   }
 }
@@ -56623,7 +62527,7 @@ async function getCampaignBiddingStrategy(campaignId, accountId) {
     }
     return "down_only";
   } catch (error54) {
-    log13.error("[PlacementOptimization] \u83B7\u53D6\u7ADE\u4EF7\u7B56\u7565\u5931\u8D25:", error54);
+    log14.error("[PlacementOptimization] \u83B7\u53D6\u7ADE\u4EF7\u7B56\u7565\u5931\u8D25:", error54);
     return "fixed";
   }
 }
@@ -56839,9 +62743,9 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 90,
           sales: twMetrics.weightedDailySales * totalDays,
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays)
         };
-        log13.info(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ROAS=${twMetrics.weightedRoas.toFixed(2)}, \u52A0\u6743ACoS=${twMetrics.weightedAcos.toFixed(1)}%, \u7F6E\u4FE1\u5EA6=${twMetrics.dataQuality.confidenceLevel}`);
+        log14.info(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ROAS=${twMetrics.weightedRoas.toFixed(2)}, \u52A0\u6743ACoS=${twMetrics.weightedAcos.toFixed(1)}%, \u7F6E\u4FE1\u5EA6=${twMetrics.dataQuality.confidenceLevel}`);
       } catch (e6) {
-        log13.info(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u8BA1\u7B97\u5931\u8D25\uFF0C\u4F7F\u7528\u539F\u59CB\u6C47\u603B: ${e6.message}`);
+        log14.info(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u8BA1\u7B97\u5931\u8D25\uFF0C\u4F7F\u7528\u539F\u59CB\u6C47\u603B: ${e6.message}`);
       }
     }
     const { score, confidence, normalizedMetrics } = calculateEfficiencyScore(
@@ -56903,7 +62807,7 @@ async function recordPlacementAdjustment(campaignId, accountId, adjustment) {
       status: "applied"
     });
   } catch (error54) {
-    log13.error("[PlacementOptimization] \u8BB0\u5F55\u8C03\u6574\u5386\u53F2\u5931\u8D25:", error54);
+    log14.error("[PlacementOptimization] \u8BB0\u5F55\u8C03\u6574\u5386\u53F2\u5931\u8D25:", error54);
   }
 }
 async function updatePlacementSettings(campaignId, accountId, adjustments) {
@@ -56966,10 +62870,10 @@ async function updatePlacementSettings(campaignId, accountId, adjustments) {
           eq(campaigns.accountId, accountId)
         )
       );
-      log13.info(`[PlacementOptimization] v166: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u5DF2\u540C\u6B65\u66F4\u65B0(\u5F85\u786E\u8BA4) - campaignId=${campaignId}`, campaignUpdateData);
+      log14.info(`[PlacementOptimization] v166: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u5DF2\u540C\u6B65\u66F4\u65B0(\u5F85\u786E\u8BA4) - campaignId=${campaignId}`, campaignUpdateData);
     }
   } catch (campaignUpdateError) {
-    log13.error(`[PlacementOptimization] v165: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u66F4\u65B0\u5931\u8D25: ${campaignUpdateError.message}`);
+    log14.error(`[PlacementOptimization] v165: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u66F4\u65B0\u5931\u8D25: ${campaignUpdateError.message}`);
   }
 }
 async function executeAutomaticPlacementOptimization(campaignId, accountId, options) {
@@ -57019,7 +62923,7 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId, opti
       biddingStrategy
     };
   } catch (error54) {
-    log13.error("[PlacementOptimization] \u4F4D\u7F6E\u503E\u659C\u4F18\u5316\u6267\u884C\u5931\u8D25:", error54);
+    log14.error("[PlacementOptimization] \u4F4D\u7F6E\u503E\u659C\u4F18\u5316\u6267\u884C\u5931\u8D25:", error54);
     return {
       success: false,
       message: `\u4F18\u5316\u6267\u884C\u5931\u8D25: ${error54 instanceof Error ? error54.message : "\u672A\u77E5\u9519\u8BEF"}`,
@@ -57133,11 +63037,11 @@ async function applyPlacementAdjustment(campaignId, accountId, adjustment) {
     }]);
     return true;
   } catch (error54) {
-    log13.error("[placementOptimizationService] applyPlacementAdjustment error:", error54);
+    log14.error("[placementOptimizationService] applyPlacementAdjustment error:", error54);
     return false;
   }
 }
-var log13, DEFAULT_WEIGHTS2, DEFAULT_BENCHMARKS, ADJUSTMENT_COOLDOWN_DAYS, ATTRIBUTION_DELAY_DAYS2;
+var log14, DEFAULT_WEIGHTS2, DEFAULT_BENCHMARKS, ADJUSTMENT_COOLDOWN_DAYS, ATTRIBUTION_DELAY_DAYS2;
 var init_placementOptimizationService = __esm({
   "server/placementOptimizationService.ts"() {
     "use strict";
@@ -57146,7 +63050,7 @@ var init_placementOptimizationService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_timeDecayWeightedDataService();
-    log13 = createModuleLogger("PlacementOptimizationService");
+    log14 = createModuleLogger("PlacementOptimizationService");
     DEFAULT_WEIGHTS2 = {
       roasWeight: 0.35,
       acosWeight: 0.25,
@@ -57226,7 +63130,7 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
             recommendation: "reduce_bids"
           };
         }
-        log14.warn(`[EmergencyBrake] v230: \u9500\u552E\u989D\u4E0B\u964D${(salesDropRate * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8\uFF0C\u4E0D\u89E6\u53D1\u5236\u52A8`);
+        log15.warn(`[EmergencyBrake] v230: \u9500\u552E\u989D\u4E0B\u964D${(salesDropRate * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8\uFF0C\u4E0D\u89E6\u53D1\u5236\u52A8`);
       }
     }
     if (previousSpend > 20) {
@@ -57239,7 +63143,7 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
             recommendation: "reduce_budgets"
           };
         }
-        log14.warn(`[EmergencyBrake] v230: \u82B1\u8D39\u6FC0\u589E${((spendSurgeRate - 1) * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8`);
+        log15.warn(`[EmergencyBrake] v230: \u82B1\u8D39\u6FC0\u589E${((spendSurgeRate - 1) * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8`);
       }
     }
     if (previousOrders > 10) {
@@ -57252,12 +63156,12 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
             recommendation: "pause_optimization"
           };
         }
-        log14.warn(`[EmergencyBrake] v230: \u8BA2\u5355\u4E0B\u964D${(ordersDropRate * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8`);
+        log15.warn(`[EmergencyBrake] v230: \u8BA2\u5355\u4E0B\u964D${(ordersDropRate * 100).toFixed(0)}%\u4F46\u65E0\u8FD1\u671F\u4F18\u5316\u64CD\u4F5C\uFF0C\u5224\u5B9A\u4E3A\u81EA\u7136\u6CE2\u52A8`);
       }
     }
     return { triggered: false, reason: null, recommendation: "none" };
   } catch (error54) {
-    log14.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error54);
+    log15.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error54);
     return { triggered: false, reason: null, recommendation: "none" };
   }
 }
@@ -57324,7 +63228,7 @@ async function assessRiskLevel(accountId, performanceGroupId) {
         budgetMultiplier: 0.85,
         cooldownExtension: 2
       };
-      log14.warn(`[RiskAssessment] \u{1F534} RED risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
+      log15.warn(`[RiskAssessment] \u{1F534} RED risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
     } else if (riskScore >= 25) {
       level = "yellow";
       autoResponse = {
@@ -57333,7 +63237,7 @@ async function assessRiskLevel(accountId, performanceGroupId) {
         budgetMultiplier: 0.95,
         cooldownExtension: 1.5
       };
-      log14.info(`[RiskAssessment] \u{1F7E1} YELLOW risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
+      log15.info(`[RiskAssessment] \u{1F7E1} YELLOW risk (score=${riskScore}) for PG ${performanceGroupId}: ${factors.join("; ")}`);
     } else {
       level = "green";
       autoResponse = {
@@ -57345,7 +63249,7 @@ async function assessRiskLevel(accountId, performanceGroupId) {
     }
     return { level, score: Math.min(riskScore, 100), factors, autoResponse };
   } catch (error54) {
-    log14.error(`[RiskAssessment] Error for PG ${performanceGroupId}:`, error54);
+    log15.error(`[RiskAssessment] Error for PG ${performanceGroupId}:`, error54);
     return {
       level: "green",
       score: 0,
@@ -57370,14 +63274,14 @@ async function preOptimizationSafetyCheck(accountId, performanceGroupId) {
     riskAssessment
   };
 }
-var log14, SAFETY_LIMITS;
+var log15, SAFETY_LIMITS;
 var init_optimizationSafetyGuardrails = __esm({
   "server/optimizationSafetyGuardrails.ts"() {
     "use strict";
     init_logger2();
     init_db2();
     init_drizzle_orm();
-    log14 = createModuleLogger("OptimizationSafetyGuardrails");
+    log15 = createModuleLogger("OptimizationSafetyGuardrails");
     SAFETY_LIMITS = {
       bid: {
         maxSingleChangePercent: 0.2,
@@ -57469,10 +63373,10 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
       }));
       if (dailyDataForWeighting.length > 0) {
         timeWeightedMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
-        log15.info(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743\u65E5\u5747\u82B1\u8D39=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, \u52A0\u6743ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
+        log16.info(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743\u65E5\u5747\u82B1\u8D39=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, \u52A0\u6743ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
       }
     } catch (e6) {
-      log15.info(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+      log16.info(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
     }
     const currentBudget = Number(campaign.dailyBudget) || 0;
     const dailyAvgSpend = timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30;
@@ -57969,7 +63873,7 @@ async function updateBudgetAllocationConfig(performanceGroupId, userId, updates)
     });
   }
 }
-var log15, DEFAULT_CONFIG2;
+var log16, DEFAULT_CONFIG2;
 var init_intelligentBudgetAllocationService = __esm({
   "server/intelligentBudgetAllocationService.ts"() {
     "use strict";
@@ -57978,7 +63882,7 @@ var init_intelligentBudgetAllocationService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_timeDecayWeightedDataService();
-    log15 = createModuleLogger("IntelligentBudgetAllocationService");
+    log16 = createModuleLogger("IntelligentBudgetAllocationService");
     DEFAULT_CONFIG2 = {
       conversionEfficiencyWeight: 0.25,
       roasWeight: 0.25,
@@ -58416,10 +64320,10 @@ async function batchExtractAndCacheFeatures(accountId) {
         processedCount += insertValues.length;
       }
     }
-    log16.info(`[ContextualFeatureService] Cached ${processedCount} feature vectors for account ${accountId}`);
+    log17.info(`[ContextualFeatureService] Cached ${processedCount} feature vectors for account ${accountId}`);
     return processedCount;
   } catch (error54) {
-    log16.error(`[ContextualFeatureService] Error extracting features for account ${accountId}:`, error54);
+    log17.error(`[ContextualFeatureService] Error extracting features for account ${accountId}:`, error54);
     return processedCount;
   }
 }
@@ -58463,7 +64367,7 @@ async function getCachedFeatureVector(accountId, keywordId, targetId, campaignId
       const feature = parseCachedFeature(staleCache[0]);
       feature.hourOfDay = (/* @__PURE__ */ new Date()).getHours();
       feature.dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
-      log16.info(`[ContextualFeatureService] v275: \u4F7F\u7528${daysBack}\u5929\u524D\u7684\u7F13\u5B58\u7279\u5F81 (kw=${keywordId}, tgt=${targetId})`);
+      log17.info(`[ContextualFeatureService] v275: \u4F7F\u7528${daysBack}\u5929\u524D\u7684\u7F13\u5B58\u7279\u5F81 (kw=${keywordId}, tgt=${targetId})`);
       return feature;
     }
   }
@@ -58495,7 +64399,7 @@ function parseCachedFeature(c5) {
     weightedRoas14d: Number(c5.weightedRoas14d) || 0
   };
 }
-var log16, FEATURE_DIM, HALF_LIFE_DAYS;
+var log17, FEATURE_DIM, HALF_LIFE_DAYS;
 var init_contextualFeatureService = __esm({
   "server/contextualFeatureService.ts"() {
     "use strict";
@@ -58503,7 +64407,7 @@ var init_contextualFeatureService = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    log16 = createModuleLogger("ContextualFeatureService");
+    log17 = createModuleLogger("ContextualFeatureService");
     FEATURE_DIM = 17;
     HALF_LIFE_DAYS = 7;
   }
@@ -59527,7 +65431,7 @@ async function fitAndCacheSigmoidForEntity(accountId, entityType, entityId, camp
       eq(contextualFeatures.snapshotDate, today)
     ));
   } catch (e6) {
-    log17.error(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e6);
+    log18.error(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e6);
   }
   return params;
 }
@@ -59558,10 +65462,10 @@ async function batchFitSigmoidCurves(accountId) {
       result.errors++;
     }
   }
-  log17.info(`[SigmoidCurveFitter] Batch fit: ${result.fitted} fitted, ${result.skipped} skipped, ${result.errors} errors`);
+  log18.info(`[SigmoidCurveFitter] Batch fit: ${result.fitted} fitted, ${result.skipped} skipped, ${result.errors} errors`);
   return result;
 }
-var log17;
+var log18;
 var init_sigmoidCurveFitter = __esm({
   "server/sigmoidCurveFitter.ts"() {
     "use strict";
@@ -59569,7 +65473,7 @@ var init_sigmoidCurveFitter = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    log17 = createModuleLogger("SigmoidCurveFitter");
+    log18 = createModuleLogger("SigmoidCurveFitter");
   }
 });
 
@@ -59725,7 +65629,7 @@ async function selectArm(accountId, context, currentBid, alpha = 1.5) {
 }
 async function updateArm(accountId, armType, context, reward) {
   if (!isFinite(reward) || isNaN(reward)) {
-    log18.warn(`[LinUCB] v231: updateArm skipped - invalid reward: ${reward}`);
+    log19.warn(`[LinUCB] v231: updateArm skipped - invalid reward: ${reward}`);
     return;
   }
   const clampedReward = Math.max(-10, Math.min(10, reward));
@@ -59770,11 +65674,11 @@ async function makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId,
     const decision = await selectArm(accountId, context, currentBid, alpha);
     return decision;
   } catch (error54) {
-    log18.error(`[LinUCB] Error making bid decision:`, error54);
+    log19.error(`[LinUCB] Error making bid decision:`, error54);
     return null;
   }
 }
-var log18, ARM_CONFIGS;
+var log19, ARM_CONFIGS;
 var init_contextualBanditService = __esm({
   "server/contextualBanditService.ts"() {
     "use strict";
@@ -59783,7 +65687,7 @@ var init_contextualBanditService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_contextualFeatureService();
-    log18 = createModuleLogger("ContextualBanditService");
+    log19 = createModuleLogger("ContextualBanditService");
     ARM_CONFIGS = [
       {
         type: "bid_aggressive",
@@ -59937,7 +65841,7 @@ async function estimateCausalEffect(accountId, keywordId, targetId, campaignId) 
     await saveCausalResult(db, accountId, result);
     return result;
   } catch (error54) {
-    log19.error(`[CausalInference] Error estimating causal effect:`, error54);
+    log20.error(`[CausalInference] Error estimating causal effect:`, error54);
     return null;
   }
 }
@@ -60050,10 +65954,10 @@ async function batchCausalAnalysis(accountId) {
       result.errors++;
     }
   }
-  log19.info(`[CausalInference] Batch analysis: ${result.analyzed} analyzed, ${result.significant} significant, ${result.errors} errors`);
+  log20.info(`[CausalInference] Batch analysis: ${result.analyzed} analyzed, ${result.significant} significant, ${result.errors} errors`);
   return result;
 }
-var log19;
+var log20;
 var init_causalInferenceEngine = __esm({
   "server/causalInferenceEngine.ts"() {
     "use strict";
@@ -60061,7 +65965,7 @@ var init_causalInferenceEngine = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    log19 = createModuleLogger("CausalInferenceEngine");
+    log20 = createModuleLogger("CausalInferenceEngine");
   }
 });
 
@@ -60139,7 +66043,7 @@ async function trainCQL(accountId, model = null, config2 = {}) {
     isNotNull(rlTrainingLogs.rewardFilledAt)
   )).orderBy(sql`episode_id ASC, step_index ASC`).limit(1e4);
   if (trainingData.length < 20) {
-    log20.info(`[CQL] Insufficient training data (${trainingData.length}), skipping`);
+    log21.info(`[CQL] Insufficient training data (${trainingData.length}), skipping`);
     return model;
   }
   const validData = trainingData.filter((d5) => {
@@ -60153,10 +66057,10 @@ async function trainCQL(accountId, model = null, config2 = {}) {
   });
   const filteredCount = trainingData.length - validData.length;
   if (filteredCount > 0) {
-    log20.info(`[CQL] v274: \u6570\u636E\u8D28\u91CF\u8FC7\u6EE4: ${filteredCount}/${trainingData.length}\u6761\u5F02\u5E38\u6837\u672C\u88AB\u79FB\u9664`);
+    log21.info(`[CQL] v274: \u6570\u636E\u8D28\u91CF\u8FC7\u6EE4: ${filteredCount}/${trainingData.length}\u6761\u5F02\u5E38\u6837\u672C\u88AB\u79FB\u9664`);
   }
   if (validData.length < 20) {
-    log20.info(`[CQL] v274: \u8FC7\u6EE4\u540E\u6570\u636E\u4E0D\u8DB3(${validData.length}), skipping`);
+    log21.info(`[CQL] v274: \u8FC7\u6EE4\u540E\u6570\u636E\u4E0D\u8DB3(${validData.length}), skipping`);
     return model;
   }
   const rewards = validData.map((d5) => Number(d5.reward) || 0);
@@ -60221,7 +66125,7 @@ async function trainCQL(accountId, model = null, config2 = {}) {
   model.avgLoss = totalSteps > 0 ? totalLoss / totalSteps : 0;
   model.lastTrainedAt = (/* @__PURE__ */ new Date()).toISOString();
   model.qualityMetrics = evaluateModelQuality(model, samples);
-  log20.info(`[CQL] v274 Training complete: ${samples.length} samples(filtered ${filteredCount}), ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}, quality=${model.qualityMetrics.overallScore.toFixed(3)}`);
+  log21.info(`[CQL] v274 Training complete: ${samples.length} samples(filtered ${filteredCount}), ${epochs} epochs, avgLoss=${model.avgLoss.toFixed(6)}, quality=${model.qualityMetrics.overallScore.toFixed(3)}`);
   return model;
 }
 function evaluateModelQuality(model, samples) {
@@ -60335,7 +66239,7 @@ async function loadModelFromDb(accountId) {
     const row = rows[0];
     const weights = JSON.parse(row.weights);
     if (!Array.isArray(weights) || weights.length !== NUM_ACTIONS) {
-      log20.warn(`[CQL] v230: Invalid model weights dimensions for account ${accountId}`);
+      log21.warn(`[CQL] v230: Invalid model weights dimensions for account ${accountId}`);
       return null;
     }
     return {
@@ -60346,7 +66250,7 @@ async function loadModelFromDb(accountId) {
       lastTrainedAt: row.lastTrainedAt || (/* @__PURE__ */ new Date()).toISOString()
     };
   } catch (error54) {
-    log20.error(`[CQL] v230: Failed to load model from DB:`, error54);
+    log21.error(`[CQL] v230: Failed to load model from DB:`, error54);
     return null;
   }
 }
@@ -60376,9 +66280,9 @@ async function saveModelToDb(accountId, model) {
         modelVersion: 1
       });
     }
-    log20.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
+    log21.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
   } catch (error54) {
-    log20.error(`[CQL] v230: Failed to save model to DB:`, error54);
+    log21.error(`[CQL] v230: Failed to save model to DB:`, error54);
   }
 }
 async function getOrTrainCQLModel(accountId) {
@@ -60392,7 +66296,7 @@ async function getOrTrainCQLModel(accountId) {
     const age = Date.now() - new Date(dbModel.lastTrainedAt).getTime();
     if (age < 6 * 36e5) {
       modelCache.set(accountId, dbModel);
-      log20.info(`[CQL] v230: Model loaded from DB for account ${accountId}`);
+      log21.info(`[CQL] v230: Model loaded from DB for account ${accountId}`);
       return dbModel;
     }
     const model2 = await trainCQL(accountId, dbModel);
@@ -60417,11 +66321,11 @@ async function makeCQLBidDecision(accountId, context, currentBid) {
     }
     return decision;
   } catch (error54) {
-    log20.error(`[CQL] Error making decision:`, error54);
+    log21.error(`[CQL] Error making decision:`, error54);
     return null;
   }
 }
-var log20, ACTIONS, NUM_ACTIONS, STATE_DIM, modelCache;
+var log21, ACTIONS, NUM_ACTIONS, STATE_DIM, modelCache;
 var init_offlineRLService = __esm({
   "server/offlineRLService.ts"() {
     "use strict";
@@ -60430,7 +66334,7 @@ var init_offlineRLService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_contextualFeatureService();
-    log20 = createModuleLogger("OfflineRLService");
+    log21 = createModuleLogger("OfflineRLService");
     ACTIONS = [-0.3, -0.15, -0.05, 0, 0.05, 0.15, 0.3];
     NUM_ACTIONS = ACTIONS.length;
     STATE_DIM = FEATURE_DIM + 1;
@@ -60851,7 +66755,7 @@ var init_abTestService = __esm({
 
 // server/abTestIntegration.ts
 async function createAlgorithmExperiment(config2, userId) {
-  log21.info(`[ABTestIntegration] \u521B\u5EFA\u7B97\u6CD5\u5B9E\u9A8C: ${config2.name}, \u7C7B\u578B: ${config2.experimentType}`);
+  log22.info(`[ABTestIntegration] \u521B\u5EFA\u7B97\u6CD5\u5B9E\u9A8C: ${config2.name}, \u7C7B\u578B: ${config2.experimentType}`);
   const result = await createABTest({
     accountId: config2.accountId,
     performanceGroupId: config2.performanceGroupId,
@@ -60865,7 +66769,7 @@ async function createAlgorithmExperiment(config2, userId) {
     trafficSplit: config2.trafficSplit || 0.5
   }, userId);
   invalidateCache(config2.accountId);
-  log21.info(`[ABTestIntegration] \u5B9E\u9A8C\u521B\u5EFA\u6210\u529F: testId=${result.testId}`);
+  log22.info(`[ABTestIntegration] \u5B9E\u9A8C\u521B\u5EFA\u6210\u529F: testId=${result.testId}`);
   return result;
 }
 async function getExperimentConfigForCampaign(accountId, campaignId) {
@@ -60914,7 +66818,7 @@ async function getActiveExperiments(accountId) {
     cacheLastRefresh = now;
     return experiments;
   } catch (error54) {
-    log21.error(`[ABTestIntegration] \u52A0\u8F7D\u6D3B\u8DC3\u5B9E\u9A8C\u5931\u8D25:`, error54);
+    log22.error(`[ABTestIntegration] \u52A0\u8F7D\u6D3B\u8DC3\u5B9E\u9A8C\u5931\u8D25:`, error54);
     return [];
   }
 }
@@ -60981,7 +66885,7 @@ async function createExplorationRateExperiment(accountId, controlRange, treatmen
   }, userId);
   return { testId: result.testId };
 }
-var log21, activeExperimentsCache, cacheLastRefresh, CACHE_TTL;
+var log22, activeExperimentsCache, cacheLastRefresh, CACHE_TTL;
 var init_abTestIntegration = __esm({
   "server/abTestIntegration.ts"() {
     "use strict";
@@ -60990,7 +66894,7 @@ var init_abTestIntegration = __esm({
     init_drizzle_orm();
     init_logger2();
     init_abTestService();
-    log21 = createModuleLogger("ABTestIntegration");
+    log22 = createModuleLogger("ABTestIntegration");
     activeExperimentsCache = /* @__PURE__ */ new Map();
     cacheLastRefresh = 0;
     CACHE_TTL = 5 * 60 * 1e3;
@@ -61020,12 +66924,12 @@ function calculateStrategyExplorationRate(strategyTemplateId, dataCount, hasRece
   const detail = `\u7B56\u7565=${strategyTemplateId || "default"}, \u57FA\u7840\u7387=${(baseRate * 100).toFixed(0)}%, \u65B0\u9C9C\u5EA6=${freshnessFactor.toFixed(2)}, \u6700\u7EC8\u7387=${(explorationRate * 100).toFixed(0)}%, \u8303\u56F4=[${(config2.minExplorationRate * 100).toFixed(0)}%-${(config2.maxExplorationRate * 100).toFixed(0)}%]`;
   return { explorationRate, detail, dataMaturity };
 }
-var log22, STRATEGY_ALGORITHM_CONFIGS, DEFAULT_ALGORITHM_CONFIG;
+var log23, STRATEGY_ALGORITHM_CONFIGS, DEFAULT_ALGORITHM_CONFIG;
 var init_algorithmConfigService = __esm({
   "server/algorithmConfigService.ts"() {
     "use strict";
     init_logger2();
-    log22 = createModuleLogger("AlgorithmConfig");
+    log23 = createModuleLogger("AlgorithmConfig");
     STRATEGY_ALGORITHM_CONFIGS = {
       // 激进增长：高探索率，宽松融合阈值
       "aggressive-growth": {
@@ -61309,7 +67213,7 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
   const totalHistoryEvents = Number(historyEventCount[0]?.count) || 0;
   const syntheticDataCount = totalRLLogs + Math.floor(totalHistoryEvents * 0.3);
   const syntheticPendingCount = pendingRLLogs + Math.floor(totalHistoryEvents * 0.3);
-  log23.info(`[MetaLearning] v259\u7B97\u6CD5\u8BC4\u4F30: \u8D26\u6237${accountId}, RL\u65E5\u5FD7(\u5DF2\u56DE\u586B)=${totalRLLogs}, RL\u65E5\u5FD7(\u542B\u5F85\u56DE\u586B)=${pendingRLLogs}, \u5386\u53F2\u4E8B\u4EF6=${totalHistoryEvents}, \u5408\u6210\u6570\u636E\u91CF=${syntheticDataCount}, \u7279\u5F81\u7F13\u5B58=${hasFeatures}`);
+  log24.info(`[MetaLearning] v259\u7B97\u6CD5\u8BC4\u4F30: \u8D26\u6237${accountId}, RL\u65E5\u5FD7(\u5DF2\u56DE\u586B)=${totalRLLogs}, RL\u65E5\u5FD7(\u542B\u5F85\u56DE\u586B)=${pendingRLLogs}, \u5386\u53F2\u4E8B\u4EF6=${totalHistoryEvents}, \u5408\u6210\u6570\u636E\u91CF=${syntheticDataCount}, \u7279\u5F81\u7F13\u5B58=${hasFeatures}`);
   const hourOfDay = (/* @__PURE__ */ new Date()).getHours();
   const dayOfWeek = (/* @__PURE__ */ new Date()).getDay();
   const getConsecutiveFailures = (stat) => {
@@ -61334,7 +67238,7 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
     const decay = getConsecutiveFailures(stat);
     return Math.max(0.7, 1 + Math.max(0, successRate - 0.5) * 0.3 - decay);
   };
-  log23.info(`[MetaLearning] v272\u7B56\u7565\u7EA7\u63A2\u7D22\u81EA\u9002\u5E94: ${explorationDetail}`);
+  log24.info(`[MetaLearning] v272\u7B56\u7565\u7EA7\u63A2\u7D22\u81EA\u9002\u5E94: ${explorationDetail}`);
   const rbStat = stats.get("rule_based");
   const rbPenalty = isExplorationSlot ? 0.45 : 0.6;
   scores.push({
@@ -61387,9 +67291,9 @@ async function evaluateAlgorithms(accountId, keywordId, targetId, campaignId, cu
     eligible: eligibleCount >= 2,
     reason: eligibleCount >= 2 ? `\u591A\u7B97\u6CD5\u878D\u5408(\u53EF\u7528${eligibleCount}\u4E2A)` : `\u53EF\u7528\u7B97\u6CD5\u4E0D\u8DB3(${eligibleCount}/2)`
   });
-  log23.info(`[MetaLearning] v268\u7B97\u6CD5\u8BC4\u4F30: \u63A2\u7D22\u7387=${(explorationRate * 100).toFixed(0)}%, \u6570\u636E\u6210\u719F\u5EA6=${(dataMaturity * 100).toFixed(0)}%, \u8F6E\u8F6C\u69FD=${algorithmRotation}, \u63A2\u7D22\u69FD=${isExplorationSlot}`);
-  log23.info(`[MetaLearning] v268\u7B97\u6CD5\u5F97\u5206: ${scores.map((s4) => `${s4.algorithm}=${s4.score.toFixed(3)}`).join(", ")}`);
-  log23.info(`[MetaLearning] v259\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
+  log24.info(`[MetaLearning] v268\u7B97\u6CD5\u8BC4\u4F30: \u63A2\u7D22\u7387=${(explorationRate * 100).toFixed(0)}%, \u6570\u636E\u6210\u719F\u5EA6=${(dataMaturity * 100).toFixed(0)}%, \u8F6E\u8F6C\u69FD=${algorithmRotation}, \u63A2\u7D22\u69FD=${isExplorationSlot}`);
+  log24.info(`[MetaLearning] v268\u7B97\u6CD5\u5F97\u5206: ${scores.map((s4) => `${s4.algorithm}=${s4.score.toFixed(3)}`).join(", ")}`);
+  log24.info(`[MetaLearning] v259\u7B97\u6CD5\u8D44\u683C: ${scores.filter((s4) => s4.eligible).map((s4) => s4.algorithm).join(", ")} (\u5171${eligibleCount}\u4E2A\u53EF\u7528)`);
   return scores;
 }
 async function executeAlgorithm(algorithm, accountId, keywordId, targetId, campaignId, currentBid) {
@@ -61515,18 +67419,18 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
       const experimentConfig = await getExperimentConfigForCampaign(accountId, campaignId);
       if (experimentConfig) {
         const { variantType, config: config2, testId } = experimentConfig;
-        log23.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: campaign=${campaignId} \u5728\u5B9E\u9A8C${testId}\u7684${variantType}\u7EC4`);
+        log24.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: campaign=${campaignId} \u5728\u5B9E\u9A8C${testId}\u7684${variantType}\u7EC4`);
         if (config2.fusionThreshold !== void 0) {
           FUSION_THRESHOLD = config2.fusionThreshold;
-          log23.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: \u878D\u5408\u9608\u503C\u8986\u76D6\u4E3A ${(FUSION_THRESHOLD * 100).toFixed(0)}%`);
+          log24.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: \u878D\u5408\u9608\u503C\u8986\u76D6\u4E3A ${(FUSION_THRESHOLD * 100).toFixed(0)}%`);
         }
         if (config2.algorithmMode) {
           forceAlgorithmMode = config2.algorithmMode;
-          log23.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: \u5F3A\u5236\u7B97\u6CD5\u6A21\u5F0F\u4E3A ${forceAlgorithmMode}`);
+          log24.info(`[MetaLearning] v271 A/B\u5B9E\u9A8C: \u5F3A\u5236\u7B97\u6CD5\u6A21\u5F0F\u4E3A ${forceAlgorithmMode}`);
         }
       }
     } catch (expError) {
-      log23.warn(`[MetaLearning] v271 A/B\u5B9E\u9A8C\u914D\u7F6E\u67E5\u8BE2\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u914D\u7F6E:`, expError);
+      log24.warn(`[MetaLearning] v271 A/B\u5B9E\u9A8C\u914D\u7F6E\u67E5\u8BE2\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u914D\u7F6E:`, expError);
     }
   }
   const shouldFuse = (forceAlgorithmMode === "cascade_ensemble" || // v271: A/B实验强制融合
@@ -61536,7 +67440,7 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
   try {
     if (shouldFuse) {
       fusionMode = "cascade_ensemble";
-      log23.info(`[MetaLearning] v270 Cascade Ensemble: ${top1.algorithm}(${top1.score.toFixed(3)}) + ${top2.algorithm}(${top2.score.toFixed(3)}), \u5206\u5DEE=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}%`);
+      log24.info(`[MetaLearning] v270 Cascade Ensemble: ${top1.algorithm}(${top1.score.toFixed(3)}) + ${top2.algorithm}(${top2.score.toFixed(3)}), \u5206\u5DEE=${((top1.score - top2.score) / top1.score * 100).toFixed(1)}%`);
       const [result1, result2] = await Promise.all([
         executeAlgorithm(top1.algorithm, accountId, keywordId, targetId, campaignId, currentBid),
         executeAlgorithm(top2.algorithm, accountId, keywordId, targetId, campaignId, currentBid)
@@ -61560,7 +67464,7 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
         confidence = Math.min(0.95, totalConf / fusionBids.length + consensusBonus);
         selectedAlgorithmName = "ensemble";
         fusionDetail = `Cascade\u878D\u5408: ${fusionBids.map((b6) => `${b6.algorithm}($${b6.bid.toFixed(2)},conf=${b6.confidence.toFixed(2)})`).join(" + ")} \u2192 $${recommendedBid.toFixed(2)}, \u5206\u6B67\u5EA6=${(bidDivergence * 100).toFixed(1)}%, \u5171\u8BC6\u5956\u52B1=${(consensusBonus * 100).toFixed(0)}%`;
-        log23.info(`[MetaLearning] v270 ${fusionDetail}`);
+        log24.info(`[MetaLearning] v270 ${fusionDetail}`);
       } else if (fusionBids.length === 1) {
         recommendedBid = fusionBids[0].bid;
         confidence = fusionBids[0].confidence;
@@ -61587,7 +67491,7 @@ async function selectBestAlgorithm(accountId, keywordId, targetId, campaignId, c
       }
     }
   } catch (error54) {
-    log23.error(`Error executing algorithm(s):`, error54);
+    log24.error(`Error executing algorithm(s):`, error54);
     recommendedBid = currentBid || 0;
     confidence = 0.3;
     fusionMode = "single";
@@ -61658,10 +67562,10 @@ async function backfillAlgorithmResults(accountId) {
     } catch (e6) {
     }
   }
-  log23.debug(`Backfilled ${filledCount} algorithm results`);
+  log24.debug(`Backfilled ${filledCount} algorithm results`);
   return filledCount;
 }
-var log23;
+var log24;
 var init_metaLearningSelector = __esm({
   "server/metaLearningSelector.ts"() {
     "use strict";
@@ -61675,7 +67579,7 @@ var init_metaLearningSelector = __esm({
     init_logger2();
     init_abTestIntegration();
     init_algorithmConfigService();
-    log23 = createModuleLogger("MetaLearning");
+    log24 = createModuleLogger("MetaLearning");
   }
 });
 
@@ -61853,14 +67757,14 @@ async function optimizeBudgetPortfolio(accountId, performanceGroupId, totalBudge
       iterationCount: 100,
       convergenceScore: "0.990000"
     });
-    log24.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
+    log25.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
     return result;
   } catch (error54) {
-    log24.error(`[BudgetPortfolio] Error:`, error54);
+    log25.error(`[BudgetPortfolio] Error:`, error54);
     return null;
   }
 }
-var log24;
+var log25;
 var init_budgetPortfolioOptimizer = __esm({
   "server/budgetPortfolioOptimizer.ts"() {
     "use strict";
@@ -61868,7 +67772,7 @@ var init_budgetPortfolioOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    log24 = createModuleLogger("BudgetPortfolioOptimizer");
+    log25 = createModuleLogger("BudgetPortfolioOptimizer");
   }
 });
 
@@ -69763,10 +75667,10 @@ async function buildKeywordGraph(accountId) {
         }))
       );
     }
-    log25.info(`[KeywordGraph] Built graph: ${result.nodes} nodes, ${result.edges} edges`);
+    log26.info(`[KeywordGraph] Built graph: ${result.nodes} nodes, ${result.edges} edges`);
     return result;
   } catch (error54) {
-    log25.error(`[KeywordGraph] Error building graph:`, error54);
+    log26.error(`[KeywordGraph] Error building graph:`, error54);
     return result;
   }
 }
@@ -69822,7 +75726,7 @@ async function discoverOpportunities(accountId) {
     }
     return opportunities;
   } catch (error54) {
-    log25.error(`[KeywordGraph] Error discovering opportunities:`, error54);
+    log26.error(`[KeywordGraph] Error discovering opportunities:`, error54);
     return opportunities;
   }
 }
@@ -69863,11 +75767,11 @@ async function discoverNegativeCandidates(accountId) {
     }
     return candidates;
   } catch (error54) {
-    log25.error(`[KeywordGraph] Error discovering negatives:`, error54);
+    log26.error(`[KeywordGraph] Error discovering negatives:`, error54);
     return candidates;
   }
 }
-var log25;
+var log26;
 var init_keywordGraphService = __esm({
   "server/keywordGraphService.ts"() {
     "use strict";
@@ -69876,7 +75780,7 @@ var init_keywordGraphService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_openai();
-    log25 = createModuleLogger("KeywordGraphService");
+    log26 = createModuleLogger("KeywordGraphService");
   }
 });
 
@@ -69970,20 +75874,20 @@ function scheduleVerificationTask(accountId, items) {
     await executeVerificationTask(taskId);
   }, VERIFICATION_DELAYS.firstAttempt * 1e3);
   activeTimers.set(taskId, timer);
-  log26.info(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
+  log27.info(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
   return taskId;
 }
 async function executeVerificationTask(taskId) {
   const task = pendingTasks.get(taskId);
   if (!task) {
-    log26.warn(`\u4EFB\u52A1 ${taskId} \u4E0D\u5B58\u5728\uFF0C\u53EF\u80FD\u5DF2\u88AB\u53D6\u6D88`);
+    log27.warn(`\u4EFB\u52A1 ${taskId} \u4E0D\u5B58\u5728\uFF0C\u53EF\u80FD\u5DF2\u88AB\u53D6\u6D88`);
     return;
   }
-  log26.info(`v166: \u5F00\u59CB\u6267\u884C\u9A8C\u8BC1\u4EFB\u52A1 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
+  log27.info(`v166: \u5F00\u59CB\u6267\u884C\u9A8C\u8BC1\u4EFB\u52A1 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
   try {
     const syncService = await getAmazonSyncService2(task.accountId);
     if (!syncService) {
-      log26.error(`\u65E0\u6CD5\u83B7\u53D6accountId=${task.accountId}\u7684API\u5BA2\u6237\u7AEF\uFF0C\u8DF3\u8FC7\u9A8C\u8BC1`);
+      log27.error(`\u65E0\u6CD5\u83B7\u53D6accountId=${task.accountId}\u7684API\u5BA2\u6237\u7AEF\uFF0C\u8DF3\u8FC7\u9A8C\u8BC1`);
       cleanupTask(taskId);
       return;
     }
@@ -69998,7 +75902,7 @@ async function executeVerificationTask(taskId) {
     const conflicts = allResults.filter((r5) => r5.status === "conflict");
     const notFound = allResults.filter((r5) => r5.status === "not_found");
     const errors = allResults.filter((r5) => r5.status === "error");
-    log26.warn(`v166: \u9A8C\u8BC1\u7ED3\u679C taskId=${taskId} \u2014 \u786E\u8BA4=${confirmed.length}, \u51B2\u7A81=${conflicts.length}, \u672A\u627E\u5230=${notFound.length}, \u9519\u8BEF=${errors.length}`);
+    log27.warn(`v166: \u9A8C\u8BC1\u7ED3\u679C taskId=${taskId} \u2014 \u786E\u8BA4=${confirmed.length}, \u51B2\u7A81=${conflicts.length}, \u672A\u627E\u5230=${notFound.length}, \u9519\u8BEF=${errors.length}`);
     if (confirmed.length > 0) {
       await applyConfirmedResults(confirmed);
     }
@@ -70016,15 +75920,15 @@ async function executeVerificationTask(taskId) {
         await executeVerificationTask(taskId);
       }, delay * 1e3);
       activeTimers.set(taskId, timer);
-      log26.info(`v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay}\u79D2\u540E\u6267\u884C`);
+      log27.info(`v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay}\u79D2\u540E\u6267\u884C`);
     } else {
       if (unresolved.length > 0) {
-        log26.warn(`v166: ${unresolved.length}\u9879\u5728${task.maxAttempts}\u8F6E\u9A8C\u8BC1\u540E\u4ECD\u672A\u89E3\u51B3\uFF0C\u4FDD\u6301pending_confirmation\u72B6\u6001\u7B49\u5F85\u5B9A\u65F6\u540C\u6B65`);
+        log27.warn(`v166: ${unresolved.length}\u9879\u5728${task.maxAttempts}\u8F6E\u9A8C\u8BC1\u540E\u4ECD\u672A\u89E3\u51B3\uFF0C\u4FDD\u6301pending_confirmation\u72B6\u6001\u7B49\u5F85\u5B9A\u65F6\u540C\u6B65`);
       }
       cleanupTask(taskId);
     }
   } catch (error54) {
-    log26.error(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u6267\u884C\u5F02\u5E38 taskId=${taskId}:`, error54.message);
+    log27.error(`v166: \u9A8C\u8BC1\u4EFB\u52A1\u6267\u884C\u5F02\u5E38 taskId=${taskId}:`, error54.message);
     if (task.attempt < task.maxAttempts) {
       task.attempt++;
       const delay = VERIFICATION_DELAYS.thirdAttempt;
@@ -70062,7 +75966,7 @@ async function verifyByType(syncService, type, items) {
       return verifyBidAdjustments(syncService, items);
     // 搜索词迁移后的新关键词也通过bid验证
     default:
-      log26.warn(`\u672A\u77E5\u9A8C\u8BC1\u7C7B\u578B: ${type}`);
+      log27.warn(`\u672A\u77E5\u9A8C\u8BC1\u7C7B\u578B: ${type}`);
       return items.map((item) => ({ item, status: "error", message: `\u672A\u77E5\u7C7B\u578B: ${type}` }));
   }
 }
@@ -70109,7 +76013,7 @@ async function verifyBidAdjustments(syncService, items) {
         }
       }
     } catch (error54) {
-      log26.error(`\u51FA\u4EF7\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
+      log27.error(`\u51FA\u4EF7\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
       for (const item of groupItems) {
         results.push({ item, status: "error", message: error54.message });
       }
@@ -70145,7 +76049,7 @@ async function verifyBudgetAdjustments(syncService, items) {
       }
     }
   } catch (error54) {
-    log26.error(`\u9884\u7B97\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
+    log27.error(`\u9884\u7B97\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
     for (const item of items) {
       results.push({ item, status: "error", message: error54.message });
     }
@@ -70195,7 +76099,7 @@ async function verifyPlacementAdjustments(syncService, items) {
       }
     }
   } catch (error54) {
-    log26.error(`\u4F4D\u7F6E\u503E\u659C\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
+    log27.error(`\u4F4D\u7F6E\u503E\u659C\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25:`, error54.message);
     for (const item of items) {
       results.push({ item, status: "error", message: error54.message });
     }
@@ -70228,7 +76132,7 @@ async function verifyNegativeKeywords(syncService, items) {
             amazonNegMap.set(key, neg);
           }
         } catch (e6) {
-          log26.warn(`\u67E5\u8BE2adGroup ${adGroupId} \u5426\u5B9A\u5173\u952E\u8BCD\u5931\u8D25: ${e6.message}`);
+          log27.warn(`\u67E5\u8BE2adGroup ${adGroupId} \u5426\u5B9A\u5173\u952E\u8BCD\u5931\u8D25: ${e6.message}`);
         }
       }
       for (const item of groupItems) {
@@ -70246,7 +76150,7 @@ async function verifyNegativeKeywords(syncService, items) {
         }
       }
     } catch (error54) {
-      log26.error(`\u5426\u8BCD\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 campaignId=${campaignId}:`, error54.message);
+      log27.error(`\u5426\u8BCD\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 campaignId=${campaignId}:`, error54.message);
       for (const item of groupItems) {
         results.push({ item, status: "error", message: error54.message });
       }
@@ -70288,7 +76192,7 @@ async function verifyKeywordStatus(syncService, items) {
         }
       }
     } catch (error54) {
-      log26.error(`\u72B6\u6001\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
+      log27.error(`\u72B6\u6001\u9A8C\u8BC1API\u8C03\u7528\u5931\u8D25 adGroupId=${adGroupId}:`, error54.message);
       for (const item of groupItems) {
         results.push({ item, status: "error", message: error54.message });
       }
@@ -70299,7 +76203,7 @@ async function verifyKeywordStatus(syncService, items) {
 async function applyConfirmedResults(results) {
   const dbConn = await getDb();
   if (!dbConn) {
-    log26.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u65E0\u6CD5\u56DE\u586B\u786E\u8BA4\u7ED3\u679C");
+    log27.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u65E0\u6CD5\u56DE\u586B\u786E\u8BA4\u7ED3\u679C");
     return;
   }
   try {
@@ -70310,14 +76214,14 @@ async function applyConfirmedResults(results) {
           case "bid_adjustment":
           case "search_term_migration": {
             if (item.context?.fieldName === "product_target_bid") {
-              log26.debug(`v166: \u2705 \u5546\u54C1\u5B9A\u4F4D ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+              log27.debug(`v166: \u2705 \u5546\u54C1\u5B9A\u4F4D ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
             } else {
               await tx.update(keywords).set({
                 bid: String(result.actualValue),
                 pendingBid: null,
                 bidSyncStatus: "synced"
               }).where(eq(keywords.id, item.localId));
-              log26.debug(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+              log27.debug(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u51FA\u4EF7\u5DF2\u786E\u8BA4: $${result.actualValue}`);
             }
             break;
           }
@@ -70328,7 +76232,7 @@ async function applyConfirmedResults(results) {
               budgetSyncStatus: "synced",
               lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             }).where(eq(campaigns.id, item.localId));
-            log26.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u9884\u7B97\u5DF2\u786E\u8BA4: $${result.actualValue}`);
+            log27.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u9884\u7B97\u5DF2\u786E\u8BA4: $${result.actualValue}`);
             break;
           }
           case "placement_adjustment": {
@@ -70345,27 +76249,27 @@ async function applyConfirmedResults(results) {
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
-            log26.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u4F4D\u7F6E\u503E\u659C\u5DF2\u786E\u8BA4: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
+            log27.debug(`v166: \u2705 \u5E7F\u544A\u6D3B\u52A8 ${item.localId} \u4F4D\u7F6E\u503E\u659C\u5DF2\u786E\u8BA4: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
             break;
           }
           case "negative_keyword": {
             if (result.actualValue?.keywordId) {
-              log26.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon (amazonId=${result.actualValue.keywordId})`);
+              log27.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon (amazonId=${result.actualValue.keywordId})`);
             } else {
-              log26.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon`);
+              log27.debug(`v166: \u2705 \u5426\u8BCD ${item.localId} \u5DF2\u786E\u8BA4\u5B58\u5728\u4E8EAmazon`);
             }
             break;
           }
           case "keyword_status": {
-            log26.info(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u72B6\u6001\u5DF2\u786E\u8BA4: ${result.actualValue}`);
+            log27.info(`v166: \u2705 \u5173\u952E\u8BCD ${item.localId} \u72B6\u6001\u5DF2\u786E\u8BA4: ${result.actualValue}`);
             break;
           }
         }
       }
     });
-    log26.info(`v166: \u4E8B\u52A1\u56DE\u586B\u5B8C\u6210, ${results.length}\u9879\u5DF2\u786E\u8BA4\u5E76\u66F4\u65B0`);
+    log27.info(`v166: \u4E8B\u52A1\u56DE\u586B\u5B8C\u6210, ${results.length}\u9879\u5DF2\u786E\u8BA4\u5E76\u66F4\u65B0`);
   } catch (error54) {
-    log26.error(`v166: \u4E8B\u52A1\u56DE\u586B\u5931\u8D25:`, error54.message);
+    log27.error(`v166: \u4E8B\u52A1\u56DE\u586B\u5931\u8D25:`, error54.message);
   }
 }
 async function handleConflicts(results) {
@@ -70384,7 +76288,7 @@ async function handleConflicts(results) {
                 bidSyncStatus: "conflict"
               }).where(eq(keywords.id, item.localId));
             }
-            log26.warn(`v166: \u26A0\uFE0F \u51FA\u4EF7\u51B2\u7A81 keyword=${item.localId}: ${result.message}`);
+            log27.warn(`v166: \u26A0\uFE0F \u51FA\u4EF7\u51B2\u7A81 keyword=${item.localId}: ${result.message}`);
             break;
           }
           case "budget_adjustment": {
@@ -70394,7 +76298,7 @@ async function handleConflicts(results) {
               budgetSyncStatus: "conflict",
               lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             }).where(eq(campaigns.id, item.localId));
-            log26.warn(`v166: \u26A0\uFE0F \u9884\u7B97\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
+            log27.warn(`v166: \u26A0\uFE0F \u9884\u7B97\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
             break;
           }
           case "placement_adjustment": {
@@ -70411,18 +76315,18 @@ async function handleConflicts(results) {
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns).set(updateData).where(eq(campaigns.id, item.localId));
-            log26.warn(`v166: \u26A0\uFE0F \u4F4D\u7F6E\u503E\u659C\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
+            log27.warn(`v166: \u26A0\uFE0F \u4F4D\u7F6E\u503E\u659C\u51B2\u7A81 campaign=${item.localId}: ${result.message}`);
             break;
           }
           default: {
-            log26.warn(`v166: \u26A0\uFE0F ${item.type}\u51B2\u7A81 id=${item.localId}: ${result.message}`);
+            log27.warn(`v166: \u26A0\uFE0F ${item.type}\u51B2\u7A81 id=${item.localId}: ${result.message}`);
           }
         }
       }
     });
-    log26.warn(`v166: ${results.length}\u9879\u51B2\u7A81\u5DF2\u5904\u7406\uFF08\u4EE5Amazon\u5B9E\u9645\u503C\u4E3A\u51C6\uFF09`);
+    log27.warn(`v166: ${results.length}\u9879\u51B2\u7A81\u5DF2\u5904\u7406\uFF08\u4EE5Amazon\u5B9E\u9645\u503C\u4E3A\u51C6\uFF09`);
   } catch (error54) {
-    log26.error(`v166: \u51B2\u7A81\u5904\u7406\u4E8B\u52A1\u5931\u8D25:`, error54.message);
+    log27.error(`v166: \u51B2\u7A81\u5904\u7406\u4E8B\u52A1\u5931\u8D25:`, error54.message);
   }
 }
 function cleanupTask(taskId) {
@@ -70486,13 +76390,13 @@ async function autoResolveConflicts(accountId) {
       }
       ignored = autoIgnoreIds.length;
     }
-    log26.info(`v257: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
+    log27.info(`v257: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
   } catch (error54) {
-    log26.error(`v257: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25 accountId=${accountId}: ${error54.message}`);
+    log27.error(`v257: \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25 accountId=${accountId}: ${error54.message}`);
   }
   return { resolved, ignored, skipped };
 }
-var log26, pendingTasks, activeTimers, VERIFICATION_DELAYS;
+var log27, pendingTasks, activeTimers, VERIFICATION_DELAYS;
 var init_postOptimizationVerifier = __esm({
   "server/postOptimizationVerifier.ts"() {
     "use strict";
@@ -70501,7 +76405,7 @@ var init_postOptimizationVerifier = __esm({
     init_drizzle_orm();
     init_amazonApiHelper();
     init_logger2();
-    log26 = createModuleLogger("PostOptVerifier");
+    log27 = createModuleLogger("PostOptVerifier");
     pendingTasks = /* @__PURE__ */ new Map();
     activeTimers = /* @__PURE__ */ new Map();
     VERIFICATION_DELAYS = {
@@ -71184,7 +77088,7 @@ function batchCalculateGTOModifiers(targets, groupConfig, context) {
       );
       results.set(target.id, modifier);
     } catch (err2) {
-      log27.warn(`[GTO] \u8BA1\u7B97\u4FEE\u6B63\u7CFB\u6570\u5931\u8D25(target=${target.id}): ${err2.message}`);
+      log28.warn(`[GTO] \u8BA1\u7B97\u4FEE\u6B63\u7CFB\u6570\u5931\u8D25(target=${target.id}): ${err2.message}`);
       results.set(target.id, buildNeutralModifier(target, competitionProfile));
     }
   }
@@ -71193,9 +77097,9 @@ function batchCalculateGTOModifiers(targets, groupConfig, context) {
   const raises = modifiers.filter((m4) => m4.compositeModifier > 1.05).length;
   const folds = modifiers.filter((m4) => m4.compositeModifier < 0.95).length;
   const holds = modifiers.length - raises - folds;
-  log27.info(`[GTO] \u6279\u91CF\u4FEE\u6B63\u5B8C\u6210: ${targets.length}\u4E2A\u76EE\u6807, \u5E73\u5747\u4FEE\u6B63=${avgModifier.toFixed(3)}, \u52A0\u6CE8=${raises}, \u5F03\u724C=${folds}, \u7EF4\u6301=${holds}, \u7EC4\u5408\u5065\u5EB7\u5EA6=${portfolioAnalysis.portfolioHealthScore}/100`);
+  log28.info(`[GTO] \u6279\u91CF\u4FEE\u6B63\u5B8C\u6210: ${targets.length}\u4E2A\u76EE\u6807, \u5E73\u5747\u4FEE\u6B63=${avgModifier.toFixed(3)}, \u52A0\u6CE8=${raises}, \u5F03\u724C=${folds}, \u7EF4\u6301=${holds}, \u7EC4\u5408\u5065\u5EB7\u5EA6=${portfolioAnalysis.portfolioHealthScore}/100`);
   if (portfolioAnalysis.imbalanceWarnings.length > 0) {
-    log27.warn(`[GTO] \u7EC4\u5408\u5931\u8861\u8B66\u544A: ${portfolioAnalysis.imbalanceWarnings.join("; ")}`);
+    log28.warn(`[GTO] \u7EC4\u5408\u5931\u8861\u8B66\u544A: ${portfolioAnalysis.imbalanceWarnings.join("; ")}`);
   }
   return results;
 }
@@ -71309,7 +77213,7 @@ function buildSyncCompetitionProfile(avgCpc, totalImpressions, currentHour) {
     reasoning
   };
 }
-var log27, ENGINE_WEIGHTS, GTO_MIN_MODIFIER, GTO_MAX_MODIFIER;
+var log28, ENGINE_WEIGHTS, GTO_MIN_MODIFIER, GTO_MAX_MODIFIER;
 var init_gtoIntegrationOrchestrator = __esm({
   "server/gtoIntegrationOrchestrator.ts"() {
     "use strict";
@@ -71319,7 +77223,7 @@ var init_gtoIntegrationOrchestrator = __esm({
     init_gtoOpportunityWindowEngine();
     init_gtoKeywordPortfolioBalancer();
     init_logger2();
-    log27 = createModuleLogger("GTO");
+    log28 = createModuleLogger("GTO");
     ENGINE_WEIGHTS = {
       ev: 0.25,
       // EV引擎权重最高 — 直接影响盈亏
@@ -71379,12 +77283,12 @@ function getConfigDetail(key) {
 function updateConfig(key, value2, updatedBy = "system", reason = "") {
   const param2 = runtimeConfig.get(key);
   if (!param2) {
-    log28.warn(`[SystemConfig] \u5C1D\u8BD5\u66F4\u65B0\u672A\u77E5\u53C2\u6570: ${key}`);
+    log29.warn(`[SystemConfig] \u5C1D\u8BD5\u66F4\u65B0\u672A\u77E5\u53C2\u6570: ${key}`);
     return false;
   }
   if (param2.range && typeof value2 === "number") {
     if (value2 < param2.range.min || value2 > param2.range.max) {
-      log28.warn(`[SystemConfig] \u53C2\u6570${key}\u7684\u503C${value2}\u8D85\u51FA\u5408\u6CD5\u8303\u56F4[${param2.range.min}, ${param2.range.max}]`);
+      log29.warn(`[SystemConfig] \u53C2\u6570${key}\u7684\u503C${value2}\u8D85\u51FA\u5408\u6CD5\u8303\u56F4[${param2.range.min}, ${param2.range.max}]`);
       return false;
     }
   }
@@ -71399,7 +77303,7 @@ function updateConfig(key, value2, updatedBy = "system", reason = "") {
   param2.value = value2;
   param2.updatedAt = /* @__PURE__ */ new Date();
   param2.updatedBy = updatedBy;
-  log28.info(`[SystemConfig] \u53C2\u6570\u66F4\u65B0: ${key} = ${value2} (by ${updatedBy}, reason: ${reason})`);
+  log29.info(`[SystemConfig] \u53C2\u6570\u66F4\u65B0: ${key} = ${value2} (by ${updatedBy}, reason: ${reason})`);
   return true;
 }
 function batchUpdateConfig(updates, updatedBy = "system", reason = "") {
@@ -71461,12 +77365,12 @@ function importConfig(config2, importedBy = "system") {
   }
   return { success: success2, failed };
 }
-var log28, DEFAULT_CONFIG3, runtimeConfig, changeLogs;
+var log29, DEFAULT_CONFIG3, runtimeConfig, changeLogs;
 var init_systemConfigService = __esm({
   "server/systemConfigService.ts"() {
     "use strict";
     init_logger2();
-    log28 = createModuleLogger("SystemConfig");
+    log29 = createModuleLogger("SystemConfig");
     DEFAULT_CONFIG3 = {
       // ===== 安全护栏参数 =====
       "safety.cooldown_hours": {
@@ -71681,7 +77585,7 @@ async function sendNotification(notification) {
     });
     return result;
   } catch (error54) {
-    log29.error("[NotificationService] Failed to send notification:", error54);
+    log30.error("[NotificationService] Failed to send notification:", error54);
     return false;
   }
 }
@@ -71786,13 +77690,13 @@ ${summaryMessage}`
   }
   return { sent, failed };
 }
-var log29, defaultNotificationConfig;
+var log30, defaultNotificationConfig;
 var init_notificationService = __esm({
   "server/notificationService.ts"() {
     "use strict";
     init_logger2();
     init_notification();
-    log29 = createModuleLogger("NotificationService");
+    log30 = createModuleLogger("NotificationService");
     defaultNotificationConfig = {
       emailEnabled: true,
       inAppEnabled: true,
@@ -71825,7 +77729,7 @@ async function collectSystemMetrics() {
     }
     return snapshots;
   } catch (err2) {
-    log30.error(`[Observability] v267: \u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
+    log31.error(`[Observability] v267: \u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
     return snapshots;
   }
 }
@@ -71977,7 +77881,7 @@ function endTrace(traceId, status = "completed", additionalMetadata) {
     trace.metadata = { ...trace.metadata, ...additionalMetadata };
   }
   if (trace.durationMs > 3e4) {
-    log30.warn(`[Observability] v267: \u6162\u64CD\u4F5C\u68C0\u6D4B - ${trace.operationType} \u8017\u65F6 ${trace.durationMs}ms`, trace.metadata);
+    log31.warn(`[Observability] v267: \u6162\u64CD\u4F5C\u68C0\u6D4B - ${trace.operationType} \u8017\u65F6 ${trace.durationMs}ms`, trace.metadata);
   }
   const key = `latency_${trace.operationType}`;
   if (!metricAggregates.has(key)) {
@@ -72017,10 +77921,10 @@ async function evaluateAlertRules() {
         alertCooldowns.set(rule2.id, now);
         alertTriggerCounts.set(rule2.id, (alertTriggerCounts.get(rule2.id) || 0) + 1);
         triggered.push(rule2.id);
-        log30.warn(`[Observability] v268: \u544A\u8B66\u89E6\u53D1 - ${rule2.name}: ${message2} (\u81EA\u9002\u5E94\u51B7\u5374=${Math.round(adaptiveCooldown / 6e4)}\u5206\u949F)`);
+        log31.warn(`[Observability] v268: \u544A\u8B66\u89E6\u53D1 - ${rule2.name}: ${message2} (\u81EA\u9002\u5E94\u51B7\u5374=${Math.round(adaptiveCooldown / 6e4)}\u5206\u949F)`);
       }
     } catch (err2) {
-      log30.error(`[Observability] v268: \u8BC4\u4F30\u544A\u8B66\u89C4\u5219 ${rule2.id} \u5931\u8D25: ${err2.message}`);
+      log31.error(`[Observability] v268: \u8BC4\u4F30\u544A\u8B66\u89C4\u5219 ${rule2.id} \u5931\u8D25: ${err2.message}`);
     }
   }
   return { triggered, suppressed };
@@ -72108,9 +78012,9 @@ function startObservabilityService() {
   setTimeout(async () => {
     try {
       await collectSystemMetrics();
-      log30.info("[Observability] v267: \u521D\u59CB\u6307\u6807\u6536\u96C6\u5B8C\u6210");
+      log31.info("[Observability] v267: \u521D\u59CB\u6307\u6807\u6536\u96C6\u5B8C\u6210");
     } catch (err2) {
-      log30.error(`[Observability] v267: \u521D\u59CB\u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
+      log31.error(`[Observability] v267: \u521D\u59CB\u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
     }
   }, 30 * 1e3);
   observabilityInterval = setInterval(async () => {
@@ -72118,16 +78022,16 @@ function startObservabilityService() {
       await collectSystemMetrics();
       const alertResult = await evaluateAlertRules();
       if (alertResult.triggered.length > 0) {
-        log30.warn(`[Observability] v267: ${alertResult.triggered.length}\u4E2A\u544A\u8B66\u88AB\u89E6\u53D1: ${alertResult.triggered.join(", ")}`);
+        log31.warn(`[Observability] v267: ${alertResult.triggered.length}\u4E2A\u544A\u8B66\u88AB\u89E6\u53D1: ${alertResult.triggered.join(", ")}`);
       }
     } catch (err2) {
-      log30.error(`[Observability] v267: \u5B9A\u65F6\u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
+      log31.error(`[Observability] v267: \u5B9A\u65F6\u6307\u6807\u6536\u96C6\u5931\u8D25: ${err2.message}`);
     }
   }, 5 * 60 * 1e3);
   summaryInterval = setInterval(async () => {
     try {
       const summary = await generateHealthSummary();
-      log30.info(`[Observability] v267: \u5065\u5EB7\u6458\u8981 - \u7B49\u7EA7: ${summary.grade} (${summary.overallScore}\u5206), \u544A\u8B66: ${summary.alerts.length}`);
+      log31.info(`[Observability] v267: \u5065\u5EB7\u6458\u8981 - \u7B49\u7EA7: ${summary.grade} (${summary.overallScore}\u5206), \u544A\u8B66: ${summary.alerts.length}`);
       if (["C", "D", "F"].includes(summary.grade)) {
         const dimensionDetails = summary.dimensions.map((d5) => `  ${d5.name}: ${d5.score}\u5206 (${d5.status})`).join("\n");
         await sendNotification({
@@ -72144,12 +78048,12 @@ ${summary.recommendations.map((r5) => `\u2022 ${r5}`).join("\n")}`
         });
       }
     } catch (err2) {
-      log30.error(`[Observability] v267: \u5065\u5EB7\u6458\u8981\u751F\u6210\u5931\u8D25: ${err2.message}`);
+      log31.error(`[Observability] v267: \u5065\u5EB7\u6458\u8981\u751F\u6210\u5931\u8D25: ${err2.message}`);
     }
   }, 60 * 60 * 1e3);
-  log30.info("[Observability] v267: \u53EF\u89C2\u6D4B\u6027\u670D\u52A1\u5DF2\u542F\u52A8 - \u6307\u6807\u6536\u96C6: 5\u5206\u949F, \u5065\u5EB7\u6458\u8981: 1\u5C0F\u65F6");
+  log31.info("[Observability] v267: \u53EF\u89C2\u6D4B\u6027\u670D\u52A1\u5DF2\u542F\u52A8 - \u6307\u6807\u6536\u96C6: 5\u5206\u949F, \u5065\u5EB7\u6458\u8981: 1\u5C0F\u65F6");
 }
-var log30, metricsBuffer, activeTraces, metricAggregates, alertCooldowns, ALERT_COOLDOWN_MS, alertTriggerCounts, MAX_COOLDOWN_MULTIPLIER, alertRules, observabilityInterval, summaryInterval;
+var log31, metricsBuffer, activeTraces, metricAggregates, alertCooldowns, ALERT_COOLDOWN_MS, alertTriggerCounts, MAX_COOLDOWN_MULTIPLIER, alertRules, observabilityInterval, summaryInterval;
 var init_observabilityService = __esm({
   "server/observabilityService.ts"() {
     "use strict";
@@ -72158,7 +78062,7 @@ var init_observabilityService = __esm({
     init_schema2();
     init_drizzle_orm();
     init_notificationService();
-    log30 = createModuleLogger("Observability");
+    log31 = createModuleLogger("Observability");
     metricsBuffer = [];
     activeTraces = /* @__PURE__ */ new Map();
     metricAggregates = /* @__PURE__ */ new Map();
@@ -72378,7 +78282,7 @@ function recordAlgorithmDecision(trace) {
     abTest: trace.abTestDetail ? `test#${trace.abTestDetail.testId}/${trace.abTestDetail.variantType}` : "none",
     exploring: trace.explorationDetail?.isExploring ? "yes" : "no"
   };
-  log31.info(`[AlgoDecision] account=${trace.accountId} entity=${trace.entityType}#${trace.entityId}: ${JSON.stringify(logEntry)}`);
+  log32.info(`[AlgoDecision] account=${trace.accountId} entity=${trace.entityType}#${trace.entityId}: ${JSON.stringify(logEntry)}`);
 }
 function startAlgorithmTrace(accountId, entityType, entityId, campaignId, strategyTemplateId) {
   const traceId = startTrace("algorithm_decision", {
@@ -72504,7 +78408,7 @@ function cleanupOldTraces(maxAgeDays = 7) {
   }
   const cleaned = before - decisionTraces.length;
   if (cleaned > 0) {
-    log31.info(`[AlgorithmObservability] \u6E05\u7406\u4E86 ${cleaned} \u6761\u8FC7\u671F\u8FFD\u8E2A\u8BB0\u5F55`);
+    log32.info(`[AlgorithmObservability] \u6E05\u7406\u4E86 ${cleaned} \u6761\u8FC7\u671F\u8FFD\u8E2A\u8BB0\u5F55`);
   }
   return cleaned;
 }
@@ -72517,19 +78421,19 @@ function recordMetric(type, data4) {
   while (metricBuffer.length > MAX_METRIC_BUFFER) {
     metricBuffer.shift();
   }
-  log31.debug(`[Metric] ${type}: ${JSON.stringify(data4)}`);
+  log32.debug(`[Metric] ${type}: ${JSON.stringify(data4)}`);
 }
 function getMetrics(type, limit2 = 100) {
   const filtered = type ? metricBuffer.filter((m4) => m4.type === type) : metricBuffer;
   return filtered.slice(-limit2);
 }
-var log31, decisionTraces, MAX_TRACE_BUFFER, metricBuffer, MAX_METRIC_BUFFER;
+var log32, decisionTraces, MAX_TRACE_BUFFER, metricBuffer, MAX_METRIC_BUFFER;
 var init_algorithmObservabilityService = __esm({
   "server/algorithmObservabilityService.ts"() {
     "use strict";
     init_logger2();
     init_observabilityService();
-    log31 = createModuleLogger("AlgorithmObservability");
+    log32 = createModuleLogger("AlgorithmObservability");
     decisionTraces = [];
     MAX_TRACE_BUFFER = 1e4;
     metricBuffer = [];
@@ -72642,7 +78546,7 @@ async function isInCooldownPeriod(accountId, keywordId, targetId) {
     }
     return { inCooldown: false, reason: "", recentAdjustments };
   } catch (error54) {
-    log32.warn(`[CooldownCheck] \u51B7\u5374\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
+    log33.warn(`[CooldownCheck] \u51B7\u5374\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
     return { inCooldown: false, reason: "", recentAdjustments: 0 };
   }
 }
@@ -72736,7 +78640,7 @@ async function checkCircuitBreaker(accountId, keywordId, targetId, currentBid, p
     }
     return { tripped: false, reason: "", guardrailInfo };
   } catch (error54) {
-    log32.warn(`[CircuitBreaker] \u7194\u65AD\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
+    log33.warn(`[CircuitBreaker] \u7194\u65AD\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
     return { tripped: false, reason: "", guardrailInfo: {} };
   }
 }
@@ -73063,7 +78967,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
     targetAcos: normalizedTargetAcos
   };
   if (evolvedMaxIncrease) {
-    log32.info(`[NextGenBid] v267 \u81EA\u6211\u8FDB\u5316\u53C2\u6570\u5DF2\u6FC0\u6D3B: maxIncrease=${(evolvedMaxIncrease * 100).toFixed(0)}%, maxDecrease=${(evolvedMaxDecrease * 100).toFixed(0)}%, confidenceMultiplier=${evolvedConfidenceMultiplier.toFixed(2)}`);
+    log33.info(`[NextGenBid] v267 \u81EA\u6211\u8FDB\u5316\u53C2\u6570\u5DF2\u6FC0\u6D3B: maxIncrease=${(evolvedMaxIncrease * 100).toFixed(0)}%, maxDecrease=${(evolvedMaxDecrease * 100).toFixed(0)}%, confidenceMultiplier=${evolvedConfidenceMultiplier.toFixed(2)}`);
   }
   const normalizedConfig = {
     ...groupConfig,
@@ -73120,7 +79024,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === "linucb" ? "linucb" : metaDecision.selectedAlgorithm === "cql" ? "cql" : "rule_based"
-      }).catch((err2) => log32.error("[NextGenOrchestrator] RL recording error:", err2));
+      }).catch((err2) => log33.error("[NextGenOrchestrator] RL recording error:", err2));
       try {
         completeAlgorithmTrace(traceCtx, {
           accountId,
@@ -73155,7 +79059,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       );
     }
   } catch (advancedError) {
-    log32.warn(`[NextGenOrchestrator] \u9AD8\u7EA7\u7B97\u6CD5\u5F02\u5E38(target=${target.id}), \u964D\u7EA7\u5230\u89C4\u5219\u5F15\u64CE: ${advancedError.message}`);
+    log33.warn(`[NextGenOrchestrator] \u9AD8\u7EA7\u7B97\u6CD5\u5F02\u5E38(target=${target.id}), \u964D\u7EA7\u5230\u89C4\u5219\u5F15\u64CE: ${advancedError.message}`);
   }
   const cooldownResult = await isInCooldownPeriod(
     accountId,
@@ -73163,7 +79067,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
     target.type === "product_target" ? target.id : void 0
   );
   if (cooldownResult.inCooldown) {
-    log32.info(`[NextGenOrchestrator] v257\u51B7\u5374\u4FDD\u62A4: target=${target.id}, ${cooldownResult.reason}`);
+    log33.info(`[NextGenOrchestrator] v257\u51B7\u5374\u4FDD\u62A4: target=${target.id}, ${cooldownResult.reason}`);
     return buildResult(
       target,
       target.currentBid,
@@ -73180,7 +79084,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       target.type === "product_target" ? target.id : void 0
     );
     if (directionCheck.isOscillating) {
-      log32.info(`[NextGenOrchestrator] v267\u65B9\u5411\u4E00\u81F4\u6027\u4FDD\u62A4: target=${target.id}, ${directionCheck.reason}`);
+      log33.info(`[NextGenOrchestrator] v267\u65B9\u5411\u4E00\u81F4\u6027\u4FDD\u62A4: target=${target.id}, ${directionCheck.reason}`);
       return buildResult(
         target,
         target.currentBid,
@@ -73191,7 +79095,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       );
     }
   } catch (dirErr) {
-    log32.warn(`[NextGenOrchestrator] v267\u65B9\u5411\u68C0\u67E5\u5F02\u5E38: ${dirErr.message}`);
+    log33.warn(`[NextGenOrchestrator] v267\u65B9\u5411\u68C0\u67E5\u5F02\u5E38: ${dirErr.message}`);
   }
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
@@ -73206,7 +79110,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       const targetIdForCB = target.type === "product_target" ? target.id : void 0;
       const cbResult = await checkCircuitBreaker(accountId, keywordId2, targetIdForCB, target.currentBid, safeBid);
       if (cbResult.tripped) {
-        log32.warn(`[NextGenOrchestrator] v259\u7194\u65AD\u63D0\u4EF7\u6062\u590D: target=${target.id}, ${cbResult.reason}`);
+        log33.warn(`[NextGenOrchestrator] v259\u7194\u65AD\u63D0\u4EF7\u6062\u590D: target=${target.id}, ${cbResult.reason}`);
         if (cbResult.guardrailInfo.recoveryBid && cbResult.guardrailInfo.recoveryBid > target.currentBid) {
           safeBid = safetyValidate(target.currentBid, cbResult.guardrailInfo.recoveryBid, safetyConfig, maxBidLimit);
           finalReason = `[v259\u63D0\u4EF7\u6062\u590D] ${cbResult.reason}`;
@@ -73255,7 +79159,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       const exploreType = isEffectivelyHold ? "RL\u63A2\u7D22" : "RL\u6270\u52A8";
       const exploreDir = directionHash < 50 ? "\u4E0A\u63A2" : "\u4E0B\u63A2";
       finalReason += ` | v257${exploreType}: ${exploreDir}${(explorationRatio * 100).toFixed(1)}%`;
-      log32.info(`[NextGenOrchestrator] v257\u4E3B\u52A8\u63A2\u7D22: target=${target.id}, \u7C7B\u578B=${exploreType}, \u65B9\u5411=${exploreDir}, \u5E45\u5EA6=${(explorationRatio * 100).toFixed(1)}%, $${target.currentBid.toFixed(2)} \u2192 $${safeBid.toFixed(2)}`);
+      log33.info(`[NextGenOrchestrator] v257\u4E3B\u52A8\u63A2\u7D22: target=${target.id}, \u7C7B\u578B=${exploreType}, \u65B9\u5411=${exploreDir}, \u5E45\u5EA6=${(explorationRatio * 100).toFixed(1)}%, $${target.currentBid.toFixed(2)} \u2192 $${safeBid.toFixed(2)}`);
     }
     const keywordId = target.type === "keyword" ? target.id : void 0;
     const targetId = target.type === "product_target" ? target.id : void 0;
@@ -73268,7 +79172,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: "rule_based"
-    }).catch((err2) => log32.error("[NextGenOrchestrator] RL recording error:", err2));
+    }).catch((err2) => log33.error("[NextGenOrchestrator] RL recording error:", err2));
     return buildResult(
       target,
       safeBid,
@@ -73278,7 +79182,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
       "rule_engine"
     );
   } catch (ruleError) {
-    log32.error(`[NextGenOrchestrator] \u89C4\u5219\u5F15\u64CE\u5F02\u5E38(target=${target.id}): ${ruleError.message}`);
+    log33.error(`[NextGenOrchestrator] \u89C4\u5219\u5F15\u64CE\u5F02\u5E38(target=${target.id}): ${ruleError.message}`);
   }
   return buildResult(
     target,
@@ -73361,9 +79265,9 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
       // 估算毕业率
     };
     gtoModifiers = batchCalculateGTOModifiers(targets, groupConfig, gtoContext);
-    log32.info(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5DF2\u542F\u7528: ${gtoModifiers.size}\u4E2A\u76EE\u6807\u83B7\u5F97\u4FEE\u6B63\u7CFB\u6570`);
+    log33.info(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5DF2\u542F\u7528: ${gtoModifiers.size}\u4E2A\u76EE\u6807\u83B7\u5F97\u4FEE\u6B63\u7CFB\u6570`);
   } catch (gtoError) {
-    log32.warn(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${gtoError.message}`);
+    log33.warn(`[NextGenOrchestrator] GTO\u4FEE\u6B63\u5C42\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${gtoError.message}`);
   }
   let causalMap = /* @__PURE__ */ new Map();
   try {
@@ -73396,10 +79300,10 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
       }
     }
     if (causalMap.size > 0) {
-      log32.info(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u4FE1\u53F7\u5DF2\u52A0\u8F7D: ${causalMap.size}\u4E2A\u5173\u952E\u8BCD/\u5B9A\u5411`);
+      log33.info(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u4FE1\u53F7\u5DF2\u52A0\u8F7D: ${causalMap.size}\u4E2A\u5173\u952E\u8BCD/\u5B9A\u5411`);
     }
   } catch (causalErr) {
-    log32.warn(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u52A0\u8F7D\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${causalErr.message}`);
+    log33.warn(`[NextGenOrchestrator] v274 \u56E0\u679C\u63A8\u65AD\u52A0\u8F7D\u5F02\u5E38(\u5DF2\u964D\u7EA7): ${causalErr.message}`);
   }
   const results = [];
   for (const target of targets) {
@@ -73453,7 +79357,7 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
   const changed = results.filter((r5) => r5.actionType !== "hold").length;
   const gtoApplied = results.filter((r5) => r5.gtoModifier && r5.gtoModifier.compositeModifier !== 1).length;
   const causalApplied = results.filter((r5) => r5.causalAdjustment?.applied).length;
-  log32.info(`[NextGenOrchestrator] v274\u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u62A4\u680F\u4FDD\u62A4=${guardrail}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}, \u56E0\u679C\u4FEE\u6B63=${causalApplied}`);
+  log33.info(`[NextGenOrchestrator] v274\u6279\u91CF\u51FA\u4EF7\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u9AD8\u7EA7\u7B97\u6CD5=${advanced}, \u89C4\u5219\u5F15\u64CE=${ruleEngine}, \u62A4\u680F\u4FDD\u62A4=${guardrail}, \u4FDD\u5B88\u7B56\u7565=${conservative}, \u5B9E\u9645\u8C03\u6574=${changed}, GTO\u4FEE\u6B63=${gtoApplied}, \u56E0\u679C\u4FEE\u6B63=${causalApplied}`);
   return results;
 }
 async function executeNextGenMaintenanceTasks(accountId) {
@@ -73465,84 +79369,84 @@ async function executeNextGenMaintenanceTasks(accountId) {
     algorithmResultsBackfilled: 0
   };
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CB\u7279\u5F81\u63D0\u53D6: \u8D26\u6237${accountId}`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CB\u7279\u5F81\u63D0\u53D6: \u8D26\u6237${accountId}`);
     results.featuresCached = await batchExtractAndCacheFeatures(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] \u7279\u5F81\u63D0\u53D6\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] \u7279\u5F81\u63D0\u53D6\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CBSigmoid\u66F2\u7EBF\u62DF\u5408`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CBSigmoid\u66F2\u7EBF\u62DF\u5408`);
     results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] Sigmoid\u62DF\u5408\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] Sigmoid\u62DF\u5408\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CBReward\u56DE\u586B`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CBReward\u56DE\u586B`);
     results.rewardsBackfilled = await backfillRewards(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] Reward\u56DE\u586B\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] Reward\u56DE\u586B\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CB\u56E0\u679C\u63A8\u65AD\u5206\u6790`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CB\u56E0\u679C\u63A8\u65AD\u5206\u6790`);
     results.causalAnalysis = await batchCausalAnalysis(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] \u56E0\u679C\u5206\u6790\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] \u56E0\u679C\u5206\u6790\u5931\u8D25: ${err2.message}`);
   }
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CB\u7B97\u6CD5\u7ED3\u679C\u56DE\u586B`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CB\u7B97\u6CD5\u7ED3\u679C\u56DE\u586B`);
     results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] \u7B97\u6CD5\u7ED3\u679C\u56DE\u586B\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] \u7B97\u6CD5\u7ED3\u679C\u56DE\u586B\u5931\u8D25: ${err2.message}`);
   }
   let conflictsResult = { resolved: 0, ignored: 0, skipped: 0 };
   try {
-    log32.info(`[NextGenMaintenance] \u5F00\u59CB\u81EA\u52A8\u51B2\u7A81\u89E3\u51B3`);
+    log33.info(`[NextGenMaintenance] \u5F00\u59CB\u81EA\u52A8\u51B2\u7A81\u89E3\u51B3`);
     conflictsResult = await autoResolveConflicts(accountId);
   } catch (err2) {
-    log32.error(`[NextGenMaintenance] \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25: ${err2.message}`);
+    log33.error(`[NextGenMaintenance] \u81EA\u52A8\u51B2\u7A81\u89E3\u51B3\u5931\u8D25: ${err2.message}`);
   }
-  log32.info(`[NextGenMaintenance] \u7EF4\u62A4\u5B8C\u6210(\u8D26\u6237${accountId}): \u7279\u5F81=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, Reward=${results.rewardsBackfilled}, \u56E0\u679C=${results.causalAnalysis.analyzed}, \u7B97\u6CD5\u56DE\u586B=${results.algorithmResultsBackfilled}, \u51B2\u7A81\u89E3\u51B3=${conflictsResult.resolved}+${conflictsResult.ignored}`);
+  log33.info(`[NextGenMaintenance] \u7EF4\u62A4\u5B8C\u6210(\u8D26\u6237${accountId}): \u7279\u5F81=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, Reward=${results.rewardsBackfilled}, \u56E0\u679C=${results.causalAnalysis.analyzed}, \u7B97\u6CD5\u56DE\u586B=${results.algorithmResultsBackfilled}, \u51B2\u7A81\u89E3\u51B3=${conflictsResult.resolved}+${conflictsResult.ignored}`);
   return results;
 }
 async function executeModelTraining(accountId) {
   try {
-    log32.info(`[NextGenTraining] \u5F00\u59CBCQL\u6A21\u578B\u8BAD\u7EC3: \u8D26\u6237${accountId}`);
+    log33.info(`[NextGenTraining] \u5F00\u59CBCQL\u6A21\u578B\u8BAD\u7EC3: \u8D26\u6237${accountId}`);
     await trainCQL(accountId);
-    log32.info(`[NextGenTraining] CQL\u8BAD\u7EC3\u5B8C\u6210: \u8D26\u6237${accountId}`);
+    log33.info(`[NextGenTraining] CQL\u8BAD\u7EC3\u5B8C\u6210: \u8D26\u6237${accountId}`);
   } catch (error54) {
-    log32.error(`[NextGenTraining] CQL\u8BAD\u7EC3\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log33.error(`[NextGenTraining] CQL\u8BAD\u7EC3\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function executeBudgetOptimization(accountId) {
   try {
-    log32.info(`[NextGenBudget] \u5F00\u59CB\u9884\u7B97\u7EC4\u5408\u4F18\u5316: \u8D26\u6237${accountId}`);
+    log33.info(`[NextGenBudget] \u5F00\u59CB\u9884\u7B97\u7EC4\u5408\u4F18\u5316: \u8D26\u6237${accountId}`);
     const result = await optimizeBudgetPortfolio(accountId);
     if (result) {
-      log32.info(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5B8C\u6210: ${result.allocations.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8, \u9884\u671F\u5229\u6DA6=$${result.expectedTotalProfit.toFixed(2)}`);
+      log33.info(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5B8C\u6210: ${result.allocations.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8, \u9884\u671F\u5229\u6DA6=$${result.expectedTotalProfit.toFixed(2)}`);
     }
   } catch (error54) {
-    log32.error(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log33.error(`[NextGenBudget] \u9884\u7B97\u4F18\u5316\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function executeKeywordGraphAnalysis(accountId) {
   try {
-    log32.info(`[NextGenKeyword] \u5F00\u59CB\u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790: \u8D26\u6237${accountId}`);
+    log33.info(`[NextGenKeyword] \u5F00\u59CB\u5173\u952E\u8BCD\u56FE\u8C31\u5206\u6790: \u8D26\u6237${accountId}`);
     await buildKeywordGraph(accountId);
     const opportunities = await discoverOpportunities(accountId);
     const negatives = await discoverNegativeCandidates(accountId);
-    log32.info(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5B8C\u6210: ${opportunities.length}\u4E2A\u6269\u5C55\u673A\u4F1A, ${negatives.length}\u4E2A\u5426\u5B9A\u8BCD\u5019\u9009`);
+    log33.info(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5B8C\u6210: ${opportunities.length}\u4E2A\u6269\u5C55\u673A\u4F1A, ${negatives.length}\u4E2A\u5426\u5B9A\u8BCD\u5019\u9009`);
   } catch (error54) {
-    log32.error(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+    log33.error(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
   }
 }
 async function updateLinUCBFromReward(accountId, armType, context, reward) {
   try {
     await updateArm(accountId, armType, context, reward);
   } catch (error54) {
-    log32.error(`[NextGenOrchestrator] LinUCB\u66F4\u65B0\u5931\u8D25: ${error54.message}`);
+    log33.error(`[NextGenOrchestrator] LinUCB\u66F4\u65B0\u5931\u8D25: ${error54.message}`);
   }
 }
-var log32, BID_COOLDOWN_CONFIG, BID_CIRCUIT_BREAKER_CONFIG, DEFAULT_SAFETY;
+var log33, BID_COOLDOWN_CONFIG, BID_CIRCUIT_BREAKER_CONFIG, DEFAULT_SAFETY;
 var init_nextGenBidOrchestrator = __esm({
   "server/nextGenBidOrchestrator.ts"() {
     "use strict";
@@ -73564,7 +79468,7 @@ var init_nextGenBidOrchestrator = __esm({
     init_timeDecayWeightedDataService();
     init_systemConfigService();
     init_algorithmObservabilityService();
-    log32 = createModuleLogger("NextGen");
+    log33 = createModuleLogger("NextGen");
     BID_COOLDOWN_CONFIG = getBidCooldownConfig();
     BID_CIRCUIT_BREAKER_CONFIG = {
       /** v266 P0-3: 降低熔断触发阈值，使熔断机制能真正生效 */
@@ -73619,9 +79523,9 @@ function acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup) {
   const lock = accountModuleLocks[lockKey];
   if (lock.locked) {
     if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
-      log33.warn(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
+      log34.warn(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
     } else {
-      log33.info(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
+      log34.info(`[LockManager] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
       return false;
     }
   }
@@ -73639,12 +79543,12 @@ function releaseAccountOptimizationLock(accountId, moduleGroup) {
     accountModuleLocks[lockKey].lockedAt = null;
   }
 }
-var log33, accountModuleLocks;
+var log34, accountModuleLocks;
 var init_lockManager = __esm({
   "server/utils/lockManager.ts"() {
     "use strict";
     init_logger2();
-    log33 = createModuleLogger("LockManager");
+    log34 = createModuleLogger("LockManager");
     accountModuleLocks = {};
   }
 });
@@ -74409,7 +80313,7 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
     }
     return assessments;
   } catch (error54) {
-    log34.error(`[selfEvolution] evaluateRecentOptimizations error:`, error54);
+    log35.error(`[selfEvolution] evaluateRecentOptimizations error:`, error54);
     return [];
   }
 }
@@ -74654,7 +80558,7 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
       });
     } catch (err2) {
-      log34.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err2);
+      log35.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err2);
     }
   }
   return corrections;
@@ -74714,27 +80618,27 @@ async function executeAutoCorrections(corrections, userId, accountId) {
 async function runEvolutionCycle(performanceGroupId, userId, accountId, strategyTemplateId) {
   const cycleId = `evo_${performanceGroupId}_${Date.now()}`;
   const startDate = (/* @__PURE__ */ new Date()).toISOString();
-  log34.info(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
+  log35.info(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
   const assessments = await evaluateRecentOptimizations(performanceGroupId);
   const positiveActions = assessments.filter((a4) => a4.effectScore > 10).length;
   const neutralActions = assessments.filter((a4) => a4.effectScore >= -10 && a4.effectScore <= 10).length;
   const negativeActions = assessments.filter((a4) => a4.effectScore < -10).length;
-  log34.info(`[selfEvolution] Evaluated ${assessments.length} actions: ${positiveActions} positive, ${neutralActions} neutral, ${negativeActions} negative`);
+  log35.info(`[selfEvolution] Evaluated ${assessments.length} actions: ${positiveActions} positive, ${neutralActions} neutral, ${negativeActions} negative`);
   const learningResult = await updateLearningFromAssessments(
     performanceGroupId,
     assessments,
     strategyTemplateId
   );
-  log34.info(`[selfEvolution] Learning updated: ${learningResult.keywordsUpdated} keywords, strategy: ${learningResult.strategyUpdated}`);
+  log35.info(`[selfEvolution] Learning updated: ${learningResult.keywordsUpdated} keywords, strategy: ${learningResult.strategyUpdated}`);
   const corrections = await generateAutoCorrections(performanceGroupId, assessments);
   let correctionsExecuted = 0;
   if (corrections.length > 0) {
-    log34.info(`[selfEvolution] ${corrections.length} corrections identified`);
+    log35.info(`[selfEvolution] ${corrections.length} corrections identified`);
     const severeCorrections = corrections.filter((c5) => c5.effectScore < -30);
     if (severeCorrections.length > 0) {
       const execResult = await executeAutoCorrections(severeCorrections, userId, accountId);
       correctionsExecuted = execResult.executed;
-      log34.info(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
+      log35.info(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
     }
   }
   const avgEffectScore = assessments.length > 0 ? assessments.reduce((sum2, a4) => sum2 + a4.effectScore, 0) / assessments.length : 0;
@@ -74757,7 +80661,7 @@ async function runEvolutionCycle(performanceGroupId, userId, accountId, strategy
     avgEffectScore: Math.round(avgEffectScore),
     improvementTrend
   };
-  log34.info(`[selfEvolution] Evolution cycle ${cycleId} completed: avg score ${report2.avgEffectScore}, trend: ${report2.improvementTrend}`);
+  log35.info(`[selfEvolution] Evolution cycle ${cycleId} completed: avg score ${report2.avgEffectScore}, trend: ${report2.improvementTrend}`);
   return report2;
 }
 async function getAdaptiveOptimizationParams(performanceGroupId, strategyTemplateId) {
@@ -74815,11 +80719,11 @@ async function getAdaptiveOptimizationParams(performanceGroupId, strategyTemplat
       recentSuccessRate: Math.round(successRate * 100) / 100
     };
   } catch (error54) {
-    log34.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error54);
+    log35.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error54);
     return defaultParams;
   }
 }
-var log34;
+var log35;
 var init_selfEvolutionEngine = __esm({
   "server/selfEvolutionEngine.ts"() {
     "use strict";
@@ -74827,7 +80731,7 @@ var init_selfEvolutionEngine = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    log34 = createModuleLogger("SelfEvolution");
+    log35 = createModuleLogger("SelfEvolution");
   }
 });
 
@@ -75310,10 +81214,10 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
             config2
           );
           if (budgetApplyResult.success) {
-            log35.info(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} \u5206\u65F6\u9884\u7B97\u89C4\u5219\u5DF2\u4FDD\u5B58: ${budgetApplyResult.rulesApplied}\u6761`);
+            log36.info(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} \u5206\u65F6\u9884\u7B97\u89C4\u5219\u5DF2\u4FDD\u5B58: ${budgetApplyResult.rulesApplied}\u6761`);
           }
         } catch (budgetErr) {
-          log35.warn(`[MultiDimOptimizer] v179: \u5206\u65F6\u9884\u7B97\u89C4\u5219\u4FDD\u5B58\u5931\u8D25: ${budgetErr.message}`);
+          log36.warn(`[MultiDimOptimizer] v179: \u5206\u65F6\u9884\u7B97\u89C4\u5219\u4FDD\u5B58\u5931\u8D25: ${budgetErr.message}`);
         }
       }
       details.push({
@@ -75519,7 +81423,7 @@ function classifyKeyword2(clicks, orders, impressions, spend, sales, roas, acos,
     reason: `\u8868\u73B0\u4E00\u822C(ROAS ${roas.toFixed(1)}x)\uFF0C\u7EF4\u6301\u5F53\u524D\u51FA\u4EF7`
   };
 }
-var log35, DAY_LABELS, DATA_THRESHOLDS, ADJUSTMENT_LIMITS;
+var log36, DAY_LABELS, DATA_THRESHOLDS, ADJUSTMENT_LIMITS;
 var init_multiDimensionOptimizer = __esm({
   "server/multiDimensionOptimizer.ts"() {
     "use strict";
@@ -75529,7 +81433,7 @@ var init_multiDimensionOptimizer = __esm({
     init_schema2();
     init_drizzle_orm();
     init_daypartingService();
-    log35 = createModuleLogger("MultiDimensionOptimizer");
+    log36 = createModuleLogger("MultiDimensionOptimizer");
     DAY_LABELS = ["\u5468\u65E5", "\u5468\u4E00", "\u5468\u4E8C", "\u5468\u4E09", "\u5468\u56DB", "\u5468\u4E94", "\u5468\u516D"];
     DATA_THRESHOLDS = {
       MIN_CLICKS_FOR_CONFIDENCE: 20,
@@ -75600,7 +81504,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId, startStr, e
     lte(hourlyPerformance.date, endStr)
   ));
   if (hourlyData.length === 0) {
-    log36.info(`[ComboAnalyzer] Campaign ${campaignId} hourlyPerformance \u4E5F\u65E0\u6570\u636E`);
+    log37.info(`[ComboAnalyzer] Campaign ${campaignId} hourlyPerformance \u4E5F\u65E0\u6570\u636E`);
     return [];
   }
   const placementData = await db.select({
@@ -75617,7 +81521,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId, startStr, e
     lte(placementPerformance.date, endStr)
   ));
   const placementRatios = calculatePlacementRatios(placementData);
-  log36.info(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u6570\u636E: ${hourlyData.length}\u6761hourly\u8BB0\u5F55, \u4F4D\u7F6E\u6BD4\u4F8B: TOS=${(placementRatios.top_of_search * 100).toFixed(1)}%, PP=${(placementRatios.product_page * 100).toFixed(1)}%, ROS=${(placementRatios.rest_of_search * 100).toFixed(1)}%`);
+  log37.info(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u6570\u636E: ${hourlyData.length}\u6761hourly\u8BB0\u5F55, \u4F4D\u7F6E\u6BD4\u4F8B: TOS=${(placementRatios.top_of_search * 100).toFixed(1)}%, PP=${(placementRatios.product_page * 100).toFixed(1)}%, ROS=${(placementRatios.rest_of_search * 100).toFixed(1)}%`);
   const synthesized = [];
   for (const row of hourlyData) {
     if (!row.keywordId) continue;
@@ -75645,7 +81549,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId, startStr, e
       });
     }
   }
-  log36.info(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u4E86 ${synthesized.length} \u6761\u4EA4\u53C9\u7EF4\u5EA6\u8BB0\u5F55`);
+  log37.info(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u4E86 ${synthesized.length} \u6761\u4EA4\u53C9\u7EF4\u5EA6\u8BB0\u5F55`);
   return synthesized;
 }
 function calculatePlacementRatios(placementData) {
@@ -75770,16 +81674,16 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
       orders: row.orders || 0
     }));
     dataSource = "cross_dimension";
-    log36.info(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u4EA4\u53C9\u7EF4\u5EA6\u8868\u6570\u636E (${rawData.length}\u6761)`);
+    log37.info(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u4EA4\u53C9\u7EF4\u5EA6\u8868\u6570\u636E (${rawData.length}\u6761)`);
   }
   if (rawData.length === 0) {
     rawData = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
     dataSource = "synthesized";
     if (rawData.length === 0) {
-      log36.info(`[ComboAnalyzer] Campaign ${campaignName}: \u65E0\u4EFB\u4F55\u53EF\u7528\u6570\u636E\uFF0C\u8DF3\u8FC7`);
+      log37.info(`[ComboAnalyzer] Campaign ${campaignName}: \u65E0\u4EFB\u4F55\u53EF\u7528\u6570\u636E\uFF0C\u8DF3\u8FC7`);
       return null;
     }
-    log36.info(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u5408\u6210\u6570\u636E (${rawData.length}\u6761)`);
+    log37.info(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u5408\u6210\u6570\u636E (${rawData.length}\u6761)`);
   }
   if (crossDimData.length > 0 && crossDimData.length < 50) {
     const synthesized = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
@@ -75794,7 +81698,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
         }
       }
       dataSource = "mixed";
-      log36.info(`[ComboAnalyzer] Campaign ${campaignName}: \u6DF7\u5408\u6570\u636E (\u4EA4\u53C9:${crossDimData.length} + \u5408\u6210\u8865\u5145, \u603B\u8BA1:${rawData.length}\u6761)`);
+      log37.info(`[ComboAnalyzer] Campaign ${campaignName}: \u6DF7\u5408\u6570\u636E (\u4EA4\u53C9:${crossDimData.length} + \u5408\u6210\u8865\u5145, \u603B\u8BA1:${rawData.length}\u6761)`);
     }
   }
   const keywordGroups = /* @__PURE__ */ new Map();
@@ -75862,13 +81766,13 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
   const totalClicks = allResults.reduce((s4, r5) => s4 + r5.totalClicks, 0);
   const totalOrders = allResults.reduce((s4, r5) => s4 + r5.totalOrders, 0);
   const overallConfidence = totalClicks >= 200 && totalOrders >= 20 ? "high" : totalClicks >= 50 && totalOrders >= 5 ? "medium" : totalClicks >= 10 ? "low" : "insufficient";
-  log36.info(`[ComboAnalyzer] Campaign ${campaignName} [${dataSource}]: ${goldenCombos.length}\u4E2A\u9EC4\u91D1, ${leadenCombos.length}\u4E2A\u94C5\u77F3, ${potentialCombos.length}\u4E2A\u6F5C\u529B, ${standardCombos.length}\u4E2A\u6807\u51C6 (\u7F6E\u4FE1\u5EA6: ${overallConfidence}, \u9884\u7B97\u4E58\u6570: ${suggestedBudgetMultiplier.toFixed(3)}, \u5206\u7C7B\u53D8\u5316: ${categoryChanges.length}\u4E2A)`);
+  log37.info(`[ComboAnalyzer] Campaign ${campaignName} [${dataSource}]: ${goldenCombos.length}\u4E2A\u9EC4\u91D1, ${leadenCombos.length}\u4E2A\u94C5\u77F3, ${potentialCombos.length}\u4E2A\u6F5C\u529B, ${standardCombos.length}\u4E2A\u6807\u51C6 (\u7F6E\u4FE1\u5EA6: ${overallConfidence}, \u9884\u7B97\u4E58\u6570: ${suggestedBudgetMultiplier.toFixed(3)}, \u5206\u7C7B\u53D8\u5316: ${categoryChanges.length}\u4E2A)`);
   if (categoryChanges.length > 0) {
     for (const change of categoryChanges.slice(0, 5)) {
-      log36.info(`  [\u8FED\u4EE3] "${change.keywordText}": ${change.from} \u2192 ${change.to}`);
+      log37.info(`  [\u8FED\u4EE3] "${change.keywordText}": ${change.from} \u2192 ${change.to}`);
     }
     if (categoryChanges.length > 5) {
-      log36.info(`  [\u8FED\u4EE3] ...\u8FD8\u6709${categoryChanges.length - 5}\u4E2A\u5206\u7C7B\u53D8\u5316`);
+      log37.info(`  [\u8FED\u4EE3] ...\u8FD8\u6709${categoryChanges.length - 5}\u4E2A\u5206\u7C7B\u53D8\u5316`);
     }
   }
   return {
@@ -76173,10 +82077,10 @@ async function persistAnalysisResults(db, accountId, analysis) {
       });
       inserted++;
     } catch (err2) {
-      log36.error(`[ComboAnalyzer] \u5199\u5165\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${err2.message}`);
+      log37.error(`[ComboAnalyzer] \u5199\u5165\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${err2.message}`);
     }
   }
-  log36.info(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C (\u6570\u636E\u6E90: ${analysis.dataSource})`);
+  log37.info(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C (\u6570\u636E\u6E90: ${analysis.dataSource})`);
   return inserted;
 }
 async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2) {
@@ -76206,10 +82110,10 @@ async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2)
       details.push(analysis);
       campaignBudgetMultipliers.set(campaignId, analysis.suggestedBudgetMultiplier);
     } catch (err2) {
-      log36.error(`[ComboAnalyzer] Campaign ${campaignId} \u5206\u6790\u5931\u8D25: ${err2.message}`);
+      log37.error(`[ComboAnalyzer] Campaign ${campaignId} \u5206\u6790\u5931\u8D25: ${err2.message}`);
     }
   }
-  log36.info(`[ComboAnalyzer] \u5206\u6790\u5B8C\u6210: ${campaignsAnalyzed}\u4E2Acampaign, ${totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${goldenCount}, \u94C5\u77F3:${leadenCount}, \u6F5C\u529B:${potentialCount}, \u6807\u51C6:${standardCount}) \u5206\u7C7B\u53D8\u5316:${totalCategoryChanges}\u4E2A`);
+  log37.info(`[ComboAnalyzer] \u5206\u6790\u5B8C\u6210: ${campaignsAnalyzed}\u4E2Acampaign, ${totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${goldenCount}, \u94C5\u77F3:${leadenCount}, \u6F5C\u529B:${potentialCount}, \u6807\u51C6:${standardCount}) \u5206\u7C7B\u53D8\u5316:${totalCategoryChanges}\u4E2A`);
   return {
     campaignsAnalyzed,
     totalCombosFound,
@@ -76264,14 +82168,14 @@ async function getCampaignBudgetMultiplier(db, accountId, campaignId) {
   }
   return 1;
 }
-var log36;
+var log37;
 var init_multiDimComboAnalyzer = __esm({
   "server/multiDimComboAnalyzer.ts"() {
     "use strict";
     init_logger2();
     init_drizzle_orm();
     init_schema2();
-    log36 = createModuleLogger("MultiDimCombo");
+    log37 = createModuleLogger("MultiDimCombo");
   }
 });
 
@@ -76591,5909 +82495,6 @@ var init_targetingAlgorithm = __esm({
   "server/services/targetingAlgorithm.ts"() {
     "use strict";
     init_keywordValidator();
-  }
-});
-
-// node_modules/bignumber.js/bignumber.js
-var require_bignumber = __commonJS({
-  "node_modules/bignumber.js/bignumber.js"(exports2, module2) {
-    (function(globalObject) {
-      "use strict";
-      var BigNumber, isNumeric = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i, mathceil = Math.ceil, mathfloor = Math.floor, bignumberError = "[BigNumber Error] ", tooManyDigits = bignumberError + "Number primitive has more than 15 significant digits: ", BASE = 1e14, LOG_BASE = 14, MAX_SAFE_INTEGER = 9007199254740991, POWS_TEN = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13], SQRT_BASE = 1e7, MAX = 1e9;
-      function clone3(configObject) {
-        var div, convertBase, parseNumeric, P4 = BigNumber2.prototype = { constructor: BigNumber2, toString: null, valueOf: null }, ONE = new BigNumber2(1), DECIMAL_PLACES = 20, ROUNDING_MODE = 4, TO_EXP_NEG = -7, TO_EXP_POS = 21, MIN_EXP = -1e7, MAX_EXP = 1e7, CRYPTO = false, MODULO_MODE = 1, POW_PRECISION = 0, FORMAT = {
-          prefix: "",
-          groupSize: 3,
-          secondaryGroupSize: 0,
-          groupSeparator: ",",
-          decimalSeparator: ".",
-          fractionGroupSize: 0,
-          fractionGroupSeparator: "\xA0",
-          // non-breaking space
-          suffix: ""
-        }, ALPHABET2 = "0123456789abcdefghijklmnopqrstuvwxyz", alphabetHasNormalDecimalDigits = true;
-        function BigNumber2(v6, b6) {
-          var alphabet, c5, caseChanged, e6, i4, isNum, len, str2, x6 = this;
-          if (!(x6 instanceof BigNumber2)) return new BigNumber2(v6, b6);
-          if (b6 == null) {
-            if (v6 && v6._isBigNumber === true) {
-              x6.s = v6.s;
-              if (!v6.c || v6.e > MAX_EXP) {
-                x6.c = x6.e = null;
-              } else if (v6.e < MIN_EXP) {
-                x6.c = [x6.e = 0];
-              } else {
-                x6.e = v6.e;
-                x6.c = v6.c.slice();
-              }
-              return;
-            }
-            if ((isNum = typeof v6 == "number") && v6 * 0 == 0) {
-              x6.s = 1 / v6 < 0 ? (v6 = -v6, -1) : 1;
-              if (v6 === ~~v6) {
-                for (e6 = 0, i4 = v6; i4 >= 10; i4 /= 10, e6++) ;
-                if (e6 > MAX_EXP) {
-                  x6.c = x6.e = null;
-                } else {
-                  x6.e = e6;
-                  x6.c = [v6];
-                }
-                return;
-              }
-              str2 = String(v6);
-            } else {
-              if (!isNumeric.test(str2 = String(v6))) return parseNumeric(x6, str2, isNum);
-              x6.s = str2.charCodeAt(0) == 45 ? (str2 = str2.slice(1), -1) : 1;
-            }
-            if ((e6 = str2.indexOf(".")) > -1) str2 = str2.replace(".", "");
-            if ((i4 = str2.search(/e/i)) > 0) {
-              if (e6 < 0) e6 = i4;
-              e6 += +str2.slice(i4 + 1);
-              str2 = str2.substring(0, i4);
-            } else if (e6 < 0) {
-              e6 = str2.length;
-            }
-          } else {
-            intCheck(b6, 2, ALPHABET2.length, "Base");
-            if (b6 == 10 && alphabetHasNormalDecimalDigits) {
-              x6 = new BigNumber2(v6);
-              return round(x6, DECIMAL_PLACES + x6.e + 1, ROUNDING_MODE);
-            }
-            str2 = String(v6);
-            if (isNum = typeof v6 == "number") {
-              if (v6 * 0 != 0) return parseNumeric(x6, str2, isNum, b6);
-              x6.s = 1 / v6 < 0 ? (str2 = str2.slice(1), -1) : 1;
-              if (BigNumber2.DEBUG && str2.replace(/^0\.0*|\./, "").length > 15) {
-                throw Error(tooManyDigits + v6);
-              }
-            } else {
-              x6.s = str2.charCodeAt(0) === 45 ? (str2 = str2.slice(1), -1) : 1;
-            }
-            alphabet = ALPHABET2.slice(0, b6);
-            e6 = i4 = 0;
-            for (len = str2.length; i4 < len; i4++) {
-              if (alphabet.indexOf(c5 = str2.charAt(i4)) < 0) {
-                if (c5 == ".") {
-                  if (i4 > e6) {
-                    e6 = len;
-                    continue;
-                  }
-                } else if (!caseChanged) {
-                  if (str2 == str2.toUpperCase() && (str2 = str2.toLowerCase()) || str2 == str2.toLowerCase() && (str2 = str2.toUpperCase())) {
-                    caseChanged = true;
-                    i4 = -1;
-                    e6 = 0;
-                    continue;
-                  }
-                }
-                return parseNumeric(x6, String(v6), isNum, b6);
-              }
-            }
-            isNum = false;
-            str2 = convertBase(str2, b6, 10, x6.s);
-            if ((e6 = str2.indexOf(".")) > -1) str2 = str2.replace(".", "");
-            else e6 = str2.length;
-          }
-          for (i4 = 0; str2.charCodeAt(i4) === 48; i4++) ;
-          for (len = str2.length; str2.charCodeAt(--len) === 48; ) ;
-          if (str2 = str2.slice(i4, ++len)) {
-            len -= i4;
-            if (isNum && BigNumber2.DEBUG && len > 15 && (v6 > MAX_SAFE_INTEGER || v6 !== mathfloor(v6))) {
-              throw Error(tooManyDigits + x6.s * v6);
-            }
-            if ((e6 = e6 - i4 - 1) > MAX_EXP) {
-              x6.c = x6.e = null;
-            } else if (e6 < MIN_EXP) {
-              x6.c = [x6.e = 0];
-            } else {
-              x6.e = e6;
-              x6.c = [];
-              i4 = (e6 + 1) % LOG_BASE;
-              if (e6 < 0) i4 += LOG_BASE;
-              if (i4 < len) {
-                if (i4) x6.c.push(+str2.slice(0, i4));
-                for (len -= LOG_BASE; i4 < len; ) {
-                  x6.c.push(+str2.slice(i4, i4 += LOG_BASE));
-                }
-                i4 = LOG_BASE - (str2 = str2.slice(i4)).length;
-              } else {
-                i4 -= len;
-              }
-              for (; i4--; str2 += "0") ;
-              x6.c.push(+str2);
-            }
-          } else {
-            x6.c = [x6.e = 0];
-          }
-        }
-        BigNumber2.clone = clone3;
-        BigNumber2.ROUND_UP = 0;
-        BigNumber2.ROUND_DOWN = 1;
-        BigNumber2.ROUND_CEIL = 2;
-        BigNumber2.ROUND_FLOOR = 3;
-        BigNumber2.ROUND_HALF_UP = 4;
-        BigNumber2.ROUND_HALF_DOWN = 5;
-        BigNumber2.ROUND_HALF_EVEN = 6;
-        BigNumber2.ROUND_HALF_CEIL = 7;
-        BigNumber2.ROUND_HALF_FLOOR = 8;
-        BigNumber2.EUCLID = 9;
-        BigNumber2.config = BigNumber2.set = function(obj) {
-          var p4, v6;
-          if (obj != null) {
-            if (typeof obj == "object") {
-              if (obj.hasOwnProperty(p4 = "DECIMAL_PLACES")) {
-                v6 = obj[p4];
-                intCheck(v6, 0, MAX, p4);
-                DECIMAL_PLACES = v6;
-              }
-              if (obj.hasOwnProperty(p4 = "ROUNDING_MODE")) {
-                v6 = obj[p4];
-                intCheck(v6, 0, 8, p4);
-                ROUNDING_MODE = v6;
-              }
-              if (obj.hasOwnProperty(p4 = "EXPONENTIAL_AT")) {
-                v6 = obj[p4];
-                if (v6 && v6.pop) {
-                  intCheck(v6[0], -MAX, 0, p4);
-                  intCheck(v6[1], 0, MAX, p4);
-                  TO_EXP_NEG = v6[0];
-                  TO_EXP_POS = v6[1];
-                } else {
-                  intCheck(v6, -MAX, MAX, p4);
-                  TO_EXP_NEG = -(TO_EXP_POS = v6 < 0 ? -v6 : v6);
-                }
-              }
-              if (obj.hasOwnProperty(p4 = "RANGE")) {
-                v6 = obj[p4];
-                if (v6 && v6.pop) {
-                  intCheck(v6[0], -MAX, -1, p4);
-                  intCheck(v6[1], 1, MAX, p4);
-                  MIN_EXP = v6[0];
-                  MAX_EXP = v6[1];
-                } else {
-                  intCheck(v6, -MAX, MAX, p4);
-                  if (v6) {
-                    MIN_EXP = -(MAX_EXP = v6 < 0 ? -v6 : v6);
-                  } else {
-                    throw Error(bignumberError + p4 + " cannot be zero: " + v6);
-                  }
-                }
-              }
-              if (obj.hasOwnProperty(p4 = "CRYPTO")) {
-                v6 = obj[p4];
-                if (v6 === !!v6) {
-                  if (v6) {
-                    if (typeof crypto != "undefined" && crypto && (crypto.getRandomValues || crypto.randomBytes)) {
-                      CRYPTO = v6;
-                    } else {
-                      CRYPTO = !v6;
-                      throw Error(bignumberError + "crypto unavailable");
-                    }
-                  } else {
-                    CRYPTO = v6;
-                  }
-                } else {
-                  throw Error(bignumberError + p4 + " not true or false: " + v6);
-                }
-              }
-              if (obj.hasOwnProperty(p4 = "MODULO_MODE")) {
-                v6 = obj[p4];
-                intCheck(v6, 0, 9, p4);
-                MODULO_MODE = v6;
-              }
-              if (obj.hasOwnProperty(p4 = "POW_PRECISION")) {
-                v6 = obj[p4];
-                intCheck(v6, 0, MAX, p4);
-                POW_PRECISION = v6;
-              }
-              if (obj.hasOwnProperty(p4 = "FORMAT")) {
-                v6 = obj[p4];
-                if (typeof v6 == "object") FORMAT = v6;
-                else throw Error(bignumberError + p4 + " not an object: " + v6);
-              }
-              if (obj.hasOwnProperty(p4 = "ALPHABET")) {
-                v6 = obj[p4];
-                if (typeof v6 == "string" && !/^.?$|[+\-.\s]|(.).*\1/.test(v6)) {
-                  alphabetHasNormalDecimalDigits = v6.slice(0, 10) == "0123456789";
-                  ALPHABET2 = v6;
-                } else {
-                  throw Error(bignumberError + p4 + " invalid: " + v6);
-                }
-              }
-            } else {
-              throw Error(bignumberError + "Object expected: " + obj);
-            }
-          }
-          return {
-            DECIMAL_PLACES,
-            ROUNDING_MODE,
-            EXPONENTIAL_AT: [TO_EXP_NEG, TO_EXP_POS],
-            RANGE: [MIN_EXP, MAX_EXP],
-            CRYPTO,
-            MODULO_MODE,
-            POW_PRECISION,
-            FORMAT,
-            ALPHABET: ALPHABET2
-          };
-        };
-        BigNumber2.isBigNumber = function(v6) {
-          if (!v6 || v6._isBigNumber !== true) return false;
-          if (!BigNumber2.DEBUG) return true;
-          var i4, n7, c5 = v6.c, e6 = v6.e, s4 = v6.s;
-          out: if ({}.toString.call(c5) == "[object Array]") {
-            if ((s4 === 1 || s4 === -1) && e6 >= -MAX && e6 <= MAX && e6 === mathfloor(e6)) {
-              if (c5[0] === 0) {
-                if (e6 === 0 && c5.length === 1) return true;
-                break out;
-              }
-              i4 = (e6 + 1) % LOG_BASE;
-              if (i4 < 1) i4 += LOG_BASE;
-              if (String(c5[0]).length == i4) {
-                for (i4 = 0; i4 < c5.length; i4++) {
-                  n7 = c5[i4];
-                  if (n7 < 0 || n7 >= BASE || n7 !== mathfloor(n7)) break out;
-                }
-                if (n7 !== 0) return true;
-              }
-            }
-          } else if (c5 === null && e6 === null && (s4 === null || s4 === 1 || s4 === -1)) {
-            return true;
-          }
-          throw Error(bignumberError + "Invalid BigNumber: " + v6);
-        };
-        BigNumber2.maximum = BigNumber2.max = function() {
-          return maxOrMin(arguments, -1);
-        };
-        BigNumber2.minimum = BigNumber2.min = function() {
-          return maxOrMin(arguments, 1);
-        };
-        BigNumber2.random = (function() {
-          var pow2_53 = 9007199254740992;
-          var random53bitInt = Math.random() * pow2_53 & 2097151 ? function() {
-            return mathfloor(Math.random() * pow2_53);
-          } : function() {
-            return (Math.random() * 1073741824 | 0) * 8388608 + (Math.random() * 8388608 | 0);
-          };
-          return function(dp) {
-            var a4, b6, e6, k5, v6, i4 = 0, c5 = [], rand = new BigNumber2(ONE);
-            if (dp == null) dp = DECIMAL_PLACES;
-            else intCheck(dp, 0, MAX);
-            k5 = mathceil(dp / LOG_BASE);
-            if (CRYPTO) {
-              if (crypto.getRandomValues) {
-                a4 = crypto.getRandomValues(new Uint32Array(k5 *= 2));
-                for (; i4 < k5; ) {
-                  v6 = a4[i4] * 131072 + (a4[i4 + 1] >>> 11);
-                  if (v6 >= 9e15) {
-                    b6 = crypto.getRandomValues(new Uint32Array(2));
-                    a4[i4] = b6[0];
-                    a4[i4 + 1] = b6[1];
-                  } else {
-                    c5.push(v6 % 1e14);
-                    i4 += 2;
-                  }
-                }
-                i4 = k5 / 2;
-              } else if (crypto.randomBytes) {
-                a4 = crypto.randomBytes(k5 *= 7);
-                for (; i4 < k5; ) {
-                  v6 = (a4[i4] & 31) * 281474976710656 + a4[i4 + 1] * 1099511627776 + a4[i4 + 2] * 4294967296 + a4[i4 + 3] * 16777216 + (a4[i4 + 4] << 16) + (a4[i4 + 5] << 8) + a4[i4 + 6];
-                  if (v6 >= 9e15) {
-                    crypto.randomBytes(7).copy(a4, i4);
-                  } else {
-                    c5.push(v6 % 1e14);
-                    i4 += 7;
-                  }
-                }
-                i4 = k5 / 7;
-              } else {
-                CRYPTO = false;
-                throw Error(bignumberError + "crypto unavailable");
-              }
-            }
-            if (!CRYPTO) {
-              for (; i4 < k5; ) {
-                v6 = random53bitInt();
-                if (v6 < 9e15) c5[i4++] = v6 % 1e14;
-              }
-            }
-            k5 = c5[--i4];
-            dp %= LOG_BASE;
-            if (k5 && dp) {
-              v6 = POWS_TEN[LOG_BASE - dp];
-              c5[i4] = mathfloor(k5 / v6) * v6;
-            }
-            for (; c5[i4] === 0; c5.pop(), i4--) ;
-            if (i4 < 0) {
-              c5 = [e6 = 0];
-            } else {
-              for (e6 = -1; c5[0] === 0; c5.splice(0, 1), e6 -= LOG_BASE) ;
-              for (i4 = 1, v6 = c5[0]; v6 >= 10; v6 /= 10, i4++) ;
-              if (i4 < LOG_BASE) e6 -= LOG_BASE - i4;
-            }
-            rand.e = e6;
-            rand.c = c5;
-            return rand;
-          };
-        })();
-        BigNumber2.sum = function() {
-          var i4 = 1, args = arguments, sum2 = new BigNumber2(args[0]);
-          for (; i4 < args.length; ) sum2 = sum2.plus(args[i4++]);
-          return sum2;
-        };
-        convertBase = /* @__PURE__ */ (function() {
-          var decimal2 = "0123456789";
-          function toBaseOut(str2, baseIn, baseOut, alphabet) {
-            var j6, arr = [0], arrL, i4 = 0, len = str2.length;
-            for (; i4 < len; ) {
-              for (arrL = arr.length; arrL--; arr[arrL] *= baseIn) ;
-              arr[0] += alphabet.indexOf(str2.charAt(i4++));
-              for (j6 = 0; j6 < arr.length; j6++) {
-                if (arr[j6] > baseOut - 1) {
-                  if (arr[j6 + 1] == null) arr[j6 + 1] = 0;
-                  arr[j6 + 1] += arr[j6] / baseOut | 0;
-                  arr[j6] %= baseOut;
-                }
-              }
-            }
-            return arr.reverse();
-          }
-          return function(str2, baseIn, baseOut, sign, callerIsToString) {
-            var alphabet, d5, e6, k5, r5, x6, xc, y4, i4 = str2.indexOf("."), dp = DECIMAL_PLACES, rm = ROUNDING_MODE;
-            if (i4 >= 0) {
-              k5 = POW_PRECISION;
-              POW_PRECISION = 0;
-              str2 = str2.replace(".", "");
-              y4 = new BigNumber2(baseIn);
-              x6 = y4.pow(str2.length - i4);
-              POW_PRECISION = k5;
-              y4.c = toBaseOut(
-                toFixedPoint(coeffToString(x6.c), x6.e, "0"),
-                10,
-                baseOut,
-                decimal2
-              );
-              y4.e = y4.c.length;
-            }
-            xc = toBaseOut(str2, baseIn, baseOut, callerIsToString ? (alphabet = ALPHABET2, decimal2) : (alphabet = decimal2, ALPHABET2));
-            e6 = k5 = xc.length;
-            for (; xc[--k5] == 0; xc.pop()) ;
-            if (!xc[0]) return alphabet.charAt(0);
-            if (i4 < 0) {
-              --e6;
-            } else {
-              x6.c = xc;
-              x6.e = e6;
-              x6.s = sign;
-              x6 = div(x6, y4, dp, rm, baseOut);
-              xc = x6.c;
-              r5 = x6.r;
-              e6 = x6.e;
-            }
-            d5 = e6 + dp + 1;
-            i4 = xc[d5];
-            k5 = baseOut / 2;
-            r5 = r5 || d5 < 0 || xc[d5 + 1] != null;
-            r5 = rm < 4 ? (i4 != null || r5) && (rm == 0 || rm == (x6.s < 0 ? 3 : 2)) : i4 > k5 || i4 == k5 && (rm == 4 || r5 || rm == 6 && xc[d5 - 1] & 1 || rm == (x6.s < 0 ? 8 : 7));
-            if (d5 < 1 || !xc[0]) {
-              str2 = r5 ? toFixedPoint(alphabet.charAt(1), -dp, alphabet.charAt(0)) : alphabet.charAt(0);
-            } else {
-              xc.length = d5;
-              if (r5) {
-                for (--baseOut; ++xc[--d5] > baseOut; ) {
-                  xc[d5] = 0;
-                  if (!d5) {
-                    ++e6;
-                    xc = [1].concat(xc);
-                  }
-                }
-              }
-              for (k5 = xc.length; !xc[--k5]; ) ;
-              for (i4 = 0, str2 = ""; i4 <= k5; str2 += alphabet.charAt(xc[i4++])) ;
-              str2 = toFixedPoint(str2, e6, alphabet.charAt(0));
-            }
-            return str2;
-          };
-        })();
-        div = /* @__PURE__ */ (function() {
-          function multiply(x6, k5, base2) {
-            var m4, temp, xlo, xhi, carry = 0, i4 = x6.length, klo = k5 % SQRT_BASE, khi = k5 / SQRT_BASE | 0;
-            for (x6 = x6.slice(); i4--; ) {
-              xlo = x6[i4] % SQRT_BASE;
-              xhi = x6[i4] / SQRT_BASE | 0;
-              m4 = khi * xlo + xhi * klo;
-              temp = klo * xlo + m4 % SQRT_BASE * SQRT_BASE + carry;
-              carry = (temp / base2 | 0) + (m4 / SQRT_BASE | 0) + khi * xhi;
-              x6[i4] = temp % base2;
-            }
-            if (carry) x6 = [carry].concat(x6);
-            return x6;
-          }
-          function compare3(a4, b6, aL, bL) {
-            var i4, cmp;
-            if (aL != bL) {
-              cmp = aL > bL ? 1 : -1;
-            } else {
-              for (i4 = cmp = 0; i4 < aL; i4++) {
-                if (a4[i4] != b6[i4]) {
-                  cmp = a4[i4] > b6[i4] ? 1 : -1;
-                  break;
-                }
-              }
-            }
-            return cmp;
-          }
-          function subtract(a4, b6, aL, base2) {
-            var i4 = 0;
-            for (; aL--; ) {
-              a4[aL] -= i4;
-              i4 = a4[aL] < b6[aL] ? 1 : 0;
-              a4[aL] = i4 * base2 + a4[aL] - b6[aL];
-            }
-            for (; !a4[0] && a4.length > 1; a4.splice(0, 1)) ;
-          }
-          return function(x6, y4, dp, rm, base2) {
-            var cmp, e6, i4, more, n7, prod, prodL, q7, qc, rem, remL, rem0, xi3, xL, yc0, yL, yz, s4 = x6.s == y4.s ? 1 : -1, xc = x6.c, yc = y4.c;
-            if (!xc || !xc[0] || !yc || !yc[0]) {
-              return new BigNumber2(
-                // Return NaN if either NaN, or both Infinity or 0.
-                !x6.s || !y4.s || (xc ? yc && xc[0] == yc[0] : !yc) ? NaN : (
-                  // Return ±0 if x is ±0 or y is ±Infinity, or return ±Infinity as y is ±0.
-                  xc && xc[0] == 0 || !yc ? s4 * 0 : s4 / 0
-                )
-              );
-            }
-            q7 = new BigNumber2(s4);
-            qc = q7.c = [];
-            e6 = x6.e - y4.e;
-            s4 = dp + e6 + 1;
-            if (!base2) {
-              base2 = BASE;
-              e6 = bitFloor(x6.e / LOG_BASE) - bitFloor(y4.e / LOG_BASE);
-              s4 = s4 / LOG_BASE | 0;
-            }
-            for (i4 = 0; yc[i4] == (xc[i4] || 0); i4++) ;
-            if (yc[i4] > (xc[i4] || 0)) e6--;
-            if (s4 < 0) {
-              qc.push(1);
-              more = true;
-            } else {
-              xL = xc.length;
-              yL = yc.length;
-              i4 = 0;
-              s4 += 2;
-              n7 = mathfloor(base2 / (yc[0] + 1));
-              if (n7 > 1) {
-                yc = multiply(yc, n7, base2);
-                xc = multiply(xc, n7, base2);
-                yL = yc.length;
-                xL = xc.length;
-              }
-              xi3 = yL;
-              rem = xc.slice(0, yL);
-              remL = rem.length;
-              for (; remL < yL; rem[remL++] = 0) ;
-              yz = yc.slice();
-              yz = [0].concat(yz);
-              yc0 = yc[0];
-              if (yc[1] >= base2 / 2) yc0++;
-              do {
-                n7 = 0;
-                cmp = compare3(yc, rem, yL, remL);
-                if (cmp < 0) {
-                  rem0 = rem[0];
-                  if (yL != remL) rem0 = rem0 * base2 + (rem[1] || 0);
-                  n7 = mathfloor(rem0 / yc0);
-                  if (n7 > 1) {
-                    if (n7 >= base2) n7 = base2 - 1;
-                    prod = multiply(yc, n7, base2);
-                    prodL = prod.length;
-                    remL = rem.length;
-                    while (compare3(prod, rem, prodL, remL) == 1) {
-                      n7--;
-                      subtract(prod, yL < prodL ? yz : yc, prodL, base2);
-                      prodL = prod.length;
-                      cmp = 1;
-                    }
-                  } else {
-                    if (n7 == 0) {
-                      cmp = n7 = 1;
-                    }
-                    prod = yc.slice();
-                    prodL = prod.length;
-                  }
-                  if (prodL < remL) prod = [0].concat(prod);
-                  subtract(rem, prod, remL, base2);
-                  remL = rem.length;
-                  if (cmp == -1) {
-                    while (compare3(yc, rem, yL, remL) < 1) {
-                      n7++;
-                      subtract(rem, yL < remL ? yz : yc, remL, base2);
-                      remL = rem.length;
-                    }
-                  }
-                } else if (cmp === 0) {
-                  n7++;
-                  rem = [0];
-                }
-                qc[i4++] = n7;
-                if (rem[0]) {
-                  rem[remL++] = xc[xi3] || 0;
-                } else {
-                  rem = [xc[xi3]];
-                  remL = 1;
-                }
-              } while ((xi3++ < xL || rem[0] != null) && s4--);
-              more = rem[0] != null;
-              if (!qc[0]) qc.splice(0, 1);
-            }
-            if (base2 == BASE) {
-              for (i4 = 1, s4 = qc[0]; s4 >= 10; s4 /= 10, i4++) ;
-              round(q7, dp + (q7.e = i4 + e6 * LOG_BASE - 1) + 1, rm, more);
-            } else {
-              q7.e = e6;
-              q7.r = +more;
-            }
-            return q7;
-          };
-        })();
-        function format8(n7, i4, rm, id) {
-          var c0, e6, ne5, len, str2;
-          if (rm == null) rm = ROUNDING_MODE;
-          else intCheck(rm, 0, 8);
-          if (!n7.c) return n7.toString();
-          c0 = n7.c[0];
-          ne5 = n7.e;
-          if (i4 == null) {
-            str2 = coeffToString(n7.c);
-            str2 = id == 1 || id == 2 && (ne5 <= TO_EXP_NEG || ne5 >= TO_EXP_POS) ? toExponential(str2, ne5) : toFixedPoint(str2, ne5, "0");
-          } else {
-            n7 = round(new BigNumber2(n7), i4, rm);
-            e6 = n7.e;
-            str2 = coeffToString(n7.c);
-            len = str2.length;
-            if (id == 1 || id == 2 && (i4 <= e6 || e6 <= TO_EXP_NEG)) {
-              for (; len < i4; str2 += "0", len++) ;
-              str2 = toExponential(str2, e6);
-            } else {
-              i4 -= ne5 + (id === 2 && e6 > ne5);
-              str2 = toFixedPoint(str2, e6, "0");
-              if (e6 + 1 > len) {
-                if (--i4 > 0) for (str2 += "."; i4--; str2 += "0") ;
-              } else {
-                i4 += e6 - len;
-                if (i4 > 0) {
-                  if (e6 + 1 == len) str2 += ".";
-                  for (; i4--; str2 += "0") ;
-                }
-              }
-            }
-          }
-          return n7.s < 0 && c0 ? "-" + str2 : str2;
-        }
-        function maxOrMin(args, n7) {
-          var k5, y4, i4 = 1, x6 = new BigNumber2(args[0]);
-          for (; i4 < args.length; i4++) {
-            y4 = new BigNumber2(args[i4]);
-            if (!y4.s || (k5 = compare2(x6, y4)) === n7 || k5 === 0 && x6.s === n7) {
-              x6 = y4;
-            }
-          }
-          return x6;
-        }
-        function normalise(n7, c5, e6) {
-          var i4 = 1, j6 = c5.length;
-          for (; !c5[--j6]; c5.pop()) ;
-          for (j6 = c5[0]; j6 >= 10; j6 /= 10, i4++) ;
-          if ((e6 = i4 + e6 * LOG_BASE - 1) > MAX_EXP) {
-            n7.c = n7.e = null;
-          } else if (e6 < MIN_EXP) {
-            n7.c = [n7.e = 0];
-          } else {
-            n7.e = e6;
-            n7.c = c5;
-          }
-          return n7;
-        }
-        parseNumeric = /* @__PURE__ */ (function() {
-          var basePrefix = /^(-?)0([xbo])(?=\w[\w.]*$)/i, dotAfter = /^([^.]+)\.$/, dotBefore = /^\.([^.]+)$/, isInfinityOrNaN = /^-?(Infinity|NaN)$/, whitespaceOrPlus = /^\s*\+(?=[\w.])|^\s+|\s+$/g;
-          return function(x6, str2, isNum, b6) {
-            var base2, s4 = isNum ? str2 : str2.replace(whitespaceOrPlus, "");
-            if (isInfinityOrNaN.test(s4)) {
-              x6.s = isNaN(s4) ? null : s4 < 0 ? -1 : 1;
-            } else {
-              if (!isNum) {
-                s4 = s4.replace(basePrefix, function(m4, p1, p22) {
-                  base2 = (p22 = p22.toLowerCase()) == "x" ? 16 : p22 == "b" ? 2 : 8;
-                  return !b6 || b6 == base2 ? p1 : m4;
-                });
-                if (b6) {
-                  base2 = b6;
-                  s4 = s4.replace(dotAfter, "$1").replace(dotBefore, "0.$1");
-                }
-                if (str2 != s4) return new BigNumber2(s4, base2);
-              }
-              if (BigNumber2.DEBUG) {
-                throw Error(bignumberError + "Not a" + (b6 ? " base " + b6 : "") + " number: " + str2);
-              }
-              x6.s = null;
-            }
-            x6.c = x6.e = null;
-          };
-        })();
-        function round(x6, sd, rm, r5) {
-          var d5, i4, j6, k5, n7, ni2, rd, xc = x6.c, pows10 = POWS_TEN;
-          if (xc) {
-            out: {
-              for (d5 = 1, k5 = xc[0]; k5 >= 10; k5 /= 10, d5++) ;
-              i4 = sd - d5;
-              if (i4 < 0) {
-                i4 += LOG_BASE;
-                j6 = sd;
-                n7 = xc[ni2 = 0];
-                rd = mathfloor(n7 / pows10[d5 - j6 - 1] % 10);
-              } else {
-                ni2 = mathceil((i4 + 1) / LOG_BASE);
-                if (ni2 >= xc.length) {
-                  if (r5) {
-                    for (; xc.length <= ni2; xc.push(0)) ;
-                    n7 = rd = 0;
-                    d5 = 1;
-                    i4 %= LOG_BASE;
-                    j6 = i4 - LOG_BASE + 1;
-                  } else {
-                    break out;
-                  }
-                } else {
-                  n7 = k5 = xc[ni2];
-                  for (d5 = 1; k5 >= 10; k5 /= 10, d5++) ;
-                  i4 %= LOG_BASE;
-                  j6 = i4 - LOG_BASE + d5;
-                  rd = j6 < 0 ? 0 : mathfloor(n7 / pows10[d5 - j6 - 1] % 10);
-                }
-              }
-              r5 = r5 || sd < 0 || // Are there any non-zero digits after the rounding digit?
-              // The expression  n % pows10[d - j - 1]  returns all digits of n to the right
-              // of the digit at j, e.g. if n is 908714 and j is 2, the expression gives 714.
-              xc[ni2 + 1] != null || (j6 < 0 ? n7 : n7 % pows10[d5 - j6 - 1]);
-              r5 = rm < 4 ? (rd || r5) && (rm == 0 || rm == (x6.s < 0 ? 3 : 2)) : rd > 5 || rd == 5 && (rm == 4 || r5 || rm == 6 && // Check whether the digit to the left of the rounding digit is odd.
-              (i4 > 0 ? j6 > 0 ? n7 / pows10[d5 - j6] : 0 : xc[ni2 - 1]) % 10 & 1 || rm == (x6.s < 0 ? 8 : 7));
-              if (sd < 1 || !xc[0]) {
-                xc.length = 0;
-                if (r5) {
-                  sd -= x6.e + 1;
-                  xc[0] = pows10[(LOG_BASE - sd % LOG_BASE) % LOG_BASE];
-                  x6.e = -sd || 0;
-                } else {
-                  xc[0] = x6.e = 0;
-                }
-                return x6;
-              }
-              if (i4 == 0) {
-                xc.length = ni2;
-                k5 = 1;
-                ni2--;
-              } else {
-                xc.length = ni2 + 1;
-                k5 = pows10[LOG_BASE - i4];
-                xc[ni2] = j6 > 0 ? mathfloor(n7 / pows10[d5 - j6] % pows10[j6]) * k5 : 0;
-              }
-              if (r5) {
-                for (; ; ) {
-                  if (ni2 == 0) {
-                    for (i4 = 1, j6 = xc[0]; j6 >= 10; j6 /= 10, i4++) ;
-                    j6 = xc[0] += k5;
-                    for (k5 = 1; j6 >= 10; j6 /= 10, k5++) ;
-                    if (i4 != k5) {
-                      x6.e++;
-                      if (xc[0] == BASE) xc[0] = 1;
-                    }
-                    break;
-                  } else {
-                    xc[ni2] += k5;
-                    if (xc[ni2] != BASE) break;
-                    xc[ni2--] = 0;
-                    k5 = 1;
-                  }
-                }
-              }
-              for (i4 = xc.length; xc[--i4] === 0; xc.pop()) ;
-            }
-            if (x6.e > MAX_EXP) {
-              x6.c = x6.e = null;
-            } else if (x6.e < MIN_EXP) {
-              x6.c = [x6.e = 0];
-            }
-          }
-          return x6;
-        }
-        function valueOf(n7) {
-          var str2, e6 = n7.e;
-          if (e6 === null) return n7.toString();
-          str2 = coeffToString(n7.c);
-          str2 = e6 <= TO_EXP_NEG || e6 >= TO_EXP_POS ? toExponential(str2, e6) : toFixedPoint(str2, e6, "0");
-          return n7.s < 0 ? "-" + str2 : str2;
-        }
-        P4.absoluteValue = P4.abs = function() {
-          var x6 = new BigNumber2(this);
-          if (x6.s < 0) x6.s = 1;
-          return x6;
-        };
-        P4.comparedTo = function(y4, b6) {
-          return compare2(this, new BigNumber2(y4, b6));
-        };
-        P4.decimalPlaces = P4.dp = function(dp, rm) {
-          var c5, n7, v6, x6 = this;
-          if (dp != null) {
-            intCheck(dp, 0, MAX);
-            if (rm == null) rm = ROUNDING_MODE;
-            else intCheck(rm, 0, 8);
-            return round(new BigNumber2(x6), dp + x6.e + 1, rm);
-          }
-          if (!(c5 = x6.c)) return null;
-          n7 = ((v6 = c5.length - 1) - bitFloor(this.e / LOG_BASE)) * LOG_BASE;
-          if (v6 = c5[v6]) for (; v6 % 10 == 0; v6 /= 10, n7--) ;
-          if (n7 < 0) n7 = 0;
-          return n7;
-        };
-        P4.dividedBy = P4.div = function(y4, b6) {
-          return div(this, new BigNumber2(y4, b6), DECIMAL_PLACES, ROUNDING_MODE);
-        };
-        P4.dividedToIntegerBy = P4.idiv = function(y4, b6) {
-          return div(this, new BigNumber2(y4, b6), 0, 1);
-        };
-        P4.exponentiatedBy = P4.pow = function(n7, m4) {
-          var half, isModExp, i4, k5, more, nIsBig, nIsNeg, nIsOdd, y4, x6 = this;
-          n7 = new BigNumber2(n7);
-          if (n7.c && !n7.isInteger()) {
-            throw Error(bignumberError + "Exponent not an integer: " + valueOf(n7));
-          }
-          if (m4 != null) m4 = new BigNumber2(m4);
-          nIsBig = n7.e > 14;
-          if (!x6.c || !x6.c[0] || x6.c[0] == 1 && !x6.e && x6.c.length == 1 || !n7.c || !n7.c[0]) {
-            y4 = new BigNumber2(Math.pow(+valueOf(x6), nIsBig ? n7.s * (2 - isOdd(n7)) : +valueOf(n7)));
-            return m4 ? y4.mod(m4) : y4;
-          }
-          nIsNeg = n7.s < 0;
-          if (m4) {
-            if (m4.c ? !m4.c[0] : !m4.s) return new BigNumber2(NaN);
-            isModExp = !nIsNeg && x6.isInteger() && m4.isInteger();
-            if (isModExp) x6 = x6.mod(m4);
-          } else if (n7.e > 9 && (x6.e > 0 || x6.e < -1 || (x6.e == 0 ? x6.c[0] > 1 || nIsBig && x6.c[1] >= 24e7 : x6.c[0] < 8e13 || nIsBig && x6.c[0] <= 9999975e7))) {
-            k5 = x6.s < 0 && isOdd(n7) ? -0 : 0;
-            if (x6.e > -1) k5 = 1 / k5;
-            return new BigNumber2(nIsNeg ? 1 / k5 : k5);
-          } else if (POW_PRECISION) {
-            k5 = mathceil(POW_PRECISION / LOG_BASE + 2);
-          }
-          if (nIsBig) {
-            half = new BigNumber2(0.5);
-            if (nIsNeg) n7.s = 1;
-            nIsOdd = isOdd(n7);
-          } else {
-            i4 = Math.abs(+valueOf(n7));
-            nIsOdd = i4 % 2;
-          }
-          y4 = new BigNumber2(ONE);
-          for (; ; ) {
-            if (nIsOdd) {
-              y4 = y4.times(x6);
-              if (!y4.c) break;
-              if (k5) {
-                if (y4.c.length > k5) y4.c.length = k5;
-              } else if (isModExp) {
-                y4 = y4.mod(m4);
-              }
-            }
-            if (i4) {
-              i4 = mathfloor(i4 / 2);
-              if (i4 === 0) break;
-              nIsOdd = i4 % 2;
-            } else {
-              n7 = n7.times(half);
-              round(n7, n7.e + 1, 1);
-              if (n7.e > 14) {
-                nIsOdd = isOdd(n7);
-              } else {
-                i4 = +valueOf(n7);
-                if (i4 === 0) break;
-                nIsOdd = i4 % 2;
-              }
-            }
-            x6 = x6.times(x6);
-            if (k5) {
-              if (x6.c && x6.c.length > k5) x6.c.length = k5;
-            } else if (isModExp) {
-              x6 = x6.mod(m4);
-            }
-          }
-          if (isModExp) return y4;
-          if (nIsNeg) y4 = ONE.div(y4);
-          return m4 ? y4.mod(m4) : k5 ? round(y4, POW_PRECISION, ROUNDING_MODE, more) : y4;
-        };
-        P4.integerValue = function(rm) {
-          var n7 = new BigNumber2(this);
-          if (rm == null) rm = ROUNDING_MODE;
-          else intCheck(rm, 0, 8);
-          return round(n7, n7.e + 1, rm);
-        };
-        P4.isEqualTo = P4.eq = function(y4, b6) {
-          return compare2(this, new BigNumber2(y4, b6)) === 0;
-        };
-        P4.isFinite = function() {
-          return !!this.c;
-        };
-        P4.isGreaterThan = P4.gt = function(y4, b6) {
-          return compare2(this, new BigNumber2(y4, b6)) > 0;
-        };
-        P4.isGreaterThanOrEqualTo = P4.gte = function(y4, b6) {
-          return (b6 = compare2(this, new BigNumber2(y4, b6))) === 1 || b6 === 0;
-        };
-        P4.isInteger = function() {
-          return !!this.c && bitFloor(this.e / LOG_BASE) > this.c.length - 2;
-        };
-        P4.isLessThan = P4.lt = function(y4, b6) {
-          return compare2(this, new BigNumber2(y4, b6)) < 0;
-        };
-        P4.isLessThanOrEqualTo = P4.lte = function(y4, b6) {
-          return (b6 = compare2(this, new BigNumber2(y4, b6))) === -1 || b6 === 0;
-        };
-        P4.isNaN = function() {
-          return !this.s;
-        };
-        P4.isNegative = function() {
-          return this.s < 0;
-        };
-        P4.isPositive = function() {
-          return this.s > 0;
-        };
-        P4.isZero = function() {
-          return !!this.c && this.c[0] == 0;
-        };
-        P4.minus = function(y4, b6) {
-          var i4, j6, t7, xLTy, x6 = this, a4 = x6.s;
-          y4 = new BigNumber2(y4, b6);
-          b6 = y4.s;
-          if (!a4 || !b6) return new BigNumber2(NaN);
-          if (a4 != b6) {
-            y4.s = -b6;
-            return x6.plus(y4);
-          }
-          var xe3 = x6.e / LOG_BASE, ye3 = y4.e / LOG_BASE, xc = x6.c, yc = y4.c;
-          if (!xe3 || !ye3) {
-            if (!xc || !yc) return xc ? (y4.s = -b6, y4) : new BigNumber2(yc ? x6 : NaN);
-            if (!xc[0] || !yc[0]) {
-              return yc[0] ? (y4.s = -b6, y4) : new BigNumber2(xc[0] ? x6 : (
-                // IEEE 754 (2008) 6.3: n - n = -0 when rounding to -Infinity
-                ROUNDING_MODE == 3 ? -0 : 0
-              ));
-            }
-          }
-          xe3 = bitFloor(xe3);
-          ye3 = bitFloor(ye3);
-          xc = xc.slice();
-          if (a4 = xe3 - ye3) {
-            if (xLTy = a4 < 0) {
-              a4 = -a4;
-              t7 = xc;
-            } else {
-              ye3 = xe3;
-              t7 = yc;
-            }
-            t7.reverse();
-            for (b6 = a4; b6--; t7.push(0)) ;
-            t7.reverse();
-          } else {
-            j6 = (xLTy = (a4 = xc.length) < (b6 = yc.length)) ? a4 : b6;
-            for (a4 = b6 = 0; b6 < j6; b6++) {
-              if (xc[b6] != yc[b6]) {
-                xLTy = xc[b6] < yc[b6];
-                break;
-              }
-            }
-          }
-          if (xLTy) {
-            t7 = xc;
-            xc = yc;
-            yc = t7;
-            y4.s = -y4.s;
-          }
-          b6 = (j6 = yc.length) - (i4 = xc.length);
-          if (b6 > 0) for (; b6--; xc[i4++] = 0) ;
-          b6 = BASE - 1;
-          for (; j6 > a4; ) {
-            if (xc[--j6] < yc[j6]) {
-              for (i4 = j6; i4 && !xc[--i4]; xc[i4] = b6) ;
-              --xc[i4];
-              xc[j6] += BASE;
-            }
-            xc[j6] -= yc[j6];
-          }
-          for (; xc[0] == 0; xc.splice(0, 1), --ye3) ;
-          if (!xc[0]) {
-            y4.s = ROUNDING_MODE == 3 ? -1 : 1;
-            y4.c = [y4.e = 0];
-            return y4;
-          }
-          return normalise(y4, xc, ye3);
-        };
-        P4.modulo = P4.mod = function(y4, b6) {
-          var q7, s4, x6 = this;
-          y4 = new BigNumber2(y4, b6);
-          if (!x6.c || !y4.s || y4.c && !y4.c[0]) {
-            return new BigNumber2(NaN);
-          } else if (!y4.c || x6.c && !x6.c[0]) {
-            return new BigNumber2(x6);
-          }
-          if (MODULO_MODE == 9) {
-            s4 = y4.s;
-            y4.s = 1;
-            q7 = div(x6, y4, 0, 3);
-            y4.s = s4;
-            q7.s *= s4;
-          } else {
-            q7 = div(x6, y4, 0, MODULO_MODE);
-          }
-          y4 = x6.minus(q7.times(y4));
-          if (!y4.c[0] && MODULO_MODE == 1) y4.s = x6.s;
-          return y4;
-        };
-        P4.multipliedBy = P4.times = function(y4, b6) {
-          var c5, e6, i4, j6, k5, m4, xcL, xlo, xhi, ycL, ylo, yhi, zc, base2, sqrtBase, x6 = this, xc = x6.c, yc = (y4 = new BigNumber2(y4, b6)).c;
-          if (!xc || !yc || !xc[0] || !yc[0]) {
-            if (!x6.s || !y4.s || xc && !xc[0] && !yc || yc && !yc[0] && !xc) {
-              y4.c = y4.e = y4.s = null;
-            } else {
-              y4.s *= x6.s;
-              if (!xc || !yc) {
-                y4.c = y4.e = null;
-              } else {
-                y4.c = [0];
-                y4.e = 0;
-              }
-            }
-            return y4;
-          }
-          e6 = bitFloor(x6.e / LOG_BASE) + bitFloor(y4.e / LOG_BASE);
-          y4.s *= x6.s;
-          xcL = xc.length;
-          ycL = yc.length;
-          if (xcL < ycL) {
-            zc = xc;
-            xc = yc;
-            yc = zc;
-            i4 = xcL;
-            xcL = ycL;
-            ycL = i4;
-          }
-          for (i4 = xcL + ycL, zc = []; i4--; zc.push(0)) ;
-          base2 = BASE;
-          sqrtBase = SQRT_BASE;
-          for (i4 = ycL; --i4 >= 0; ) {
-            c5 = 0;
-            ylo = yc[i4] % sqrtBase;
-            yhi = yc[i4] / sqrtBase | 0;
-            for (k5 = xcL, j6 = i4 + k5; j6 > i4; ) {
-              xlo = xc[--k5] % sqrtBase;
-              xhi = xc[k5] / sqrtBase | 0;
-              m4 = yhi * xlo + xhi * ylo;
-              xlo = ylo * xlo + m4 % sqrtBase * sqrtBase + zc[j6] + c5;
-              c5 = (xlo / base2 | 0) + (m4 / sqrtBase | 0) + yhi * xhi;
-              zc[j6--] = xlo % base2;
-            }
-            zc[j6] = c5;
-          }
-          if (c5) {
-            ++e6;
-          } else {
-            zc.splice(0, 1);
-          }
-          return normalise(y4, zc, e6);
-        };
-        P4.negated = function() {
-          var x6 = new BigNumber2(this);
-          x6.s = -x6.s || null;
-          return x6;
-        };
-        P4.plus = function(y4, b6) {
-          var t7, x6 = this, a4 = x6.s;
-          y4 = new BigNumber2(y4, b6);
-          b6 = y4.s;
-          if (!a4 || !b6) return new BigNumber2(NaN);
-          if (a4 != b6) {
-            y4.s = -b6;
-            return x6.minus(y4);
-          }
-          var xe3 = x6.e / LOG_BASE, ye3 = y4.e / LOG_BASE, xc = x6.c, yc = y4.c;
-          if (!xe3 || !ye3) {
-            if (!xc || !yc) return new BigNumber2(a4 / 0);
-            if (!xc[0] || !yc[0]) return yc[0] ? y4 : new BigNumber2(xc[0] ? x6 : a4 * 0);
-          }
-          xe3 = bitFloor(xe3);
-          ye3 = bitFloor(ye3);
-          xc = xc.slice();
-          if (a4 = xe3 - ye3) {
-            if (a4 > 0) {
-              ye3 = xe3;
-              t7 = yc;
-            } else {
-              a4 = -a4;
-              t7 = xc;
-            }
-            t7.reverse();
-            for (; a4--; t7.push(0)) ;
-            t7.reverse();
-          }
-          a4 = xc.length;
-          b6 = yc.length;
-          if (a4 - b6 < 0) {
-            t7 = yc;
-            yc = xc;
-            xc = t7;
-            b6 = a4;
-          }
-          for (a4 = 0; b6; ) {
-            a4 = (xc[--b6] = xc[b6] + yc[b6] + a4) / BASE | 0;
-            xc[b6] = BASE === xc[b6] ? 0 : xc[b6] % BASE;
-          }
-          if (a4) {
-            xc = [a4].concat(xc);
-            ++ye3;
-          }
-          return normalise(y4, xc, ye3);
-        };
-        P4.precision = P4.sd = function(sd, rm) {
-          var c5, n7, v6, x6 = this;
-          if (sd != null && sd !== !!sd) {
-            intCheck(sd, 1, MAX);
-            if (rm == null) rm = ROUNDING_MODE;
-            else intCheck(rm, 0, 8);
-            return round(new BigNumber2(x6), sd, rm);
-          }
-          if (!(c5 = x6.c)) return null;
-          v6 = c5.length - 1;
-          n7 = v6 * LOG_BASE + 1;
-          if (v6 = c5[v6]) {
-            for (; v6 % 10 == 0; v6 /= 10, n7--) ;
-            for (v6 = c5[0]; v6 >= 10; v6 /= 10, n7++) ;
-          }
-          if (sd && x6.e + 1 > n7) n7 = x6.e + 1;
-          return n7;
-        };
-        P4.shiftedBy = function(k5) {
-          intCheck(k5, -MAX_SAFE_INTEGER, MAX_SAFE_INTEGER);
-          return this.times("1e" + k5);
-        };
-        P4.squareRoot = P4.sqrt = function() {
-          var m4, n7, r5, rep, t7, x6 = this, c5 = x6.c, s4 = x6.s, e6 = x6.e, dp = DECIMAL_PLACES + 4, half = new BigNumber2("0.5");
-          if (s4 !== 1 || !c5 || !c5[0]) {
-            return new BigNumber2(!s4 || s4 < 0 && (!c5 || c5[0]) ? NaN : c5 ? x6 : 1 / 0);
-          }
-          s4 = Math.sqrt(+valueOf(x6));
-          if (s4 == 0 || s4 == 1 / 0) {
-            n7 = coeffToString(c5);
-            if ((n7.length + e6) % 2 == 0) n7 += "0";
-            s4 = Math.sqrt(+n7);
-            e6 = bitFloor((e6 + 1) / 2) - (e6 < 0 || e6 % 2);
-            if (s4 == 1 / 0) {
-              n7 = "5e" + e6;
-            } else {
-              n7 = s4.toExponential();
-              n7 = n7.slice(0, n7.indexOf("e") + 1) + e6;
-            }
-            r5 = new BigNumber2(n7);
-          } else {
-            r5 = new BigNumber2(s4 + "");
-          }
-          if (r5.c[0]) {
-            e6 = r5.e;
-            s4 = e6 + dp;
-            if (s4 < 3) s4 = 0;
-            for (; ; ) {
-              t7 = r5;
-              r5 = half.times(t7.plus(div(x6, t7, dp, 1)));
-              if (coeffToString(t7.c).slice(0, s4) === (n7 = coeffToString(r5.c)).slice(0, s4)) {
-                if (r5.e < e6) --s4;
-                n7 = n7.slice(s4 - 3, s4 + 1);
-                if (n7 == "9999" || !rep && n7 == "4999") {
-                  if (!rep) {
-                    round(t7, t7.e + DECIMAL_PLACES + 2, 0);
-                    if (t7.times(t7).eq(x6)) {
-                      r5 = t7;
-                      break;
-                    }
-                  }
-                  dp += 4;
-                  s4 += 4;
-                  rep = 1;
-                } else {
-                  if (!+n7 || !+n7.slice(1) && n7.charAt(0) == "5") {
-                    round(r5, r5.e + DECIMAL_PLACES + 2, 1);
-                    m4 = !r5.times(r5).eq(x6);
-                  }
-                  break;
-                }
-              }
-            }
-          }
-          return round(r5, r5.e + DECIMAL_PLACES + 1, ROUNDING_MODE, m4);
-        };
-        P4.toExponential = function(dp, rm) {
-          if (dp != null) {
-            intCheck(dp, 0, MAX);
-            dp++;
-          }
-          return format8(this, dp, rm, 1);
-        };
-        P4.toFixed = function(dp, rm) {
-          if (dp != null) {
-            intCheck(dp, 0, MAX);
-            dp = dp + this.e + 1;
-          }
-          return format8(this, dp, rm);
-        };
-        P4.toFormat = function(dp, rm, format9) {
-          var str2, x6 = this;
-          if (format9 == null) {
-            if (dp != null && rm && typeof rm == "object") {
-              format9 = rm;
-              rm = null;
-            } else if (dp && typeof dp == "object") {
-              format9 = dp;
-              dp = rm = null;
-            } else {
-              format9 = FORMAT;
-            }
-          } else if (typeof format9 != "object") {
-            throw Error(bignumberError + "Argument not an object: " + format9);
-          }
-          str2 = x6.toFixed(dp, rm);
-          if (x6.c) {
-            var i4, arr = str2.split("."), g1 = +format9.groupSize, g22 = +format9.secondaryGroupSize, groupSeparator = format9.groupSeparator || "", intPart = arr[0], fractionPart = arr[1], isNeg = x6.s < 0, intDigits = isNeg ? intPart.slice(1) : intPart, len = intDigits.length;
-            if (g22) {
-              i4 = g1;
-              g1 = g22;
-              g22 = i4;
-              len -= i4;
-            }
-            if (g1 > 0 && len > 0) {
-              i4 = len % g1 || g1;
-              intPart = intDigits.substr(0, i4);
-              for (; i4 < len; i4 += g1) intPart += groupSeparator + intDigits.substr(i4, g1);
-              if (g22 > 0) intPart += groupSeparator + intDigits.slice(i4);
-              if (isNeg) intPart = "-" + intPart;
-            }
-            str2 = fractionPart ? intPart + (format9.decimalSeparator || "") + ((g22 = +format9.fractionGroupSize) ? fractionPart.replace(
-              new RegExp("\\d{" + g22 + "}\\B", "g"),
-              "$&" + (format9.fractionGroupSeparator || "")
-            ) : fractionPart) : intPart;
-          }
-          return (format9.prefix || "") + str2 + (format9.suffix || "");
-        };
-        P4.toFraction = function(md) {
-          var d5, d0, d1, d22, e6, exp, n7, n04, n1, q7, r5, s4, x6 = this, xc = x6.c;
-          if (md != null) {
-            n7 = new BigNumber2(md);
-            if (!n7.isInteger() && (n7.c || n7.s !== 1) || n7.lt(ONE)) {
-              throw Error(bignumberError + "Argument " + (n7.isInteger() ? "out of range: " : "not an integer: ") + valueOf(n7));
-            }
-          }
-          if (!xc) return new BigNumber2(x6);
-          d5 = new BigNumber2(ONE);
-          n1 = d0 = new BigNumber2(ONE);
-          d1 = n04 = new BigNumber2(ONE);
-          s4 = coeffToString(xc);
-          e6 = d5.e = s4.length - x6.e - 1;
-          d5.c[0] = POWS_TEN[(exp = e6 % LOG_BASE) < 0 ? LOG_BASE + exp : exp];
-          md = !md || n7.comparedTo(d5) > 0 ? e6 > 0 ? d5 : n1 : n7;
-          exp = MAX_EXP;
-          MAX_EXP = 1 / 0;
-          n7 = new BigNumber2(s4);
-          n04.c[0] = 0;
-          for (; ; ) {
-            q7 = div(n7, d5, 0, 1);
-            d22 = d0.plus(q7.times(d1));
-            if (d22.comparedTo(md) == 1) break;
-            d0 = d1;
-            d1 = d22;
-            n1 = n04.plus(q7.times(d22 = n1));
-            n04 = d22;
-            d5 = n7.minus(q7.times(d22 = d5));
-            n7 = d22;
-          }
-          d22 = div(md.minus(d0), d1, 0, 1);
-          n04 = n04.plus(d22.times(n1));
-          d0 = d0.plus(d22.times(d1));
-          n04.s = n1.s = x6.s;
-          e6 = e6 * 2;
-          r5 = div(n1, d1, e6, ROUNDING_MODE).minus(x6).abs().comparedTo(
-            div(n04, d0, e6, ROUNDING_MODE).minus(x6).abs()
-          ) < 1 ? [n1, d1] : [n04, d0];
-          MAX_EXP = exp;
-          return r5;
-        };
-        P4.toNumber = function() {
-          return +valueOf(this);
-        };
-        P4.toPrecision = function(sd, rm) {
-          if (sd != null) intCheck(sd, 1, MAX);
-          return format8(this, sd, rm, 2);
-        };
-        P4.toString = function(b6) {
-          var str2, n7 = this, s4 = n7.s, e6 = n7.e;
-          if (e6 === null) {
-            if (s4) {
-              str2 = "Infinity";
-              if (s4 < 0) str2 = "-" + str2;
-            } else {
-              str2 = "NaN";
-            }
-          } else {
-            if (b6 == null) {
-              str2 = e6 <= TO_EXP_NEG || e6 >= TO_EXP_POS ? toExponential(coeffToString(n7.c), e6) : toFixedPoint(coeffToString(n7.c), e6, "0");
-            } else if (b6 === 10 && alphabetHasNormalDecimalDigits) {
-              n7 = round(new BigNumber2(n7), DECIMAL_PLACES + e6 + 1, ROUNDING_MODE);
-              str2 = toFixedPoint(coeffToString(n7.c), n7.e, "0");
-            } else {
-              intCheck(b6, 2, ALPHABET2.length, "Base");
-              str2 = convertBase(toFixedPoint(coeffToString(n7.c), e6, "0"), 10, b6, s4, true);
-            }
-            if (s4 < 0 && n7.c[0]) str2 = "-" + str2;
-          }
-          return str2;
-        };
-        P4.valueOf = P4.toJSON = function() {
-          return valueOf(this);
-        };
-        P4._isBigNumber = true;
-        if (configObject != null) BigNumber2.set(configObject);
-        return BigNumber2;
-      }
-      function bitFloor(n7) {
-        var i4 = n7 | 0;
-        return n7 > 0 || n7 === i4 ? i4 : i4 - 1;
-      }
-      function coeffToString(a4) {
-        var s4, z4, i4 = 1, j6 = a4.length, r5 = a4[0] + "";
-        for (; i4 < j6; ) {
-          s4 = a4[i4++] + "";
-          z4 = LOG_BASE - s4.length;
-          for (; z4--; s4 = "0" + s4) ;
-          r5 += s4;
-        }
-        for (j6 = r5.length; r5.charCodeAt(--j6) === 48; ) ;
-        return r5.slice(0, j6 + 1 || 1);
-      }
-      function compare2(x6, y4) {
-        var a4, b6, xc = x6.c, yc = y4.c, i4 = x6.s, j6 = y4.s, k5 = x6.e, l6 = y4.e;
-        if (!i4 || !j6) return null;
-        a4 = xc && !xc[0];
-        b6 = yc && !yc[0];
-        if (a4 || b6) return a4 ? b6 ? 0 : -j6 : i4;
-        if (i4 != j6) return i4;
-        a4 = i4 < 0;
-        b6 = k5 == l6;
-        if (!xc || !yc) return b6 ? 0 : !xc ^ a4 ? 1 : -1;
-        if (!b6) return k5 > l6 ^ a4 ? 1 : -1;
-        j6 = (k5 = xc.length) < (l6 = yc.length) ? k5 : l6;
-        for (i4 = 0; i4 < j6; i4++) if (xc[i4] != yc[i4]) return xc[i4] > yc[i4] ^ a4 ? 1 : -1;
-        return k5 == l6 ? 0 : k5 > l6 ^ a4 ? 1 : -1;
-      }
-      function intCheck(n7, min2, max2, name2) {
-        if (n7 < min2 || n7 > max2 || n7 !== mathfloor(n7)) {
-          throw Error(bignumberError + (name2 || "Argument") + (typeof n7 == "number" ? n7 < min2 || n7 > max2 ? " out of range: " : " not an integer: " : " not a primitive number: ") + String(n7));
-        }
-      }
-      function isOdd(n7) {
-        var k5 = n7.c.length - 1;
-        return bitFloor(n7.e / LOG_BASE) == k5 && n7.c[k5] % 2 != 0;
-      }
-      function toExponential(str2, e6) {
-        return (str2.length > 1 ? str2.charAt(0) + "." + str2.slice(1) : str2) + (e6 < 0 ? "e" : "e+") + e6;
-      }
-      function toFixedPoint(str2, e6, z4) {
-        var len, zs;
-        if (e6 < 0) {
-          for (zs = z4 + "."; ++e6; zs += z4) ;
-          str2 = zs + str2;
-        } else {
-          len = str2.length;
-          if (++e6 > len) {
-            for (zs = z4, e6 -= len; --e6; zs += z4) ;
-            str2 += zs;
-          } else if (e6 < len) {
-            str2 = str2.slice(0, e6) + "." + str2.slice(e6);
-          }
-        }
-        return str2;
-      }
-      BigNumber = clone3();
-      BigNumber["default"] = BigNumber.BigNumber = BigNumber;
-      if (typeof define == "function" && define.amd) {
-        define(function() {
-          return BigNumber;
-        });
-      } else if (typeof module2 != "undefined" && module2.exports) {
-        module2.exports = BigNumber;
-      } else {
-        if (!globalObject) {
-          globalObject = typeof self != "undefined" && self ? self : window;
-        }
-        globalObject.BigNumber = BigNumber;
-      }
-    })(exports2);
-  }
-});
-
-// node_modules/json-bigint/lib/stringify.js
-var require_stringify2 = __commonJS({
-  "node_modules/json-bigint/lib/stringify.js"(exports2, module2) {
-    var BigNumber = require_bignumber();
-    var JSON2 = module2.exports;
-    (function() {
-      "use strict";
-      function f6(n7) {
-        return n7 < 10 ? "0" + n7 : n7;
-      }
-      var cx = /[\u0000\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, gap, indent, meta = {
-        // table of character substitutions
-        "\b": "\\b",
-        "	": "\\t",
-        "\n": "\\n",
-        "\f": "\\f",
-        "\r": "\\r",
-        '"': '\\"',
-        "\\": "\\\\"
-      }, rep;
-      function quote(string4) {
-        escapable.lastIndex = 0;
-        return escapable.test(string4) ? '"' + string4.replace(escapable, function(a4) {
-          var c5 = meta[a4];
-          return typeof c5 === "string" ? c5 : "\\u" + ("0000" + a4.charCodeAt(0).toString(16)).slice(-4);
-        }) + '"' : '"' + string4 + '"';
-      }
-      function str2(key, holder) {
-        var i4, k5, v6, length, mind = gap, partial2, value2 = holder[key], isBigNumber = value2 != null && (value2 instanceof BigNumber || BigNumber.isBigNumber(value2));
-        if (value2 && typeof value2 === "object" && typeof value2.toJSON === "function") {
-          value2 = value2.toJSON(key);
-        }
-        if (typeof rep === "function") {
-          value2 = rep.call(holder, key, value2);
-        }
-        switch (typeof value2) {
-          case "string":
-            if (isBigNumber) {
-              return value2;
-            } else {
-              return quote(value2);
-            }
-          case "number":
-            return isFinite(value2) ? String(value2) : "null";
-          case "boolean":
-          case "null":
-          case "bigint":
-            return String(value2);
-          // If the type is 'object', we might be dealing with an object or an array or
-          // null.
-          case "object":
-            if (!value2) {
-              return "null";
-            }
-            gap += indent;
-            partial2 = [];
-            if (Object.prototype.toString.apply(value2) === "[object Array]") {
-              length = value2.length;
-              for (i4 = 0; i4 < length; i4 += 1) {
-                partial2[i4] = str2(i4, value2) || "null";
-              }
-              v6 = partial2.length === 0 ? "[]" : gap ? "[\n" + gap + partial2.join(",\n" + gap) + "\n" + mind + "]" : "[" + partial2.join(",") + "]";
-              gap = mind;
-              return v6;
-            }
-            if (rep && typeof rep === "object") {
-              length = rep.length;
-              for (i4 = 0; i4 < length; i4 += 1) {
-                if (typeof rep[i4] === "string") {
-                  k5 = rep[i4];
-                  v6 = str2(k5, value2);
-                  if (v6) {
-                    partial2.push(quote(k5) + (gap ? ": " : ":") + v6);
-                  }
-                }
-              }
-            } else {
-              Object.keys(value2).forEach(function(k6) {
-                var v7 = str2(k6, value2);
-                if (v7) {
-                  partial2.push(quote(k6) + (gap ? ": " : ":") + v7);
-                }
-              });
-            }
-            v6 = partial2.length === 0 ? "{}" : gap ? "{\n" + gap + partial2.join(",\n" + gap) + "\n" + mind + "}" : "{" + partial2.join(",") + "}";
-            gap = mind;
-            return v6;
-        }
-      }
-      if (typeof JSON2.stringify !== "function") {
-        JSON2.stringify = function(value2, replacer, space) {
-          var i4;
-          gap = "";
-          indent = "";
-          if (typeof space === "number") {
-            for (i4 = 0; i4 < space; i4 += 1) {
-              indent += " ";
-            }
-          } else if (typeof space === "string") {
-            indent = space;
-          }
-          rep = replacer;
-          if (replacer && typeof replacer !== "function" && (typeof replacer !== "object" || typeof replacer.length !== "number")) {
-            throw new Error("JSON.stringify");
-          }
-          return str2("", { "": value2 });
-        };
-      }
-    })();
-  }
-});
-
-// node_modules/json-bigint/lib/parse.js
-var require_parse3 = __commonJS({
-  "node_modules/json-bigint/lib/parse.js"(exports2, module2) {
-    var BigNumber = null;
-    var suspectProtoRx = /(?:_|\\u005[Ff])(?:_|\\u005[Ff])(?:p|\\u0070)(?:r|\\u0072)(?:o|\\u006[Ff])(?:t|\\u0074)(?:o|\\u006[Ff])(?:_|\\u005[Ff])(?:_|\\u005[Ff])/;
-    var suspectConstructorRx = /(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)/;
-    var json_parse = function(options) {
-      "use strict";
-      var _options = {
-        strict: false,
-        // not being strict means do not generate syntax errors for "duplicate key"
-        storeAsString: false,
-        // toggles whether the values should be stored as BigNumber (default) or a string
-        alwaysParseAsBig: false,
-        // toggles whether all numbers should be Big
-        useNativeBigInt: false,
-        // toggles whether to use native BigInt instead of bignumber.js
-        protoAction: "error",
-        constructorAction: "error"
-      };
-      if (options !== void 0 && options !== null) {
-        if (options.strict === true) {
-          _options.strict = true;
-        }
-        if (options.storeAsString === true) {
-          _options.storeAsString = true;
-        }
-        _options.alwaysParseAsBig = options.alwaysParseAsBig === true ? options.alwaysParseAsBig : false;
-        _options.useNativeBigInt = options.useNativeBigInt === true ? options.useNativeBigInt : false;
-        if (typeof options.constructorAction !== "undefined") {
-          if (options.constructorAction === "error" || options.constructorAction === "ignore" || options.constructorAction === "preserve") {
-            _options.constructorAction = options.constructorAction;
-          } else {
-            throw new Error(
-              `Incorrect value for constructorAction option, must be "error", "ignore" or undefined but passed ${options.constructorAction}`
-            );
-          }
-        }
-        if (typeof options.protoAction !== "undefined") {
-          if (options.protoAction === "error" || options.protoAction === "ignore" || options.protoAction === "preserve") {
-            _options.protoAction = options.protoAction;
-          } else {
-            throw new Error(
-              `Incorrect value for protoAction option, must be "error", "ignore" or undefined but passed ${options.protoAction}`
-            );
-          }
-        }
-      }
-      var at2, ch, escapee = {
-        '"': '"',
-        "\\": "\\",
-        "/": "/",
-        b: "\b",
-        f: "\f",
-        n: "\n",
-        r: "\r",
-        t: "	"
-      }, text2, error54 = function(m4) {
-        throw {
-          name: "SyntaxError",
-          message: m4,
-          at: at2,
-          text: text2
-        };
-      }, next = function(c5) {
-        if (c5 && c5 !== ch) {
-          error54("Expected '" + c5 + "' instead of '" + ch + "'");
-        }
-        ch = text2.charAt(at2);
-        at2 += 1;
-        return ch;
-      }, number4 = function() {
-        var number5, string5 = "";
-        if (ch === "-") {
-          string5 = "-";
-          next("-");
-        }
-        while (ch >= "0" && ch <= "9") {
-          string5 += ch;
-          next();
-        }
-        if (ch === ".") {
-          string5 += ".";
-          while (next() && ch >= "0" && ch <= "9") {
-            string5 += ch;
-          }
-        }
-        if (ch === "e" || ch === "E") {
-          string5 += ch;
-          next();
-          if (ch === "-" || ch === "+") {
-            string5 += ch;
-            next();
-          }
-          while (ch >= "0" && ch <= "9") {
-            string5 += ch;
-            next();
-          }
-        }
-        number5 = +string5;
-        if (!isFinite(number5)) {
-          error54("Bad number");
-        } else {
-          if (BigNumber == null) BigNumber = require_bignumber();
-          if (string5.length > 15)
-            return _options.storeAsString ? string5 : _options.useNativeBigInt ? BigInt(string5) : new BigNumber(string5);
-          else
-            return !_options.alwaysParseAsBig ? number5 : _options.useNativeBigInt ? BigInt(number5) : new BigNumber(number5);
-        }
-      }, string4 = function() {
-        var hex3, i4, string5 = "", uffff;
-        if (ch === '"') {
-          var startAt = at2;
-          while (next()) {
-            if (ch === '"') {
-              if (at2 - 1 > startAt) string5 += text2.substring(startAt, at2 - 1);
-              next();
-              return string5;
-            }
-            if (ch === "\\") {
-              if (at2 - 1 > startAt) string5 += text2.substring(startAt, at2 - 1);
-              next();
-              if (ch === "u") {
-                uffff = 0;
-                for (i4 = 0; i4 < 4; i4 += 1) {
-                  hex3 = parseInt(next(), 16);
-                  if (!isFinite(hex3)) {
-                    break;
-                  }
-                  uffff = uffff * 16 + hex3;
-                }
-                string5 += String.fromCharCode(uffff);
-              } else if (typeof escapee[ch] === "string") {
-                string5 += escapee[ch];
-              } else {
-                break;
-              }
-              startAt = at2;
-            }
-          }
-        }
-        error54("Bad string");
-      }, white = function() {
-        while (ch && ch <= " ") {
-          next();
-        }
-      }, word = function() {
-        switch (ch) {
-          case "t":
-            next("t");
-            next("r");
-            next("u");
-            next("e");
-            return true;
-          case "f":
-            next("f");
-            next("a");
-            next("l");
-            next("s");
-            next("e");
-            return false;
-          case "n":
-            next("n");
-            next("u");
-            next("l");
-            next("l");
-            return null;
-        }
-        error54("Unexpected '" + ch + "'");
-      }, value2, array2 = function() {
-        var array3 = [];
-        if (ch === "[") {
-          next("[");
-          white();
-          if (ch === "]") {
-            next("]");
-            return array3;
-          }
-          while (ch) {
-            array3.push(value2());
-            white();
-            if (ch === "]") {
-              next("]");
-              return array3;
-            }
-            next(",");
-            white();
-          }
-        }
-        error54("Bad array");
-      }, object2 = function() {
-        var key, object3 = /* @__PURE__ */ Object.create(null);
-        if (ch === "{") {
-          next("{");
-          white();
-          if (ch === "}") {
-            next("}");
-            return object3;
-          }
-          while (ch) {
-            key = string4();
-            white();
-            next(":");
-            if (_options.strict === true && Object.hasOwnProperty.call(object3, key)) {
-              error54('Duplicate key "' + key + '"');
-            }
-            if (suspectProtoRx.test(key) === true) {
-              if (_options.protoAction === "error") {
-                error54("Object contains forbidden prototype property");
-              } else if (_options.protoAction === "ignore") {
-                value2();
-              } else {
-                object3[key] = value2();
-              }
-            } else if (suspectConstructorRx.test(key) === true) {
-              if (_options.constructorAction === "error") {
-                error54("Object contains forbidden constructor property");
-              } else if (_options.constructorAction === "ignore") {
-                value2();
-              } else {
-                object3[key] = value2();
-              }
-            } else {
-              object3[key] = value2();
-            }
-            white();
-            if (ch === "}") {
-              next("}");
-              return object3;
-            }
-            next(",");
-            white();
-          }
-        }
-        error54("Bad object");
-      };
-      value2 = function() {
-        white();
-        switch (ch) {
-          case "{":
-            return object2();
-          case "[":
-            return array2();
-          case '"':
-            return string4();
-          case "-":
-            return number4();
-          default:
-            return ch >= "0" && ch <= "9" ? number4() : word();
-        }
-      };
-      return function(source, reviver) {
-        var result;
-        text2 = source + "";
-        at2 = 0;
-        ch = " ";
-        result = value2();
-        white();
-        if (ch) {
-          error54("Syntax error");
-        }
-        return typeof reviver === "function" ? (function walk2(holder, key) {
-          var k5, v6, value3 = holder[key];
-          if (value3 && typeof value3 === "object") {
-            Object.keys(value3).forEach(function(k6) {
-              v6 = walk2(value3, k6);
-              if (v6 !== void 0) {
-                value3[k6] = v6;
-              } else {
-                delete value3[k6];
-              }
-            });
-          }
-          return reviver.call(holder, key, value3);
-        })({ "": result }, "") : result;
-      };
-    };
-    module2.exports = json_parse;
-  }
-});
-
-// node_modules/json-bigint/index.js
-var require_json_bigint = __commonJS({
-  "node_modules/json-bigint/index.js"(exports2, module2) {
-    var json_stringify = require_stringify2().stringify;
-    var json_parse = require_parse3();
-    module2.exports = function(options) {
-      return {
-        parse: json_parse(options),
-        stringify: json_stringify
-      };
-    };
-    module2.exports.parse = json_parse();
-    module2.exports.stringify = json_stringify;
-  }
-});
-
-// server/amazonAdsApi.ts
-function generateUuidV4() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c5) => {
-    const r5 = Math.random() * 16 | 0;
-    const v6 = c5 === "x" ? r5 : r5 & 3 | 8;
-    return v6.toString(16);
-  });
-}
-function createAmazonAdsClient(credentials) {
-  return new AmazonAdsApiClient(credentials);
-}
-async function validateCredentials(credentials) {
-  log37.info("[validateCredentials] \u5F00\u59CB\u9A8C\u8BC1\u51ED\u8BC1:", {
-    clientIdPrefix: credentials.clientId?.substring(0, 30) + "...",
-    clientSecretPrefix: credentials.clientSecret?.substring(0, 20) + "...",
-    refreshTokenPrefix: credentials.refreshToken?.substring(0, 20) + "...",
-    profileId: credentials.profileId,
-    region: credentials.region
-  });
-  try {
-    const client = new AmazonAdsApiClient(credentials);
-    log37.info("[validateCredentials] \u5BA2\u6237\u7AEF\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u83B7\u53D6profiles...");
-    const profiles = await client.getProfiles();
-    log37.debug(`[validateCredentials] \u83B7\u53D6\u5230 ${profiles.length} \u4E2Aprofiles`);
-    return true;
-  } catch (error54) {
-    log37.error("[validateCredentials] \u9A8C\u8BC1\u5931\u8D25:", {
-      message: error54.message,
-      response: error54.response?.data,
-      status: error54.response?.status
-    });
-    return false;
-  }
-}
-var import_json_bigint, log37, JSONBigString, API_ENDPOINTS, OAUTH_TOKEN_URL, OAUTH_AUTH_ENDPOINTS, MARKETPLACE_TO_REGION, AmazonAdsApiClient, VALID_TRAFFIC_DATASETS;
-var init_amazonAdsApi = __esm({
-  "server/amazonAdsApi.ts"() {
-    "use strict";
-    init_axios2();
-    import_json_bigint = __toESM(require_json_bigint());
-    init_logger2();
-    log37 = createModuleLogger("AmazonAPI");
-    JSONBigString = (0, import_json_bigint.default)({ storeAsString: true });
-    API_ENDPOINTS = {
-      NA: "https://advertising-api.amazon.com",
-      EU: "https://advertising-api-eu.amazon.com",
-      FE: "https://advertising-api-fe.amazon.com"
-    };
-    OAUTH_TOKEN_URL = "https://api.amazon.com/auth/o2/token";
-    OAUTH_AUTH_ENDPOINTS = {
-      NA: "https://www.amazon.com/ap/oa",
-      EU: "https://eu.account.amazon.com/ap/oa",
-      FE: "https://apac.account.amazon.com/ap/oa"
-    };
-    MARKETPLACE_TO_REGION = {
-      US: "NA",
-      CA: "NA",
-      MX: "NA",
-      BR: "NA",
-      UK: "EU",
-      DE: "EU",
-      FR: "EU",
-      IT: "EU",
-      ES: "EU",
-      NL: "EU",
-      SE: "EU",
-      PL: "EU",
-      TR: "EU",
-      AE: "EU",
-      SA: "EU",
-      EG: "EU",
-      IN: "EU",
-      JP: "FE",
-      AU: "FE",
-      SG: "FE"
-    };
-    AmazonAdsApiClient = class {
-      credentials;
-      accessToken = null;
-      tokenExpiry = null;
-      axiosInstance;
-      // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
-      tokenRefreshPromise = null;
-      constructor(credentials) {
-        this.credentials = credentials;
-        this.axiosInstance = axios_default.create({
-          baseURL: API_ENDPOINTS[credentials.region],
-          headers: {
-            "Amazon-Advertising-API-ClientId": credentials.clientId,
-            "Amazon-Advertising-API-Scope": credentials.profileId,
-            "Content-Type": "application/json"
-          },
-          // 设置responseType为text，确保axios返回原始字符串
-          // 这样json-bigint才能正确解析BigInt
-          responseType: "text",
-          // 使用json-bigint解析响应，防止BigInt精度丢失
-          transformResponse: [(data4) => {
-            if (typeof data4 === "string") {
-              try {
-                return JSONBigString.parse(data4);
-              } catch (e6) {
-                return data4;
-              }
-            }
-            return data4;
-          }]
-        });
-        this.axiosInstance.interceptors.request.use(async (config2) => {
-          const token = await this.getAccessToken();
-          config2.headers.Authorization = `Bearer ${token}`;
-          return config2;
-        });
-        this.axiosInstance.interceptors.response.use(
-          (response) => response,
-          async (error54) => {
-            const config2 = error54.config;
-            const status = error54.response?.status;
-            if (!config2._retryCount) {
-              config2._retryCount = 0;
-            }
-            const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
-            const MAX_RETRIES = 3;
-            if (isRetryable && config2._retryCount < MAX_RETRIES) {
-              config2._retryCount++;
-              let baseDelay = status === 429 ? 5e3 : 2e3;
-              const retryAfter = error54.response?.headers?.["retry-after"];
-              if (retryAfter) {
-                const retryAfterMs = parseInt(retryAfter) * 1e3;
-                if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
-                  baseDelay = Math.max(baseDelay, retryAfterMs);
-                }
-              }
-              const delay = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
-              log37.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay)}ms, URL: ${config2.url}`);
-              await new Promise((resolve8) => setTimeout(resolve8, delay));
-              return this.axiosInstance(config2);
-            }
-            if (error54.response) {
-              const contentType = error54.response.headers?.["content-type"] || "";
-              const data4 = error54.response.data;
-              if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
-                log37.error(`[Amazon API] v148: HTML\u54CD\u5E94 status=${status}, URL=${config2?.url}`);
-                let errorMessage = "Amazon API returned an error page";
-                if (status === 401) {
-                  errorMessage = "Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743";
-                } else if (status === 403) {
-                  errorMessage = "\u6CA1\u6709\u8BBF\u95EE\u6743\u9650\uFF0C\u8BF7\u68C0\u67E5API\u51ED\u8BC1\u548C\u6743\u9650\u8BBE\u7F6E";
-                } else if (status === 404) {
-                  errorMessage = "API\u7AEF\u70B9\u4E0D\u5B58\u5728\uFF0C\u8BF7\u68C0\u67E5\u8BF7\u6C42URL";
-                } else if (status === 429) {
-                  errorMessage = `API\u9650\u6D41\uFF0C\u5DF2\u91CD\u8BD5${MAX_RETRIES}\u6B21\u4ECD\u5931\u8D25`;
-                } else if (status >= 500) {
-                  errorMessage = `Amazon API\u670D\u52A1\u5668\u9519\u8BEF(${status})\uFF0C\u5DF2\u91CD\u8BD5${config2._retryCount}\u6B21`;
-                }
-                const enhancedError = new Error(errorMessage);
-                enhancedError.originalError = error54;
-                enhancedError.status = status;
-                enhancedError.isHtmlResponse = true;
-                enhancedError.retryCount = config2._retryCount;
-                throw enhancedError;
-              }
-            }
-            if (config2._retryCount > 0) {
-              error54.retryCount = config2._retryCount;
-            }
-            throw error54;
-          }
-        );
-      }
-      /**
-       * 动态设置Profile ID
-       * 用于在同一个API客户端实例中切换不同的广告配置文件
-       * @param profileId - 新的Profile ID
-       */
-      setProfileId(profileId) {
-        this.credentials.profileId = profileId;
-        this.axiosInstance.defaults.headers["Amazon-Advertising-API-Scope"] = profileId;
-      }
-      /**
-       * 获取当前Profile ID
-       */
-      getProfileId() {
-        return this.credentials.profileId;
-      }
-      /**
-       * 生成OAuth授权URL
-       * @param clientId - 客户端编号
-       * @param redirectUri - 回调地址
-       * @param region - 地区（NA/EU/FE），默认NA
-       * @param state - 状态参数，用于防止CSRF攻击
-       */
-      static generateAuthUrl(clientId, redirectUri, region = "NA", state6) {
-        const params = new URLSearchParams({
-          client_id: clientId,
-          scope: "advertising::campaign_management",
-          response_type: "code",
-          redirect_uri: redirectUri
-        });
-        if (state6) {
-          params.append("state", state6);
-        }
-        const authEndpoint = OAUTH_AUTH_ENDPOINTS[region];
-        return `${authEndpoint}?${params.toString()}`;
-      }
-      /**
-       * 生成所有地区的OAuth授权URL
-       */
-      static generateAllRegionAuthUrls(clientId, redirectUri, state6) {
-        return {
-          NA: this.generateAuthUrl(clientId, redirectUri, "NA", state6),
-          EU: this.generateAuthUrl(clientId, redirectUri, "EU", state6),
-          FE: this.generateAuthUrl(clientId, redirectUri, "FE", state6)
-        };
-      }
-      /**
-       * 使用授权码获取Token
-       */
-      static async exchangeCodeForToken(code, clientId, clientSecret, redirectUri) {
-        const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: redirectUri,
-          client_id: clientId,
-          client_secret: clientSecret
-        }), {
-          headers: { "Content-Type": "application/x-www-form-urlencoded" }
-        });
-        return response.data;
-      }
-      /**
-       * 获取Access Token（自动刷新）
-       */
-      async getAccessToken() {
-        if (this.accessToken && this.tokenExpiry && /* @__PURE__ */ new Date() < this.tokenExpiry) {
-          return this.accessToken;
-        }
-        if (this.tokenRefreshPromise) {
-          return this.tokenRefreshPromise;
-        }
-        this.tokenRefreshPromise = this.doRefreshToken();
-        try {
-          const token = await this.tokenRefreshPromise;
-          return token;
-        } finally {
-          this.tokenRefreshPromise = null;
-        }
-      }
-      /**
-       * v148: 实际执行Token刷新的内部方法
-       */
-      async doRefreshToken() {
-        const MAX_TOKEN_RETRIES = 3;
-        let lastError = null;
-        for (let attempt = 1; attempt <= MAX_TOKEN_RETRIES; attempt++) {
-          try {
-            log37.debug(`[Amazon API] Refreshing access token... (attempt ${attempt}/${MAX_TOKEN_RETRIES})`);
-            const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
-              grant_type: "refresh_token",
-              refresh_token: this.credentials.refreshToken,
-              client_id: this.credentials.clientId,
-              client_secret: this.credentials.clientSecret
-            }), {
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              timeout: 15e3
-            });
-            this.accessToken = response.data.access_token;
-            this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1e3);
-            log37.debug("[Amazon API] Access token refreshed successfully");
-            return this.accessToken;
-          } catch (error54) {
-            lastError = error54;
-            if (error54.response) {
-              const contentType = error54.response.headers?.["content-type"] || "";
-              const data4 = error54.response.data;
-              if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
-                log37.error("[Amazon API] Token refresh returned HTML instead of JSON");
-                this.accessToken = null;
-                this.tokenExpiry = null;
-                throw new Error("Token\u5237\u65B0\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002\u53EF\u80FD\u539F\u56E0\uFF1ARefresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548");
-              }
-              if (error54.response.status === 400) {
-                const errorData = error54.response.data;
-                if (errorData?.error === "invalid_grant") {
-                  this.accessToken = null;
-                  this.tokenExpiry = null;
-                  throw new Error("Refresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743");
-                }
-              }
-              if (error54.response.status === 401 || error54.response.status === 403) {
-                this.accessToken = null;
-                this.tokenExpiry = null;
-                throw new Error(`Token\u5237\u65B0\u8BA4\u8BC1\u5931\u8D25(${error54.response.status})\uFF0C\u8BF7\u68C0\u67E5API\u51ED\u8BC1`);
-              }
-            }
-            log37.warn(`[Amazon API] Token refresh attempt ${attempt}/${MAX_TOKEN_RETRIES} failed: ${error54.message}`);
-            if (attempt < MAX_TOKEN_RETRIES) {
-              const delay = Math.pow(2, attempt) * 1e3 + Math.random() * 1e3;
-              log37.debug(`[Amazon API] Retrying token refresh in ${Math.round(delay)}ms...`);
-              await new Promise((r5) => setTimeout(r5, delay));
-            }
-          }
-        }
-        this.accessToken = null;
-        this.tokenExpiry = null;
-        log37.error(`[Amazon API] Token refresh failed after ${MAX_TOKEN_RETRIES} attempts: ${lastError?.message}`);
-        throw lastError;
-      }
-      /**
-       * 获取广告配置文件列表
-       * 注意：获取profiles时不需要Amazon-Advertising-API-Scope header
-       */
-      async getProfiles() {
-        const token = await this.getAccessToken();
-        const response = await axios_default.get(`${API_ENDPOINTS[this.credentials.region]}/v2/profiles`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Amazon-Advertising-API-ClientId": this.credentials.clientId,
-            "Content-Type": "application/json"
-          }
-        });
-        return response.data;
-      }
-      // ==================== Sponsored Products API ====================
-      /**
-       * 获取SP广告活动列表
-       * 注意：SP API v3需要特定的Content-Type header
-       * 如果vendor MIME type失败，回退到application/json
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpCampaigns(filters) {
-        const allCampaigns = [];
-        let nextToken;
-        const headerVariants = [
-          { "Content-Type": "application/vnd.spCampaign.v3+json", "Accept": "application/vnd.spCampaign.v3+json" },
-          { "Content-Type": "application/json", "Accept": "application/json" }
-        ];
-        let workingHeaders = null;
-        let lastError = null;
-        do {
-          const body = {
-            maxResults: 100,
-            // 请求扩展字段，包括startDate和endDate
-            includeExtendedDataFields: true
-          };
-          if (filters?.stateFilter) {
-            body.stateFilter = { include: [filters.stateFilter] };
-          }
-          if (filters?.nameFilter) {
-            body.nameFilter = { queryTermMatchType: "BROAD_MATCH", include: [filters.nameFilter] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          if (workingHeaders) {
-            try {
-              const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers: workingHeaders });
-              const campaigns7 = response.data.campaigns || [];
-              allCampaigns.push(...campaigns7);
-              nextToken = response.data.nextToken;
-              log37.debug(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
-            } catch (error54) {
-              log37.error("[SP API] Error fetching campaigns:", error54.message);
-              throw error54;
-            }
-          } else {
-            for (const headers of headerVariants) {
-              try {
-                const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers });
-                workingHeaders = headers;
-                const campaigns7 = response.data.campaigns || [];
-                allCampaigns.push(...campaigns7);
-                nextToken = response.data.nextToken;
-                log37.debug(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
-                break;
-              } catch (error54) {
-                lastError = error54;
-                if (error54.response?.status === 415) {
-                  log37.warn(`SP campaigns list failed with headers ${JSON.stringify(headers)}, trying next variant...`);
-                  continue;
-                }
-                throw error54;
-              }
-            }
-            if (!workingHeaders) {
-              throw lastError;
-            }
-          }
-        } while (nextToken);
-        log37.debug(`[SP API] Total campaigns fetched: ${allCampaigns.length}`);
-        if (allCampaigns.length > 0) {
-          log37.debug("[SP API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
-          log37.debug("[SP API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
-          log37.debug("[SP API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
-        }
-        return allCampaigns;
-      }
-      /**
-       * 创建SP广告活动
-       */
-      async createSpCampaign(campaign) {
-        const response = await this.axiosInstance.post("/sp/campaigns", {
-          campaigns: [campaign]
-        }, {
-          headers: {
-            "Content-Type": "application/vnd.spCampaign.v3+json",
-            "Accept": "application/vnd.spCampaign.v3+json"
-          }
-        });
-        return response.data.campaigns[0];
-      }
-      /**
-       * 更新SP广告活动
-       */
-      async updateSpCampaign(campaignId, updates) {
-        const formattedUpdates = { ...updates };
-        if (formattedUpdates.dailyBudget !== void 0) {
-          formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
-        }
-        const requestBody = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
-        log37.debug(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        await this.axiosInstance.put("/sp/campaigns", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spCampaign.v3+json",
-            "Accept": "application/vnd.spCampaign.v3+json"
-          }
-        });
-      }
-      /**
-       * 获取SP广告组列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpAdGroups(campaignId) {
-        const allAdGroups = [];
-        let nextToken;
-        const headerVariants = [
-          { "Content-Type": "application/vnd.spAdGroup.v3+json", "Accept": "application/vnd.spAdGroup.v3+json" },
-          { "Content-Type": "application/json", "Accept": "application/json" }
-        ];
-        let workingHeaders = null;
-        let lastError = null;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          if (workingHeaders) {
-            try {
-              const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers: workingHeaders });
-              const adGroups4 = response.data.adGroups || [];
-              allAdGroups.push(...adGroups4);
-              nextToken = response.data.nextToken;
-              log37.debug(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
-            } catch (error54) {
-              log37.error("[SP API] Error fetching ad groups:", error54.message);
-              throw error54;
-            }
-          } else {
-            for (const headers of headerVariants) {
-              try {
-                const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers });
-                workingHeaders = headers;
-                const adGroups4 = response.data.adGroups || [];
-                allAdGroups.push(...adGroups4);
-                nextToken = response.data.nextToken;
-                log37.debug(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
-                break;
-              } catch (error54) {
-                lastError = error54;
-                if (error54.response?.status === 415) {
-                  continue;
-                }
-                throw error54;
-              }
-            }
-            if (!workingHeaders) {
-              throw lastError;
-            }
-          }
-        } while (nextToken);
-        log37.debug(`[SP API] Total ad groups fetched: ${allAdGroups.length}`);
-        return allAdGroups;
-      }
-      /**
-       * 获取SP关键词列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpKeywords(adGroupId) {
-        const allKeywords = [];
-        let nextToken;
-        const headerVariants = [
-          { "Content-Type": "application/vnd.spKeyword.v3+json", "Accept": "application/vnd.spKeyword.v3+json" },
-          { "Content-Type": "application/json", "Accept": "application/json" }
-        ];
-        let workingHeaders = null;
-        let lastError = null;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          body.stateFilter = { include: ["ENABLED", "PAUSED", "ARCHIVED"] };
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          if (workingHeaders) {
-            try {
-              const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers: workingHeaders });
-              const keywords9 = response.data.keywords || [];
-              allKeywords.push(...keywords9);
-              nextToken = response.data.nextToken;
-              log37.debug(`[SP API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
-            } catch (error54) {
-              log37.error(`[SP API] Error fetching keywords: ${error54.message} ${error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : ""}`);
-              throw error54;
-            }
-          } else {
-            for (const headers of headerVariants) {
-              try {
-                const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers });
-                workingHeaders = headers;
-                const keywords9 = response.data.keywords || [];
-                allKeywords.push(...keywords9);
-                nextToken = response.data.nextToken;
-                log37.debug(`[SP API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
-                break;
-              } catch (error54) {
-                lastError = error54;
-                log37.warn(`[SP API] listSpKeywords header variant failed (status=${error54.response?.status}):`, error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : error54.message);
-                if (error54.response?.status === 415 || error54.response?.status === 400) {
-                  continue;
-                }
-                throw error54;
-              }
-            }
-            if (!workingHeaders) {
-              throw lastError;
-            }
-          }
-        } while (nextToken);
-        log37.debug(`[SP API] Total keywords fetched: ${allKeywords.length}`);
-        return allKeywords;
-      }
-      /**
-       * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
-       */
-      async createSpKeywords(keywords9) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allCreatedKeywords = [];
-        const allErrors = [];
-        const totalBatches = Math.ceil(keywords9.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: createSpKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywords9.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batchKeywords = keywords9.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.info(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchKeywords.length}\u4E2A\u5173\u952E\u8BCD\u521B\u5EFA`);
-          try {
-            const formattedKeywords = batchKeywords.map((k5) => ({
-              adGroupId: String(k5.adGroupId),
-              campaignId: String(k5.campaignId),
-              keywordText: k5.keywordText,
-              matchType: (k5.matchType || "EXACT").toUpperCase(),
-              bid: Number(k5.bid.toFixed(2)),
-              state: (k5.state || "enabled").toUpperCase()
-            }));
-            const requestBody = { keywords: formattedKeywords };
-            const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spKeyword.v3+json",
-                "Accept": "application/vnd.spKeyword.v3+json"
-              }
-            });
-            const responseKeywords = response.data?.keywords;
-            if (responseKeywords && typeof responseKeywords === "object" && !Array.isArray(responseKeywords)) {
-              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-                for (const item of responseKeywords.success) {
-                  const idx = item.index || 0;
-                  allCreatedKeywords.push({
-                    keywordId: item.keywordId,
-                    keywordText: batchKeywords[idx]?.keywordText || "",
-                    code: "SUCCESS"
-                  });
-                }
-              }
-              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-                for (const item of responseKeywords.error) {
-                  allErrors.push(item);
-                  const errorDetail = item.description || item.details || item.message || "";
-                  allCreatedKeywords.push({
-                    keywordId: null,
-                    keywordText: batchKeywords[item.index]?.keywordText || "",
-                    code: item.code || "ERROR"
-                  });
-                  log37.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${batchKeywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}"`);
-                }
-              }
-            } else if (Array.isArray(responseKeywords)) {
-              for (const k5 of responseKeywords) {
-                allCreatedKeywords.push({
-                  keywordId: k5.keywordId,
-                  keywordText: k5.keywordText || "",
-                  code: k5.code || "SUCCESS"
-                });
-                if (k5.code && k5.code !== "SUCCESS") allErrors.push(k5);
-              }
-            }
-          } catch (error54) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5173\u952E\u8BCD\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error54.response?.data || error54.message}`);
-            for (const kw of batchKeywords) {
-              allCreatedKeywords.push({ keywordId: null, keywordText: kw.keywordText, code: "BATCH_ERROR" });
-              allErrors.push({ keywordText: kw.keywordText, code: "BATCH_ERROR", details: error54.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5173\u952E\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${keywords9.length}, \u6210\u529F=${allCreatedKeywords.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, createdKeywords: allCreatedKeywords, errors: allErrors };
-      }
-      /**
-       * 更新关键词出价
-       */
-      async updateKeywordBids(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          keywordId: String(u5.keywordId),
-          bid: Number(u5.bid.toFixed(2))
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: updateKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { keywords: batch };
-          log37.info(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
-          try {
-            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spKeyword.v3+json",
-                "Accept": "application/vnd.spKeyword.v3+json"
-              }
-            });
-            const responseKeywords = response.data?.keywords;
-            if (responseKeywords) {
-              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-                for (const err2 of responseKeywords.error) {
-                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
-                  log37.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
-                }
-              }
-              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-                totalSuccess += responseKeywords.success.length;
-              }
-            }
-          } catch (batchErr) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u51FA\u4EF7\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, errors: allErrors };
-      }
-      /**
-       * v134: 更新关键词状态（enabled/paused/archived）
-       * 通过 PUT /sp/keywords API 更新关键词的 state 字段
-       * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
-       */
-      async updateKeywordStatus(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          keywordId: String(u5.keywordId),
-          state: u5.state.toUpperCase()
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: updateKeywordStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { keywords: batch };
-          try {
-            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spKeyword.v3+json",
-                "Accept": "application/vnd.spKeyword.v3+json"
-              }
-            });
-            const responseKeywords = response.data?.keywords;
-            if (responseKeywords) {
-              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-                for (const err2 of responseKeywords.error) {
-                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
-                  log37.error(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
-                }
-              }
-              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-                totalSuccess += responseKeywords.success.length;
-              }
-            }
-          } catch (batchErr) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u72B6\u6001\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
-      }
-      /**
-       * v134: 更新商品定向状态（enabled/paused/archived）
-       * 通过 PUT /sp/targets API 更新商品定向的 state 字段
-       */
-      async updateProductTargetStatus(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          targetId: String(u5.targetId),
-          state: u5.state.toUpperCase()
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: updateProductTargetStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { targetingClauses: batch };
-          try {
-            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spTargetingClause.v3+json",
-                "Accept": "application/vnd.spTargetingClause.v3+json"
-              }
-            });
-            const responseTargets = response.data?.targetingClauses;
-            if (responseTargets) {
-              if (responseTargets.error && Array.isArray(responseTargets.error)) {
-                for (const err2 of responseTargets.error) {
-                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
-                }
-              }
-              if (responseTargets.success && Array.isArray(responseTargets.success)) {
-                totalSuccess += responseTargets.success.length;
-              }
-            }
-          } catch (batchErr) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
-      }
-      /**
-       * v135: 更新SP广告组状态
-       * 通过 PUT /sp/adGroups 更新广告组的state字段
-       */
-      async updateSpAdGroupStatus(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          adGroupId: String(u5.adGroupId),
-          state: u5.state.toUpperCase()
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: updateSpAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { adGroups: batch };
-          try {
-            const response = await this.axiosInstance.put("/sp/adGroups", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spAdGroup.v3+json",
-                "Accept": "application/vnd.spAdGroup.v3+json"
-              }
-            });
-            const responseAdGroups = response.data?.adGroups;
-            if (responseAdGroups) {
-              if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
-                for (const err2 of responseAdGroups.error) {
-                  allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
-                }
-              }
-              if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
-                totalSuccess += responseAdGroups.success.length;
-              }
-            }
-          } catch (batchErr) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
-      }
-      /**
-       * 获取SP商品定位列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpProductTargets(adGroupId) {
-        const allTargets = [];
-        let nextToken;
-        const headerVariants = [
-          { "Content-Type": "application/vnd.spTargetingClause.v3+json", "Accept": "application/vnd.spTargetingClause.v3+json" },
-          { "Content-Type": "application/json", "Accept": "application/json" }
-        ];
-        let workingHeaders = null;
-        let lastError = null;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          if (workingHeaders) {
-            try {
-              const response = await this.axiosInstance.post("/sp/targets/list", body, { headers: workingHeaders });
-              const targets = response.data.targetingClauses || [];
-              allTargets.push(...targets);
-              nextToken = response.data.nextToken;
-              log37.debug(`[SP API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
-            } catch (error54) {
-              log37.error("[SP API] Error fetching targets:", error54.message);
-              throw error54;
-            }
-          } else {
-            for (const headers of headerVariants) {
-              try {
-                const response = await this.axiosInstance.post("/sp/targets/list", body, { headers });
-                workingHeaders = headers;
-                const targets = response.data.targetingClauses || [];
-                allTargets.push(...targets);
-                nextToken = response.data.nextToken;
-                log37.debug(`[SP API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
-                break;
-              } catch (error54) {
-                lastError = error54;
-                if (error54.response?.status === 415) {
-                  continue;
-                }
-                throw error54;
-              }
-            }
-            if (!workingHeaders) {
-              throw lastError;
-            }
-          }
-        } while (nextToken);
-        log37.debug(`[SP API] Total targets fetched: ${allTargets.length}`);
-        return allTargets;
-      }
-      /**
-       * 更新商品定位出价
-       */
-      async updateProductTargetBids(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          targetId: String(u5.targetId),
-          bid: Number(u5.bid.toFixed(2))
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: updateProductTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { targetingClauses: batch };
-          try {
-            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spTargetingClause.v3+json",
-                "Accept": "application/vnd.spTargetingClause.v3+json"
-              }
-            });
-            const responseTargets = response.data?.targetingClauses;
-            if (responseTargets) {
-              if (responseTargets.error && Array.isArray(responseTargets.error)) {
-                for (const err2 of responseTargets.error) {
-                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
-                  log37.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${err2.targetId}, code=${err2.code}, details=${err2.details || err2.description}`);
-                }
-              }
-              if (responseTargets.success && Array.isArray(responseTargets.success)) {
-                totalSuccess += responseTargets.success.length;
-              }
-            }
-          } catch (batchErr) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v199: \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, errors: allErrors };
-      }
-      /**
-       * v310: 创建SP商品定向 (Product Targeting)
-       * 端点: POST /sp/targets
-       * 参照 createSpKeywords 的模式，支持分批处理和限流重试
-       */
-      async createSpProductTargets(targets) {
-        const BATCH_SIZE = 100;
-        const BATCH_DELAY_MS = 500;
-        const allCreatedTargets = [];
-        const allErrors = [];
-        const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
-        log37.info(`[SP API] v310: createSpProductTargets \u5206\u6279\u5904\u7406: \u603B\u8BA1${targets.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batchTargets = targets.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.info(`[SP API] v310: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchTargets.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u521B\u5EFA`);
-          try {
-            const formattedTargets = batchTargets.map((t7) => ({
-              adGroupId: String(t7.adGroupId),
-              campaignId: String(t7.campaignId),
-              expression: t7.expression,
-              expressionType: t7.expressionType || "manual",
-              bid: Number(t7.bid.toFixed(2)),
-              state: (t7.state || "enabled").toUpperCase()
-            }));
-            const requestBody = { targetingClauses: formattedTargets };
-            const response = await this.axiosInstance.post("/sp/targets", requestBody, {
-              headers: {
-                "Content-Type": "application/vnd.spTargetingClause.v3+json",
-                "Accept": "application/vnd.spTargetingClause.v3+json"
-              }
-            });
-            const responseTargets = response.data?.targetingClauses;
-            if (responseTargets && typeof responseTargets === "object" && !Array.isArray(responseTargets)) {
-              if (responseTargets.success && Array.isArray(responseTargets.success)) {
-                for (const item of responseTargets.success) {
-                  const idx = item.index || 0;
-                  allCreatedTargets.push({
-                    targetId: item.targetId || null,
-                    expression: batchTargets[idx]?.expression || [],
-                    code: "SUCCESS"
-                  });
-                }
-              }
-              if (responseTargets.error && Array.isArray(responseTargets.error)) {
-                for (const item of responseTargets.error) {
-                  allErrors.push(item);
-                  allCreatedTargets.push({
-                    targetId: null,
-                    expression: batchTargets[item.index]?.expression || [],
-                    code: item.code || "ERROR"
-                  });
-                  log37.error(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5931\u8D25: code=${item.code}, description="${item.description || item.details || ""}"`);
-                }
-              }
-            } else if (Array.isArray(responseTargets)) {
-              for (const t7 of responseTargets) {
-                allCreatedTargets.push({
-                  targetId: t7.targetId || null,
-                  expression: t7.expression || [],
-                  code: t7.code || "SUCCESS"
-                });
-                if (t7.code && t7.code !== "SUCCESS") allErrors.push(t7);
-              }
-            }
-          } catch (error54) {
-            log37.error(`[SP API] v310: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error54.response?.data || error54.message}`);
-            for (const t7 of batchTargets) {
-              allCreatedTargets.push({ targetId: null, expression: t7.expression, code: "BATCH_ERROR" });
-              allErrors.push({ expression: t7.expression, code: "BATCH_ERROR", details: error54.message });
-            }
-            if (error54.response?.status === 429) {
-              const throttleWait = BATCH_DELAY_MS * 5;
-              log37.debug(`[SP API] v310: \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED...`);
-              await new Promise((resolve8) => setTimeout(resolve8, throttleWait));
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SP API] v310: \u5546\u54C1\u5B9A\u5411\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${targets.length}, \u6210\u529F=${allCreatedTargets.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, createdTargets: allCreatedTargets, errors: allErrors };
-      }
-      // ==================== 报告 API ====================
-      /**
-       * 请求SP广告活动绩效报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 重要: SP报表可以直接获取campaignBudget和campaignStatus
-       * 
-       * Report API v3 支持的字段（2026年1月更新）:
-       * - campaignBudgetAmount: 预算金额
-       * - campaignBudgetType: 预算类型 (DAILY/LIFETIME)
-       * - campaignBudgetCurrencyCode: 预算货币代码
-       * - unitsSoldClicks14d: 14天点击归因销售单位数
-       * - unitsSoldSameSku14d: 14天同SKU销售单位数
-       * - dpv14d: 14天详情页浏览量
-       * - addToCart14d: 14天加购数
-       * 注意: topOfSearchImpressionShare 目前不支持通过 Report API v3 获取
-       */
-      async requestSpCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedSales7d", "attributedConversions7d"]) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Campaign Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["campaign"],
-              columns: [
-                // 基础信息 - 根据Excel文档SP Campaign sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                "campaignStatus",
-                // Excel: campaignStatus - 状态
-                "campaignBudgetAmount",
-                // Excel: campaignBudgetAmount - 预算金额
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "campaignBudgetType",
-                // Excel: campaignBudgetType - 预算类型
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "clickThroughRate",
-                // Excel: clickThroughRate - 点击率
-                // 花费指标 (SP使用cost)
-                "cost",
-                // Excel: cost - 支出 (注意: Excel显示为cost而非spend)
-                "costPerClick",
-                // Excel: costPerClick - 每次点击费用
-                // 7天归因销售指标 (SP专用)
-                "sales7d",
-                // Excel: sales7d - 7天总销售额
-                "purchases7d",
-                // Excel: purchases7d - 7天订单总数
-                "unitsSoldClicks7d",
-                // Excel: unitsSoldClicks7d - 7天总销量
-                // 同SKU指标
-                "attributedSalesSameSku7d",
-                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
-                "unitsSoldSameSku7d"
-                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
-                // 'salesOtherSku7d' and 'unitsSoldOtherSku7d' are NOT valid SP Campaign columns (removed in v104)
-                // Use attributedSalesSameSku7d and unitsSoldSameSku7d instead
-              ],
-              // 添加filters配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "spCampaigns",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP关键词绩效报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       */
-      async requestSpKeywordReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5173\u952E\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Keyword Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["targeting"],
-              columns: [
-                // 基础信息 - v242: 移除不属于keyword报告的字段(advertisedSku/Asin/targetId/targetingExpression/targetingText)
-                // v242: 使用startDate/endDate替代date (SUMMARY模式不支持date)
-                "startDate",
-                "endDate",
-                "campaignId",
-                "campaignName",
-                // 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // 货币
-                "adGroupId",
-                "adGroupName",
-                // 广告组名称
-                "keywordId",
-                // 关键词ID
-                "keyword",
-                // 关键词文本
-                "keywordBid",
-                // 关键词出价
-                "keywordType",
-                "matchType",
-                "targeting",
-                // 定位表达式
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "clickThroughRate",
-                // Excel: clickThroughRate - 点击率
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                "costPerClick",
-                // Excel: costPerClick - 每次点击费用
-                // 7天归因销售指标
-                "sales7d",
-                // Excel: sales7d - 7天总销售额
-                "acosClicks7d",
-                // Excel: acosClicks7d - ACOS
-                "roasClicks7d",
-                // Excel: roasClicks7d - ROAS
-                "purchases7d",
-                // Excel: purchases7d - 7天订单总数
-                "unitsSoldClicks7d",
-                // Excel: unitsSoldClicks7d - 7天总销量
-                // 同SKU/其他SKU指标
-                "unitsSoldSameSku7d",
-                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
-                "unitsSoldOtherSku7d",
-                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
-                "attributedSalesSameSku7d",
-                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
-                "salesOtherSku7d"
-                // Excel: salesOtherSku7d - 7天其他SKU销售额
-              ],
-              reportTypeId: "spTargeting",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] \u5173\u952E\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u5173\u952E\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB品牌广告活动报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d 字段
-       * 使用 sales/purchases 会导致数据为空！
-       * 
-       * Report API v3 支持的SB字段（2026年1月更新）:
-       * - attributedSales14d: 14天归因销售额
-       * - attributedConversions14d: 14天归因转化数
-       * - brandedSearches14d: 14天品牌搜索数
-       * - brandedSearchesClicks14d: 14天品牌搜索点击数
-       * - dpv14d: 14天详情页浏览量
-       */
-      async requestSbCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d"]) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SB\u54C1\u724C\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SB Campaign Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["campaign"],
-              columns: [
-                // 基础信息 - 根据Excel文档SB Campaign sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignStatus",
-                "campaignBudgetAmount",
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "campaignBudgetType",
-                "costType",
-                // Excel: costType - 费用类型
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "viewableImpressions",
-                // Excel: viewableImpressions - 可见展示次数
-                "viewabilityRate",
-                // Excel: viewabilityRate - 观看率 (VTR)
-                "viewClickThroughRate",
-                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
-                // 花费指标 (SB使用cost)
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标 (SB使用14天归因)
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单量
-                "unitsSold",
-                // Excel: unitsSold - 14天总单位数
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks",
-                // Excel: purchasesClicks - 14天订单总数(点击)
-                "unitsSoldClicks",
-                // Excel: unitsSoldClicks - 14天总数量(点击)
-                // 详情页浏览
-                "detailPageViews",
-                // Excel: detailPageViews - 14天详情页浏览量
-                // 视频指标
-                "videoFirstQuartileViews",
-                // Excel: videoFirstQuartileViews - 视频第一四分位观看次数
-                "videoMidpointViews",
-                // Excel: videoMidpointViews - 视频中间点观看次数
-                "videoThirdQuartileViews",
-                // Excel: videoThirdQuartileViews - 视频第三四分位观看次数
-                "videoCompleteViews",
-                // Excel: videoCompleteViews - 视频完整观看次数
-                "videoUnmutes",
-                // Excel: videoUnmutes - 视频取消静音次数
-                "video5SecondViews",
-                // Excel: video5SecondViews - 5秒观看次数
-                "video5SecondViewRate",
-                // Excel: video5SecondViewRate - 5秒观看率
-                // 品牌搜索
-                "brandedSearches",
-                // Excel: brandedSearches - 14天品牌搜索次数
-                "brandedSearchesClicks",
-                // Excel: brandedSearchesClicks - 品牌搜索点击转化率
-                // 新客指标
-                "newToBrandPurchases",
-                // Excel: newToBrandPurchases - 14天品牌新客户订单数
-                "newToBrandPurchasesPercentage",
-                // Excel: newToBrandPurchasesPercentage - 14天订单占比新品牌
-                "newToBrandSales",
-                // Excel: newToBrandSales - 14天新品牌销售额
-                "newToBrandSalesPercentage",
-                // Excel: newToBrandSalesPercentage - 14天新品牌销售额占比
-                "newToBrandUnitsSold",
-                // Excel: newToBrandUnitsSold - 14天新品牌数量
-                "newToBrandUnitsSoldPercentage",
-                // Excel: newToBrandUnitsSoldPercentage - 14天新品牌数量占比
-                "newToBrandPurchasesRate",
-                // Excel: newToBrandPurchasesRate - 14天新品牌订单率
-                // 新品牌详情页
-                "newToBrandDetailPageViews",
-                // Excel: newToBrandDetailPageViews - 新品牌详情页浏览量
-                "newToBrandDetailPageViewsClicks",
-                // Excel: newToBrandDetailPageViewsClicks - 新品牌详情页浏览点击转化率
-                "newToBrandDetailPageViewRate",
-                // Excel: newToBrandDetailPageViewRate - 新品牌详情页浏览率
-                "newToBrandECPDetailPageView",
-                // Excel: newToBrandECPDetailPageView - 新品牌详情页每次浏览有效费用
-                // 加购指标
-                "addToCart",
-                // Excel: addToCart - 14天ATC
-                "addToCartClicks",
-                // Excel: addToCartClicks - 14天ATC点击次数
-                "addToCartRate",
-                // Excel: addToCartRate - 14天ATCR
-                "eCPAddToCart"
-                // Excel: eCPAddToCart - 每次加入购物车有效费用
-              ],
-              // ⚠️ 关键修复: 添加filters配置 - 基于专家Postman配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbCampaigns",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD展示广告活动报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 重要修复: SD报告必须使用 attributedSales14d 和 attributedConversions14d 字段
-       * SD还需要 viewAttributedSales14d 来获取浏览归因数据
-       * 
-       * Report API v3 支持的SD字段（2026年1月更新）:
-       * - attributedSales14d: 14天点击归因销售额
-       * - attributedConversions14d: 14天点击归因转化数
-       * - viewAttributedSales14d: 14天浏览归因销售额 (vCPM核心)
-       * - viewAttributedConversions14d: 14天浏览归因转化数
-       * - viewableImpressions: 可见曝光数
-       * - dpv14d: 14天详情页浏览量
-       * - newToBrandPurchases14d: 14天新客购买数
-       * - newToBrandSales14d: 14天新客销售额
-       */
-      async requestSdCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d", "viewAttributedSales14d"]) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SD\u5C55\u793A\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SD Campaign Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["campaign"],
-              columns: [
-                // 基础信息 - 根据Excel文档SD Campaign sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                "campaignStatus",
-                // Excel: campaignStatus - 状态
-                "campaignBudgetAmount",
-                // Excel: campaignBudgetAmount - 预算
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "costType",
-                // Excel: costType - 费用类型
-                // 流量指标
-                "impressions",
-                "impressionsViews",
-                "impressionsFrequencyAverage",
-                "cumulativeReach",
-                "clicks",
-                "viewClickThroughRate",
-                "viewabilityRate",
-                // 花费指标 (SD使用cost)
-                "cost",
-                // 销售指标 (SD使用Clicks后缀 - 基于专家Postman配置)
-                "sales",
-                "salesClicks",
-                "salesPromotedClicks",
-                "purchases",
-                "purchasesClicks",
-                "purchasesPromotedClicks",
-                "unitsSold",
-                "unitsSoldClicks",
-                // 详情页浏览
-                "detailPageViews",
-                "detailPageViewsClicks",
-                // 加购指标
-                "addToCart",
-                "addToCartClicks",
-                "addToCartViews",
-                "addToCartRate",
-                "eCPAddToCart",
-                // 品牌搜索
-                "brandedSearches",
-                "brandedSearchesClicks",
-                "brandedSearchesViews",
-                "brandedSearchRate",
-                "eCPBrandSearch",
-                // 新客指标
-                "newToBrandPurchases",
-                "newToBrandPurchasesClicks",
-                "newToBrandSales",
-                "newToBrandSalesClicks",
-                "newToBrandUnitsSold",
-                "newToBrandUnitsSoldClicks",
-                "newToBrandDetailPageViews",
-                "newToBrandDetailPageViewClicks",
-                "newToBrandDetailPageViewViews",
-                "newToBrandDetailPageViewRate",
-                "newToBrandECPDetailPageView",
-                // 视频指标
-                "videoCompleteViews",
-                "videoFirstQuartileViews",
-                "videoMidpointViews",
-                "videoThirdQuartileViews",
-                "videoUnmutes"
-              ],
-              // SD reports do NOT support filters (removed in v104 - causes 400 error)
-              reportTypeId: "sdCampaigns",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP广告位置报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 
-       * 广告位置类型:
-       * - TOP_OF_SEARCH: 搜索结果顶部
-       * - DETAIL_PAGE: 商品详情页
-       * - OTHER: 其他位置
-       */
-      async requestSpPlacementReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Placement Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["campaign", "campaignPlacement"],
-              columns: [
-                // 基础信息 - 根据Excel文档SP Placement sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBiddingStrategy",
-                // Excel: campaignBiddingStrategy - 出价策略
-                // 'placementClassification' is NOT a valid column (removed in v104)
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                "costPerClick",
-                // Excel: costPerClick - 每次点击费用
-                // 7天归因销售指标
-                "sales7d",
-                // Excel: sales7d - 7天总销售额
-                "purchases7d",
-                // Excel: purchases7d - 7天总订单量
-                "unitsSoldClicks7d"
-                // Excel: unitsSoldClicks7d - 7天总单位数
-              ],
-              reportTypeId: "spCampaigns",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u4F4D\u7F6E\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u4F4D\u7F6E\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP搜索词报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 
-       * 搜索词报告字段:
-       * - searchTerm: 客户实际搜索的关键词
-       * - keywordId/keyword: 触发广告的投放词
-       * - matchType: 匹配类型
-       */
-      async requestSpSearchTermReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Search Term Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["searchTerm"],
-              columns: [
-                // 基础信息 - 根据Excel文档SP Search term sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "targeting",
-                // Excel: targeting - 定位
-                "keywordType",
-                // Excel: keywordType - 匹配类型
-                "searchTerm",
-                // Excel: searchTerm - 客户搜索词
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "clickThroughRate",
-                // Excel: clickThroughRate - 点击率
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                "costPerClick",
-                // Excel: costPerClick - 每次点击费用
-                // 7天归因销售指标
-                "sales7d",
-                // Excel: sales7d - 7天总销售额
-                "acosClicks7d",
-                // Excel: acosClicks7d - ACOS
-                "roasClicks7d",
-                // Excel: roasClicks7d - ROAS
-                "purchases7d",
-                // Excel: purchases7d - 7天订单总数
-                "unitsSoldClicks7d",
-                // Excel: unitsSoldClicks7d - 7天总销量
-                // 同SKU/其他SKU指标
-                "unitsSoldSameSku7d",
-                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
-                "unitsSoldOtherSku7d",
-                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
-                "attributedSalesSameSku7d",
-                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
-                "salesOtherSku7d"
-                // Excel: salesOtherSku7d - 7天其他SKU销售额
-              ],
-              reportTypeId: "spSearchTerm",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u641C\u7D22\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u641C\u7D22\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP已推广商品报告 (Amazon Ads API v3)
-       * 根据Excel文档: SP Advertised Product sheet
-       * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, impressions, clicks,
-       *       clickThroughRate, costPerClick, cost, sales7d, acosClicks7d, roasClicks7d, purchases7d,
-       *       unitsSoldClicks7d, unitsSoldSameSku7d, unitsSoldOtherSku7d, attributedSalesSameSku7d, salesOtherSku7d
-       */
-      async requestSpAdvertisedProductReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Advertised Product Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["advertiser"],
-              columns: [
-                // 基础信息 - 根据Excel文档SP Advertised Product sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "advertisedSku",
-                // Excel: advertisedSku - 已投放广告的SKU
-                "advertisedAsin",
-                // Excel: advertisedAsin - 已投放广告的ASIN
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "clickThroughRate",
-                // Excel: clickThroughRate - 点击率
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                "costPerClick",
-                // Excel: costPerClick - 每次点击费用
-                // 7天归因销售指标
-                "sales7d",
-                // Excel: sales7d - 7天总销售额
-                "acosClicks7d",
-                // Excel: acosClicks7d - ACOS
-                "roasClicks7d",
-                // Excel: roasClicks7d - ROAS
-                "purchases7d",
-                // Excel: purchases7d - 7天订单总数
-                "unitsSoldClicks7d",
-                // Excel: unitsSoldClicks7d - 7天总销量
-                // 同SKU/其他SKU指标
-                "unitsSoldSameSku7d",
-                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
-                "unitsSoldOtherSku7d",
-                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
-                "attributedSalesSameSku7d",
-                // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
-                "salesOtherSku7d"
-                // Excel: salesOtherSku7d - 7天其他SKU销售额
-              ],
-              reportTypeId: "spAdvertisedProduct",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP已购买商品报告 (Amazon Ads API v3)
-       * 根据Excel文档: SP Purchased Product sheet
-       * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, keyword, matchType,
-       *       purchasedAsin, unitsSoldOtherSku14d, purchasesOtherSku7d, salesOtherSku14d
-       */
-      async requestSpPurchasedProductReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Purchased Product Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["asin"],
-              columns: [
-                // 基础信息 - 根据Excel文档SP Purchased Product sheet
-                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "advertisedSku",
-                // Excel: advertisedSku - 已投放SKU
-                "advertisedAsin",
-                // Excel: advertisedAsin - 已投放ASIN
-                "keyword",
-                // Excel: keyword - 定位
-                "matchType",
-                // Excel: matchType - 匹配类型
-                "purchasedAsin",
-                // Excel: purchasedAsin - 已购买ASIN
-                // 销售指标
-                "unitsSoldOtherSku7d",
-                // Excel: unitsSoldOtherSku14d - 7天其他SKU数量
-                "purchasesOtherSku7d",
-                // Excel: purchasesOtherSku7d - 7天其他SKU订单
-                "salesOtherSku7d"
-                // Excel: salesOtherSku14d - 7天其他SKU销量
-              ],
-              reportTypeId: "spPurchasedProduct",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP自动定向报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 
-       * 自动广告匹配组类型:
-       * - CLOSE_MATCH: 紧密匹配
-       * - LOOSE_MATCH: 宽泛匹配
-       * - SUBSTITUTES: 同类商品
-       * - COMPLEMENTS: 关联商品
-       */
-      async requestSpAutoTargetingReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP Auto Targeting Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["targeting"],
-              columns: [
-                // v242: 修复无效列名 - 移除targetId/targetingExpression/targetingText/targetingType/date
-                "startDate",
-                "endDate",
-                "campaignId",
-                "campaignName",
-                "adGroupId",
-                "adGroupName",
-                "keywordId",
-                // 替代targetId
-                "keyword",
-                // 替代targetingText
-                "targeting",
-                // 替代targetingExpression
-                "keywordType",
-                // 替代targetingType
-                "matchType",
-                "impressions",
-                "clicks",
-                "cost",
-                "sales7d",
-                "unitsSoldClicks7d",
-                "purchases7d"
-              ],
-              reportTypeId: "spTargeting",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP广告组绩效报告 (Amazon Ads API v3)
-       * 用于同步广告组级别的绩效数据（曝光、点击、花费、销售、订单等）
-       */
-      async requestSpAdGroupReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SP AdGroup Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["adGroup"],
-              columns: [
-                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为spAdGroup
-                "campaignId",
-                "campaignName",
-                "adGroupId",
-                "adGroupName",
-                "impressions",
-                "clicks",
-                "cost",
-                "sales7d",
-                "purchases7d",
-                "unitsSoldClicks7d",
-                "attributedSalesSameSku7d",
-                "unitsSoldSameSku7d",
-                "salesOtherSku7d",
-                "unitsSoldOtherSku7d"
-              ],
-              reportTypeId: "spAdGroup",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB广告组绩效报告 (Amazon Ads API v3)
-       * SB使用14天归因窗口
-       */
-      async requestSbAdGroupReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SB AdGroup Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["adGroup"],
-              columns: [
-                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sbAdGroup
-                "campaignId",
-                "campaignName",
-                "adGroupId",
-                "adGroupName",
-                "impressions",
-                "clicks",
-                "cost",
-                "salesClicks14d",
-                "purchasesClicks14d",
-                "unitsSoldClicks14d",
-                "dpv14d",
-                "attributedSalesNewToBrand14d",
-                "attributedOrdersNewToBrand14d"
-              ],
-              reportTypeId: "sbAdGroup",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD广告组绩效报告 (Amazon Ads API v3)
-       * SD使用14天归因窗口 + 浏览归因
-       */
-      async requestSdAdGroupReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SD AdGroup Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["adGroup"],
-              columns: [
-                // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sdAdGroup
-                "campaignId",
-                "campaignName",
-                "adGroupId",
-                "adGroupName",
-                "impressions",
-                "clicks",
-                "cost",
-                "sales",
-                "purchases",
-                "unitsSold",
-                "newToBrandPurchases",
-                "newToBrandSales"
-              ],
-              reportTypeId: "sdAdGroup",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD定向报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       * 
-       * SD定向类型:
-       * - 受众定向: 浏览再营销、购买再营销等
-       * - 商品定向: ASIN/品类定向
-       */
-      async requestSdTargetingReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SD\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SD Targeting Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["targeting"],
-              columns: [
-                // 基础信息 - 根据Excel文档SD Targeting sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "targetingText",
-                // Excel: targetingText - 定位
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "impressionsViews",
-                // Excel: impressionsViews - 可见展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "detailPageViews",
-                // Excel: detailPageViews - 14天详情页浏览量
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标 (SD使用14天归因)
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单数
-                "unitsSold",
-                // Excel: unitsSold - 14天总单位数
-                // 新客指标
-                "newToBrandPurchases",
-                // Excel: newToBrandPurchases - 14天新品牌订单数
-                "newToBrandSales",
-                // Excel: newToBrandSales - 14天新品牌销售额
-                "newToBrandUnitsSold",
-                // Excel: newToBrandUnitsSold - 14天新品牌单位数
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks",
-                // Excel: purchasesClicks - 14天总订单数(点击)
-                "unitsSoldClicks",
-                // Excel: unitsSoldClicks - 14天总单位数(点击)
-                "newToBrandPurchasesClicks",
-                // Excel: newToBrandPurchasesClicks - 14天新品牌订单(点击)
-                "newToBrandSalesClicks",
-                // Excel: newToBrandSalesClicks - 14天新品牌销售额(点击)
-                "newToBrandUnitsSoldClicks"
-                // Excel: newToBrandUnitsSoldClicks - 14天新品牌单位(点击)
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdTargeting",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD已推广商品报告 (Amazon Ads API v3)
-       * 根据Excel文档: SD Advertised product sheet
-       * 字段: date, campaignName, adGroupName, bidOptimization, promotedSku, promotedAsin,
-       *       impressions, impressionsViews, clicks, detailPageViews, cost, sales, purchases,
-       *       unitsSold, newToBrandPurchases, newToBrandSales, newToBrandUnitsSold,
-       *       salesClicks, purchasesClicks, unitsSoldClicks, newToBrandPurchasesClicks,
-       *       newToBrandSalesClicks, newToBrandUnitsSoldClicks
-       */
-      async requestSdAdvertisedProductReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SD Advertised Product Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["advertiser"],
-              columns: [
-                // 基础信息 - 根据Excel文档SD Advertised product sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "bidOptimization",
-                // Excel: bidOptimization - 出价优化
-                "promotedSku",
-                // Excel: promotedSku - 已投放SKU
-                "promotedAsin",
-                // Excel: promotedAsin - 已投放ASIN
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "impressionsViews",
-                // Excel: impressionsViews - 可见展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "detailPageViews",
-                // Excel: detailPageViews - 14天详情页浏览量
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单数
-                "unitsSold",
-                // Excel: unitsSold - 14天总销量
-                // 新客指标
-                "newToBrandPurchases",
-                // Excel: newToBrandPurchases - 14天新品牌订单数
-                "newToBrandSales",
-                // Excel: newToBrandSales - 14天新品牌销售额
-                "newToBrandUnitsSold",
-                // Excel: newToBrandUnitsSold - 14天新品牌销量
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks",
-                // Excel: purchasesClicks - 14天总订单数(点击)
-                "unitsSoldClicks",
-                // Excel: unitsSoldClicks - 14天总销量(点击)
-                "newToBrandPurchasesClicks",
-                // Excel: newToBrandPurchasesClicks - 14天新品牌订单数(点击)
-                "newToBrandSalesClicks",
-                // Excel: newToBrandSalesClicks - 14天新品牌销量(点击)
-                "newToBrandUnitsSoldClicks"
-                // Excel: newToBrandUnitsSoldClicks - 14天新品牌销量(点击)
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdAdvertisedProduct",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD匹配目标报告 (Amazon Ads API v3)
-       * 根据Excel文档: SD Matchd Target sheet
-       * 字段: date, campaignName, targetingText, matchedTargetAsin, impressions, clicks,
-       *       cost, sales, purchases, unitsSold
-       */
-      async requestSdMatchedTargetReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SD\u5339\u914D\u76EE\u6807\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SD Matched Target Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["matchedTarget"],
-              columns: [
-                // 基础信息 - 根据Excel文档SD Matchd Target sheet
-                // v255: 移除'date'列（与timeUnit:SUMMARY冲突）
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "targetingText",
-                // Excel: targetingText - 定位
-                "matchedTargetAsin",
-                // Excel: matchedTargetAsin - 匹配目标
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标
-                "sales",
-                // Excel: sales - 14天销售总额
-                "purchases",
-                // Excel: purchases - 14天订单总数
-                "unitsSold"
-                // Excel: unitsSold - 14天单位总数
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdMatchedTarget",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5339\u914D\u76EE\u6807\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5339\u914D\u76EE\u6807\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB定向报告 (Amazon Ads API v3)
-       * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-       */
-      async requestSbTargetingReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SB\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SB Targeting Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["targeting"],
-              columns: [
-                // 基础信息 - 根据Excel文档SB Keyword sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 币种
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "targetingText",
-                // Excel: targetingText - 定位
-                "matchType",
-                // Excel: matchType - 匹配类型
-                "costType",
-                // Excel: costType - 费用类型
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "topOfSearchImpressionShare",
-                // Excel: topOfSearchImpressionShare - 搜索结果顶部展示次数份额
-                "clicks",
-                // Excel: clicks - 点击次数
-                "viewabilityRate",
-                // Excel: viewabilityRate - 观看率 (VTR)
-                "viewClickThroughRate",
-                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单量
-                "unitsSold",
-                // Excel: unitsSold - 14天总单位数
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks",
-                // Excel: purchasesClicks - 14天总订单数(点击)
-                "unitsSoldClicks",
-                // Excel: unitsSoldClicks - 14天总单位数(点击)
-                // 视频指标
-                "videoFirstQuartileViews",
-                // Excel: videoFirstQuartileViews
-                "videoMidpointViews",
-                // Excel: videoMidpointViews
-                "videoThirdQuartileViews",
-                // Excel: videoThirdQuartileViews
-                "videoCompleteViews",
-                // Excel: videoCompleteViews
-                "videoUnmutes",
-                // Excel: videoUnmutes
-                "video5SecondViews",
-                // Excel: video5SecondViews
-                "video5SecondViewRate",
-                // Excel: video5SecondViewRate
-                // 品牌搜索
-                "brandedSearches",
-                // Excel: brandedSearches
-                // 详情页浏览
-                "detailPageViews",
-                // Excel: detailPageViews
-                // 新客指标
-                "newToBrandPurchases",
-                // Excel: newToBrandPurchases
-                "newToBrandPurchasesPercentage",
-                // Excel: newToBrandPurchasesPercentage
-                "newToBrandSales",
-                // Excel: newToBrandSales
-                "newToBrandSalesPercentage",
-                // Excel: newToBrandSalesPercentage
-                "newToBrandUnitsSold",
-                // Excel: newToBrandUnitsSold
-                "newToBrandUnitsSoldPercentage",
-                // Excel: newToBrandUnitsSoldPercentage
-                "newToBrandPurchasesRate"
-                // Excel: newToBrandPurchasesRate
-              ],
-              // 添加filters配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbTargeting",
-              timeUnit: "SUMMARY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u5B9A\u5411\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u5B9A\u5411\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB搜索词报告 (Amazon Ads API v3)
-       * 根据Excel文档: SB Search term sheet
-       * 字段: date, campaignName, adGroupName, keywordText, matchType, searchTerm, costType,
-       *       impressions, viewableImpressions, clicks, cost, sales, purchases, unitsSold,
-       *       salesClicks, purchasesClicks
-       */
-      async requestSbSearchTermReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SB\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SB Search Term Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["searchTerm"],
-              columns: [
-                // 基础信息 - 根据Excel文档SB Search term sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 货币
-                "adGroupId",
-                "adGroupName",
-                // Excel: adGroupName - 广告组名称
-                "keywordText",
-                // Excel: keywordText - 定位
-                "matchType",
-                // Excel: matchType - 匹配类型
-                "searchTerm",
-                // Excel: searchTerm - 客户搜索词
-                "costType",
-                // Excel: costType - 费用类型
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "viewableImpressions",
-                // Excel: viewableImpressions - 可见展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单数
-                "unitsSold",
-                // Excel: unitsSold - 14天总单位数
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks"
-                // Excel: purchasesClicks - 14天总订单数(点击)
-              ],
-              // 添加filters配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbSearchTerm",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u641C\u7D22\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u641C\u7D22\u8BCD\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB广告位置报告 (Amazon Ads API v3)
-       * 根据Excel文档: SB Campaign Placement sheet
-       * 字段: date, campaignName, costType, placementClassification, impressions, viewableImpressions,
-       *       clicks, cost, sales, purchases, unitsSold, viewabilityRate, viewClickThroughRate,
-       *       videoFirstQuartileViews, videoMidpointViews, videoThirdQuartileViews, videoCompleteViews,
-       *       videoUnmutes, video5SecondViews, video5SecondViewRate, brandedSearches, detailPageViews,
-       *       newToBrandPurchases, newToBrandSales, newToBrandUnitsSold, salesClicks, purchasesClicks, unitsSoldClicks
-       */
-      async requestSbCampaignPlacementReport(startDate, endDate) {
-        try {
-          log37.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
-            name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["campaign", "placement"],
-              columns: [
-                // 基础信息 - 根据Excel文档SB Campaign Placement sheet
-                "date",
-                "campaignId",
-                "campaignName",
-                // Excel: campaignName - 广告系列名称
-                "campaignBudgetCurrencyCode",
-                // Excel: campaignBudgetCurrencyCode - 币种
-                "costType",
-                // Excel: costType - 费用类型
-                "placementClassification",
-                // Excel: placementClassification - 展示位置
-                // 流量指标
-                "impressions",
-                // Excel: impressions - 展示次数
-                "viewableImpressions",
-                // Excel: viewableImpressions - 可见展示次数
-                "clicks",
-                // Excel: clicks - 点击次数
-                "viewabilityRate",
-                // Excel: viewabilityRate - 观看率 (VTR)
-                "viewClickThroughRate",
-                // Excel: viewClickThroughRate - 观看点击率 (vCTR)
-                // 花费指标
-                "cost",
-                // Excel: cost - 支出
-                // 14天归因销售指标
-                "sales",
-                // Excel: sales - 14天总销售额
-                "purchases",
-                // Excel: purchases - 14天总订单量
-                "unitsSold",
-                // Excel: unitsSold - 14天总单位数
-                // 点击归因指标
-                "salesClicks",
-                // Excel: salesClicks - 14天总销售额(点击)
-                "purchasesClicks",
-                // Excel: purchasesClicks - 14天总订单数量(点击)
-                "unitsSoldClicks",
-                // Excel: unitsSoldClicks - 14天总单位数量(点击)
-                // 视频指标
-                "videoFirstQuartileViews",
-                // Excel: videoFirstQuartileViews
-                "videoMidpointViews",
-                // Excel: videoMidpointViews
-                "videoThirdQuartileViews",
-                // Excel: videoThirdQuartileViews
-                "videoCompleteViews",
-                // Excel: videoCompleteViews
-                "videoUnmutes",
-                // Excel: videoUnmutes
-                "video5SecondViews",
-                // Excel: video5SecondViews
-                "video5SecondViewRate",
-                // Excel: video5SecondViewRate
-                // 品牌搜索
-                "brandedSearches",
-                // Excel: brandedSearches
-                // 详情页浏览
-                "detailPageViews",
-                // Excel: detailPageViews
-                // 新客指标
-                "newToBrandPurchases",
-                // Excel: newToBrandPurchases
-                "newToBrandPurchasesPercentage",
-                // Excel: newToBrandPurchasesPercentage
-                "newToBrandSales",
-                // Excel: newToBrandSales
-                "newToBrandSalesPercentage",
-                // Excel: newToBrandSalesPercentage
-                "newToBrandUnitsSold",
-                // Excel: newToBrandUnitsSold
-                "newToBrandUnitsSoldPercentage",
-                // Excel: newToBrandUnitsSoldPercentage
-                "newToBrandPurchasesRate"
-                // Excel: newToBrandPurchasesRate
-              ],
-              // 添加filters配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbCampaigns",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB广告报告 (广告素材级别)
-       * 基于Postman文档: reportTypeId = sbAds, groupBy = ["ads"]
-       */
-      async requestSbAdsReport(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SB Ads Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["ads"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "campaignStatus",
-                "campaignBudgetAmount",
-                "adGroupId",
-                "adGroupName",
-                "adId",
-                "adStatus",
-                "impressions",
-                "clicks",
-                "clickThroughRate",
-                "cost",
-                "costPerClick",
-                "sales",
-                "salesClicks",
-                "purchases",
-                "purchasesClicks",
-                "unitsSold",
-                "unitsSoldClicks",
-                "newToBrandSales",
-                "newToBrandPurchases",
-                "newToBrandUnitsSold",
-                "video5SecondViews",
-                "video5SecondViewRate",
-                "videoFirstQuartileViews",
-                "videoMidpointViews",
-                "videoThirdQuartileViews",
-                "videoCompleteViews",
-                "videoUnmutes",
-                "viewClickThroughRate"
-              ],
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbAds",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u5E7F\u544A\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD广告组报告
-       * 基于Postman文档: reportTypeId = sdAdGroup, groupBy = ["adGroup"]
-       */
-      async requestSdAdGroupReportDetailed(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SD AdGroup Report Detailed ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["adGroup"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "campaignStatus",
-                "campaignBudgetAmount",
-                "adGroupId",
-                "adGroupName",
-                "costType",
-                "bidOptimization",
-                "impressions",
-                "impressionsViews",
-                "clicks",
-                "clickThroughRate",
-                "cost",
-                "costPerClick",
-                "detailPageViews",
-                "detailPageViewsClicks",
-                "sales",
-                "salesClicks",
-                "purchases",
-                "purchasesClicks",
-                "unitsSold",
-                "unitsSoldClicks",
-                "newToBrandSales",
-                "newToBrandSalesClicks",
-                "newToBrandPurchases",
-                "newToBrandPurchasesClicks",
-                "newToBrandUnitsSold",
-                "newToBrandUnitsSoldClicks",
-                "salesBrandHalo",
-                "salesBrandHaloClicks",
-                "unitsSoldBrandHalo",
-                "unitsSoldBrandHaloClicks",
-                "viewabilityRate",
-                "viewClickThroughRate"
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdAdGroup",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5E7F\u544A\u7EC4\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD已购买商品报告
-       * 基于Postman文档: reportTypeId = sdPurchasedProduct, groupBy = ["asin"]
-       */
-      async requestSdPurchasedProductReport(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SD Purchased Product Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["asin"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "adGroupId",
-                "adGroupName",
-                "purchasedAsin",
-                "impressions",
-                "clicks",
-                "cost",
-                "sales",
-                "salesClicks",
-                "purchases",
-                "purchasesClicks",
-                "unitsSold",
-                "unitsSoldClicks",
-                "newToBrandSales",
-                "newToBrandPurchases",
-                "newToBrandUnitsSold"
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdPurchasedProduct",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SP无效流量报告
-       * 基于Postman文档: reportTypeId = spGrossAndInvalids, groupBy = ["campaign"]
-       * 数据保留天数: 365天
-       */
-      async requestSpGrossAndInvalidsReport(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SP Gross And Invalids Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_PRODUCTS",
-              groupBy: ["campaign"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "grossImpressions",
-                "grossClickThroughs",
-                "invalidImpressions",
-                "invalidClickThroughs",
-                "invalidImpressionRate",
-                "invalidClickThroughRate"
-              ],
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "spGrossAndInvalids",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SP\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SP\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SB无效流量报告
-       * 基于Postman文档: reportTypeId = sbGrossAndInvalids, groupBy = ["campaign"]
-       * 数据保留天数: 365天
-       */
-      async requestSbGrossAndInvalidsReport(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SB Gross And Invalids Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_BRANDS",
-              groupBy: ["campaign"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "grossImpressions",
-                "grossClickThroughs",
-                "invalidImpressions",
-                "invalidClickThroughs",
-                "invalidImpressionRate",
-                "invalidClickThroughRate"
-              ],
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
-              reportTypeId: "sbGrossAndInvalids",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SB\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SB\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 请求SD无效流量报告
-       * 基于Postman文档: reportTypeId = sdGrossAndInvalids, groupBy = ["campaign"]
-       * 数据保留天数: 365天
-       */
-      async requestSdGrossAndInvalidsReport(profileId, startDate, endDate) {
-        try {
-          this.setProfileId(profileId);
-          const requestBody = {
-            name: `SD Gross And Invalids Report ${startDate} to ${endDate}`,
-            startDate,
-            endDate,
-            configuration: {
-              adProduct: "SPONSORED_DISPLAY",
-              groupBy: ["campaign"],
-              columns: [
-                "date",
-                "campaignId",
-                "campaignName",
-                "grossImpressions",
-                "grossClickThroughs",
-                "invalidImpressions",
-                "invalidClickThroughs",
-                "invalidImpressionRate",
-                "invalidClickThroughRate"
-              ],
-              // v230: SD报告不支持filters参数（会导致400错误），已移除
-              reportTypeId: "sdGrossAndInvalids",
-              timeUnit: "DAILY",
-              format: "GZIP_JSON"
-            }
-          };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
-              "Accept": "application/vnd.createasyncreportrequest.v3+json"
-            }
-          });
-          log37.info(`[Amazon API] SD\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
-          return response.data.reportId;
-        } catch (error54) {
-          log37.error("[Amazon API] \u8BF7\u6C42SD\u65E0\u6548\u6D41\u91CF\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 获取报告状态
-       */
-      async getReportStatus(reportId) {
-        try {
-          const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`);
-          log37.info(`[Amazon API] \u62A5\u544A\u72B6\u6001\u54CD\u5E94:`, JSON.stringify(response.data, null, 2));
-          return {
-            status: response.data.status,
-            url: response.data.url,
-            failureReason: response.data.failureReason
-          };
-        } catch (error54) {
-          log37.error(`[Amazon API] \u83B7\u53D6\u62A5\u544A\u72B6\u6001\u5931\u8D25:`, error54.response?.data || error54.message);
-          throw error54;
-        }
-      }
-      /**
-       * 下载报告数据
-       */
-      async downloadReport(url3) {
-        const response = await axios_default.get(url3, {
-          responseType: "stream"
-        });
-        const zlib3 = await import("zlib");
-        const { Readable: Readable2 } = await import("stream");
-        return new Promise((resolve8, reject) => {
-          const chunks = [];
-          let totalSize = 0;
-          const MAX_SIZE = 500 * 1024 * 1024;
-          const gunzip = zlib3.createGunzip();
-          response.data.pipe(gunzip).on("data", (chunk) => {
-            totalSize += chunk.length;
-            if (totalSize > MAX_SIZE) {
-              gunzip.destroy();
-              reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
-              return;
-            }
-            chunks.push(chunk);
-          }).on("end", () => {
-            try {
-              const data4 = Buffer.concat(chunks).toString("utf-8");
-              const result = JSON.parse(data4);
-              log37.info(`[Amazon API] \u62A5\u544A\u89E3\u538B\u5B8C\u6210\uFF0C\u539F\u59CB\u5927\u5C0F: ${totalSize} bytes, \u6570\u636E\u6761\u6570: ${result?.length || 0}`);
-              resolve8(result);
-            } catch (parseError3) {
-              reject(new Error(`Failed to parse report JSON: ${parseError3.message}`));
-            }
-          }).on("error", (err2) => {
-            reject(new Error(`Failed to decompress report: ${err2.message}`));
-          });
-        });
-      }
-      /**
-       * 等待报告完成并下载
-       */
-      async waitAndDownloadReport(reportId, maxWaitMs = 9e5) {
-        const startTime = Date.now();
-        log37.info(`[Amazon API] \u5F00\u59CB\u7B49\u5F85\u62A5\u544A\u5B8C\u6210: ${reportId}`);
-        while (Date.now() - startTime < maxWaitMs) {
-          const status = await this.getReportStatus(reportId);
-          log37.info(`[Amazon API] \u62A5\u544A\u72B6\u6001: ${status.status}, url: ${status.url ? "\u6709" : "\u65E0"}`);
-          if (status.status === "COMPLETED" && status.url) {
-            log37.info(`[Amazon API] \u62A5\u544A\u5DF2\u5B8C\u6210\uFF0C\u5F00\u59CB\u4E0B\u8F7D...`);
-            const data4 = await this.downloadReport(status.url);
-            log37.info(`[Amazon API] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u6570\u636E\u6761\u6570: ${data4?.length || 0}`);
-            return data4;
-          }
-          if (status.status === "FAILED") {
-            log37.error(`[Amazon API] \u62A5\u544A\u751F\u6210\u5931\u8D25`);
-            throw new Error("Report generation failed");
-          }
-          log37.info(`[Amazon API] \u62A5\u544A\u672A\u5B8C\u6210\uFF0C\u7B49\u5F855\u79D2\u540E\u91CD\u8BD5...`);
-          await new Promise((resolve8) => setTimeout(resolve8, 5e3));
-        }
-        log37.error(`[Amazon API] \u62A5\u544A\u751F\u6210\u8D85\u65F6`);
-        throw new Error("Report generation timeout");
-      }
-      // ==================== Sponsored Brands API ====================
-      /**
-       * 获取SB广告活动列表
-       * 注意：SB v4 API需要特定的Content-Type header
-       */
-      async listSbCampaigns() {
-        const allCampaigns = [];
-        let nextToken;
-        let pageCount = 0;
-        do {
-          const body = { maxResults: 100 };
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post(
-            "/sb/v4/campaigns/list",
-            body,
-            {
-              headers: {
-                "Content-Type": "application/vnd.sbcampaignresource.v4+json",
-                "Accept": "application/vnd.sbcampaignresource.v4+json"
-              }
-            }
-          );
-          const campaigns7 = response.data.campaigns || [];
-          if (pageCount === 0 && campaigns7.length > 0) {
-            log37.debug("[SB API DEBUG] First campaign full structure:");
-            log37.debug(JSON.stringify(campaigns7[0], null, 2));
-            log37.debug("[SB API DEBUG] First campaign startDate:", campaigns7[0].startDate);
-            log37.debug("[SB API DEBUG] First campaign keys:", Object.keys(campaigns7[0]));
-            log37.debug("[SB API] \u9884\u7B97\u5B57\u6BB5\u68C0\u67E5:");
-            log37.debug("  - budget:", campaigns7[0].budget);
-            log37.debug("  - dailyBudget:", campaigns7[0].dailyBudget);
-            log37.debug("  - state:", campaigns7[0].state);
-            log37.debug("  - status:", campaigns7[0].status);
-          }
-          allCampaigns.push(...campaigns7);
-          nextToken = response.data.nextToken;
-          pageCount++;
-          log37.debug(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns7.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
-        } while (nextToken);
-        log37.debug(`[SB API] \u5171\u83B7\u53D6\u5230 ${allCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
-        return allCampaigns;
-      }
-      /**
-       * 获取SB广告组列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSbAdGroups(campaignId) {
-        const allAdGroups = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post(
-            "/sb/v4/adGroups/list",
-            body,
-            {
-              headers: {
-                "Content-Type": "application/vnd.sbadgroupresource.v4+json",
-                "Accept": "application/vnd.sbadgroupresource.v4+json"
-              }
-            }
-          );
-          const adGroups4 = response.data.adGroups || [];
-          allAdGroups.push(...adGroups4);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SB API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SB API] Total ad groups fetched: ${allAdGroups.length}`);
-        return allAdGroups;
-      }
-      /**
-       * 获取SB关键词列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSbKeywords(adGroupId) {
-        const allKeywords = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post(
-            "/sb/v4/keywords/list",
-            body,
-            {
-              headers: {
-                "Content-Type": "application/vnd.sbkeywordresource.v4+json",
-                "Accept": "application/vnd.sbkeywordresource.v4+json"
-              }
-            }
-          );
-          const keywords9 = response.data.keywords || [];
-          allKeywords.push(...keywords9);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SB API] Fetched ${keywords9.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SB API] Total keywords fetched: ${allKeywords.length}`);
-        return allKeywords;
-      }
-      /**
-       * 获取SB商品定位列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSbTargets(adGroupId) {
-        const allTargets = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          try {
-            const response = await this.axiosInstance.post(
-              "/sb/v4/targets/list",
-              body,
-              {
-                headers: {
-                  "Content-Type": "application/vnd.sbtargetresource.v4+json",
-                  "Accept": "application/vnd.sbtargetresource.v4+json"
-                }
-              }
-            );
-            const targets = response.data.targets || [];
-            allTargets.push(...targets);
-            nextToken = response.data.nextToken;
-            log37.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
-          } catch (error54) {
-            if (error54.response?.status === 404) {
-              log37.warn(`[SB API] v230: SB targets/list\u8FD4\u56DE404\uFF0C\u8BE5\u8D26\u6237\u53EF\u80FD\u672A\u5F00\u901ASB\u5546\u54C1\u5B9A\u5411\u529F\u80FD\uFF0C\u8DF3\u8FC7`);
-              return [];
-            }
-            throw error54;
-          }
-        } while (nextToken);
-        log37.debug(`[SB API] Total targets fetched: ${allTargets.length}`);
-        return allTargets;
-      }
-      /**
-       * 更新SB广告活动
-       */
-      async updateSbCampaign(campaignId, updates) {
-        await this.axiosInstance.put(
-          "/sb/v4/campaigns",
-          { campaigns: [{ campaignId, ...updates }] },
-          {
-            headers: {
-              "Content-Type": "application/vnd.sbcampaignresource.v4+json",
-              "Accept": "application/vnd.sbcampaignresource.v4+json"
-            }
-          }
-        );
-      }
-      /**
-       * 更新SB关键词出价
-       */
-      async updateSbKeywordBids(updates) {
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
-        log37.info(`[SB API] v199: updateSbKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.info(`[SB API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
-          await this.axiosInstance.put(
-            "/sb/v4/keywords",
-            { keywords: batch },
-            {
-              headers: {
-                "Content-Type": "application/vnd.sbkeywordresource.v4+json",
-                "Accept": "application/vnd.sbkeywordresource.v4+json"
-              }
-            }
-          );
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.info(`[SB API] v199: SB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
-      }
-      // ==================== Sponsored Display API ====================
-      /**
-       * 获取SD广告活动列表
-       * 注意：SD API使用GET方法，使用startIndex和count参数进行分页
-       * 使用extended端点获取更多字段，包括startDate
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSdCampaigns() {
-        const allCampaigns = [];
-        let startIndex = 0;
-        const count3 = 100;
-        while (true) {
-          let response;
-          try {
-            response = await this.axiosInstance.get("/sd/campaigns/extended", {
-              params: { startIndex, count: count3 }
-            });
-            log37.debug("[SD API] Using extended endpoint for more fields");
-          } catch (error54) {
-            log37.warn("[SD API] Extended endpoint failed, falling back to standard endpoint");
-            response = await this.axiosInstance.get("/sd/campaigns", {
-              params: { startIndex, count: count3 }
-            });
-          }
-          const campaigns7 = response.data || [];
-          allCampaigns.push(...campaigns7);
-          log37.debug(`[SD API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}`);
-          if (allCampaigns.length > 0 && startIndex === 0) {
-            log37.debug("[SD API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
-            log37.debug("[SD API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
-            log37.debug("[SD API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
-          }
-          if (campaigns7.length < count3) {
-            break;
-          }
-          startIndex += count3;
-        }
-        log37.debug(`[SD API] Total campaigns fetched: ${allCampaigns.length}`);
-        return allCampaigns;
-      }
-      /**
-       * 获取SD广告组列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSdAdGroups(campaignId) {
-        const allAdGroups = [];
-        let startIndex = 0;
-        const count3 = 100;
-        while (true) {
-          const params = { startIndex, count: count3 };
-          if (campaignId) {
-            params.campaignIdFilter = campaignId;
-          }
-          const response = await this.axiosInstance.get("/sd/adGroups", { params });
-          const adGroups4 = response.data || [];
-          allAdGroups.push(...adGroups4);
-          log37.debug(`[SD API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}`);
-          if (adGroups4.length < count3) {
-            break;
-          }
-          startIndex += count3;
-        }
-        log37.debug(`[SD API] Total ad groups fetched: ${allAdGroups.length}`);
-        return allAdGroups;
-      }
-      /**
-       * 获取SD商品定位列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSdTargets(adGroupId) {
-        const allTargets = [];
-        let startIndex = 0;
-        const count3 = 100;
-        while (true) {
-          const params = { startIndex, count: count3 };
-          if (adGroupId) {
-            params.adGroupIdFilter = adGroupId;
-          }
-          const response = await this.axiosInstance.get("/sd/targets", { params });
-          const targets = response.data || [];
-          allTargets.push(...targets);
-          log37.debug(`[SD API] Fetched ${targets.length} targets, total: ${allTargets.length}`);
-          if (targets.length < count3) {
-            break;
-          }
-          startIndex += count3;
-        }
-        log37.debug(`[SD API] Total targets fetched: ${allTargets.length}`);
-        return allTargets;
-      }
-      /**
-       * 更新SD广告活动
-       */
-      async updateSdCampaign(campaignId, updates) {
-        await this.axiosInstance.put("/sd/campaigns", [{ campaignId, ...updates }]);
-      }
-      /**
-       * 更新SD商品定位出价
-       */
-      async updateSdTargetBids(updates) {
-        const BATCH_SIZE = 100;
-        const BATCH_DELAY_MS = 300;
-        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
-        log37.info(`[SD API] v199: updateSdTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.info(`[SD API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0`);
-          await this.axiosInstance.put("/sd/targets", batch);
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.info(`[SD API] v199: SD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
-      }
-      /**
-       * v310-fix: 更新SD广告组状态
-       * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
-       */
-      async updateSdAdGroupStatus(updates) {
-        const BATCH_SIZE = 100;
-        const BATCH_DELAY_MS = 300;
-        const allErrors = [];
-        let totalSuccess = 0;
-        const formattedAll = updates.map((u5) => ({
-          adGroupId: Number(u5.adGroupId),
-          state: u5.state.toLowerCase()
-        }));
-        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
-        log37.info(`[SD API] v310-fix: updateSdAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          try {
-            const response = await this.axiosInstance.put("/sd/adGroups", batch);
-            if (Array.isArray(response.data)) {
-              const errors = response.data.filter((r5) => r5.code && r5.code !== "SUCCESS");
-              const successes = response.data.filter((r5) => !r5.code || r5.code === "SUCCESS");
-              totalSuccess += successes.length;
-              for (const err2 of errors) {
-                allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
-              }
-            } else {
-              totalSuccess += batch.length;
-            }
-          } catch (batchErr) {
-            log37.error(`[SD API] v310-fix: \u7B2C${batchIdx + 1}\u6279SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
-            for (const item of batch) {
-              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.warn(`[SD API] v310-fix: SD\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
-        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
-      }
-      // ==================== 否定关键词 API ====================
-      /**
-       * 获取SP活动级别否定关键词列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpCampaignNegativeKeywords(campaignId) {
-        const allNegatives = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords/list", body, {
-            headers: {
-              "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
-              "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
-            }
-          });
-          const negatives = response.data.campaignNegativeKeywords || [];
-          allNegatives.push(...negatives);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SP API] Fetched ${negatives.length} campaign negative keywords, total: ${allNegatives.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SP API] Total campaign negative keywords fetched: ${allNegatives.length}`);
-        return allNegatives;
-      }
-      /**
-       * 创建SP活动级别否定关键词
-       */
-      async createSpCampaignNegativeKeywords(negatives) {
-        const formatMatchType = (mt3) => {
-          const upper = mt3.toUpperCase();
-          if (upper.includes("_")) return upper;
-          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
-          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
-          return upper;
-        };
-        const formattedNegatives = negatives.map((n7) => ({
-          campaignId: String(n7.campaignId),
-          keywordText: n7.keywordText,
-          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
-          state: "ENABLED"
-        }));
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allResults = [];
-        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: createSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.debug(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2Acampaign\u7EA7\u5426\u5B9A\u8BCD`);
-          try {
-            const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
-              campaignNegativeKeywords: batch
-            }, {
-              headers: {
-                "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
-                "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
-              }
-            });
-            const responseData = response.data.campaignNegativeKeywords || {};
-            const successItems = responseData.success || [];
-            const errorItems = responseData.error || [];
-            for (const s4 of successItems) {
-              allResults.push({
-                keywordId: s4.campaignNegativeKeywordId || s4.keywordId,
-                code: "SUCCESS",
-                details: "",
-                index: s4.index !== void 0 ? s4.index + batchIdx * BATCH_SIZE : void 0
-              });
-            }
-            for (const e6 of errorItems) {
-              const errorMsg = e6.errors?.map((err2) => {
-                const val = err2.errorValue || {};
-                const detail = val.malformedValueError || val.duplicateValueError || val;
-                return detail.message || err2.errorType || "Unknown error";
-              }).join("; ") || "Unknown error";
-              allResults.push({
-                keywordId: 0,
-                code: "ERROR",
-                details: errorMsg,
-                index: e6.index !== void 0 ? e6.index + batchIdx * BATCH_SIZE : void 0
-              });
-            }
-            if (errorItems.length > 0) {
-              log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5426\u5B9A\u8BCD\u5931\u8D25\u8BE6\u60C5:`);
-              for (const e6 of errorItems) {
-                const errDetail = JSON.stringify(e6.errors || e6).substring(0, 300);
-                const kwText = batch[e6.index]?.keywordText || "unknown";
-                const campId = batch[e6.index]?.campaignId || "unknown";
-                log37.error(`  - \u7D22\u5F15${e6.index}: campaignId=${campId}, keyword="${kwText}", \u9519\u8BEF: ${errDetail}`);
-              }
-            }
-            log37.warn(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
-          } catch (err2) {
-            const errData = err2.response?.data;
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
-            for (let i4 = 0; i4 < batch.length; i4++) {
-              allResults.push({
-                keywordId: 0,
-                code: "BATCH_ERROR",
-                details: err2.message,
-                index: i4 + batchIdx * BATCH_SIZE
-              });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        const successCount = allResults.filter((r5) => r5.code === "SUCCESS").length;
-        const failCount = allResults.length - successCount;
-        log37.warn(`[SP API] v199: campaign\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u6210\u529F=${successCount}, \u5931\u8D25=${failCount}`);
-        return allResults;
-      }
-      /**
-       * 删除SP活动级别否定关键词
-       */
-      async deleteSpCampaignNegativeKeywords(keywordIds) {
-        const BATCH_SIZE = 1e3;
-        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: deleteSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          await this.axiosInstance.post("/sp/campaignNegativeKeywords/delete", {
-            keywordIdFilter: { include: batch }
-          }, {
-            headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
-          });
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, 300));
-          }
-        }
-      }
-      /**
-       * 获取SP广告组级别否定关键词列表
-       * 已修复：添加分页逻辑，确保获取所有数据
-       */
-      async listSpNegativeKeywords(adGroupId) {
-        const allNegatives = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post("/sp/negativeKeywords/list", body, {
-            headers: {
-              "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
-              "Accept": "application/vnd.spNegativeKeyword.v3+json"
-            }
-          });
-          const negatives = response.data.negativeKeywords || [];
-          allNegatives.push(...negatives);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SP API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SP API] Total negative keywords fetched: ${allNegatives.length}`);
-        return allNegatives;
-      }
-      /**
-       * 创建SP广告组级别否定关键词
-       */
-      async createSpNegativeKeywords(negatives) {
-        const formatNegMatchType = (mt3) => {
-          const upper = mt3.toUpperCase();
-          if (upper.includes("_")) return upper;
-          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
-          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
-          return upper;
-        };
-        const formattedNegatives = negatives.map((n7) => ({
-          adGroupId: String(n7.adGroupId),
-          campaignId: String(n7.campaignId),
-          keywordText: n7.keywordText,
-          matchType: formatNegMatchType(n7.matchType || "NEGATIVE_EXACT"),
-          state: (n7.state || "enabled").toUpperCase()
-        }));
-        const BATCH_SIZE = 1e3;
-        const BATCH_DELAY_MS = 300;
-        const allResults = [];
-        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: createSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          log37.debug(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
-          try {
-            const response = await this.axiosInstance.post("/sp/negativeKeywords", {
-              negativeKeywords: batch
-            }, {
-              headers: {
-                "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
-                "Accept": "application/vnd.spNegativeKeyword.v3+json"
-              }
-            });
-            const batchResults = response.data.negativeKeywords || [];
-            allResults.push(...batchResults);
-            log37.info(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: ${batchResults.length}\u4E2A\u7ED3\u679C`);
-          } catch (err2) {
-            log37.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: ${err2.response?.status} ${err2.message}`);
-            for (let i4 = 0; i4 < batch.length; i4++) {
-              allResults.push({ keywordId: 0, code: "BATCH_ERROR", details: err2.message });
-            }
-          }
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
-          }
-        }
-        log37.info(`[SP API] v199: \u5E7F\u544A\u7EC4\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
-        return allResults;
-      }
-      /**
-       * 删除SP广告组级别否定关键词
-       */
-      async deleteSpNegativeKeywords(keywordIds) {
-        const BATCH_SIZE = 1e3;
-        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
-        log37.info(`[SP API] v199: deleteSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
-        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          await this.axiosInstance.post("/sp/negativeKeywords/delete", {
-            keywordIdFilter: { include: batch }
-          }, {
-            headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
-          });
-          if (batchIdx < totalBatches - 1) {
-            await new Promise((resolve8) => setTimeout(resolve8, 300));
-          }
-        }
-      }
-      /**
-       * 获取SP否定商品定位列表（活动级别）
-       */
-      async listSpCampaignNegativeTargets(campaignId) {
-        const allTargets = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post("/sp/campaignNegativeTargets/list", body, {
-            headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
-          });
-          const targets = response.data.campaignNegativeTargetingClauses || [];
-          allTargets.push(...targets);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SP API] Fetched ${targets.length} campaign negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SP API] Total campaign negative targets fetched: ${allTargets.length}`);
-        return allTargets;
-      }
-      /**
-       * 创建SP否定商品定位（活动级别）
-       */
-      async createSpCampaignNegativeTargets(negatives) {
-        const response = await this.axiosInstance.post("/sp/campaignNegativeTargets", {
-          campaignNegativeTargetingClauses: negatives.map((n7) => ({
-            ...n7,
-            campaignId: String(n7.campaignId),
-            state: (n7.state || "enabled").toUpperCase()
-          }))
-        }, {
-          headers: {
-            "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json",
-            "Accept": "application/vnd.spCampaignNegativeTargetingClause.v3+json"
-          }
-        });
-        return response.data.campaignNegativeTargetingClauses || [];
-      }
-      /**
-       * 获取SP否定商品定位列表（广告组级别）
-       */
-      async listSpNegativeTargets(adGroupId) {
-        const allTargets = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [String(adGroupId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
-            headers: {
-              "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
-              "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
-            }
-          });
-          const targets = response.data.negativeTargetingClauses || [];
-          allTargets.push(...targets);
-          nextToken = response.data.nextToken;
-          log37.debug(`[SP API] Fetched ${targets.length} negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
-        } while (nextToken);
-        log37.debug(`[SP API] Total negative targets fetched: ${allTargets.length}`);
-        return allTargets;
-      }
-      /**
-       * 创建SP否定商品定位（广告组级别）
-       */
-      async createSpNegativeTargets(negatives) {
-        const response = await this.axiosInstance.post("/sp/negativeTargets", {
-          negativeTargetingClauses: negatives.map((n7) => ({
-            ...n7,
-            adGroupId: String(n7.adGroupId),
-            campaignId: String(n7.campaignId),
-            state: (n7.state || "enabled").toUpperCase()
-          }))
-        }, {
-          headers: {
-            "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
-            "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
-          }
-        });
-        return response.data.negativeTargetingClauses || [];
-      }
-      // ==================== 出价建议 API ====================
-      /**
-       * 获取关键词出价建议
-       */
-      async getKeywordBidRecommendations(adGroupId, keywords9) {
-        const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
-          adGroupId,
-          keywords: keywords9
-        });
-        return response.data.recommendations || [];
-      }
-      /**
-       * 获取商品定位出价建议
-       */
-      async getTargetBidRecommendations(adGroupId, expressions) {
-        const response = await this.axiosInstance.post("/sp/targets/bidRecommendations", {
-          adGroupId,
-          expressions
-        });
-        return response.data.recommendations || [];
-      }
-      // ==================== Amazon Marketing Stream (AMS) Methods ====================
-      /**
-       * 创建AMS订阅
-       * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/stream-api
-       * 
-       * 注意: 
-       * 1. AMS API端点与普通广告API端点不同
-       * 2. 必须使用嵌套结构: destination: { type, arn }, dataSet: { id }
-       * 3. clientRequestToken必须是UUID-v4格式，不超过36字符
-       */
-      async createAmsSubscription(dataSetId, destinationArn, name2) {
-        const clientRequestToken = generateUuidV4();
-        log37.info(`[AMS] \u521B\u5EFA\u8BA2\u9605: dataSetId=${dataSetId}, destinationArn=${destinationArn}`);
-        log37.debug(`[AMS] clientRequestToken: ${clientRequestToken} (\u957F\u5EA6: ${clientRequestToken.length})`);
-        const requestBody = {
-          clientRequestToken,
-          name: name2 || `${dataSetId}-subscription`,
-          destination: {
-            type: "SQS",
-            arn: destinationArn
-          },
-          dataSet: {
-            id: dataSetId
-            // 注意: key是 "dataSet" (驼峰), 内部是 "id"
-          }
-        };
-        log37.debug(`[AMS] \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody, null, 2));
-        const response = await this.axiosInstance.post("/streams/subscriptions", requestBody);
-        log37.info(`[AMS] \u8BA2\u9605\u521B\u5EFA\u6210\u529F:`, response.data);
-        return response.data;
-      }
-      /**
-       * 获取所有AMS订阅列表
-       */
-      async listAmsSubscriptions() {
-        log37.debug("[AMS] \u83B7\u53D6\u8BA2\u9605\u5217\u8868...");
-        const response = await this.axiosInstance.get("/streams/subscriptions");
-        const subscriptions = response.data.subscriptions || response.data || [];
-        log37.debug(`[AMS] \u83B7\u53D6\u5230 ${subscriptions.length} \u4E2A\u8BA2\u9605`);
-        return subscriptions;
-      }
-      /**
-       * 获取单个AMS订阅详情
-       */
-      async getAmsSubscription(subscriptionId) {
-        try {
-          const response = await this.axiosInstance.get(`/streams/subscriptions/${subscriptionId}`);
-          return response.data;
-        } catch (error54) {
-          if (error54.response?.status === 404) {
-            return null;
-          }
-          throw error54;
-        }
-      }
-      /**
-       * 更新AMS订阅状态
-       */
-      async updateAmsSubscription(subscriptionId, updates) {
-        log37.info(`[AMS] \u66F4\u65B0\u8BA2\u9605 ${subscriptionId}:`, updates);
-        const response = await this.axiosInstance.put(
-          `/streams/subscriptions/${subscriptionId}`,
-          updates
-        );
-        return response.data;
-      }
-      /**
-       * 删除/归档AMS订阅
-       */
-      async archiveAmsSubscription(subscriptionId) {
-        log37.debug(`[AMS] \u5F52\u6863\u8BA2\u9605 ${subscriptionId}`);
-        await this.updateAmsSubscription(subscriptionId, { status: "ARCHIVED" });
-      }
-      /**
-       * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
-       * 
-       * 快车道数据集 (有效的Dataset ID白名单):
-       * - sp-traffic: SP实时流量（每小时推送，延迟2-5分钟）
-       * - sp-conversion: SP转化数据
-       * - sp-budget-usage: SP预算监控（秒级/分钟级推送）
-       * - sb-traffic: SB实时流量
-       * - sb-conversion: SB转化数据 (beta)
-       * - sb-budget-usage: SB预算监控
-       * - sd-traffic: SD实时流量
-       * - sd-conversion: SD转化数据 (beta)
-       * - sd-budget-usage: SD预算监控
-       */
-      /**
-       * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
-       * 支持两种调用方式:
-       * 1. 传入队列ARN映射对象 - 每个数据集使用对应的队列
-       * 2. 传入单一ARN字符串 - 所有数据集使用同一队列（向后兼容）
-       */
-      async createAllTrafficSubscriptions(queueArnOrMapping) {
-        const trafficDatasets = VALID_TRAFFIC_DATASETS;
-        const created = [];
-        const failed = [];
-        const isMapping = typeof queueArnOrMapping === "object";
-        for (const dataSetId of trafficDatasets) {
-          try {
-            let destinationArn;
-            if (isMapping) {
-              destinationArn = queueArnOrMapping[dataSetId];
-              if (!destinationArn) {
-                log37.warn(`[AMS] \u6570\u636E\u96C6 ${dataSetId} \u672A\u914D\u7F6E\u961F\u5217ARN\uFF0C\u8DF3\u8FC7`);
-                failed.push({ dataSetId, error: `\u672A\u914D\u7F6E\u961F\u5217ARN` });
-                continue;
-              }
-            } else {
-              destinationArn = queueArnOrMapping;
-            }
-            const existing = await this.listAmsSubscriptions();
-            const existingSubscription = existing.find(
-              (s4) => s4.dataSetId === dataSetId && s4.status === "ACTIVE"
-            );
-            if (existingSubscription) {
-              log37.info(`[AMS] \u8BA2\u9605 ${dataSetId} \u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA`);
-              created.push(existingSubscription);
-              continue;
-            }
-            log37.info(`[AMS] \u521B\u5EFA\u8BA2\u9605: ${dataSetId} -> ${destinationArn}`);
-            const subscription = await this.createAmsSubscription(
-              dataSetId,
-              destinationArn,
-              `Fast lane subscription for ${dataSetId}`
-            );
-            created.push(subscription);
-            await new Promise((resolve8) => setTimeout(resolve8, 1e3));
-          } catch (error54) {
-            log37.error(`[AMS] \u521B\u5EFA\u8BA2\u9605 ${dataSetId} \u5931\u8D25:`, error54.message);
-            failed.push({
-              dataSetId,
-              error: error54.response?.data?.message || error54.message
-            });
-          }
-        }
-        return { created, failed };
-      }
-      // ==================== V2 SB报告API（用于获取旧版SB广告数据） ====================
-      /**
-       * 请求V2 SB广告活动报告
-       * V2 API用于获取2023年5月之前创建的旧版SB广告活动数据
-       */
-      async requestSbCampaignReportV2(reportDate, metrics = [
-        "campaignName",
-        "campaignId",
-        "campaignStatus",
-        "campaignBudget",
-        "campaignBudgetType",
-        "impressions",
-        "clicks",
-        "cost",
-        "attributedSales14d",
-        "attributedConversions14d"
-      ]) {
-        log37.debug("[Amazon API V2] \u8BF7\u6C42SB\u62A5\u544A, \u65E5\u671F:", reportDate);
-        const response = await this.axiosInstance.post("/v2/hsa/campaigns/report", {
-          reportDate,
-          metrics
-        }, {
-          headers: { "Content-Type": "application/json" }
-        });
-        log37.info("[Amazon API V2] SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId:", response.data.reportId);
-        return { reportId: response.data.reportId };
-      }
-      /**
-       * 请求V2 SB视频广告报告
-       */
-      async requestSbVideoCampaignReportV2(reportDate, metrics = [
-        "campaignName",
-        "campaignId",
-        "campaignStatus",
-        "campaignBudget",
-        "campaignBudgetType",
-        "impressions",
-        "clicks",
-        "cost",
-        "attributedSales14d",
-        "attributedConversions14d",
-        "videoCompleteViews",
-        "videoFirstQuartileViews",
-        "videoMidpointViews",
-        "videoThirdQuartileViews"
-      ]) {
-        log37.debug("[Amazon API V2] \u8BF7\u6C42SB\u89C6\u9891\u62A5\u544A, \u65E5\u671F:", reportDate);
-        const response = await this.axiosInstance.post("/v2/hsa/campaigns/report", {
-          reportDate,
-          metrics,
-          creativeType: "video"
-        }, {
-          headers: { "Content-Type": "application/json" }
-        });
-        log37.info("[Amazon API V2] SB\u89C6\u9891\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId:", response.data.reportId);
-        return { reportId: response.data.reportId };
-      }
-      /**
-       * 获取V2报告状态
-       */
-      async getReportStatusV2(reportId) {
-        const response = await this.axiosInstance.get(`/v2/reports/${reportId}`, {
-          headers: { "Content-Type": "application/json" }
-        });
-        log37.info("[Amazon API V2] \u62A5\u544A\u72B6\u6001:", response.data.status);
-        return {
-          status: response.data.status,
-          location: response.data.location
-        };
-      }
-      /**
-       * 等待并下载V2报告
-       */
-      async waitAndDownloadReportV2(reportId, maxWaitMs = 3e5) {
-        const startTime = Date.now();
-        const pollInterval = 3e3;
-        while (Date.now() - startTime < maxWaitMs) {
-          try {
-            const status = await this.getReportStatusV2(reportId);
-            if (status.status === "SUCCESS" && status.location) {
-              log37.info("[Amazon API V2] \u62A5\u544A\u5DF2\u5B8C\u6210\uFF0C\u5F00\u59CB\u4E0B\u8F7D...");
-              const reportResponse = await this.axiosInstance.get(status.location, {
-                responseType: "arraybuffer",
-                headers: { "Accept-Encoding": "gzip" }
-              });
-              const zlib3 = await import("zlib");
-              const decompressed = zlib3.gunzipSync(Buffer.from(reportResponse.data));
-              const reportData = JSON.parse(decompressed.toString("utf-8"));
-              log37.info(`[Amazon API V2] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210\uFF0C\u5171 ${Array.isArray(reportData) ? reportData.length : 0} \u6761\u8BB0\u5F55`);
-              return Array.isArray(reportData) ? reportData : [];
-            } else if (status.status === "FAILURE") {
-              log37.error("[Amazon API V2] \u62A5\u544A\u751F\u6210\u5931\u8D25");
-              return [];
-            }
-            await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
-          } catch (error54) {
-            log37.error("[Amazon API V2] \u8F6E\u8BE2\u62A5\u544A\u72B6\u6001\u5931\u8D25:", error54.message);
-            await new Promise((resolve8) => setTimeout(resolve8, pollInterval));
-          }
-        }
-        log37.error("[Amazon API V2] \u62A5\u544A\u7B49\u5F85\u8D85\u65F6");
-        return [];
-      }
-      /**
-       * 获取完整的SB广告活动报告（结合V2和V3）
-       */
-      async getCompleteSbCampaignReport(startDate, endDate) {
-        const allData = [];
-        const seenCampaignIds = /* @__PURE__ */ new Set();
-        try {
-          log37.debug("[Amazon API] \u5C1D\u8BD5V3 SB\u62A5\u544A...");
-          const v3ReportId = await this.requestSbCampaignReport(startDate, endDate);
-          const v3Data = await this.waitAndDownloadReport(v3ReportId);
-          for (const row of v3Data) {
-            const campaignId = row.campaignId?.toString();
-            if (campaignId && !seenCampaignIds.has(campaignId)) {
-              seenCampaignIds.add(campaignId);
-              allData.push(row);
-            }
-          }
-          log37.debug(`[Amazon API] V3 SB\u62A5\u544A\u83B7\u53D6 ${v3Data.length} \u6761\u8BB0\u5F55`);
-        } catch (error54) {
-          log37.error("[Amazon API] V3 SB\u62A5\u544A\u5931\u8D25:", error54.message);
-        }
-        try {
-          log37.debug("[Amazon API] \u5C1D\u8BD5V2 SB\u62A5\u544A...");
-          const start = new Date(startDate);
-          const end = new Date(endDate);
-          for (let d5 = new Date(start); d5 <= end; d5.setDate(d5.getDate() + 1)) {
-            const dateStr = d5.toISOString().split("T")[0].replace(/-/g, "");
-            try {
-              const v2Report = await this.requestSbCampaignReportV2(dateStr);
-              const v2Data = await this.waitAndDownloadReportV2(v2Report.reportId);
-              for (const row of v2Data) {
-                const campaignId = row.campaignId?.toString();
-                if (campaignId && !seenCampaignIds.has(campaignId + "_" + dateStr)) {
-                  seenCampaignIds.add(campaignId + "_" + dateStr);
-                  allData.push({ ...row, date: d5.toISOString().split("T")[0] });
-                }
-              }
-              const v2VideoReport = await this.requestSbVideoCampaignReportV2(dateStr);
-              const v2VideoData = await this.waitAndDownloadReportV2(v2VideoReport.reportId);
-              for (const row of v2VideoData) {
-                const campaignId = row.campaignId?.toString();
-                if (campaignId && !seenCampaignIds.has(campaignId + "_video_" + dateStr)) {
-                  seenCampaignIds.add(campaignId + "_video_" + dateStr);
-                  allData.push({ ...row, date: d5.toISOString().split("T")[0], isVideo: true });
-                }
-              }
-            } catch (error54) {
-              log37.error(`[Amazon API V2] \u65E5\u671F ${dateStr} \u62A5\u544A\u5931\u8D25: ${error54.message}`);
-            }
-          }
-        } catch (error54) {
-          log37.error("[Amazon API] V2 SB\u62A5\u544A\u5931\u8D25:", error54.message);
-        }
-        log37.debug(`[Amazon API] \u5B8C\u6574SB\u62A5\u544A\u5171 ${allData.length} \u6761\u8BB0\u5F55`);
-        return allData;
-      }
-      /**
-       * 获取SB广告素材列表（品牌广告的创意素材）
-       * 包含headline, brandLogo, customImage, video等素材信息
-       */
-      async listSbAds(campaignId) {
-        const allAds = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          try {
-            const response = await this.axiosInstance.post(
-              "/sb/v4/ads/list",
-              body,
-              {
-                headers: {
-                  "Content-Type": "application/vnd.sbadresource.v4+json",
-                  "Accept": "application/vnd.sbadresource.v4+json"
-                }
-              }
-            );
-            const ads = response.data.ads || [];
-            allAds.push(...ads);
-            nextToken = response.data.nextToken;
-            log37.debug(`[SB API] Fetched ${ads.length} ads, total: ${allAds.length}, hasMore: ${!!nextToken}`);
-          } catch (error54) {
-            log37.error("[SB API] Error fetching SB ads:", error54.message);
-            break;
-          }
-        } while (nextToken);
-        log37.debug(`[SB API] Total ads fetched: ${allAds.length}`);
-        return allAds;
-      }
-      /**
-       * 获取SB否定关键词列表
-       */
-      async listSbNegativeKeywords(campaignId) {
-        const allNegatives = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          try {
-            const response = await this.axiosInstance.get("/sb/negativeKeywords", {
-              params: campaignId ? { campaignIdFilter: campaignId } : {},
-              headers: {
-                "Accept": "application/json"
-              }
-            });
-            const negatives = response.data.negativeKeywords || [];
-            allNegatives.push(...negatives);
-            nextToken = response.data.nextToken;
-            log37.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
-          } catch (error54) {
-            const statusCode = error54.response?.status;
-            if (statusCode === 403) {
-              log37.warn("[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions");
-            } else {
-              log37.error("[SB API] Error fetching SB negative keywords:", error54.message);
-            }
-            break;
-          }
-        } while (nextToken);
-        log37.debug(`[SB API] Total SB negative keywords fetched: ${allNegatives.length}`);
-        return allNegatives;
-      }
-      /**
-       * 获取SB否定商品定向列表
-       */
-      async listSbNegativeTargets(campaignId) {
-        const allNegatives = [];
-        let nextToken;
-        do {
-          const body = { maxResults: 100 };
-          if (campaignId) {
-            body.campaignIdFilter = { include: [String(campaignId)] };
-          }
-          if (nextToken) {
-            body.nextToken = nextToken;
-          }
-          try {
-            const response = await this.axiosInstance.post(
-              "/sb/negativeTargets/list",
-              body,
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  "Accept": "application/json"
-                }
-              }
-            );
-            const negatives = response.data.negativeTargets || [];
-            allNegatives.push(...negatives);
-            nextToken = response.data.nextToken;
-            log37.debug(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
-          } catch (error54) {
-            const statusCode = error54.response?.status;
-            if (statusCode === 403) {
-              log37.warn("[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions");
-            } else {
-              log37.error("[SB API] Error fetching SB negative targets:", error54.message);
-            }
-            break;
-          }
-        } while (nextToken);
-        log37.debug(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
-        return allNegatives;
-      }
-      /**
-       * 获取创意素材详情 - Creative Asset Library API
-       * GET /assets?assetId={assetId}
-       * 返回素材的完整URL（包括视频URL、缩略图等）
-       */
-      async getAssetDetails(assetId) {
-        try {
-          const headers = await this.getHeaders();
-          const response = await this.axiosInstance.get("/assets", {
-            params: { assetId },
-            headers: {
-              ...headers,
-              "Accept": "application/vnd.creativeassetsgetresponse.v3+json"
-            }
-          });
-          return response.data;
-        } catch (error54) {
-          log37.error(`[Assets API] Failed to get asset ${assetId}:`, error54.response?.data || error54.message);
-          return null;
-        }
-      }
-      /**
-       * 批量解析素材ID为实际URL
-       * 对每个assetId调用getAssetDetails，提取关键URL
-       */
-      async resolveAssetUrls(assetIds) {
-        const result = /* @__PURE__ */ new Map();
-        for (const assetId of assetIds) {
-          if (!assetId) continue;
-          try {
-            const assetData = await this.getAssetDetails(assetId);
-            if (!assetData) continue;
-            const version5 = assetData.assetVersionList?.[0];
-            const assetType = assetData.assetGlobal?.assetType;
-            let url3 = version5?.url || version5?.assetFiles?.defaultUrl || version5?.storageLocationUrls?.defaultUrl || "";
-            let thumbnailUrl = "";
-            if (version5?.assetFiles?.processedFiles) {
-              for (const file2 of version5.assetFiles.processedFiles) {
-                if (file2.profile === "VIDEO_DEFAULT_OPTIMIZED" && !url3) {
-                  url3 = file2.url;
-                }
-                if (file2.profile === "IMAGE_THUMBNAIL_500") {
-                  thumbnailUrl = file2.url;
-                }
-              }
-            }
-            if (version5?.storageLocationUrls?.processedUrls) {
-              const processedUrls = version5.storageLocationUrls.processedUrls;
-              if (processedUrls["VIDEO_DEFAULT_OPTIMIZED"] && !url3) {
-                url3 = processedUrls["VIDEO_DEFAULT_OPTIMIZED"];
-              }
-              if (processedUrls["IMAGE_THUMBNAIL_500"]) {
-                thumbnailUrl = processedUrls["IMAGE_THUMBNAIL_500"];
-              }
-            }
-            if (url3) {
-              result.set(assetId, { url: url3, thumbnailUrl, type: assetType });
-            }
-            await new Promise((resolve8) => setTimeout(resolve8, 200));
-          } catch (error54) {
-            log37.error(`[Assets API] Error resolving asset ${assetId}:`, error54.message);
-          }
-        }
-        return result;
-      }
-      /**
-       * 获取请求头（内部辅助方法）
-       */
-      async getHeaders() {
-        const token = await this.getAccessToken();
-        return {
-          "Authorization": `Bearer ${token}`,
-          "Amazon-Advertising-API-ClientId": this.credentials.clientId,
-          "Amazon-Advertising-API-Scope": this.credentials.profileId,
-          "Content-Type": "application/json"
-        };
-      }
-    };
-    VALID_TRAFFIC_DATASETS = [
-      "sp-traffic",
-      "sp-conversion",
-      "sp-budget-usage",
-      "sb-traffic",
-      "sb-conversion",
-      "sb-budget-usage",
-      "sd-traffic",
-      "sd-conversion",
-      "sd-budget-usage"
-    ];
   }
 });
 
@@ -166017,7 +166018,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 311;
+    SYSTEM_VERSION = 325;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -343701,6 +343702,91 @@ function registerOAuthRoutes(app) {
   });
 }
 
+// server/_core/amazonAuthCallback.ts
+init_amazonAdsApi();
+function registerAmazonAuthCallbackRoutes(app) {
+  app.get("/api/auth/callback", async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : void 0;
+    const scope = typeof req.query.scope === "string" ? req.query.scope : void 0;
+    const error54 = typeof req.query.error === "string" ? req.query.error : void 0;
+    const state6 = typeof req.query.state === "string" ? req.query.state : void 0;
+    console.log("[AmazonAuthCallback] Received callback:", {
+      hasCode: !!code,
+      codeLength: code?.length,
+      scope,
+      error: error54,
+      state: state6
+    });
+    if (error54) {
+      console.error("[AmazonAuthCallback] Amazon returned error:", error54);
+      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(error54)}`;
+      res.redirect(302, redirectUrl);
+      return;
+    }
+    if (!code) {
+      console.error("[AmazonAuthCallback] No code parameter received");
+      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent("\u672A\u6536\u5230\u6388\u6743\u7801\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743")}`;
+      res.redirect(302, redirectUrl);
+      return;
+    }
+    try {
+      const clientId = process.env.AMAZON_ADS_CLIENT_ID || "";
+      const clientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || "";
+      const redirectUri = DEFAULT_REDIRECT_URI;
+      if (!clientId || !clientSecret) {
+        throw new Error("\u7F3A\u5C11Amazon API\u51ED\u8BC1\u914D\u7F6E\uFF08AMAZON_ADS_CLIENT_ID/AMAZON_ADS_CLIENT_SECRET\uFF09");
+      }
+      console.log("[AmazonAuthCallback] Exchanging code for tokens...");
+      const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
+        code,
+        clientId,
+        clientSecret,
+        redirectUri
+      );
+      console.log("[AmazonAuthCallback] Token exchange successful, fetching profiles...");
+      let profiles = [];
+      try {
+        const client = new AmazonAdsApiClient({
+          clientId,
+          clientSecret,
+          refreshToken: tokens.refresh_token,
+          profileId: "",
+          region: "NA"
+          // 默认NA，profiles接口会返回所有区域的profiles
+        });
+        const profileList = await client.getProfiles();
+        profiles = profileList.map((p4) => ({
+          profileId: String(p4.profileId),
+          countryCode: p4.countryCode || "",
+          accountName: p4.accountInfo?.name || `Profile ${p4.profileId}`,
+          sellerId: p4.accountInfo?.id || ""
+        }));
+        console.log("[AmazonAuthCallback] Fetched profiles:", profiles.length);
+      } catch (profileError) {
+        console.error("[AmazonAuthCallback] Failed to fetch profiles:", profileError.message);
+      }
+      const params = new URLSearchParams({
+        auth_success: "true",
+        refresh_token: tokens.refresh_token,
+        access_token: tokens.access_token || "",
+        expires_in: String(tokens.expires_in || 3600),
+        profiles_count: String(profiles.length)
+      });
+      if (profiles.length > 0) {
+        params.set("profiles", JSON.stringify(profiles));
+      }
+      const redirectUrl = `/settings/amazon-api?${params.toString()}`;
+      console.log("[AmazonAuthCallback] Redirecting to settings page with auth result");
+      res.redirect(302, redirectUrl);
+    } catch (err2) {
+      console.error("[AmazonAuthCallback] Token exchange failed:", err2.response?.data || err2.message);
+      const errorMsg = err2.response?.data?.error_description || err2.message || "Token\u6362\u53D6\u5931\u8D25";
+      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
+      res.redirect(302, redirectUrl);
+    }
+  });
+}
+
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -356919,7 +357005,7 @@ init_db2();
 init_schema2();
 init_drizzle_orm();
 init_attributionWindowHelper();
-var log5 = createModuleLogger("UnifiedOptimizationEngine");
+var log6 = createModuleLogger("UnifiedOptimizationEngine");
 async function getDbInstance() {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
@@ -357040,10 +357126,10 @@ async function analyzeBidAdjustments(campaign, costType = "cpc") {
       const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
       if (groups2.length > 0 && groups2[0].targetAcos) {
         groupTargetAcos = Number(groups2[0].targetAcos);
-        log5.info(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
+        log6.info(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
       }
     } catch (pgErr) {
-      log5.warn(`[UnifiedOptEngine] v148: \u83B7\u53D6\u4F18\u5316\u76EE\u6807targetAcos\u5931\u8D25, \u4F7F\u7528\u9ED8\u8BA4\u503C30%:`, pgErr.message);
+      log6.warn(`[UnifiedOptEngine] v148: \u83B7\u53D6\u4F18\u5316\u76EE\u6807targetAcos\u5931\u8D25, \u4F7F\u7528\u9ED8\u8BA4\u503C30%:`, pgErr.message);
     }
   }
   let correctionFactor = 1;
@@ -357061,10 +357147,10 @@ async function analyzeBidAdjustments(campaign, costType = "cpc") {
     )) {
       correctionFactor = correctionResult.correctionFactor;
       correctionApplied = true;
-      log5.info(`[UnifiedOptEngine] Campaign ${campaign.campaignId} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
+      log6.info(`[UnifiedOptEngine] Campaign ${campaign.campaignId} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
     }
   } catch (corrErr) {
-    log5.warn(`[UnifiedOptEngine] \u5F52\u56E0\u6821\u6B63\u8BA1\u7B97\u5931\u8D25, \u4F7F\u7528\u539F\u59CB\u6570\u636E:`, corrErr.message);
+    log6.warn(`[UnifiedOptEngine] \u5F52\u56E0\u6821\u6B63\u8BA1\u7B97\u5931\u8D25, \u4F7F\u7528\u539F\u59CB\u6570\u636E:`, corrErr.message);
   }
   const campaignKeywords = await db.select().from(keywords).where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   for (const kw of campaignKeywords) {
@@ -358322,7 +358408,7 @@ init_logger2();
 init_db2();
 init_schema2();
 init_drizzle_orm();
-var log7 = createModuleLogger("AdvancedAnalyticsService");
+var log8 = createModuleLogger("AdvancedAnalyticsService");
 async function getAttributionAnalysis(params) {
   const db = await getDb();
   if (!db) return { results: [], total: 0 };
@@ -358962,7 +359048,7 @@ async function runUnifiedEffectTrackingTask(period) {
       });
       processed++;
     } catch (error54) {
-      log7.error(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error54);
+      log8.error(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error54);
     }
   }
   return processed;
@@ -358971,7 +359057,7 @@ async function runAllUnifiedTrackingTasks() {
   const day7 = await runUnifiedEffectTrackingTask(7);
   const day14 = await runUnifiedEffectTrackingTask(14);
   const day30 = await runUnifiedEffectTrackingTask(30);
-  log7.info(`[AdvancedAnalytics] Effect tracking completed: 7d=${day7}, 14d=${day14}, 30d=${day30}`);
+  log8.info(`[AdvancedAnalytics] Effect tracking completed: 7d=${day7}, 14d=${day14}, 30d=${day30}`);
   return { day7, day14, day30 };
 }
 function getActionTypeLabel(actionType) {
@@ -365765,7 +365851,7 @@ var amazonApiRouter = router({
     try {
       const clientId = input.clientId || process.env.AMAZON_ADS_CLIENT_ID || "";
       const clientSecret = input.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || "";
-      const redirectUri = input.redirectUri || "https://sellerps.com";
+      const redirectUri = input.redirectUri || "https://www.ppcopt.com/api/auth/callback";
       const region = input.region || "NA";
       if (!clientId || !clientSecret) {
         throw new Error("\u7F3A\u5C11Amazon API\u51ED\u8BC1\u3002\u8BF7\u5728\u7CFB\u7EDF\u8BBE\u7F6E\u4E2D\u914D\u7F6EAMAZON_ADS_CLIENT_ID\u548CAMAZON_ADS_CLIENT_SECRET\u73AF\u5883\u53D8\u91CF\u3002");
@@ -367468,7 +367554,7 @@ var amazonApiRouter = router({
   })).mutation(async ({ ctx, input }) => {
     const sessionId = `batch_${ctx.user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const clientId = process.env.AMAZON_ADS_CLIENT_ID || "";
-    const redirectUri = "https://sellerps.com";
+    const redirectUri = "https://www.ppcopt.com/api/auth/callback";
     const authEndpoints = {
       NA: "https://www.amazon.com/ap/oa",
       EU: "https://eu.account.amazon.com/ap/oa",
@@ -367506,7 +367592,7 @@ var amazonApiRouter = router({
   })).mutation(async ({ ctx, input }) => {
     const clientId = process.env.AMAZON_ADS_CLIENT_ID || "";
     const clientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || "";
-    const redirectUri = "https://sellerps.com";
+    const redirectUri = "https://www.ppcopt.com/api/auth/callback";
     if (!clientId || !clientSecret) {
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
@@ -390351,6 +390437,7 @@ async function startServer2() {
     next();
   });
   registerOAuthRoutes(app);
+  registerAmazonAuthCallbackRoutes(app);
   app.use("/api/ops", ops_default);
   app.use("/api", sitemap_default);
   app.use(
