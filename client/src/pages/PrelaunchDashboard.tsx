@@ -379,6 +379,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       toast.success("项目已更新");
       setIsEditing(false);
       onSaved();
+      onClose(); // 保存成功后关闭弹窗，下次打开时使用最新数据
     },
     onError: (err: any) => toast.error("更新失败: " + err.message),
   });
