@@ -498,7 +498,7 @@ export default function AmazonApiSettings() {
     const processCallback = async () => {
       try {
         const { refreshToken, profiles } = oauthCallbackData;
-        const clientId = import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6';
+        const clientId = import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053';
         const clientSecret = '';
 
         if (profiles.length > 0) {
@@ -2222,7 +2222,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'NA' });
                           window.open(
-                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
+                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开北美区域授权页面，授权后将获得美国、加拿大、墨西哥、巴西站点的数据访问权限');
@@ -2238,7 +2238,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'EU' });
                           window.open(
-                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
+                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开欧洲区域授权页面，授权后将获得英国、德国、法国等站点的数据访问权限');
@@ -2254,7 +2254,7 @@ export default function AmazonApiSettings() {
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'FE' });
                           window.open(
-                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
+                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
                             '_blank'
                           );
                           toast.success('已打开远东区域授权页面，授权后将获得日本、澳大利亚、新加坡站点的数据访问权限');
@@ -2732,7 +2732,7 @@ export default function AmazonApiSettings() {
                             ]
                           },
                         ].map((item) => {
-                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
+                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                           const isSelected = credentials.region === item.region;
                           return (
                             <div 
