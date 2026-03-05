@@ -72,8 +72,8 @@ export async function syncBidAdjustmentsToAmazon(
     reason: string;
     isProductTarget?: boolean;
   }>
-): Promise<{ success: number; failed: number; errors: string[]; itemResults: Map<number, { status: 'synced' | 'failed'; error?: string }> }> {
-  const result = { success: 0, failed: 0, errors: [] as string[], itemResults: new Map<number, { status: 'synced' | 'failed'; error?: string }>() };
+): Promise<{ success: number; failed: number; errors: string[]; itemResults: Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }> }> {
+  const result = { success: 0, failed: 0, errors: [] as string[], itemResults: new Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }>() };
   
   if (adjustments.length === 0) return result;
   
@@ -137,7 +137,9 @@ export async function syncBidAdjustmentsToAmazon(
           result.success++;
           consecutiveThrottles = 0;
           success = true;
-          result.itemResults.set(adj.keywordId, { status: 'synced' });
+          // v333: 从rapplyBidAdjustment的返回值中提取apiResponseId
+          const responseId = (typeof apiResult === 'object' && apiResult !== null && 'apiResponseId' in apiResult) ? (apiResult as any).apiResponseId : undefined;
+          result.itemResults.set(adj.keywordId, { status: 'synced', apiResponseId: responseId });
         } else {
           result.failed++;
           const targetType2 = adj.isProductTarget ? 'product_target' : 'keyword';
@@ -217,6 +219,44 @@ export async function syncBidAdjustmentsToAmazon(
     } catch (alertErr: any) {
       // system_alerts表可能不存在，忽略错误
       log.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${alertErr.message}`);
+    }
+  }
+  
+  // v333: 401/403认证失败专项检测
+  // 检查错误列表中是否包含认证相关错误，即使总体失败率未超阈值也要告警
+  const authErrors = result.errors.filter(e => 
+    e.includes('401') || e.includes('Unauthorized') || 
+    e.includes('403') || e.includes('Forbidden') ||
+    e.includes('Token已过期') || e.includes('token expired')
+  );
+  if (authErrors.length > 0) {
+    log.error(`[ALERT] v333: ⚠️ 发现${authErrors.length}条认证相关错误! 请立即检查accountId=${accountId}的API凭证有效性`);
+    log.error(`[ALERT] v333: 认证错误详情: ${authErrors.slice(0, 3).join('; ')}`);
+    
+    try {
+      const dbInstance = await db.getDb();
+      if (dbInstance) {
+        const { sql } = await import('drizzle-orm');
+        await dbInstance.execute(sql`
+          INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+          VALUES (
+            ${accountId},
+            ${'AUTH_FAILURE_SYNC'},
+            ${'critical'},
+            ${JSON.stringify({
+              source: 'syncBidAdjustmentsToAmazon',
+              authErrorCount: authErrors.length,
+              totalAttempts,
+              errors: authErrors.slice(0, 5),
+              alertMessage: `出价同步过程中发现${authErrors.length}条认证失败错误，请立即检查accountId=${accountId}的OAuth Token有效性`,
+            })},
+            NOW()
+          )
+        `);
+        log.warn(`[ALERT] v333: 认证失败告警已写入anomaly_alert_logs: accountId=${accountId}, authErrors=${authErrors.length}`);
+      }
+    } catch (authAlertErr: any) {
+      log.warn(`[ALERT] v333: 认证失败告警写入失败: ${authAlertErr.message}`);
     }
   }
   

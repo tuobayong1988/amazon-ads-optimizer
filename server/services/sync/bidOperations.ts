@@ -52,7 +52,7 @@ declare module '../../amazonSyncService' {
 /**
  * 执行出价调整并同步到Amazon
  */
-AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSyncService, targetType: 'keyword' | 'product_target', targetId: number, newBid: number, reason: string, campaignId: number | string): Promise<boolean> {
+AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSyncService, targetType: 'keyword' | 'product_target', targetId: number, newBid: number, reason: string, campaignId: number | string): Promise<boolean | { success: boolean; apiResponseId?: string }> {
   const db = await getDb();
   if (!db) return false;
 
@@ -127,10 +127,12 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
-      await this.client.updateKeywordBids([{
+      // v333: 捕获API返回的requestId用于端到端追踪
+      const apiResult = await this.client.updateKeywordBids([{
         keywordId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
+      var _apiResponseId = apiResult.requestIds?.[0] || '';
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
       // 避免双重DB更新导致的性能浪费和潜在不一致性
@@ -194,10 +196,12 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
-      await this.client.updateProductTargetBids([{
+      // v333: 捕获API返回的requestId用于端到端追踪
+      const ptApiResult = await this.client.updateProductTargetBids([{
         targetId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
+      var _apiResponseId = ptApiResult.requestIds?.[0] || '';
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
       // 避免双重DB更新导致的性能浪费和潜在不一致性
@@ -208,7 +212,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     const actionType = newBid > oldBid ? 'increase' : newBid < oldBid ? 'decrease' : 'set';
 
     // v126: 将日志记录和API调用分开，确保API成功后即使日志失败也返回true
-    log.info(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+    log.info(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}${_apiResponseId ? `, requestId=${_apiResponseId}` : ''}`);
     
     try {
       await db.insert(biddingLogs).values({
@@ -226,8 +230,10 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         algorithmVersion: 'v1.0',
         isIntradayAdjustment: 0,
         executionStatus: 'success',
+        // v333: 记录Amazon API的requestId用于端到端追踪
+        apiResponseId: _apiResponseId || null,
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      });
+      } as any);
     } catch (logError: any) {
       log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${logError.message}`);
       try {
@@ -240,7 +246,8 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       }
     }
 
-    return true;
+    // v333: 返回包含apiResponseId的结果对象，同时保持向后兼容（truthy值）
+    return { success: true, apiResponseId: _apiResponseId || undefined };
   } catch (error: any) {
     const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);

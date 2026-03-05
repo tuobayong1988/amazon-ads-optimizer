@@ -199,6 +199,19 @@ export class AmazonAdsApiClient {
           config._retryCount = 0;
         }
         
+        // v333: 认证失败专项监控 - 检测401/403并触发告警
+        if (status === 401 || status === 403) {
+          const authErrorType = status === 401 ? 'TOKEN_EXPIRED' : 'PERMISSION_DENIED';
+          const requestUrl = config?.url || 'unknown';
+          const profileId = config?.headers?.['Amazon-Advertising-API-Scope'] || 'unknown';
+          log.error(`[Amazon API] v333: 认证失败告警! status=${status}, type=${authErrorType}, profileId=${profileId}, URL=${requestUrl}`);
+          
+          // 异步触发告警（不阻塞主流程）
+          this._triggerAuthFailureAlert(status, authErrorType, profileId, requestUrl).catch((alertErr: any) => {
+            log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
+          });
+        }
+        
         // v148: 可重试的状态码: 429(限流), 500, 502, 503, 504(服务器错误)
         const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
         const MAX_RETRIES = 3;
@@ -282,6 +295,96 @@ export class AmazonAdsApiClient {
    */
   getProfileId(): string {
     return this.credentials.profileId;
+  }
+
+  /**
+   * v333: 认证失败告警触发器
+   * 当Amazon API返回401/403时，触发告警通知管理员检查API凭证有效性
+   * 包含30分钟冷却机制，防止告警风暴
+   */
+  private static _authAlertCooldowns: Map<string, number> = new Map();
+  private static readonly AUTH_ALERT_COOLDOWN_MS = 30 * 60 * 1000; // 30分钟冷却
+  private static _authFailureCounters: Map<string, { count: number; firstSeen: number }> = new Map();
+  
+  async _triggerAuthFailureAlert(
+    statusCode: number,
+    errorType: string,
+    profileId: string,
+    requestUrl: string
+  ): Promise<void> {
+    const alertKey = `auth_${statusCode}_${profileId}`;
+    const now = Date.now();
+    
+    // 更新失败计数器
+    const counter = AmazonAdsApiClient._authFailureCounters.get(alertKey) || { count: 0, firstSeen: now };
+    counter.count++;
+    AmazonAdsApiClient._authFailureCounters.set(alertKey, counter);
+    
+    // 检查冷却期
+    const lastAlertTime = AmazonAdsApiClient._authAlertCooldowns.get(alertKey) || 0;
+    if (now - lastAlertTime < AmazonAdsApiClient.AUTH_ALERT_COOLDOWN_MS) {
+      log.debug(`[Amazon API] v333: 认证失败告警在冷却期内, profileId=${profileId}, 累计失败=${counter.count}次`);
+      return;
+    }
+    
+    // 设置冷却
+    AmazonAdsApiClient._authAlertCooldowns.set(alertKey, now);
+    
+    // 确定告警严重级别
+    const severity: 'warning' | 'critical' = counter.count >= 5 ? 'critical' : 'warning';
+    
+    // 记录到数据库 anomaly_alert_logs 表
+    try {
+      const { getDb } = await import('./db');
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        const { sql } = await import('drizzle-orm');
+        await dbInstance.execute(sql`
+          INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+          VALUES (
+            0,
+            ${'AUTH_FAILURE_' + errorType},
+            ${severity},
+            ${JSON.stringify({
+              statusCode,
+              errorType,
+              profileId,
+              requestUrl,
+              failureCount: counter.count,
+              firstSeenAt: new Date(counter.firstSeen).toISOString(),
+              alertMessage: statusCode === 401
+                ? `Amazon API认证失败(401 Unauthorized): profileId=${profileId}的API Token可能已过期或无效。请立即检查并刷新OAuth Token。累计失败${counter.count}次。`
+                : `Amazon API权限拒绝(403 Forbidden): profileId=${profileId}缺少必要的API权限。请检查广告账户授权范围。累计失败${counter.count}次。`,
+            })},
+            NOW()
+          )
+        `);
+        log.warn(`[Amazon API] v333: 认证失败告警已写入DB: type=${errorType}, profileId=${profileId}, severity=${severity}, count=${counter.count}`);
+      }
+    } catch (dbErr: any) {
+      log.error(`[Amazon API] v333: 认证失败告警写入DB失败: ${dbErr.message}`);
+    }
+    
+    // 发送实时通知
+    try {
+      const { sendNotification } = await import('./notificationService');
+      await sendNotification({
+        userId: 0, // 系统级告警
+        type: 'alert',
+        severity: severity,
+        title: `Amazon API认证失败告警 - ${errorType}`,
+        message: statusCode === 401
+          ? `⚠️ Amazon Advertising API返回401 Unauthorized\n\nProfile ID: ${profileId}\n请求URL: ${requestUrl}\n累计失败: ${counter.count}次\n首次发现: ${new Date(counter.firstSeen).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}\n\n建议操作: 请立即检查并刷新该账户的OAuth Token，确保Refresh Token未过期。`
+          : `⚠️ Amazon Advertising API返回403 Forbidden\n\nProfile ID: ${profileId}\n请求URL: ${requestUrl}\n累计失败: ${counter.count}次\n\n建议操作: 请检查广告账户的API授权范围和权限设置。`,
+        relatedEntityType: 'amazon_api_auth',
+      });
+      log.info(`[Amazon API] v333: 认证失败告警通知已发送: profileId=${profileId}`);
+    } catch (notifyErr: any) {
+      log.error(`[Amazon API] v333: 认证失败告警通知发送失败: ${notifyErr.message}`);
+    }
+    
+    // 重置计数器（告警发送后）
+    AmazonAdsApiClient._authFailureCounters.delete(alertKey);
   }
 
   /**
@@ -820,11 +923,13 @@ export class AmazonAdsApiClient {
   /**
    * 更新关键词出价
    */
-  async updateKeywordBids(updates: Array<{ keywordId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+  async updateKeywordBids(updates: Array<{ keywordId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {
     // v199: 添加分批处理，Amazon SP API v3单次最多接受1000条
+    // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
     const allErrors: any[] = [];
+    const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -848,6 +953,13 @@ export class AmazonAdsApiClient {
           },
         });
         
+        // v333: 提取Amazon API响应中的requestId用于端到端日志追踪
+        const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
+        if (requestId) {
+          allRequestIds.push(requestId);
+          log.info(`[SP API] v333: 关键词出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
+        }
+        
         const responseKeywords = response.data?.keywords;
         if (responseKeywords) {
           if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
@@ -862,6 +974,12 @@ export class AmazonAdsApiClient {
         }
       } catch (batchErr: any) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${batchErr.message}`);
+        // v333: 尝试从错误响应中提取requestId
+        const errRequestId = batchErr.response?.headers?.['x-amzn-requestid'] || batchErr.response?.headers?.['x-amz-request-id'] || '';
+        if (errRequestId) {
+          allRequestIds.push(errRequestId);
+          log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
+        }
         // 将该批次所有关键词记录为失败
         for (const item of batch) {
           allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: batchErr.message });
@@ -874,8 +992,8 @@ export class AmazonAdsApiClient {
       }
     }
     
-    log.warn(`[SP API] v199: 关键词出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
-    return { success: allErrors.length === 0, errors: allErrors };
+    log.warn(`[SP API] v199: 关键词出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}, requestIds=${allRequestIds.length}`);
+    return { success: allErrors.length === 0, errors: allErrors, requestIds: allRequestIds };
   }
 
   /**
@@ -1122,11 +1240,13 @@ export class AmazonAdsApiClient {
   /**
    * 更新商品定位出价
    */
-  async updateProductTargetBids(updates: Array<{ targetId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+  async updateProductTargetBids(updates: Array<{ targetId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {
     // v199: 添加分批处理
+    // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
     const allErrors: any[] = [];
+    const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1149,6 +1269,13 @@ export class AmazonAdsApiClient {
           },
         });
         
+        // v333: 提取Amazon API响应中的requestId用于端到端日志追踪
+        const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
+        if (requestId) {
+          allRequestIds.push(requestId);
+          log.info(`[SP API] v333: 商品定位出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
+        }
+        
         const responseTargets = response.data?.targetingClauses;
         if (responseTargets) {
           if (responseTargets.error && Array.isArray(responseTargets.error)) {
@@ -1163,6 +1290,12 @@ export class AmazonAdsApiClient {
         }
       } catch (batchErr: any) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${batchErr.message}`);
+        // v333: 尝试从错误响应中提取requestId
+        const errRequestId = batchErr.response?.headers?.['x-amzn-requestid'] || batchErr.response?.headers?.['x-amz-request-id'] || '';
+        if (errRequestId) {
+          allRequestIds.push(errRequestId);
+          log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
+        }
         for (const item of batch) {
           allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: batchErr.message });
         }
@@ -1173,8 +1306,8 @@ export class AmazonAdsApiClient {
       }
     }
     
-    log.warn(`[SP API] v199: 商品定位出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
-    return { success: allErrors.length === 0, errors: allErrors };
+    log.warn(`[SP API] v199: 商品定位出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}, requestIds=${allRequestIds.length}`);
+    return { success: allErrors.length === 0, errors: allErrors, requestIds: allRequestIds };
   }
 
   /**

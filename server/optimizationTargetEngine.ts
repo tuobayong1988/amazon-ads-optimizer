@@ -1527,7 +1527,8 @@ async function executeBidOptimization(
   }
   
   // v148+v123: 先批量同步出价调整到 Amazon API，确认成功后再更新本地DB
-  let apiSyncResult: { success: number; failed: number; errors: string[]; itemResults?: Map<number, { status: 'synced' | 'failed'; error?: string }> } = { success: 0, failed: 0, errors: [] };
+  // v333: 更新类型定义以包含apiResponseId
+  let apiSyncResult: { success: number; failed: number; errors: string[]; itemResults?: Map<number, { status: 'synced' | 'failed'; error?: string; apiResponseId?: string }> } = { success: 0, failed: 0, errors: [] };
   let apiSyncStatus: 'pending' | 'synced' | 'failed' | 'partial' = 'pending';
   
   if (!dryRun && details.length > 0) {
@@ -1683,9 +1684,12 @@ async function executeBidOptimization(
     if (itemResult) {
       // 使用该条目自身的同步状态
       detail.apiSyncStatus = itemResult.status; // 'synced' | 'failed'
+      // v333: 将apiResponseId传递到detail中，供后续日志记录使用
+      detail.apiResponseId = itemResult.apiResponseId || null;
       detail.apiSyncDetail = JSON.stringify({
         status: itemResult.status,
         error: itemResult.error || null,
+        apiResponseId: itemResult.apiResponseId || null,
       });
     } else if (dryRun) {
       detail.apiSyncStatus = 'pending';

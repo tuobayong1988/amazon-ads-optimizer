@@ -5041,6 +5041,15 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     const finalApiSyncStatus = extractedApiSyncStatus || data.apiSyncStatus || 'pending';
     const finalApiSyncDetail = extractedApiSyncDetail || data.apiSyncDetail;
     
+    // v333: 今action_detail中提取apiResponseId
+    let extractedApiResponseId: string | undefined;
+    if (data.actionDetail) {
+      try {
+        const detailObj = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
+        extractedApiResponseId = detailObj.apiResponseId || undefined;
+      } catch { /* ignore */ }
+    }
+    
     await db.insert(optimizationEvents).values({
       performanceGroupId: data.performanceGroupId,
       performanceGroupName: data.performanceGroupName,
@@ -5054,7 +5063,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       strategyTemplateName: data.strategyTemplateName,
       campaignId: data.campaignId,
       campaignName: data.campaignName,
-      // v212: 从action_detail中提取的关键字段
+      // v212: 从 action_detail中提取的关键字段
       keywordId: extractedKeywordId,
       keywordText: extractedKeywordText,
       previousBid: extractedPreviousBid,
@@ -5067,6 +5076,9 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       status: (data.status as any) || 'success',
       apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as any,
       apiSyncDetail: finalApiSyncDetail,
+      // v333: 传递apiResponseId和apiSyncedAt到optimization_events表
+      apiResponseId: extractedApiResponseId || (data as any).apiResponseId || null,
+      apiSyncedAt: (data as any).apiSyncedAt || (finalApiSyncStatus === 'synced' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null),
       errorMessage: data.errorMessage,
       sourceTable: 'optimization_logs',
       sourceId: logId,
