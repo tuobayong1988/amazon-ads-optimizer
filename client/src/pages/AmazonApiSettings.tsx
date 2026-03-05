@@ -2221,11 +2221,7 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'NA' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'NA' });
-                          window.open(
-                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
-                            '_blank'
-                          );
-                          toast.success('已打开北美区域授权页面，授权后将获得美国、加拿大、墨西哥、巴西站点的数据访问权限');
+                          window.location.href = `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                         }}
                       >
                         <Globe className="h-6 w-6" />
@@ -2237,11 +2233,7 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'EU' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'EU' });
-                          window.open(
-                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
-                            '_blank'
-                          );
-                          toast.success('已打开欧洲区域授权页面，授权后将获得英国、德国、法国等站点的数据访问权限');
+                          window.location.href = `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                         }}
                       >
                         <Globe className="h-6 w-6" />
@@ -2253,11 +2245,7 @@ export default function AmazonApiSettings() {
                         className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'FE' ? 'border-primary bg-primary/10' : ''}`}
                         onClick={() => {
                           setCredentials({ ...credentials, region: 'FE' });
-                          window.open(
-                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`,
-                            '_blank'
-                          );
-                          toast.success('已打开远东区域授权页面，授权后将获得日本、澳大利亚、新加坡站点的数据访问权限');
+                          window.location.href = `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053'}&scope=advertising::campaign_management&redirect_uri=${encodeURIComponent('https://www.ppcopt.com/api/auth/callback')}&response_type=code`;
                         }}
                       >
                         <Globe className="h-6 w-6" />

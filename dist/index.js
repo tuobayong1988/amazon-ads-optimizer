@@ -166018,7 +166018,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log67 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 325;
+    SYSTEM_VERSION = 327;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -343719,13 +343719,13 @@ function registerAmazonAuthCallbackRoutes(app) {
     });
     if (error54) {
       console.error("[AmazonAuthCallback] Amazon returned error:", error54);
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(error54)}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(error54)}`;
       res.redirect(302, redirectUrl);
       return;
     }
     if (!code) {
       console.error("[AmazonAuthCallback] No code parameter received");
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent("\u672A\u6536\u5230\u6388\u6743\u7801\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743")}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent("\u672A\u6536\u5230\u6388\u6743\u7801\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743")}`;
       res.redirect(302, redirectUrl);
       return;
     }
@@ -343775,13 +343775,13 @@ function registerAmazonAuthCallbackRoutes(app) {
       if (profiles.length > 0) {
         params.set("profiles", JSON.stringify(profiles));
       }
-      const redirectUrl = `/settings/amazon-api?${params.toString()}`;
+      const redirectUrl = `/amazon-api?${params.toString()}`;
       console.log("[AmazonAuthCallback] Redirecting to settings page with auth result");
       res.redirect(302, redirectUrl);
     } catch (err2) {
       console.error("[AmazonAuthCallback] Token exchange failed:", err2.response?.data || err2.message);
       const errorMsg = err2.response?.data?.error_description || err2.message || "Token\u6362\u53D6\u5931\u8D25";
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);
     }
   });

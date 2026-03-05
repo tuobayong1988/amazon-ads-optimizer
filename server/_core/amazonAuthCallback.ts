@@ -28,7 +28,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
     // 如果Amazon返回了错误（用户拒绝授权等）
     if (error) {
       console.error("[AmazonAuthCallback] Amazon returned error:", error);
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(error)}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(error)}`;
       res.redirect(302, redirectUrl);
       return;
     }
@@ -36,7 +36,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
     // 没有code参数
     if (!code) {
       console.error("[AmazonAuthCallback] No code parameter received");
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent("未收到授权码，请重新授权")}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent("未收到授权码，请重新授权")}`;
       res.redirect(302, redirectUrl);
       return;
     }
@@ -100,14 +100,14 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         params.set('profiles', JSON.stringify(profiles));
       }
 
-      const redirectUrl = `/settings/amazon-api?${params.toString()}`;
+      const redirectUrl = `/amazon-api?${params.toString()}`;
       console.log("[AmazonAuthCallback] Redirecting to settings page with auth result");
 
       res.redirect(302, redirectUrl);
     } catch (err: any) {
       console.error("[AmazonAuthCallback] Token exchange failed:", err.response?.data || err.message);
       const errorMsg = err.response?.data?.error_description || err.message || "Token换取失败";
-      const redirectUrl = `/settings/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
+      const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);
     }
   });
