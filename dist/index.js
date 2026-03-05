@@ -531,7 +531,7 @@ var require_depd = __commonJS({
       var site = callSiteLocation(stack[1]);
       var file2 = site[0];
       function deprecate(message2) {
-        log88.call(deprecate, message2);
+        log89.call(deprecate, message2);
       }
       deprecate._file = file2;
       deprecate._ignored = isignored(namespace);
@@ -560,7 +560,7 @@ var require_depd = __commonJS({
       var str2 = process.env.TRACE_DEPRECATION || "";
       return containsNamespace(str2, namespace);
     }
-    function log88(message2, site) {
+    function log89(message2, site) {
       var haslisteners = eehaslisteners(process, "deprecation");
       if (!haslisteners && this._ignored) {
         return;
@@ -700,7 +700,7 @@ var require_depd = __commonJS({
         "message",
         "site",
         '"use strict"\nreturn function (' + args + ") {log.call(deprecate, message, site)\nreturn fn.apply(this, arguments)\n}"
-      )(fn2, log88, this, message2, site);
+      )(fn2, log89, this, message2, site);
       return deprecatedfn;
     }
     function wrapproperty(obj, prop, message2) {
@@ -725,13 +725,13 @@ var require_depd = __commonJS({
       var set2 = descriptor.set;
       if (typeof get4 === "function") {
         descriptor.get = function getter() {
-          log88.call(deprecate, message2, site);
+          log89.call(deprecate, message2, site);
           return get4.apply(this, arguments);
         };
       }
       if (typeof set2 === "function") {
         descriptor.set = function setter() {
-          log88.call(deprecate, message2, site);
+          log89.call(deprecate, message2, site);
           return set2.apply(this, arguments);
         };
       }
@@ -1568,7 +1568,7 @@ var require_debug = __commonJS({
 var require_browser = __commonJS({
   "node_modules/body-parser/node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug();
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1616,7 +1616,7 @@ var require_browser = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log88() {
+    function log89() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -1657,7 +1657,7 @@ var require_node = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug();
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1708,7 +1708,7 @@ var require_node = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log88() {
+    function log89() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -17915,7 +17915,7 @@ var require_debug2 = __commonJS({
 var require_browser2 = __commonJS({
   "node_modules/finalhandler/node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug2();
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -17963,7 +17963,7 @@ var require_browser2 = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log88() {
+    function log89() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -18004,7 +18004,7 @@ var require_node2 = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug2();
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -18055,7 +18055,7 @@ var require_node2 = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log88() {
+    function log89() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -18634,7 +18634,7 @@ var require_debug3 = __commonJS({
 var require_browser3 = __commonJS({
   "node_modules/express/node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug3();
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -18682,7 +18682,7 @@ var require_browser3 = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log88() {
+    function log89() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -18723,7 +18723,7 @@ var require_node3 = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug3();
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -18774,7 +18774,7 @@ var require_node3 = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log88() {
+    function log89() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -20198,7 +20198,7 @@ var require_debug4 = __commonJS({
 var require_browser4 = __commonJS({
   "node_modules/send/node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug4();
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -20246,7 +20246,7 @@ var require_browser4 = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log88() {
+    function log89() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -20287,7 +20287,7 @@ var require_node4 = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug4();
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -20338,7 +20338,7 @@ var require_node4 = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log88() {
+    function log89() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -25042,7 +25042,7 @@ var require_debug5 = __commonJS({
 var require_browser5 = __commonJS({
   "node_modules/compression/node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug5();
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -25090,7 +25090,7 @@ var require_browser5 = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log88() {
+    function log89() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -25131,7 +25131,7 @@ var require_node5 = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug5();
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -25182,7 +25182,7 @@ var require_node5 = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log88() {
+    function log89() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -39498,43 +39498,43 @@ async function updateProductTarget(id, data2) {
   if (!db) throw new Error("Database not available");
   await db.update(productTargets).set(data2).where(eq(productTargets.id, id));
 }
-async function createBiddingLog(log88) {
+async function createBiddingLog(log89) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const { safeCampaignIdForInsert: safeCampaignIdForInsert2 } = await Promise.resolve().then(() => (init_campaignIdResolver(), campaignIdResolver_exports));
   const safeCampaignId = await safeCampaignIdForInsert2({
-    campaignId: log88.campaignId,
-    targetLocalId: log88.targetId ? Number(log88.targetId) : void 0,
-    targetType: log88.logTargetType || "keyword",
-    adGroupId: log88.adGroupId ? Number(log88.adGroupId) : void 0,
+    campaignId: log89.campaignId,
+    targetLocalId: log89.targetId ? Number(log89.targetId) : void 0,
+    targetType: log89.logTargetType || "keyword",
+    adGroupId: log89.adGroupId ? Number(log89.adGroupId) : void 0,
     caller: "createBiddingLog"
   });
-  log88.campaignId = safeCampaignId;
-  const result = await db.insert(biddingLogs).values(log88);
+  log89.campaignId = safeCampaignId;
+  const result = await db.insert(biddingLogs).values(log89);
   const logId = result[0].insertId;
   try {
-    const bidChange = Number(log88.newBid || 0) - Number(log88.previousBid || 0);
+    const bidChange = Number(log89.newBid || 0) - Number(log89.previousBid || 0);
     await db.insert(optimizationEvents).values({
-      accountId: log88.accountId || 0,
+      accountId: log89.accountId || 0,
       eventCategory: "bid_adjustment",
       actionType: bidChange > 0 ? "bid_increase" : bidChange < 0 ? "bid_decrease" : "bid_set",
       campaignId: Number(safeCampaignId) || null,
-      campaignName: log88.campaignName || null,
-      keywordId: log88.targetId,
-      keywordText: log88.keywordText || null,
-      matchType: log88.logMatchType || null,
-      previousBid: String(log88.previousBid || 0),
-      newBid: String(log88.newBid || 0),
-      bidChangePercent: Number(log88.previousBid) > 0 ? String(Math.round(bidChange / Number(log88.previousBid) * 1e4) / 100) : "0",
-      changeReason: log88.reason || null,
-      adjustmentType: log88.actionType || null,
+      campaignName: log89.campaignName || null,
+      keywordId: log89.targetId,
+      keywordText: log89.keywordText || null,
+      matchType: log89.logMatchType || null,
+      previousBid: String(log89.previousBid || 0),
+      newBid: String(log89.newBid || 0),
+      bidChangePercent: Number(log89.previousBid) > 0 ? String(Math.round(bidChange / Number(log89.previousBid) * 1e4) / 100) : "0",
+      changeReason: log89.reason || null,
+      adjustmentType: log89.actionType || null,
       status: "success",
       apiSyncStatus: "not_applicable",
       sourceTable: "bidding_logs",
       sourceId: Number(logId)
     });
   } catch (e6) {
-    log88.error("[v145] \u53CC\u5199optimization_events\u5931\u8D25(biddingLog):", e6);
+    log89.error("[v145] \u53CC\u5199optimization_events\u5931\u8D25(biddingLog):", e6);
   }
   return logId;
 }
@@ -40700,8 +40700,8 @@ async function createEmailSendLog(data2) {
   if (!db) return null;
   const result = await db.insert(emailSendLogs).values(data2);
   const insertId = result[0].insertId;
-  const [log88] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
-  return log88 || null;
+  const [log89] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
+  return log89 || null;
 }
 async function getEmailSendLogsBySubscription(subscriptionId, limit2 = 20) {
   const db = await getDb();
@@ -42309,25 +42309,25 @@ async function migrateFromBiddingLogs(accountId) {
   if (!db) throw new Error("Database not available");
   const oldLogs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt));
   if (oldLogs.length === 0) return 0;
-  const events = oldLogs.map((log88) => ({
-    accountId: log88.accountId,
+  const events = oldLogs.map((log89) => ({
+    accountId: log89.accountId,
     eventCategory: "bid_adjustment",
-    actionType: log88.actionType === "increase" ? "bid_increase" : log88.actionType === "decrease" ? "bid_decrease" : "bid_set",
-    campaignId: log88.campaignId,
-    adGroupId: log88.adGroupId,
-    keywordId: log88.targetId,
-    targetName: log88.targetName,
-    previousBid: log88.previousBid,
-    newBid: log88.newBid,
-    bidChangePercent: log88.bidChangePercent,
-    changeReason: log88.reason,
-    status: log88.executionStatus === "success" ? "success" : log88.executionStatus === "failed" ? "failed" : "pending",
-    apiSyncStatus: log88.executionStatus === "success" ? "synced" : log88.executionStatus === "failed" ? "failed" : "pending",
-    apiResponseId: log88.apiResponseId,
-    errorMessage: log88.errorMessage,
+    actionType: log89.actionType === "increase" ? "bid_increase" : log89.actionType === "decrease" ? "bid_decrease" : "bid_set",
+    campaignId: log89.campaignId,
+    adGroupId: log89.adGroupId,
+    keywordId: log89.targetId,
+    targetName: log89.targetName,
+    previousBid: log89.previousBid,
+    newBid: log89.newBid,
+    bidChangePercent: log89.bidChangePercent,
+    changeReason: log89.reason,
+    status: log89.executionStatus === "success" ? "success" : log89.executionStatus === "failed" ? "failed" : "pending",
+    apiSyncStatus: log89.executionStatus === "success" ? "synced" : log89.executionStatus === "failed" ? "failed" : "pending",
+    apiResponseId: log89.apiResponseId,
+    errorMessage: log89.errorMessage,
     sourceTable: "bidding_logs",
-    sourceId: log88.id,
-    createdAt: log88.createdAt
+    sourceId: log89.id,
+    createdAt: log89.createdAt
   }));
   await db.insert(optimizationEvents).values(events);
   return events.length;
@@ -42415,34 +42415,34 @@ async function migrateFromOptimizationLogs(performanceGroupId) {
     "settings_update": "settings_update",
     "strategy_change": "strategy_change"
   };
-  const events = oldLogs.map((log88) => {
-    const mappedCategory = categoryMap[log88.logCategory || ""] || "settings_change";
-    const mappedAction = actionTypeMap[log88.actionType || ""] || "settings_update";
+  const events = oldLogs.map((log89) => {
+    const mappedCategory = categoryMap[log89.logCategory || ""] || "settings_change";
+    const mappedAction = actionTypeMap[log89.actionType || ""] || "settings_update";
     return {
-      performanceGroupId: log88.performanceGroupId,
-      performanceGroupName: log88.performanceGroupName,
-      accountId: log88.accountId,
-      accountName: log88.accountName,
-      userId: log88.userId,
-      userName: log88.userName,
+      performanceGroupId: log89.performanceGroupId,
+      performanceGroupName: log89.performanceGroupName,
+      accountId: log89.accountId,
+      accountName: log89.accountName,
+      userId: log89.userId,
+      userName: log89.userName,
       eventCategory: mappedCategory,
       actionType: mappedAction,
-      strategyTemplateId: log88.strategyTemplateId,
-      strategyTemplateName: log88.strategyTemplateName,
-      campaignId: log88.campaignId,
-      campaignName: log88.campaignName,
-      previousValue: log88.previousValue,
-      newValue: log88.newValue,
-      changeReason: log88.changeReason,
-      actionDetail: log88.actionDetail,
-      status: log88.status || "success",
-      apiSyncStatus: log88.apiSyncStatus,
-      apiSyncDetail: log88.apiSyncDetail,
-      errorMessage: log88.errorMessage,
+      strategyTemplateId: log89.strategyTemplateId,
+      strategyTemplateName: log89.strategyTemplateName,
+      campaignId: log89.campaignId,
+      campaignName: log89.campaignName,
+      previousValue: log89.previousValue,
+      newValue: log89.newValue,
+      changeReason: log89.changeReason,
+      actionDetail: log89.actionDetail,
+      status: log89.status || "success",
+      apiSyncStatus: log89.apiSyncStatus,
+      apiSyncDetail: log89.apiSyncDetail,
+      errorMessage: log89.errorMessage,
       sourceTable: "optimization_logs",
-      sourceId: log88.id,
-      createdAt: log88.createdAt,
-      executedAt: log88.executedAt
+      sourceId: log89.id,
+      createdAt: log89.createdAt,
+      executedAt: log89.executedAt
     };
   });
   const batchSize = 500;
@@ -45653,7 +45653,7 @@ var require_node6 = __commonJS({
     var tty = require("tty");
     var util3 = require("util");
     exports2.init = init2;
-    exports2.log = log88;
+    exports2.log = log89;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -45788,7 +45788,7 @@ var require_node6 = __commonJS({
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
-    function log88(...args) {
+    function log89(...args) {
       return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
     }
     function save2(namespaces) {
@@ -62396,9 +62396,9 @@ async function getAlgorithmEfficacyForTarget(targetId, days = 30) {
     let totalConfidence = 0;
     let positiveCount = 0;
     if (bidLogs && bidLogs.length > 0) {
-      for (const log88 of bidLogs) {
+      for (const log89 of bidLogs) {
         try {
-          const detail = typeof log88.action_detail === "string" ? JSON.parse(log88.action_detail) : log88.action_detail;
+          const detail = typeof log89.action_detail === "string" ? JSON.parse(log89.action_detail) : log89.action_detail;
           if (!detail) continue;
           totalOperations++;
           const algorithmUsed = detail.algorithmUsed || detail.algorithm || "";
@@ -65482,9 +65482,9 @@ async function backfillRewards(accountId) {
       gte(rlTrainingLogs.createdAt, hoursAgo168)
     ));
     rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: \u627E\u5230${pendingLogs.length}\u6761\u5F85\u56DE\u586B\u8BB0\u5F55`);
-    for (const log88 of pendingLogs) {
+    for (const log89 of pendingLogs) {
       try {
-        const logDate = new Date(log88.createdAt);
+        const logDate = new Date(log89.createdAt);
         const logAgeHours = (Date.now() - logDate.getTime()) / 36e5;
         const nextDay = new Date(logDate.getTime() + 864e5).toISOString().split("T")[0];
         const twoDaysLater = new Date(logDate.getTime() + 2 * 864e5).toISOString().split("T")[0];
@@ -65495,7 +65495,7 @@ async function backfillRewards(accountId) {
         let rewardSales = 0;
         let dataSource = "none";
         let usedImmediateChannel = false;
-        if (log88.keywordId || log88.targetId) {
+        if (log89.keywordId || log89.targetId) {
           const adjustDate = logDate.toISOString().split("T")[0];
           const beforeDate = new Date(logDate.getTime() - 864e5).toISOString().split("T")[0];
           const afterDate1 = new Date(logDate.getTime() + 864e5).toISOString().split("T")[0];
@@ -65508,8 +65508,8 @@ async function backfillRewards(accountId) {
               totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
               totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
             }).from(dailyPerformance).where(and(
-              eq(dailyPerformance.accountId, log88.accountId),
-              log88.campaignId ? eq(dailyPerformance.campaignId, log88.campaignId) : sql`1=1`,
+              eq(dailyPerformance.accountId, log89.accountId),
+              log89.campaignId ? eq(dailyPerformance.campaignId, log89.campaignId) : sql`1=1`,
               eq(dailyPerformance.date, beforeDate)
             ));
             const afterPerf = await db.select({
@@ -65519,8 +65519,8 @@ async function backfillRewards(accountId) {
               totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
               totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
             }).from(dailyPerformance).where(and(
-              eq(dailyPerformance.accountId, log88.accountId),
-              log88.campaignId ? eq(dailyPerformance.campaignId, log88.campaignId) : sql`1=1`,
+              eq(dailyPerformance.accountId, log89.accountId),
+              log89.campaignId ? eq(dailyPerformance.campaignId, log89.campaignId) : sql`1=1`,
               gte(dailyPerformance.date, afterDate1),
               lte(dailyPerformance.date, afterDate2)
             ));
@@ -65540,14 +65540,14 @@ async function backfillRewards(accountId) {
             }
           }
           if (dataSource === "none") {
-            if (log88.keywordId) {
+            if (log89.keywordId) {
               const kwPerf = await db.select({
                 impressions: keywords.impressions,
                 clicks: keywords.clicks,
                 orders: keywords.orders,
                 spend: keywords.spend,
                 sales: keywords.sales
-              }).from(keywords).where(eq(keywords.id, log88.keywordId)).limit(1);
+              }).from(keywords).where(eq(keywords.id, log89.keywordId)).limit(1);
               if (kwPerf[0]) {
                 const ci2 = Number(kwPerf[0].impressions) || 0;
                 const cc = Number(kwPerf[0].clicks) || 0;
@@ -65569,14 +65569,14 @@ async function backfillRewards(accountId) {
                   usedImmediateChannel = true;
                 }
               }
-            } else if (log88.targetId) {
+            } else if (log89.targetId) {
               const tgtPerf = await db.select({
                 impressions: productTargets.impressions,
                 clicks: productTargets.clicks,
                 orders: productTargets.orders,
                 spend: productTargets.spend,
                 sales: productTargets.sales
-              }).from(productTargets).where(eq(productTargets.id, log88.targetId)).limit(1);
+              }).from(productTargets).where(eq(productTargets.id, log89.targetId)).limit(1);
               if (tgtPerf[0]) {
                 const ci2 = Number(tgtPerf[0].impressions) || 0;
                 const cc = Number(tgtPerf[0].clicks) || 0;
@@ -65613,8 +65613,8 @@ async function backfillRewards(accountId) {
             totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
             totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
           }).from(dailyPerformance).where(and(
-            eq(dailyPerformance.accountId, log88.accountId),
-            log88.campaignId ? eq(dailyPerformance.campaignId, log88.campaignId) : sql`1=1`,
+            eq(dailyPerformance.accountId, log89.accountId),
+            log89.campaignId ? eq(dailyPerformance.campaignId, log89.campaignId) : sql`1=1`,
             gte(dailyPerformance.date, nextDay),
             lte(dailyPerformance.date, threeDaysLater)
           ));
@@ -65630,16 +65630,16 @@ async function backfillRewards(accountId) {
           try {
             const { optimizationEvents: optimizationEvents7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
             const entityConditions = [
-              eq(optimizationEvents7.accountId, log88.accountId),
+              eq(optimizationEvents7.accountId, log89.accountId),
               sql`${optimizationEvents7.eventCategory} = 'bid_adjustment'`,
               sql`${optimizationEvents7.status} = 'success'`,
               gte(optimizationEvents7.createdAt, new Date(logDate.getTime() - 36e5).toISOString()),
               lte(optimizationEvents7.createdAt, new Date(logDate.getTime() + 48 * 36e5).toISOString())
             ];
-            if (log88.keywordId) {
-              entityConditions.push(eq(optimizationEvents7.keywordId, log88.keywordId));
-            } else if (log88.targetId) {
-              entityConditions.push(eq(optimizationEvents7.targetId, log88.targetId));
+            if (log89.keywordId) {
+              entityConditions.push(eq(optimizationEvents7.keywordId, log89.keywordId));
+            } else if (log89.targetId) {
+              entityConditions.push(eq(optimizationEvents7.targetId, log89.targetId));
             }
             const eventData = await db.select({
               performanceData: optimizationEvents7.performanceData,
@@ -65663,8 +65663,8 @@ async function backfillRewards(accountId) {
           }
         }
         if (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0) {
-          const bidBefore = Number(log88.actionBidBefore) || 0;
-          const bidAfter = Number(log88.actionBidAfter) || 0;
+          const bidBefore = Number(log89.actionBidBefore) || 0;
+          const bidAfter = Number(log89.actionBidAfter) || 0;
           const bidChangeRatio = bidBefore > 0 ? (bidAfter - bidBefore) / bidBefore : 0;
           let syntheticReward = 0;
           if (Math.abs(bidChangeRatio) <= 0.15) {
@@ -65682,12 +65682,12 @@ async function backfillRewards(accountId) {
             rewardSales: "0",
             rewardProfit: "0",
             rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
-          }).where(eq(rlTrainingLogs.id, log88.id));
+          }).where(eq(rlTrainingLogs.id, log89.id));
           filledCount++;
           continue;
         }
         const rewardProfit = rewardSales - rewardSpend;
-        const bidDelta = Number(log88.actionBidAfter) - Number(log88.actionBidBefore);
+        const bidDelta = Number(log89.actionBidAfter) - Number(log89.actionBidBefore);
         const reward = rewardSpend > 0 ? rewardProfit / rewardSpend : rewardProfit;
         await db.update(rlTrainingLogs).set({
           reward: String(reward),
@@ -65698,11 +65698,11 @@ async function backfillRewards(accountId) {
           rewardSales: String(rewardSales),
           rewardProfit: String(rewardProfit),
           rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
-        }).where(eq(rlTrainingLogs.id, log88.id));
+        }).where(eq(rlTrainingLogs.id, log89.id));
         if (usedImmediateChannel) immediateFilledCount++;
         filledCount++;
       } catch (e6) {
-        rlLog.error(`[RLDataRecorder] Failed to fill reward for log ${log88.id}:`, e6);
+        rlLog.error(`[RLDataRecorder] Failed to fill reward for log ${log89.id}:`, e6);
       }
     }
     rlLog.info(`[backfillRewards] \u8D26\u6237${accountId}: v259\u589E\u5F3A\u56DE\u586B\u5B8C\u6210, \u5F85\u56DE\u586B=${pendingLogs.length}, \u6210\u529F\u56DE\u586B=${filledCount}, \u5373\u65F6\u901A\u9053A=${immediateFilledCount}, \u96F6\u6570\u636E\u4E2D\u6027=${skippedNoData}, \u96F6\u6570\u636E\u91CD\u8BD5\u6210\u529F=${retriedFromZero}`);
@@ -81011,9 +81011,9 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
     if (groupCampaigns.length === 0) return [];
     const campaignIds = groupCampaigns.map((c5) => c5.id);
     const assessments = [];
-    for (const log88 of logs) {
+    for (const log89 of logs) {
       try {
-        const logDate = new Date(log88.createdAt);
+        const logDate = new Date(log89.createdAt);
         const preStartDate = new Date(logDate);
         preStartDate.setDate(preStartDate.getDate() - 7);
         const preData = await getTimeWeightedCampaignMetrics(
@@ -81033,7 +81033,7 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
           actualEndDate.toISOString().split("T")[0]
         );
         if (!preData || !postData) continue;
-        const effectScore = calculateEffectScore2(preData, postData, log88);
+        const effectScore = calculateEffectScore2(preData, postData, log89);
         const effectCategory = categorizeEffect(effectScore);
         const needsCorrection = effectScore < -20;
         let correctionType;
@@ -81048,14 +81048,14 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
         let entityId = "";
         let entityType = "keyword";
         try {
-          const detail = JSON.parse(log88.actionDetail || "{}");
+          const detail = JSON.parse(log89.actionDetail || "{}");
           entityId = detail.keywordId?.toString() || detail.targetId?.toString() || "";
           entityType = detail.targetType || "keyword";
         } catch {
         }
         assessments.push({
-          logId: log88.id,
-          actionType: log88.actionType || "bid_adjustment",
+          logId: log89.id,
+          actionType: log89.actionType || "bid_adjustment",
           performanceGroupId,
           entityId,
           entityType,
@@ -81074,7 +81074,7 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
           correctionReason
         });
       } catch (logErr) {
-        log88.error(`[selfEvolution] Error evaluating log ${log88.id}:`, logErr);
+        log89.error(`[selfEvolution] Error evaluating log ${log89.id}:`, logErr);
       }
     }
     return assessments;
@@ -81253,15 +81253,15 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
   for (const assessment of assessments) {
     if (!assessment.needsCorrection) continue;
     try {
-      const [log88] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, assessment.logId)).limit(1);
-      if (!log88) continue;
+      const [log89] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, assessment.logId)).limit(1);
+      if (!log89) continue;
       let originalValue = 0;
       let currentValue = 0;
       let correctedValue = 0;
       let correctionType = "rollback_bid";
       try {
-        const detail = JSON.parse(log88.actionDetail || "{}");
-        if (log88.actionType === "bid_adjustment") {
+        const detail = JSON.parse(log89.actionDetail || "{}");
+        if (log89.actionType === "bid_adjustment") {
           originalValue = parseFloat(detail.previousBid || detail.oldBid || "0");
           currentValue = parseFloat(detail.newBid || "0");
           correctionType = "rollback_bid";
@@ -81270,12 +81270,12 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
           } else {
             correctedValue = Math.round((originalValue + currentValue) / 2 * 100) / 100;
           }
-        } else if (log88.actionType === "budget_adjustment") {
+        } else if (log89.actionType === "budget_adjustment") {
           originalValue = parseFloat(detail.previousBudget || detail.oldBudget || "0");
           currentValue = parseFloat(detail.newBudget || "0");
           correctionType = "rollback_budget";
           correctedValue = assessment.correctionType === "rollback" ? originalValue : Math.round((originalValue + currentValue) / 2 * 100) / 100;
-        } else if (log88.actionType === "placement_adjustment") {
+        } else if (log89.actionType === "placement_adjustment") {
           originalValue = parseFloat(detail.previousMultiplier || "0");
           currentValue = parseFloat(detail.newMultiplier || "0");
           correctionType = "rollback_placement";
@@ -88765,8 +88765,8 @@ async function createAuditLog(data2) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data2);
-  const [log88] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
-  return log88;
+  const [log89] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
+  return log89;
 }
 async function logAudit(params) {
   const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "\u672A\u77E5\u64CD\u4F5C";
@@ -88829,8 +88829,8 @@ async function getAuditLogs(params) {
 async function getAuditLogById(id) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [log88] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
-  return log88 || null;
+  const [log89] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+  return log89 || null;
 }
 async function getUserAuditStats(userId, days = 30) {
   const db = await getDb();
@@ -88923,18 +88923,18 @@ async function exportAuditLogsToCSV(params) {
     "\u72B6\u6001",
     "IP\u5730\u5740"
   ];
-  const rows = logs.map((log88) => [
-    log88.id,
-    String(log88.createdAt),
-    log88.userName || "",
-    log88.userEmail || "",
-    ACTION_DESCRIPTIONS[log88.actionType] || log88.actionType,
-    log88.description || "",
-    TARGET_TYPE_DESCRIPTIONS[log88.targetType || ""] || log88.targetType || "",
-    log88.targetName || "",
-    log88.accountName || "",
-    log88.status,
-    log88.ipAddress || ""
+  const rows = logs.map((log89) => [
+    log89.id,
+    String(log89.createdAt),
+    log89.userName || "",
+    log89.userEmail || "",
+    ACTION_DESCRIPTIONS[log89.actionType] || log89.actionType,
+    log89.description || "",
+    TARGET_TYPE_DESCRIPTIONS[log89.targetType || ""] || log89.targetType || "",
+    log89.targetName || "",
+    log89.accountName || "",
+    log89.status,
+    log89.ipAddress || ""
   ]);
   const csvContent = [
     headers.join(","),
@@ -134740,23 +134740,23 @@ function augmentCodeLocation(properties, pos, source, id) {
     properties.frame = getCodeFrame(source, line, column);
   }
 }
-function augmentLogMessage(log88) {
-  if (!(log88.plugin || log88.loc) || log88[symbolAugmented]) {
+function augmentLogMessage(log89) {
+  if (!(log89.plugin || log89.loc) || log89[symbolAugmented]) {
     return;
   }
-  log88[symbolAugmented] = true;
+  log89[symbolAugmented] = true;
   let prefix = "";
-  if (log88.plugin) {
-    prefix += `[plugin ${log88.plugin}] `;
+  if (log89.plugin) {
+    prefix += `[plugin ${log89.plugin}] `;
   }
-  const id = log88.id || log88.loc?.file;
+  const id = log89.id || log89.loc?.file;
   if (id) {
-    const position = log88.loc ? ` (${log88.loc.line}:${log88.loc.column})` : "";
+    const position = log89.loc ? ` (${log89.loc.line}:${log89.loc.column})` : "";
     prefix += `${relativeId(id)}${position}: `;
   }
-  const oldMessage = log88.message;
-  log88.message = prefix + log88.message;
-  tweakStackMessage(log88, oldMessage);
+  const oldMessage = log89.message;
+  log89.message = prefix + log89.message;
+  tweakStackMessage(log89, oldMessage);
 }
 function logAddonNotGenerated(message2, hook, plugin2) {
   return {
@@ -135386,13 +135386,13 @@ function logFailedValidation(message2) {
 function warnDeprecation(deprecation, urlSnippet, activeDeprecation, options, plugin2) {
   warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, options.onLog, options.strictDeprecations);
 }
-function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log88, strictDeprecations, plugin2) {
+function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log89, strictDeprecations, plugin2) {
   if (activeDeprecation || strictDeprecations) {
     const warning = logDeprecation(deprecation, urlSnippet);
     if (strictDeprecations) {
       return error49(warning);
     }
-    log88(LOGLEVEL_WARN, warning);
+    log89(LOGLEVEL_WARN, warning);
   }
 }
 function convertProgram(buffer) {
@@ -159816,14 +159816,14 @@ function updateExtensionForRelativeAmdId(id, forceJsExtensionForImports) {
   }
   return forceJsExtensionForImports ? addJsExtension(id) : removeJsExtension(id);
 }
-function warnOnBuiltins(log88, dependencies) {
+function warnOnBuiltins(log89, dependencies) {
   const externalBuiltins = dependencies.map(({ importPath }) => importPath).filter((importPath) => nodeBuiltins.has(importPath) || importPath.startsWith("node:"));
   if (externalBuiltins.length === 0)
     return;
-  log88(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
+  log89(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
 }
-function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log88, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
-  warnOnBuiltins(log88, dependencies);
+function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log89, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
+  warnOnBuiltins(log89, dependencies);
   const deps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const parameters = dependencies.map((m4) => m4.name);
   const { n: n7, getNonArrowFunctionIntro, _: _3 } = snippets;
@@ -159979,11 +159979,11 @@ function getExportBlock(exports$1, { _: _3, cnst }) {
   }
   return exportBlock;
 }
-function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log88) {
+function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log89) {
   const parts = name2.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log88 && isReserved) {
-    log88(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log89 && isReserved) {
+    log89(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   parts.pop();
@@ -159993,11 +159993,11 @@ function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4
     return `${propertyPath}${_3}=${_3}${propertyPath}${_3}||${_3}{}${s4}`;
   }).join(compact ? "," : "\n") + (compact && parts.length > 0 ? ";" : "\n");
 }
-function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log88) {
+function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log89) {
   const parts = deepName.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log88 && isReserved) {
-    log88(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log89 && isReserved) {
+    log89(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   const last = parts.pop();
@@ -160024,19 +160024,19 @@ function trimEmptyImports(dependencies) {
   }
   return [];
 }
-function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log88, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
+function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log89, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
   const { _: _3, getNonArrowFunctionIntro, getPropertyAccess, n: n7 } = snippets;
   const isNamespaced = name2 && name2.includes(".");
   const useVariableAssignment = !extend3 && !isNamespaced;
   if (name2 && useVariableAssignment && !isLegal(name2)) {
     return error49(logIllegalIdentifierAsName(name2));
   }
-  warnOnBuiltins(log88, dependencies);
+  warnOnBuiltins(log89, dependencies);
   const external = trimEmptyImports(dependencies);
   const deps = external.map((dep) => dep.globalName || "null");
   const parameters = external.map((m4) => m4.name);
   if (hasExports && !name2) {
-    log88(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
+    log89(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
   }
   if (hasExports && (namedExportsMode || exports$1[0]?.local === "exports.default")) {
     if (extend3) {
@@ -160059,7 +160059,7 @@ function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1,
       wrapperIntro = (useVariableAssignment ? `var ${name2}` : `this${keypath(name2, getPropertyAccess)}`) + `${_3}=${_3}${wrapperIntro}`;
     }
     if (isNamespaced) {
-      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log88) + wrapperIntro;
+      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log89) + wrapperIntro;
     }
   }
   let wrapperOutro = `${n7}${n7}})(${deps.join(`,${_3}`)});`;
@@ -160160,14 +160160,14 @@ function safeAccess(name2, globalVariable, { _: _3, getPropertyAccess }) {
   let propertyPath = globalVariable;
   return name2.split(".").map((part) => propertyPath += getPropertyAccess(part)).join(`${_3}&&${_3}`);
 }
-function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log88, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
+function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log89, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
   const { _: _3, cnst, getFunctionIntro, getNonArrowFunctionIntro, getPropertyAccess, n: n7, s: s4 } = snippets;
   const factoryVariable = compact ? "f" : "factory";
   const globalVariable = compact ? "g" : "global";
   if (hasExports && !name2) {
     return error49(logMissingNameOptionForUmdExport());
   }
-  warnOnBuiltins(log88, dependencies);
+  warnOnBuiltins(log89, dependencies);
   const amdDeps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const cjsDeps = dependencies.map((m4) => `require('${m4.importPath}')`);
   const trimmedImports = trimEmptyImports(dependencies);
@@ -160176,7 +160176,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   if ((hasExports || noConflict) && (namedExportsMode || hasExports && exports$1[0]?.local === "exports.default")) {
     amdDeps.unshift(`'exports'`);
     cjsDeps.unshift(`exports`);
-    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log88));
+    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log89));
     factoryParameters.unshift("exports");
   }
   const completeAmdId = getCompleteAmdId(amd2, id);
@@ -160189,7 +160189,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
     const noConflictExportsVariable = compact ? "e" : "exports";
     let factory2;
     if (!namedExportsMode && hasExports) {
-      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log88)};`;
+      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log89)};`;
     } else {
       const module2 = globalDeps.shift();
       factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${module2};${n7}${t7}${t7}${factoryVariable}(${[noConflictExportsVariable, ...globalDeps].join(`,${_3}`)});`;
@@ -160201,7 +160201,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   } else {
     iifeExport = `${factoryVariable}(${globalDeps.join(`,${_3}`)})`;
     if (!namedExportsMode && hasExports) {
-      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log88);
+      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log89);
     }
   }
   const iifeNeedsGlobal = hasExports || noConflict && namedExportsMode || globalDeps.length > 0;
@@ -162371,7 +162371,7 @@ function assignExportsToNames(exports$1, exportsByName, exportNamesByVariable) {
     exportNamesByVariable.set(variable, [exportName]);
   }
 }
-function getExportMode(chunk, { exports: exportMode, name: name2, format: format3 }, facadeModuleId, log88) {
+function getExportMode(chunk, { exports: exportMode, name: name2, format: format3 }, facadeModuleId, log89) {
   const exportKeys = chunk.getExportNames();
   if (exportMode === "default") {
     if (exportKeys.length !== 1 || exportKeys[0] !== "default") {
@@ -162387,7 +162387,7 @@ function getExportMode(chunk, { exports: exportMode, name: name2, format: format
       exportMode = "default";
     } else {
       if (format3 !== "es" && format3 !== "system" && exportKeys.includes("default")) {
-        log88(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
+        log89(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
       }
       exportMode = "named";
     }
@@ -162480,13 +162480,13 @@ function makeUnique(name2, { [lowercaseBundleKeys]: reservedLowercaseBundleKeys 
     ;
   return uniqueName;
 }
-function getGlobalName(chunk, globals, hasExports, log88) {
+function getGlobalName(chunk, globals, hasExports, log89) {
   const globalName = typeof globals === "function" ? globals(chunk.id) : globals[chunk.id];
   if (globalName) {
     return globalName;
   }
   if (hasExports) {
-    log88(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
+    log89(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
     return chunk.variableName;
   }
 }
@@ -162519,7 +162519,7 @@ function* concatLazy(iterables) {
     yield* iterable;
   }
 }
-function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log88, isManualChunksFunctionForm, onlyExplicitManualChunks) {
+function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log89, isManualChunksFunctionForm, onlyExplicitManualChunks) {
   const { chunkDefinitions, modulesInManualChunks } = getChunkDefinitionsFromManualChunks(manualChunkAliasByEntry, isManualChunksFunctionForm, onlyExplicitManualChunks);
   const { allEntries, dependentEntriesByModule, dynamicallyDependentEntriesByDynamicEntry, dynamicImportsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry } = analyzeModuleGraph(entries);
   const chunkAtoms = getChunksWithSameDependentEntries(getModulesWithDependentEntriesAndHandleTLACycles(dependentEntriesByModule, modulesInManualChunks, chunkDefinitions));
@@ -162528,7 +162528,7 @@ function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log
   const awaitedAlreadyLoadedAtomsByEntry = getAlreadyLoadedAtomsByEntry(staticDependencyAtomsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry, allEntries);
   removeUnnecessaryDependentEntries(chunkAtoms, alreadyLoadedAtomsByEntry, awaitedAlreadyLoadedAtomsByEntry);
   const { chunks, sideEffectAtoms, sizeByAtom } = getChunksWithSameDependentEntriesAndCorrelatedAtoms(chunkAtoms, staticDependencyAtomsByEntry, alreadyLoadedAtomsByEntry, minChunkSize);
-  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log88).map(({ modules }) => ({
+  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log89).map(({ modules }) => ({
     alias: null,
     modules
   })));
@@ -162815,7 +162815,7 @@ function addChunkDependenciesAndGetExternalSideEffectAtoms(chunks, chunkByModule
   }
   return externalSideEffectAtoms;
 }
-function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log88) {
+function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log89) {
   timeStart("optimize chunks", 3);
   const chunkPartition = getPartitionedChunks(chunks, minChunkSize);
   if (!chunkPartition) {
@@ -162823,11 +162823,11 @@ function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, l
     return chunks;
   }
   if (minChunkSize > 1) {
-    log88("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
+    log89("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
   }
   mergeChunks(chunkPartition, minChunkSize, sideEffectAtoms, sizeByAtom);
   if (minChunkSize > 1) {
-    log88("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
+    log89("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
   }
   timeEnd("optimize chunks", 3);
   return [...chunkPartition.small, ...chunkPartition.big];
@@ -163081,12 +163081,12 @@ function getGenerateCodeSnippets({ compact, generatedCode: { arrowFunctions, con
     s: s4
   };
 }
-function getLinkMap(log88) {
+function getLinkMap(log89) {
   return function linkMap(source, map4) {
     if (!map4.missing) {
       return new Link(map4, [source]);
     }
-    log88(LOGLEVEL_WARN, logSourcemapBroken(map4.plugin));
+    log89(LOGLEVEL_WARN, logSourcemapBroken(map4.plugin));
     return new Link({
       mappings: [],
       names: []
@@ -163107,8 +163107,8 @@ function getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapCha
   }
   return sourcemapChain.reduce(linkMap, source);
 }
-function collapseSourcemaps(file2, map4, modules, bundleSourcemapChain, excludeContent, log88) {
-  const linkMap = getLinkMap(log88);
+function collapseSourcemaps(file2, map4, modules, bundleSourcemapChain, excludeContent, log89) {
+  const linkMap = getLinkMap(log89);
   const moduleSources = modules.filter((module2) => !module2.excludeFromSourcemap).map((module2) => getCollapsedSourcemap(module2.id, module2.originalCode, module2.originalSourcemap, module2.sourcemapChain, linkMap));
   const link = new Link(map4, moduleSources);
   const source = bundleSourcemapChain.reduce(linkMap, link);
@@ -163129,11 +163129,11 @@ function collapseSourcemaps(file2, map4, modules, bundleSourcemapChain, excludeC
     sourcesContent: excludeContent ? void 0 : sourcesContent
   });
 }
-function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log88) {
+function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log89) {
   if (sourcemapChain.length === 0) {
     return originalSourcemap;
   }
-  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log88));
+  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log89));
   const map4 = source.traceMappings();
   return decodedSourcemap({ version: 3, ...map4 });
 }
@@ -163147,7 +163147,7 @@ function ensureBuffer(input) {
   }
   return input;
 }
-async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log88) {
+async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log89) {
   timeStart("render chunks", 2);
   reserveEntryChunksInBundle(chunks);
   const renderedChunks = await Promise.all(chunks.map((chunk) => chunk.render()));
@@ -163155,7 +163155,7 @@ async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log88) 
   timeStart("transform chunks", 2);
   const getHash2 = hasherByType[outputOptions.hashCharacters];
   const chunkGraph = getChunkGraph(chunks);
-  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log88);
+  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log89);
   const hashesByPlaceholder = generateFinalHashes(renderedChunksByPlaceholder, hashDependenciesByPlaceholder, initialHashesByPlaceholder, placeholders, bundle, getHash2);
   addChunksToBundle(renderedChunksByPlaceholder, hashesByPlaceholder, bundle, nonHashedChunksWithPlaceholders, pluginDriver, outputOptions);
   timeEnd("transform chunks", 2);
@@ -163173,7 +163173,7 @@ function getChunkGraph(chunks) {
     return [renderedChunkInfo.fileName, renderedChunkInfo];
   }));
 }
-async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log88) {
+async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log89) {
   let map4 = null;
   const sourcemapChain = [];
   let code = await outputPluginDriver.hookReduceArg0("renderChunk", [magicString.toString(), chunkGraph[fileName], options, { chunks: chunkGraph }], (code2, result, plugin2) => {
@@ -163203,7 +163203,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     else
       resultingFile = (0, import_node_path4.resolve)(fileName);
     const decodedMap2 = magicString.generateDecodedMap({});
-    map4 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log88);
+    map4 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log89);
     for (let sourcesIndex = 0; sourcesIndex < map4.sources.length; ++sourcesIndex) {
       let sourcePath = map4.sources[sourcesIndex];
       const sourcemapPath = `${resultingFile}.map`;
@@ -163234,7 +163234,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     map: map4
   };
 }
-async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log88) {
+async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log89) {
   const nonHashedChunksWithPlaceholders = [];
   const renderedChunksByPlaceholder = /* @__PURE__ */ new Map();
   const hashDependenciesByPlaceholder = /* @__PURE__ */ new Map();
@@ -163249,7 +163249,7 @@ async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGrap
       chunk,
       fileName,
       sourcemapFileName: preliminarySourcemapFileName?.fileName ?? null,
-      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log88)
+      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log89)
     };
     const { code, map: map4 } = transformedChunk;
     if (hashPlaceholder) {
@@ -163369,7 +163369,7 @@ function calculateDebugIdAndGetComment(code, map4) {
   map4.debugId = debugId;
   return "//# debugId=" + debugId + "\n";
 }
-function validateOptionsForMultiChunkOutput(outputOptions, log88) {
+function validateOptionsForMultiChunkOutput(outputOptions, log89) {
   if (outputOptions.format === "umd" || outputOptions.format === "iife")
     return error49(logInvalidOption("output.format", URL_OUTPUT_FORMAT, "UMD and IIFE output formats are not supported for code-splitting builds", outputOptions.format));
   if (typeof outputOptions.file === "string")
@@ -163377,7 +163377,7 @@ function validateOptionsForMultiChunkOutput(outputOptions, log88) {
   if (outputOptions.sourcemapFile)
     return error49(logInvalidOption("output.sourcemapFile", URL_OUTPUT_SOURCEMAPFILE, '"output.sourcemapFile" is only supported for single-file builds'));
   if (!outputOptions.amd.autoId && outputOptions.amd.id)
-    log88(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
+    log89(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
 }
 function getIncludedModules(modulesById) {
   const includedModules = [];
@@ -163528,11 +163528,11 @@ async function asyncFlatten(array2) {
   } while (array2.some((v6) => v6?.then));
   return array2;
 }
-function warnUnknownOptions(passedOptions, validOptions, optionType, log88, ignoredKeys = /$./) {
+function warnUnknownOptions(passedOptions, validOptions, optionType, log89, ignoredKeys = /$./) {
   const validOptionSet = new Set(validOptions);
   const unknownOptions = Object.keys(passedOptions).filter((key) => !(validOptionSet.has(key) || ignoredKeys.test(key)));
   if (unknownOptions.length > 0) {
-    log88(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
+    log89(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
   }
 }
 function createPluginCache(cache6) {
@@ -163642,13 +163642,13 @@ async function transform2(source, module2, pluginDriver, options) {
     currentSource = code2;
     return code2;
   }
-  const getLogHandler2 = (handler) => (log88, pos) => {
-    log88 = normalizeLog(log88);
+  const getLogHandler2 = (handler) => (log89, pos) => {
+    log89 = normalizeLog(log89);
     if (pos)
-      augmentCodeLocation(log88, pos, currentSource, id);
-    log88.id = id;
-    log88.hook = "transform";
-    handler(log88);
+      augmentCodeLocation(log89, pos, currentSource, id);
+    log89.id = id;
+    log89.hook = "transform";
+    handler(log89);
   };
   let code;
   try {
@@ -163765,9 +163765,9 @@ function generateAssetFileName(name2, names, source, originalFileName, originalF
     name: () => emittedName.slice(0, Math.max(0, emittedName.length - (0, import_node_path4.extname)(emittedName).length))
   }), bundle);
 }
-function reserveFileNameInBundle(fileName, { bundle }, log88) {
+function reserveFileNameInBundle(fileName, { bundle }, log89) {
   if (bundle[lowercaseBundleKeys].has(fileName.toLowerCase())) {
-    log88(LOGLEVEL_WARN, logFileNameConflict(fileName));
+    log89(LOGLEVEL_WARN, logFileNameConflict(fileName));
   } else {
     bundle[fileName] = FILE_PLACEHOLDER;
   }
@@ -163820,17 +163820,17 @@ function getLogHandler(level, code, logger3, pluginName, logLevel) {
   if (logLevelPriority[level] < logLevelPriority[logLevel]) {
     return doNothing;
   }
-  return (log88, pos) => {
+  return (log89, pos) => {
     if (pos != null) {
       logger3(LOGLEVEL_WARN, logInvalidLogPosition(pluginName));
     }
-    log88 = normalizeLog(log88);
-    if (log88.code && !log88.pluginCode) {
-      log88.pluginCode = log88.code;
+    log89 = normalizeLog(log89);
+    if (log89.code && !log89.pluginCode) {
+      log89.pluginCode = log89.code;
     }
-    log88.code = code;
-    log88.plugin = pluginName;
-    logger3(level, log88);
+    log89.code = code;
+    log89.plugin = pluginName;
+    logger3(level, log89);
   };
 }
 function getPluginContext(plugin2, pluginCache, graph, options, fileEmitter, existingPluginNames) {
@@ -164102,8 +164102,8 @@ async function initWasm() {
 function getLogger(plugins, onLog, watchMode, logLevel) {
   plugins = getSortedValidatedPlugins("onLog", plugins);
   const minimalPriority = logLevelPriority[logLevel];
-  const logger3 = (level, log88, skipped = EMPTY_SET) => {
-    augmentLogMessage(log88);
+  const logger3 = (level, log89, skipped = EMPTY_SET) => {
+    augmentLogMessage(log89);
     const logPriority = logLevelPriority[level];
     if (logPriority < minimalPriority) {
       return;
@@ -164116,20 +164116,20 @@ function getLogger(plugins, onLog, watchMode, logLevel) {
         if (logLevelPriority[level2] < minimalPriority) {
           return doNothing;
         }
-        return (log89) => logger3(level2, normalizeLog(log89), new Set(skipped).add(plugin2));
+        return (log90) => logger3(level2, normalizeLog(log90), new Set(skipped).add(plugin2));
       };
       const handler = "handler" in pluginOnLog ? pluginOnLog.handler : pluginOnLog;
       if (handler.call({
         debug: getLogHandler2(LOGLEVEL_DEBUG),
-        error: (log89) => error49(normalizeLog(log89)),
+        error: (log90) => error49(normalizeLog(log90)),
         info: getLogHandler2(LOGLEVEL_INFO),
         meta: { rollupVersion: version4, watchMode },
         warn: getLogHandler2(LOGLEVEL_WARN)
-      }, level, log88) === false) {
+      }, level, log89) === false) {
         return;
       }
     }
-    onLog(level, log88);
+    onLog(level, log89);
   };
   return logger3;
 }
@@ -164536,15 +164536,15 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
   const plugins = await normalizePluginOption(config2.plugins);
   const logLevel = config2.logLevel || LOGLEVEL_INFO;
   const onLog = getOnLog(config2, logLevel, printLog);
-  const log88 = getLogger(plugins, onLog, watchMode, logLevel);
-  const inputOptions = mergeInputOptions(config2, command, plugins, log88, onLog);
+  const log89 = getLogger(plugins, onLog, watchMode, logLevel);
+  const inputOptions = mergeInputOptions(config2, command, plugins, log89, onLog);
   if (command.output) {
     Object.assign(command, command.output);
   }
   const outputOptionsArray = ensureArray2(config2.output);
   if (outputOptionsArray.length === 0)
     outputOptionsArray.push({});
-  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log88)));
+  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log89)));
   warnUnknownOptions(command, [
     ...Object.keys(inputOptions).filter((option) => option !== "fs"),
     ...Object.keys(outputOptions[0]).filter((option) => option !== "sourcemapIgnoreList" && option !== "sourcemapPathTransform"),
@@ -164561,7 +164561,7 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
     "silent",
     "stdin",
     "waitForBundleInput"
-  ], "CLI flags", log88, /^_$|output$|config/);
+  ], "CLI flags", log89, /^_$|output$|config/);
   inputOptions.output = outputOptions;
   return inputOptions;
 }
@@ -164580,7 +164580,7 @@ function getCommandOptions(rawCommandOptions) {
     }, /* @__PURE__ */ Object.create(null)) : void 0
   };
 }
-function mergeInputOptions(config2, overrides, plugins, log88, onLog) {
+function mergeInputOptions(config2, overrides, plugins, log89, onLog) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const inputOptions = {
     cache: config2.cache,
@@ -164606,10 +164606,10 @@ function mergeInputOptions(config2, overrides, plugins, log88, onLog) {
     treeshake: getObjectOption(config2, overrides, "treeshake", objectifyOptionWithPresets(treeshakePresets, "treeshake", URL_TREESHAKE, "false, true, ")),
     watch: getWatch(config2, overrides)
   };
-  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log88, /^output$/);
+  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log89, /^output$/);
   return inputOptions;
 }
-async function mergeOutputOptions(config2, overrides, log88) {
+async function mergeOutputOptions(config2, overrides, log89) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const outputOptions = {
     amd: getObjectOption(config2, overrides, "amd"),
@@ -164665,7 +164665,7 @@ async function mergeOutputOptions(config2, overrides, log88) {
     validate: getOption("validate"),
     virtualDirname: getOption("virtualDirname")
   };
-  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log88);
+  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log89);
   return outputOptions;
 }
 async function loadFsEvents() {
@@ -174291,8 +174291,8 @@ var init_node_entry = __esm({
           if (node.hasEffects(context)) {
             if (this.scope.context.options.experimentalLogSideEffects && !this.hasLoggedEffect) {
               this.hasLoggedEffect = true;
-              const { code, log: log88, module: module2 } = this.scope.context;
-              log88(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
+              const { code, log: log89, module: module2 } = this.scope.context;
+              log89(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
             }
             return this.hasCachedEffect = true;
           }
@@ -178449,7 +178449,7 @@ ${next}` : out;
       const defaultOnLog = getDefaultOnLog(printLog, onwarn);
       if (onLog) {
         const minimalPriority = logLevelPriority[logLevel];
-        return (level, log88) => onLog(level, addLogToString(log88), (level2, handledLog) => {
+        return (level, log89) => onLog(level, addLogToString(log89), (level2, handledLog) => {
           if (level2 === LOGLEVEL_ERROR) {
             return error49(normalizeLog(handledLog));
           }
@@ -178460,21 +178460,21 @@ ${next}` : out;
       }
       return defaultOnLog;
     };
-    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log88) => {
+    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log89) => {
       if (level === LOGLEVEL_WARN) {
-        onwarn(addLogToString(log88), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
+        onwarn(addLogToString(log89), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
       } else {
-        printLog(level, log88);
+        printLog(level, log89);
       }
     } : printLog;
-    addLogToString = (log88) => {
-      Object.defineProperty(log88, "toString", {
-        value: () => log88.message,
+    addLogToString = (log89) => {
+      Object.defineProperty(log89, "toString", {
+        value: () => log89.message,
         writable: true
       });
-      return log88;
+      return log89;
     };
-    normalizeLog = (log88) => typeof log88 === "string" ? { message: log88 } : typeof log88 === "function" ? normalizeLog(log88()) : log88;
+    normalizeLog = (log89) => typeof log89 === "string" ? { message: log89 } : typeof log89 === "function" ? normalizeLog(log89()) : log89;
     defaultPrintLog = (level, { message: message2 }) => {
       switch (level) {
         case LOGLEVEL_WARN: {
@@ -221337,7 +221337,7 @@ Error: ${e$1.message}`);
       const node_events_1 = __require("node:events");
       const debug_1 = __importDefault2((init_node2(), __toCommonJS2(node_exports)));
       const common_1 = require_common2();
-      const log88 = (0, debug_1.default)("http-proxy-3");
+      const log89 = (0, debug_1.default)("http-proxy-3");
       var ProxyServer = class ProxyServer2 extends node_events_1.EventEmitter {
         /**
         * Creates the proxy server with specified options.
@@ -221346,11 +221346,11 @@ Error: ${e$1.message}`);
         constructor(options$1 = {}) {
           super();
           this.createRightProxy = (type) => {
-            log88("createRightProxy", { type });
+            log89("createRightProxy", { type });
             return (options$2) => {
               return (...args) => {
                 const req$4 = args[0];
-                log88("proxy: ", {
+                log89("proxy: ", {
                   type,
                   path: req$4.url
                 });
@@ -221389,7 +221389,7 @@ Error: ${e$1.message}`);
             if (this.listeners("error").length === 1) throw err$2;
           };
           this.listen = (port, hostname3) => {
-            log88("listen", {
+            log89("listen", {
               port,
               hostname: hostname3
             });
@@ -221439,7 +221439,7 @@ Error: ${e$1.message}`);
             if (i$1 === false) throw new Error("No such pass");
             passes.splice(i$1++, 0, cb);
           };
-          log88("creating a ProxyServer", options$1);
+          log89("creating a ProxyServer", options$1);
           options$1.prependPath = options$1.prependPath === false ? false : true;
           this.options = options$1;
           this.web = this.createRightProxy("web")(options$1);
@@ -290406,15 +290406,15 @@ var require_Resolver = __commonJS({
           result.path === false ? false : `${result.path.replace(/#/g, "\0#")}${result.query ? result.query.replace(/#/g, "\0#") : ""}${result.fragment || ""}`,
           result
         );
-        const finishWithoutResolve = (log88) => {
+        const finishWithoutResolve = (log89) => {
           const error51 = new Error(`Can't ${message2}`);
-          error51.details = log88.join("\n");
+          error51.details = log89.join("\n");
           this.hooks.noResolve.call(obj, error51);
           return callback2(error51);
         };
         if (resolveContext.log) {
           const parentLog = resolveContext.log;
-          const log88 = [];
+          const log89 = [];
           return this.doResolve(
             this.hooks.resolve,
             obj,
@@ -290422,7 +290422,7 @@ var require_Resolver = __commonJS({
             {
               log: (msg) => {
                 parentLog(msg);
-                log88.push(msg);
+                log89.push(msg);
               },
               yield: yield_,
               fileDependencies: resolveContext.fileDependencies,
@@ -290442,7 +290442,7 @@ var require_Resolver = __commonJS({
                 );
               }
               if (result) return finishResolved(result);
-              return finishWithoutResolve(log88);
+              return finishWithoutResolve(log89);
             }
           );
         }
@@ -290470,13 +290470,13 @@ var require_Resolver = __commonJS({
               );
             }
             if (result) return finishResolved(result);
-            const log88 = [];
+            const log89 = [];
             return this.doResolve(
               this.hooks.resolve,
               obj,
               message2,
               {
-                log: (msg) => log88.push(msg),
+                log: (msg) => log89.push(msg),
                 yield: yield_,
                 stack: resolveContext.stack
               },
@@ -290491,7 +290491,7 @@ var require_Resolver = __commonJS({
                     )
                   );
                 }
-                return finishWithoutResolve(log88);
+                return finishWithoutResolve(log89);
               }
             );
           }
@@ -292326,29 +292326,29 @@ var require_LogInfoPlugin = __commonJS({
         const { source } = this;
         resolver3.getHook(this.source).tapAsync("LogInfoPlugin", (request, resolveContext, callback2) => {
           if (!resolveContext.log) return callback2();
-          const { log: log88 } = resolveContext;
+          const { log: log89 } = resolveContext;
           const prefix = `[${source}] `;
           if (request.path) {
-            log88(`${prefix}Resolving in directory: ${request.path}`);
+            log89(`${prefix}Resolving in directory: ${request.path}`);
           }
           if (request.request) {
-            log88(`${prefix}Resolving request: ${request.request}`);
+            log89(`${prefix}Resolving request: ${request.request}`);
           }
-          if (request.module) log88(`${prefix}Request is an module request.`);
-          if (request.directory) log88(`${prefix}Request is a directory request.`);
+          if (request.module) log89(`${prefix}Request is an module request.`);
+          if (request.directory) log89(`${prefix}Request is a directory request.`);
           if (request.query) {
-            log88(`${prefix}Resolving request query: ${request.query}`);
+            log89(`${prefix}Resolving request query: ${request.query}`);
           }
           if (request.fragment) {
-            log88(`${prefix}Resolving request fragment: ${request.fragment}`);
+            log89(`${prefix}Resolving request fragment: ${request.fragment}`);
           }
           if (request.descriptionFilePath) {
-            log88(
+            log89(
               `${prefix}Has description data from ${request.descriptionFilePath}`
             );
           }
           if (request.relativePath) {
-            log88(
+            log89(
               `${prefix}Relative path from description file is: ${request.relativePath}`
             );
           }
@@ -325617,19 +325617,19 @@ var optimizationRouter = router({
       const { optimizationLogs: optimizationLogs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { desc: desc23 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const logs = await dbInstance.select().from(optimizationLogs2).orderBy(desc23(optimizationLogs2.id)).limit(input.limit);
-      return logs.map((log88) => ({
-        id: log88.id,
-        campaignId: log88.campaignId,
-        campaignName: log88.campaignName || "",
-        actionType: log88.actionType,
-        actionDescription: log88.changeReason || "",
-        previousValue: log88.previousValue || "",
-        newValue: log88.newValue || "",
+      return logs.map((log89) => ({
+        id: log89.id,
+        campaignId: log89.campaignId,
+        campaignName: log89.campaignName || "",
+        actionType: log89.actionType,
+        actionDescription: log89.changeReason || "",
+        previousValue: log89.previousValue || "",
+        newValue: log89.newValue || "",
         expectedImpact: "neutral",
         expectedImpactPercent: 0,
-        status: log88.status === "success" ? "completed" : log88.status === "failed" ? "failed" : "pending",
-        createdAt: log88.createdAt ? String(log88.createdAt) : (/* @__PURE__ */ new Date()).toISOString(),
-        completedAt: log88.executedAt ? String(log88.executedAt) : void 0
+        status: log89.status === "success" ? "completed" : log89.status === "failed" ? "failed" : "pending",
+        createdAt: log89.createdAt ? String(log89.createdAt) : (/* @__PURE__ */ new Date()).toISOString(),
+        completedAt: log89.executedAt ? String(log89.executedAt) : void 0
       }));
     } catch (error51) {
       console.error("[optimization.getRecentActions] \u67E5\u8BE2\u5931\u8D25:", error51.message);
@@ -337482,7 +337482,7 @@ var autoOperationService = {
       config2 = await this.upsertConfig({ accountId });
     }
     const logId = `log_${Date.now()}_${accountId}`;
-    const log88 = {
+    const log89 = {
       id: logId,
       accountId,
       operationType: "full_operation",
@@ -337493,7 +337493,7 @@ var autoOperationService = {
       details: { config: config2 },
       errorMessage: null
     };
-    logStore.push(log88);
+    logStore.push(log89);
     try {
       if (config2.enableDataSync) {
         const stepResult = await this.executeDataSync(accountId);
@@ -337540,10 +337540,10 @@ var autoOperationService = {
         skippedSteps: steps.filter((s4) => s4.status === "skipped").length
       };
       const status = summary.failedSteps === 0 ? "completed" : summary.successSteps > 0 ? "partial" : "failed";
-      log88.status = status === "failed" ? "failed" : "completed";
-      log88.completedAt = completedAt;
-      log88.duration = totalDuration;
-      log88.details = { config: config2, steps, summary };
+      log89.status = status === "failed" ? "failed" : "completed";
+      log89.completedAt = completedAt;
+      log89.duration = totalDuration;
+      log89.details = { config: config2, steps, summary };
       const nextRunAt = new Date(completedAt.getTime() + config2.intervalHours * 60 * 60 * 1e3);
       config2.lastRunAt = completedAt;
       config2.nextRunAt = nextRunAt;
@@ -337560,11 +337560,11 @@ var autoOperationService = {
     } catch (error51) {
       const completedAt = /* @__PURE__ */ new Date();
       const totalDuration = completedAt.getTime() - startedAt.getTime();
-      log88.status = "failed";
-      log88.completedAt = completedAt;
-      log88.duration = totalDuration;
-      log88.errorMessage = error51 instanceof Error ? error51.message : String(error51);
-      log88.details = { config: config2, steps, error: String(error51) };
+      log89.status = "failed";
+      log89.completedAt = completedAt;
+      log89.duration = totalDuration;
+      log89.errorMessage = error51 instanceof Error ? error51.message : String(error51);
+      log89.details = { config: config2, steps, error: String(error51) };
       throw error51;
     }
   },
@@ -337792,7 +337792,7 @@ var autoOperationService = {
    * 获取运营日志
    */
   async getLogs(accountId, limit2 = 50) {
-    return logStore.filter((log88) => log88.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit2);
+    return logStore.filter((log89) => log89.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit2);
   },
   /**
    * 获取所有需要执行的账号
@@ -340532,11 +340532,11 @@ async function getAlgorithmEffectStats(userId, accountId, startDate, endDate) {
     ).orderBy(desc(optimizationLogs.createdAt)).limit(5e3);
     if (bidLogs.length > 0) {
       const algorithmMap = /* @__PURE__ */ new Map();
-      for (const log88 of bidLogs) {
-        const algorithm = parseAlgorithmFromDetail(log88.actionDetail, log88.changeReason);
-        const isPositive = isPositiveAction(log88.actionDetail, log88.actionType);
-        const prevBid = Number(log88.previousValue) || 0;
-        const newBid = Number(log88.newValue) || 0;
+      for (const log89 of bidLogs) {
+        const algorithm = parseAlgorithmFromDetail(log89.actionDetail, log89.changeReason);
+        const isPositive = isPositiveAction(log89.actionDetail, log89.actionType);
+        const prevBid = Number(log89.previousValue) || 0;
+        const newBid = Number(log89.newValue) || 0;
         const bidChange = prevBid > 0 ? (newBid - prevBid) / prevBid * 100 : 0;
         if (!algorithmMap.has(algorithm)) {
           algorithmMap.set(algorithm, { count: 0, positive: 0, totalBidChange: 0 });
@@ -351417,12 +351417,381 @@ async function runAutoDbMigration() {
   }
 }
 
+// server/prelaunchDbMigration.ts
+init_db2();
+init_drizzle_orm();
+init_logger2();
+var log82 = createModuleLogger("PrelaunchDbMigration");
+function isAlreadyExistsError2(err2) {
+  const message2 = String(err2?.message || "");
+  const causeMessage = String(err2?.cause?.message || err2?.cause || "");
+  const combined = message2 + " " + causeMessage;
+  return combined.includes("Duplicate column") || combined.includes("already exists") || combined.includes("1060") || combined.includes("1050");
+}
+var PRELAUNCH_TABLES = [
+  {
+    name: "prelaunch_projects",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_projects (
+      id INT NOT NULL AUTO_INCREMENT,
+      account_id INT NOT NULL,
+      project_name VARCHAR(200) NOT NULL,
+      asin VARCHAR(20),
+      marketplace VARCHAR(10) DEFAULT 'US',
+      category VARCHAR(200),
+      seed_keywords JSON,
+      status ENUM('draft', 'running', 'completed', 'archived') DEFAULT 'draft',
+      created_by INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_prelaunch_proj_account (account_id),
+      INDEX idx_prelaunch_proj_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_keywords",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_keywords (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      keyword VARCHAR(500) NOT NULL,
+      search_volume INT,
+      search_volume_growth DECIMAL(8,4),
+      competitor_density INT,
+      avg_price DECIMAL(10,2),
+      relevance_layer ENUM('core', 'extended', 'long_tail', 'irrelevant') DEFAULT 'core',
+      dimension_type VARCHAR(50),
+      scenario_code VARCHAR(10),
+      intent_tag VARCHAR(50),
+      kvi_score DECIMAL(8,4),
+      kvi_volume DECIMAL(8,4),
+      kvi_relevance DECIMAL(8,4),
+      kvi_opportunity DECIMAL(8,4),
+      cluster_id INT,
+      dr_am_score DECIMAL(8,4),
+      scenario_confidence DECIMAL(8,4),
+      data_source VARCHAR(50),
+      raw_data JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plkw_project (project_id),
+      INDEX idx_plkw_relevance (relevance_layer),
+      INDEX idx_plkw_scenario (scenario_code),
+      INDEX idx_plkw_kvi (kvi_score)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_keyword_clusters",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_keyword_clusters (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      cluster_label VARCHAR(200) NOT NULL,
+      intent_summary TEXT,
+      member_count INT DEFAULT 0,
+      avg_kvi DECIMAL(8,4),
+      top_scenario VARCHAR(10),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plkc_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_keyword_relations",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_keyword_relations (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      source_keyword_id INT NOT NULL,
+      target_keyword_id INT NOT NULL,
+      relation_type VARCHAR(50) NOT NULL,
+      strength DECIMAL(8,4),
+      evidence TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plkr_project (project_id),
+      INDEX idx_plkr_source (source_keyword_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_cosmo_triples",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_cosmo_triples (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      cause_node VARCHAR(300) NOT NULL,
+      effect_node VARCHAR(300) NOT NULL,
+      outcome_node VARCHAR(300),
+      relation_label VARCHAR(100),
+      confidence DECIMAL(8,4),
+      source_keyword_ids JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plct_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_competitors",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_competitors (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      asin VARCHAR(20) NOT NULL,
+      title TEXT,
+      brand VARCHAR(200),
+      price DECIMAL(10,2),
+      rating DECIMAL(4,2),
+      review_count INT,
+      bsr INT,
+      trs_score DECIMAL(8,4),
+      trs_relevance DECIMAL(8,4),
+      trs_brand_power DECIMAL(8,4),
+      trs_market_share DECIMAL(8,4),
+      trs_breakdown JSON,
+      tier ENUM('T1_head', 'T2_waist', 'T3_niche') DEFAULT 'T2_waist',
+      competitor_type VARCHAR(50),
+      data_source VARCHAR(50),
+      raw_data JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plcomp_project (project_id),
+      INDEX idx_plcomp_asin (asin),
+      INDEX idx_plcomp_tier (tier)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_competitor_user_language",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_competitor_user_language (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      competitor_id INT NOT NULL,
+      phrase_type VARCHAR(50) NOT NULL,
+      phrase TEXT NOT NULL,
+      sentiment ENUM('positive', 'negative', 'neutral') DEFAULT 'neutral',
+      frequency INT DEFAULT 1,
+      source_review_count INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plcul_project (project_id),
+      INDEX idx_plcul_competitor (competitor_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_competitor_scenario_matrix",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_competitor_scenario_matrix (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      competitor_id INT NOT NULL,
+      scenario_code VARCHAR(10) NOT NULL,
+      traffic_share DECIMAL(8,4),
+      attack_feasibility DECIMAL(8,4),
+      suggested_strategy VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plcsm_project (project_id),
+      INDEX idx_plcsm_competitor (competitor_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_personas",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_personas (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      persona_name VARCHAR(200) NOT NULL,
+      demographics JSON,
+      psychographics JSON,
+      buying_behavior JSON,
+      pain_points JSON,
+      motivations JSON,
+      preferred_channels JSON,
+      narrative_profile TEXT,
+      confidence DECIMAL(8,4),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plpers_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_copy_versions",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_copy_versions (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      generation INT DEFAULT 0,
+      copy_type VARCHAR(50) NOT NULL,
+      title TEXT,
+      bullet_points JSON,
+      description TEXT,
+      backend_keywords TEXT,
+      a_plus JSON,
+      fitness_score DECIMAL(8,4),
+      parent_id INT,
+      mutation_log JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plcv_project (project_id),
+      INDEX idx_plcv_generation (generation)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_copy_feedback",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_copy_feedback (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      copy_version_id INT NOT NULL,
+      signal_type VARCHAR(50) NOT NULL,
+      signal_source VARCHAR(50),
+      metric_name VARCHAR(50),
+      metric_value DECIMAL(12,6),
+      raw_payload JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plcf_project (project_id),
+      INDEX idx_plcf_version (copy_version_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_qna_seeds",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_qna_seeds (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      source_type VARCHAR(50),
+      cosmo_triple_id INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plqna_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_visual_briefs",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_visual_briefs (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      slot_position INT NOT NULL,
+      slot_role VARCHAR(100),
+      headline VARCHAR(300),
+      visual_description TEXT,
+      key_elements JSON,
+      color_palette JSON,
+      reference_images JSON,
+      generated_image_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plvb_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_video_scripts",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_video_scripts (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      video_type VARCHAR(50) NOT NULL,
+      scenario_code VARCHAR(10),
+      script_framework VARCHAR(50),
+      hook TEXT,
+      body TEXT,
+      cta TEXT,
+      duration INT,
+      storyboard JSON,
+      generated_frame_urls JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plvs_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_banner_creatives",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_banner_creatives (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      banner_type VARCHAR(50) NOT NULL,
+      headline VARCHAR(300),
+      sub_headline VARCHAR(300),
+      cta_text VARCHAR(100),
+      visual_prompt TEXT,
+      generated_image_url TEXT,
+      dimensions VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plbc_project (project_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_ad_frameworks",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_ad_frameworks (
+      id INT NOT NULL AUTO_INCREMENT,
+      project_id INT NOT NULL,
+      framework_type VARCHAR(50) NOT NULL,
+      framework_name VARCHAR(200) NOT NULL,
+      campaign_structure JSON,
+      total_campaigns INT DEFAULT 0,
+      total_ad_groups INT DEFAULT 0,
+      total_keywords INT DEFAULT 0,
+      total_targets INT DEFAULT 0,
+      estimated_daily_budget DECIMAL(10,2),
+      ad_framework_status ENUM('draft', 'approved', 'deploying', 'deployed', 'failed') DEFAULT 'draft',
+      deployed_at DATETIME,
+      deploy_result JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_plaf_project (project_id),
+      INDEX idx_plaf_type (framework_type),
+      INDEX idx_plaf_status (ad_framework_status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  },
+  {
+    name: "prelaunch_ad_deploy_logs",
+    ddl: `CREATE TABLE IF NOT EXISTS prelaunch_ad_deploy_logs (
+      id INT NOT NULL AUTO_INCREMENT,
+      framework_id INT NOT NULL,
+      action VARCHAR(50) NOT NULL,
+      entity_type VARCHAR(50),
+      entity_name VARCHAR(200),
+      amazon_id VARCHAR(100),
+      request_payload JSON,
+      response_payload JSON,
+      log_status ENUM('pending', 'success', 'failed') DEFAULT 'pending',
+      error_message TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      INDEX idx_pladl_framework (framework_id),
+      INDEX idx_pladl_status (log_status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  }
+];
+async function runPrelaunchDbMigration() {
+  const results = [];
+  try {
+    const database = await getDb();
+    if (!database) {
+      log82.warn("\u6570\u636E\u5E93\u4E0D\u53EF\u7528\uFF0C\u8DF3\u8FC7\u9884\u53D1\u5E03\u5F15\u64CE\u8868\u8FC1\u79FB");
+      return { success: false, results: ["\u6570\u636E\u5E93\u4E0D\u53EF\u7528"] };
+    }
+    log82.info(`\u5F00\u59CB\u9884\u53D1\u5E03\u5F15\u64CE\u6570\u636E\u5E93\u8FC1\u79FB\u68C0\u67E5\uFF08\u5171 ${PRELAUNCH_TABLES.length} \u5F20\u8868\uFF09...`);
+    for (const table of PRELAUNCH_TABLES) {
+      try {
+        await database.execute(sql.raw(table.ddl));
+        results.push(`${table.name}: \u8868\u5DF2\u5C31\u7EEA`);
+      } catch (err2) {
+        if (isAlreadyExistsError2(err2)) {
+          results.push(`${table.name}: \u8868\u5DF2\u5B58\u5728\uFF08\u8DF3\u8FC7\uFF09`);
+        } else {
+          results.push(`${table.name}: \u521B\u5EFA\u5931\u8D25 - ${err2.message}`);
+          log82.error(`${table.name} \u521B\u5EFA\u5931\u8D25: ${err2.message}`);
+        }
+      }
+    }
+    log82.info(`\u9884\u53D1\u5E03\u5F15\u64CE\u6570\u636E\u5E93\u8FC1\u79FB\u5B8C\u6210: ${results.filter((r5) => r5.includes("\u5DF2\u5C31\u7EEA") || r5.includes("\u5DF2\u5B58\u5728")).length}/${PRELAUNCH_TABLES.length} \u5F20\u8868\u5C31\u7EEA`);
+    return { success: true, results };
+  } catch (error51) {
+    log82.error(`\u9884\u53D1\u5E03\u5F15\u64CE\u6570\u636E\u5E93\u8FC1\u79FB\u5F02\u5E38: ${error51.message}`);
+    return { success: false, results: [`\u8FC1\u79FB\u5F02\u5E38: ${error51.message}`] };
+  }
+}
+
 // server/utils/migrateCampaignIds.ts
 init_db2();
 init_drizzle_orm();
 init_logger2();
 init_opsLogger();
-var log82 = createModuleLogger("migrateCampaignIds");
+var log83 = createModuleLogger("migrateCampaignIds");
 var TABLES_TO_MIGRATE = [
   "negative_keywords",
   "bidding_logs",
@@ -351448,7 +351817,7 @@ async function hasRecordsToMigrate(db, tableName) {
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows.length > 0;
   } catch (e6) {
-    log82.warn(`\u68C0\u67E5\u8868 ${tableName} \u662F\u5426\u9700\u8981\u8FC1\u79FB\u5931\u8D25: ${e6.message}`);
+    log83.warn(`\u68C0\u67E5\u8868 ${tableName} \u662F\u5426\u9700\u8981\u8FC1\u79FB\u5931\u8D25: ${e6.message}`);
     return false;
   }
 }
@@ -351470,7 +351839,7 @@ async function findRecordsToMigrate(db, tableName) {
       }
     }
   } catch (e6) {
-    log82.warn(`${tableName}: \u76F4\u63A5\u6620\u5C04\u67E5\u8BE2\u5931\u8D25: ${e6.message}`);
+    log83.warn(`${tableName}: \u76F4\u63A5\u6620\u5C04\u67E5\u8BE2\u5931\u8D25: ${e6.message}`);
   }
   if (tableName === "bidding_logs") {
     try {
@@ -351491,7 +351860,7 @@ async function findRecordsToMigrate(db, tableName) {
         }
       }
     } catch (e6) {
-      log82.warn(`bidding_logs: adGroupId\u94FE\u8DEF\u67E5\u8BE2\u5931\u8D25: ${e6.message}`);
+      log83.warn(`bidding_logs: adGroupId\u94FE\u8DEF\u67E5\u8BE2\u5931\u8D25: ${e6.message}`);
     }
   }
   return records;
@@ -351523,11 +351892,11 @@ async function migrateTable(db, tableName) {
     `));
     const orphanCount = extractCount2(countResult);
     if (orphanCount > 0) {
-      log82.info(`  ${tableName}: ${orphanCount} \u6761\u8BB0\u5F55\u65E0\u6CD5\u6620\u5C04\u5230 campaigns \u8868\uFF08\u5B64\u7ACB\u8BB0\u5F55\uFF09\uFF0C\u8DF3\u8FC7`);
+      log83.info(`  ${tableName}: ${orphanCount} \u6761\u8BB0\u5F55\u65E0\u6CD5\u6620\u5C04\u5230 campaigns \u8868\uFF08\u5B64\u7ACB\u8BB0\u5F55\uFF09\uFF0C\u8DF3\u8FC7`);
     }
     return { table: tableName, suspectedCount: orphanCount, updatedCount: 0, failedCount: 0, skippedOrphans: orphanCount, errors };
   }
-  log82.info(`  ${tableName}: \u627E\u5230 ${recordsToMigrate.length} \u6761\u8BB0\u5F55\u9700\u8981\u8FC1\u79FB`);
+  log83.info(`  ${tableName}: \u627E\u5230 ${recordsToMigrate.length} \u6761\u8BB0\u5F55\u9700\u8981\u8FC1\u79FB`);
   let updatedCount = 0;
   let failedCount = 0;
   for (const record2 of recordsToMigrate) {
@@ -351541,7 +351910,7 @@ async function migrateTable(db, tableName) {
       const errMsg = `id=${record2.id} \u2192 ${record2.correctCampaignId} \u5931\u8D25: ${e6.message}`;
       errors.push(errMsg);
       if (failedCount <= 3) {
-        log82.warn(`  ${tableName}: ${errMsg}`);
+        log83.warn(`  ${tableName}: ${errMsg}`);
       }
     }
   }
@@ -351557,10 +351926,10 @@ async function migrateTable(db, tableName) {
 async function migrateCampaignIdsToAmazonIds() {
   const db = await getDb();
   if (!db) {
-    log82.warn("\u6570\u636E\u5E93\u4E0D\u53EF\u7528\uFF0C\u8DF3\u8FC7 campaignId \u6570\u636E\u8FC1\u79FB");
+    log83.warn("\u6570\u636E\u5E93\u4E0D\u53EF\u7528\uFF0C\u8DF3\u8FC7 campaignId \u6570\u636E\u8FC1\u79FB");
     return;
   }
-  log82.info("=== v222 campaignId \u6570\u636E\u8FC1\u79FB\u68C0\u67E5 ===");
+  log83.info("=== v222 campaignId \u6570\u636E\u8FC1\u79FB\u68C0\u67E5 ===");
   logMigration("CampaignIdMigration", `v222 campaignId \u6570\u636E\u8FC1\u79FB\u68C0\u67E5\u5F00\u59CB`, {
     tables: [...TABLES_TO_MIGRATE],
     strategy: "select-then-update-by-pk"
@@ -351580,7 +351949,7 @@ async function migrateCampaignIdsToAmazonIds() {
       allErrors = allErrors.concat(result.errors);
       if (result.suspectedCount > 0 || result.updatedCount > 0) {
         const logMsg = `${result.table}: ${result.updatedCount}/${result.suspectedCount} \u6761\u5DF2\u4FEE\u590D` + (result.failedCount > 0 ? `, ${result.failedCount} \u6761\u5931\u8D25` : "") + (result.skippedOrphans > 0 ? `, ${result.skippedOrphans} \u6761\u5B64\u7ACB\u8DF3\u8FC7` : "");
-        log82.info(`  ${logMsg}`);
+        log83.info(`  ${logMsg}`);
         logMigration("CampaignIdMigration", `\u8868${result.table}\u8FC1\u79FB\u5B8C\u6210`, {
           table: result.table,
           suspected: result.suspectedCount,
@@ -351591,16 +351960,16 @@ async function migrateCampaignIdsToAmazonIds() {
         });
       }
     } catch (tableErr) {
-      log82.error(`  \u8FC1\u79FB\u8868 ${tableName} \u5F02\u5E38: ${tableErr.message}`);
+      log83.error(`  \u8FC1\u79FB\u8868 ${tableName} \u5F02\u5E38: ${tableErr.message}`);
       allErrors.push(`${tableName}: ${tableErr.message}`);
     }
   }
   if (totalSuspected === 0 && totalOrphans === 0) {
-    log82.info("\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB \u2713");
+    log83.info("\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB \u2713");
     logMigration("CampaignIdMigration", "\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB");
   } else {
     const summary = `\u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalSuspected} \u6761\u5DF2\u4FEE\u590D` + (totalFailed > 0 ? `, ${totalFailed} \u6761\u5931\u8D25` : "") + (totalOrphans > 0 ? `, ${totalOrphans} \u6761\u5B64\u7ACB\u8DF3\u8FC7` : "");
-    log82.info(`=== ${summary} ===`);
+    log83.info(`=== ${summary} ===`);
     logMigration("CampaignIdMigration", summary, {
       totalSuspected,
       totalUpdated,
@@ -351626,30 +351995,30 @@ init_db2();
 init_schema2();
 init_logger2();
 init_amazonSyncService();
-var log83 = createModuleLogger("syncSp");
+var log84 = createModuleLogger("syncSp");
 AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
-  log83.info("[\u540C\u6B65] ========== \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8 ==========");
-  log83.info("[\u540C\u6B65] \u53C2\u6570:", { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
+  log84.info("[\u540C\u6B65] ========== \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8 ==========");
+  log84.info("[\u540C\u6B65] \u53C2\u6570:", { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
   const db = await getDb();
   if (!db) {
-    log83.error("[\u540C\u6B65] \u274C \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25 - getDb()\u8FD4\u56DEnull");
+    log84.error("[\u540C\u6B65] \u274C \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25 - getDb()\u8FD4\u56DEnull");
     return { synced: 0, skipped: 0 };
   }
-  log83.info("[\u540C\u6B65] \u2705 \u6570\u636E\u5E93\u8FDE\u63A5\u6210\u529F");
+  log84.info("[\u540C\u6B65] \u2705 \u6570\u636E\u5E93\u8FDE\u63A5\u6210\u529F");
   try {
-    log83.info("[\u540C\u6B65] \u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()...");
+    log84.info("[\u540C\u6B65] \u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()...");
     const apiCampaigns = await this.client.listSpCampaigns();
-    log83.info(`[\u540C\u6B65] \u2705 API\u8C03\u7528\u6210\u529F,\u8FD4\u56DE ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
+    log84.info(`[\u540C\u6B65] \u2705 API\u8C03\u7528\u6210\u529F,\u8FD4\u56DE ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
     let synced = 0;
     let skipped = 0;
     if (apiCampaigns.length > 0) {
-      log83.debug("SP\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
+      log84.debug("SP\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
     }
-    log83.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
+    log84.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
     if (apiCampaigns.length > 0) {
-      log83.debug("[SP Sync Debug] \u7B2C\u4E00\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u5B8C\u6574\u7ED3\u6784:", JSON.stringify(apiCampaigns[0], null, 2));
-      log83.debug("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaigns[0].startDate);
-      log83.debug("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaigns[0].endDate);
+      log84.debug("[SP Sync Debug] \u7B2C\u4E00\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u5B8C\u6574\u7ED3\u6784:", JSON.stringify(apiCampaigns[0], null, 2));
+      log84.debug("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaigns[0].startDate);
+      log84.debug("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaigns[0].endDate);
     }
     const allExistingCampaignIds = [];
     for (const ac of apiCampaigns) {
@@ -351658,7 +352027,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
     }
     const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log83.info(`syncSpCampaigns: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedCampaignIds.size}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u6709\u8FD1\u671F\u9884\u7B97\u4F18\u5316\u4E8B\u4EF6`);
+    log84.info(`syncSpCampaigns: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedCampaignIds.size}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u6709\u8FD1\u671F\u9884\u7B97\u4F18\u5316\u4E8B\u4EF6`);
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db.select().from(campaigns).where(
         and(
@@ -351683,13 +352052,13 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
         dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
       }
       if (dailyBudgetValue === 0) {
-        log83.warn(`v168: SP\u5E7F\u544A ${apiCampaign.name} budget\u89E3\u6790\u4E3A0, \u539F\u59CBbudget\u5B57\u6BB5: ${JSON.stringify(budgetField)} dailyBudget: ${apiCampaign.dailyBudget}`);
+        log84.warn(`v168: SP\u5E7F\u544A ${apiCampaign.name} budget\u89E3\u6790\u4E3A0, \u539F\u59CBbudget\u5B57\u6BB5: ${JSON.stringify(budgetField)} dailyBudget: ${apiCampaign.dailyBudget}`);
       }
       if (synced === 0 && skipped === 0) {
-        log83.debug("[SP Sync Debug] \u7B2C\u4E00\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u5B8C\u6574\u7ED3\u6784:");
-        log83.debug(JSON.stringify(apiCampaign, null, 2));
-        log83.debug("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaign.startDate);
-        log83.debug("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaign.endDate);
+        log84.debug("[SP Sync Debug] \u7B2C\u4E00\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u5B8C\u6574\u7ED3\u6784:");
+        log84.debug(JSON.stringify(apiCampaign, null, 2));
+        log84.debug("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaign.startDate);
+        log84.debug("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaign.endDate);
       }
       let startDateValue = null;
       if (apiCampaign.startDate) {
@@ -351736,18 +352105,18 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
         const localBudget = parseFloat(existing.dailyBudget || "0");
         const apiBudget = parseFloat(String(dailyBudgetValue || "0"));
         if (apiBudget === 0 && localBudget > 0) {
-          log83.warn(`v168: \u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
+          log84.warn(`v168: \u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
           delete campaignData.dailyBudget;
         }
         if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
           const hasRecentOpt = protectedCampaignIds.has(existing.id);
           if (hasRecentOpt) {
-            log83.debug(`v150: \u9884\u7B97\u4FDD\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u9884\u7B97`);
+            log84.debug(`v150: \u9884\u7B97\u4FDD\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u9884\u7B97`);
             delete campaignData.dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
-            log83.debug(`v150: \u9884\u7B97\u5DEE\u5F02 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4EE5API\u4E3A\u51C6`);
+            log84.debug(`v150: \u9884\u7B97\u5DEE\u5F02 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4EE5API\u4E3A\u51C6`);
             protectionStats.budgetOverwritten++;
           }
         }
@@ -351757,7 +352126,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
         const apiProductPlacement1 = campaignData.placementProductPageBidAdjustment || 0;
         const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
-          log83.debug(`v165: \u4F4D\u7F6E\u503E\u659C\u4FDD\u62A4\u751F\u6548 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
+          log84.debug(`v165: \u4F4D\u7F6E\u503E\u659C\u4FDD\u62A4\u751F\u6548 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
           delete campaignData.placementTopSearchBidAdjustment;
           delete campaignData.placementProductPageBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
@@ -351771,21 +352140,21 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(lastSyncTime) {
       }
       synced++;
       if (synced === 1 || synced % 10 === 0) {
-        log83.info(`[\u540C\u6B65] \u8FDB\u5EA6: \u5DF2\u540C\u6B65 ${synced}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8`);
+        log84.info(`[\u540C\u6B65] \u8FDB\u5EA6: \u5DF2\u540C\u6B65 ${synced}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8`);
       }
     }
-    log83.info(`[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========`);
-    log83.info(`[\u540C\u6B65] \u7ED3\u679C: \u540C\u6B65 ${synced} \u4E2A, \u8DF3\u8FC7 ${skipped} \u4E2A`);
+    log84.info(`[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========`);
+    log84.info(`[\u540C\u6B65] \u7ED3\u679C: \u540C\u6B65 ${synced} \u4E2A, \u8DF3\u8FC7 ${skipped} \u4E2A`);
     logSyncProtectionSummary("syncSpCampaigns", protectionStats);
     return { synced, skipped };
   } catch (error51) {
-    log83.error("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
-    log83.error("[\u540C\u6B65] \u9519\u8BEF\u7C7B\u578B:", error51.constructor.name);
-    log83.error("[\u540C\u6B65] \u9519\u8BEF\u6D88\u606F:", error51.message);
-    log83.error("[\u540C\u6B65] \u9519\u8BEF\u5806\u6808:", error51.stack);
+    log84.error("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
+    log84.error("[\u540C\u6B65] \u9519\u8BEF\u7C7B\u578B:", error51.constructor.name);
+    log84.error("[\u540C\u6B65] \u9519\u8BEF\u6D88\u606F:", error51.message);
+    log84.error("[\u540C\u6B65] \u9519\u8BEF\u5806\u6808:", error51.stack);
     if (error51.response) {
-      log83.error("[\u540C\u6B65] API\u54CD\u5E94\u72B6\u6001:", error51.response.status);
-      log83.error("[\u540C\u6B65] API\u54CD\u5E94\u6570\u636E:", JSON.stringify(error51.response.data, null, 2));
+      log84.error("[\u540C\u6B65] API\u54CD\u5E94\u72B6\u6001:", error51.response.status);
+      log84.error("[\u540C\u6B65] API\u54CD\u5E94\u6570\u636E:", JSON.stringify(error51.response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }
@@ -351833,7 +352202,7 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(lastSyncTime) {
     }
     return { synced, skipped };
   } catch (error51) {
-    log83.error("Error syncing SP ad groups:", error51);
+    log84.error("Error syncing SP ad groups:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -351853,7 +352222,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(lastSyncTime) {
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log83.info(`syncSpKeywords: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedKeywordIds.size}\u4E2A\u5173\u952E\u8BCD\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
+    log84.info(`syncSpKeywords: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedKeywordIds.size}\u4E2A\u5173\u952E\u8BCD\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
     for (const apiKeyword of apiKeywords) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId))).limit(1);
       if (!adGroup) continue;
@@ -351880,12 +352249,12 @@ AmazonSyncService.prototype.syncSpKeywords = async function(lastSyncTime) {
         if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
           const hasRecentOpt = protectedKeywordIds.has(existing.id);
           if (hasRecentOpt) {
-            log83.debug(`v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
+            log84.debug(`v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
             delete keywordData.bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
           } else {
-            log83.debug(`v150: \u51FA\u4EF7\u5DEE\u5F02 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
+            log84.debug(`v150: \u51FA\u4EF7\u5DEE\u5F02 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
             protectionStats.bidOverwritten++;
           }
         }
@@ -351901,7 +352270,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(lastSyncTime) {
     logSyncProtectionSummary("syncSpKeywords", protectionStats);
     return { synced, skipped };
   } catch (error51) {
-    log83.error("Error syncing SP keywords:", error51);
+    log84.error("Error syncing SP keywords:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -351921,7 +352290,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(lastSyncTime) 
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    log83.info(`syncSpProductTargets: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedTargetIds.size}\u4E2A\u4EA7\u54C1\u5B9A\u5411\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
+    log84.info(`syncSpProductTargets: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedTargetIds.size}\u4E2A\u4EA7\u54C1\u5B9A\u5411\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
     for (const apiTarget of apiTargets) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiTarget.adGroupId))).limit(1);
       if (!adGroup) continue;
@@ -352014,7 +352383,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(lastSyncTime) 
         updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
       };
       if (synced === 0) {
-        log83.debug(`SP\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        log84.debug(`SP\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
       }
       if (existing) {
         const localBid = parseFloat(existing.bid || "0");
@@ -352022,12 +352391,12 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(lastSyncTime) 
         if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
-            log83.debug(`v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
+            log84.debug(`v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
             delete targetData.bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
           } else {
-            log83.debug(`v150: \u51FA\u4EF7\u5DEE\u5F02 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
+            log84.debug(`v150: \u51FA\u4EF7\u5DEE\u5F02 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
             protectionStats.bidOverwritten++;
           }
         }
@@ -352040,11 +352409,11 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(lastSyncTime) 
       }
       synced++;
     }
-    log83.info(`SP\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log84.info(`SP\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     logSyncProtectionSummary("syncSpProductTargets", protectionStats);
     return { synced, skipped };
   } catch (error51) {
-    log83.error("Error syncing SP product targets:", error51);
+    log84.error("Error syncing SP product targets:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352054,9 +352423,9 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function() {
   try {
     let synced = 0;
     let updated = 0;
-    log83.info(`\u5F00\u59CB\u540C\u6B65SP\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD...`);
+    log84.info(`\u5F00\u59CB\u540C\u6B65SP\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD...`);
     const campaignNegatives = await this.client.listSpCampaignNegativeKeywords();
-    log83.debug(`\u83B7\u53D6\u5230 ${campaignNegatives.length} \u4E2A\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD`);
+    log84.debug(`\u83B7\u53D6\u5230 ${campaignNegatives.length} \u4E2A\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD`);
     for (const neg of campaignNegatives) {
       const [campaign] = await db.select().from(campaigns).where(
         and(
@@ -352095,9 +352464,9 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function() {
         synced++;
       }
     }
-    log83.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD...`);
+    log84.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD...`);
     const adGroupNegatives = await this.client.listSpNegativeKeywords();
-    log83.debug(`\u83B7\u53D6\u5230 ${adGroupNegatives.length} \u4E2A\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD`);
+    log84.debug(`\u83B7\u53D6\u5230 ${adGroupNegatives.length} \u4E2A\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5173\u952E\u8BCD`);
     for (const neg of adGroupNegatives) {
       const negState = (neg.state || "enabled").toLowerCase();
       if (negState === "archived") continue;
@@ -352135,10 +352504,10 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function() {
         synced++;
       }
     }
-    log83.info(`SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
+    log84.info(`SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
     return { synced, updated };
   } catch (error51) {
-    log83.error("Error syncing SP negative keywords:", error51);
+    log84.error("Error syncing SP negative keywords:", error51);
     return { synced: 0, updated: 0 };
   }
 };
@@ -352148,9 +352517,9 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function() {
   try {
     let synced = 0;
     let updated = 0;
-    log83.info(`\u5F00\u59CB\u540C\u6B65SP\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
+    log84.info(`\u5F00\u59CB\u540C\u6B65SP\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
     const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
-    log83.debug(`\u83B7\u53D6\u5230 ${campaignNegTargets.length} \u4E2A\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+    log84.debug(`\u83B7\u53D6\u5230 ${campaignNegTargets.length} \u4E2A\u6D3B\u52A8\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
     for (const neg of campaignNegTargets) {
       const [campaign] = await db.select().from(campaigns).where(
         and(
@@ -352192,9 +352561,9 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function() {
         synced++;
       }
     }
-    log83.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
+    log84.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
     const adGroupNegTargets = await this.client.listSpNegativeTargets();
-    log83.debug(`\u83B7\u53D6\u5230 ${adGroupNegTargets.length} \u4E2A\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+    log84.debug(`\u83B7\u53D6\u5230 ${adGroupNegTargets.length} \u4E2A\u5E7F\u544A\u7EC4\u7EA7\u522B\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
     for (const neg of adGroupNegTargets) {
       const negState = (neg.state || "enabled").toLowerCase();
       if (negState === "archived") continue;
@@ -352235,10 +352604,10 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function() {
         synced++;
       }
     }
-    log83.info(`SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
+    log84.info(`SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u65B0\u8BB0\u5F55, ${updated} \u6761\u66F4\u65B0`);
     return { synced, updated };
   } catch (error51) {
-    log83.error("Error syncing SP negative product targets:", error51);
+    log84.error("Error syncing SP negative product targets:", error51);
     return { synced: 0, updated: 0 };
   }
 };
@@ -352250,7 +352619,7 @@ init_schema2();
 init_logger2();
 init_timezone2();
 init_amazonSyncService();
-var log84 = createModuleLogger("syncSb");
+var log85 = createModuleLogger("syncSb");
 AmazonSyncService.prototype.syncSbCampaigns = async function(lastSyncTime) {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -352259,9 +352628,9 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(lastSyncTime) {
     let synced = 0;
     let skipped = 0;
     if (apiCampaigns.length > 0) {
-      log84.debug("SB\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
+      log85.debug("SB\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
     }
-    log84.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
+    log85.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db.select().from(campaigns).where(
         and(
@@ -352321,7 +352690,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(lastSyncTime) {
       const sbLandingPageType = apiCampaign.landingPage?.pageType || apiCampaign.landingPageType || null;
       const sbLandingPageUrl = apiCampaign.landingPage?.url || apiCampaign.landingPageUrl || null;
       const sbBrandEntityId = apiCampaign.brandEntityId || null;
-      log84.debug(`SB\u5E7F\u544A ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
+      log85.debug(`SB\u5E7F\u544A ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
@@ -352353,7 +352722,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(lastSyncTime) {
       if (existing) {
         const localBudgetSb = parseFloat(existing.dailyBudget || "0");
         if (dailyBudget === 0 && localBudgetSb > 0) {
-          log84.warn(`v168: SB\u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
+          log85.warn(`v168: SB\u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
           delete campaignData.dailyBudget;
         }
         await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
@@ -352367,7 +352736,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(lastSyncTime) {
     }
     return { synced, skipped };
   } catch (error51) {
-    log84.error("Error syncing SB campaigns:", error51);
+    log85.error("Error syncing SB campaigns:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352378,7 +352747,7 @@ AmazonSyncService.prototype.syncSbAdGroups = async function() {
     const apiAdGroups = await this.client.listSbAdGroups();
     let synced = 0;
     let skipped = 0;
-    log84.debug(`\u83B7\u53D6\u5230 ${apiAdGroups.length} \u4E2ASB\u5E7F\u544A\u7EC4`);
+    log85.debug(`\u83B7\u53D6\u5230 ${apiAdGroups.length} \u4E2ASB\u5E7F\u544A\u7EC4`);
     for (const apiAdGroup of apiAdGroups) {
       const [campaign] = await db.select().from(campaigns).where(
         and(
@@ -352414,10 +352783,10 @@ AmazonSyncService.prototype.syncSbAdGroups = async function() {
       }
       synced++;
     }
-    log84.info(`SB\u5E7F\u544A\u7EC4\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log85.info(`SB\u5E7F\u544A\u7EC4\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log84.error("Error syncing SB ad groups:", error51);
+    log85.error("Error syncing SB ad groups:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352428,7 +352797,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function() {
     const apiKeywords = await this.client.listSbKeywords();
     let synced = 0;
     let skipped = 0;
-    log84.debug(`\u83B7\u53D6\u5230 ${apiKeywords.length} \u4E2ASB\u5173\u952E\u8BCD`);
+    log85.debug(`\u83B7\u53D6\u5230 ${apiKeywords.length} \u4E2ASB\u5173\u952E\u8BCD`);
     for (const apiKeyword of apiKeywords) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId))).limit(1);
       if (!adGroup) continue;
@@ -352461,10 +352830,10 @@ AmazonSyncService.prototype.syncSbKeywords = async function() {
       }
       synced++;
     }
-    log84.info(`SB\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log85.info(`SB\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log84.error("Error syncing SB keywords:", error51);
+    log85.error("Error syncing SB keywords:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352475,7 +352844,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function() {
     const apiTargets = await this.client.listSbTargets();
     let synced = 0;
     let skipped = 0;
-    log84.debug(`\u83B7\u53D6\u5230 ${apiTargets.length} \u4E2ASB\u5546\u54C1\u5B9A\u4F4D`);
+    log85.debug(`\u83B7\u53D6\u5230 ${apiTargets.length} \u4E2ASB\u5546\u54C1\u5B9A\u4F4D`);
     for (const apiTarget of apiTargets) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiTarget.adGroupId))).limit(1);
       if (!adGroup) continue;
@@ -352557,7 +352926,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function() {
         updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
       };
       if (synced === 0) {
-        log84.debug(`SB\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        log85.debug(`SB\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
       }
       if (existing) {
         await db.update(productTargets).set(targetData).where(eq(productTargets.id, existing.id));
@@ -352569,10 +352938,10 @@ AmazonSyncService.prototype.syncSbProductTargets = async function() {
       }
       synced++;
     }
-    log84.info(`SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log85.info(`SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log84.error("Error syncing SB product targets:", error51);
+    log85.error("Error syncing SB product targets:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352581,14 +352950,14 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(days = 14) {
   if (!db) return 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log84.info(`\u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E: ${startDate} - ${endDate}`);
+    log85.info(`\u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E: ${startDate} - ${endDate}`);
     const reportId = await this.client.requestSbSearchTermReport(startDate, endDate);
     const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
     if (!reportData || reportData.length === 0) {
-      log84.debug("SB\u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log85.debug("SB\u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log84.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u641C\u7D22\u8BCD\u6570\u636E`);
+    log85.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u641C\u7D22\u8BCD\u6570\u636E`);
     let synced = 0;
     for (const row of reportData) {
       const [campaign] = await db.select().from(campaigns).where(
@@ -352684,10 +353053,10 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(days = 14) {
       }
       synced++;
     }
-    log84.info(`SB\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
+    log85.info(`SB\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log84.error("\u540C\u6B65SB\u641C\u7D22\u8BCD\u5931\u8D25:", error51);
+    log85.error("\u540C\u6B65SB\u641C\u7D22\u8BCD\u5931\u8D25:", error51);
     return 0;
   }
 };
@@ -352696,14 +353065,14 @@ AmazonSyncService.prototype.syncSbTargeting = async function(days = 14) {
   if (!db) return 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log84.info(`\u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
+    log85.info(`\u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
     const reportId = await this.client.requestSbTargetingReport(startDate, endDate);
     const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
     if (!reportData || reportData.length === 0) {
-      log84.debug("SB\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log85.debug("SB\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log84.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u5B9A\u5411\u6570\u636E`);
+    log85.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u5B9A\u5411\u6570\u636E`);
     let synced = 0;
     for (const row of reportData) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(row.adGroupId))).limit(1);
@@ -352752,10 +353121,10 @@ AmazonSyncService.prototype.syncSbTargeting = async function(days = 14) {
         synced++;
       }
     }
-    log84.info(`SB\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
+    log85.info(`SB\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log84.error("\u540C\u6B65SB\u5B9A\u5411\u5931\u8D25:", error51);
+    log85.error("\u540C\u6B65SB\u5B9A\u5411\u5931\u8D25:", error51);
     return 0;
   }
 };
@@ -352766,9 +353135,9 @@ AmazonSyncService.prototype.syncSbAds = async function() {
     const apiAds = await this.client.listSbAds();
     let synced = 0;
     let skipped = 0;
-    log84.debug(`\u83B7\u53D6\u5230 ${apiAds.length} \u4E2ASB\u5E7F\u544A\u7D20\u6750`);
+    log85.debug(`\u83B7\u53D6\u5230 ${apiAds.length} \u4E2ASB\u5E7F\u544A\u7D20\u6750`);
     if (apiAds.length > 0) {
-      log84.debug("SB\u5E7F\u544A\u7D20\u6750API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiAds[0], null, 2));
+      log85.debug("SB\u5E7F\u544A\u7D20\u6750API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiAds[0], null, 2));
     }
     for (const ad of apiAds) {
       const adGroupIdStr = String(ad.adGroupId);
@@ -352794,10 +353163,10 @@ AmazonSyncService.prototype.syncSbAds = async function() {
       await db.update(adGroups).set(updateData).where(eq(adGroups.id, adGroup.id));
       synced++;
     }
-    log84.info(`SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log85.info(`SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log84.error("SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5931\u8D25:", error51.message);
+    log85.error("SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5931\u8D25:", error51.message);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -352808,7 +353177,7 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function() {
     let synced = 0;
     let updated = 0;
     const sbNegatives = await this.client.listSbNegativeKeywords();
-    log84.debug(`\u83B7\u53D6\u5230 ${sbNegatives.length} \u4E2ASB\u5426\u5B9A\u5173\u952E\u8BCD`);
+    log85.debug(`\u83B7\u53D6\u5230 ${sbNegatives.length} \u4E2ASB\u5426\u5B9A\u5173\u952E\u8BCD`);
     for (const neg of sbNegatives) {
       const negState = (neg.state || "enabled").toLowerCase();
       if (negState === "archived") continue;
@@ -352854,10 +353223,10 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function() {
         synced++;
       }
     }
-    log84.info(`SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
+    log85.info(`SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
     return { synced, updated };
   } catch (error51) {
-    log84.error("SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", error51.message);
+    log85.error("SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", error51.message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -352868,7 +353237,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function() {
     let synced = 0;
     let updated = 0;
     const sbNegTargets = await this.client.listSbNegativeTargets();
-    log84.debug(`\u83B7\u53D6\u5230 ${sbNegTargets.length} \u4E2ASB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+    log85.debug(`\u83B7\u53D6\u5230 ${sbNegTargets.length} \u4E2ASB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
     for (const neg of sbNegTargets) {
       const negState = (neg.state || "enabled").toLowerCase();
       if (negState === "archived") continue;
@@ -352917,10 +353286,10 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function() {
         synced++;
       }
     }
-    log84.info(`SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
+    log85.info(`SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
     return { synced, updated };
   } catch (error51) {
-    log84.error("SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", error51.message);
+    log85.error("SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", error51.message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -352930,13 +353299,13 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(days = 1
   let synced = 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log84.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548: ${startDate} - ${endDate}`);
+    log85.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548: ${startDate} - ${endDate}`);
     const reportId = await this.client.requestSbCampaignPlacementReport(
       startDate,
       endDate
     );
     const reportData = await this.client.waitAndDownloadReport(reportId);
-    log84.debug(`SB\u5E7F\u544A\u4F4D\u62A5\u544A\u83B7\u53D6\u5230 ${reportData.length} \u6761\u8BB0\u5F55`);
+    log85.debug(`SB\u5E7F\u544A\u4F4D\u62A5\u544A\u83B7\u53D6\u5230 ${reportData.length} \u6761\u8BB0\u5F55`);
     for (const row of reportData) {
       const campaignIdStr = String(row.campaignId);
       const [campaign] = await db.select().from(campaigns).where(
@@ -352995,9 +353364,9 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(days = 1
       }
       synced++;
     }
-    log84.info(`SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${synced}\u6761`);
+    log85.info(`SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${synced}\u6761`);
   } catch (error51) {
-    log84.error("SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51.message);
+    log85.error("SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51.message);
   }
   return synced;
 };
@@ -353009,7 +353378,7 @@ init_schema2();
 init_logger2();
 init_timezone2();
 init_amazonSyncService();
-var log85 = createModuleLogger("syncSd");
+var log86 = createModuleLogger("syncSd");
 AmazonSyncService.prototype.syncSdCampaigns = async function(lastSyncTime) {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
@@ -353018,9 +353387,9 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(lastSyncTime) {
     let synced = 0;
     let skipped = 0;
     if (apiCampaigns.length > 0) {
-      log85.debug("SD\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
+      log86.debug("SD\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
     }
-    log85.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASD\u5E7F\u544A\u6D3B\u52A8`);
+    log86.debug(`\u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASD\u5E7F\u544A\u6D3B\u52A8`);
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db.select().from(campaigns).where(
         and(
@@ -353069,12 +353438,12 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(lastSyncTime) {
       const sdTactic = apiCampaign.tactic || null;
       let finalCostType = normalizedCostType;
       if (sdGoal === "reach" && normalizedCostType === "cpc") {
-        log85.debug(`SD\u5E7F\u544A ${apiCampaign.name}: goal=reach \u4F46 costType=cpc\uFF0C\u4EE5API\u8FD4\u56DE\u4E3A\u51C6`);
+        log86.debug(`SD\u5E7F\u544A ${apiCampaign.name}: goal=reach \u4F46 costType=cpc\uFF0C\u4EE5API\u8FD4\u56DE\u4E3A\u51C6`);
       }
       const sdBidOptimization = apiCampaign.bidOptimization || null;
       const validBidOpts = ["reach", "pageVisits", "conversions"];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
-      log85.debug(`SD\u5E7F\u544A ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
+      log86.debug(`SD\u5E7F\u544A ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
@@ -353110,7 +353479,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(lastSyncTime) {
     }
     return { synced, skipped };
   } catch (error51) {
-    log85.error("Error syncing SD campaigns:", error51);
+    log86.error("Error syncing SD campaigns:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -353121,7 +353490,7 @@ AmazonSyncService.prototype.syncSdAdGroups = async function() {
     const apiAdGroups = await this.client.listSdAdGroups();
     let synced = 0;
     let skipped = 0;
-    log85.debug(`\u83B7\u53D6\u5230 ${apiAdGroups.length} \u4E2ASD\u5E7F\u544A\u7EC4`);
+    log86.debug(`\u83B7\u53D6\u5230 ${apiAdGroups.length} \u4E2ASD\u5E7F\u544A\u7EC4`);
     for (const apiAdGroup of apiAdGroups) {
       const [campaign] = await db.select().from(campaigns).where(
         and(
@@ -353158,10 +353527,10 @@ AmazonSyncService.prototype.syncSdAdGroups = async function() {
       }
       synced++;
     }
-    log85.info(`SD\u5E7F\u544A\u7EC4\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log86.info(`SD\u5E7F\u544A\u7EC4\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log85.error("Error syncing SD ad groups:", error51);
+    log86.error("Error syncing SD ad groups:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -353172,7 +353541,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function() {
     const apiTargets = await this.client.listSdTargets();
     let synced = 0;
     let skipped = 0;
-    log85.debug(`\u83B7\u53D6\u5230 ${apiTargets.length} \u4E2ASD\u5546\u54C1\u5B9A\u4F4D`);
+    log86.debug(`\u83B7\u53D6\u5230 ${apiTargets.length} \u4E2ASD\u5546\u54C1\u5B9A\u4F4D`);
     for (const apiTarget of apiTargets) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiTarget.adGroupId))).limit(1);
       if (!adGroup) continue;
@@ -353258,7 +353627,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function() {
         updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
       };
       if (synced === 0) {
-        log85.debug(`SD\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        log86.debug(`SD\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
         ;
       }
       if (existing) {
@@ -353271,10 +353640,10 @@ AmazonSyncService.prototype.syncSdProductTargets = async function() {
       }
       synced++;
     }
-    log85.info(`SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+    log86.info(`SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error51) {
-    log85.error("Error syncing SD product targets:", error51);
+    log86.error("Error syncing SD product targets:", error51);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -353283,14 +353652,14 @@ AmazonSyncService.prototype.syncSdTargeting = async function(days = 14) {
   if (!db) return 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log85.info(`\u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
+    log86.info(`\u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
     const reportId = await this.client.requestSdTargetingReport(startDate, endDate);
     const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
     if (!reportData || reportData.length === 0) {
-      log85.debug("SD\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log86.debug("SD\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log85.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SD\u5B9A\u5411\u6570\u636E`);
+    log86.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SD\u5B9A\u5411\u6570\u636E`);
     let synced = 0;
     for (const row of reportData) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(row.adGroupId))).limit(1);
@@ -353349,10 +353718,10 @@ AmazonSyncService.prototype.syncSdTargeting = async function(days = 14) {
       }
       synced++;
     }
-    log85.info(`SD\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
+    log86.info(`SD\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log85.error("\u540C\u6B65SD\u5B9A\u5411\u5931\u8D25:", error51);
+    log86.error("\u540C\u6B65SD\u5B9A\u5411\u5931\u8D25:", error51);
     return 0;
   }
 };
@@ -353364,11 +353733,11 @@ init_schema2();
 init_logger2();
 init_timezone2();
 init_amazonSyncService();
-var log86 = createModuleLogger("syncPerformance");
+var log87 = createModuleLogger("syncPerformance");
 AmazonSyncService.prototype.syncPerformanceData = async function(days = 14) {
   const db = await getDb();
   if (!db) {
-    log86.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+    log87.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
     return 0;
   }
   try {
@@ -353376,10 +353745,10 @@ AmazonSyncService.prototype.syncPerformanceData = async function(days = 14) {
     const totalDays = Math.min(days, 90);
     let totalSynced = 0;
     const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
-    log86.debug(`\u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${getMarketplaceCurrentDate(this.marketplace)}`);
-    log86.info(`API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (\u6392\u9664\u4ECA\u5929\uFF0C\u4ECA\u65E5\u6570\u636E\u7531AMS\u63D0\u4F9B)`);
+    log87.debug(`\u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${getMarketplaceCurrentDate(this.marketplace)}`);
+    log87.info(`API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (\u6392\u9664\u4ECA\u5929\uFF0C\u4ECA\u65E5\u6570\u636E\u7531AMS\u63D0\u4F9B)`);
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
-    log86.info(`\u5F00\u59CB\u540C\u6B65\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    log87.info(`\u5F00\u59CB\u540C\u6B65\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
@@ -353388,32 +353757,32 @@ AmazonSyncService.prototype.syncPerformanceData = async function(days = 14) {
       startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
       const startDateStr = startDateObj.toISOString().split("T")[0];
       const endDateStr = endDateObj.toISOString().split("T")[0];
-      log86.debug(`\u7B2C${batch + 1}/${batches}\u6279: ${startDateStr} - ${endDateStr} (\u5171${daysInBatch}\u5929)`);
+      log87.debug(`\u7B2C${batch + 1}/${batches}\u6279: ${startDateStr} - ${endDateStr} (\u5171${daysInBatch}\u5929)`);
       try {
         const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
         totalSynced += batchSynced;
-        log86.info(`\u7B2C${batch + 1}\u6279\u540C\u6B65\u5B8C\u6210: ${batchSynced}\u6761\u8BB0\u5F55`);
+        log87.info(`\u7B2C${batch + 1}\u6279\u540C\u6B65\u5B8C\u6210: ${batchSynced}\u6761\u8BB0\u5F55`);
         if (batch < batches - 1) {
           await new Promise((resolve8) => setTimeout(resolve8, 2e3));
         }
       } catch (batchError) {
-        log86.error(`\u7B2C${batch + 1}\u6279\u540C\u6B65\u5931\u8D25:`, batchError.message);
+        log87.error(`\u7B2C${batch + 1}\u6279\u540C\u6B65\u5931\u8D25:`, batchError.message);
       }
     }
     await this.updateCampaignPerformanceSummary();
     try {
       const hourlyGenerated = await this.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
-      log86.info(`v195: hourly_performance\u81EA\u52A8\u751F\u6210\u5B8C\u6210: ${hourlyGenerated}\u6761`);
+      log87.info(`v195: hourly_performance\u81EA\u52A8\u751F\u6210\u5B8C\u6210: ${hourlyGenerated}\u6761`);
     } catch (hourlyErr) {
-      log86.error(`v195: hourly_performance\u751F\u6210\u5931\u8D25: ${hourlyErr.message}`);
+      log87.error(`v195: hourly_performance\u751F\u6210\u5931\u8D25: ${hourlyErr.message}`);
     }
-    log86.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: \u5171${totalSynced}\u6761\u8BB0\u5F55`);
+    log87.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: \u5171${totalSynced}\u6761\u8BB0\u5F55`);
     return totalSynced;
   } catch (error51) {
-    log86.error(`[v242] \u540C\u6B65\u7EE9\u6548\u6570\u636E\u5931\u8D25: ${JSON.stringify({ message: error51.message, status: error51.status || error51.response?.status, code: error51.code })}`);
-    log86.error("[v242] \u8BE6\u7EC6\u9519\u8BEF:", error51.stack?.substring(0, 500));
+    log87.error(`[v242] \u540C\u6B65\u7EE9\u6548\u6570\u636E\u5931\u8D25: ${JSON.stringify({ message: error51.message, status: error51.status || error51.response?.status, code: error51.code })}`);
+    log87.error("[v242] \u8BE6\u7EC6\u9519\u8BEF:", error51.stack?.substring(0, 500));
     if (error51.message?.includes("timeout") || error51.message?.includes("PENDING") || error51.message?.includes("Report generation")) {
-      log86.error("v148: \u62A5\u544A\u8D85\u65F6\u6216\u751F\u6210\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u540C\u6B65\u5468\u671F\u91CD\u8BD5\u3002\u4E0D\u518D\u751F\u6210\u6A21\u62DF\u6570\u636E\u3002");
+      log87.error("v148: \u62A5\u544A\u8D85\u65F6\u6216\u751F\u6210\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u540C\u6B65\u5468\u671F\u91CD\u8BD5\u3002\u4E0D\u518D\u751F\u6210\u6A21\u62DF\u6570\u636E\u3002");
     }
     return 0;
   }
@@ -353425,20 +353794,20 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(startDateS
   const retryReport = async (name2, requestFn, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        log86.info(`[${name2}] \u8BF7\u6C42\u62A5\u544A (\u5C1D\u8BD5${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
+        log87.info(`[${name2}] \u8BF7\u6C42\u62A5\u544A (\u5C1D\u8BD5${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
         const reportId = await requestFn();
-        log86.info(`[${name2}] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
+        log87.info(`[${name2}] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
         const data2 = await this.client.waitAndDownloadReport(reportId, 9e5);
-        log86.info(`[${name2}] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${data2?.length || 0}`);
+        log87.info(`[${name2}] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${data2?.length || 0}`);
         return data2;
       } catch (err2) {
         const isRetryable = !err2.message?.includes("401") && !err2.message?.includes("403") && !err2.message?.includes("not enabled");
         if (attempt < maxRetries && isRetryable) {
           const delay = attempt * 5e3;
-          log86.warn(`[${name2}] \u5C1D\u8BD5${attempt}\u5931\u8D25: ${err2.message}, ${delay / 1e3}\u79D2\u540E\u91CD\u8BD5...`);
+          log87.warn(`[${name2}] \u5C1D\u8BD5${attempt}\u5931\u8D25: ${err2.message}, ${delay / 1e3}\u79D2\u540E\u91CD\u8BD5...`);
           await new Promise((r5) => setTimeout(r5, delay));
         } else {
-          log86.error(`[${name2}] \u62A5\u544A\u540C\u6B65\u6700\u7EC8\u5931\u8D25 (${attempt}\u6B21\u5C1D\u8BD5): ${err2.message}`);
+          log87.error(`[${name2}] \u62A5\u544A\u540C\u6B65\u6700\u7EC8\u5931\u8D25 (${attempt}\u6B21\u5C1D\u8BD5): ${err2.message}`);
           return null;
         }
       }
@@ -353459,22 +353828,22 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(startDateS
   if (sdData && sdData.length > 0) {
     totalSynced += await this.processReportData(db, sdData, "SD");
   }
-  log86.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: SP=${spData?.length || 0}, SB=${sbData?.length || 0}, SD=${sdData?.length || 0}, \u603B\u5165\u5E93=${totalSynced}`);
+  log87.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: SP=${spData?.length || 0}, SB=${sbData?.length || 0}, SD=${sdData?.length || 0}, \u603B\u5165\u5E93=${totalSynced}`);
   return totalSynced;
 };
 AmazonSyncService.prototype.processReportData = async function(db, reportData, adType) {
   try {
-    log86.info(`\u5F00\u59CB\u5904\u7406${adType}\u62A5\u544A\u6570\u636E, \u5171 ${reportData.length} \u6761\u8BB0\u5F55`);
+    log87.info(`\u5F00\u59CB\u5904\u7406${adType}\u62A5\u544A\u6570\u636E, \u5171 ${reportData.length} \u6761\u8BB0\u5F55`);
     if (reportData.length > 0) {
-      log86.debug(`${adType}\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:`, JSON.stringify(reportData[0], null, 2));
+      log87.debug(`${adType}\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:`, JSON.stringify(reportData[0], null, 2));
     }
     if (!reportData || reportData.length === 0) {
-      log86.warn("\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log87.warn("\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log86.debug("\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:", JSON.stringify(reportData[0], null, 2));
+    log87.debug("\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:", JSON.stringify(reportData[0], null, 2));
     let synced = 0;
-    log86.info(`\u5F00\u59CB\u5904\u7406\u62A5\u544A\u6570\u636E, \u5171 ${reportData.length} \u6761\u8BB0\u5F55`);
+    log87.info(`\u5F00\u59CB\u5904\u7406\u62A5\u544A\u6570\u636E, \u5171 ${reportData.length} \u6761\u8BB0\u5F55`);
     let matchedById = 0;
     let matchedByName = 0;
     let notMatched = 0;
@@ -353496,13 +353865,13 @@ AmazonSyncService.prototype.processReportData = async function(db, reportData, a
         ).limit(1);
         if (campaign) {
           matchedByName++;
-          log86.info(`${adType}\u901A\u8FC7\u540D\u79F0\u5339\u914D\u6210\u529F: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
+          log87.info(`${adType}\u901A\u8FC7\u540D\u79F0\u5339\u914D\u6210\u529F: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
         }
       }
       if (!campaign) {
         if (row.campaignId && row.campaignName) {
           try {
-            log86.info(`${adType}\u81EA\u52A8\u521B\u5EFAcampaign: ${row.campaignName}`);
+            log87.info(`${adType}\u81EA\u52A8\u521B\u5EFAcampaign: ${row.campaignName}`);
             const [newCampaign] = await db.insert(campaigns).values({
               accountId: this.accountId,
               campaignId: String(row.campaignId),
@@ -353515,9 +353884,9 @@ AmazonSyncService.prototype.processReportData = async function(db, reportData, a
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             }).returning();
             campaign = newCampaign;
-            log86.info(`${adType}\u81EA\u52A8\u521B\u5EFAcampaign\u6210\u529F: id=${campaign.id}, name=${campaign.campaignName}`);
+            log87.info(`${adType}\u81EA\u52A8\u521B\u5EFAcampaign\u6210\u529F: id=${campaign.id}, name=${campaign.campaignName}`);
           } catch (createError2) {
-            log86.warn(`${adType}\u521B\u5EFAcampaign\u5931\u8D25\uFF0C\u5C1D\u8BD5\u518D\u6B21\u67E5\u8BE2:`, createError2.message);
+            log87.warn(`${adType}\u521B\u5EFAcampaign\u5931\u8D25\uFF0C\u5C1D\u8BD5\u518D\u6B21\u67E5\u8BE2:`, createError2.message);
             [campaign] = await db.select().from(campaigns).where(
               and(
                 eq(campaigns.accountId, this.accountId),
@@ -353529,7 +353898,7 @@ AmazonSyncService.prototype.processReportData = async function(db, reportData, a
         if (!campaign) {
           notMatched++;
           if (notMatched <= 10) {
-            log86.warn(`${adType}\u672A\u627E\u5230campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || "N/A"}`);
+            log87.warn(`${adType}\u672A\u627E\u5230campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || "N/A"}`);
           }
           continue;
         }
@@ -353622,27 +353991,27 @@ AmazonSyncService.prototype.processReportData = async function(db, reportData, a
       }
       synced++;
     }
-    log86.info(`${adType}\u62A5\u544A\u6570\u636E\u5904\u7406\u5B8C\u6210:`);
-    log86.debug(`  - \u901A\u8FC7ID\u5339\u914D: ${matchedById} \u6761`);
-    log86.debug(`  - \u901A\u8FC7\u540D\u79F0\u5339\u914D: ${matchedByName} \u6761`);
-    log86.debug(`  - \u672A\u5339\u914D: ${notMatched} \u6761`);
-    log86.info(`  - \u603B\u540C\u6B65: ${synced} \u6761`);
+    log87.info(`${adType}\u62A5\u544A\u6570\u636E\u5904\u7406\u5B8C\u6210:`);
+    log87.debug(`  - \u901A\u8FC7ID\u5339\u914D: ${matchedById} \u6761`);
+    log87.debug(`  - \u901A\u8FC7\u540D\u79F0\u5339\u914D: ${matchedByName} \u6761`);
+    log87.debug(`  - \u672A\u5339\u914D: ${notMatched} \u6761`);
+    log87.info(`  - \u603B\u540C\u6B65: ${synced} \u6761`);
     return synced;
   } catch (error51) {
-    log86.error(`${adType}\u62A5\u544A\u6570\u636E\u5904\u7406\u5931\u8D25:`, error51.message);
+    log87.error(`${adType}\u62A5\u544A\u6570\u636E\u5904\u7406\u5931\u8D25:`, error51.message);
     return 0;
   }
 };
 AmazonSyncService.prototype.generateMockPerformanceData = async function(days = 7) {
-  log86.warn("\u26A0\uFE0F generateMockPerformanceData\u5DF2\u5E9F\u5F03\uFF0C\u4E0D\u5E94\u88AB\u8C03\u7528\uFF01\u8BF7\u4F7F\u7528syncPerformanceData()\u4EE3\u66FF");
+  log87.warn("\u26A0\uFE0F generateMockPerformanceData\u5DF2\u5E9F\u5F03\uFF0C\u4E0D\u5E94\u88AB\u8C03\u7528\uFF01\u8BF7\u4F7F\u7528syncPerformanceData()\u4EE3\u66FF");
   const db = await getDb();
   if (!db) return 0;
   try {
     const accountCampaigns = await db.select().from(campaigns).where(eq(campaigns.accountId, this.accountId));
-    log86.debug(`\u4E3A ${accountCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8\u751F\u6210\u6A21\u62DF\u7EE9\u6548\u6570\u636E`);
+    log87.debug(`\u4E3A ${accountCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8\u751F\u6210\u6A21\u62DF\u7EE9\u6548\u6570\u636E`);
     let synced = 0;
     const marketplaceToday = getMarketplaceCurrentDate(this.marketplace);
-    log86.debug(`\u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${marketplaceToday}`);
+    log87.debug(`\u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${marketplaceToday}`);
     for (const campaign of accountCampaigns) {
       for (let i4 = 0; i4 < days; i4++) {
         const baseDate = new Date(marketplaceToday);
@@ -353685,31 +354054,31 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(days = 
       }
     }
     await this.updateCampaignPerformanceSummary();
-    log86.info(`\u6A21\u62DF\u7EE9\u6548\u6570\u636E\u751F\u6210\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
+    log87.info(`\u6A21\u62DF\u7EE9\u6548\u6570\u636E\u751F\u6210\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log86.error("\u751F\u6210\u6A21\u62DF\u7EE9\u6548\u6570\u636E\u5931\u8D25:", error51);
+    log87.error("\u751F\u6210\u6A21\u62DF\u7EE9\u6548\u6570\u636E\u5931\u8D25:", error51);
     return 0;
   }
 };
 AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7) {
   const db = await getDb();
   if (!db) {
-    log86.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+    log87.error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
     return 0;
   }
   try {
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`v196: \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E: ${startDateStr} - ${endDateStr} (\u7AD9\u70B9: ${this.marketplace})`);
+    log87.info(`v196: \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E: ${startDateStr} - ${endDateStr} (\u7AD9\u70B9: ${this.marketplace})`);
     const reportId = await this.client.requestSpKeywordReport(startDateStr, endDateStr);
-    log86.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
+    log87.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
     const reportData = await this.client.waitAndDownloadReport(reportId, 9e5);
-    log86.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${reportData?.length || 0}`);
+    log87.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${reportData?.length || 0}`);
     if (!reportData || reportData.length === 0) {
-      log86.warn("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log87.warn("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log86.debug("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:", JSON.stringify(reportData[0], null, 2));
+    log87.debug("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:", JSON.stringify(reportData[0], null, 2));
     const allAdGroups = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups);
     const adGroupAmazonToLocal = /* @__PURE__ */ new Map();
     for (const ag of allAdGroups) {
@@ -353750,7 +354119,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
       if (pt3.targetId) ptByTargetId.set(pt3.targetId, pt3);
       if (pt3.targetExpression) ptByExpression.set(pt3.targetExpression.toLowerCase(), pt3);
     }
-    log86.info(`v196: \u9884\u52A0\u8F7D\u5B8C\u6210 - ${allKeywords.length}\u4E2A\u5173\u952E\u8BCD, ${allTargets.length}\u4E2A\u5546\u54C1\u6295\u653E, ${allAdGroups.length}\u4E2A\u5E7F\u544A\u7EC4`);
+    log87.info(`v196: \u9884\u52A0\u8F7D\u5B8C\u6210 - ${allKeywords.length}\u4E2A\u5173\u952E\u8BCD, ${allTargets.length}\u4E2A\u5546\u54C1\u6295\u653E, ${allAdGroups.length}\u4E2A\u5E7F\u544A\u7EC4`);
     let synced = 0;
     let notMatched = 0;
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
@@ -353836,7 +354205,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
       }
       notMatched++;
       if (notMatched <= 5) {
-        log86.warn(`v196: \u672A\u5339\u914D: targetId=${reportTargetId}, text=${row.targetingText || "N/A"}, expr=${row.targetingExpression || "N/A"}`);
+        log87.warn(`v196: \u672A\u5339\u914D: targetId=${reportTargetId}, text=${row.targetingText || "N/A"}, expr=${row.targetingExpression || "N/A"}`);
       }
     }
     let dbWritten = 0;
@@ -353845,7 +354214,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
         await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
         dbWritten++;
       } catch (e6) {
-        log86.error(`v196: \u66F4\u65B0keyword ${upd.id} \u5931\u8D25: ${e6.message}`);
+        log87.error(`v196: \u66F4\u65B0keyword ${upd.id} \u5931\u8D25: ${e6.message}`);
       }
     }
     for (const upd of ptUpdates) {
@@ -353853,11 +354222,11 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
         await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
         dbWritten++;
       } catch (e6) {
-        log86.error(`v196: \u66F4\u65B0product_target ${upd.id} \u5931\u8D25: ${e6.message}`);
+        log87.error(`v196: \u66F4\u65B0product_target ${upd.id} \u5931\u8D25: ${e6.message}`);
       }
     }
-    log86.info(`v196: \u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5B8C\u6210 - \u5339\u914D${synced}\u6761, \u672A\u5339\u914D${notMatched}\u6761, \u5199\u5165${dbWritten}\u6761`);
-    log86.debug(`v196: \u5339\u914D\u7EDF\u8BA1 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
+    log87.info(`v196: \u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5B8C\u6210 - \u5339\u914D${synced}\u6761, \u672A\u5339\u914D${notMatched}\u6761, \u5199\u5165${dbWritten}\u6761`);
+    log87.debug(`v196: \u5339\u914D\u7EDF\u8BA1 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
     let backfilled = 0;
     for (const row of reportData) {
       const reportTargetId = String(row.targetId || row.keywordId || "");
@@ -353872,7 +354241,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
       }
     }
     if (backfilled > 0) {
-      log86.debug(`v196: \u56DE\u586B\u4E86${backfilled}\u4E2A\u5173\u952E\u8BCD\u7684keywordId`);
+      log87.debug(`v196: \u56DE\u586B\u4E86${backfilled}\u4E2A\u5173\u952E\u8BCD\u7684keywordId`);
     }
     return synced;
   } catch (error51) {
@@ -353883,12 +354252,12 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
       url: error51.config?.url,
       responseData: error51.response?.data ? JSON.stringify(error51.response.data).substring(0, 500) : void 0
     };
-    log86.error(`[v242] \u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5931\u8D25(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
+    log87.error(`[v242] \u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5931\u8D25(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
     return 0;
   }
 };
 AmazonSyncService.prototype.syncProductTargetPerformanceData = async function(days) {
-  log86.info("\u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u5DF2\u5728syncKeywordPerformanceData\u4E2D\u4E00\u5E76\u5904\u7406");
+  log87.info("\u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u5DF2\u5728syncKeywordPerformanceData\u4E2D\u4E00\u5E76\u5904\u7406");
   return 0;
 };
 AmazonSyncService.prototype.generateHourlyFromDaily = async function(startDate, endDate) {
@@ -353962,10 +354331,10 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(startDate, 
     `);
     const rows = dailyData?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
-      log86.debug("v195: \u6CA1\u6709\u65B0\u7684daily\u6570\u636E\u9700\u8981\u751F\u6210hourly");
+      log87.debug("v195: \u6CA1\u6709\u65B0\u7684daily\u6570\u636E\u9700\u8981\u751F\u6210hourly");
       return 0;
     }
-    log86.debug(`v195: \u627E\u5230 ${rows.length} \u6761\u7F3A\u5C11hourly\u6570\u636E\u7684daily\u8BB0\u5F55`);
+    log87.debug(`v195: \u627E\u5230 ${rows.length} \u6761\u7F3A\u5C11hourly\u6570\u636E\u7684daily\u8BB0\u5F55`);
     let insertedCount = 0;
     let batch = [];
     for (const daily of rows) {
@@ -354025,7 +354394,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(startDate, 
     }
     return insertedCount;
   } catch (error51) {
-    log86.error("v195: generateHourlyFromDaily\u5931\u8D25:", error51.message);
+    log87.error("v195: generateHourlyFromDaily\u5931\u8D25:", error51.message);
     return 0;
   }
 };
@@ -354035,7 +354404,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
   let synced = 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E: ${startDate} - ${endDate} (\u7AD9\u70B9: ${this.marketplace})`);
+    log87.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E: ${startDate} - ${endDate} (\u7AD9\u70B9: ${this.marketplace})`);
     const accountCampaigns = await db.select().from(campaigns).where(eq(campaigns.accountId, this.accountId));
     const spCampaigns = accountCampaigns.filter((c5) => c5.campaignType === "sp_auto" || c5.campaignType === "sp_manual");
     const sbCampaigns = accountCampaigns.filter((c5) => c5.campaignType === "sb");
@@ -354069,10 +354438,10 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
             }).where(eq(adGroups.id, adGroup.id));
             synced++;
           }
-          log86.info(`SP\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${synced} \u6761\u8BB0\u5F55`);
+          log87.info(`SP\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${synced} \u6761\u8BB0\u5F55`);
         }
       } catch (error51) {
-        log86.error("SP\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
+        log87.error("SP\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
       }
     }
     if (sbCampaigns.length > 0) {
@@ -354111,10 +354480,10 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
             sbSynced++;
           }
           synced += sbSynced;
-          log86.info(`SB\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${sbSynced} \u6761\u8BB0\u5F55`);
+          log87.info(`SB\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${sbSynced} \u6761\u8BB0\u5F55`);
         }
       } catch (error51) {
-        log86.error("SB\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
+        log87.error("SB\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
       }
     }
     if (sdCampaigns.length > 0) {
@@ -354157,16 +354526,16 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
             sdSynced++;
           }
           synced += sdSynced;
-          log86.info(`SD\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${sdSynced} \u6761\u8BB0\u5F55`);
+          log87.info(`SD\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65: ${sdSynced} \u6761\u8BB0\u5F55`);
         }
       } catch (error51) {
-        log86.error("SD\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
+        log87.error("SD\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
       }
     }
-    log86.info(`\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: \u5171 ${synced} \u6761\u8BB0\u5F55`);
+    log87.info(`\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: \u5171 ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log86.error("\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
+    log87.error("\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error51);
     return synced;
   }
 };
@@ -354175,14 +354544,14 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
   if (!db) return 0;
   try {
     const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548: ${startDate} - ${endDate}`);
+    log87.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548: ${startDate} - ${endDate}`);
     const reportId = await this.client.requestSpPlacementReport(startDate, endDate);
     const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
     if (!reportData || reportData.length === 0) {
-      log86.debug("\u4F4D\u7F6E\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log87.debug("\u4F4D\u7F6E\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log86.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761\u4F4D\u7F6E\u7EE9\u6548\u6570\u636E`);
+    log87.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761\u4F4D\u7F6E\u7EE9\u6548\u6570\u636E`);
     let synced = 0;
     for (const row of reportData) {
       const [campaign] = await db.select().from(campaigns).where(
@@ -354206,7 +354575,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
       };
       const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || "OTHER";
       const placement = placementMap[rawPlacement] || "rest_of_search";
-      log86.debug(`v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
+      log87.debug(`v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
       const reportDate = row.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       const localCampaignId = String(campaign.campaignId);
       const [existing] = await db.select().from(placementPerformance).where(
@@ -354249,10 +354618,10 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
       }
       synced++;
     }
-    log86.info(`\u4F4D\u7F6E\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
+    log87.info(`\u4F4D\u7F6E\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${synced} \u6761\u8BB0\u5F55`);
     return synced;
   } catch (error51) {
-    log86.error("\u540C\u6B65\u4F4D\u7F6E\u7EE9\u6548\u5931\u8D25:", error51);
+    log87.error("\u540C\u6B65\u4F4D\u7F6E\u7EE9\u6548\u5931\u8D25:", error51);
     return 0;
   }
 };
@@ -354261,7 +354630,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function() 
   if (!db) return;
   try {
     const accountCampaigns = await db.select().from(campaigns).where(eq(campaigns.accountId, this.accountId));
-    log86.info(`\u5F00\u59CB\u66F4\u65B0 ${accountCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u7EE9\u6548\u6C47\u603B (\u7AD9\u70B9: ${this.marketplace})`);
+    log87.info(`\u5F00\u59CB\u66F4\u65B0 ${accountCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u7EE9\u6548\u6C47\u603B (\u7AD9\u70B9: ${this.marketplace})`);
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, 30);
     for (const campaign of accountCampaigns) {
       const [dailySummary] = await db.select({
@@ -354321,9 +354690,9 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function() 
         cpc: totalClicks > 0 ? String((totalSpend / totalClicks).toFixed(2)) : null
       }).where(eq(campaigns.id, campaign.id));
     }
-    log86.info(`\u5E7F\u544A\u6D3B\u52A8\u7EE9\u6548\u6C47\u603B\u66F4\u65B0\u5B8C\u6210`);
+    log87.info(`\u5E7F\u544A\u6D3B\u52A8\u7EE9\u6548\u6C47\u603B\u66F4\u65B0\u5B8C\u6210`);
   } catch (error51) {
-    log86.error("\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8\u7EE9\u6548\u6C47\u603B\u5931\u8D25:", error51);
+    log87.error("\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8\u7EE9\u6548\u6C47\u603B\u5931\u8D25:", error51);
   }
 };
 
@@ -354333,7 +354702,7 @@ init_db2();
 init_schema2();
 init_logger2();
 init_amazonSyncService();
-var log87 = createModuleLogger("bidOperations");
+var log88 = createModuleLogger("bidOperations");
 AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targetId, newBid, reason, campaignId) {
   const db = await getDb();
   if (!db) return false;
@@ -354346,11 +354715,11 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
     if (targetType === "keyword") {
       const [kw] = await db.select().from(keywords).where(eq(keywords.id, targetId)).limit(1);
       if (!kw) {
-        log87.error(`[applyBidAdjustment] keyword id=${targetId} \u4E0D\u5B58\u5728`);
+        log88.error(`[applyBidAdjustment] keyword id=${targetId} \u4E0D\u5B58\u5728`);
         return false;
       }
       if (!kw.keywordId) {
-        log87.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
+        log88.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
           const { resolveKeywordIdOnDemand: resolveKeywordIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
           const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
@@ -354360,15 +354729,15 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
               const resolvedId = await resolveKeywordIdOnDemand2(camp.accountId, targetId);
               if (resolvedId) {
                 kw.keywordId = resolvedId;
-                log87.info(`[applyBidAdjustment] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: keyword id=${targetId} -> keywordId=${resolvedId}`);
+                log88.info(`[applyBidAdjustment] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: keyword id=${targetId} -> keywordId=${resolvedId}`);
               }
             }
           }
         } catch (resolveErr) {
-          log87.error(`[applyBidAdjustment] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+          log88.error(`[applyBidAdjustment] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
         }
         if (!kw.keywordId) {
-          log87.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
+          log88.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
           const err2 = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} \u7F3A\u5C11Amazon keywordId`);
           throw err2;
         }
@@ -354386,10 +354755,10 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
         caller: "applyBidAdjustment:keyword"
       });
       if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
-        log87.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}"`);
+        log88.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}"`);
         return false;
       }
-      log87.debug(`[applyBidAdjustment] \u8C03\u7528Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
+      log88.debug(`[applyBidAdjustment] \u8C03\u7528Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
       await this.client.updateKeywordBids([{
         keywordId: amazonId,
         bid: Number(newBid.toFixed(2))
@@ -354397,11 +354766,11 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
     } else {
       const [pt3] = await db.select().from(productTargets).where(eq(productTargets.id, targetId)).limit(1);
       if (!pt3) {
-        log87.error(`[applyBidAdjustment] product_target id=${targetId} \u4E0D\u5B58\u5728`);
+        log88.error(`[applyBidAdjustment] product_target id=${targetId} \u4E0D\u5B58\u5728`);
         return false;
       }
       if (!pt3.targetId) {
-        log87.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11targetId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
+        log88.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11targetId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
           const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
           const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt3.adGroupId)).limit(1);
@@ -354411,15 +354780,15 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
               const resolvedId = await resolveProductTargetIdOnDemand2(camp.accountId, targetId);
               if (resolvedId) {
                 pt3.targetId = resolvedId;
-                log87.info(`[applyBidAdjustment] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: product_target id=${targetId} -> targetId=${resolvedId}`);
+                log88.info(`[applyBidAdjustment] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: product_target id=${targetId} -> targetId=${resolvedId}`);
               }
             }
           }
         } catch (resolveErr) {
-          log87.error(`[applyBidAdjustment] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+          log88.error(`[applyBidAdjustment] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
         }
         if (!pt3.targetId) {
-          log87.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11Amazon targetId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
+          log88.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11Amazon targetId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
           const err2 = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} \u7F3A\u5C11Amazon targetId`);
           throw err2;
         }
@@ -354437,10 +354806,10 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
         caller: "applyBidAdjustment:product_target"
       });
       if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
-        log87.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}"`);
+        log88.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}"`);
         return false;
       }
-      log87.debug(`[applyBidAdjustment] \u8C03\u7528Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
+      log88.debug(`[applyBidAdjustment] \u8C03\u7528Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
       await this.client.updateProductTargetBids([{
         targetId: amazonId,
         bid: Number(newBid.toFixed(2))
@@ -354448,7 +354817,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
     }
     const bidChangePercent = oldBid > 0 ? (newBid - oldBid) / oldBid * 100 : 0;
     const actionType = newBid > oldBid ? "increase" : newBid < oldBid ? "decrease" : "set";
-    log87.info(`[applyBidAdjustment] \u2705 Amazon API\u8C03\u7528\u6210\u529F: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+    log88.info(`[applyBidAdjustment] \u2705 Amazon API\u8C03\u7528\u6210\u529F: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
     try {
       await db.insert(biddingLogs).values({
         accountId: this.accountId,
@@ -354468,24 +354837,24 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
         createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
       });
     } catch (logError2) {
-      log87.error(`[applyBidAdjustment] \u26A0\uFE0F \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25\uFF08API\u5DF2\u6210\u529F\uFF09: ${logError2.message}`);
+      log88.error(`[applyBidAdjustment] \u26A0\uFE0F \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25\uFF08API\u5DF2\u6210\u529F\uFF09: ${logError2.message}`);
       try {
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
         await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
-        log87.info(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
+        log88.info(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
       } catch (rawSqlError) {
-        log87.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
+        log88.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
       }
     }
     return true;
   } catch (error51) {
     const errorDetail = error51.response?.data ? JSON.stringify(error51.response.data) : error51.message;
-    log87.error(`[applyBidAdjustment] \u2757 ${targetType} id=${targetId} \u51FA\u4EF7\u8C03\u6574\u5931\u8D25:`, errorDetail);
-    log87.error(`[applyBidAdjustment] \u8BE6\u7EC6\u4FE1\u606F: newBid=${newBid}, campaignId=${campaignId}, HTTP\u72B6\u6001=${error51.response?.status || "N/A"}`);
+    log88.error(`[applyBidAdjustment] \u2757 ${targetType} id=${targetId} \u51FA\u4EF7\u8C03\u6574\u5931\u8D25:`, errorDetail);
+    log88.error(`[applyBidAdjustment] \u8BE6\u7EC6\u4FE1\u606F: newBid=${newBid}, campaignId=${campaignId}, HTTP\u72B6\u6001=${error51.response?.status || "N/A"}`);
     const isInvalidId = error51.response?.status === 404 || errorDetail.includes("INVALID_ARGUMENT") || errorDetail.includes("NOT_FOUND") || errorDetail.includes("RESOURCE_NOT_FOUND") || errorDetail.includes("EntityNotFound") || errorDetail.includes("does not exist");
     if (isInvalidId && amazonId) {
-      log87.warn(`[applyBidAdjustment] v310-fix: ${targetType} id=${targetId} \u7684Amazon ID "${amazonId}" \u5DF2\u5931\u6548\uFF0C\u6E05\u7A7A\u4EE5\u9632\u6B62\u540E\u7EED\u91CD\u590D\u5931\u8D25`);
+      log88.warn(`[applyBidAdjustment] v310-fix: ${targetType} id=${targetId} \u7684Amazon ID "${amazonId}" \u5DF2\u5931\u6548\uFF0C\u6E05\u7A7A\u4EE5\u9632\u6B62\u540E\u7EED\u91CD\u590D\u5931\u8D25`);
       try {
         const dbInstance = await db.getDb();
         if (dbInstance) {
@@ -354495,10 +354864,10 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
           } else {
             await dbInstance.execute(sqlTag`UPDATE product_targets SET targetId = NULL WHERE id = ${targetId}`);
           }
-          log87.info(`[applyBidAdjustment] v310-fix: \u5DF2\u6E05\u7A7A${targetType} id=${targetId}\u7684Amazon ID\uFF0C\u5C06\u901A\u8FC7\u5373\u65F6\u56DE\u586B\u673A\u5236\u91CD\u65B0\u83B7\u53D6`);
+          log88.info(`[applyBidAdjustment] v310-fix: \u5DF2\u6E05\u7A7A${targetType} id=${targetId}\u7684Amazon ID\uFF0C\u5C06\u901A\u8FC7\u5373\u65F6\u56DE\u586B\u673A\u5236\u91CD\u65B0\u83B7\u53D6`);
         }
       } catch (clearErr) {
-        log87.error(`[applyBidAdjustment] v310-fix: \u6E05\u7A7AAmazon ID\u5931\u8D25: ${clearErr.message}`);
+        log88.error(`[applyBidAdjustment] v310-fix: \u6E05\u7A7AAmazon ID\u5931\u8D25: ${clearErr.message}`);
       }
     }
     try {
@@ -354509,7 +354878,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
       const errMsg = errorDetail.substring(0, 500);
       await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
     } catch (logErr) {
-      log87.error(`[applyBidAdjustment] \u26A0\uFE0F \u5931\u8D25\u65E5\u5FD7\u8BB0\u5F55\u4E5F\u5931\u8D25: ${logErr.message}`);
+      log88.error(`[applyBidAdjustment] \u26A0\uFE0F \u5931\u8D25\u65E5\u5FD7\u8BB0\u5F55\u4E5F\u5931\u8D25: ${logErr.message}`);
     }
     return false;
   }
@@ -354677,6 +355046,15 @@ async function startServer2() {
       }
     }).catch((err2) => {
       console.error("[AutoDbMigration] v248\u8FC1\u79FB\u5F02\u5E38:", err2.message);
+    });
+    runPrelaunchDbMigration().then((result) => {
+      if (result.success) {
+        console.log(`[PrelaunchDb] \u9884\u53D1\u5E03\u5F15\u64CE\u8868\u8FC1\u79FB\u5B8C\u6210: ${result.results.filter((r5) => r5.includes("\u5DF2\u5C31\u7EEA")).length} \u5F20\u8868\u521B\u5EFA/\u786E\u8BA4`);
+      } else {
+        console.error("[PrelaunchDb] \u9884\u53D1\u5E03\u5F15\u64CE\u8868\u8FC1\u79FB\u5931\u8D25:", result.results.join("; "));
+      }
+    }).catch((err2) => {
+      console.error("[PrelaunchDb] \u9884\u53D1\u5E03\u5F15\u64CE\u8868\u8FC1\u79FB\u5F02\u5E38:", err2.message);
     });
     runAutoMigration().then((result) => {
       if (result.success) {

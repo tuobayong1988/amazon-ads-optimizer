@@ -22,6 +22,7 @@ import { isShuttingDown } from '../utils/taskLifecycle';
 import { ensureNextGenTables } from '../nextGenMigration';
 import { startObservabilityService } from '../observabilityService';
 import { runAutoDbMigration } from '../dbAutoMigration';
+import { runPrelaunchDbMigration } from '../prelaunchDbMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
@@ -207,6 +208,17 @@ async function startServer() {
       }
     }).catch(err => {
       console.error('[AutoDbMigration] v248迁移异常:', err.message);
+    });
+
+    // 预发布引擎数据库表自动创建
+    runPrelaunchDbMigration().then(result => {
+      if (result.success) {
+        console.log(`[PrelaunchDb] 预发布引擎表迁移完成: ${result.results.filter(r => r.includes('已就绪')).length} 张表创建/确认`);
+      } else {
+        console.error('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
+      }
+    }).catch(err => {
+      console.error('[PrelaunchDb] 预发布引擎表迁移异常:', err.message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）

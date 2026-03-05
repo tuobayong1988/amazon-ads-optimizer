@@ -25,7 +25,7 @@ import {
   BarChart3, Zap, Eye, RefreshCw, ChevronRight, AlertCircle,
   Settings, Download, Upload, Trash2, ArrowRightCircle,
   Edit3, MoreVertical, FolderOpen, Globe, Tag, Calendar,
-  Archive, Filter, X, Copy, ExternalLink
+  Archive, Filter, X, Copy, ExternalLink, AlertTriangle
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -834,6 +834,7 @@ export default function PrelaunchDashboard() {
   const dashboard = dashboardQuery.data;
   const projectsData = projectsQuery.data;
   const projects = (projectsData && 'data' in projectsData ? (projectsData as any).data : projectsData) || [];
+  const projectsError = projectsData && 'success' in projectsData && !(projectsData as any).success ? (projectsData as any).error : null;
   const pipelineStatus = pipelineStatusQuery.data;
   const modules = (dashboard as any)?.data?.modules || {};
 
@@ -958,6 +959,17 @@ export default function PrelaunchDashboard() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 <span className="ml-2 text-sm text-muted-foreground">加载项目列表...</span>
+              </div>
+            ) : projectsQuery.isError || projectsError ? (
+              <div className="text-center py-12">
+                <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-amber-400 opacity-50" />
+                <p className="text-sm text-muted-foreground mb-1">项目列表加载失败</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  {projectsError || projectsQuery.error?.message || '数据库表可能尚未初始化，请刷新页面重试'}
+                </p>
+                <Button size="sm" variant="outline" onClick={() => projectsQuery.refetch()}>
+                  <RefreshCw className="w-4 h-4 mr-1" /> 重新加载
+                </Button>
               </div>
             ) : Array.isArray(projects) && projects.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
