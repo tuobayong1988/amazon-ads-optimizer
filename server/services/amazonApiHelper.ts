@@ -336,7 +336,7 @@ export async function syncNewKeywordsToAmazon(
         } else {
           result.failed++;
           const errorCode = created.code || 'UNKNOWN';
-          const errorDetail = created.details || created.description || '';
+          const errorDetail = (created as any).details || (created as any).description || '';
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
           log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           
@@ -448,7 +448,7 @@ export async function syncNewProductTargetsToAmazon(
         };
       });
       
-      const apiResult = await syncService.createSpProductTargets(apiTargets);
+      const apiResult = await (syncService as any).createSpProductTargets(apiTargets);
       
       for (let j = 0; j < apiResult.createdTargets.length; j++) {
         const created = apiResult.createdTargets[j];

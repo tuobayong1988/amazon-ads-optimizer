@@ -258,7 +258,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     if (isInvalidId && amazonId) {
       log.warn(`[applyBidAdjustment] v310-fix: ${targetType} id=${targetId} 的Amazon ID "${amazonId}" 已失效，清空以防止后续重复失败`);
       try {
-        const dbInstance = await db.getDb();
+        const dbInstance = await getDb();
         if (dbInstance) {
           const { sql: sqlTag } = await import('drizzle-orm');
           if (targetType === 'keyword') {

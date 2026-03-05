@@ -784,7 +784,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
       const keywordData = {
         adGroupId: adGroup.id,
         accountId: this.accountId,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
         matchType: normalizedMatchType,
@@ -968,7 +968,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
 
       const targetData = {
         adGroupId: adGroup.id,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
         targetValue,

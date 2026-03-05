@@ -146,7 +146,7 @@ async function runVerification() {
 
     } catch (error) {
         log.error("\n--- VERIFICATION FAILED ---");
-        log.error(error);
+        log.error(String(error));
         process.exit(1);
     }
 }

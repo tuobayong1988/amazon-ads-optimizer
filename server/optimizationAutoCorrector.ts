@@ -1329,7 +1329,7 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
           if (kwId) {
             const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               accountId,
-              [{ keywordId: kwId, newBid: parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, '')) }]
+              [{ keywordId: kwId, newBid: parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, '')), reason: `v329 AutoCorrector: 重试失败的${actionType}操作` }]
             );
             success = syncResult.success > 0;
           }

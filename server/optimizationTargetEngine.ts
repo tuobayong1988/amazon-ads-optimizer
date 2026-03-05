@@ -217,6 +217,9 @@ export interface OptimizationTargetConfig {
   // v164: 自我进化所需字段
   userId: number;
   strategyTemplateId?: string;
+  
+  // v329: 关联的业绩组ID
+  performanceGroupId?: number;
 }
 
 /**

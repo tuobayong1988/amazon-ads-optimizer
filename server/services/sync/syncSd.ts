@@ -396,7 +396,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
 
       const targetData = {
         adGroupId: adGroup.id,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
@@ -506,7 +506,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
 
        const targetData = {
         adGroupId: adGroup.id,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         targetId: String(row.targetId),
         targetType,
         targetValue,

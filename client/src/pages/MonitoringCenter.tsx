@@ -286,7 +286,7 @@ export default function MonitoringCenter() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {accountsData.map((account) => (
+              {accountsData.map((account: any) => (
                 <Card 
                   key={account.id} 
                   className={`${getStatusBg(account.status)} cursor-pointer hover:scale-[1.02] transition-transform`}
@@ -446,7 +446,7 @@ export default function MonitoringCenter() {
                   </tr>
                 </thead>
                 <tbody>
-                  {accountsData.map((account) => (
+                  {accountsData.map((account: any) => (
                     <tr key={account.id} className="border-b border-gray-800 hover:bg-gray-800/50">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">

@@ -144,7 +144,7 @@ export default function PrelaunchM7AdFramework() {
                     </TabsList>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm"
-                        onClick={() => compileMutation.mutate({ projectId: projectId!, frameworkType: 'SP' })}
+                        onClick={() => compileMutation.mutate({ projectId: projectId!, frameworkTypes: ['SP_KW_MANUAL'] })}
                         disabled={compileMutation.isPending}>
                         {compileMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Code className="w-3 h-3 mr-1" />}
                         编译

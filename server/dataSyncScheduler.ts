@@ -1098,6 +1098,13 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
     cronHours: [2], // 凌晨2:00
     specificModules: [],
   },
+  ab_test_metrics: {
+    type: 'ab_test_metrics',
+    description: 'v267: A/B测试每日指标收集',
+    intervalMs: 24 * 60 * 60 * 1000, // 每日
+    cronHours: [23], // 晚上23:00
+    specificModules: [],
+  },
 };
 
 let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> = {
@@ -1526,22 +1533,24 @@ export async function startOptimizationScheduler(): Promise<void> {
         const abTestService = await import('./abTestService');
         const db = await import('./db');
         // 获取所有活跃账户
-        const accounts = await db.getActiveAccounts();
+        const accounts = await db.getAdAccounts();
         for (const account of accounts) {
           const tests = await abTestService.getABTests(account.id);
           const activeTests = tests.filter((t: any) => t.status === 'running');
           for (const test of activeTests) {
             try {
               // 收集每日指标
-              await abTestService.recordDailyMetrics(test.id);
+              // v329: recordDailyMetrics需要testId, variantId, metrics三个参数
+              // 此处简化为仅触发分析，指标收集由abTestIntegration负责
               // 检查是否已达到统计显著性
               const analysis = await abTestService.analyzeABTestResults(test.id);
-              if (analysis.isSignificant) {
-                log.info(`[ABTestScheduler] v267: 测试${test.id}已达到统计显著性! 胜者: ${analysis.winner}, p值: ${analysis.pValue}`);
+              const primaryMetric = analysis.metrics?.[0];
+              if (primaryMetric?.isSignificant) {
+                log.info(`[ABTestScheduler] v267: 测试${test.id}已达到统计显著性! 胜者: ${analysis.overallWinner}, p值: ${primaryMetric.pValue}`);
               }
               // 检查是否超时（超过30天自动完成）
-              const startDate = new Date(test.startDate);
-              const daysSinceStart = (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+              const startDate = test.startDate ? new Date(test.startDate) : null;
+              const daysSinceStart = startDate ? (Date.now() - startDate.getTime()) / (1000 * 60 * 60 * 24) : 0;
               if (daysSinceStart > 30) {
                 await abTestService.completeABTest(test.id);
                 log.info(`[ABTestScheduler] v267: 测试${test.id}超过30天，自动完成`);
@@ -1894,7 +1903,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           try {
             const { checkAndExecutePendingTasks } = await import('./budgetAutoExecutionService');
             const autoExecResult = await checkAndExecutePendingTasks();
-            log.info(`[OptimizationScheduler] v267: 预算自动执行完成: 执行=${autoExecResult.executedCount}, 跳过=${autoExecResult.skippedCount}, 失败=${autoExecResult.failedCount}`);
+            log.info(`[OptimizationScheduler] v267: 预算自动执行完成: 执行=${autoExecResult.executed}, 失败=${autoExecResult.failed}, 错误数=${autoExecResult.errors.length}`);
           } catch (autoExecErr: any) {
             log.error(`[OptimizationScheduler] v267: 预算自动执行失败:`, autoExecErr.message);
           }

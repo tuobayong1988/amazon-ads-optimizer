@@ -20,7 +20,7 @@ export const teamRouter = router({
       id: ctx.user.id,
       ownerId: ctx.user.id,
       email: ctx.user.email || '',
-      name: ctx.user.username || ctx.user.email || '管理员',
+      name: ctx.user.name || ctx.user.email || '管理员',
       role: 'owner' as const,
       status: 'active' as const,
       createdAt: ctx.user.createdAt || new Date(),

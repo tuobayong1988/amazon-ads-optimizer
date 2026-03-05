@@ -944,7 +944,7 @@ export default function Dashboard() {
                       <p className="text-muted-foreground text-xs">平均幅度</p>
                       <p className="font-semibold">{healthMetrics.metrics.bidIncreaseAnalysis.avgIncreasePercent.toFixed(1)}%</p>
                     </div>
-                    {healthMetrics.metrics.bidIncreaseAnalysis.byScenario.slice(0, 2).map((s) => (
+                    {healthMetrics.metrics.bidIncreaseAnalysis.byScenario.slice(0, 2).map((s: any) => (
                       <div key={s.scenario}>
                         <p className="text-muted-foreground text-xs truncate" title={s.scenario}>{s.scenario}</p>
                         <p className="font-semibold">{s.count}次 ({s.avgPercent}%)</p>

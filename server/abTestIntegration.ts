@@ -152,6 +152,7 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
   // 从数据库加载
   try {
     const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const tests = await db.select().from(abTests)
       .where(and(
         eq(abTests.accountId, accountId),
@@ -165,8 +166,8 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       const variants = await db.select().from(abTestVariants)
         .where(eq(abTestVariants.testId, test.id));
       
-      const controlVariant = variants.find(v => v.variantType === 'control');
-      const treatmentVariant = variants.find(v => v.variantType === 'treatment');
+      const controlVariant = variants.find((v: any) => v.variantType === 'control');
+      const treatmentVariant = variants.find((v: any) => v.variantType === 'treatment');
       
       if (!controlVariant || !treatmentVariant) continue;
       
@@ -184,8 +185,8 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       experiments.push({
         testId: test.id,
         experimentType: test.testType || 'bid_strategy',
-        controlConfig: (controlVariant.config as ExperimentVariantConfig) || {},
-        treatmentConfig: (treatmentVariant.config as ExperimentVariantConfig) || {},
+        controlConfig: ((controlVariant as any).config as ExperimentVariantConfig) || {},
+        treatmentConfig: ((treatmentVariant as any).config as ExperimentVariantConfig) || {},
         controlCampaignIds,
         treatmentCampaignIds,
       });
@@ -211,6 +212,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
   for (const exp of experiments) {
     try {
       const db = await getDb();
+      if (!db) throw new Error('Database not available');
       
       // 获取变体信息
       const variants = await db.select().from(abTestVariants)
@@ -242,12 +244,11 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
         await abTestService.recordDailyMetrics(
           exp.testId,
           variant.id,
-          new Date(),
           {
             impressions: Number(metrics.impressions),
             clicks: Number(metrics.clicks),
             spend: Number(metrics.spend),
-            revenue: Number(metrics.sales),
+            sales: Number(metrics.sales),
             conversions: Number(metrics.orders),
           }
         );
@@ -267,6 +268,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
 export async function checkAndCompleteExpiredExperiments(): Promise<number> {
   try {
     const db = await getDb();
+    if (!db) throw new Error('Database not available');
     const runningTests = await db.select().from(abTests)
       .where(eq(abTests.status, 'running'));
     

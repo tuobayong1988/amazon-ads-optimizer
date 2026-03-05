@@ -351,7 +351,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
       const keywordData = {
         adGroupId: adGroup.id,
         accountId: this.accountId,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText || apiKeyword.keyword || '',
         matchType: normalizedMatchType,
@@ -485,7 +485,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
 
        const targetData = {
         adGroupId: adGroup.id,
-        campaignId: adGroup.campaignId,
+        campaignId: Number(adGroup.campaignId),
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
@@ -749,7 +749,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
         const keywordData = {
           adGroupId: adGroup.id,
           accountId: this.accountId,
-          campaignId: adGroup.campaignId,
+          campaignId: Number(adGroup.campaignId),
           keywordId: String(row.keywordId),
           keywordText: row.keyword || '',
           matchType: (row.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',

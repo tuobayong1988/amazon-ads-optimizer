@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type TeamMemberRole = "owner" | "admin" | "editor" | "viewer";
+type InviteRole = Exclude<TeamMemberRole, "owner">;
 type TeamMemberStatus = "pending" | "active" | "inactive" | "revoked";
 
 interface Permission {
@@ -55,7 +56,7 @@ export default function TeamManagement() {
   const [inviteForm, setInviteForm] = useState({
     email: "",
     name: "",
-    role: "viewer" as TeamMemberRole,
+    role: "viewer" as InviteRole,
   });
   const [permissions, setPermissions] = useState<Permission[]>([]);
 
@@ -236,7 +237,7 @@ export default function TeamManagement() {
                   <Label htmlFor="role">角色</Label>
                   <Select
                     value={inviteForm.role}
-                    onValueChange={(value: TeamMemberRole) => setInviteForm({ ...inviteForm, role: value })}
+                    onValueChange={(value: InviteRole) => setInviteForm({ ...inviteForm, role: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -321,7 +322,7 @@ export default function TeamManagement() {
                   onOpenPermissions={handleOpenPermissions}
                   onResendInvite={(id) => resendMutation.mutate({ id })}
                   onDelete={(id) => deleteMutation.mutate({ id })}
-                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role })}
+                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role: role as "admin" | "editor" | "viewer" })}
                   getRoleBadge={getRoleBadge}
                   getStatusBadge={getStatusBadge}
                 />
@@ -333,7 +334,7 @@ export default function TeamManagement() {
                   onOpenPermissions={handleOpenPermissions}
                   onResendInvite={(id) => resendMutation.mutate({ id })}
                   onDelete={(id) => deleteMutation.mutate({ id })}
-                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role })}
+                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role: role as "admin" | "editor" | "viewer" })}
                   getRoleBadge={getRoleBadge}
                   getStatusBadge={getStatusBadge}
                 />
@@ -345,7 +346,7 @@ export default function TeamManagement() {
                   onOpenPermissions={handleOpenPermissions}
                   onResendInvite={(id) => resendMutation.mutate({ id })}
                   onDelete={(id) => deleteMutation.mutate({ id })}
-                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role })}
+                  onUpdateRole={(id, role) => updateMutation.mutate({ id, role: role as "admin" | "editor" | "viewer" })}
                   getRoleBadge={getRoleBadge}
                   getStatusBadge={getStatusBadge}
                 />
@@ -437,7 +438,7 @@ interface MemberTableProps {
   onOpenPermissions: (id: number) => void;
   onResendInvite: (id: number) => void;
   onDelete: (id: number) => void;
-  onUpdateRole: (id: number, role: TeamMemberRole) => void;
+  onUpdateRole: (id: number, role: "admin" | "editor" | "viewer") => void;
   getRoleBadge: (role: TeamMemberRole) => React.ReactNode;
   getStatusBadge: (status: TeamMemberStatus) => React.ReactNode;
 }

@@ -23,8 +23,8 @@ export const systemConfigRouter = router({
   getConfigByCategory: protectedProcedure
     .input(z.object({ category: z.string() }))
     .query(async ({ input }) => {
-      const { getConfigByCategory } = await import('../systemConfigService');
-      return { success: true, config: getConfigByCategory(input.category) };
+      const { getAllConfig } = await import('../systemConfigService');
+      return { success: true, config: getAllConfig(input.category) };
     }),
 
   /**
@@ -41,7 +41,7 @@ export const systemConfigRouter = router({
       const success = updateConfig(
         input.key,
         input.value,
-        ctx.user.username || 'unknown',
+        ctx.user.name || 'unknown',
         input.reason || ''
       );
       return { success };
@@ -53,8 +53,8 @@ export const systemConfigRouter = router({
   getChangeHistory: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
     .query(async ({ input }) => {
-      const { getChangeHistory } = await import('../systemConfigService');
-      return { success: true, history: getChangeHistory(input.limit || 50) };
+      const { getChangeLog } = await import('../systemConfigService');
+      return { success: true, history: getChangeLog(input.limit || 50) };
     }),
 
   /**
@@ -80,7 +80,7 @@ export const systemConfigRouter = router({
       const { getRecentDecisionTraces } = await import('../algorithmObservabilityService');
       return {
         success: true,
-        traces: getRecentDecisionTraces(input.accountId, input.algorithm, input.limit || 50),
+        traces: getRecentDecisionTraces(input.limit || 50, { accountId: input.accountId, algorithm: input.algorithm }),
       };
     }),
 

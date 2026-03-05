@@ -88,13 +88,15 @@ async function collectSyncMetrics(now: Date): Promise<SystemMetricSnapshot> {
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   
   // 统计各类型同步状态
-  const syncStats = await (await getDb()).select({
+  const db = await getDb();
+  if (!db) return { timestamp: now, category: 'sync' as const, metrics: {} };
+  const syncStats = await db.select({
     apiSyncStatus: optimizationEvents.apiSyncStatus,
     operationType: optimizationEvents.actionType,
     cnt: count()
   })
   .from(optimizationEvents)
-  .where(gte(optimizationEvents.executedAt, oneHourAgo))
+  .where(gte(optimizationEvents.executedAt, oneHourAgo.toISOString().slice(0, 19).replace('T', ' ')))
   .groupBy(optimizationEvents.apiSyncStatus, optimizationEvents.actionType);
   
   let totalSynced = 0, totalPending = 0, totalFailed = 0, totalNA = 0;
@@ -141,36 +143,38 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   
+  const db2 = await getDb();
+  if (!db2) return { timestamp: now, category: 'optimization' as const, metrics: {} };
   // 最近1小时的优化事件统计
-  const hourlyStats = await (await getDb()).select({
+  const hourlyStats = await db2.select({
     status: optimizationEvents.status,
     cnt: count()
   })
   .from(optimizationEvents)
-  .where(gte(optimizationEvents.executedAt, oneHourAgo))
+  .where(gte(optimizationEvents.executedAt, oneHourAgo.toISOString().slice(0, 19).replace('T', ' ')))
   .groupBy(optimizationEvents.status);
   
   let hourlyExecuted = 0, hourlyFailed = 0, hourlyRolledBack = 0;
   for (const row of hourlyStats) {
     const cnt = Number(row.cnt);
-    if (row.status === 'executed') hourlyExecuted += cnt;
+    if (row.status === 'success') hourlyExecuted += cnt;
     else if (row.status === 'failed') hourlyFailed += cnt;
     else if (row.status === 'rolled_back') hourlyRolledBack += cnt;
   }
   
   // 最近24小时的优化事件统计
-  const dailyStats = await (await getDb()).select({
+  const dailyStats = await db2.select({
     status: optimizationEvents.status,
     cnt: count()
   })
   .from(optimizationEvents)
-  .where(gte(optimizationEvents.executedAt, oneDayAgo))
+  .where(gte(optimizationEvents.executedAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')))
   .groupBy(optimizationEvents.status);
   
   let dailyExecuted = 0, dailyFailed = 0, dailyRolledBack = 0;
   for (const row of dailyStats) {
     const cnt = Number(row.cnt);
-    if (row.status === 'executed') dailyExecuted += cnt;
+    if (row.status === 'success') dailyExecuted += cnt;
     else if (row.status === 'failed') dailyFailed += cnt;
     else if (row.status === 'rolled_back') dailyRolledBack += cnt;
   }
@@ -197,14 +201,16 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
 async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapshot> {
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   
+  const db3 = await getDb();
+  if (!db3) return { timestamp: now, category: 'reliability' as const, metrics: {} };
   // 计算API调用成功率
-  const apiStats = await (await getDb()).select({
+  const apiStats = await db3.select({
     apiSyncStatus: optimizationEvents.apiSyncStatus,
     cnt: count()
   })
   .from(optimizationEvents)
   .where(and(
-    gte(optimizationEvents.executedAt, oneDayAgo),
+    gte(optimizationEvents.executedAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')),
     not(eq(optimizationEvents.apiSyncStatus, 'not_applicable'))
   ))
   .groupBy(optimizationEvents.apiSyncStatus);

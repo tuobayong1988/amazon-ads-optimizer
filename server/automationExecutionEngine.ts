@@ -778,7 +778,7 @@ export async function executeOptimization(
           accountId,
           campaignId: String(targetId),
           adGroupId: 0,
-          logTargetType: 'dayparting',
+          logTargetType: 'campaign_budget',
           targetId,
           targetName: targetName || `Campaign ${targetId} Dayparting`,
           actionType: newValue > currentValue ? 'increase' : 'decrease',

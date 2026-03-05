@@ -917,17 +917,17 @@ export class AmazonSyncService {
 
         const targetData = {
           adGroupId: adGroup.id,
-          campaignId: adGroup.campaignId,
+          campaignId: Number(adGroup.campaignId),
           targetId: String(row.targetId),
           targetType,
           targetValue,
           targetExpression: targetingExpression,
           bid: '0.00', // 自动定向没有单独的出价
-          impressions,
-          clicks,
+          impressions: Number(impressions),
+          clicks: Number(clicks),
           spend: String(cost),
           sales: String(sales),
-          orders,
+          orders: Number(orders),
           targetAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
           targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
           targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,

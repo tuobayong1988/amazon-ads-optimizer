@@ -947,7 +947,7 @@ function DashboardContent() {
   
   // v233: 合并图表数据 - 花费/销售额柱状图 + ACoS折线图
   const combinedChartData = useMemo(() => {
-    return chartData.map(d => ({
+    return chartData.map((d: any) => ({
       ...d,
       profit: d.sales - d.spend,
     }));
@@ -1009,9 +1009,9 @@ function DashboardContent() {
   // v233: 算法使用统计
   const algorithmSummary = useMemo(() => {
     if (!algorithmStats || algorithmStats.length === 0) return { totalOps: 0, avgPositiveRate: 0, bestAlgorithm: '无数据', algorithms: [] };
-    const totalOps = algorithmStats.reduce((sum, a) => sum + a.count, 0);
-    const avgPositiveRate = algorithmStats.reduce((sum, a) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
-    const best = [...algorithmStats].sort((a, b) => b.positiveRate - a.positiveRate)[0];
+    const totalOps = algorithmStats.reduce((sum: any, a: any) => sum + a.count, 0);
+    const avgPositiveRate = algorithmStats.reduce((sum: any, a: any) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
+    const best = [...algorithmStats].sort((a: any, b: any) => b.positiveRate - a.positiveRate)[0];
     return { totalOps, avgPositiveRate, bestAlgorithm: best?.algorithm || '无数据', algorithms: algorithmStats };
   }, [algorithmStats]);
   
@@ -1134,7 +1134,7 @@ function DashboardContent() {
                               value={`$${summary.totalSpend.toFixed(0)}`}
                               icon={<DollarSign className="w-4 h-4 text-blue-500" />}
                               change={summary.spendChange}
-                              sparklineData={(trendData || []).map(d => ({ value: d.spend }))}
+                              sparklineData={(trendData || []).map((d: any) => ({ value: d.spend }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="blue-500"
@@ -1146,7 +1146,7 @@ function DashboardContent() {
                               value={`$${summary.totalSales.toFixed(0)}`}
                               icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
                               change={summary.salesChange}
-                              sparklineData={(trendData || []).map(d => ({ value: d.sales }))}
+                              sparklineData={(trendData || []).map((d: any) => ({ value: d.sales }))}
                               isRealtime={true}
                               realtimeDelay="<5分钟"
                               gradientFrom="green-500"
@@ -1159,7 +1159,7 @@ function DashboardContent() {
                               icon={<Percent className="w-4 h-4 text-orange-500" />}
                               change={summary.acosChange}
                               isInverse={true}
-                              sparklineData={(trendData || []).map(d => ({ value: d.acos }))}
+                              sparklineData={(trendData || []).map((d: any) => ({ value: d.acos }))}
                               gradientFrom="orange-500"
                               gradientTo="orange-600"
                               borderColor="orange-500"
@@ -1585,7 +1585,7 @@ function DashboardContent() {
                               {algorithmSummary.algorithms.length > 0 && (
                                 <div className="pt-2 border-t border-border/50 space-y-2">
                                   <div className="text-xs text-muted-foreground">各算法表现</div>
-                                  {algorithmSummary.algorithms.map((alg) => (
+                                  {algorithmSummary.algorithms.map((alg: any) => (
                                     <div key={alg.algorithm} className="flex items-center gap-2">
                                       <span className="text-xs w-24 truncate" title={getAlgorithmNameCN(alg.algorithm)}>{getAlgorithmNameCN(alg.algorithm)}</span>
                                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">

@@ -509,7 +509,7 @@ export async function getProfitConfigForTarget(
   inferredCategory?: string
 ): Promise<ProfitConfig> {
   try {
-    const db = getDb();
+    const db = await getDb();
     if (!db) return getDefaultAdEfficiencyConfig();
     
     const groups = await db.select().from(performanceGroups)
@@ -523,10 +523,11 @@ export async function getProfitConfigForTarget(
     const group = groups[0];
     
     // 数据源1: 用户在优化目标中设定的目标ACOS
-    if (group.targetAcos && group.targetAcos > 0) {
-      log.info(`使用用户设定的目标ACOS: targetId=${targetId}, targetAcos=${group.targetAcos}%`);
+    const targetAcosNum = group.targetAcos ? Number(group.targetAcos) : 0;
+    if (targetAcosNum > 0) {
+      log.info(`使用用户设定的目标ACOS: targetId=${targetId}, targetAcos=${targetAcosNum}%`);
       return {
-        profitMarginPercent: group.targetAcos,
+        profitMarginPercent: targetAcosNum,
         costOfGoods: null,
         averageSellingPrice: null,
         mode: 'ad_efficiency',

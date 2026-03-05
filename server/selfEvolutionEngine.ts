@@ -211,9 +211,9 @@ export async function evaluateRecentOptimizations(
     
     const assessments: OptimizationEffectAssessment[] = [];
     
-    for (const log of logs) {
+    for (const optLog of logs) {
       try {
-        const logDate = new Date(log.createdAt as string);
+        const logDate = new Date(optLog.createdAt as string);
         
         // 获取优化前7天的campaign级别数据
         const preStartDate = new Date(logDate);
@@ -257,14 +257,14 @@ export async function evaluateRecentOptimizations(
         let entityId = '';
         let entityType = 'keyword';
         try {
-          const detail = JSON.parse(log.actionDetail || '{}');
+          const detail = JSON.parse(optLog.actionDetail || '{}');
           entityId = detail.keywordId?.toString() || detail.targetId?.toString() || '';
           entityType = detail.targetType || 'keyword';
         } catch {}
         
         assessments.push({
-          logId: log.id,
-          actionType: log.actionType || 'bid_adjustment',
+          logId: optLog.id,
+          actionType: optLog.actionType || 'bid_adjustment',
           performanceGroupId,
           entityId,
           entityType,
@@ -283,7 +283,7 @@ export async function evaluateRecentOptimizations(
           correctionReason,
         });
       } catch (logErr) {
-        log.error(`[selfEvolution] Error evaluating log ${log.id}:`, logErr);
+        log.error(`[selfEvolution] Error evaluating optimization log:`, logErr);
       }
     }
     
@@ -332,10 +332,10 @@ async function getTimeWeightedCampaignMetrics(
   const decayRate = dataPoints < 7 ? 0.02 : dataPoints < 14 ? 0.04 : 0.06; // 数据越多衰减越快
   
   // 计算数据波动性（用于调整衰减强度）
-  const spendValues = dailyData.map(d => Number(d.spend) || 0);
-  const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a, b) => a + b, 0) / spendValues.length : 0;
+  const spendValues = dailyData.map((d: any) => Number(d.spend) || 0);
+  const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a: number, b: number) => a + b, 0) / spendValues.length : 0;
   const variance = spendValues.length > 1 
-    ? spendValues.reduce((sum, v) => sum + Math.pow(v - avgSpendRaw, 2), 0) / spendValues.length 
+    ? spendValues.reduce((sum: number, v: number) => sum + Math.pow(v - avgSpendRaw, 2), 0) / spendValues.length 
     : 0;
   const cv = avgSpendRaw > 0 ? Math.sqrt(variance) / avgSpendRaw : 0; // 变异系数
   const volatilityMultiplier = Math.min(1.5, 1.0 + cv * 0.5); // 波动越大衰减越快
