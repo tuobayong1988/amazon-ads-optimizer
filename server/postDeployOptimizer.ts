@@ -410,6 +410,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync', 'bid'],
     correctionActions: ['rerun_optimization'],
   },
+  {
+    version: 338,
+    description: 'v338: [统一智能冷启动机制] — (1)P0-新增coldStartService.ts: 统一冷启动服务，支持四大场景(new_account/credential_refresh/new_marketplace/version_upgrade)自动触发全量同步+数据年龄分层优化 (2)P0-数据年龄分层: 历史数据(30-90天)一次性批量Ngram分析+否定词+搜索词收割, 近期数据(7-14天)按常规高频调度优化 (3)P0-accountInitializationService集成: 新账户全量同步完成后自动触发冷启动(skipSync=true) (4)P0-amazonApi路由集成: saveCredentials检测凭证刷新场景触发冷启动, saveMultipleProfiles为每个新站点触发冷启动 (5)P0-deployLifecycleManager集成: orchestrateStartup步骤4e增加版本升级场景的批量冷启动 (6)P1-cold_start_logs表: 记录每次冷启动的完整执行统计(同步/历史优化/近期优化各阶段耗时和结果) (7)P1-幂等性保护: 同一账户+同一版本只执行一次冷启动, 并发防护+内存保护+错误隔离',
+    affectedModules: ['sync', 'searchterm', 'bid'],
+    correctionActions: ['rerun_optimization'],
+  },
 ];
 
 // ==================== 配置 ====================

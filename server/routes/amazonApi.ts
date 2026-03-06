@@ -184,6 +184,10 @@ export const amazonApiRouter = router({
         });
       }
 
+       // v338: 检测是新授权还是凭证刷新（用于冷启动场景判断）
+      const existingCredentials = await db.getAmazonApiCredentials(input.accountId);
+      const isCredentialRefresh = !!existingCredentials;
+      
       // Save credentials to database
       await db.saveAmazonApiCredentials({
         accountId: input.accountId,
@@ -193,13 +197,11 @@ export const amazonApiRouter = router({
         profileId: input.profileId,
         region: input.region,
       });
-
       // 更新账号的连接状态为已连接
       await db.updateAdAccount(input.accountId, {
         connectionStatus: 'connected',
       });
-
-      // ✅ 授权成功后执行完整初始化（全量同步 + 定时调度 + AMS订阅）
+      // ✅ 授权成功后执行完整初始化（全量同步 + 定时调度 + AMS订阅））
       const accountInfo = await db.getAdAccountById(input.accountId);
       const marketplace = accountInfo?.marketplace || 'US';
       
@@ -230,6 +232,22 @@ export const amazonApiRouter = router({
           await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
         } catch (syncErr: any) {
           console.error(`[v336] 事件驱动同步触发失败:`, syncErr.message);
+        }
+        
+        // v338: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
+        if (isCredentialRefresh) {
+          try {
+            const { triggerColdStart } = await import('../coldStartService');
+            const coldStartResult = await triggerColdStart(input.accountId, {
+              reason: 'credential_refresh',
+              skipSync: true, // 刚完成初始化同步，跳过同步阶段
+              historicalDays: 90,
+              recentDays: 14,
+            });
+            console.log(`[v338] 账号 ${input.accountId} 凭证刷新冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
+          } catch (coldStartErr: any) {
+            console.error(`[v338] 凭证刷新冷启动触发失败:`, coldStartErr.message);
+          }
         }
       }).catch(err => {
         console.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
@@ -478,6 +496,26 @@ export const amazonApiRouter = router({
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: any) {
           console.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
+        }
+        
+        // v338: 批量初始化完成后，为每个新站点触发智能冷启动
+        try {
+          const { triggerColdStart } = await import('../coldStartService');
+          for (const initResult of initResults) {
+            try {
+              const coldStartResult = await triggerColdStart(initResult.accountId, {
+                reason: 'new_marketplace',
+                skipSync: true, // 数据已在初始化中同步完成
+                historicalDays: 90,
+                recentDays: 14,
+              });
+              console.log(`[v338] 账号 ${initResult.accountId} (${initResult.marketplace}) 新站点冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
+            } catch (csErr: any) {
+              console.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, csErr.message);
+            }
+          }
+        } catch (coldStartErr: any) {
+          console.error(`[v338] 批量冷启动触发失败:`, coldStartErr.message);
         }
       }).catch(err => {
         console.error(`[saveMultipleProfiles] 批量初始化失败:`, err);

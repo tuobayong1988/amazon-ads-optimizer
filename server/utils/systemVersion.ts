@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 336;  // v336: 数据同步保障体系全面升级+事件驱动同步+部署恢复增强
+export const SYSTEM_VERSION = 338;  // v338: 统一智能冷启动机制——四大场景(新授权/凭证刷新/新站点/版本升级)自动全量同步+数据年龄分层优化

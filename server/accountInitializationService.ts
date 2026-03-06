@@ -89,9 +89,24 @@ export async function initializeAccount(params: {
     );
 
     // 异步执行全量同步（获取90天历史数据），不阻塞后续步骤
+    // v338: 同步完成后自动触发智能冷启动
     syncService.syncAll().then(async (syncData) => {
       log.info(`账号 ${accountId} (${marketplace}) 全量同步完成:`, syncData);
       await db.updateAmazonApiCredentialsLastSync(accountId);
+      
+      // v338: 全量同步完成后触发智能冷启动（跳过同步阶段，因为刚完成同步）
+      try {
+        const { triggerColdStart } = await import('./coldStartService');
+        const coldStartResult = await triggerColdStart(accountId, {
+          reason: 'new_account',
+          skipSync: true, // 数据已同步完成，跳过同步阶段
+          historicalDays: 90,
+          recentDays: 14,
+        });
+        log.info(`账号 ${accountId} (${marketplace}) 冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
+      } catch (coldStartErr: any) {
+        log.warn(`账号 ${accountId} (${marketplace}) 冷启动触发失败（不影响正常运行）: ${coldStartErr.message}`);
+      }
     }).catch(err => {
       log.error(`账号 ${accountId} (${marketplace}) 全量同步失败:`, err);
     });

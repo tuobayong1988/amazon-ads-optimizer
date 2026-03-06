@@ -855,7 +855,25 @@ export async function orchestrateStartup(server: any): Promise<void> {
         }
       }
       
-      // 步骤4e: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
+      // 步骤4e: v338 版本升级场景的智能冷启动
+      try {
+        log.info('[LifecycleManager] v338: 检测是否需要执行智能冷启动...');
+        const { triggerColdStartForAllAccounts } = await import('./coldStartService');
+        const coldStartResult = await triggerColdStartForAllAccounts('version_upgrade', {
+          skipSync: false, // 版本升级场景需要重新同步数据
+          historicalDays: 90,
+          recentDays: 14,
+        });
+        if (coldStartResult.triggered > 0) {
+          log.info(`[LifecycleManager] v338: 智能冷启动已触发 ${coldStartResult.triggered}/${coldStartResult.total} 个账户`);
+        } else {
+          log.info(`[LifecycleManager] v338: 无需冷启动（所有账户已在当前版本执行过）`);
+        }
+      } catch (coldStartErr: any) {
+        log.error(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${coldStartErr.message}`);
+      }
+      
+      // 步骤4f: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
       if (diagnostics.lastShutdownType === 'crash') {
         try {
           const database = await getDb();
