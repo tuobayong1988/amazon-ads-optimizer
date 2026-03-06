@@ -36014,12 +36014,16 @@ var init_schema2 = __esm({
       accountId: int().notNull(),
       campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: int(),
+      // v2: 新增campaignType字段，记录来源广告活动类型（sp/sb/sd）
+      campaignType: mysqlEnum("campaignTypeNeg", ["sp", "sb", "sd"]).default("sp"),
+      // v2: 新增negativeScope字段，明确否定层级（campaign/ad_group）
+      negativeScope: mysqlEnum("negativeScope", ["campaign", "ad_group"]).default("campaign"),
       negativeLevel: mysqlEnum(["campaign", "ad_group"]).notNull(),
       negativeType: mysqlEnum(["keyword", "product"]).notNull(),
       negativeText: varchar({ length: 500 }).notNull(),
       negativeMatchType: mysqlEnum(["negative_exact", "negative_phrase"]).notNull(),
       amazonNegativeKeywordId: varchar("amazon_negative_keyword_id", { length: 64 }),
-      negativeSource: mysqlEnum(["manual", "ngram_analysis", "traffic_conflict", "funnel_migration", "search_term_harvest", "auto_optimization"]).default("manual"),
+      negativeSource: mysqlEnum(["manual", "ngram_analysis", "traffic_conflict", "funnel_migration", "search_term_harvest", "auto_optimization", "smart_negation"]).default("manual"),
       sourceReason: text(),
       negativeStatus: mysqlEnum(["active", "pending", "removed"]).default("active"),
       blockedImpressions: int("blocked_impressions").default(0),
@@ -42002,6 +42006,18 @@ async function createOptimizationLog(data4) {
           }
           if (detail.causalAdjustment) {
             meta.causal = detail.causalAdjustment;
+          }
+          if (detail.correctionLayers) {
+            meta.correctionLayers = detail.correctionLayers;
+          }
+          if (detail.metaLearningDetail) {
+            meta.metaLearning = {
+              candidateAlgorithms: detail.metaLearningDetail.candidateAlgorithms,
+              selectedAlgorithm: detail.metaLearningDetail.selectedAlgorithm,
+              selectionReason: detail.metaLearningDetail.selectionReason,
+              fusionMode: detail.metaLearningDetail.fusionMode,
+              fusionDetail: detail.metaLearningDetail.fusionDetail
+            };
           }
           if (detail.algorithmTier) meta.algorithmTier = detail.algorithmTier;
           if (detail.algorithmUsed) meta.algorithmUsed = detail.algorithmUsed;
@@ -58811,6 +58827,185 @@ Profile ID: ${profileId}
         log6.debug(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
         return allNegatives;
       }
+      // ==================== v2: SB否定创建 API ====================
+      /**
+       * v2: 创建SB否定关键词（仅支持Ad Group级）
+       * 
+       * SB否定关键词使用 POST /sb/negativeKeywords 端点
+       * 注意: SB不支持Campaign级否定关键词
+       */
+      async createSbNegativeKeywords(negatives) {
+        const BATCH_SIZE = 100;
+        const allResults = [];
+        const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+        log6.info(`[SB API] v2: createSbNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${negatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          log6.debug(`[SB API] v2: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASB\u5426\u5B9A\u5173\u952E\u8BCD`);
+          try {
+            const formattedBatch = batch.map((n7) => ({
+              campaignId: String(n7.campaignId),
+              adGroupId: String(n7.adGroupId),
+              keywordText: n7.keywordText,
+              matchType: n7.matchType,
+              state: n7.state || "enabled"
+            }));
+            const response = await this.axiosInstance.post("/sb/negativeKeywords", {
+              negativeKeywords: formattedBatch
+            }, {
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              }
+            });
+            const batchResults = response.data.negativeKeywords || response.data || [];
+            allResults.push(...Array.isArray(batchResults) ? batchResults : [batchResults]);
+            log6.info(`[SB API] v2: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210`);
+          } catch (err2) {
+            const statusCode = err2.response?.status;
+            log6.error(`[SB API] v2: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${statusCode}, msg=${err2.message}`);
+            if (statusCode === 403) {
+              log6.warn("[SB API] v2: SB Negative Keywords API access denied (403)");
+              break;
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((r5) => setTimeout(r5, 200));
+          }
+        }
+        log6.info(`[SB API] v2: SB\u5426\u5B9A\u5173\u952E\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
+        return allResults;
+      }
+      /**
+       * v2: 创建SB否定产品定向（仅支持Ad Group级）
+       * 
+       * SB否定产品定向使用 POST /sb/negativeTargets 端点
+       * 注意: SB不支持Campaign级否定产品定向
+       */
+      async createSbNegativeTargets(negatives) {
+        const BATCH_SIZE = 100;
+        const allResults = [];
+        const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+        log6.info(`[SB API] v2: createSbNegativeTargets \u5206\u6279\u5904\u7406: \u603B\u8BA1${negatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          try {
+            const formattedBatch = batch.map((n7) => ({
+              campaignId: String(n7.campaignId),
+              adGroupId: String(n7.adGroupId),
+              expression: n7.expression,
+              state: n7.state || "enabled"
+            }));
+            const response = await this.axiosInstance.post("/sb/negativeTargets", {
+              negativeTargets: formattedBatch
+            }, {
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              }
+            });
+            const batchResults = response.data.negativeTargets || response.data || [];
+            allResults.push(...Array.isArray(batchResults) ? batchResults : [batchResults]);
+            log6.info(`[SB API] v2: \u7B2C${batchIdx + 1}\u6279SB\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u5B8C\u6210`);
+          } catch (err2) {
+            const statusCode = err2.response?.status;
+            log6.error(`[SB API] v2: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${statusCode}, msg=${err2.message}`);
+            if (statusCode === 403) {
+              log6.warn("[SB API] v2: SB Negative Targets API access denied (403)");
+              break;
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((r5) => setTimeout(r5, 200));
+          }
+        }
+        log6.info(`[SB API] v2: SB\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
+        return allResults;
+      }
+      // ==================== v2: SD否定 API ====================
+      /**
+       * v2: 获取SD否定产品定向列表（仅Ad Group级，仅限上下文定向）
+       * 
+       * SD不支持否定关键词，仅支持否定产品定向
+       * 使用 POST /sd/negativeTargets/list 端点
+       */
+      async listSdNegativeTargets(adGroupId) {
+        const allTargets = [];
+        let startIndex = 0;
+        const count3 = 100;
+        while (true) {
+          try {
+            const params = { startIndex, count: count3 };
+            if (adGroupId) {
+              params.adGroupIdFilter = adGroupId;
+            }
+            const response = await this.axiosInstance.get("/sd/negativeTargets", {
+              params,
+              headers: {
+                "Accept": "application/json"
+              }
+            });
+            const targets = response.data || [];
+            if (!Array.isArray(targets) || targets.length === 0) break;
+            allTargets.push(...targets);
+            if (targets.length < count3) break;
+            startIndex += count3;
+          } catch (error54) {
+            const statusCode = error54.response?.status;
+            if (statusCode === 403) {
+              log6.warn("[SD API] v2: SD Negative Targets API access denied (403)");
+            } else {
+              log6.error("[SD API] v2: Error fetching SD negative targets:", error54.message);
+            }
+            break;
+          }
+        }
+        log6.debug(`[SD API] v2: Total SD negative targets fetched: ${allTargets.length}`);
+        return allTargets;
+      }
+      /**
+       * v2: 创建SD否定产品定向（仅Ad Group级，仅限上下文定向）
+       * 
+       * SD否定产品定向使用 POST /sd/negativeTargets 端点
+       * 注意: 只有contextual targeting类型的SD广告活动才支持否定产品定向
+       */
+      async createSdNegativeTargets(negatives) {
+        const BATCH_SIZE = 100;
+        const allResults = [];
+        const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+        log6.info(`[SD API] v2: createSdNegativeTargets \u5206\u6279\u5904\u7406: \u603B\u8BA1${negatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          try {
+            const formattedBatch = batch.map((n7) => ({
+              adGroupId: Number(n7.adGroupId),
+              expression: n7.expression,
+              state: n7.state || "enabled"
+            }));
+            const response = await this.axiosInstance.post("/sd/negativeTargets", formattedBatch, {
+              headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              }
+            });
+            const batchResults = response.data || [];
+            allResults.push(...Array.isArray(batchResults) ? batchResults : [batchResults]);
+            log6.info(`[SD API] v2: \u7B2C${batchIdx + 1}\u6279SD\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u5B8C\u6210`);
+          } catch (err2) {
+            const statusCode = err2.response?.status;
+            log6.error(`[SD API] v2: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${statusCode}, msg=${err2.message}`);
+            if (statusCode === 403) {
+              log6.warn("[SD API] v2: SD Negative Targets API access denied (403)");
+              break;
+            }
+          }
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((r5) => setTimeout(r5, 200));
+          }
+        }
+        log6.info(`[SD API] v2: SD\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
+        return allResults;
+      }
       /**
        * 获取创意素材详情 - Creative Asset Library API
        * GET /assets?assetId={assetId}
@@ -61603,6 +61798,7 @@ __export(amazonApiHelper_exports, {
   syncCampaignStatusToAmazon: () => syncCampaignStatusToAmazon,
   syncKeywordStatusToAmazon: () => syncKeywordStatusToAmazon,
   syncNegativeKeywordsToAmazon: () => syncNegativeKeywordsToAmazon,
+  syncNegativeProductTargetsToAmazon: () => syncNegativeProductTargetsToAmazon,
   syncNewKeywordsToAmazon: () => syncNewKeywordsToAmazon,
   syncNewProductTargetsToAmazon: () => syncNewProductTargetsToAmazon,
   syncPlacementAdjustmentToAmazon: () => syncPlacementAdjustmentToAmazon
@@ -61804,14 +62000,60 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
     result.failed = newKeywords.length;
     return result;
   }
+  let keywordsToCreate = [...newKeywords];
+  const existingKeywordsMap = /* @__PURE__ */ new Map();
+  try {
+    const adGroupIds = [...new Set(newKeywords.map((k5) => String(k5.adGroupId)))];
+    for (const agId of adGroupIds) {
+      try {
+        const existingKws = await syncService.client.listSpKeywords(Number(agId));
+        const keySet = /* @__PURE__ */ new Set();
+        for (const kw of existingKws) {
+          const text2 = (kw.keywordText || "").toLowerCase().trim();
+          const mt3 = (kw.matchType || "").toLowerCase();
+          if (text2) keySet.add(`${text2}::${mt3}`);
+        }
+        existingKeywordsMap.set(agId, keySet);
+        log12.debug(`[AmazonApiHelper] v337: AdGroup ${agId} \u5DF2\u6709 ${keySet.size} \u4E2A\u5173\u952E\u8BCD`);
+      } catch (listErr) {
+        log12.warn(`[AmazonApiHelper] v337: \u67E5\u8BE2AdGroup ${agId} \u5173\u952E\u8BCD\u5217\u8868\u5931\u8D25(\u7EE7\u7EED\u521B\u5EFA): ${listErr.message}`);
+      }
+    }
+    const filteredKeywords = [];
+    for (const kw of newKeywords) {
+      const agKeySet = existingKeywordsMap.get(String(kw.adGroupId));
+      const lookupKey = `${kw.keywordText.toLowerCase().trim()}::${kw.matchType.toLowerCase()}`;
+      if (agKeySet && agKeySet.has(lookupKey)) {
+        result.success++;
+        result.createdKeywords.push({
+          localId: kw.localKeywordId,
+          amazonKeywordId: 0,
+          keywordText: kw.keywordText
+        });
+        log12.info(`[AmazonApiHelper] v337: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8EAmazon\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${kw.keywordText}" [${kw.matchType}] in adGroup ${kw.adGroupId}`);
+      } else {
+        filteredKeywords.push(kw);
+      }
+    }
+    if (filteredKeywords.length < newKeywords.length) {
+      log12.info(`[AmazonApiHelper] v337: Amazon\u7AEF\u53BB\u91CD: ${newKeywords.length}\u4E2A -> ${filteredKeywords.length}\u4E2A (${newKeywords.length - filteredKeywords.length}\u4E2A\u5DF2\u5B58\u5728)`);
+    }
+    keywordsToCreate = filteredKeywords;
+    if (keywordsToCreate.length === 0) {
+      log12.info(`[AmazonApiHelper] v337: \u6240\u6709\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8EAmazon\uFF0C\u65E0\u9700\u521B\u5EFA`);
+      return result;
+    }
+  } catch (checkErr) {
+    log12.warn(`[AmazonApiHelper] v337: Amazon\u7AEF\u5B58\u5728\u6027\u68C0\u67E5\u5931\u8D25(\u7EE7\u7EED\u6B63\u5E38\u521B\u5EFA): ${checkErr.message}`);
+  }
   const BATCH_SIZE = 50;
   const BATCH_DELAY_MS = 2e3;
-  const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
-  log12.info(`[AmazonApiHelper] \u5206\u6279\u5904\u7406: \u603B\u8BA1${newKeywords.length}\u4E2A\u5173\u952E\u8BCD, \u5206${totalBatches}\u6279, \u6BCF\u6279\u6700\u591A${BATCH_SIZE}\u4E2A`);
+  const totalBatches = Math.ceil(keywordsToCreate.length / BATCH_SIZE);
+  log12.info(`[AmazonApiHelper] \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordsToCreate.length}\u4E2A\u5173\u952E\u8BCD, \u5206${totalBatches}\u6279, \u6BCF\u6279\u6700\u591A${BATCH_SIZE}\u4E2A`);
   for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
     const batchStart = batchIdx * BATCH_SIZE;
-    const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
-    const batch = newKeywords.slice(batchStart, batchEnd);
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, keywordsToCreate.length);
+    const batch = keywordsToCreate.slice(batchStart, batchEnd);
     log12.info(`[AmazonApiHelper] \u5904\u7406\u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD (\u7D22\u5F15 ${batchStart}-${batchEnd - 1})`);
     try {
       const apiResult = await withRetry(
@@ -62145,6 +62387,98 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
     }
   }
   log12.warn(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  return result;
+}
+async function syncNegativeProductTargetsToAmazon(accountId, negatives) {
+  const result = { success: 0, failed: 0, errors: [] };
+  if (negatives.length === 0) return result;
+  const syncService = await getAmazonSyncService2(accountId);
+  if (!syncService) {
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`);
+    result.failed = negatives.length;
+    return result;
+  }
+  const spCampaignLevel = negatives.filter((n7) => n7.campaignType === "sp" && n7.negativeScope === "campaign");
+  const spAdGroupLevel = negatives.filter((n7) => n7.campaignType === "sp" && n7.negativeScope === "ad_group");
+  const sbAdGroupLevel = negatives.filter((n7) => n7.campaignType === "sb");
+  const sdAdGroupLevel = negatives.filter((n7) => n7.campaignType === "sd");
+  if (spCampaignLevel.length > 0) {
+    try {
+      const apiResults = await withRetry(() => syncService.client.createSpCampaignNegativeTargets(
+        spCampaignLevel.map((n7) => ({
+          campaignId: n7.campaignId,
+          expression: [{ type: "asinSameAs", value: n7.asin }],
+          expressionType: "manual"
+        }))
+      ), { label: "SP Campaign\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411" });
+      for (const r5 of apiResults) {
+        if (r5.code === "SUCCESS" || r5.targetId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`SP Campaign\u5426\u5B9A\u4EA7\u54C1\u5931\u8D25: ${r5.details || "unknown"}`);
+        }
+      }
+    } catch (err2) {
+      result.failed += spCampaignLevel.length;
+      result.errors.push(`SP Campaign\u5426\u5B9A\u4EA7\u54C1\u6279\u91CF\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  if (spAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await withRetry(() => syncService.client.createSpNegativeTargets(
+        spAdGroupLevel.map((n7) => ({
+          campaignId: n7.campaignId,
+          adGroupId: n7.adGroupId || "",
+          expression: [{ type: "asinSameAs", value: n7.asin }],
+          expressionType: "manual"
+        }))
+      ), { label: "SP AdGroup\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411" });
+      for (const r5 of apiResults) {
+        if (r5.code === "SUCCESS" || r5.targetId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`SP AdGroup\u5426\u5B9A\u4EA7\u54C1\u5931\u8D25: ${r5.details || "unknown"}`);
+        }
+      }
+    } catch (err2) {
+      result.failed += spAdGroupLevel.length;
+      result.errors.push(`SP AdGroup\u5426\u5B9A\u4EA7\u54C1\u6279\u91CF\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  if (sbAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await syncService.client.createSbNegativeTargets(
+        sbAdGroupLevel.map((n7) => ({
+          campaignId: n7.campaignId,
+          adGroupId: n7.adGroupId || "",
+          expression: [{ type: "asinSameAs", value: n7.asin }]
+        }))
+      );
+      result.success += apiResults.length;
+      log12.info(`[AmazonApiHelper] v2: SB\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u6210\u529F: ${apiResults.length}\u4E2A`);
+    } catch (err2) {
+      result.failed += sbAdGroupLevel.length;
+      result.errors.push(`SB\u5426\u5B9A\u4EA7\u54C1\u6279\u91CF\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  if (sdAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await syncService.client.createSdNegativeTargets(
+        sdAdGroupLevel.map((n7) => ({
+          adGroupId: n7.adGroupId || "",
+          expression: [{ type: "asinSameAs", value: n7.asin }]
+        }))
+      );
+      result.success += apiResults.length;
+      log12.info(`[AmazonApiHelper] v2: SD\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u6210\u529F: ${apiResults.length}\u4E2A`);
+    } catch (err2) {
+      result.failed += sdAdGroupLevel.length;
+      result.errors.push(`SD\u5426\u5B9A\u4EA7\u54C1\u6279\u91CF\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  log12.warn(`[AmazonApiHelper] v2: \u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
 async function syncKeywordStatusToAmazon(accountId, statusChanges) {
@@ -79912,6 +80246,31 @@ function buildResult(target, newBid, algorithmUsed, confidence, reason, tier, me
     bidirectionalBid: actionType === "increase" && (reason.includes("ACOS\u6781\u4F18") || reason.includes("ACOS\u4F18\u79C0") || reason.includes("\u53CC\u5411\u51FA\u4EF7")),
     details: reason.includes("guardrail") ? reason.split("guardrail:")[1]?.trim() : void 0
   };
+  const correctionLayers = {
+    gtoApplied: false,
+    gtoCompositeModifier: void 0,
+    gtoActiveEngines: void 0,
+    cascadeFusionApplied: metaDecision?.fusionMode === "cascade_ensemble",
+    cascadeFusionAlgorithms: metaDecision?.fusionMode === "cascade_ensemble" ? metaDecision.algorithmScores?.filter((s4) => s4.eligible).slice(0, 2).map((s4) => s4.algorithm) : void 0,
+    cascadeFusionDetail: metaDecision?.fusionDetail || void 0,
+    causalInferenceApplied: false
+  };
+  const metaLearningDetail = metaDecision ? {
+    candidateAlgorithms: metaDecision.algorithmScores?.map((s4) => ({
+      algorithm: s4.algorithm,
+      score: s4.score,
+      eligible: s4.eligible,
+      reason: s4.reason
+    })) || [],
+    selectedAlgorithm: metaDecision.selectedAlgorithm,
+    selectionReason: metaDecision.reasoning,
+    fusionMode: metaDecision.fusionMode || "single",
+    fusionDetail: metaDecision.fusionDetail || "",
+    dynamicConfidenceThreshold: 0,
+    // 将在调用处填充
+    evolvedConfidenceMultiplier: 1
+    // 将在调用处填充
+  } : void 0;
   return {
     targetId: target.id,
     targetType: target.type,
@@ -79925,7 +80284,9 @@ function buildResult(target, newBid, algorithmUsed, confidence, reason, tier, me
     metaDecision,
     algorithmTier: tier,
     reasonDetails,
-    guardrailInfo
+    guardrailInfo,
+    correctionLayers,
+    metaLearningDetail
   };
 }
 async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBidLimit) {
@@ -80019,6 +80380,9 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
         result.newBid = finalCausalBid;
         result.reason += ` | \u56E0\u679C\u4FEE\u6B63: uplift=${causalData.upliftScore.toFixed(3)}, \u6700\u4F18\u51FA\u4EF7=$${causalData.optimalBid.toFixed(2)}`;
       }
+      if (result.correctionLayers) {
+        result.correctionLayers.causalInferenceApplied = result.causalAdjustment.applied;
+      }
     }
     const gtoMod = gtoModifiers.get(target.id);
     if (gtoMod && gtoMod.compositeModifier !== 1) {
@@ -80036,6 +80400,20 @@ async function batchCalculateNextGenBids(accountId, targets, groupConfig, maxBid
       result.actionType = Math.abs(safeBid - target.currentBid) > 5e-3 ? safeBid > target.currentBid ? "increase" : "decrease" : "hold";
       result.reason += ` | GTO\u4FEE\u6B63: ${gtoMod.reasoning}`;
       result.gtoModifier = gtoMod;
+      if (result.correctionLayers) {
+        result.correctionLayers.gtoApplied = true;
+        result.correctionLayers.gtoCompositeModifier = gtoMod.compositeModifier;
+        const activeEngines = [];
+        if (gtoMod.breakdown) {
+          if (gtoMod.breakdown.evModifier !== 1) activeEngines.push("ev_analysis");
+          if (gtoMod.breakdown.explorationModifier !== 1) activeEngines.push("exploration");
+          if (gtoMod.breakdown.budgetModifier !== 1) activeEngines.push("budget_pool");
+          if (gtoMod.breakdown.windowModifier !== 1) activeEngines.push("opportunity_window");
+          if (gtoMod.breakdown.portfolioModifier !== 1) activeEngines.push("portfolio_role");
+          if (gtoMod.breakdown.competitionModifier !== 1) activeEngines.push("competition");
+        }
+        result.correctionLayers.gtoActiveEngines = activeEngines;
+      }
     }
     results.push(result);
   }
@@ -82920,6 +83298,7 @@ function decideTargeting(data4) {
     spend,
     sales,
     campaignTargetingType,
+    campaignType,
     targetAcos
   } = data4;
   const isAsin = isAsinSearchTerm(searchTerm);
@@ -82944,13 +83323,32 @@ function decideTargeting(data4) {
   const aov = orders > 0 ? sales / orders : 0;
   const dataMaturity = assessDataMaturity(data4);
   const valueLevel = assessValueLevel(cvr, acos, orders, clicks, targetAcos);
+  const normalizedCampaignType = normalizeCampaignType(campaignType);
   if (isAsin) {
-    return decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+    return decideAsinTargetingV2(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel, normalizedCampaignType);
   }
-  if (!canAddPositiveKeyword(campaignTargetingType)) {
-    return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+  switch (normalizedCampaignType) {
+    case "sp":
+      if (!canAddPositiveKeyword(campaignTargetingType)) {
+        return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+      }
+      return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
+    case "sb":
+      return decideSbKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
+    case "sd":
+      return decideSdKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
+    default:
+      if (!canAddPositiveKeyword(campaignTargetingType)) {
+        return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+      }
+      return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
   }
-  return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
+}
+function normalizeCampaignType(campaignType) {
+  if (campaignType === "sp_auto" || campaignType === "sp_manual" || campaignType === "sp") return "sp";
+  if (campaignType === "sb") return "sb";
+  if (campaignType === "sd") return "sd";
+  return "sp";
 }
 function assessDataMaturity(data4) {
   const { clicks, impressions, orders, dataSpanDays, historicalConversions } = data4;
@@ -82980,6 +83378,12 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
+      negativeType: "keyword",
+      // v2: 明确否定类型
+      negativeScope: "campaign",
+      // v2: SP Manual支持Campaign级
+      campaignType: "sp",
+      // v2: 来源广告类型
       reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, \u8D85\u8FC7\u5BB9\u5FCD\u7EBF$${spendThreshold.toFixed(2)})`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity,
@@ -83064,17 +83468,21 @@ function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks
     valueLevel
   };
 }
-function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
+function decideAsinTargetingV2(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel, normalizedCampaignType) {
   const { searchTerm, targetAcos, spend, sales } = data4;
   const aov = orders > 0 ? sales / orders : 0;
   const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
   const spendExceeded = spend >= spendThreshold;
+  const negativeScope = normalizedCampaignType === "sp" ? "campaign" : "ad_group";
   if (clicks >= 15 && orders === 0 && spendExceeded) {
     return {
-      action: "CREATE_NEGATIVE_KEYWORD",
+      action: "CREATE_NEGATIVE_PRODUCT_TARGET",
+      // v2: 修正！ASIN应用否定产品定向
       targetValue: searchTerm.trim(),
-      negativeMatchType: "negative_exact",
-      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
+      negativeType: "product",
+      negativeScope,
+      campaignType: normalizedCampaignType,
+      reason: `[\u5426\u5B9AASIN-${normalizedCampaignType.toUpperCase()}] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}, \u5C42\u7EA7=${negativeScope}`,
       confidence: Math.min(0.9, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity,
       valueLevel: "negative"
@@ -83136,6 +83544,12 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
+      negativeType: "keyword",
+      // v2: 明确否定类型
+      negativeScope: "campaign",
+      // v2: SP Auto支持Campaign级
+      campaignType: "sp",
+      // v2: 自动广告属于SP
       reason: `[\u81EA\u52A8\u5E7F\u544A] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
       dataMaturityLevel: dataMaturity,
@@ -83147,6 +83561,12 @@ function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturit
       action: "CREATE_NEGATIVE_KEYWORD",
       targetValue: cleanText,
       negativeMatchType: "negative_exact",
+      negativeType: "keyword",
+      // v2
+      negativeScope: "campaign",
+      // v2
+      campaignType: "sp",
+      // v2
       reason: `[\u81EA\u52A8\u5E7F\u544A] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ""}`,
       confidence: Math.min(0.85, 0.5 + clicks / 50),
       dataMaturityLevel: dataMaturity,
@@ -83187,6 +83607,116 @@ function calculateOptimalBid(cvr, aov, targetAcos, matchType) {
   finalBid = Math.max(0.1, finalBid);
   finalBid = Math.min(10, finalBid);
   return Math.round(finalBid * 100) / 100;
+}
+function decideSbKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel) {
+  const { searchTerm, targetAcos, spend, sales } = data4;
+  const cleanText = sanitizeAndValidateKeyword(searchTerm, "positive").sanitizedText || searchTerm;
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
+  const spendExceeded = spend >= spendThreshold;
+  if (clicks >= 15 && orders === 0 && spendExceeded) {
+    return {
+      action: "CREATE_NEGATIVE_KEYWORD",
+      targetValue: cleanText,
+      negativeMatchType: "negative_exact",
+      negativeType: "keyword",
+      negativeScope: "ad_group",
+      // SB仅支持Ad Group级
+      campaignType: "sb",
+      reason: `[SB\u5426\u5B9A\u5173\u952E\u8BCD] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}, \u5C42\u7EA7=ad_group`,
+      confidence: Math.min(0.95, 0.6 + clicks / 100),
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `[SB] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316\u4F46\u82B1\u8D39\u672A\u8FBE\u5BB9\u5FCD\u7EBF: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), \u7EE7\u7EED\u89C2\u5BDF`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
+    };
+  }
+  if (clicks >= 8 && clicks < 15 && orders === 0) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `[SB] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u9700\u8981\u66F4\u591A\u6570\u636E`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
+    };
+  }
+  if ((dataMaturity === "proven" || dataMaturity === "mature" && valueLevel === "high_profit") && (valueLevel === "high_profit" || valueLevel === "profitable")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "exact");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "exact",
+      suggestedBid: optimalBid,
+      reason: `[SB\u7CBE\u786E\u6536\u5272] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
+      confidence: Math.min(0.95, 0.7 + orders / 20),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if ((dataMaturity === "mature" || dataMaturity === "moderate") && (valueLevel === "profitable" || valueLevel === "potential" || valueLevel === "high_profit")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "phrase");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "phrase",
+      suggestedBid: optimalBid,
+      reason: `[SB\u77ED\u8BED\u6295\u653E] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
+      confidence: Math.min(0.9, 0.6 + orders / 15),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if (dataMaturity === "emerging" && (valueLevel === "potential" || valueLevel === "profitable" || valueLevel === "unknown")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "broad");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "broad",
+      suggestedBid: optimalBid,
+      reason: `[SB\u5E7F\u6CDB\u63A2\u7D22] ${orders}\u5355, ${clicks}\u6B21\u70B9\u51FB`,
+      confidence: Math.min(0.75, 0.4 + orders / 10),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  return {
+    action: "MONITOR",
+    targetValue: cleanText,
+    reason: `[SB] ${valueLevel === "marginal" ? "\u8FB9\u9645\u641C\u7D22\u8BCD" : "\u6570\u636E\u4E0D\u8DB3"}: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355`,
+    confidence: 0.3,
+    dataMaturityLevel: dataMaturity,
+    valueLevel
+  };
+}
+function decideSdKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel) {
+  const { searchTerm, targetAcos, spend } = data4;
+  const cleanText = sanitizeAndValidateKeyword(searchTerm, "positive").sanitizedText || searchTerm;
+  if (clicks >= 15 && orders === 0) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `[SD-\u65E0\u6CD5\u5426\u5B9A\u5173\u952E\u8BCD] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}, SD\u4E0D\u652F\u6301\u5426\u5B9A\u5173\u952E\u8BCD`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  return {
+    action: "MONITOR",
+    targetValue: cleanText,
+    reason: `[SD] ${orders > 0 ? "\u6709\u8F6C\u5316\u8BCD" : "\u6570\u636E\u4E0D\u8DB3"}: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355, SD\u5173\u952E\u8BCD\u4EC5\u652F\u6301\u76D1\u63A7`,
+    confidence: 0.3,
+    dataMaturityLevel: dataMaturity,
+    valueLevel
+  };
 }
 var init_targetingAlgorithm = __esm({
   "server/services/targetingAlgorithm.ts"() {
@@ -83392,14 +83922,14 @@ var init_amazonSyncService = __esm({
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SP\u641C\u7D22\u8BCD\u6570\u636E...`);
-          const spSearchTermSynced = await this.syncSearchTerms(14);
+          const spSearchTermSynced = await this.syncSearchTerms(90);
           log38.info(`SP\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${spSearchTermSynced}\u6761`);
         } catch (e6) {
           log38.error("SP\u641C\u7D22\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E...`);
-          const sbSearchTermSynced = await this.syncSbSearchTerms(14);
+          const sbSearchTermSynced = await this.syncSbSearchTerms(60);
           log38.info(`SB\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${sbSearchTermSynced}\u6761`);
         } catch (e6) {
           log38.error("SB\u641C\u7D22\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
@@ -83427,35 +83957,35 @@ var init_amazonSyncService = __esm({
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
-          const placementSynced = await this.syncPlacementPerformance(14);
+          const placementSynced = await this.syncPlacementPerformance(90);
           log38.info(`SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${placementSynced}\u6761`);
         } catch (e6) {
           log38.error("SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
-          const sbPlacementSynced = await this.syncSbPlacementPerformance(14);
+          const sbPlacementSynced = await this.syncSbPlacementPerformance(60);
           log38.info(`SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${sbPlacementSynced}\u6761`);
         } catch (e6) {
           log38.error("SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const autoTargetSynced = await this.syncAutoTargeting(14);
+          const autoTargetSynced = await this.syncAutoTargeting(90);
           log38.info(`SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${autoTargetSynced}\u6761`);
         } catch (e6) {
           log38.error("SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const sdTargetSynced = await this.syncSdTargeting(14);
+          const sdTargetSynced = await this.syncSdTargeting(90);
           log38.info(`SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sdTargetSynced}\u6761`);
         } catch (e6) {
           log38.error("SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const sbTargetSynced = await this.syncSbTargeting(14);
+          const sbTargetSynced = await this.syncSbTargeting(60);
           log38.info(`SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sbTargetSynced}\u6761`);
         } catch (e6) {
           log38.error("SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
@@ -84524,7 +85054,7 @@ async function recordBatchSyncResult(batchResult) {
           adGroupsSynced: safeNum(accountResult.stepResults["sp_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sb_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sd_ad_groups"]?.synced),
           keywordsSynced: safeNum(accountResult.stepResults["sp_keywords"]?.synced) + safeNum(accountResult.stepResults["sb_keywords"]?.synced),
           targetsSynced: safeNum(accountResult.stepResults["sp_product_targets"]?.synced) + safeNum(accountResult.stepResults["sb_product_targets"]?.synced) + safeNum(accountResult.stepResults["sd_product_targets"]?.synced),
-          performanceSynced: safeNum(accountResult.stepResults["performance_today"]?.synced) + safeNum(accountResult.stepResults["performance_7d"]?.synced) + safeNum(accountResult.stepResults["performance_14d"]?.synced),
+          performanceSynced: safeNum(accountResult.stepResults["performance_today"]?.synced) + safeNum(accountResult.stepResults["performance_7d"]?.synced) + safeNum(accountResult.stepResults["performance_90d"]?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
             (total, step) => total + safeNum(step?.synced),
@@ -84961,7 +85491,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncSearchTerms(14);
+            const synced = await service.syncSearchTerms(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -84974,7 +85504,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncSbSearchTerms(14);
+            const synced = await service.syncSbSearchTerms(60);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -84987,7 +85517,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncPlacementPerformance(14);
+            const synced = await service.syncPlacementPerformance(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85000,7 +85530,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncSbPlacementPerformance(14);
+            const synced = await service.syncSbPlacementPerformance(60);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85013,7 +85543,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncAutoTargeting(14);
+            const synced = await service.syncAutoTargeting(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85026,7 +85556,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncSdTargeting(14);
+            const synced = await service.syncSdTargeting(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85039,7 +85569,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncSbTargeting(14);
+            const synced = await service.syncSbTargeting(60);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85073,12 +85603,12 @@ var init_unifiedSyncEngine = __esm({
         }
       },
       {
-        id: "performance_14d",
-        name: "14\u5929\u7EE9\u6548\u56DE\u6EAF",
+        id: "performance_90d",
+        name: "90\u5929\u7EE9\u6548\u56DE\u6EAF",
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncPerformanceData(14);
+            const synced = await service.syncPerformanceData(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85091,7 +85621,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncKeywordPerformanceData(14);
+            const synced = await service.syncKeywordPerformanceData(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85104,7 +85634,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncProductTargetPerformanceData(14);
+            const synced = await service.syncProductTargetPerformanceData(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -85117,7 +85647,7 @@ var init_unifiedSyncEngine = __esm({
         tier: "full",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncAdGroupPerformanceData(14);
+            const synced = await service.syncAdGroupPerformanceData(90);
             return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
@@ -91124,7 +91654,12 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
             algorithmTier: nextGenResult.algorithmTier,
             // v258: 传递结构化归因和护栏信息
             reasonDetails: nextGenResult.reasonDetails,
-            guardrailInfo: nextGenResult.guardrailInfo
+            guardrailInfo: nextGenResult.guardrailInfo,
+            // v337: 传递修正层标记和Meta-Learning决策详情
+            correctionLayers: nextGenResult.correctionLayers,
+            metaLearningDetail: nextGenResult.metaLearningDetail,
+            gtoModifier: nextGenResult.gtoModifier,
+            causalAdjustment: nextGenResult.causalAdjustment
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -91197,7 +91732,12 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
             algorithmTier: nextGenResult.algorithmTier,
             // v258: 传递结构化归因和护栏信息
             reasonDetails: nextGenResult.reasonDetails,
-            guardrailInfo: nextGenResult.guardrailInfo
+            guardrailInfo: nextGenResult.guardrailInfo,
+            // v337: 传递修正层标记和Meta-Learning决策详情
+            correctionLayers: nextGenResult.correctionLayers,
+            metaLearningDetail: nextGenResult.metaLearningDetail,
+            gtoModifier: nextGenResult.gtoModifier,
+            causalAdjustment: nextGenResult.causalAdjustment
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -91380,10 +91920,9 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
-      const localCampaignIdStr = String(campaignLocalId);
-      const analysis = await analyzePlacementPerformance(campaignLocalId, config2.accountId);
+      const analysis = await analyzePlacementPerformance(campaignAmazonId, config2.accountId);
       const suggestions = await generatePlacementSuggestions(
-        campaignLocalId,
+        campaignAmazonId,
         config2.accountId
       );
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
@@ -91426,7 +91965,7 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         details.push(adjustment);
         if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
           await applyPlacementAdjustment(
-            campaignLocalId,
+            campaignAmazonId,
             config2.accountId,
             { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );
@@ -91620,6 +92159,58 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
             targetRoas: config2.targetRoas
           }
         );
+      }
+      if (strategy && strategy.daypartingStatus === "draft") {
+        try {
+          const weeklyData = await analyzeWeeklyPerformance(Number(campaignAmazonId), 30);
+          const totalDataPoints = weeklyData.reduce((sum2, d5) => sum2 + d5.dataPoints, 0);
+          if (totalDataPoints >= 7) {
+            const hourlyData = await analyzeHourlyPerformance(Number(campaignAmazonId), 30);
+            if (hourlyData.length > 0) {
+              const bidAdjustments = calculateOptimalBidAdjustments(hourlyData, {
+                optimizationGoal: config2.optimizationGoal,
+                targetAcos: config2.targetAcos,
+                targetRoas: config2.targetRoas
+              });
+              await saveBidRules(strategy.id, bidAdjustments.map((rule2) => ({
+                dayOfWeek: rule2.dayOfWeek,
+                hour: rule2.hour,
+                bidMultiplier: rule2.bidMultiplier.toString(),
+                avgClicks: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgClicks?.toString(),
+                avgSpend: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgSpend?.toString(),
+                avgSales: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgSales?.toString(),
+                avgCvr: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgCvr?.toString(),
+                avgCpc: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgCpc?.toString(),
+                avgAcos: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgAcos?.toString(),
+                dataPoints: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.dataPoints || 0,
+                isEnabled: 1
+              })));
+              const budgetAllocation = calculateOptimalBudgetAllocation(weeklyData, {
+                optimizationGoal: config2.optimizationGoal,
+                targetAcos: config2.targetAcos,
+                targetRoas: config2.targetRoas
+              });
+              await saveBudgetRules(strategy.id, budgetAllocation.map((rule2) => ({
+                dayOfWeek: rule2.dayOfWeek,
+                budgetMultiplier: rule2.budgetMultiplier.toString(),
+                budgetPercentage: rule2.budgetPercentage.toString(),
+                avgSpend: weeklyData.find((d5) => d5.dayOfWeek === rule2.dayOfWeek)?.avgSpend?.toString(),
+                avgSales: weeklyData.find((d5) => d5.dayOfWeek === rule2.dayOfWeek)?.avgSales?.toString(),
+                avgAcos: weeklyData.find((d5) => d5.dayOfWeek === rule2.dayOfWeek)?.avgAcos?.toString(),
+                avgRoas: weeklyData.find((d5) => d5.dayOfWeek === rule2.dayOfWeek)?.avgRoas?.toString(),
+                dataPoints: weeklyData.find((d5) => d5.dayOfWeek === rule2.dayOfWeek)?.dataPoints || 0,
+                isEnabled: 1
+              })));
+              await updateDaypartingStrategy(strategy.id, { daypartingStatus: "active" });
+              strategy.daypartingStatus = "active";
+              log44.info(`[DaypartingOptimization] v337: \u81EA\u52A8\u5347\u7EA7\u5206\u65F6\u7B56\u7565 strategyId=${strategy.id} \u4ECEdraft\u2192active\uFF0C\u6570\u636E\u70B9=${totalDataPoints}\uFF0C\u5C0F\u65F6\u6570\u636E=${hourlyData.length}\u6761`);
+            }
+          } else {
+            log44.info(`[DaypartingOptimization] v337: \u5E7F\u544A\u6D3B\u52A8 ${campaign.campaignName} \u6570\u636E\u4E0D\u8DB3(${totalDataPoints}<7)\uFF0C\u4FDD\u6301draft\u72B6\u6001`);
+          }
+        } catch (upgradeErr) {
+          log44.warn(`[DaypartingOptimization] v337: \u81EA\u52A8\u5347\u7EA7\u5206\u65F6\u7B56\u7565\u5931\u8D25: ${upgradeErr.message}`);
+        }
       }
       if (!strategy || strategy.daypartingStatus !== "active") continue;
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
@@ -91899,7 +92490,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
         FROM optimization_logs 
         WHERE performance_group_id = ${config2.performanceGroupId}
-          AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest')
           AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
@@ -92120,13 +92711,22 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
       const campaignNameStr = campaign.campaignName || "";
-      if (isProductTargetingCampaign(campaignNameStr)) {
-        log44.info(`[SearchTermAnalysis] v311: \u8DF3\u8FC7Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})\uFF0C\u8BE5\u7C7B\u578Bcampaign\u4E0D\u652F\u6301keyword\u64CD\u4F5C`);
-        continue;
+      const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
+      if (isProductTargetingCamp) {
+        log44.info(`[SearchTermAnalysis] v2: Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})\uFF0C\u4EC5\u5141\u8BB8\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u64CD\u4F5C`);
       }
       const searchTerms8 = await getSearchTermsByCampaignId(campaignAmazonId);
       const campaignTargetingType = campaign.targetingType || (campaign.campaignType === "sp_auto" ? "auto" : "manual");
       const targetAcos = config2.targetAcos || 30;
+      const rawCampaignType = campaign.campaignType || "sp_auto";
+      const v2CampaignType = (() => {
+        if (rawCampaignType === "sponsoredProducts" || rawCampaignType === "sp") {
+          return campaignTargetingType === "auto" ? "sp_auto" : "sp_manual";
+        }
+        if (rawCampaignType === "sponsoredBrands" || rawCampaignType === "sb") return "sb";
+        if (rawCampaignType === "sponsoredDisplay" || rawCampaignType === "sd") return "sd";
+        return campaignTargetingType === "auto" ? "sp_auto" : "sp_manual";
+      })();
       const searchTermPerformanceList = searchTerms8.map((st3) => ({
         searchTerm: st3.searchTerm,
         clicks: Number(st3.searchTermClicks || 0),
@@ -92135,6 +92735,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         spend: Number(st3.searchTermSpend || 0),
         sales: Number(st3.searchTermSales || 0),
         campaignTargetingType,
+        campaignType: v2CampaignType,
+        // v2: 新增广告活动类型
         targetAcos
       }));
       log44.debug(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}\u4E2A\u641C\u7D22\u8BCD\u5F85\u5206\u6790`);
@@ -92277,16 +92879,79 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               accountId: campaign.accountId || 0,
               localCampaignId: campaignLocalId,
               amazonCampaignId: campaignAmazonId,
-              negativeLevel: "campaign",
+              negativeLevel: decision.negativeScope || "campaign",
+              // v2: 使用算法决策的层级
               negativeType: "keyword",
               negativeText: cleanedNegText,
               negativeMatchType: negMatchType,
-              negativeSource: "auto_optimization",
+              negativeSource: decision.negativeType === "keyword" ? "smart_negation" : "auto_optimization",
+              // v2
+              campaignType: decision.campaignType || "sp",
+              // v2: 新增
+              negativeScope: decision.negativeScope || "campaign",
+              // v2: 新增
+              createdAt: (/* @__PURE__ */ new Date()).toISOString()
+            };
+            negativeKeywordsAdded++;
+          }
+        } else if (decision.action === "CREATE_NEGATIVE_PRODUCT_TARGET") {
+          let negProdAlreadyExists = false;
+          if (!dryRun) {
+            const dbInstance = await getDb();
+            if (dbInstance) {
+              const { negativeKeywords: negKwTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+              const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+              const existingNeg = await dbInstance.select({ id: negKwTable.id }).from(negKwTable).where(andOp(
+                eqOp(negKwTable.campaignId, campaignAmazonId),
+                eqOp(negKwTable.negativeText, decision.targetValue),
+                eqOp(negKwTable.negativeType, "product")
+              )).limit(1);
+              if (existingNeg.length > 0) {
+                negProdAlreadyExists = true;
+                log44.info(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" campaignId=${campaign.campaignId}`);
+              }
+            }
+          }
+          const negativeProduct = {
+            accountId: config2.accountId,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
+            campaignName: campaign.campaignName,
+            searchTerm: decision.targetValue,
+            matchType: "negative_product_target",
+            action: "add_negative_product_target",
+            reason: `v2\u667A\u80FD\u5426\u5B9A: ${decision.reason}`,
+            algorithmUsed: "search_term_analyzer",
+            apiSyncStatus: negProdAlreadyExists ? "already_exists" : "pending",
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            // v2: 新增字段
+            negativeType: decision.negativeType || "product",
+            negativeScope: decision.negativeScope || "campaign",
+            campaignType: decision.campaignType || "sp"
+          };
+          details.push(negativeProduct);
+          if (!dryRun && !negProdAlreadyExists) {
+            negativeProduct._pendingDbInsert = {
+              accountId: campaign.accountId || 0,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              negativeLevel: decision.negativeScope || "campaign",
+              negativeType: "product",
+              negativeText: decision.targetValue,
+              negativeMatchType: "negative_exact",
+              negativeSource: "smart_negation",
+              campaignType: decision.campaignType || "sp",
+              negativeScope: decision.negativeScope || "campaign",
               createdAt: (/* @__PURE__ */ new Date()).toISOString()
             };
             negativeKeywordsAdded++;
           }
         } else if (decision.action === "CREATE_KEYWORD") {
+          if (isProductTargetingCamp) {
+            log44.info(`[SearchTermAnalysis] v2: PT campaign\u4E0D\u652F\u6301\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            continue;
+          }
           if (!canAddPositiveKeyword(campaignTargetingType, campaignNameStr)) {
             log44.info(`[SearchTermAnalysis] v311: campaign\u4E0D\u652F\u6301\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}", type=${campaignTargetingType})`);
             continue;
@@ -92536,6 +93201,52 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         }
       }
       if (!dryRun) {
+        const negProdDetails = details.filter((d5) => d5.action === "add_negative_product_target" && d5.localCampaignId === campaignLocalId);
+        if (negProdDetails.length > 0) {
+          try {
+            const amazonCampaignIdStr = campaignAmazonId;
+            const negProdCampaignType = negProdDetails[0]?.campaignType || "sp";
+            const negProdScope = negProdDetails[0]?.negativeScope || "campaign";
+            log44.info(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65: ${negProdDetails.length}\u4E2A, \u7C7B\u578B=${negProdCampaignType}, \u5C42\u7EA7=${negProdScope}`);
+            const negProdSyncResult = await syncNegativeProductTargetsToAmazon(
+              config2.accountId,
+              negProdDetails.map((d5) => ({
+                campaignId: amazonCampaignIdStr,
+                adGroupId: d5.adGroupId || "",
+                asin: d5.searchTerm,
+                campaignType: d5.campaignType || "sp",
+                negativeScope: d5.negativeScope || "campaign"
+              }))
+            );
+            const negProdSyncStatus = negProdSyncResult.failed === 0 && negProdSyncResult.success > 0 ? "synced" : negProdSyncResult.success === 0 ? "failed" : "partial";
+            for (const d5 of negProdDetails) {
+              d5.apiSyncStatus = negProdSyncStatus;
+            }
+            log44.info(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411API\u540C\u6B65: ${negProdDetails.length}\u4E2A, \u72B6\u6001=${negProdSyncStatus}`);
+            if (negProdSyncStatus === "synced" || negProdSyncStatus === "partial") {
+              const dbInstance = await getDb();
+              if (dbInstance) {
+                const { negativeKeywords: negativeKeywords8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                for (const d5 of negProdDetails) {
+                  if (d5._pendingDbInsert && d5.apiSyncStatus !== "failed") {
+                    try {
+                      await dbInstance.insert(negativeKeywords8).values(d5._pendingDbInsert);
+                      log44.info(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1DB\u5199\u5165\u6210\u529F: "${d5.searchTerm}"`);
+                    } catch (dbErr) {
+                      log44.error(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1DB\u5199\u5165\u5931\u8D25: "${d5.searchTerm}" - ${dbErr.message}`);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (apiError) {
+            for (const d5 of negProdDetails) {
+              d5.apiSyncStatus = "failed";
+              d5.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            }
+            log44.error(`[SearchTermAnalysis] v2: \u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25:`, apiError.message);
+          }
+        }
         const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.localCampaignId === campaignLocalId);
         if (negativeDetails.length > 0) {
           try {
@@ -92546,7 +93257,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 campaignId: amazonCampaignId,
                 keywordText: d5.searchTerm,
                 matchType: d5.matchType === "negative_exact" ? "negativeExact" : "negativePhrase",
-                level: "campaign"
+                level: d5.negativeScope === "ad_group" ? "adgroup" : "campaign",
+                adGroupId: d5.adGroupId || void 0
               }))
             );
             const negSyncStatus = negSyncResult.failed === 0 && negSyncResult.success > 0 ? "synced" : negSyncResult.success === 0 ? "failed" : "partial";
@@ -93549,7 +94261,7 @@ async function recordExecutionLog(result) {
     }
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
-        const actionType = detail.action === "add_negative" ? "negative_keyword_add" : "keyword_create";
+        const actionType = detail.action === "add_negative" ? "negative_keyword_add" : detail.action === "add_negative_product_target" ? "negative_product_target_add" : "keyword_create";
         await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
@@ -164775,7 +165487,7 @@ async function triggerManualSync(userId, accountId) {
         adGroups: (syncResult.stepResults["sp_ad_groups"]?.synced || 0) + (syncResult.stepResults["sb_ad_groups"]?.synced || 0) + (syncResult.stepResults["sd_ad_groups"]?.synced || 0),
         keywords: (syncResult.stepResults["sp_keywords"]?.synced || 0) + (syncResult.stepResults["sb_keywords"]?.synced || 0),
         targets: (syncResult.stepResults["sp_product_targets"]?.synced || 0) + (syncResult.stepResults["sb_product_targets"]?.synced || 0) + (syncResult.stepResults["sd_product_targets"]?.synced || 0),
-        performance: syncResult.stepResults["performance_14d"]?.synced || 0,
+        performance: syncResult.stepResults["performance_90d"]?.synced || 0,
         spCampaigns: syncResult.stepResults["sp_campaigns"]?.synced || 0,
         sbCampaigns: syncResult.stepResults["sb_campaigns"]?.synced || 0,
         sdCampaigns: syncResult.stepResults["sd_campaigns"]?.synced || 0,
@@ -165669,8 +166381,8 @@ var init_dataSyncScheduler = __esm({
       },
       full: {
         intervalMs: 30 * 60 * 1e3,
-        // 30分钟（完整同步，获取60天历史数据）
-        description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF0860\u5929\u5386\u53F2\uFF09",
+        // 30分钟（完整同步，获取各广告类型最大支持天数的历史数据）
+        description: "\u5B8C\u6574\u540C\u6B65 - \u6240\u6709\u6570\u636E\uFF08SP 90\u5929/SB 60\u5929/SD 90\u5929\uFF09",
         syncTypes: ["all"]
       }
     };
@@ -395232,10 +395944,10 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
       const placement = placementMap[rawPlacement] || "rest_of_search";
       log87.debug(`v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
       const reportDate = row.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      const localCampaignId = String(campaign.campaignId);
+      const amazonCampaignId = String(campaign.campaignId);
       const [existing] = await db.select().from(placementPerformance).where(
         and(
-          eq(placementPerformance.campaignId, localCampaignId),
+          eq(placementPerformance.campaignId, amazonCampaignId),
           eq(placementPerformance.accountId, this.accountId),
           eq(placementPerformance.placement, placement),
           eq(placementPerformance.date, reportDate)
@@ -395247,7 +395959,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
       const impressions = row.impressions || 0;
       const orders = row.purchases7d || row.purchases14d || 0;
       const perfData = {
-        campaignId: localCampaignId,
+        campaignId: amazonCampaignId,
         accountId: this.accountId,
         placement,
         date: reportDate,

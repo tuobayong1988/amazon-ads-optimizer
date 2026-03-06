@@ -41,6 +41,7 @@ import type { SearchTermPerformance, TargetingDecision } from "./services/target
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "./utils/keywordValidator";
 import { createModuleLogger } from './utils/logger';
 import { getCampaignAmazonId, getCampaignLocalId } from './utils/idTypes';
+import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from './ngramAnalysis';
 
 const log = createModuleLogger('TargetEngine');
 
@@ -638,6 +639,20 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // 4.5 v337.3: 执行Ngram自动否定分析（集成到自动优化流程）
+  if (config.enableSearchTermAnalysis && shouldExecute('searchterm')) {
+    try {
+      const ngramResults = await executeAutoNgramNegation(config, campaigns, dryRun);
+      (result as any).ngramAnalysis = ngramResults;
+      if (ngramResults.negativeKeywordsAdded > 0) {
+        log.info(`[NgramAutoNegation] v337.3: Ngram自动否定完成: 添加${ngramResults.negativeKeywordsAdded}个否定词`);
+      }
+    } catch (error: any) {
+      result.errors.push(`Ngram自动否定失败: ${error.message}`);
+      log.error(`[NgramAutoNegation] v337.3: Ngram自动否定失败:`, error.message);
+    }
+  }
+
   // 5. 执行预算分配优化
   if (config.enableBudgetAllocation && shouldExecute('budget')) {
     try {
@@ -2507,7 +2522,7 @@ async function executeSearchTermAnalysis(
   }
   
   // v310-fix: 预加载永久失败的关键词列表，避免反复尝试已知会失败的关键词
-  // 两类永久失败: 1) 已标记为permanently_failed的 2) 普通失败达到3次的
+  // 两类永久失败: 1）已标记为permanently_failed的 2）普通失败达到3次的
   const permanentlyFailedKeywords = new Set<string>();
   try {
     const dbInstance = await db.getDb();
@@ -4932,4 +4947,167 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
       budgetAdjustments: dryRunResult.budgetAllocation.details.length,
     },
   };
+}
+
+/**
+ * v337.3: Ngram自动否定执行引擎
+ * 
+ * 将Ngram分析集成到自动优化流程中，并实现全局/局部否定区分：
+ * - 全局否定：一个Ngram在所有广告活动中表现都差 → 在所有campaign级别否定
+ * - 局部否定：一个Ngram只在部分广告活动中表现差 → 仅在表现差的campaign中否定
+ * 
+ * 只自动执行高优先级的否定建议，中/低优先级留给用户手动审核。
+ */
+async function executeAutoNgramNegation(
+  config: any,
+  campaigns: any[],
+  dryRun: boolean
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: any[] }> {
+  const details: any[] = [];
+  let negativeKeywordsAdded = 0;
+  
+  if (!config.accountId || campaigns.length === 0) {
+    return { executed: false, negativeKeywordsAdded: 0, details: [{ reason: '无账号或无广告活动' }] };
+  }
+  
+  const campaignIds = campaigns.map((c: any) => c.id);
+  
+  // 1. 获取全局Ngram否定建议（跨所有campaign）
+  const globalSuggestions = await generateNegativeKeywordSuggestions(
+    config.accountId,
+    campaignIds,
+    30 // 30天数据窗口
+  );
+  
+  // 只自动执行高优先级的否定建议
+  const autoExecuteSuggestions = globalSuggestions.filter(s => s.priority === 'high');
+  
+  if (autoExecuteSuggestions.length === 0) {
+    log.info(`[NgramAutoNegation] v337.3: 账号${config.accountId}无高优先级Ngram否定建议`);
+    return { executed: true, negativeKeywordsAdded: 0, details: [{ reason: '无高优先级Ngram否定建议' }] };
+  }
+  
+  log.info(`[NgramAutoNegation] v337.3: 发现${autoExecuteSuggestions.length}个高优先级Ngram否定建议，开始全局/局部分析`);
+  
+  // 2. 对每个高优先级建议，分析其在各campaign中的表现（全局 vs 局部）
+  const dbInstance = await getDb();
+  if (!dbInstance) {
+    return { executed: false, negativeKeywordsAdded: 0, details: [{ error: 'Database not available' }] };
+  }
+  
+  for (const suggestion of autoExecuteSuggestions) {
+    try {
+      // 查询该Ngram在各campaign中的表现
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      
+      const campaignPerformance = await dbInstance.execute(sql`
+        SELECT 
+          campaign_id,
+          SUM(search_term_spend) as spend,
+          SUM(search_term_sales) as sales,
+          SUM(search_term_orders) as orders,
+          SUM(search_term_clicks) as clicks
+        FROM search_terms
+        WHERE account_id = ${config.accountId}
+        AND report_start_date >= ${startDateStr}
+        AND search_term LIKE ${`%${suggestion.ngram}%`}
+        AND campaign_id IN (${sql.raw(campaignIds.join(','))})
+        GROUP BY campaign_id
+      `);
+      
+      const perfRows = (campaignPerformance as any[])[0] || [];
+      
+      // 判断全局 vs 局部
+      let badCampaigns: number[] = [];
+      let goodCampaigns: number[] = [];
+      
+      for (const row of perfRows) {
+        const spend = Number(row.spend) || 0;
+        const sales = Number(row.sales) || 0;
+        const orders = Number(row.orders) || 0;
+        const acos = sales > 0 ? (spend / sales) * 100 : Infinity;
+        
+        // 该Ngram在此campaign中表现差：零转化或ACoS > 100%
+        if (orders === 0 || acos > 100) {
+          badCampaigns.push(Number(row.campaign_id));
+        } else {
+          goodCampaigns.push(Number(row.campaign_id));
+        }
+      }
+      
+      // 决策：全局否定 vs 局部否定
+      const isGlobalNegation = goodCampaigns.length === 0; // 在所有campaign中都表现差
+      const targetCampaigns = isGlobalNegation ? campaignIds : badCampaigns;
+      const negationScope = isGlobalNegation ? 'global' : 'local';
+      
+      if (targetCampaigns.length === 0) {
+        continue; // 没有需要否定的campaign
+      }
+      
+      log.info(`[NgramAutoNegation] v337.3: Ngram "${suggestion.ngram}" → ${negationScope}否定 (${targetCampaigns.length}个campaign)`);
+      
+      if (dryRun) {
+        details.push({
+          ngram: suggestion.ngram,
+          matchType: suggestion.matchType,
+          negationScope,
+          targetCampaignCount: targetCampaigns.length,
+          reason: suggestion.reason,
+          dryRun: true,
+        });
+        negativeKeywordsAdded += targetCampaigns.length;
+        continue;
+      }
+      
+      // 执行否定
+      for (const campaignId of targetCampaigns) {
+        try {
+          const execResult = await executeNgramNegativeKeywords(
+            config.accountId,
+            campaignId,
+            null, // campaign级否定
+            [{ keyword: suggestion.ngram, matchType: suggestion.matchType }]
+          );
+          
+          if (execResult.addedCount > 0) {
+            negativeKeywordsAdded += execResult.addedCount;
+          }
+          
+          details.push({
+            ngram: suggestion.ngram,
+            matchType: suggestion.matchType,
+            campaignId,
+            negationScope,
+            success: execResult.success,
+            addedCount: execResult.addedCount,
+            reason: suggestion.reason,
+          });
+        } catch (execError: any) {
+          details.push({
+            ngram: suggestion.ngram,
+            campaignId,
+            error: execError.message,
+          });
+        }
+      }
+    } catch (error: any) {
+      details.push({
+        ngram: suggestion.ngram,
+        error: `分析失败: ${error.message}`,
+      });
+    }
+  }
+  
+  // 3. 记录中/低优先级建议供用户审核
+  const pendingSuggestions = globalSuggestions.filter(s => s.priority !== 'high');
+  if (pendingSuggestions.length > 0) {
+    details.push({
+      pendingReviewCount: pendingSuggestions.length,
+      message: `${pendingSuggestions.length}个中/低优先级Ngram否定建议待用户审核`,
+    });
+  }
+  
+  return { executed: true, negativeKeywordsAdded, details };
 }

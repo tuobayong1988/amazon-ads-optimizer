@@ -177,17 +177,16 @@ export async function triggerInitialOptimization(
       // 根据数据质量决定执行策略
       let specificModules: string[] | undefined;
       
+      // v337.3: 移除数据质量对模块执行的限制
+      // 之前sparse/moderate数据下会跳过placement/dayparting/budget模块，
+      // 导致这些功能长期无法执行。各模块内部已有自己的数据充分性检查，
+      // 不需要在调度层额外限制。让所有模块始终有机会执行。
       if (dataQuality === 'sparse') {
-        // 数据稀疏：只执行出价优化（探索模式）和搜索词分析
-        // 不执行预算分配和位置优化（需要更多数据支撑）
-        specificModules = ['bid', 'searchterm', 'keyword'];
-        log.info(`[${config.name}] 数据稀疏，仅执行探索性优化模块: ${specificModules.join(', ')}`);
+        log.info(`[${config.name}] 数据稀疏，但仍执行所有模块（各模块内部会自行判断数据充分性）`);
       } else if (dataQuality === 'moderate') {
-        // 中等数据：执行大部分模块，但跳过位置优化
-        specificModules = ['bid', 'searchterm', 'keyword', 'budget'];
-        log.info(`[${config.name}] 数据中等，执行核心优化模块: ${specificModules.join(', ')}`);
+        log.info(`[${config.name}] 数据中等，执行所有模块`);
       }
-      // 数据充足：执行所有模块（specificModules = undefined）
+      // specificModules = undefined → 执行所有模块
       
       const executionResult = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
         dryRun: false,
