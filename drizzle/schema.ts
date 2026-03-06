@@ -2060,9 +2060,9 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int(),
 	// v2: 新增campaignType字段，记录来源广告活动类型（sp/sb/sd）
-	campaignType: mysqlEnum('campaign_type_neg', ['sp','sb','sd']).default('sp'),
+	campaignType: mysqlEnum('campaignTypeNeg', ['sp','sb','sd']).default('sp'),
 	// v2: 新增negativeScope字段，明确否定层级（campaign/ad_group）
-	negativeScope: mysqlEnum('negative_scope', ['campaign','ad_group']).default('campaign'),
+	negativeScope: mysqlEnum('negativeScope', ['campaign','ad_group']).default('campaign'),
 	negativeLevel: mysqlEnum(['campaign','ad_group']).notNull(),
 	negativeType: mysqlEnum(['keyword','product']).notNull(),
 	negativeText: varchar({ length: 500 }).notNull(),
