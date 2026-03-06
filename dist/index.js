@@ -83725,6 +83725,379 @@ var init_targetingAlgorithm = __esm({
   }
 });
 
+// server/ngramAnalysis.ts
+function tokenize(text2) {
+  return text2.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length >= 2 && !NGRAM_CONFIG.STOP_WORDS.has(word));
+}
+function generateNgrams(tokens, n7) {
+  const ngrams = [];
+  for (let i4 = 0; i4 <= tokens.length - n7; i4++) {
+    ngrams.push(tokens.slice(i4, i4 + n7).join(" "));
+  }
+  return ngrams;
+}
+async function getCoreKeywordRoots(accountId, campaignIds) {
+  const db = await getDb();
+  if (!db) return /* @__PURE__ */ new Set();
+  let query2 = `
+    SELECT DISTINCT keyword_text 
+    FROM keywords 
+    WHERE account_id = ?
+  `;
+  const params = [accountId];
+  if (campaignIds && campaignIds.length > 0) {
+    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
+    params.push(...campaignIds);
+  }
+  const result = await db.execute(sql.raw(query2));
+  const rows = result[0] || [];
+  const coreRoots = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    const tokens = tokenize(row.keyword_text || "");
+    tokens.forEach((token) => coreRoots.add(token));
+  }
+  return coreRoots;
+}
+async function analyzeSearchTermNgrams(accountId, campaignIds, days = 30) {
+  const db = await getDb();
+  if (!db) return /* @__PURE__ */ new Map();
+  const startDate = /* @__PURE__ */ new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().split("T")[0];
+  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
+  let query2 = `
+    SELECT 
+      search_term,
+      SUM(search_term_impressions) as impressions,
+      SUM(search_term_clicks) as clicks,
+      SUM(search_term_spend) as spend,
+      SUM(search_term_sales) as sales,
+      SUM(search_term_orders) as orders
+    FROM search_terms
+    WHERE account_id = ?
+    AND report_start_date >= ?
+  `;
+  const params = [accountId, startDateStr];
+  if (campaignIds && campaignIds.length > 0) {
+    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
+    params.push(...campaignIds);
+  }
+  query2 += ` GROUP BY search_term`;
+  const result = await db.execute(sql.raw(query2));
+  const searchTermData = result[0] || [];
+  const ngramStats = /* @__PURE__ */ new Map();
+  for (const row of searchTermData) {
+    const tokens = tokenize(row.search_term || "");
+    for (let n7 = 1; n7 <= NGRAM_CONFIG.MAX_NGRAM_LENGTH; n7++) {
+      const ngrams = generateNgrams(tokens, n7);
+      for (const ngram of ngrams) {
+        const ngramTokens = ngram.split(" ");
+        if (ngramTokens.some((t7) => coreRoots.has(t7))) {
+          continue;
+        }
+        const existing = ngramStats.get(ngram) || {
+          frequency: 0,
+          totalClicks: 0,
+          totalSpend: 0,
+          totalOrders: 0,
+          totalSales: 0,
+          totalImpressions: 0,
+          searchTerms: /* @__PURE__ */ new Set()
+        };
+        existing.frequency++;
+        existing.totalClicks += Number(row.clicks) || 0;
+        existing.totalSpend += Number(row.spend) || 0;
+        existing.totalOrders += Number(row.orders) || 0;
+        existing.totalSales += Number(row.sales) || 0;
+        existing.totalImpressions += Number(row.impressions) || 0;
+        existing.searchTerms.add(row.search_term);
+        ngramStats.set(ngram, existing);
+      }
+    }
+  }
+  const analysisResults = /* @__PURE__ */ new Map();
+  for (const [ngram, stats] of Array.from(ngramStats.entries())) {
+    if (stats.frequency < NGRAM_CONFIG.MIN_FREQUENCY) continue;
+    if (stats.totalSpend < NGRAM_CONFIG.MIN_SPEND) continue;
+    const avgCtr = stats.totalImpressions > 0 ? stats.totalClicks / stats.totalImpressions * 100 : 0;
+    const avgCvr = stats.totalClicks > 0 ? stats.totalOrders / stats.totalClicks * 100 : 0;
+    const acos = stats.totalSales > 0 ? stats.totalSpend / stats.totalSales * 100 : Infinity;
+    const roas = stats.totalSpend > 0 ? stats.totalSales / stats.totalSpend : 0;
+    let isNegativeCandidate = false;
+    let reason = "";
+    let priority = "low";
+    if (NGRAM_CONFIG.COMMON_NEGATIVE_ROOTS.has(ngram)) {
+      isNegativeCandidate = true;
+      reason = "\u5E38\u89C1\u65E0\u6548\u8BCD\u6839";
+      priority = "high";
+    } else if (stats.totalOrders === 0 && stats.totalSpend >= NGRAM_CONFIG.MIN_SPEND * 2) {
+      isNegativeCandidate = true;
+      reason = `\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316 (\u82B1\u8D39$${stats.totalSpend.toFixed(2)}, 0\u8BA2\u5355)`;
+      priority = "high";
+    } else if (avgCvr < 1 && acos > 100) {
+      isNegativeCandidate = true;
+      reason = `\u4F4E\u8F6C\u5316\u9AD8ACoS (CVR ${avgCvr.toFixed(2)}%, ACoS ${acos.toFixed(0)}%)`;
+      priority = "medium";
+    } else if (acos > 50 && stats.totalOrders < 3) {
+      isNegativeCandidate = true;
+      reason = `\u8868\u73B0\u4E0D\u4F73 (ACoS ${acos.toFixed(0)}%, ${stats.totalOrders}\u8BA2\u5355)`;
+      priority = "low";
+    }
+    const matchType = ngram.split(" ").length > 1 ? "phrase" : "exact";
+    analysisResults.set(ngram, {
+      ngram,
+      frequency: stats.frequency,
+      totalClicks: stats.totalClicks,
+      totalSpend: stats.totalSpend,
+      totalOrders: stats.totalOrders,
+      totalSales: stats.totalSales,
+      avgCtr,
+      avgCvr,
+      acos,
+      roas,
+      searchTerms: Array.from(stats.searchTerms),
+      isNegativeCandidate,
+      reason,
+      matchType,
+      priority
+    });
+  }
+  return analysisResults;
+}
+async function generateNegativeKeywordSuggestions(accountId, campaignIds, days = 30) {
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
+  const suggestions = [];
+  for (const [ngram, result] of Array.from(analysisResults.entries())) {
+    if (!result.isNegativeCandidate) continue;
+    suggestions.push({
+      ngram: result.ngram,
+      matchType: result.matchType,
+      frequency: result.frequency,
+      totalSpend: result.totalSpend,
+      totalClicks: result.totalClicks,
+      totalOrders: result.totalOrders,
+      acos: result.acos,
+      reason: result.reason,
+      priority: result.priority,
+      affectedSearchTerms: result.searchTerms.slice(0, 10),
+      // 最多显示10个
+      estimatedSavings: result.totalSpend * 0.8
+      // 预估节省80%花费
+    });
+  }
+  suggestions.sort((a4, b6) => {
+    const priorityOrder = { high: 0, medium: 1, low: 2 };
+    if (priorityOrder[a4.priority] !== priorityOrder[b6.priority]) {
+      return priorityOrder[a4.priority] - priorityOrder[b6.priority];
+    }
+    return b6.totalSpend - a4.totalSpend;
+  });
+  return suggestions;
+}
+async function executeNegativeKeywords(accountId, campaignId, adGroupId, negatives) {
+  const db = await getDb();
+  if (!db) return { success: false, addedCount: 0, errors: ["Database not available"] };
+  const errors = [];
+  let addedCount = 0;
+  for (const negative of negatives) {
+    try {
+      await db.insert(negativeKeywords).values({
+        accountId,
+        campaignId,
+        adGroupId,
+        negativeLevel: adGroupId ? "ad_group" : "campaign",
+        negativeType: "keyword",
+        negativeText: negative.keyword,
+        negativeMatchType: negative.matchType === "phrase" ? "negative_phrase" : "negative_exact",
+        negativeSource: "ngram_analysis",
+        negativeStatus: "active"
+      });
+      addedCount++;
+    } catch (error54) {
+      if (!error54.message?.includes("Duplicate")) {
+        errors.push(`\u6DFB\u52A0\u5426\u5B9A\u8BCD "${negative.keyword}" \u5931\u8D25: ${error54.message}`);
+      }
+    }
+  }
+  return {
+    success: errors.length === 0,
+    addedCount,
+    errors
+  };
+}
+async function getNgramAnalysisSummary(accountId, campaignIds, days = 30) {
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
+  let totalSearchTerms = 0;
+  let negativeCandidates = 0;
+  let highPriority = 0;
+  let mediumPriority = 0;
+  let lowPriority = 0;
+  let estimatedSavings = 0;
+  const allSearchTerms = /* @__PURE__ */ new Set();
+  for (const [_3, result] of Array.from(analysisResults.entries())) {
+    result.searchTerms.forEach((st3) => allSearchTerms.add(st3));
+    if (result.isNegativeCandidate) {
+      negativeCandidates++;
+      estimatedSavings += result.totalSpend * 0.8;
+      switch (result.priority) {
+        case "high":
+          highPriority++;
+          break;
+        case "medium":
+          mediumPriority++;
+          break;
+        case "low":
+          lowPriority++;
+          break;
+      }
+    }
+  }
+  return {
+    totalSearchTerms: allSearchTerms.size,
+    totalNgrams: analysisResults.size,
+    negativeCandidates,
+    highPriority,
+    mediumPriority,
+    lowPriority,
+    estimatedSavings
+  };
+}
+async function generateNgramAnalysisReport(accountId, campaignIds, days = 30) {
+  const summary = await getNgramAnalysisSummary(accountId, campaignIds, days);
+  const suggestions = await generateNegativeKeywordSuggestions(accountId, campaignIds, days);
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
+  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
+  const topWastefulNgrams = Array.from(analysisResults.values()).filter((r5) => r5.totalOrders === 0 || r5.acos > 50).sort((a4, b6) => b6.totalSpend - a4.totalSpend).slice(0, 20);
+  return {
+    summary,
+    suggestions: suggestions.slice(0, 50),
+    // 最多50条建议
+    topWastefulNgrams,
+    coreRootsExcluded: Array.from(coreRoots).slice(0, 100)
+    // 最多显示100个核心词根
+  };
+}
+var NGRAM_CONFIG;
+var init_ngramAnalysis = __esm({
+  "server/ngramAnalysis.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    NGRAM_CONFIG = {
+      // 频率阈值（减半后的值）
+      MIN_FREQUENCY: 25,
+      // 词根最小出现频率
+      MIN_SPEND: 12.5,
+      // 词根最小花费阈值（美元）
+      // 分析参数
+      MIN_NGRAM_LENGTH: 2,
+      // 最小N-Gram长度
+      MAX_NGRAM_LENGTH: 3,
+      // 最大N-Gram长度（1=单词, 2=双词组合, 3=三词组合）
+      // 停用词列表（不参与分析的常见词）
+      STOP_WORDS: /* @__PURE__ */ new Set([
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "are",
+        "were",
+        "been",
+        "be",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "me",
+        "him",
+        "her",
+        "us",
+        "them",
+        "my",
+        "your",
+        "his",
+        "her",
+        "our",
+        "their",
+        "mine",
+        "yours",
+        "hers",
+        "ours",
+        "theirs"
+      ]),
+      // 常见无效词根（默认否定候选）
+      COMMON_NEGATIVE_ROOTS: /* @__PURE__ */ new Set([
+        "free",
+        "cheap",
+        "discount",
+        "used",
+        "repair",
+        "fix",
+        "broken",
+        "diy",
+        "homemade",
+        "alternative",
+        "substitute",
+        "knock off",
+        "fake",
+        "counterfeit",
+        "replica",
+        "imitation",
+        "wholesale",
+        "bulk",
+        "sample",
+        "trial",
+        "demo",
+        "test",
+        "review",
+        "comparison"
+      ])
+    };
+  }
+});
+
 // server/utils/timezone.ts
 function getMarketplaceTimezone(marketplace) {
   const normalizedMarketplace = marketplace?.toUpperCase() || "";
@@ -90951,6 +91324,18 @@ async function executeOptimizationTarget(targetId, options = {}) {
       result.errors.push(`\u641C\u7D22\u8BCD\u5206\u6790\u5931\u8D25: ${error54.message}`);
     }
   }
+  if (config2.enableSearchTermAnalysis && shouldExecute("searchterm")) {
+    try {
+      const ngramResults = await executeAutoNgramNegation(config2, campaigns7, dryRun);
+      result.ngramAnalysis = ngramResults;
+      if (ngramResults.negativeKeywordsAdded > 0) {
+        log44.info(`[NgramAutoNegation] v337.3: Ngram\u81EA\u52A8\u5426\u5B9A\u5B8C\u6210: \u6DFB\u52A0${ngramResults.negativeKeywordsAdded}\u4E2A\u5426\u5B9A\u8BCD`);
+      }
+    } catch (error54) {
+      result.errors.push(`Ngram\u81EA\u52A8\u5426\u5B9A\u5931\u8D25: ${error54.message}`);
+      log44.error(`[NgramAutoNegation] v337.3: Ngram\u81EA\u52A8\u5426\u5B9A\u5931\u8D25:`, error54.message);
+    }
+  }
   if (config2.enableBudgetAllocation && shouldExecute("budget")) {
     try {
       const budgetResults = await executeBudgetAllocation(config2, campaigns7, dryRun);
@@ -94565,6 +94950,126 @@ async function getOptimizationTargetSummary(targetId) {
     }
   };
 }
+async function executeAutoNgramNegation(config2, campaigns7, dryRun) {
+  const details = [];
+  let negativeKeywordsAdded = 0;
+  if (!config2.accountId || campaigns7.length === 0) {
+    return { executed: false, negativeKeywordsAdded: 0, details: [{ reason: "\u65E0\u8D26\u53F7\u6216\u65E0\u5E7F\u544A\u6D3B\u52A8" }] };
+  }
+  const campaignIds = campaigns7.map((c5) => c5.id);
+  const globalSuggestions = await generateNegativeKeywordSuggestions(
+    config2.accountId,
+    campaignIds,
+    30
+    // 30天数据窗口
+  );
+  const autoExecuteSuggestions = globalSuggestions.filter((s4) => s4.priority === "high");
+  if (autoExecuteSuggestions.length === 0) {
+    log44.info(`[NgramAutoNegation] v337.3: \u8D26\u53F7${config2.accountId}\u65E0\u9AD8\u4F18\u5148\u7EA7Ngram\u5426\u5B9A\u5EFA\u8BAE`);
+    return { executed: true, negativeKeywordsAdded: 0, details: [{ reason: "\u65E0\u9AD8\u4F18\u5148\u7EA7Ngram\u5426\u5B9A\u5EFA\u8BAE" }] };
+  }
+  log44.info(`[NgramAutoNegation] v337.3: \u53D1\u73B0${autoExecuteSuggestions.length}\u4E2A\u9AD8\u4F18\u5148\u7EA7Ngram\u5426\u5B9A\u5EFA\u8BAE\uFF0C\u5F00\u59CB\u5168\u5C40/\u5C40\u90E8\u5206\u6790`);
+  const dbInstance = await getDb();
+  if (!dbInstance) {
+    return { executed: false, negativeKeywordsAdded: 0, details: [{ error: "Database not available" }] };
+  }
+  for (const suggestion of autoExecuteSuggestions) {
+    try {
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split("T")[0];
+      const campaignPerformance = await dbInstance.execute(sql`
+        SELECT 
+          campaign_id,
+          SUM(search_term_spend) as spend,
+          SUM(search_term_sales) as sales,
+          SUM(search_term_orders) as orders,
+          SUM(search_term_clicks) as clicks
+        FROM search_terms
+        WHERE account_id = ${config2.accountId}
+        AND report_start_date >= ${startDateStr}
+        AND search_term LIKE ${`%${suggestion.ngram}%`}
+        AND campaign_id IN (${sql.raw(campaignIds.join(","))})
+        GROUP BY campaign_id
+      `);
+      const perfRows = campaignPerformance[0] || [];
+      let badCampaigns = [];
+      let goodCampaigns = [];
+      for (const row of perfRows) {
+        const spend = Number(row.spend) || 0;
+        const sales = Number(row.sales) || 0;
+        const orders = Number(row.orders) || 0;
+        const acos = sales > 0 ? spend / sales * 100 : Infinity;
+        if (orders === 0 || acos > 100) {
+          badCampaigns.push(Number(row.campaign_id));
+        } else {
+          goodCampaigns.push(Number(row.campaign_id));
+        }
+      }
+      const isGlobalNegation = goodCampaigns.length === 0;
+      const targetCampaigns = isGlobalNegation ? campaignIds : badCampaigns;
+      const negationScope = isGlobalNegation ? "global" : "local";
+      if (targetCampaigns.length === 0) {
+        continue;
+      }
+      log44.info(`[NgramAutoNegation] v337.3: Ngram "${suggestion.ngram}" \u2192 ${negationScope}\u5426\u5B9A (${targetCampaigns.length}\u4E2Acampaign)`);
+      if (dryRun) {
+        details.push({
+          ngram: suggestion.ngram,
+          matchType: suggestion.matchType,
+          negationScope,
+          targetCampaignCount: targetCampaigns.length,
+          reason: suggestion.reason,
+          dryRun: true
+        });
+        negativeKeywordsAdded += targetCampaigns.length;
+        continue;
+      }
+      for (const campaignId of targetCampaigns) {
+        try {
+          const execResult = await executeNegativeKeywords(
+            config2.accountId,
+            campaignId,
+            null,
+            // campaign级否定
+            [{ keyword: suggestion.ngram, matchType: suggestion.matchType }]
+          );
+          if (execResult.addedCount > 0) {
+            negativeKeywordsAdded += execResult.addedCount;
+          }
+          details.push({
+            ngram: suggestion.ngram,
+            matchType: suggestion.matchType,
+            campaignId,
+            negationScope,
+            success: execResult.success,
+            addedCount: execResult.addedCount,
+            reason: suggestion.reason
+          });
+        } catch (execError) {
+          details.push({
+            ngram: suggestion.ngram,
+            campaignId,
+            error: execError.message
+          });
+        }
+      }
+    } catch (error54) {
+      details.push({
+        ngram: suggestion.ngram,
+        error: `\u5206\u6790\u5931\u8D25: ${error54.message}`
+      });
+    }
+  }
+  const pendingSuggestions = globalSuggestions.filter((s4) => s4.priority !== "high");
+  if (pendingSuggestions.length > 0) {
+    details.push({
+      pendingReviewCount: pendingSuggestions.length,
+      message: `${pendingSuggestions.length}\u4E2A\u4E2D/\u4F4E\u4F18\u5148\u7EA7Ngram\u5426\u5B9A\u5EFA\u8BAE\u5F85\u7528\u6237\u5BA1\u6838`
+    });
+  }
+  return { executed: true, negativeKeywordsAdded, details };
+}
 var log44, marketplaceCache2;
 var init_optimizationTargetEngine = __esm({
   "server/optimizationTargetEngine.ts"() {
@@ -94595,6 +95100,7 @@ var init_optimizationTargetEngine = __esm({
     init_keywordValidator();
     init_logger2();
     init_idTypes();
+    init_ngramAnalysis();
     log44 = createModuleLogger("TargetEngine");
     marketplaceCache2 = /* @__PURE__ */ new Map();
   }
@@ -94686,11 +95192,9 @@ async function triggerInitialOptimization(targetId, options = { triggeredBy: "cr
     try {
       let specificModules;
       if (dataQuality === "sparse") {
-        specificModules = ["bid", "searchterm", "keyword"];
-        log45.info(`[${config2.name}] \u6570\u636E\u7A00\u758F\uFF0C\u4EC5\u6267\u884C\u63A2\u7D22\u6027\u4F18\u5316\u6A21\u5757: ${specificModules.join(", ")}`);
+        log45.info(`[${config2.name}] \u6570\u636E\u7A00\u758F\uFF0C\u4F46\u4ECD\u6267\u884C\u6240\u6709\u6A21\u5757\uFF08\u5404\u6A21\u5757\u5185\u90E8\u4F1A\u81EA\u884C\u5224\u65AD\u6570\u636E\u5145\u5206\u6027\uFF09`);
       } else if (dataQuality === "moderate") {
-        specificModules = ["bid", "searchterm", "keyword", "budget"];
-        log45.info(`[${config2.name}] \u6570\u636E\u4E2D\u7B49\uFF0C\u6267\u884C\u6838\u5FC3\u4F18\u5316\u6A21\u5757: ${specificModules.join(", ")}`);
+        log45.info(`[${config2.name}] \u6570\u636E\u4E2D\u7B49\uFF0C\u6267\u884C\u6240\u6709\u6A21\u5757`);
       }
       const executionResult = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
         dryRun: false,
@@ -375520,10 +376024,10 @@ init_db2();
 // server/adAutomation.ts
 init_logger2();
 var log61 = createModuleLogger("AdAutomation");
-function tokenize(searchTerm) {
+function tokenize2(searchTerm) {
   return searchTerm.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((word) => word.length > 1);
 }
-function generateNgrams(tokens, maxN = 2) {
+function generateNgrams2(tokens, maxN = 2) {
   const ngrams = [...tokens];
   if (maxN >= 2) {
     for (let i4 = 0; i4 < tokens.length - 1; i4++) {
@@ -375539,8 +376043,8 @@ function analyzeNgrams(searchTerms8) {
   );
   const ngramStats = /* @__PURE__ */ new Map();
   for (const term of ineffectiveTerms) {
-    const tokens = tokenize(term.searchTerm);
-    const ngrams = generateNgrams(tokens);
+    const tokens = tokenize2(term.searchTerm);
+    const ngrams = generateNgrams2(tokens);
     const isProductTargeting = term.targetingType === "product";
     for (const ngram of ngrams) {
       const existing = ngramStats.get(ngram) || {
@@ -375895,7 +376399,7 @@ function classifySearchTerms(searchTerms8, productKeywords, productAttributes) {
   };
   for (const term of searchTerms8) {
     const termLower = term.toLowerCase();
-    const termTokens = tokenize(term);
+    const termTokens = tokenize2(term);
     let relevance = "unrelated";
     let confidence = 0;
     let reason = "";
@@ -376908,7 +377412,7 @@ var TRAFFIC_ISOLATION_CONFIG = {
     // 保护的关键词类型
   }
 };
-function tokenize2(text2) {
+function tokenize3(text2) {
   const cleaned = text2.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
   const words = cleaned.split(/\s+/).filter((w7) => w7.length > 1);
   return words.filter((w7) => !TRAFFIC_ISOLATION_CONFIG.ngram.stopWords.includes(w7));
@@ -376941,7 +377445,7 @@ async function runNGramAnalysis(accountId, startDate, endDate, options) {
   ));
   const tokenStats = /* @__PURE__ */ new Map();
   for (const term of searchTermData) {
-    const tokens = tokenize2(term.searchTerm);
+    const tokens = tokenize3(term.searchTerm);
     for (const token of tokens) {
       const stats = tokenStats.get(token) || {
         frequency: 0,
@@ -386527,372 +387031,8 @@ var systemLogRouter = router({
   })
 });
 
-// server/ngramAnalysis.ts
-init_db2();
-init_schema2();
-init_drizzle_orm();
-var NGRAM_CONFIG = {
-  // 频率阈值（减半后的值）
-  MIN_FREQUENCY: 25,
-  // 词根最小出现频率
-  MIN_SPEND: 12.5,
-  // 词根最小花费阈值（美元）
-  // 分析参数
-  MIN_NGRAM_LENGTH: 2,
-  // 最小N-Gram长度
-  MAX_NGRAM_LENGTH: 3,
-  // 最大N-Gram长度（1=单词, 2=双词组合, 3=三词组合）
-  // 停用词列表（不参与分析的常见词）
-  STOP_WORDS: /* @__PURE__ */ new Set([
-    "a",
-    "an",
-    "the",
-    "and",
-    "or",
-    "but",
-    "in",
-    "on",
-    "at",
-    "to",
-    "for",
-    "of",
-    "with",
-    "by",
-    "from",
-    "as",
-    "is",
-    "was",
-    "are",
-    "were",
-    "been",
-    "be",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "could",
-    "should",
-    "may",
-    "might",
-    "must",
-    "shall",
-    "can",
-    "need",
-    "dare",
-    "ought",
-    "used",
-    "it",
-    "its",
-    "this",
-    "that",
-    "these",
-    "those",
-    "i",
-    "you",
-    "he",
-    "she",
-    "we",
-    "they",
-    "me",
-    "him",
-    "her",
-    "us",
-    "them",
-    "my",
-    "your",
-    "his",
-    "her",
-    "our",
-    "their",
-    "mine",
-    "yours",
-    "hers",
-    "ours",
-    "theirs"
-  ]),
-  // 常见无效词根（默认否定候选）
-  COMMON_NEGATIVE_ROOTS: /* @__PURE__ */ new Set([
-    "free",
-    "cheap",
-    "discount",
-    "used",
-    "repair",
-    "fix",
-    "broken",
-    "diy",
-    "homemade",
-    "alternative",
-    "substitute",
-    "knock off",
-    "fake",
-    "counterfeit",
-    "replica",
-    "imitation",
-    "wholesale",
-    "bulk",
-    "sample",
-    "trial",
-    "demo",
-    "test",
-    "review",
-    "comparison"
-  ])
-};
-function tokenize3(text2) {
-  return text2.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length >= 2 && !NGRAM_CONFIG.STOP_WORDS.has(word));
-}
-function generateNgrams2(tokens, n7) {
-  const ngrams = [];
-  for (let i4 = 0; i4 <= tokens.length - n7; i4++) {
-    ngrams.push(tokens.slice(i4, i4 + n7).join(" "));
-  }
-  return ngrams;
-}
-async function getCoreKeywordRoots(accountId, campaignIds) {
-  const db = await getDb();
-  if (!db) return /* @__PURE__ */ new Set();
-  let query2 = `
-    SELECT DISTINCT keyword_text 
-    FROM keywords 
-    WHERE account_id = ?
-  `;
-  const params = [accountId];
-  if (campaignIds && campaignIds.length > 0) {
-    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
-    params.push(...campaignIds);
-  }
-  const result = await db.execute(sql.raw(query2));
-  const rows = result[0] || [];
-  const coreRoots = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    const tokens = tokenize3(row.keyword_text || "");
-    tokens.forEach((token) => coreRoots.add(token));
-  }
-  return coreRoots;
-}
-async function analyzeSearchTermNgrams(accountId, campaignIds, days = 30) {
-  const db = await getDb();
-  if (!db) return /* @__PURE__ */ new Map();
-  const startDate = /* @__PURE__ */ new Date();
-  startDate.setDate(startDate.getDate() - days);
-  const startDateStr = startDate.toISOString().split("T")[0];
-  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
-  let query2 = `
-    SELECT 
-      search_term,
-      SUM(search_term_impressions) as impressions,
-      SUM(search_term_clicks) as clicks,
-      SUM(search_term_spend) as spend,
-      SUM(search_term_sales) as sales,
-      SUM(search_term_orders) as orders
-    FROM search_terms
-    WHERE account_id = ?
-    AND report_start_date >= ?
-  `;
-  const params = [accountId, startDateStr];
-  if (campaignIds && campaignIds.length > 0) {
-    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
-    params.push(...campaignIds);
-  }
-  query2 += ` GROUP BY search_term`;
-  const result = await db.execute(sql.raw(query2));
-  const searchTermData = result[0] || [];
-  const ngramStats = /* @__PURE__ */ new Map();
-  for (const row of searchTermData) {
-    const tokens = tokenize3(row.search_term || "");
-    for (let n7 = 1; n7 <= NGRAM_CONFIG.MAX_NGRAM_LENGTH; n7++) {
-      const ngrams = generateNgrams2(tokens, n7);
-      for (const ngram of ngrams) {
-        const ngramTokens = ngram.split(" ");
-        if (ngramTokens.some((t7) => coreRoots.has(t7))) {
-          continue;
-        }
-        const existing = ngramStats.get(ngram) || {
-          frequency: 0,
-          totalClicks: 0,
-          totalSpend: 0,
-          totalOrders: 0,
-          totalSales: 0,
-          totalImpressions: 0,
-          searchTerms: /* @__PURE__ */ new Set()
-        };
-        existing.frequency++;
-        existing.totalClicks += Number(row.clicks) || 0;
-        existing.totalSpend += Number(row.spend) || 0;
-        existing.totalOrders += Number(row.orders) || 0;
-        existing.totalSales += Number(row.sales) || 0;
-        existing.totalImpressions += Number(row.impressions) || 0;
-        existing.searchTerms.add(row.search_term);
-        ngramStats.set(ngram, existing);
-      }
-    }
-  }
-  const analysisResults = /* @__PURE__ */ new Map();
-  for (const [ngram, stats] of Array.from(ngramStats.entries())) {
-    if (stats.frequency < NGRAM_CONFIG.MIN_FREQUENCY) continue;
-    if (stats.totalSpend < NGRAM_CONFIG.MIN_SPEND) continue;
-    const avgCtr = stats.totalImpressions > 0 ? stats.totalClicks / stats.totalImpressions * 100 : 0;
-    const avgCvr = stats.totalClicks > 0 ? stats.totalOrders / stats.totalClicks * 100 : 0;
-    const acos = stats.totalSales > 0 ? stats.totalSpend / stats.totalSales * 100 : Infinity;
-    const roas = stats.totalSpend > 0 ? stats.totalSales / stats.totalSpend : 0;
-    let isNegativeCandidate = false;
-    let reason = "";
-    let priority = "low";
-    if (NGRAM_CONFIG.COMMON_NEGATIVE_ROOTS.has(ngram)) {
-      isNegativeCandidate = true;
-      reason = "\u5E38\u89C1\u65E0\u6548\u8BCD\u6839";
-      priority = "high";
-    } else if (stats.totalOrders === 0 && stats.totalSpend >= NGRAM_CONFIG.MIN_SPEND * 2) {
-      isNegativeCandidate = true;
-      reason = `\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316 (\u82B1\u8D39$${stats.totalSpend.toFixed(2)}, 0\u8BA2\u5355)`;
-      priority = "high";
-    } else if (avgCvr < 1 && acos > 100) {
-      isNegativeCandidate = true;
-      reason = `\u4F4E\u8F6C\u5316\u9AD8ACoS (CVR ${avgCvr.toFixed(2)}%, ACoS ${acos.toFixed(0)}%)`;
-      priority = "medium";
-    } else if (acos > 50 && stats.totalOrders < 3) {
-      isNegativeCandidate = true;
-      reason = `\u8868\u73B0\u4E0D\u4F73 (ACoS ${acos.toFixed(0)}%, ${stats.totalOrders}\u8BA2\u5355)`;
-      priority = "low";
-    }
-    const matchType = ngram.split(" ").length > 1 ? "phrase" : "exact";
-    analysisResults.set(ngram, {
-      ngram,
-      frequency: stats.frequency,
-      totalClicks: stats.totalClicks,
-      totalSpend: stats.totalSpend,
-      totalOrders: stats.totalOrders,
-      totalSales: stats.totalSales,
-      avgCtr,
-      avgCvr,
-      acos,
-      roas,
-      searchTerms: Array.from(stats.searchTerms),
-      isNegativeCandidate,
-      reason,
-      matchType,
-      priority
-    });
-  }
-  return analysisResults;
-}
-async function generateNegativeKeywordSuggestions(accountId, campaignIds, days = 30) {
-  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
-  const suggestions = [];
-  for (const [ngram, result] of Array.from(analysisResults.entries())) {
-    if (!result.isNegativeCandidate) continue;
-    suggestions.push({
-      ngram: result.ngram,
-      matchType: result.matchType,
-      frequency: result.frequency,
-      totalSpend: result.totalSpend,
-      totalClicks: result.totalClicks,
-      totalOrders: result.totalOrders,
-      acos: result.acos,
-      reason: result.reason,
-      priority: result.priority,
-      affectedSearchTerms: result.searchTerms.slice(0, 10),
-      // 最多显示10个
-      estimatedSavings: result.totalSpend * 0.8
-      // 预估节省80%花费
-    });
-  }
-  suggestions.sort((a4, b6) => {
-    const priorityOrder = { high: 0, medium: 1, low: 2 };
-    if (priorityOrder[a4.priority] !== priorityOrder[b6.priority]) {
-      return priorityOrder[a4.priority] - priorityOrder[b6.priority];
-    }
-    return b6.totalSpend - a4.totalSpend;
-  });
-  return suggestions;
-}
-async function executeNegativeKeywords(accountId, campaignId, adGroupId, negatives) {
-  const db = await getDb();
-  if (!db) return { success: false, addedCount: 0, errors: ["Database not available"] };
-  const errors = [];
-  let addedCount = 0;
-  for (const negative of negatives) {
-    try {
-      await db.insert(negativeKeywords).values({
-        accountId,
-        campaignId,
-        adGroupId,
-        negativeLevel: adGroupId ? "ad_group" : "campaign",
-        negativeType: "keyword",
-        negativeText: negative.keyword,
-        negativeMatchType: negative.matchType === "phrase" ? "negative_phrase" : "negative_exact",
-        negativeSource: "ngram_analysis",
-        negativeStatus: "active"
-      });
-      addedCount++;
-    } catch (error54) {
-      if (!error54.message?.includes("Duplicate")) {
-        errors.push(`\u6DFB\u52A0\u5426\u5B9A\u8BCD "${negative.keyword}" \u5931\u8D25: ${error54.message}`);
-      }
-    }
-  }
-  return {
-    success: errors.length === 0,
-    addedCount,
-    errors
-  };
-}
-async function getNgramAnalysisSummary(accountId, campaignIds, days = 30) {
-  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
-  let totalSearchTerms = 0;
-  let negativeCandidates = 0;
-  let highPriority = 0;
-  let mediumPriority = 0;
-  let lowPriority = 0;
-  let estimatedSavings = 0;
-  const allSearchTerms = /* @__PURE__ */ new Set();
-  for (const [_3, result] of Array.from(analysisResults.entries())) {
-    result.searchTerms.forEach((st3) => allSearchTerms.add(st3));
-    if (result.isNegativeCandidate) {
-      negativeCandidates++;
-      estimatedSavings += result.totalSpend * 0.8;
-      switch (result.priority) {
-        case "high":
-          highPriority++;
-          break;
-        case "medium":
-          mediumPriority++;
-          break;
-        case "low":
-          lowPriority++;
-          break;
-      }
-    }
-  }
-  return {
-    totalSearchTerms: allSearchTerms.size,
-    totalNgrams: analysisResults.size,
-    negativeCandidates,
-    highPriority,
-    mediumPriority,
-    lowPriority,
-    estimatedSavings
-  };
-}
-async function generateNgramAnalysisReport(accountId, campaignIds, days = 30) {
-  const summary = await getNgramAnalysisSummary(accountId, campaignIds, days);
-  const suggestions = await generateNegativeKeywordSuggestions(accountId, campaignIds, days);
-  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
-  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
-  const topWastefulNgrams = Array.from(analysisResults.values()).filter((r5) => r5.totalOrders === 0 || r5.acos > 50).sort((a4, b6) => b6.totalSpend - a4.totalSpend).slice(0, 20);
-  return {
-    summary,
-    suggestions: suggestions.slice(0, 50),
-    // 最多50条建议
-    topWastefulNgrams,
-    coreRootsExcluded: Array.from(coreRoots).slice(0, 100)
-    // 最多显示100个核心词根
-  };
-}
+// server/reviewRouter.ts
+init_ngramAnalysis();
 
 // server/trafficMigration.ts
 init_db2();

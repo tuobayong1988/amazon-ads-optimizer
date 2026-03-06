@@ -121,12 +121,12 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
       maxDailyAdjustmentPercent: 20, // 24小时最多累计调整20%
     },
     negativeKeyword: {
-      intervalHours: 48,          // 每48小时，给新词更多机会
+      intervalHours: 12,          // v337.4: 48h→12h，启动期也需要及时否定高花费零转化词
       minClicksToNegate: 15,     // 需要15次点击且0转化才否定
       minSpendToNegate: 10,      // 或花费超过$10且0转化
     },
     searchTermHarvest: {
-      intervalHours: 72,          // 每72小时，不急于固化
+      intervalHours: 24,          // v337.4: 72h→24h，加速高转化词的收割
       minConversionsToHarvest: 3, // 至少3次转化才迁移
     },
     placement: {
@@ -152,12 +152,12 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
       maxDailyAdjustmentPercent: 25,
     },
     negativeKeyword: {
-      intervalHours: 24,          // 每天一次
+      intervalHours: 8,           // v337.4: 24h→8h，成长期每8小时检查一次否定
       minClicksToNegate: 12,     // 12次点击且0转化
       minSpendToNegate: 8,
     },
     searchTermHarvest: {
-      intervalHours: 48,          // 每48小时
+      intervalHours: 12,          // v337.4: 48h→12h，成长期每12小时收割一次
       minConversionsToHarvest: 2, // 2次转化即可迁移
     },
     placement: {
@@ -183,12 +183,12 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
       maxDailyAdjustmentPercent: 30,
     },
     negativeKeyword: {
-      intervalHours: 24,          // 每天一次
+      intervalHours: 8,           // v337.4: 24h→8h，成熟期每8小时检查一次否定
       minClicksToNegate: 10,     // 10次点击且0转化即否定
       minSpendToNegate: 5,
     },
     searchTermHarvest: {
-      intervalHours: 24,          // 每天一次，积极收割
+      intervalHours: 12,          // v337.4: 24h→12h，成熟期每12小时收割一次
       minConversionsToHarvest: 2,
     },
     placement: {

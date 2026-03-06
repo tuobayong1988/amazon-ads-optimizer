@@ -345,6 +345,16 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
           log.error(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发失败: ${optErr.message}`);
         }
       }
+      
+      // v337.4: 数据同步完成后触发快速否定扫描
+      // 不等待定时任务，立即检查是否有高风险搜索词需要否定
+      try {
+        log.info(`[DataSyncScheduler] v337.4: 数据同步完成，触发快速否定扫描...`);
+        await executeOptimizationTask('daily_search_term_negation');
+        log.info(`[DataSyncScheduler] v337.4: 快速否定扫描完成`);
+      } catch (negErr: any) {
+        log.error(`[DataSyncScheduler] v337.4: 快速否定扫描失败: ${negErr.message}`);
+      }
     }
 
     // 更新下次运行时间
@@ -1095,9 +1105,9 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   },
   daily_search_term_negation: {
     type: 'daily_search_term_negation',
-    description: '每日搜索词否定 - 自动否定低效搜索词',
-    intervalMs: 24 * 60 * 60 * 1000,
-    cronHours: [4], // 凌晨4:00
+    description: 'v337.4: 搜索词否定 - 每6小时自动否定低效搜索词',
+    intervalMs: 6 * 60 * 60 * 1000, // v337.4: 24h→6h
+    cronHours: [], // v337.4: 移除固定时间限制，改为纯间隔驱动
     specificModules: ['searchterm'], // 仅搜索词分析
   },
   budget_allocation: {
@@ -1109,10 +1119,9 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   },
   search_term_harvest: {
     type: 'search_term_harvest',
-    description: '搜索词收割 - 每日自动收割高转化搜索词并添加否定词',
-    intervalMs: 24 * 60 * 60 * 1000, // v192: 从每周改为每日
-    cronHours: [5], // 凌晨5:00
-    // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
+    description: 'v337.4: 搜索词收割 - 每8小时自动收割高转化搜索词并添加否定词',
+    intervalMs: 8 * 60 * 60 * 1000, // v337.4: 24h→8h
+    cronHours: [], // v337.4: 移除固定时间限制，改为纯间隔驱动
     specificModules: [], // 独立执行，使用searchTermHarvester服务
   },
   weekly_report: {
@@ -1478,15 +1487,16 @@ export async function startOptimizationScheduler(): Promise<void> {
   }, 26 * 60 * 1000);
   log.info(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，偏移: 26分钟`);
   
-  // 5. v143: 搜索词否定 - 每12小时触发（偏移31分钟）
-  // 启动期: 每48小时 | 成长期: 每24小时 | 成熟期: 每24小时
+  // 5. v337.4: 搜索词否定 - 每6小时触发（偏移31分钟）
+  // v337.4优化: 12h→6h，配合生命周期层控制实际执行频率
+  // 启动期: 每12小时 | 成长期: 每8小时 | 成熟期: 每8小时
   setTimeout(() => {
     optimizationIntervals.daily_search_term_negation = setInterval(async () => {
       await executeOptimizationTask('daily_search_term_negation');
-    }, 12 * 60 * 60 * 1000);
+    }, 6 * 60 * 60 * 1000);
     executeOptimizationTask('daily_search_term_negation'); // 立即执行一次
   }, 31 * 60 * 1000);
-  log.info(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，偏移: 31分钟`);
+  log.info(`[OptimizationScheduler] v337.4: 搜索词否定已启动，触发间隔: 6小时，偏移: 31分钟`);
   
   // 6. 预算智能分配 - 每4小时（偏移36分钟）
   setTimeout(() => {
@@ -1496,16 +1506,16 @@ export async function startOptimizationScheduler(): Promise<void> {
     executeOptimizationTask('budget_allocation'); // 立即执行一次
   }, 36 * 60 * 1000);
   log.info(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
-   // 7. 搜索词收割 - v192: 每日凌晨5:00（站点本地时间）
-  optimizationIntervals.search_term_harvest = setInterval(async () => {
-    const now = new Date();
-    const localHour = getLocalHour(now, 'US');
-    // v192: 移除周一限制，每天凌晨5:00都执行搜索词收割
-    if (localHour === 5 && shouldExecuteThisHour('search_term_harvest')) {
+   // 7. v337.4: 搜索词收割 - 每8小时触发（偏移41分钟）
+  // v337.4优化: 移除cronHours限制，改为纯间隔驱动，配合生命周期层控制实际执行频率
+  // 启动期: 每24小时 | 成长期: 每12小时 | 成熟期: 每12小时
+  setTimeout(() => {
+    optimizationIntervals.search_term_harvest = setInterval(async () => {
       await executeOptimizationTask('search_term_harvest');
-    }
-  }, 60 * 60 * 1000);
-  log.info(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 每日凌晨5:00 (站点本地时间)`);
+    }, 8 * 60 * 60 * 1000);
+    executeOptimizationTask('search_term_harvest'); // 立即执行一次
+  }, 41 * 60 * 1000);
+  log.info(`[OptimizationScheduler] v337.4: 搜索词收割已启动，触发间隔: 8小时，偏移: 41分钟`);
   
   // 8. 绩效周报 - 周一上午9:00（站点本地时间）
   optimizationIntervals.weekly_report = setInterval(async () => {
