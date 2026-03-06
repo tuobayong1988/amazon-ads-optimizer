@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 341;  // v341: 401自动重刷新Token并重试+解决LERUCCI店铺同步失败根因
+export const SYSTEM_VERSION = 342;  // v342: OAuth授权凭证保存机制重大修复 - 后端回调直接保存凭证+防止空值覆盖

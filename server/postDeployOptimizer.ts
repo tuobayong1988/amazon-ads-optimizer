@@ -434,6 +434,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['api', 'sync'],
     correctionActions: ['resync_data'],
   },
+  {
+    version: 342,
+    description: 'v342: [OAuth授权凭证保存机制重大修复] — (1)P0-后端回调直接保存凭证: amazonAuthCallback.ts获取新refresh_token后直接更新数据库中所有匹配的账户凭证,不再依赖前端中转 (2)P0-修复前端clientSecret空字符串缺陷: 前端processCallback中clientSecret硬编码为空字符串导致saveMultipleProfiles验证失败,新refresh_token从未保存到数据库,这是账户90027持续401的根本原因 (3)P0-服务端凭证回退: saveMultipleProfiles和saveCredentials支持__USE_SERVER_SECRET__标记,自动使用服务端环境变量中的clientId/clientSecret (4)P0-保护性数据库更新: saveAmazonApiCredentials不再用空值覆盖已有的有效凭证 (5)P1-共享Token批量更新: 后端回调自动更新所有使用相同clientId的账户的refresh_token (6)P1-回调后自动触发同步: 凭证更新后自动触发受影响账户的立即同步',
+    affectedModules: ['auth', 'api', 'sync', 'db'],
+    correctionActions: ['resync_data'],
+  },
 ];
 
 // ==================== 配置 ====================

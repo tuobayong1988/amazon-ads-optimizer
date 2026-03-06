@@ -1273,16 +1273,33 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v342: 保护性更新 - 不用空值覆盖已有的有效值
+  // 使用SQL的COALESCE/IF逻辑：只有当新值非空时才更新
+  const updateSet: Record<string, any> = {
+    updatedAt: new Date().toISOString(),
+  };
+  // 只在新值非空时才更新对应字段
+  if (data.clientId && data.clientId !== '' && data.clientId !== '__USE_SERVER_SECRET__') {
+    updateSet.clientId = data.clientId;
+  }
+  if (data.clientSecret && data.clientSecret !== '' && data.clientSecret !== '__USE_SERVER_SECRET__') {
+    updateSet.clientSecret = data.clientSecret;
+  }
+  if (data.refreshToken && data.refreshToken !== '') {
+    updateSet.refreshToken = data.refreshToken;
+  }
+  if (data.profileId && data.profileId !== '') {
+    updateSet.profileId = data.profileId;
+  }
+  if (data.region) {
+    updateSet.region = data.region;
+  }
+  
   await db.insert(amazonApiCredentials).values(data).onDuplicateKeyUpdate({
-    set: {
-      clientId: data.clientId,
-      clientSecret: data.clientSecret,
-      refreshToken: data.refreshToken,
-      profileId: data.profileId,
-      region: data.region,
-      updatedAt: new Date().toISOString(),
-    }
+    set: updateSet,
   });
+  
+  console.log(`[db] v342: saveAmazonApiCredentials 完成 (accountId=${data.accountId}, 更新字段=[${Object.keys(updateSet).filter(k => k !== 'updatedAt').join(',')}])`);
 }
 
 export async function getAmazonApiCredentials(accountId: number): Promise<AmazonApiCredential | null> {

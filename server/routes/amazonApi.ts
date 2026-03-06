@@ -156,8 +156,19 @@ export const amazonApiRouter = router({
         region: input.region,
       });
       
+      // v342: 如果前端传入__USE_SERVER_SECRET__标记，使用服务端环境变量中的clientId/clientSecret
+      let effectiveClientId = input.clientId;
+      let effectiveClientSecret = input.clientSecret;
+      if (!input.clientSecret || input.clientSecret === '__USE_SERVER_SECRET__' || input.clientSecret === '') {
+        effectiveClientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
+        console.log('[saveCredentials] v342: 使用服务端环境变量中的clientSecret');
+      }
+      if (!input.clientId || input.clientId === '') {
+        effectiveClientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+        console.log('[saveCredentials] v342: 使用服务端环境变量中的clientId');
+      }
       // 检查必填字段
-      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+      if (!effectiveClientId || !effectiveClientSecret || !input.refreshToken) {
         console.error('[saveCredentials] 缺少必填字段');
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -168,14 +179,13 @@ export const amazonApiRouter = router({
       // Validate credentials before saving
       console.log('[saveCredentials] 开始验证凭证...');
       const isValid = await validateCredentials({
-        clientId: input.clientId,
-        clientSecret: input.clientSecret,
+        clientId: effectiveClientId,
+        clientSecret: effectiveClientSecret,
         refreshToken: input.refreshToken,
         profileId: input.profileId,
         region: input.region,
       });
       console.log('[saveCredentials] 验证结果:', isValid);
-
       if (!isValid) {
         console.error('[saveCredentials] 凭证验证失败');
         throw new TRPCError({
@@ -183,16 +193,15 @@ export const amazonApiRouter = router({
           message: 'Invalid API credentials. Please check your credentials and try again.',
         });
       }
-
        // v338: 检测是新授权还是凭证刷新（用于冷启动场景判断）
       const existingCredentials = await db.getAmazonApiCredentials(input.accountId);
       const isCredentialRefresh = !!existingCredentials;
       
-      // Save credentials to database
+      // Save credentials to database (v342: 使用effective凭证)
       await db.saveAmazonApiCredentials({
         accountId: input.accountId,
-        clientId: input.clientId,
-        clientSecret: input.clientSecret,
+        clientId: effectiveClientId,
+        clientSecret: effectiveClientSecret,
         refreshToken: input.refreshToken,
         profileId: input.profileId,
         region: input.region,
@@ -211,8 +220,8 @@ export const amazonApiRouter = router({
       const initPromise = initializeAccount({
         accountId: input.accountId,
         userId: ctx.user.id,
-        clientId: input.clientId,
-        clientSecret: input.clientSecret,
+        clientId: effectiveClientId,
+        clientSecret: effectiveClientSecret,
         refreshToken: input.refreshToken,
         profileId: input.profileId,
         region: input.region as 'NA' | 'EU' | 'FE',
@@ -320,8 +329,19 @@ export const amazonApiRouter = router({
         region: input.region,
       });
 
+      // v342: 如果前端传入__USE_SERVER_SECRET__标记，使用服务端环境变量中的clientId/clientSecret
+      let effectiveClientId = input.clientId;
+      let effectiveClientSecret = input.clientSecret;
+      if (!input.clientSecret || input.clientSecret === '__USE_SERVER_SECRET__' || input.clientSecret === '') {
+        effectiveClientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
+        console.log('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientSecret');
+      }
+      if (!input.clientId || input.clientId === '') {
+        effectiveClientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+        console.log('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientId');
+      }
       // 检查必填字段
-      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+      if (!effectiveClientId || !effectiveClientSecret || !input.refreshToken) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: '缺少必填的API凭证字段',
@@ -429,11 +449,11 @@ export const amazonApiRouter = router({
             console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode}), sellerId=${profileSellerId}`);
           }
 
-          // 保存API凭证
+          // 保存API凭证 (v342: 使用effective凭证)
           await db.saveAmazonApiCredentials({
             accountId,
-            clientId: input.clientId,
-            clientSecret: input.clientSecret,
+            clientId: effectiveClientId,
+            clientSecret: effectiveClientSecret,
             refreshToken: input.refreshToken,
             profileId: profile.profileId,
             region: input.region,
@@ -473,8 +493,8 @@ export const amazonApiRouter = router({
         successfulAccounts.map(account => ({
           accountId: account.accountId,
           userId: ctx.user.id,
-          clientId: input.clientId,
-          clientSecret: input.clientSecret,
+          clientId: effectiveClientId,
+          clientSecret: effectiveClientSecret,
           refreshToken: input.refreshToken,
           profileId: account.profileId,
           region: input.region as 'NA' | 'EU' | 'FE',
