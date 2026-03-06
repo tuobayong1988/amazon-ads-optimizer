@@ -81,7 +81,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
       console.log("[AmazonAuthCallback] v342: Token exchange successful, newRefreshToken prefix:", newRefreshToken?.substring(0, 20) + '...');
 
       // 步骤2: 获取profiles列表
-      let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string }> = [];
+      let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string; accountType: string }> = [];
       try {
         const client = new AmazonAdsApiClient({
           clientId,
@@ -91,15 +91,69 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
           region: 'NA',
         });
         const profileList = await client.getProfiles();
-        profiles = profileList.map(p => ({
+        
+        // v343: 记录完整的profile信息，包括accountType
+        const allProfiles = profileList.map(p => ({
           profileId: String(p.profileId),
           countryCode: p.countryCode || '',
           accountName: p.accountInfo?.name || `Profile ${p.profileId}`,
           sellerId: p.accountInfo?.id || '',
+          accountType: p.accountInfo?.type || 'unknown', // seller / vendor / agency
         }));
-        console.log("[AmazonAuthCallback] v342: Fetched profiles:", profiles.length, profiles.map(p => `${p.profileId}(${p.countryCode})`));
+        
+        console.log("[AmazonAuthCallback] v343: Fetched all profiles:", allProfiles.length, 
+          allProfiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`));
+        
+        // v343: 智能去重 - 对于同一国家的多个profile，优先保留已在系统中存在的profile
+        // 如果都不存在，优先保留seller类型
+        const allAccounts = await db.getAdAccounts();
+        const existingProfileIds = new Set(allAccounts.map(a => a.profileId).filter(Boolean));
+        
+        const countryProfileMap = new Map<string, typeof allProfiles>();
+        for (const p of allProfiles) {
+          const existing = countryProfileMap.get(p.countryCode) || [];
+          existing.push(p);
+          countryProfileMap.set(p.countryCode, existing);
+        }
+        
+        profiles = [];
+        for (const [countryCode, countryProfiles] of countryProfileMap) {
+          if (countryProfiles.length === 1) {
+            // 只有一个profile，直接使用
+            profiles.push(countryProfiles[0]);
+          } else {
+            // 同一国家有多个profile
+            // 策略: 保留所有已在系统中存在的profile，对于不存在的只保留seller类型
+            const existingInSystem = countryProfiles.filter(p => existingProfileIds.has(p.profileId));
+            const notInSystem = countryProfiles.filter(p => !existingProfileIds.has(p.profileId));
+            
+            if (existingInSystem.length > 0) {
+              // 保留所有已在系统中的profile
+              profiles.push(...existingInSystem);
+              console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个profile，保留${existingInSystem.length}个已存在的: ${existingInSystem.map(p => p.profileId).join(',')}`);
+              // 不在系统中的profile不自动添加，避免创建重复站点
+              if (notInSystem.length > 0) {
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}跳过${notInSystem.length}个未在系统中的profile: ${notInSystem.map(p => `${p.profileId}(type=${p.accountType})`).join(',')}`);
+              }
+            } else {
+              // 都不在系统中，优先选择seller类型
+              const sellerProfile = notInSystem.find(p => p.accountType === 'seller');
+              if (sellerProfile) {
+                profiles.push(sellerProfile);
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，优先选择seller类型: ${sellerProfile.profileId}`);
+              } else {
+                // 没有seller类型，取第一个
+                profiles.push(notInSystem[0]);
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，无seller类型，取第一个: ${notInSystem[0].profileId}(type=${notInSystem[0].accountType})`);
+              }
+            }
+          }
+        }
+        
+        console.log("[AmazonAuthCallback] v343: 去重后的profiles:", profiles.length, 
+          profiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`));
       } catch (profileError: any) {
-        console.error("[AmazonAuthCallback] v342: Failed to fetch profiles:", profileError.message);
+        console.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", profileError.message);
       }
 
       // ★ 步骤3 (v342新增): 后端直接保存凭证到数据库

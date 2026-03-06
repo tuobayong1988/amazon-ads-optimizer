@@ -440,6 +440,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['auth', 'api', 'sync', 'db'],
     correctionActions: ['resync_data'],
   },
+  {
+    version: 343,
+    description: 'v343: [授权模块智能去重修复] — (1)P0-后端回调profile智能去重: 对于同一国家的多个profile(seller/vendor),优先保留已在系统中存在的profile,跳过未知的profile,防止创建重复站点 (2)P0-前端授权回调智能分流: 后端已保存凭证(backendSaved>0)时,前端不再调用saveMultipleProfiles,彻底消除刷新授权时的重复创建风险 (3)P0-saveMultipleProfiles去重保护: 增加isRefreshAuth参数和同店铺+同国家重复检查,即使被调用也不会创建重复站点 (4)P1-accountType信息传递: profiles数据中增加accountType字段(seller/vendor/agency),用于智能筛选',
+    affectedModules: ['auth', 'api'],
+    correctionActions: ['resync_data'],
+  },
 ];
 
 // ==================== 配置 ====================

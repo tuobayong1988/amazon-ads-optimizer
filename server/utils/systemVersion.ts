@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 342;  // v342: OAuth授权凭证保存机制重大修复 - 后端回调直接保存凭证+防止空值覆盖
+export const SYSTEM_VERSION = 343;  // v343: 授权模块智能去重修复 - 防止刷新授权时创建重复站点，同一国家多个profile智能过滤

@@ -280,6 +280,8 @@ export const amazonApiRouter = router({
       // v323: 增加sellerId和sellerName字段，用于店铺隔离
       sellerId: z.string().optional(),
       sellerName: z.string().optional(),
+      // v343: 增加isRefreshAuth参数，刷新授权时只更新已有账户不创建新账户
+      isRefreshAuth: z.boolean().optional(),
       profiles: z.array(z.object({
         profileId: z.string(),
         countryCode: z.string(),
@@ -435,6 +437,39 @@ export const amazonApiRouter = router({
             });
             console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配, sellerId=${profileSellerId}`);
           } else {
+            // v343: 刷新授权时不创建新账户，只更新已有账户
+            if (input.isRefreshAuth) {
+              console.log(`[saveMultipleProfiles] v343: 刷新授权模式，跳过未匹配的profile ${profile.profileId}(${profile.countryCode})，不创建新账户`);
+              continue;
+            }
+            
+            // v343: 首次授权时，检查同一店铺下同一国家是否已有账户（即使profileId不同）
+            // 防止Amazon返回多个同国家profile时创建重复站点
+            const duplicateCheck = existingAccounts.find(
+              a => a.storeName === effectiveStoreName && a.marketplace === marketplaceCode
+            );
+            if (duplicateCheck) {
+              console.log(`[saveMultipleProfiles] v343: 店铺"${effectiveStoreName}"下已存在${marketplaceCode}站点(账户${duplicateCheck.id})，跳过重复的profile ${profile.profileId}`);
+              // 更新已有账户的凭证而不是创建新的
+              accountId = duplicateCheck.id;
+              await db.saveAmazonApiCredentials({
+                accountId,
+                clientId: effectiveClientId,
+                clientSecret: effectiveClientSecret,
+                refreshToken: input.refreshToken,
+                profileId: profile.profileId,
+                region: input.region,
+              });
+              results.push({
+                profileId: profile.profileId,
+                countryCode: profile.countryCode,
+                accountId,
+                success: true,
+              });
+              console.log(`[saveMultipleProfiles] v343: 更新已有账户 ${accountId} (${profile.countryCode}) 的凭证，未创建重复站点`);
+              continue;
+            }
+            
             // 创建新账号
             accountId = await db.createAdAccount({
               userId: ctx.user.id,

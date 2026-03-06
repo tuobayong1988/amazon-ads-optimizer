@@ -237,6 +237,8 @@ export default function AmazonApiSettings() {
   const [oauthCallbackData, setOauthCallbackData] = useState<{
     refreshToken: string;
     profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string }>;
+    backendSaved: number; // v343: 后端已保存的凭证数量
+    backendUpdatedAccounts: string; // v343: 后端已更新的账户ID列表
   } | null>(null);
   const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
   const [activeTab, setActiveTab] = useState("accounts");
@@ -473,9 +475,8 @@ export default function AmazonApiSettings() {
       }
 
       // 存储回调数据，待后续处理
-      setOauthCallbackData({ refreshToken, profiles });
-      
       const savedCount = parseInt(backendSaved || '0', 10);
+      setOauthCallbackData({ refreshToken, profiles, backendSaved: savedCount, backendUpdatedAccounts: backendUpdatedAccounts || '' });
       if (savedCount > 0) {
         toast.success(
           `Amazon授权成功！后端已自动更新 ${savedCount} 个账户的凭证，数据同步已启动。`
@@ -502,32 +503,45 @@ export default function AmazonApiSettings() {
     }
   }, []); // 只在组件挂载时执行一次
 
-  // v342: 当oauthCallbackData准备好时，处理新账户创建（已有账户的凭证由后端直接保存）
+  // v343: 当oauthCallbackData准备好时，智能处理授权回调
+  // 核心原则：
+  // 1. 如果后端已保存凭证(backendSaved > 0)，前端不再调用saveMultipleProfiles，避免重复创建账户
+  // 2. 只有在首次授权(backendSaved === 0)且后端未找到匹配账户时，才调用saveMultipleProfiles创建新账户
   useEffect(() => {
     if (!oauthCallbackData) return;
 
     const processCallback = async () => {
       try {
-        const { refreshToken, profiles } = oauthCallbackData;
+        const { refreshToken, profiles, backendSaved, backendUpdatedAccounts } = oauthCallbackData;
 
-        if (profiles.length > 0) {
-          // v342: 使用exchangeCode接口获取完整凭证（包括服务端的clientId/clientSecret）
-          // 这样前端不需要硬编码clientSecret
+        console.log('[v343 OAuth Callback] 开始处理授权回调:', {
+          profileCount: profiles.length,
+          backendSaved,
+          backendUpdatedAccounts,
+        });
+
+        if (backendSaved > 0) {
+          // v343: 后端已经成功保存了凭证，前端不需要再调用saveMultipleProfiles
+          // 这是“刷新授权”场景，或者后端已找到匹配账户的场景
+          console.log(`[v343 OAuth Callback] 后端已保存 ${backendSaved} 个账户的凭证，前端跳过saveMultipleProfiles，避免重复创建`);
+          toast.success(`授权成功！已自动更新 ${backendSaved} 个账户的凭证，数据同步已启动。`);
+          setAuthProgress(100);
+          setAuthStep('complete');
+        } else if (profiles.length > 0) {
+          // v343: 后端未保存任何凭证，说明是首次授权，需要创建新账户
           const storeName = selectedAccount?.storeName || formData.storeName || profiles[0].accountName || '我的店铺';
           
-          console.log('[v342 OAuth Callback] 尝试通过后端保存多站点授权:', {
+          console.log('[v343 OAuth Callback] 首次授权，调用saveMultipleProfiles创建新账户:', {
             storeName,
             profileCount: profiles.length,
           });
 
           try {
-            // v342: 调用saveMultipleProfiles，但不传clientSecret
-            // 后端会使用环境变量中的clientSecret
             await saveMultipleProfilesMutation.mutateAsync({
               storeName,
               existingStoreName: selectedAccount?.storeName || undefined,
               clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053',
-              clientSecret: '__USE_SERVER_SECRET__', // v342: 特殊标记，后端识别后使用环境变量
+              clientSecret: '__USE_SERVER_SECRET__',
               refreshToken,
               region: 'NA',
               profiles: profiles.map(p => ({
@@ -539,27 +553,26 @@ export default function AmazonApiSettings() {
             });
             toast.success(`授权完成！已处理 ${profiles.length} 个站点账号。`);
           } catch (saveError: any) {
-            // v342: 即使前端保存失败，后端回调已经保存了凭证，所以不是致命错误
-            console.warn('[v342 OAuth Callback] 前端saveMultipleProfiles失败（后端已保存凭证）:', saveError.message);
-            toast.success('授权成功！凭证已由后端自动保存。');
+            console.warn('[v343 OAuth Callback] saveMultipleProfiles失败:', saveError.message);
+            toast.error('授权成功，但账户创建失败，请手动添加站点。');
           }
 
           setAuthProgress(100);
           setAuthStep('complete');
         } else if (selectedAccountId) {
-          // 没有profiles信息，后端回调可能已保存，这里尝试前端保存作为兜底
+          // 没有profiles信息，后端回调可能已保存，这里尝试前端保存作为兆底
           try {
             await saveCredentialsMutation.mutateAsync({
               accountId: selectedAccountId,
               clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.e6536f0b89044ae4a40a9289efc33053',
-              clientSecret: '__USE_SERVER_SECRET__', // v342: 特殊标记
+              clientSecret: '__USE_SERVER_SECRET__',
               refreshToken,
               profileId: credentials.profileId,
               region: credentials.region,
             });
             toast.success('授权完成！已自动保存凭证。');
           } catch (saveError: any) {
-            console.warn('[v342 OAuth Callback] 前端saveCredentials失败（后端已保存凭证）:', saveError.message);
+            console.warn('[v343 OAuth Callback] saveCredentials失败:', saveError.message);
             toast.success('授权成功！凭证已由后端自动保存。');
           }
           setAuthProgress(100);
@@ -583,11 +596,10 @@ export default function AmazonApiSettings() {
           setAuthProgress(0);
         }, 5000);
       } catch (error: any) {
-        console.error('[v342 OAuth Callback] 处理失败:', error);
-        // v342: 即使前端处理失败，后端已保存凭证，降级为警告
+        console.error('[v343 OAuth Callback] 处理失败:', error);
         setAuthStep('complete');
         setAuthProgress(100);
-        toast.success('授权成功！凭证已由后端自动保存。如需创建新站点，请手动添加。');
+        toast.success('授权成功！凭证已由后端自动保存。');
         setOauthCallbackData(null);
       }
     };
