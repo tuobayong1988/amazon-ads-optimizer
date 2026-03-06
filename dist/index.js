@@ -161497,7 +161497,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 342;
+    SYSTEM_VERSION = 344;
   }
 });
 
@@ -167276,17 +167276,13 @@ async function executeFullSync(accountId, days) {
       account.userId,
       account.marketplace
     );
-    const syncData = await syncService.syncAll();
+    log56.info(`[ColdStart] v344: \u6267\u884C\u5168\u91CF\u540C\u6B65\uFF0CperformanceDays=${days}\u5929`);
+    const syncData = await syncService.syncAll({ performanceDays: days });
     result.campaigns = syncData.campaigns || 0;
     result.keywords = syncData.keywords || 0;
     result.targets = syncData.targets || 0;
     await updateAmazonApiCredentialsLastSync(accountId);
-    try {
-      const perfResult = await syncService.syncPerformanceOnly(days > 30 ? 30 : days);
-      log56.info(`[ColdStart] \u7EE9\u6548\u6570\u636E\u540C\u6B65: ${perfResult.performance}\u6761`);
-    } catch (perfErr) {
-      log56.warn(`[ColdStart] \u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25\uFF08\u4E0D\u5F71\u54CD\u540E\u7EED\uFF09: ${perfErr.message}`);
-    }
+    log56.info(`[ColdStart] v344: syncAll\u5DF2\u5305\u542B${days}\u5929\u7EE9\u6548\u6570\u636E\uFF0C\u65E0\u9700\u989D\u5916\u540C\u6B65`);
   } catch (err2) {
     log56.error(`[ColdStart] \u5168\u91CF\u540C\u6B65\u5931\u8D25: ${err2.message}`);
     throw err2;
@@ -169424,6 +169420,41 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             }
             break;
           }
+          case "resync_data": {
+            log68.info(`[PostDeployOptimizer] [${config2.name}] v344: \u89E6\u53D1\u5168\u91CF\u6570\u636E\u91CD\u65B0\u540C\u6B65 (\u8D26\u6237${config2.accountId})...`);
+            try {
+              const { triggerColdStart: triggerColdStart2 } = await Promise.resolve().then(() => (init_coldStartService(), coldStartService_exports));
+              await triggerColdStart2(config2.accountId, {
+                reason: "version_upgrade",
+                force: true,
+                historicalDays: 90,
+                skipSync: false
+              });
+              modulesExecuted.push("resync_data");
+              correctionsApplied++;
+              log68.info(`[PostDeployOptimizer] [${config2.name}] v344: \u5168\u91CF\u6570\u636E\u91CD\u65B0\u540C\u6B65\u5DF2\u89E6\u53D1`);
+            } catch (syncErr) {
+              errors.push(`\u5168\u91CF\u6570\u636E\u91CD\u65B0\u540C\u6B65\u89E6\u53D1\u5931\u8D25: ${syncErr.message}`);
+            }
+            break;
+          }
+          case "cold_start": {
+            log68.info(`[PostDeployOptimizer] [${config2.name}] v344: \u89E6\u53D1\u51B7\u542F\u52A8 (\u8D26\u6237${config2.accountId})...`);
+            try {
+              const { triggerColdStart: triggerColdStart2 } = await Promise.resolve().then(() => (init_coldStartService(), coldStartService_exports));
+              await triggerColdStart2(config2.accountId, {
+                reason: "version_upgrade",
+                force: true,
+                historicalDays: 90
+              });
+              modulesExecuted.push("cold_start");
+              correctionsApplied++;
+              log68.info(`[PostDeployOptimizer] [${config2.name}] v344: \u51B7\u542F\u52A8\u5DF2\u89E6\u53D1`);
+            } catch (csErr) {
+              errors.push(`\u51B7\u542F\u52A8\u89E6\u53D1\u5931\u8D25: ${csErr.message}`);
+            }
+            break;
+          }
           default:
             break;
         }
@@ -170257,6 +170288,18 @@ var init_postDeployOptimizer = __esm({
         description: "v342: [OAuth\u6388\u6743\u51ED\u8BC1\u4FDD\u5B58\u673A\u5236\u91CD\u5927\u4FEE\u590D] \u2014 (1)P0-\u540E\u7AEF\u56DE\u8C03\u76F4\u63A5\u4FDD\u5B58\u51ED\u8BC1: amazonAuthCallback.ts\u83B7\u53D6\u65B0refresh_token\u540E\u76F4\u63A5\u66F4\u65B0\u6570\u636E\u5E93\u4E2D\u6240\u6709\u5339\u914D\u7684\u8D26\u6237\u51ED\u8BC1,\u4E0D\u518D\u4F9D\u8D56\u524D\u7AEF\u4E2D\u8F6C (2)P0-\u4FEE\u590D\u524D\u7AEFclientSecret\u7A7A\u5B57\u7B26\u4E32\u7F3A\u9677: \u524D\u7AEFprocessCallback\u4E2DclientSecret\u786C\u7F16\u7801\u4E3A\u7A7A\u5B57\u7B26\u4E32\u5BFC\u81F4saveMultipleProfiles\u9A8C\u8BC1\u5931\u8D25,\u65B0refresh_token\u4ECE\u672A\u4FDD\u5B58\u5230\u6570\u636E\u5E93,\u8FD9\u662F\u8D26\u623790027\u6301\u7EED401\u7684\u6839\u672C\u539F\u56E0 (3)P0-\u670D\u52A1\u7AEF\u51ED\u8BC1\u56DE\u9000: saveMultipleProfiles\u548CsaveCredentials\u652F\u6301__USE_SERVER_SECRET__\u6807\u8BB0,\u81EA\u52A8\u4F7F\u7528\u670D\u52A1\u7AEF\u73AF\u5883\u53D8\u91CF\u4E2D\u7684clientId/clientSecret (4)P0-\u4FDD\u62A4\u6027\u6570\u636E\u5E93\u66F4\u65B0: saveAmazonApiCredentials\u4E0D\u518D\u7528\u7A7A\u503C\u8986\u76D6\u5DF2\u6709\u7684\u6709\u6548\u51ED\u8BC1 (5)P1-\u5171\u4EABToken\u6279\u91CF\u66F4\u65B0: \u540E\u7AEF\u56DE\u8C03\u81EA\u52A8\u66F4\u65B0\u6240\u6709\u4F7F\u7528\u76F8\u540CclientId\u7684\u8D26\u6237\u7684refresh_token (6)P1-\u56DE\u8C03\u540E\u81EA\u52A8\u89E6\u53D1\u540C\u6B65: \u51ED\u8BC1\u66F4\u65B0\u540E\u81EA\u52A8\u89E6\u53D1\u53D7\u5F71\u54CD\u8D26\u6237\u7684\u7ACB\u5373\u540C\u6B65",
         affectedModules: ["auth", "api", "sync", "db"],
         correctionActions: ["resync_data"]
+      },
+      {
+        version: 343,
+        description: "v343: [\u6388\u6743\u6A21\u5757\u667A\u80FD\u53BB\u91CD\u4FEE\u590D] \u2014 (1)P0-\u540E\u7AEF\u56DE\u8C03profile\u667A\u80FD\u53BB\u91CD: \u5BF9\u4E8E\u540C\u4E00\u56FD\u5BB6\u7684\u591A\u4E2Aprofile(seller/vendor),\u4F18\u5148\u4FDD\u7559\u5DF2\u5728\u7CFB\u7EDF\u4E2D\u5B58\u5728\u7684profile,\u8DF3\u8FC7\u672A\u77E5\u7684profile,\u9632\u6B62\u521B\u5EFA\u91CD\u590D\u7AD9\u70B9 (2)P0-\u524D\u7AEF\u6388\u6743\u56DE\u8C03\u667A\u80FD\u5206\u6D41: \u540E\u7AEF\u5DF2\u4FDD\u5B58\u51ED\u8BC1(backendSaved>0)\u65F6,\u524D\u7AEF\u4E0D\u518D\u8C03\u7528saveMultipleProfiles,\u5F7B\u5E95\u6D88\u9664\u5237\u65B0\u6388\u6743\u65F6\u7684\u91CD\u590D\u521B\u5EFA\u98CE\u9669 (3)P0-saveMultipleProfiles\u53BB\u91CD\u4FDD\u62A4: \u589E\u52A0isRefreshAuth\u53C2\u6570\u548C\u540C\u5E97\u94FA+\u540C\u56FD\u5BB6\u91CD\u590D\u68C0\u67E5,\u5373\u4F7F\u88AB\u8C03\u7528\u4E5F\u4E0D\u4F1A\u521B\u5EFA\u91CD\u590D\u7AD9\u70B9 (4)P1-accountType\u4FE1\u606F\u4F20\u9012: profiles\u6570\u636E\u4E2D\u589E\u52A0accountType\u5B57\u6BB5(seller/vendor/agency),\u7528\u4E8E\u667A\u80FD\u7B5B\u9009",
+        affectedModules: ["auth", "api"],
+        correctionActions: ["resync_data"]
+      },
+      {
+        version: 344,
+        description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
+        affectedModules: ["sync", "bidding", "cold_start"],
+        correctionActions: ["resync_data", "cold_start"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -350638,15 +350681,59 @@ function registerAmazonAuthCallbackRoutes(app) {
           region: "NA"
         });
         const profileList = await client.getProfiles();
-        profiles = profileList.map((p4) => ({
+        const allProfiles = profileList.map((p4) => ({
           profileId: String(p4.profileId),
           countryCode: p4.countryCode || "",
           accountName: p4.accountInfo?.name || `Profile ${p4.profileId}`,
-          sellerId: p4.accountInfo?.id || ""
+          sellerId: p4.accountInfo?.id || "",
+          accountType: p4.accountInfo?.type || "unknown"
+          // seller / vendor / agency
         }));
-        console.log("[AmazonAuthCallback] v342: Fetched profiles:", profiles.length, profiles.map((p4) => `${p4.profileId}(${p4.countryCode})`));
+        console.log(
+          "[AmazonAuthCallback] v343: Fetched all profiles:",
+          allProfiles.length,
+          allProfiles.map((p4) => `${p4.profileId}(${p4.countryCode},type=${p4.accountType})`)
+        );
+        const allAccounts = await getAdAccounts();
+        const existingProfileIds = new Set(allAccounts.map((a4) => a4.profileId).filter(Boolean));
+        const countryProfileMap = /* @__PURE__ */ new Map();
+        for (const p4 of allProfiles) {
+          const existing = countryProfileMap.get(p4.countryCode) || [];
+          existing.push(p4);
+          countryProfileMap.set(p4.countryCode, existing);
+        }
+        profiles = [];
+        for (const [countryCode, countryProfiles] of countryProfileMap) {
+          if (countryProfiles.length === 1) {
+            profiles.push(countryProfiles[0]);
+          } else {
+            const existingInSystem = countryProfiles.filter((p4) => existingProfileIds.has(p4.profileId));
+            const notInSystem = countryProfiles.filter((p4) => !existingProfileIds.has(p4.profileId));
+            if (existingInSystem.length > 0) {
+              profiles.push(...existingInSystem);
+              console.log(`[AmazonAuthCallback] v343: ${countryCode}\u6709${countryProfiles.length}\u4E2Aprofile\uFF0C\u4FDD\u7559${existingInSystem.length}\u4E2A\u5DF2\u5B58\u5728\u7684: ${existingInSystem.map((p4) => p4.profileId).join(",")}`);
+              if (notInSystem.length > 0) {
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}\u8DF3\u8FC7${notInSystem.length}\u4E2A\u672A\u5728\u7CFB\u7EDF\u4E2D\u7684profile: ${notInSystem.map((p4) => `${p4.profileId}(type=${p4.accountType})`).join(",")}`);
+              }
+            } else {
+              const sellerProfile = notInSystem.find((p4) => p4.accountType === "seller");
+              if (sellerProfile) {
+                profiles.push(sellerProfile);
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}\u6709${countryProfiles.length}\u4E2A\u65B0profile\uFF0C\u4F18\u5148\u9009\u62E9seller\u7C7B\u578B: ${sellerProfile.profileId}`);
+              } else {
+                profiles.push(notInSystem[0]);
+                console.log(`[AmazonAuthCallback] v343: ${countryCode}\u6709${countryProfiles.length}\u4E2A\u65B0profile\uFF0C\u65E0seller\u7C7B\u578B\uFF0C\u53D6\u7B2C\u4E00\u4E2A: ${notInSystem[0].profileId}(type=${notInSystem[0].accountType})`);
+              }
+            }
+          }
+        }
+        console.log(
+          "[AmazonAuthCallback] v343: \u53BB\u91CD\u540E\u7684profiles:",
+          profiles.length,
+          profiles.map((p4) => `${p4.profileId}(${p4.countryCode},type=${p4.accountType})`)
+        );
       } catch (profileError) {
-        console.error("[AmazonAuthCallback] v342: Failed to fetch profiles:", profileError.message);
+        console.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", profileError.message);
       }
       let credentialsSaved = 0;
       let credentialsFailed = 0;
@@ -373071,6 +373158,8 @@ var amazonApiRouter = router({
     // v323: 增加sellerId和sellerName字段，用于店铺隔离
     sellerId: external_exports.string().optional(),
     sellerName: external_exports.string().optional(),
+    // v343: 增加isRefreshAuth参数，刷新授权时只更新已有账户不创建新账户
+    isRefreshAuth: external_exports.boolean().optional(),
     profiles: external_exports.array(external_exports.object({
       profileId: external_exports.string(),
       countryCode: external_exports.string(),
@@ -373193,6 +373282,33 @@ var amazonApiRouter = router({
           });
           console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309\u5E97\u94FA+\u56FD\u5BB6\u5339\u914D, sellerId=${profileSellerId}`);
         } else {
+          if (input.isRefreshAuth) {
+            console.log(`[saveMultipleProfiles] v343: \u5237\u65B0\u6388\u6743\u6A21\u5F0F\uFF0C\u8DF3\u8FC7\u672A\u5339\u914D\u7684profile ${profile.profileId}(${profile.countryCode})\uFF0C\u4E0D\u521B\u5EFA\u65B0\u8D26\u6237`);
+            continue;
+          }
+          const duplicateCheck = existingAccounts.find(
+            (a4) => a4.storeName === effectiveStoreName && a4.marketplace === marketplaceCode
+          );
+          if (duplicateCheck) {
+            console.log(`[saveMultipleProfiles] v343: \u5E97\u94FA"${effectiveStoreName}"\u4E0B\u5DF2\u5B58\u5728${marketplaceCode}\u7AD9\u70B9(\u8D26\u6237${duplicateCheck.id})\uFF0C\u8DF3\u8FC7\u91CD\u590D\u7684profile ${profile.profileId}`);
+            accountId = duplicateCheck.id;
+            await saveAmazonApiCredentials({
+              accountId,
+              clientId: effectiveClientId,
+              clientSecret: effectiveClientSecret,
+              refreshToken: input.refreshToken,
+              profileId: profile.profileId,
+              region: input.region
+            });
+            results.push({
+              profileId: profile.profileId,
+              countryCode: profile.countryCode,
+              accountId,
+              success: true
+            });
+            console.log(`[saveMultipleProfiles] v343: \u66F4\u65B0\u5DF2\u6709\u8D26\u6237 ${accountId} (${profile.countryCode}) \u7684\u51ED\u8BC1\uFF0C\u672A\u521B\u5EFA\u91CD\u590D\u7AD9\u70B9`);
+            continue;
+          }
           accountId = await createAdAccount({
             userId: ctx.user.id,
             storeName: effectiveStoreName,
