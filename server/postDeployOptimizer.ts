@@ -71,7 +71,9 @@ type CorrectionAction =
   | 'cleanup_stale_pending'   // 清理无效pending日志
   | 'revalidate_pending_commands'  // v310: 用新算法重评估pending指令合理性
   | 'audit_synced_commands'        // v310: 回溯审计已执行指令的正确性
-  | 'retry_product_target_sync';   // v310: 重试商品定向同步
+  | 'retry_product_target_sync'   // v310: 重试商品定向同步
+  | 'resync_data'                  // v344: 触发全量数据重新同步
+  | 'cold_start';                  // v344: 触发冷启动流程
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
@@ -1079,6 +1081,45 @@ async function reoptimizeTarget(
               modulesExecuted.push('product_target_sync');
             } catch (ptErr: any) {
               errors.push(`v310: 商品定向同步重试失败: ${ptErr.message}`);
+            }
+            break;
+          }
+          
+          case 'resync_data': {
+            // v344: 触发全量数据重新同步
+            log.info(`[PostDeployOptimizer] [${config.name}] v344: 触发全量数据重新同步 (账户${config.accountId})...`);
+            try {
+              const { triggerColdStart } = await import('./coldStartService');
+              await triggerColdStart(config.accountId, {
+                reason: 'version_upgrade',
+                force: true,
+                historicalDays: 90,
+                skipSync: false,
+              });
+              modulesExecuted.push('resync_data');
+              correctionsApplied++;
+              log.info(`[PostDeployOptimizer] [${config.name}] v344: 全量数据重新同步已触发`);
+            } catch (syncErr: any) {
+              errors.push(`全量数据重新同步触发失败: ${syncErr.message}`);
+            }
+            break;
+          }
+          
+          case 'cold_start': {
+            // v344: 触发冷启动流程
+            log.info(`[PostDeployOptimizer] [${config.name}] v344: 触发冷启动 (账户${config.accountId})...`);
+            try {
+              const { triggerColdStart } = await import('./coldStartService');
+              await triggerColdStart(config.accountId, {
+                reason: 'version_upgrade',
+                force: true,
+                historicalDays: 90,
+              });
+              modulesExecuted.push('cold_start');
+              correctionsApplied++;
+              log.info(`[PostDeployOptimizer] [${config.name}] v344: 冷启动已触发`);
+            } catch (csErr: any) {
+              errors.push(`冷启动触发失败: ${csErr.message}`);
             }
             break;
           }
