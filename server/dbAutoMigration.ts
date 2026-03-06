@@ -1,17 +1,25 @@
 /**
- * v248: 数据库自动迁移模块 (Database Auto-Migration)
+ * v248→v347: 数据库自动迁移模块 (Database Auto-Migration)
  * 
- * 在系统启动时自动检查并创建v245+所需的数据库表和列。
+ * 在系统启动时自动检查并创建所需的数据库表和列。
  * 使用 CREATE TABLE IF NOT EXISTS 和 ALTER TABLE ... ADD COLUMN 确保幂等性。
  * 
- * 修复的问题：
+ * v248 修复：
  * - anomaly_alert_logs 表：v245引入但从未自动创建
  * - emergency_optimization_queue 表：v245引入但从未自动创建
- * - module_execution_times 列：v242 drizzle迁移未执行，导致调度状态丢失
+ * - module_execution_times 列：v242 drizzle迁移未执行
  * 
- * 注意：riskActionEngine.ts 中的 anomaly_alert_logs 使用 snake_case 列名
- *       （account_id, alert_type, severity, message, created_at），
- *       而 drizzle schema 使用 camelCase。此处使用 riskActionEngine 实际使用的列名。
+ * v347 修复：
+ * - keyword_placement_hourly_performance 表：schema中定义但从未创建（分时竞价瘫痪根因）
+ * - multi_dim_combo_analysis 表：schema中定义但从未创建
+ * - anomaly_alert_logs.message 列扩展为 MEDIUMTEXT（支持大JSON）
+ * - cold_start_logs 缺失列补全
+ * 
+ * 列名规则（匹配 Drizzle ORM casing: 'camelCase' 配置）：
+ * - 有显式列名映射的字段：使用指定的 snake_case 列名
+ *   例如 accountId: int("account_id") → 列名 `account_id`
+ * - 无显式列名的字段：使用 schema 中的驼峰字段名
+ *   例如 placement: mysqlEnum(...) → 列名 `placement`
  */
 
 import { getDb } from './db';
@@ -35,6 +43,27 @@ function isAlreadyExistsError(err: any): boolean {
          combined.includes('1050');
 }
 
+/**
+ * 安全执行DDL语句，自动处理"已存在"错误
+ */
+async function safeDDL(database: any, ddlSql: any, tableName: string, results: string[]): Promise<boolean> {
+  try {
+    await database.execute(ddlSql);
+    results.push(`${tableName}: 已就绪`);
+    log.info(`${tableName} 已就绪`);
+    return true;
+  } catch (err: any) {
+    if (isAlreadyExistsError(err)) {
+      results.push(`${tableName}: 已存在（跳过）`);
+      return true;
+    } else {
+      results.push(`${tableName}: 失败 - ${err.message}`);
+      log.error(`${tableName} 操作失败: ${err.message}`);
+      return false;
+    }
+  }
+}
+
 export async function runAutoDbMigration(): Promise<{ success: boolean; results: string[] }> {
   const results: string[] = [];
   
@@ -45,86 +74,171 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       return { success: false, results: ['数据库不可用'] };
     }
 
-    log.info('v248: 开始数据库自动迁移检查...');
+    log.info('v347: 开始数据库自动迁移检查...');
 
-    // 1. 创建 anomaly_alert_logs 表（v245 riskActionEngine 使用 snake_case 列名）
-    try {
-      await database.execute(sql`
-        CREATE TABLE IF NOT EXISTS anomaly_alert_logs (
-          id INT NOT NULL AUTO_INCREMENT,
-          account_id INT,
-          alert_type VARCHAR(100),
-          severity VARCHAR(50),
-          message TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (id),
-          INDEX idx_aal_account (account_id),
-          INDEX idx_aal_type (alert_type),
-          INDEX idx_aal_created (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-      results.push('anomaly_alert_logs: 表已就绪');
-      log.info('anomaly_alert_logs 表已就绪');
-    } catch (err: any) {
-      if (isAlreadyExistsError(err)) {
-        results.push('anomaly_alert_logs: 表已存在（跳过）');
-      } else {
-        results.push(`anomaly_alert_logs: 创建失败 - ${err.message}`);
-        log.error(`anomaly_alert_logs 创建失败: ${err.message}`);
-      }
-    }
+    // ============================================================
+    // 1. anomaly_alert_logs 表（v245 riskActionEngine 使用 snake_case 列名）
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS anomaly_alert_logs (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT,
+        alert_type VARCHAR(100),
+        severity VARCHAR(50),
+        message MEDIUMTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_aal_account (account_id),
+        INDEX idx_aal_type (alert_type),
+        INDEX idx_aal_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'anomaly_alert_logs', results);
 
-    // 2. 创建 emergency_optimization_queue 表（v245 riskActionEngine 使用 camelCase 列名）
-    try {
-      await database.execute(sql`
-        CREATE TABLE IF NOT EXISTS emergency_optimization_queue (
-          id INT NOT NULL AUTO_INCREMENT,
-          accountId INT NOT NULL,
-          actionType VARCHAR(100) NOT NULL,
-          priority VARCHAR(50) DEFAULT 'normal',
-          sourceModule VARCHAR(100),
-          detail TEXT,
-          processed TINYINT DEFAULT 0,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          processedAt TIMESTAMP NULL,
-          PRIMARY KEY (id),
-          INDEX idx_eoq_account (accountId),
-          INDEX idx_eoq_processed (processed),
-          INDEX idx_eoq_created (createdAt)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-      results.push('emergency_optimization_queue: 表已就绪');
-      log.info('emergency_optimization_queue 表已就绪');
-    } catch (err: any) {
-      if (isAlreadyExistsError(err)) {
-        results.push('emergency_optimization_queue: 表已存在（跳过）');
-      } else {
-        results.push(`emergency_optimization_queue: 创建失败 - ${err.message}`);
-        log.error(`emergency_optimization_queue 创建失败: ${err.message}`);
-      }
-    }
+    // v347: 确保message列为MEDIUMTEXT（旧版可能是TEXT，无法存储大JSON）
+    await safeDDL(database, sql`
+      ALTER TABLE anomaly_alert_logs MODIFY COLUMN message MEDIUMTEXT
+    `, 'anomaly_alert_logs.message→MEDIUMTEXT', results);
 
-    // 3. 添加 module_execution_times 列到 performance_groups 表
-    try {
-      await database.execute(sql`
-        ALTER TABLE performance_groups ADD COLUMN module_execution_times TEXT DEFAULT NULL
-      `);
-      results.push('module_execution_times: 列已添加到 performance_groups');
-      log.info('module_execution_times 列已添加到 performance_groups');
-    } catch (err: any) {
-      if (isAlreadyExistsError(err)) {
-        results.push('module_execution_times: 列已存在（跳过）');
-      } else {
-        results.push(`module_execution_times: 添加失败 - ${err.message}`);
-        log.error(`module_execution_times 添加失败: ${err.message}`);
-      }
-    }
+    // ============================================================
+    // 2. emergency_optimization_queue 表（v245 riskActionEngine 使用 camelCase 列名）
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS emergency_optimization_queue (
+        id INT NOT NULL AUTO_INCREMENT,
+        accountId INT NOT NULL,
+        actionType VARCHAR(100) NOT NULL,
+        priority VARCHAR(50) DEFAULT 'normal',
+        sourceModule VARCHAR(100),
+        detail TEXT,
+        processed TINYINT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processedAt TIMESTAMP NULL,
+        PRIMARY KEY (id),
+        INDEX idx_eoq_account (accountId),
+        INDEX idx_eoq_processed (processed),
+        INDEX idx_eoq_created (createdAt)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'emergency_optimization_queue', results);
 
-    log.info(`v248: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ============================================================
+    // 3. module_execution_times 列 → performance_groups 表
+    // ============================================================
+    await safeDDL(database, sql`
+      ALTER TABLE performance_groups ADD COLUMN module_execution_times TEXT DEFAULT NULL
+    `, 'performance_groups.module_execution_times', results);
+
+    // ============================================================
+    // 4. v347: keyword_placement_hourly_performance 表
+    //    分时竞价/位置倾斜的核心数据表，schema中定义但从未创建
+    //    列名遵循 casing: 'camelCase' 规则：
+    //    - 有显式映射的用 snake_case: account_id, campaign_id, ad_group_id, keyword_id,
+    //      target_id, day_of_week, units_sold, data_source, created_at, updated_at
+    //    - 无显式映射的用 camelCase: id, placement, date, hour, impressions, clicks,
+    //      spend, sales, orders, acos, roas, ctr, cvr, cpc
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS keyword_placement_hourly_performance (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        campaign_id VARCHAR(64) NOT NULL,
+        ad_group_id INT,
+        keyword_id INT,
+        target_id INT,
+        placement ENUM('top_of_search', 'product_page', 'rest_of_search') NOT NULL,
+        date DATE NOT NULL,
+        hour INT NOT NULL,
+        day_of_week INT NOT NULL,
+        impressions INT DEFAULT 0,
+        clicks INT DEFAULT 0,
+        spend DECIMAL(12, 4) DEFAULT 0.0000,
+        sales DECIMAL(12, 2) DEFAULT 0.00,
+        orders INT DEFAULT 0,
+        units_sold INT DEFAULT 0,
+        acos DECIMAL(8, 4),
+        roas DECIMAL(10, 2),
+        ctr DECIMAL(8, 6),
+        cvr DECIMAL(8, 6),
+        cpc DECIMAL(10, 4),
+        data_source ENUM('ams', 'report_api', 'simulated') DEFAULT 'ams',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_kph_account_campaign_date (account_id, campaign_id, date),
+        INDEX idx_kph_keyword_placement (keyword_id, placement, date),
+        INDEX idx_kph_target_placement (target_id, placement, date),
+        INDEX idx_kph_day_hour (day_of_week, hour),
+        INDEX idx_kph_placement_date (placement, date),
+        INDEX idx_kph_unique_combo (account_id, campaign_id, keyword_id, target_id, placement, date, hour)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'keyword_placement_hourly_performance', results);
+
+    // ============================================================
+    // 5. v347: multi_dim_combo_analysis 表
+    //    多维度组合分析结果表，schema中定义但从未创建
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS multi_dim_combo_analysis (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        campaign_id VARCHAR(64) NOT NULL,
+        keyword_id INT,
+        target_id INT,
+        keyword_text VARCHAR(500),
+        combo_category ENUM('golden', 'leaden', 'potential', 'standard') NOT NULL,
+        best_placement ENUM('top_of_search', 'product_page', 'rest_of_search'),
+        worst_placement ENUM('top_of_search', 'product_page', 'rest_of_search'),
+        best_time_windows JSON,
+        worst_time_windows JSON,
+        top_of_search_roas DECIMAL(10, 2),
+        top_of_search_acos DECIMAL(8, 4),
+        top_of_search_spend DECIMAL(12, 2),
+        top_of_search_sales DECIMAL(12, 2),
+        product_page_roas DECIMAL(10, 2),
+        product_page_acos DECIMAL(8, 4),
+        product_page_spend DECIMAL(12, 2),
+        product_page_sales DECIMAL(12, 2),
+        rest_of_search_roas DECIMAL(10, 2),
+        rest_of_search_acos DECIMAL(8, 4),
+        rest_of_search_spend DECIMAL(12, 2),
+        rest_of_search_sales DECIMAL(12, 2),
+        suggested_bid_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        suggested_placement_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        suggested_time_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        total_clicks INT DEFAULT 0,
+        total_orders INT DEFAULT 0,
+        data_points INT DEFAULT 0,
+        confidence_level ENUM('high', 'medium', 'low', 'insufficient') DEFAULT 'insufficient',
+        analysis_start_date DATE,
+        analysis_end_date DATE,
+        analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_mdca_account_campaign (account_id, campaign_id),
+        INDEX idx_mdca_keyword (keyword_id),
+        INDEX idx_mdca_target (target_id),
+        INDEX idx_mdca_category (combo_category),
+        INDEX idx_mdca_confidence (confidence_level)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'multi_dim_combo_analysis', results);
+
+    // ============================================================
+    // 6. v347: cold_start_logs 缺失列补全
+    //    确保 historical_targets_processed 和 historical_negatives_processed 列存在
+    // ============================================================
+    await safeDDL(database, sql`
+      ALTER TABLE cold_start_logs ADD COLUMN historical_targets_processed INT DEFAULT 0
+    `, 'cold_start_logs.historical_targets_processed', results);
+
+    await safeDDL(database, sql`
+      ALTER TABLE cold_start_logs ADD COLUMN historical_negatives_processed INT DEFAULT 0
+    `, 'cold_start_logs.historical_negatives_processed', results);
+
+    log.info(`v347: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: any) {
-    log.error(`v248: 数据库自动迁移异常: ${error.message}`);
+    log.error(`v347: 数据库自动迁移异常: ${error.message}`);
     return { success: false, results: [`迁移异常: ${error.message}`] };
   }
 }

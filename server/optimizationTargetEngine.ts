@@ -248,6 +248,9 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     marketplace: await getAccountMarketplace(group.accountId),
     isEnabled: group.status === 'active',
     
+    // v347: 修复 performanceGroupId 未赋值导致 optimization_logs 查询全部失败的严重bug
+    performanceGroupId: group.id,
+    
     optimizationGoal: (group.optimizationGoal as any) || 'balanced',
     targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
     targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
@@ -2510,7 +2513,7 @@ async function executeSearchTermAnalysis(
   const recentlyProcessedSearchTerms = new Set<string>();
   try {
     const dbInstance = await db.getDb();
-    if (dbInstance) {
+    if (dbInstance && config.performanceGroupId) {
       const { sql } = await import('drizzle-orm');
       const recentLogs = await dbInstance.execute(sql`
         SELECT DISTINCT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
@@ -2538,7 +2541,7 @@ async function executeSearchTermAnalysis(
   const permanentlyFailedKeywords = new Set<string>();
   try {
     const dbInstance = await db.getDb();
-    if (dbInstance) {
+    if (dbInstance && config.performanceGroupId) {
       const { sql } = await import('drizzle-orm');
       // v310-fix: 同时查询已标记permanently_failed的(哪怕只有1次)和普通失败达3次的
       const failedLogs = await dbInstance.execute(sql`
@@ -2580,7 +2583,7 @@ async function executeSearchTermAnalysis(
   // v310: 处理pending积压 - 尝试重新同步pending的keyword_create和add_product_target
   try {
     const dbInstance = await db.getDb();
-    if (dbInstance) {
+    if (dbInstance && config.performanceGroupId) {
       const { sql } = await import('drizzle-orm');
       
       // 查找所有pending的keyword_create记录（最多处理50条，避免API超载）

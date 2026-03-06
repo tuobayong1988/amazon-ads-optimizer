@@ -1657,33 +1657,41 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   // 获取执行锁
   if (!acquireLock(taskType)) return;
   
-  // v329: 内存预算检查 - 超过80%时跳过非关键任务，超过90%时跳过所有任务
+  // v347: 内存预算检查 - 使用绝对内存值(MB)作为阈值
+  // 修复v329的bug: heapUsed/heapTotal百分比不可靠，因为V8的heapTotal是动态增长的
+  // 例如 heapUsed=102MB, heapTotal=115MB → 89%，但max-old-space-size=1400MB，实际只用了7%
+  // 改为使用RSS(常驻内存)的绝对值作为判断标准
   const mem = process.memoryUsage();
-  const heapUtilization = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+  const rssMB = Math.round(mem.rss / 1024 / 1024);
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+  
+  // 内存阈值基于实例可用内存（t3.small=2GB, max-old-space-size=2048MB）
+  const MEMORY_CRITICAL_MB = 1200;  // RSS超过1200MB: 危急，跳过所有任务
+  const MEMORY_WARNING_MB = 900;    // RSS超过900MB: 紧张，跳过非关键任务
   
   // 关键任务：出价优化、风控扫描、日内节奏
   const criticalTasks: OptimizationTaskType[] = ['daily_bid_optimization', 'risk_scan', 'intraday_pacing'];
   const isCritical = criticalTasks.includes(taskType);
   
-  if (heapUtilization > 90) {
+  if (rssMB > MEMORY_CRITICAL_MB) {
     // 内存危急: 跳过所有任务，触发GC
-    log.warn(`[OptimizationScheduler] v329: 内存危急(${heapUtilization}%, ${heapUsedMB}MB)，跳过任务: ${taskType}`);
+    log.warn(`[OptimizationScheduler] v347: 内存危急(RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB)，跳过任务: ${taskType}`);
     if (typeof global.gc === 'function') global.gc();
     releaseLock(taskType);
     return;
   }
   
-  if (heapUtilization > 80 && !isCritical) {
+  if (rssMB > MEMORY_WARNING_MB && !isCritical) {
     // 内存紧张: 跳过非关键任务
-    log.warn(`[OptimizationScheduler] v329: 内存紧张(${heapUtilization}%, ${heapUsedMB}MB)，跳过非关键任务: ${taskType}`);
+    log.warn(`[OptimizationScheduler] v347: 内存紧张(RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB)，跳过非关键任务: ${taskType}`);
     if (typeof global.gc === 'function') global.gc();
     releaseLock(taskType);
     return;
   }
   
   const config = OPTIMIZATION_SCHEDULE[taskType];
-  log.info(`[OptimizationScheduler] 开始执行: ${config.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${new Date().toISOString()}`);
+  log.info(`[OptimizationScheduler] 开始执行: ${config.description} - RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB - ${new Date().toISOString()}`);
   
   try {
     // 直接导入优化目标引擎

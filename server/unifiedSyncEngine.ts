@@ -1271,22 +1271,20 @@ export async function syncAccount(
       try {
         const database = await db.getDb();
         if (database) {
+          // v347: 全参数化INSERT，避免drizzle sql模板中字面量的潜在问题
+          const alertType = 'SYNC_ZERO_RECORDS';
+          const alertSeverity = 'critical';
+          const alertMessage = JSON.stringify({
+            alertMessage: alertMsg,
+            tier,
+            totalSteps: result.totalSteps,
+            failedSteps: result.failedSteps,
+            errors: result.errors.slice(0, 5),
+            stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: r.success, synced: r.synced })),
+          });
           await database.execute(sql`
             INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
-            VALUES (
-              ${account.accountId},
-              'SYNC_ZERO_RECORDS',
-              'critical',
-              ${JSON.stringify({
-                alertMessage: alertMsg,
-                tier,
-                totalSteps: result.totalSteps,
-                failedSteps: result.failedSteps,
-                errors: result.errors.slice(0, 5),
-                stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: r.success, synced: r.synced })),
-              })},
-              NOW()
-            )
+            VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
           `);
         }
       } catch (alertDbErr: any) {

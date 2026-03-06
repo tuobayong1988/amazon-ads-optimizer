@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 346;  // v346: P2全面优化(除零防护+竞态锁+内存泄漏修复+SQL注入加固+空catch修复+any收窄+归档清理+日志统一)
+export const SYSTEM_VERSION = 347;  // v347: 分时竞价修复(缺失表创建)+内存检查逻辑修复+performanceGroupId赋值修复+anomaly_alert_logs参数化

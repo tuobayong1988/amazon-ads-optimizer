@@ -83411,22 +83411,19 @@ async function syncAccount(account, tier, options) {
       try {
         const database = await getDb();
         if (database) {
-          await database.execute(sql`
-            INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
-            VALUES (
-              ${account.accountId},
-              'SYNC_ZERO_RECORDS',
-              'critical',
-              ${JSON.stringify({
+          const alertType = "SYNC_ZERO_RECORDS";
+          const alertSeverity = "critical";
+          const alertMessage = JSON.stringify({
             alertMessage: alertMsg,
             tier,
             totalSteps: result.totalSteps,
             failedSteps: result.failedSteps,
             errors: result.errors.slice(0, 5),
             stepResults: Object.entries(result.stepResults).map(([id, r5]) => ({ id, success: r5.success, synced: r5.synced }))
-          })},
-              NOW()
-            )
+          });
+          await database.execute(sql`
+            INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+            VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
           `);
         }
       } catch (alertDbErr) {
@@ -90901,6 +90898,8 @@ async function getOptimizationTargetConfig(targetId) {
     accountId: group.accountId,
     marketplace: await getAccountMarketplace2(group.accountId),
     isEnabled: group.status === "active",
+    // v347: 修复 performanceGroupId 未赋值导致 optimization_logs 查询全部失败的严重bug
+    performanceGroupId: group.id,
     optimizationGoal: group.optimizationGoal || "balanced",
     targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : void 0,
     targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : void 0,
@@ -92758,7 +92757,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   const recentlyProcessedSearchTerms = /* @__PURE__ */ new Set();
   try {
     const dbInstance = await getDb();
-    if (dbInstance) {
+    if (dbInstance && config2.performanceGroupId) {
       const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const recentLogs = await dbInstance.execute(sql17`
         SELECT DISTINCT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
@@ -92783,7 +92782,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   const permanentlyFailedKeywords = /* @__PURE__ */ new Set();
   try {
     const dbInstance = await getDb();
-    if (dbInstance) {
+    if (dbInstance && config2.performanceGroupId) {
       const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const failedLogs = await dbInstance.execute(sql17`
         SELECT search_term, MAX(fail_count) as fail_count FROM (
@@ -92822,7 +92821,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   }
   try {
     const dbInstance = await getDb();
-    if (dbInstance) {
+    if (dbInstance && config2.performanceGroupId) {
       const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const pendingKeywords = await dbInstance.execute(sql17`
         SELECT id, action_detail, account_id, performance_group_id
@@ -161706,7 +161705,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 346;
+    SYSTEM_VERSION = 347;
   }
 });
 
@@ -162329,24 +162328,27 @@ function stopOptimizationScheduler2() {
 async function executeOptimizationTask(taskType) {
   if (!acquireLock(taskType)) return;
   const mem = process.memoryUsage();
-  const heapUtilization = Math.round(mem.heapUsed / mem.heapTotal * 100);
+  const rssMB = Math.round(mem.rss / 1024 / 1024);
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
+  const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+  const MEMORY_CRITICAL_MB = 1200;
+  const MEMORY_WARNING_MB = 900;
   const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing"];
   const isCritical = criticalTasks.includes(taskType);
-  if (heapUtilization > 90) {
-    log55.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u5371\u6025(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
+  if (rssMB > MEMORY_CRITICAL_MB) {
+    log55.warn(`[OptimizationScheduler] v347: \u5185\u5B58\u5371\u6025(RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
     if (typeof global.gc === "function") global.gc();
     releaseLock(taskType);
     return;
   }
-  if (heapUtilization > 80 && !isCritical) {
-    log55.warn(`[OptimizationScheduler] v329: \u5185\u5B58\u7D27\u5F20(${heapUtilization}%, ${heapUsedMB}MB)\uFF0C\u8DF3\u8FC7\u975E\u5173\u952E\u4EFB\u52A1: ${taskType}`);
+  if (rssMB > MEMORY_WARNING_MB && !isCritical) {
+    log55.warn(`[OptimizationScheduler] v347: \u5185\u5B58\u7D27\u5F20(RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB)\uFF0C\u8DF3\u8FC7\u975E\u5173\u952E\u4EFB\u52A1: ${taskType}`);
     if (typeof global.gc === "function") global.gc();
     releaseLock(taskType);
     return;
   }
   const config2 = OPTIMIZATION_SCHEDULE[taskType];
-  log55.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - heap=${heapUtilization}%/${heapUsedMB}MB - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  log55.info(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB - ${(/* @__PURE__ */ new Date()).toISOString()}`);
   try {
     const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
     switch (taskType) {
@@ -170736,6 +170738,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 347,
+        description: "v347: [P0\u5206\u65F6\u7ADE\u4EF7\u4FEE\u590D + \u5185\u5B58\u68C0\u67E5\u4FEE\u590D + \u4F18\u5316\u65E5\u5FD7\u4FEE\u590D] \u2014 (1)P0-\u7F3A\u5931\u8868\u521B\u5EFA: keyword_placement_hourly_performance\u548Cmulti_dim_combo_analysis\u8868\u4ECE\u672A\u5728\u6570\u636E\u5E93\u4E2D\u521B\u5EFA,\u5BFC\u81F4\u5206\u65F6\u7ADE\u4EF7\u5B8C\u5168\u762B\u75EA (2)P0-performanceGroupId\u4FEE\u590D: getOptimizationTargetConfig\u4E2D\u672A\u8D4B\u503C\u5BFC\u81F4\u6240\u6709optimization_logs\u67E5\u8BE2\u5931\u8D25(\u5426\u8BCD\u53BB\u91CD/\u641C\u7D22\u8BCD\u53BB\u91CD/pending\u91CD\u8BD5\u5168\u90E8\u5931\u6548) (3)P0-\u5185\u5B58\u68C0\u67E5\u903B\u8F91\u4FEE\u590D: \u4ECEheapUsed/heapTotal\u767E\u5206\u6BD4\u6539\u4E3ARSS\u7EDD\u5BF9\u503C(MB)\u9608\u503C,\u89E3\u51B3\u5185\u5B58\u5B9E\u9645\u53EA\u7528102MB\u5374\u62A5\u544A89%\u5BFC\u81F4\u4EFB\u52A1\u88AB\u8DF3\u8FC7 (4)P1-anomaly_alert_logs\u4FEE\u590D: INSERT\u5168\u53C2\u6570\u5316+message\u5217\u6269\u5C55\u4E3AMEDIUMTEXT (5)P1-cold_start_logs\u7F3A\u5931\u5217\u8865\u5168",
+        affectedModules: ["optimization", "sync", "db"],
+        correctionActions: ["rerun_optimization"]
       },
       {
         version: 346,
@@ -394416,6 +394424,23 @@ function isAlreadyExistsError(err2) {
   const combined = message2 + " " + causeMessage;
   return combined.includes("Duplicate column") || combined.includes("already exists") || combined.includes("1060") || combined.includes("1050");
 }
+async function safeDDL(database, ddlSql, tableName, results) {
+  try {
+    await database.execute(ddlSql);
+    results.push(`${tableName}: \u5DF2\u5C31\u7EEA`);
+    log112.info(`${tableName} \u5DF2\u5C31\u7EEA`);
+    return true;
+  } catch (err2) {
+    if (isAlreadyExistsError(err2)) {
+      results.push(`${tableName}: \u5DF2\u5B58\u5728\uFF08\u8DF3\u8FC7\uFF09`);
+      return true;
+    } else {
+      results.push(`${tableName}: \u5931\u8D25 - ${err2.message}`);
+      log112.error(`${tableName} \u64CD\u4F5C\u5931\u8D25: ${err2.message}`);
+      return false;
+    }
+  }
+}
 async function runAutoDbMigration() {
   const results = [];
   try {
@@ -394424,78 +394449,134 @@ async function runAutoDbMigration() {
       log112.warn("\u6570\u636E\u5E93\u4E0D\u53EF\u7528\uFF0C\u8DF3\u8FC7\u81EA\u52A8\u8FC1\u79FB");
       return { success: false, results: ["\u6570\u636E\u5E93\u4E0D\u53EF\u7528"] };
     }
-    log112.info("v248: \u5F00\u59CB\u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u68C0\u67E5...");
-    try {
-      await database.execute(sql`
-        CREATE TABLE IF NOT EXISTS anomaly_alert_logs (
-          id INT NOT NULL AUTO_INCREMENT,
-          account_id INT,
-          alert_type VARCHAR(100),
-          severity VARCHAR(50),
-          message TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (id),
-          INDEX idx_aal_account (account_id),
-          INDEX idx_aal_type (alert_type),
-          INDEX idx_aal_created (created_at)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-      results.push("anomaly_alert_logs: \u8868\u5DF2\u5C31\u7EEA");
-      log112.info("anomaly_alert_logs \u8868\u5DF2\u5C31\u7EEA");
-    } catch (err2) {
-      if (isAlreadyExistsError(err2)) {
-        results.push("anomaly_alert_logs: \u8868\u5DF2\u5B58\u5728\uFF08\u8DF3\u8FC7\uFF09");
-      } else {
-        results.push(`anomaly_alert_logs: \u521B\u5EFA\u5931\u8D25 - ${err2.message}`);
-        log112.error(`anomaly_alert_logs \u521B\u5EFA\u5931\u8D25: ${err2.message}`);
-      }
-    }
-    try {
-      await database.execute(sql`
-        CREATE TABLE IF NOT EXISTS emergency_optimization_queue (
-          id INT NOT NULL AUTO_INCREMENT,
-          accountId INT NOT NULL,
-          actionType VARCHAR(100) NOT NULL,
-          priority VARCHAR(50) DEFAULT 'normal',
-          sourceModule VARCHAR(100),
-          detail TEXT,
-          processed TINYINT DEFAULT 0,
-          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          processedAt TIMESTAMP NULL,
-          PRIMARY KEY (id),
-          INDEX idx_eoq_account (accountId),
-          INDEX idx_eoq_processed (processed),
-          INDEX idx_eoq_created (createdAt)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-      `);
-      results.push("emergency_optimization_queue: \u8868\u5DF2\u5C31\u7EEA");
-      log112.info("emergency_optimization_queue \u8868\u5DF2\u5C31\u7EEA");
-    } catch (err2) {
-      if (isAlreadyExistsError(err2)) {
-        results.push("emergency_optimization_queue: \u8868\u5DF2\u5B58\u5728\uFF08\u8DF3\u8FC7\uFF09");
-      } else {
-        results.push(`emergency_optimization_queue: \u521B\u5EFA\u5931\u8D25 - ${err2.message}`);
-        log112.error(`emergency_optimization_queue \u521B\u5EFA\u5931\u8D25: ${err2.message}`);
-      }
-    }
-    try {
-      await database.execute(sql`
-        ALTER TABLE performance_groups ADD COLUMN module_execution_times TEXT DEFAULT NULL
-      `);
-      results.push("module_execution_times: \u5217\u5DF2\u6DFB\u52A0\u5230 performance_groups");
-      log112.info("module_execution_times \u5217\u5DF2\u6DFB\u52A0\u5230 performance_groups");
-    } catch (err2) {
-      if (isAlreadyExistsError(err2)) {
-        results.push("module_execution_times: \u5217\u5DF2\u5B58\u5728\uFF08\u8DF3\u8FC7\uFF09");
-      } else {
-        results.push(`module_execution_times: \u6DFB\u52A0\u5931\u8D25 - ${err2.message}`);
-        log112.error(`module_execution_times \u6DFB\u52A0\u5931\u8D25: ${err2.message}`);
-      }
-    }
-    log112.info(`v248: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5B8C\u6210, \u7ED3\u679C: ${results.join("; ")}`);
+    log112.info("v347: \u5F00\u59CB\u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u68C0\u67E5...");
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS anomaly_alert_logs (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT,
+        alert_type VARCHAR(100),
+        severity VARCHAR(50),
+        message MEDIUMTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_aal_account (account_id),
+        INDEX idx_aal_type (alert_type),
+        INDEX idx_aal_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, "anomaly_alert_logs", results);
+    await safeDDL(database, sql`
+      ALTER TABLE anomaly_alert_logs MODIFY COLUMN message MEDIUMTEXT
+    `, "anomaly_alert_logs.message\u2192MEDIUMTEXT", results);
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS emergency_optimization_queue (
+        id INT NOT NULL AUTO_INCREMENT,
+        accountId INT NOT NULL,
+        actionType VARCHAR(100) NOT NULL,
+        priority VARCHAR(50) DEFAULT 'normal',
+        sourceModule VARCHAR(100),
+        detail TEXT,
+        processed TINYINT DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processedAt TIMESTAMP NULL,
+        PRIMARY KEY (id),
+        INDEX idx_eoq_account (accountId),
+        INDEX idx_eoq_processed (processed),
+        INDEX idx_eoq_created (createdAt)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, "emergency_optimization_queue", results);
+    await safeDDL(database, sql`
+      ALTER TABLE performance_groups ADD COLUMN module_execution_times TEXT DEFAULT NULL
+    `, "performance_groups.module_execution_times", results);
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS keyword_placement_hourly_performance (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        campaign_id VARCHAR(64) NOT NULL,
+        ad_group_id INT,
+        keyword_id INT,
+        target_id INT,
+        placement ENUM('top_of_search', 'product_page', 'rest_of_search') NOT NULL,
+        date DATE NOT NULL,
+        hour INT NOT NULL,
+        day_of_week INT NOT NULL,
+        impressions INT DEFAULT 0,
+        clicks INT DEFAULT 0,
+        spend DECIMAL(12, 4) DEFAULT 0.0000,
+        sales DECIMAL(12, 2) DEFAULT 0.00,
+        orders INT DEFAULT 0,
+        units_sold INT DEFAULT 0,
+        acos DECIMAL(8, 4),
+        roas DECIMAL(10, 2),
+        ctr DECIMAL(8, 6),
+        cvr DECIMAL(8, 6),
+        cpc DECIMAL(10, 4),
+        data_source ENUM('ams', 'report_api', 'simulated') DEFAULT 'ams',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_kph_account_campaign_date (account_id, campaign_id, date),
+        INDEX idx_kph_keyword_placement (keyword_id, placement, date),
+        INDEX idx_kph_target_placement (target_id, placement, date),
+        INDEX idx_kph_day_hour (day_of_week, hour),
+        INDEX idx_kph_placement_date (placement, date),
+        INDEX idx_kph_unique_combo (account_id, campaign_id, keyword_id, target_id, placement, date, hour)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, "keyword_placement_hourly_performance", results);
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS multi_dim_combo_analysis (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        campaign_id VARCHAR(64) NOT NULL,
+        keyword_id INT,
+        target_id INT,
+        keyword_text VARCHAR(500),
+        combo_category ENUM('golden', 'leaden', 'potential', 'standard') NOT NULL,
+        best_placement ENUM('top_of_search', 'product_page', 'rest_of_search'),
+        worst_placement ENUM('top_of_search', 'product_page', 'rest_of_search'),
+        best_time_windows JSON,
+        worst_time_windows JSON,
+        top_of_search_roas DECIMAL(10, 2),
+        top_of_search_acos DECIMAL(8, 4),
+        top_of_search_spend DECIMAL(12, 2),
+        top_of_search_sales DECIMAL(12, 2),
+        product_page_roas DECIMAL(10, 2),
+        product_page_acos DECIMAL(8, 4),
+        product_page_spend DECIMAL(12, 2),
+        product_page_sales DECIMAL(12, 2),
+        rest_of_search_roas DECIMAL(10, 2),
+        rest_of_search_acos DECIMAL(8, 4),
+        rest_of_search_spend DECIMAL(12, 2),
+        rest_of_search_sales DECIMAL(12, 2),
+        suggested_bid_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        suggested_placement_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        suggested_time_multiplier DECIMAL(5, 3) DEFAULT 1.000,
+        total_clicks INT DEFAULT 0,
+        total_orders INT DEFAULT 0,
+        data_points INT DEFAULT 0,
+        confidence_level ENUM('high', 'medium', 'low', 'insufficient') DEFAULT 'insufficient',
+        analysis_start_date DATE,
+        analysis_end_date DATE,
+        analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_mdca_account_campaign (account_id, campaign_id),
+        INDEX idx_mdca_keyword (keyword_id),
+        INDEX idx_mdca_target (target_id),
+        INDEX idx_mdca_category (combo_category),
+        INDEX idx_mdca_confidence (confidence_level)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, "multi_dim_combo_analysis", results);
+    await safeDDL(database, sql`
+      ALTER TABLE cold_start_logs ADD COLUMN historical_targets_processed INT DEFAULT 0
+    `, "cold_start_logs.historical_targets_processed", results);
+    await safeDDL(database, sql`
+      ALTER TABLE cold_start_logs ADD COLUMN historical_negatives_processed INT DEFAULT 0
+    `, "cold_start_logs.historical_negatives_processed", results);
+    log112.info(`v347: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5B8C\u6210, \u7ED3\u679C: ${results.join("; ")}`);
     return { success: true, results };
   } catch (error54) {
-    log112.error(`v248: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`);
+    log112.error(`v347: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`);
     return { success: false, results: [`\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`] };
   }
 }

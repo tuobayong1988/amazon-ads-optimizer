@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 347,
+    description: 'v347: [P0分时竞价修复 + 内存检查修复 + 优化日志修复] — (1)P0-缺失表创建: keyword_placement_hourly_performance和multi_dim_combo_analysis表从未在数据库中创建,导致分时竞价完全瘫痪 (2)P0-performanceGroupId修复: getOptimizationTargetConfig中未赋值导致所有optimization_logs查询失败(否词去重/搜索词去重/pending重试全部失效) (3)P0-内存检查逻辑修复: 从heapUsed/heapTotal百分比改为RSS绝对值(MB)阈值,解决内存实际只用102MB却报告89%导致任务被跳过 (4)P1-anomaly_alert_logs修复: INSERT全参数化+message列扩展为MEDIUMTEXT (5)P1-cold_start_logs缺失列补全',
+    affectedModules: ['optimization', 'sync', 'db'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 346,
     description: 'v346: [P2全面优化] — (1)除零防护加固: bidOptimizer中15+处除法操作添加安全检查 (2)竞态条件防护: 新增AsyncMutex进程级互斥锁工具 (3)内存泄漏修复: marketplaceCache添加TTL+容量上限+定时清理 (4)SQL注入加固: auditLogService/inviteCodeService/marginalBenefitBatchService参数化改造 (5)空catch块修复: 8处空catch添加结构化日志 (6)any类型收窄: bidOptimizer和optimizationTargetEngine中10+处as any消除 (7)归档代码清理: 删除_archived_v149(103文件/1.2MB) (8)日志统一: 25+文件100+处console迁移到结构化日志',
     affectedModules: ['optimization', 'security', 'sync', 'logging'],
