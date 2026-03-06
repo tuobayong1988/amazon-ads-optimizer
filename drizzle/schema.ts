@@ -2059,12 +2059,16 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int(),
+	// v2: 新增campaignType字段，记录来源广告活动类型（sp/sb/sd）
+	campaignType: mysqlEnum('campaign_type_neg', ['sp','sb','sd']).default('sp'),
+	// v2: 新增negativeScope字段，明确否定层级（campaign/ad_group）
+	negativeScope: mysqlEnum('negative_scope', ['campaign','ad_group']).default('campaign'),
 	negativeLevel: mysqlEnum(['campaign','ad_group']).notNull(),
 	negativeType: mysqlEnum(['keyword','product']).notNull(),
 	negativeText: varchar({ length: 500 }).notNull(),
 	negativeMatchType: mysqlEnum(['negative_exact','negative_phrase']).notNull(),
 	amazonNegativeKeywordId: varchar('amazon_negative_keyword_id', { length: 64 }),
-	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest','auto_optimization']).default('manual'),
+	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest','auto_optimization','smart_negation']).default('manual'),
 	sourceReason: text(),
 	negativeStatus: mysqlEnum(['active','pending','removed']).default('active'),
 	blockedImpressions: int("blocked_impressions").default(0),

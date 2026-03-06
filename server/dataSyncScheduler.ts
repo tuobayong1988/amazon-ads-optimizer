@@ -49,8 +49,8 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 30 * 60 * 1000, // 30分钟（完整同步，获取60天历史数据）
-    description: '完整同步 - 所有数据（60天历史）',
+    intervalMs: 30 * 60 * 1000, // 30分钟（完整同步，获取各广告类型最大支持天数的历史数据）
+    description: '完整同步 - 所有数据（SP 90天/SB 60天/SD 90天）',
     syncTypes: ['all'],
   },
 };
@@ -867,7 +867,7 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
         targets: (syncResult.stepResults['sp_product_targets']?.synced || 0) +
           (syncResult.stepResults['sb_product_targets']?.synced || 0) +
           (syncResult.stepResults['sd_product_targets']?.synced || 0),
-        performance: (syncResult.stepResults['performance_14d']?.synced || 0),
+        performance: (syncResult.stepResults['performance_90d']?.synced || 0),
         spCampaigns: syncResult.stepResults['sp_campaigns']?.synced || 0,
         sbCampaigns: syncResult.stepResults['sb_campaigns']?.synced || 0,
         sdCampaigns: syncResult.stepResults['sd_campaigns']?.synced || 0,

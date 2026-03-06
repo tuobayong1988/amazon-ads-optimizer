@@ -2490,7 +2490,7 @@ async function executeSearchTermAnalysis(
                JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
         FROM optimization_logs 
         WHERE performance_group_id = ${config.performanceGroupId}
-          AND action_type IN ('keyword_create', 'negative_keyword_add', 'search_term_harvest')
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest')
           AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
@@ -2730,13 +2730,12 @@ async function executeSearchTermAnalysis(
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
-      // v311: Campaign级别的Product Targeting检查
-      // Product Targeting campaign（POE/PT/ASIN）只能包含product targets，不能添加keywords
-      // 在遍历搜索词之前就跳过这类campaign，避免产生无效的keyword_create操作
+      // v311+v2: Campaign级别的Product Targeting检查
+      // v2修改: PT campaigns不再完全跳过，而是标记为PT类型，允许否定产品定向操作
       const campaignNameStr = (campaign as any).campaignName || '';
-      if (isProductTargetingCampaign(campaignNameStr)) {
-        log.info(`[SearchTermAnalysis] v311: 跳过Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})，该类型campaign不支持keyword操作`);
-        continue;
+      const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
+      if (isProductTargetingCamp) {
+        log.info(`[SearchTermAnalysis] v2: Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})，仅允许否定产品定向操作`);
       }
       
       // 获取搜索词数据
@@ -2749,6 +2748,18 @@ async function executeSearchTermAnalysis(
       const targetAcos = config.targetAcos || 30; // 默认30%
       
       // v191: 将搜索词数据转换为智能决策引擎所需的格式
+      // v2: 新增campaignType字段，用于否定策略分发
+      const rawCampaignType = (campaign as any).campaignType || 'sp_auto';
+      const v2CampaignType = (() => {
+        if (rawCampaignType === 'sponsoredProducts' || rawCampaignType === 'sp') {
+          return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+        }
+        if (rawCampaignType === 'sponsoredBrands' || rawCampaignType === 'sb') return 'sb';
+        if (rawCampaignType === 'sponsoredDisplay' || rawCampaignType === 'sd') return 'sd';
+        // 默认根据定向类型推断
+        return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+      })() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+      
       const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: any) => ({
         searchTerm: st.searchTerm,
         clicks: Number(st.searchTermClicks || 0),
@@ -2757,6 +2768,7 @@ async function executeSearchTermAnalysis(
         spend: Number(st.searchTermSpend || 0),
         sales: Number(st.searchTermSales || 0),
         campaignTargetingType: campaignTargetingType as 'auto' | 'manual',
+        campaignType: v2CampaignType,  // v2: 新增广告活动类型
         targetAcos: targetAcos,
       }));
       
@@ -2921,11 +2933,76 @@ async function executeSearchTermAnalysis(
               accountId: campaign.accountId || 0,
               localCampaignId: campaignLocalId,
               amazonCampaignId: campaignAmazonId,
-              negativeLevel: 'campaign',
+              negativeLevel: decision.negativeScope || 'campaign',  // v2: 使用算法决策的层级
               negativeType: 'keyword',
               negativeText: cleanedNegText,
               negativeMatchType: negMatchType,
-              negativeSource: 'auto_optimization',
+              negativeSource: decision.negativeType === 'keyword' ? 'smart_negation' : 'auto_optimization',  // v2
+              campaignType: decision.campaignType || 'sp',  // v2: 新增
+              negativeScope: decision.negativeScope || 'campaign',  // v2: 新增
+              createdAt: new Date().toISOString(),
+            };
+            negativeKeywordsAdded++;
+          }
+        }
+        
+        // ===== v2: 否定产品定向处理 (ASIN否定) =====
+        else if (decision.action === 'CREATE_NEGATIVE_PRODUCT_TARGET') {
+          // v2: 品牌词保护不适用于ASIN否定，但仍需检查去重
+          let negProdAlreadyExists = false;
+          if (!dryRun) {
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const { negativeKeywords: negKwTable } = await import('../drizzle/schema');
+              const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+              const existingNeg = await dbInstance.select({ id: negKwTable.id })
+                .from(negKwTable)
+                .where(andOp(
+                  eqOp(negKwTable.campaignId, campaignAmazonId as any),
+                  eqOp(negKwTable.negativeText, decision.targetValue),
+                  eqOp(negKwTable.negativeType, 'product')
+                ))
+                .limit(1);
+              if (existingNeg.length > 0) {
+                negProdAlreadyExists = true;
+                log.info(`[SearchTermAnalysis] v2: 否定产品定向已存在，跳过: "${decision.targetValue}" campaignId=${campaign.campaignId}`);
+              }
+            }
+          }
+          
+          const negativeProduct: any = {
+            accountId: config.accountId,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
+            campaignName: campaign.campaignName,
+            searchTerm: decision.targetValue,
+            matchType: 'negative_product_target',
+            action: 'add_negative_product_target',
+            reason: `v2智能否定: ${decision.reason}`,
+            algorithmUsed: 'search_term_analyzer',
+            apiSyncStatus: negProdAlreadyExists ? 'already_exists' : 'pending',
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            // v2: 新增字段
+            negativeType: decision.negativeType || 'product',
+            negativeScope: decision.negativeScope || 'campaign',
+            campaignType: decision.campaignType || 'sp',
+          };
+          
+          details.push(negativeProduct);
+          
+          if (!dryRun && !negProdAlreadyExists) {
+            negativeProduct._pendingDbInsert = {
+              accountId: campaign.accountId || 0,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              negativeLevel: decision.negativeScope || 'campaign',
+              negativeType: 'product',
+              negativeText: decision.targetValue,
+              negativeMatchType: 'negative_exact',
+              negativeSource: 'smart_negation',
+              campaignType: decision.campaignType || 'sp',
+              negativeScope: decision.negativeScope || 'campaign',
               createdAt: new Date().toISOString(),
             };
             negativeKeywordsAdded++;
@@ -2934,6 +3011,11 @@ async function executeSearchTermAnalysis(
         
         // ===== 正面关键词处理 =====
         else if (decision.action === 'CREATE_KEYWORD') {
+          // v2: Product Targeting campaign不能添加正面关键词
+          if (isProductTargetingCamp) {
+            log.info(`[SearchTermAnalysis] v2: PT campaign不支持正面关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            continue;
+          }
           // v191+v311: 自动广告活动和Product Targeting campaign不能添加正面关键词（双重保险）
           if (!canAddPositiveKeyword(campaignTargetingType, campaignNameStr)) {
             log.info(`[SearchTermAnalysis] v311: campaign不支持添加正面关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}", type=${campaignTargetingType})`);
@@ -3219,19 +3301,77 @@ async function executeSearchTermAnalysis(
         }
       }
       // v134: 同步否定关键词到 Amazon API，并记录同步状态
+      // v2: 同时处理否定产品定向
       if (!dryRun) {
+        // v2: 否定产品定向同步
+        const negProdDetails = details.filter(d => d.action === 'add_negative_product_target' && d.localCampaignId === campaignLocalId);
+        if (negProdDetails.length > 0) {
+          try {
+            const amazonCampaignIdStr = campaignAmazonId;
+            const negProdCampaignType = negProdDetails[0]?.campaignType || 'sp';
+            const negProdScope = negProdDetails[0]?.negativeScope || 'campaign';
+            
+            log.info(`[SearchTermAnalysis] v2: 否定产品定向同步: ${negProdDetails.length}个, 类型=${negProdCampaignType}, 层级=${negProdScope}`);
+            
+            // v2: 根据campaignType和negativeScope调用不同的API
+            const negProdSyncResult = await amazonApiHelper.syncNegativeProductTargetsToAmazon(
+              config.accountId,
+              negProdDetails.map(d => ({
+                campaignId: amazonCampaignIdStr,
+                adGroupId: d.adGroupId || '',
+                asin: d.searchTerm,
+                campaignType: d.campaignType || 'sp',
+                negativeScope: d.negativeScope || 'campaign',
+              }))
+            );
+            
+            const negProdSyncStatus = negProdSyncResult.failed === 0 && negProdSyncResult.success > 0 ? 'synced' : 
+                                      negProdSyncResult.success === 0 ? 'failed' : 'partial';
+            for (const d of negProdDetails) {
+              d.apiSyncStatus = negProdSyncStatus;
+            }
+            log.info(`[SearchTermAnalysis] v2: 否定产品定向API同步: ${negProdDetails.length}个, 状态=${negProdSyncStatus}`);
+            
+            // v2: API成功后写入本地DB
+            if (negProdSyncStatus === 'synced' || negProdSyncStatus === 'partial') {
+              const dbInstance = await db.getDb();
+              if (dbInstance) {
+                const { negativeKeywords } = await import('../drizzle/schema');
+                for (const d of negProdDetails) {
+                  if (d._pendingDbInsert && d.apiSyncStatus !== 'failed') {
+                    try {
+                      await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
+                      log.info(`[SearchTermAnalysis] v2: 否定产品DB写入成功: "${d.searchTerm}"`);
+                    } catch (dbErr: any) {
+                      log.error(`[SearchTermAnalysis] v2: 否定产品DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
+                    }
+                  }
+                }
+              }
+            }
+          } catch (apiError: any) {
+            for (const d of negProdDetails) {
+              d.apiSyncStatus = 'failed';
+              d.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            }
+            log.error(`[SearchTermAnalysis] v2: 否定产品定向API同步失败:`, apiError.message);
+          }
+        }
+        
         const negativeDetails = details.filter(d => d.action === 'add_negative' && d.localCampaignId === campaignLocalId);
         if (negativeDetails.length > 0) {
           try {
             // v201: 直接使用字符串避免大数字精度丢失
             const amazonCampaignId = campaignAmazonId;
+            // v2: 使用算法决策的negativeScope来确定否定层级
             const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({
                 campaignId: amazonCampaignId,
                 keywordText: d.searchTerm,
                 matchType: d.matchType === 'negative_exact' ? 'negativeExact' as const : 'negativePhrase' as const,
-                level: 'campaign' as const,
+                level: (d.negativeScope === 'ad_group' ? 'adgroup' : 'campaign') as 'campaign' | 'adgroup',
+                adGroupId: d.adGroupId || undefined,
               }))
             );
             // v134: 将同步状态回写到detail中
@@ -4421,10 +4561,13 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
-    // v250: 记录搜索词分析日志（使用createOptimizationLog确保双写）
+    // v250+v2: 记录搜索词分析日志（使用createOptimizationLog确保双写）
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
-        const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' : 'keyword_create';
+        // v2: 添加否定产品定向的action_type映射
+        const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' 
+          : detail.action === 'add_negative_product_target' ? 'negative_product_target_add' 
+          : 'keyword_create';
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,

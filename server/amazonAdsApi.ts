@@ -4625,6 +4625,235 @@ export class AmazonAdsApiClient {
     return allNegatives;
   }
 
+  // ==================== v2: SB否定创建 API ====================
+
+  /**
+   * v2: 创建SB否定关键词（仅支持Ad Group级）
+   * 
+   * SB否定关键词使用 POST /sb/negativeKeywords 端点
+   * 注意: SB不支持Campaign级否定关键词
+   */
+  async createSbNegativeKeywords(
+    negatives: Array<{
+      campaignId: string;
+      adGroupId: string;
+      keywordText: string;
+      matchType: 'negativeExact' | 'negativePhrase';
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<any[]> {
+    const BATCH_SIZE = 100;
+    const allResults: any[] = [];
+    const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+    log.info(`[SB API] v2: createSbNegativeKeywords 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      log.debug(`[SB API] v2: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB否定关键词`);
+      
+      try {
+        const formattedBatch = batch.map(n => ({
+          campaignId: String(n.campaignId),
+          adGroupId: String(n.adGroupId),
+          keywordText: n.keywordText,
+          matchType: n.matchType,
+          state: n.state || 'enabled',
+        }));
+        
+        const response = await this.axiosInstance.post('/sb/negativeKeywords', {
+          negativeKeywords: formattedBatch,
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
+        
+        const batchResults = response.data.negativeKeywords || response.data || [];
+        allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
+        log.info(`[SB API] v2: 第${batchIdx + 1}批完成`);
+      } catch (err: any) {
+        const statusCode = err.response?.status;
+        log.error(`[SB API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${err.message}`);
+        if (statusCode === 403) {
+          log.warn('[SB API] v2: SB Negative Keywords API access denied (403)');
+          break;
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    
+    log.info(`[SB API] v2: SB否定关键词创建完成: 总计=${negatives.length}, 结果=${allResults.length}`);
+    return allResults;
+  }
+
+  /**
+   * v2: 创建SB否定产品定向（仅支持Ad Group级）
+   * 
+   * SB否定产品定向使用 POST /sb/negativeTargets 端点
+   * 注意: SB不支持Campaign级否定产品定向
+   */
+  async createSbNegativeTargets(
+    negatives: Array<{
+      campaignId: string;
+      adGroupId: string;
+      expression: Array<{ type: string; value?: string }>;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<any[]> {
+    const BATCH_SIZE = 100;
+    const allResults: any[] = [];
+    const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+    log.info(`[SB API] v2: createSbNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      
+      try {
+        const formattedBatch = batch.map(n => ({
+          campaignId: String(n.campaignId),
+          adGroupId: String(n.adGroupId),
+          expression: n.expression,
+          state: n.state || 'enabled',
+        }));
+        
+        const response = await this.axiosInstance.post('/sb/negativeTargets', {
+          negativeTargets: formattedBatch,
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
+        
+        const batchResults = response.data.negativeTargets || response.data || [];
+        allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
+        log.info(`[SB API] v2: 第${batchIdx + 1}批SB否定产品定向完成`);
+      } catch (err: any) {
+        const statusCode = err.response?.status;
+        log.error(`[SB API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${err.message}`);
+        if (statusCode === 403) {
+          log.warn('[SB API] v2: SB Negative Targets API access denied (403)');
+          break;
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    
+    log.info(`[SB API] v2: SB否定产品定向创建完成: 总计=${negatives.length}, 结果=${allResults.length}`);
+    return allResults;
+  }
+
+  // ==================== v2: SD否定 API ====================
+
+  /**
+   * v2: 获取SD否定产品定向列表（仅Ad Group级，仅限上下文定向）
+   * 
+   * SD不支持否定关键词，仅支持否定产品定向
+   * 使用 POST /sd/negativeTargets/list 端点
+   */
+  async listSdNegativeTargets(adGroupId?: number): Promise<any[]> {
+    const allTargets: any[] = [];
+    let startIndex = 0;
+    const count = 100;
+    
+    while (true) {
+      try {
+        const params: any = { startIndex, count };
+        if (adGroupId) {
+          params.adGroupIdFilter = adGroupId;
+        }
+        
+        const response = await this.axiosInstance.get('/sd/negativeTargets', {
+          params,
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+        
+        const targets = response.data || [];
+        if (!Array.isArray(targets) || targets.length === 0) break;
+        
+        allTargets.push(...targets);
+        if (targets.length < count) break;
+        startIndex += count;
+      } catch (error: any) {
+        const statusCode = error.response?.status;
+        if (statusCode === 403) {
+          log.warn('[SD API] v2: SD Negative Targets API access denied (403)');
+        } else {
+          log.error('[SD API] v2: Error fetching SD negative targets:', error.message);
+        }
+        break;
+      }
+    }
+    
+    log.debug(`[SD API] v2: Total SD negative targets fetched: ${allTargets.length}`);
+    return allTargets;
+  }
+
+  /**
+   * v2: 创建SD否定产品定向（仅Ad Group级，仅限上下文定向）
+   * 
+   * SD否定产品定向使用 POST /sd/negativeTargets 端点
+   * 注意: 只有contextual targeting类型的SD广告活动才支持否定产品定向
+   */
+  async createSdNegativeTargets(
+    negatives: Array<{
+      adGroupId: number | string;
+      expression: Array<{ type: string; value?: string }>;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<any[]> {
+    const BATCH_SIZE = 100;
+    const allResults: any[] = [];
+    const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
+    log.info(`[SD API] v2: createSdNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = negatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      
+      try {
+        const formattedBatch = batch.map(n => ({
+          adGroupId: Number(n.adGroupId),
+          expression: n.expression,
+          state: n.state || 'enabled',
+        }));
+        
+        const response = await this.axiosInstance.post('/sd/negativeTargets', formattedBatch, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
+        
+        const batchResults = response.data || [];
+        allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
+        log.info(`[SD API] v2: 第${batchIdx + 1}批SD否定产品定向完成`);
+      } catch (err: any) {
+        const statusCode = err.response?.status;
+        log.error(`[SD API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${err.message}`);
+        if (statusCode === 403) {
+          log.warn('[SD API] v2: SD Negative Targets API access denied (403)');
+          break;
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    
+    log.info(`[SD API] v2: SD否定产品定向创建完成: 总计=${negatives.length}, 结果=${allResults.length}`);
+    return allResults;
+  }
+
   /**
    * 获取创意素材详情 - Creative Asset Library API
    * GET /assets?assetId={assetId}

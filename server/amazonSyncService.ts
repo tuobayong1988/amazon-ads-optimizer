@@ -394,7 +394,7 @@ export class AmazonSyncService {
     // ==================== 同步SP搜索词 ====================
     try {
       log.info(`开始同步SP搜索词数据...`);
-      const spSearchTermSynced = await this.syncSearchTerms(14);
+      const spSearchTermSynced = await this.syncSearchTerms(90); // v337.2: SP搜索词扩展到90天
       log.info(`SP搜索词同步完成: ${spSearchTermSynced}条`);
     } catch (e: any) {
       log.error('SP搜索词同步失败:', e.message);
@@ -402,7 +402,7 @@ export class AmazonSyncService {
     // ==================== 同步SB搜索词 ====================
     try {
       log.info(`开始同步SB搜索词数据...`);
-      const sbSearchTermSynced = await this.syncSbSearchTerms(14);
+      const sbSearchTermSynced = await this.syncSbSearchTerms(60); // v337.2: SB搜索词扩展到60天
       log.info(`SB搜索词同步完成: ${sbSearchTermSynced}条`);
     } catch (e: any) {
       log.error('SB搜索词同步失败:', e.message);
@@ -437,7 +437,7 @@ export class AmazonSyncService {
     // ==================== 同步SP广告位绩效 ====================
     try {
       log.info(`开始同步SP广告位绩效数据...`);
-      const placementSynced = await this.syncPlacementPerformance(14);
+      const placementSynced = await this.syncPlacementPerformance(90); // v337.2: SP广告位扩展到90天
       log.info(`SP广告位绩效同步完成: ${placementSynced}条`);
     } catch (e: any) {
       log.error('SP广告位绩效同步失败:', e.message);
@@ -446,7 +446,7 @@ export class AmazonSyncService {
     // ==================== 同步SB广告位绩效 ====================
     try {
       log.info(`开始同步SB广告位绩效数据...`);
-      const sbPlacementSynced = await this.syncSbPlacementPerformance(14);
+      const sbPlacementSynced = await this.syncSbPlacementPerformance(60); // v337.2: SB广告位扩展到60天
       log.info(`SB广告位绩效同步完成: ${sbPlacementSynced}条`);
     } catch (e: any) {
       log.error('SB广告位绩效同步失败:', e.message);
@@ -455,7 +455,7 @@ export class AmazonSyncService {
     // ==================== 同步SP自动定向报告 ====================
     try {
       log.info(`开始同步SP自动定向报告数据...`);
-      const autoTargetSynced = await this.syncAutoTargeting(14);
+      const autoTargetSynced = await this.syncAutoTargeting(90); // v337.2: SP自动定向扩展到90天
       log.info(`SP自动定向报告同步完成: ${autoTargetSynced}条`);
     } catch (e: any) {
       log.error('SP自动定向报告同步失败:', e.message);
@@ -464,7 +464,7 @@ export class AmazonSyncService {
     // ==================== 同步SD定向报告 ====================
     try {
       log.info(`开始同步SD定向报告数据...`);
-      const sdTargetSynced = await this.syncSdTargeting(14);
+      const sdTargetSynced = await this.syncSdTargeting(90); // v337.2: SD定向扩展到90天
       log.info(`SD定向报告同步完成: ${sdTargetSynced}条`);
     } catch (e: any) {
       log.error('SD定向报告同步失败:', e.message);
@@ -473,7 +473,7 @@ export class AmazonSyncService {
     // ==================== 同步SB定向报告 ====================
     try {
       log.info(`开始同步SB定向报告数据...`);
-      const sbTargetSynced = await this.syncSbTargeting(14);
+      const sbTargetSynced = await this.syncSbTargeting(60); // v337.2: SB定向扩展到60天
       log.info(`SB定向报告同步完成: ${sbTargetSynced}条`);
     } catch (e: any) {
       log.error('SB定向报告同步失败:', e.message);

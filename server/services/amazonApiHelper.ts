@@ -843,6 +843,133 @@ export async function syncNegativeKeywordsToAmazon(
 
 
 /**
+ * v2: 同步否定产品定向到 Amazon
+ * 
+ * 根据campaignType和negativeScope调用不同的API端点:
+ * - SP + campaign级: createSpCampaignNegativeTargets
+ * - SP + ad_group级: createSpNegativeTargets  
+ * - SB + ad_group级: createSbNegativeTargets
+ * - SD + ad_group级: createSdNegativeTargets
+ */
+export async function syncNegativeProductTargetsToAmazon(
+  accountId: number,
+  negatives: Array<{
+    campaignId: string;
+    adGroupId?: string;
+    asin: string;
+    campaignType: 'sp' | 'sb' | 'sd';
+    negativeScope: 'campaign' | 'ad_group';
+  }>
+): Promise<{ success: number; failed: number; errors: string[] }> {
+  const result = { success: 0, failed: 0, errors: [] as string[] };
+  
+  if (negatives.length === 0) return result;
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    result.errors.push(`无法获取账号 ${accountId} 的API服务`);
+    result.failed = negatives.length;
+    return result;
+  }
+  
+  // 按campaignType和negativeScope分组处理
+  const spCampaignLevel = negatives.filter(n => n.campaignType === 'sp' && n.negativeScope === 'campaign');
+  const spAdGroupLevel = negatives.filter(n => n.campaignType === 'sp' && n.negativeScope === 'ad_group');
+  const sbAdGroupLevel = negatives.filter(n => n.campaignType === 'sb');
+  const sdAdGroupLevel = negatives.filter(n => n.campaignType === 'sd');
+  
+  // SP Campaign级否定产品定向
+  if (spCampaignLevel.length > 0) {
+    try {
+      const apiResults = await withRetry(() => syncService.client.createSpCampaignNegativeTargets(
+        spCampaignLevel.map(n => ({
+          campaignId: n.campaignId,
+          expression: [{ type: 'asinSameAs', value: n.asin }],
+          expressionType: 'manual',
+        }))
+      ), { label: 'SP Campaign否定产品定向' });
+      
+      for (const r of apiResults) {
+        if ((r as any).code === 'SUCCESS' || (r as any).targetId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`SP Campaign否定产品失败: ${(r as any).details || 'unknown'}`);
+        }
+      }
+    } catch (err: any) {
+      result.failed += spCampaignLevel.length;
+      result.errors.push(`SP Campaign否定产品批量失败: ${err.message}`);
+    }
+  }
+  
+  // SP AdGroup级否定产品定向
+  if (spAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await withRetry(() => syncService.client.createSpNegativeTargets(
+        spAdGroupLevel.map(n => ({
+          campaignId: n.campaignId,
+          adGroupId: n.adGroupId || '',
+          expression: [{ type: 'asinSameAs', value: n.asin }],
+          expressionType: 'manual',
+        }))
+      ), { label: 'SP AdGroup否定产品定向' });
+      
+      for (const r of apiResults) {
+        if ((r as any).code === 'SUCCESS' || (r as any).targetId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`SP AdGroup否定产品失败: ${(r as any).details || 'unknown'}`);
+        }
+      }
+    } catch (err: any) {
+      result.failed += spAdGroupLevel.length;
+      result.errors.push(`SP AdGroup否定产品批量失败: ${err.message}`);
+    }
+  }
+  
+  // SB AdGroup级否定产品定向
+  if (sbAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await syncService.client.createSbNegativeTargets(
+        sbAdGroupLevel.map(n => ({
+          campaignId: n.campaignId,
+          adGroupId: n.adGroupId || '',
+          expression: [{ type: 'asinSameAs', value: n.asin }],
+        }))
+      );
+      result.success += apiResults.length;
+      log.info(`[AmazonApiHelper] v2: SB否定产品定向同步成功: ${apiResults.length}个`);
+    } catch (err: any) {
+      result.failed += sbAdGroupLevel.length;
+      result.errors.push(`SB否定产品批量失败: ${err.message}`);
+    }
+  }
+  
+  // SD AdGroup级否定产品定向
+  if (sdAdGroupLevel.length > 0) {
+    try {
+      const apiResults = await syncService.client.createSdNegativeTargets(
+        sdAdGroupLevel.map(n => ({
+          adGroupId: n.adGroupId || '',
+          expression: [{ type: 'asinSameAs', value: n.asin }],
+        }))
+      );
+      result.success += apiResults.length;
+      log.info(`[AmazonApiHelper] v2: SD否定产品定向同步成功: ${apiResults.length}个`);
+    } catch (err: any) {
+      result.failed += sdAdGroupLevel.length;
+      result.errors.push(`SD否定产品批量失败: ${err.message}`);
+    }
+  }
+  
+  log.warn(`[AmazonApiHelper] v2: 否定产品定向同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  return result;
+}
+
+
+/**
  * 同步关键词状态变更到 Amazon (v134新增)
  * 通过 PUT /sp/keywords API 更新关键词的 state 字段（enabled/paused/archived）
  * 

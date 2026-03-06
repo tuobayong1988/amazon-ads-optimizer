@@ -47,7 +47,13 @@ echo ""
 
 # 执行迁移
 echo "🚀 执行数据库迁移..."
-MIGRATION_FILE="drizzle/migrations/001_add_multi_tenant_support.sql"
+MIGRATION_FILE=$1
+
+if [ -z "$MIGRATION_FILE" ]; then
+  echo "❌ 错误: 请提供迁移文件的路径作为第一个参数"
+  echo "用法: ./scripts/run-migration.sh [path/to/migration.sql]"
+  exit 1
+fi
 
 if [ ! -f "$MIGRATION_FILE" ]; then
   echo "❌ 错误: 迁移文件不存在: $MIGRATION_FILE"
@@ -67,22 +73,9 @@ else
   exit 1
 fi
 
-# 验证迁移
+# 验证步骤已简化，因为这是一个通用脚本
 echo ""
-echo "🔍 验证迁移结果..."
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASS $DB_NAME -e "
-  SELECT 
-    'organizations' as table_name, COUNT(*) as row_count 
-  FROM organizations
-  UNION ALL
-  SELECT 
-    'subscription_plans' as table_name, COUNT(*) as row_count 
-  FROM subscription_plans
-  UNION ALL
-  SELECT 
-    'organization_members' as table_name, COUNT(*) as row_count 
-  FROM organization_members;
-" 2>/dev/null
+echo "🔍 迁移脚本执行完毕，请手动验证结果。"
 
 echo ""
 echo "========================================="
