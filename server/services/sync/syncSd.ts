@@ -443,19 +443,42 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
   if (!db) return 0;
 
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log.info(`开始同步SD定向数据: ${startDate} - ${endDate}`);
+    // v339: Amazon API单次请求最多31天，需要分批请求
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90); // SD定向最多支持90天
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log.info(`v339: 开始同步SD定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    // 请求SD定向报告
-    const reportId = await this.client.requestSdTargetingReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
-
-    if (!reportData || reportData.length === 0) {
-      log.debug('SD定向报告数据为空');
-      return 0;
+    let allReportData: any[] = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split('T')[0];
+      const batchEndDate = endDateObj.toISOString().split('T')[0];
+      log.info(`v339: SD定向第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+      try {
+        const reportId = await this.client.requestSdTargetingReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        }
+        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (batchError: any) {
+        log.error(`v339: SD定向第${batch + 1}批请求失败:`, batchError.message);
+      }
     }
 
-    log.debug(`获取到 ${reportData.length} 条SD定向数据`);
+    const reportData = allReportData;
+    if (!reportData || reportData.length === 0) {
+      log.debug('v339: 所有批次SD定向报告数据为空');
+      return 0;
+    }
+    log.info(`v339: 共获取到 ${reportData.length} 条SD定向数据（${batches}批合并）`);
     let synced = 0;
 
     for (const row of reportData) {

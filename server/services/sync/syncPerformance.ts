@@ -554,24 +554,43 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
   }
 
   try {
-    // 使用站点时区计算日期范围
-    const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, days);
+    // v339: Amazon API单次请求最多31天，需要分批请求
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90); // SP关键词绩效最多支持90天
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log.info(`v339: 开始同步关键词绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    log.info(`v196: 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${this.marketplace})`);
+    let allReportData: any[] = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split('T')[0];
+      const batchEndDate = endDateObj.toISOString().split('T')[0];
+      log.info(`v339: 关键词绩效第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+      try {
+        const reportId = await this.client.requestSpKeywordReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 900000);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        }
+        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (batchError: any) {
+        log.error(`v339: 关键词绩效第${batch + 1}批请求失败:`, batchError.message);
+      }
+    }
 
-    // 请求关键词报告
-    const reportId = await this.client.requestSpKeywordReport(startDateStr, endDateStr);
-    log.info(`v196: 关键词报告请求成功, reportId: ${reportId}`);
-    
-    // 等待并下载报告（超时15分钟）
-    const reportData = await this.client.waitAndDownloadReport(reportId, 900000);
-    log.info(`v196: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
-    
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log.warn('v196: 关键词报告数据为空');
+      log.warn('v339: 所有批次关键词报告数据为空');
       return 0;
     }
     
+    log.info(`v339: 共获取到 ${reportData.length} 条关键词绩效数据（${batches}批合并）`);
     log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
     
     // ==================== v196: 批量预加载本地数据，避免N+1查询 ====================
@@ -928,8 +947,12 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
 
   let synced = 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log.info(`开始同步广告组绩效数据: ${startDate} - ${endDate} (站点: ${this.marketplace})`);
+    // v339: Amazon API单次请求最多31天，需要分批请求
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log.info(`v339: 开始同步广告组绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
     // 获取该账户下所有广告活动
     const accountCampaigns = await db
@@ -942,12 +965,39 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
-    // 1. SP广告组报告（7天归因）
+    // v339: 通用分批报告请求函数
+    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string): Promise<any[]> => {
+      const reportTotalDays = Math.min(reportDays, 90);
+      const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
+      const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);
+      let allData: any[] = [];
+      for (let batch = 0; batch < rBatches; batch++) {
+        const endDateObj = new Date(rEnd);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, reportTotalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const bStart = startDateObj.toISOString().split('T')[0];
+        const bEnd = endDateObj.toISOString().split('T')[0];
+        try {
+          const reportId = await requestFn(bStart, bEnd);
+          const batchData = await this.client.waitAndDownloadReport(reportId);
+          if (batchData && batchData.length > 0) allData = allData.concat(batchData);
+          if (batch < rBatches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (e: any) {
+          log.error(`v339: ${reportName}第${batch + 1}批请求失败:`, e.message);
+        }
+      }
+      return allData;
+    };
+
+    // 1. SP广告组报告（使用传入的days参数，分批请求）
     if (spCampaigns.length > 0) {
       try {
-        const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(this.marketplace, 7);
-        const spReportId = await this.client.requestSpAdGroupReport(spStart, spEnd);
-        const spData = await this.client.waitAndDownloadReport(spReportId);
+        const spData = await fetchBatchedReport(
+          (s, e) => this.client.requestSpAdGroupReport(s, e),
+          totalDays, 'SP广告组'
+        );
         if (spData && spData.length > 0) {
           for (const row of spData) {
             const adGroupId = String(row.adGroupId);
@@ -989,11 +1039,13 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       }
     }
 
-    // 2. SB广告组报告（14天归因）
+    // 2. SB广告组报告（14天归因，v339分批请求）
     if (sbCampaigns.length > 0) {
       try {
-        const sbReportId = await this.client.requestSbAdGroupReport(startDate, endDate);
-        const sbData = await this.client.waitAndDownloadReport(sbReportId);
+        const sbData = await fetchBatchedReport(
+          (s, e) => this.client.requestSbAdGroupReport(s, e),
+          Math.min(totalDays, 60), 'SB广告组'
+        );
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
           for (const row of sbData) {
@@ -1042,11 +1094,13 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       }
     }
 
-    // 3. SD广告组报告（14天归因 + 浏览归因）
+    // 3. SD广告组报告（14天归因 + 浏览归因，v339分批请求）
     if (sdCampaigns.length > 0) {
       try {
-        const sdReportId = await this.client.requestSdAdGroupReport(startDate, endDate);
-        const sdData = await this.client.waitAndDownloadReport(sdReportId);
+        const sdData = await fetchBatchedReport(
+          (s, e) => this.client.requestSdAdGroupReport(s, e),
+          totalDays, 'SD广告组'
+        );
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
           for (const row of sdData) {
@@ -1116,19 +1170,42 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
   if (!db) return 0;
 
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log.info(`开始同步广告位置绩效: ${startDate} - ${endDate}`);
+    // v339: Amazon API单次请求最多31天，需要分批请求
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90); // SP广告位最多支持90天
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log.info(`v339: 开始同步SP广告位置绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    // 请求SP位置报告
-    const reportId = await this.client.requestSpPlacementReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
-
-    if (!reportData || reportData.length === 0) {
-      log.debug('位置报告数据为空');
-      return 0;
+    let allReportData: any[] = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split('T')[0];
+      const batchEndDate = endDateObj.toISOString().split('T')[0];
+      log.info(`v339: SP广告位第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+      try {
+        const reportId = await this.client.requestSpPlacementReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        }
+        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (batchError: any) {
+        log.error(`v339: SP广告位第${batch + 1}批请求失败:`, batchError.message);
+      }
     }
 
-    log.debug(`获取到 ${reportData.length} 条位置绩效数据`);
+    const reportData = allReportData;
+    if (!reportData || reportData.length === 0) {
+      log.debug('v339: 所有批次SP广告位报告数据为空');
+      return 0;
+    }
+    log.info(`v339: 共获取到 ${reportData.length} 条SP广告位数据（${batches}批合并）`);
     let synced = 0;
 
     for (const row of reportData) {

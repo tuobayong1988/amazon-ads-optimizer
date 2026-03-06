@@ -416,6 +416,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync', 'searchterm', 'bid'],
     correctionActions: ['rerun_optimization'],
   },
+  {
+    version: 339,
+    description: 'v339: [数据同步分批处理全面修复] — (1)P0-SP搜索词同步分批: syncSearchTerms增加31天分批逻辑,确保90天搜索词数据完整拉取 (2)P0-SP自动定向同步分批: syncAutoTargeting增加31天分批逻辑 (3)P0-SB搜索词同步分批: syncSbSearchTerms增加31天分批逻辑(60天上限) (4)P0-SB定向同步分批: syncSbTargeting增加31天分批逻辑 (5)P0-SB广告位同步分批: syncSbPlacementPerformance增加31天分批逻辑 (6)P0-SD定向同步分批: syncSdTargeting增加31天分批逻辑 (7)P0-SP广告位同步分批: syncPlacementPerformance增加31天分批逻辑 (8)P0-关键词绩效同步分批: syncKeywordPerformanceData增加31天分批逻辑 (9)P0-广告组绩效同步分批: syncAdGroupPerformanceData中SP/SB/SD三个子报告均增加分批逻辑 (10)P1-syncAll参数化: performanceDays支持外部传入,默认14天,unifiedSyncEngine full tier传入90天',
+    affectedModules: ['sync'],
+    correctionActions: ['resync_data'],
+  },
 ];
 
 // ==================== 配置 ====================

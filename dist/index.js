@@ -84238,7 +84238,7 @@ var init_amazonSyncService = __esm({
        * 完整同步所有数据
        * 每次同步都获取60天历史数据（包含当日），确保数据完整性和归因窗口期数据准确
        */
-      async syncAll() {
+      async syncAll(options) {
         const results = {
           campaigns: 0,
           adGroups: 0,
@@ -84385,8 +84385,8 @@ var init_amazonSyncService = __esm({
         } catch (e6) {
           log38.error("SB\u7D20\u6750URL\u89E3\u6790\u5931\u8D25:", e6.message);
         }
-        const performanceDays = 14;
-        log38.info(`\u540C\u6B65\u6700\u8FD1${performanceDays}\u5929\u5386\u53F2\u7EE9\u6548\u6570\u636E\uFF08\u5F52\u56E0\u56DE\u6EAF\u673A\u5236\uFF0C\u8986\u76D6\u65E7\u8BB0\u5F55\uFF09`);
+        const performanceDays = options?.performanceDays || 14;
+        log38.info(`v339: \u540C\u6B65\u6700\u8FD1${performanceDays}\u5929\u5386\u53F2\u7EE9\u6548\u6570\u636E\uFF08\u5F52\u56E0\u56DE\u6EAF\u673A\u5236\uFF0C\u8986\u76D6\u65E7\u8BB0\u5F55\uFF09`);
         results.performance += await this.syncPerformanceData(performanceDays);
         try {
           log38.info(`\u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EA7\u522B\u7EE9\u6548\u6570\u636E...`);
@@ -84522,15 +84522,46 @@ var init_amazonSyncService = __esm({
         const db = await getDb();
         if (!db) return 0;
         try {
-          const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-          log38.info(`v196: \u5F00\u59CB\u540C\u6B65\u641C\u7D22\u8BCD\u6570\u636E: ${startDate} - ${endDate}`);
-          const reportId = await this.client.requestSpSearchTermReport(startDate, endDate);
-          const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
-          if (!reportData || reportData.length === 0) {
-            log38.debug("v196: \u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+          const MAX_DAYS_PER_REQUEST = 31;
+          const totalDays = Math.min(days, 90);
+          const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+          const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+          log38.info(`v339: \u5F00\u59CB\u540C\u6B65SP\u641C\u7D22\u8BCD\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+          log38.info(`v339: \u603B\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate}`);
+          let allReportData = [];
+          for (let batch = 0; batch < batches; batch++) {
+            const endDateObj = new Date(rangeEndDate);
+            endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+            const startDateObj = new Date(endDateObj);
+            const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+            startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+            const batchStartDate = startDateObj.toISOString().split("T")[0];
+            const batchEndDate = endDateObj.toISOString().split("T")[0];
+            log38.info(`v339: SP\u641C\u7D22\u8BCD\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+            try {
+              const reportId = await this.client.requestSpSearchTermReport(batchStartDate, batchEndDate);
+              const reportData2 = await this.client.waitAndDownloadReport(reportId, 3e5);
+              if (reportData2 && reportData2.length > 0) {
+                allReportData = allReportData.concat(reportData2);
+                log38.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${reportData2.length} \u6761\u6570\u636E`);
+              } else {
+                log38.debug(`v339: \u7B2C${batch + 1}\u6279\u6570\u636E\u4E3A\u7A7A`);
+              }
+              if (batch < batches - 1) {
+                await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+              }
+            } catch (batchError) {
+              log38.error(`v339: SP\u641C\u7D22\u8BCD\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+            }
+          }
+          const startDate = rangeStartDate;
+          const endDate = rangeEndDate;
+          if (allReportData.length === 0) {
+            log38.debug("v339: \u6240\u6709\u6279\u6B21\u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
             return 0;
           }
-          log38.info(`v196: \u83B7\u53D6\u5230 ${reportData.length} \u6761\u641C\u7D22\u8BCD\u6570\u636E\uFF0C\u5F00\u59CB\u6279\u91CF\u9884\u52A0\u8F7D...`);
+          const reportData = allReportData;
+          log38.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761\u641C\u7D22\u8BCD\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09\uFF0C\u5F00\u59CB\u6279\u91CF\u9884\u52A0\u8F7D...`);
           const allCampaigns = await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.accountId, this.accountId));
           const campaignMap = /* @__PURE__ */ new Map();
           for (const c5 of allCampaigns) {
@@ -84658,15 +84689,40 @@ var init_amazonSyncService = __esm({
         const db = await getDb();
         if (!db) return 0;
         try {
-          const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-          log38.info(`\u5F00\u59CB\u540C\u6B65\u81EA\u52A8\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
-          const reportId = await this.client.requestSpAutoTargetingReport(startDate, endDate);
-          const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
+          const MAX_DAYS_PER_REQUEST = 31;
+          const totalDays = Math.min(days, 90);
+          const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+          const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+          log38.info(`v339: \u5F00\u59CB\u540C\u6B65SP\u81EA\u52A8\u5B9A\u5411\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+          let allReportData = [];
+          for (let batch = 0; batch < batches; batch++) {
+            const endDateObj = new Date(rangeEndDate);
+            endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+            const startDateObj = new Date(endDateObj);
+            const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+            startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+            const batchStartDate = startDateObj.toISOString().split("T")[0];
+            const batchEndDate = endDateObj.toISOString().split("T")[0];
+            log38.info(`v339: SP\u81EA\u52A8\u5B9A\u5411\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+            try {
+              const reportId = await this.client.requestSpAutoTargetingReport(batchStartDate, batchEndDate);
+              const batchData = await this.client.waitAndDownloadReport(reportId, 3e5);
+              if (batchData && batchData.length > 0) {
+                allReportData = allReportData.concat(batchData);
+                log38.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+              }
+              if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+            } catch (batchError) {
+              log38.error(`v339: SP\u81EA\u52A8\u5B9A\u5411\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+            }
+          }
+          const reportData = allReportData;
           if (!reportData || reportData.length === 0) {
-            log38.debug("\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+            log38.debug("v339: \u6240\u6709\u6279\u6B21\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
             return 0;
           }
-          log38.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761\u81EA\u52A8\u5B9A\u5411\u6570\u636E`);
+          log38.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761\u81EA\u52A8\u5B9A\u5411\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
+          ;
           let synced = 0;
           for (const row of reportData) {
             if (row.targetingType !== "AUTO") continue;
@@ -163166,7 +163222,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 338;
+    SYSTEM_VERSION = 339;
   }
 });
 
@@ -170091,6 +170147,12 @@ var init_postDeployOptimizer = __esm({
         description: "v338: [\u7EDF\u4E00\u667A\u80FD\u51B7\u542F\u52A8\u673A\u5236] \u2014 (1)P0-\u65B0\u589EcoldStartService.ts: \u7EDF\u4E00\u51B7\u542F\u52A8\u670D\u52A1\uFF0C\u652F\u6301\u56DB\u5927\u573A\u666F(new_account/credential_refresh/new_marketplace/version_upgrade)\u81EA\u52A8\u89E6\u53D1\u5168\u91CF\u540C\u6B65+\u6570\u636E\u5E74\u9F84\u5206\u5C42\u4F18\u5316 (2)P0-\u6570\u636E\u5E74\u9F84\u5206\u5C42: \u5386\u53F2\u6570\u636E(30-90\u5929)\u4E00\u6B21\u6027\u6279\u91CFNgram\u5206\u6790+\u5426\u5B9A\u8BCD+\u641C\u7D22\u8BCD\u6536\u5272, \u8FD1\u671F\u6570\u636E(7-14\u5929)\u6309\u5E38\u89C4\u9AD8\u9891\u8C03\u5EA6\u4F18\u5316 (3)P0-accountInitializationService\u96C6\u6210: \u65B0\u8D26\u6237\u5168\u91CF\u540C\u6B65\u5B8C\u6210\u540E\u81EA\u52A8\u89E6\u53D1\u51B7\u542F\u52A8(skipSync=true) (4)P0-amazonApi\u8DEF\u7531\u96C6\u6210: saveCredentials\u68C0\u6D4B\u51ED\u8BC1\u5237\u65B0\u573A\u666F\u89E6\u53D1\u51B7\u542F\u52A8, saveMultipleProfiles\u4E3A\u6BCF\u4E2A\u65B0\u7AD9\u70B9\u89E6\u53D1\u51B7\u542F\u52A8 (5)P0-deployLifecycleManager\u96C6\u6210: orchestrateStartup\u6B65\u9AA44e\u589E\u52A0\u7248\u672C\u5347\u7EA7\u573A\u666F\u7684\u6279\u91CF\u51B7\u542F\u52A8 (6)P1-cold_start_logs\u8868: \u8BB0\u5F55\u6BCF\u6B21\u51B7\u542F\u52A8\u7684\u5B8C\u6574\u6267\u884C\u7EDF\u8BA1(\u540C\u6B65/\u5386\u53F2\u4F18\u5316/\u8FD1\u671F\u4F18\u5316\u5404\u9636\u6BB5\u8017\u65F6\u548C\u7ED3\u679C) (7)P1-\u5E42\u7B49\u6027\u4FDD\u62A4: \u540C\u4E00\u8D26\u6237+\u540C\u4E00\u7248\u672C\u53EA\u6267\u884C\u4E00\u6B21\u51B7\u542F\u52A8, \u5E76\u53D1\u9632\u62A4+\u5185\u5B58\u4FDD\u62A4+\u9519\u8BEF\u9694\u79BB",
         affectedModules: ["sync", "searchterm", "bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 339,
+        description: "v339: [\u6570\u636E\u540C\u6B65\u5206\u6279\u5904\u7406\u5168\u9762\u4FEE\u590D] \u2014 (1)P0-SP\u641C\u7D22\u8BCD\u540C\u6B65\u5206\u6279: syncSearchTerms\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91,\u786E\u4FDD90\u5929\u641C\u7D22\u8BCD\u6570\u636E\u5B8C\u6574\u62C9\u53D6 (2)P0-SP\u81EA\u52A8\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncAutoTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (3)P0-SB\u641C\u7D22\u8BCD\u540C\u6B65\u5206\u6279: syncSbSearchTerms\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91(60\u5929\u4E0A\u9650) (4)P0-SB\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncSbTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (5)P0-SB\u5E7F\u544A\u4F4D\u540C\u6B65\u5206\u6279: syncSbPlacementPerformance\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (6)P0-SD\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncSdTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (7)P0-SP\u5E7F\u544A\u4F4D\u540C\u6B65\u5206\u6279: syncPlacementPerformance\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (8)P0-\u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5206\u6279: syncKeywordPerformanceData\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (9)P0-\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5206\u6279: syncAdGroupPerformanceData\u4E2DSP/SB/SD\u4E09\u4E2A\u5B50\u62A5\u544A\u5747\u589E\u52A0\u5206\u6279\u903B\u8F91 (10)P1-syncAll\u53C2\u6570\u5316: performanceDays\u652F\u6301\u5916\u90E8\u4F20\u5165,\u9ED8\u8BA414\u5929,unifiedSyncEngine full tier\u4F20\u516590\u5929",
+        affectedModules: ["sync"],
+        correctionActions: ["resync_data"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -395101,15 +395163,41 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(days = 14) {
   const db = await getDb();
   if (!db) return 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`\u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E: ${startDate} - ${endDate}`);
-    const reportId = await this.client.requestSbSearchTermReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 60);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log86.info(`v339: \u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log86.info(`v339: SB\u641C\u7D22\u8BCD\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSbSearchTermReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 3e5);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log86.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log86.error(`v339: SB\u641C\u7D22\u8BCD\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const startDate = rangeStartDate;
+    const endDate = rangeEndDate;
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log86.debug("SB\u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log86.debug("v339: \u6240\u6709\u6279\u6B21SB\u641C\u7D22\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log86.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u641C\u7D22\u8BCD\u6570\u636E`);
+    log86.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u641C\u7D22\u8BCD\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     let synced = 0;
     for (const row of reportData) {
       const [campaign] = await db.select().from(campaigns).where(
@@ -395216,15 +395304,39 @@ AmazonSyncService.prototype.syncSbTargeting = async function(days = 14) {
   const db = await getDb();
   if (!db) return 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`\u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
-    const reportId = await this.client.requestSbTargetingReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 60);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log86.info(`v339: \u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log86.info(`v339: SB\u5B9A\u5411\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSbTargetingReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 3e5);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log86.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log86.error(`v339: SB\u5B9A\u5411\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log86.debug("SB\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log86.debug("v339: \u6240\u6709\u6279\u6B21SB\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log86.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u5B9A\u5411\u6570\u636E`);
+    log86.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u5B9A\u5411\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     let synced = 0;
     for (const row of reportData) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(row.adGroupId))).limit(1);
@@ -395450,14 +395562,39 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(days = 1
   if (!db) return 0;
   let synced = 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log86.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548: ${startDate} - ${endDate}`);
-    const reportId = await this.client.requestSbCampaignPlacementReport(
-      startDate,
-      endDate
-    );
-    const reportData = await this.client.waitAndDownloadReport(reportId);
-    log86.debug(`SB\u5E7F\u544A\u4F4D\u62A5\u544A\u83B7\u53D6\u5230 ${reportData.length} \u6761\u8BB0\u5F55`);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 60);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log86.info(`v339: \u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log86.info(`v339: SB\u5E7F\u544A\u4F4D\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSbCampaignPlacementReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log86.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log86.error(`v339: SB\u5E7F\u544A\u4F4D\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const reportData = allReportData;
+    if (!reportData || reportData.length === 0) {
+      log86.debug("v339: \u6240\u6709\u6279\u6B21SB\u5E7F\u544A\u4F4D\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      return 0;
+    }
+    log86.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SB\u5E7F\u544A\u4F4D\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     for (const row of reportData) {
       const campaignIdStr = String(row.campaignId);
       const [campaign] = await db.select().from(campaigns).where(
@@ -395467,7 +395604,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(days = 1
         )
       ).limit(1);
       if (!campaign) continue;
-      const dateStr = row.date || startDate;
+      const dateStr = row.date || rangeStartDate;
       const rawPlacement = row.placementClassification || row.placement || "OTHER";
       const placementMap = {
         "TOP_OF_SEARCH": "top_of_search",
@@ -395803,15 +395940,39 @@ AmazonSyncService.prototype.syncSdTargeting = async function(days = 14) {
   const db = await getDb();
   if (!db) return 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log87.info(`\u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u6570\u636E: ${startDate} - ${endDate}`);
-    const reportId = await this.client.requestSdTargetingReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log87.info(`v339: \u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log87.info(`v339: SD\u5B9A\u5411\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSdTargetingReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 3e5);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log87.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log87.error(`v339: SD\u5B9A\u5411\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log87.debug("SD\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log87.debug("v339: \u6240\u6709\u6279\u6B21SD\u5B9A\u5411\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log87.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761SD\u5B9A\u5411\u6570\u636E`);
+    log87.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SD\u5B9A\u5411\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     let synced = 0;
     for (const row of reportData) {
       const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(row.adGroupId))).limit(1);
@@ -396220,16 +396381,39 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(days = 7
     return 0;
   }
   try {
-    const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, days);
-    log88.info(`v196: \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E: ${startDateStr} - ${endDateStr} (\u7AD9\u70B9: ${this.marketplace})`);
-    const reportId = await this.client.requestSpKeywordReport(startDateStr, endDateStr);
-    log88.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 9e5);
-    log88.info(`v196: \u5173\u952E\u8BCD\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${reportData?.length || 0}`);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log88.info(`v339: \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log88.info(`v339: \u5173\u952E\u8BCD\u7EE9\u6548\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSpKeywordReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 9e5);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log88.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log88.error(`v339: \u5173\u952E\u8BCD\u7EE9\u6548\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log88.warn("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log88.warn("v339: \u6240\u6709\u6279\u6B21\u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
+    log88.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     log88.debug("v196: \u5173\u952E\u8BCD\u62A5\u544A\u6570\u636E\u7B2C\u4E00\u6761\u793A\u4F8B:", JSON.stringify(reportData[0], null, 2));
     const allAdGroups = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups);
     const adGroupAmazonToLocal = /* @__PURE__ */ new Map();
@@ -396555,17 +396739,46 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
   if (!db) return 0;
   let synced = 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log88.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E: ${startDate} - ${endDate} (\u7AD9\u70B9: ${this.marketplace})`);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log88.info(`v339: \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
     const accountCampaigns = await db.select().from(campaigns).where(eq(campaigns.accountId, this.accountId));
     const spCampaigns = accountCampaigns.filter((c5) => c5.campaignType === "sp_auto" || c5.campaignType === "sp_manual");
     const sbCampaigns = accountCampaigns.filter((c5) => c5.campaignType === "sb");
     const sdCampaigns = accountCampaigns.filter((c5) => c5.campaignType === "sd");
+    const fetchBatchedReport = async (requestFn, reportDays, reportName) => {
+      const reportTotalDays = Math.min(reportDays, 90);
+      const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
+      const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);
+      let allData = [];
+      for (let batch = 0; batch < rBatches; batch++) {
+        const endDateObj = new Date(rEnd);
+        endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, reportTotalDays - batch * MAX_DAYS_PER_REQUEST);
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const bStart = startDateObj.toISOString().split("T")[0];
+        const bEnd = endDateObj.toISOString().split("T")[0];
+        try {
+          const reportId = await requestFn(bStart, bEnd);
+          const batchData = await this.client.waitAndDownloadReport(reportId);
+          if (batchData && batchData.length > 0) allData = allData.concat(batchData);
+          if (batch < rBatches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+        } catch (e6) {
+          log88.error(`v339: ${reportName}\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, e6.message);
+        }
+      }
+      return allData;
+    };
     if (spCampaigns.length > 0) {
       try {
-        const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(this.marketplace, 7);
-        const spReportId = await this.client.requestSpAdGroupReport(spStart, spEnd);
-        const spData = await this.client.waitAndDownloadReport(spReportId);
+        const spData = await fetchBatchedReport(
+          (s4, e6) => this.client.requestSpAdGroupReport(s4, e6),
+          totalDays,
+          "SP\u5E7F\u544A\u7EC4"
+        );
         if (spData && spData.length > 0) {
           for (const row of spData) {
             const adGroupId = String(row.adGroupId);
@@ -396598,8 +396811,11 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
     }
     if (sbCampaigns.length > 0) {
       try {
-        const sbReportId = await this.client.requestSbAdGroupReport(startDate, endDate);
-        const sbData = await this.client.waitAndDownloadReport(sbReportId);
+        const sbData = await fetchBatchedReport(
+          (s4, e6) => this.client.requestSbAdGroupReport(s4, e6),
+          Math.min(totalDays, 60),
+          "SB\u5E7F\u544A\u7EC4"
+        );
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
           for (const row of sbData) {
@@ -396640,8 +396856,11 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(days = 1
     }
     if (sdCampaigns.length > 0) {
       try {
-        const sdReportId = await this.client.requestSdAdGroupReport(startDate, endDate);
-        const sdData = await this.client.waitAndDownloadReport(sdReportId);
+        const sdData = await fetchBatchedReport(
+          (s4, e6) => this.client.requestSdAdGroupReport(s4, e6),
+          totalDays,
+          "SD\u5E7F\u544A\u7EC4"
+        );
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
           for (const row of sdData) {
@@ -396695,15 +396914,39 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
   const db = await getDb();
   if (!db) return 0;
   try {
-    const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-    log88.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548: ${startDate} - ${endDate}`);
-    const reportId = await this.client.requestSpPlacementReport(startDate, endDate);
-    const reportData = await this.client.waitAndDownloadReport(reportId, 3e5);
+    const MAX_DAYS_PER_REQUEST = 31;
+    const totalDays = Math.min(days, 90);
+    const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+    const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+    log88.info(`v339: \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
+    let allReportData = [];
+    for (let batch = 0; batch < batches; batch++) {
+      const endDateObj = new Date(rangeEndDate);
+      endDateObj.setDate(endDateObj.getDate() - batch * MAX_DAYS_PER_REQUEST);
+      const startDateObj = new Date(endDateObj);
+      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - batch * MAX_DAYS_PER_REQUEST);
+      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+      const batchStartDate = startDateObj.toISOString().split("T")[0];
+      const batchEndDate = endDateObj.toISOString().split("T")[0];
+      log88.info(`v339: SP\u5E7F\u544A\u4F4D\u7B2C${batch + 1}/${batches}\u6279: ${batchStartDate} - ${batchEndDate} (\u5171${daysInBatch}\u5929)`);
+      try {
+        const reportId = await this.client.requestSpPlacementReport(batchStartDate, batchEndDate);
+        const batchData = await this.client.waitAndDownloadReport(reportId, 3e5);
+        if (batchData && batchData.length > 0) {
+          allReportData = allReportData.concat(batchData);
+          log88.info(`v339: \u7B2C${batch + 1}\u6279\u83B7\u53D6\u5230 ${batchData.length} \u6761\u6570\u636E`);
+        }
+        if (batch < batches - 1) await new Promise((resolve8) => setTimeout(resolve8, 2e3));
+      } catch (batchError) {
+        log88.error(`v339: SP\u5E7F\u544A\u4F4D\u7B2C${batch + 1}\u6279\u8BF7\u6C42\u5931\u8D25:`, batchError.message);
+      }
+    }
+    const reportData = allReportData;
     if (!reportData || reportData.length === 0) {
-      log88.debug("\u4F4D\u7F6E\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
+      log88.debug("v339: \u6240\u6709\u6279\u6B21SP\u5E7F\u544A\u4F4D\u62A5\u544A\u6570\u636E\u4E3A\u7A7A");
       return 0;
     }
-    log88.debug(`\u83B7\u53D6\u5230 ${reportData.length} \u6761\u4F4D\u7F6E\u7EE9\u6548\u6570\u636E`);
+    log88.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SP\u5E7F\u544A\u4F4D\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
     let synced = 0;
     for (const row of reportData) {
       const [campaign] = await db.select().from(campaigns).where(

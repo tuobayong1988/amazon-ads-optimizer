@@ -292,7 +292,7 @@ export class AmazonSyncService {
    * 完整同步所有数据
    * 每次同步都获取60天历史数据（包含当日），确保数据完整性和归因窗口期数据准确
    */
-  async syncAll(): Promise<{
+  async syncAll(options?: { performanceDays?: number }): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -492,8 +492,10 @@ export class AmazonSyncService {
     // 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
     // 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
     // 这能确保存下来的数据和亚马逊后台最终结算的数据一致
-    const performanceDays = 14; // ⚠️ 修改为14天归因回溯
-    log.info(`同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
+    // v339: performanceDays支持外部传入，默认14天归因回溯
+    // unifiedSyncEngine full tier会传入90天，常规同步保持14天
+    const performanceDays = options?.performanceDays || 14;
+    log.info(`v339: 同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
     // ✅ 修复P0-4/P1-1: 同步关键词级别绩效数据（之前缺失，导致keywords表绩效全为0）
@@ -671,19 +673,54 @@ export class AmazonSyncService {
     if (!db) return 0;
 
     try {
-      const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      log.info(`v196: 开始同步搜索词数据: ${startDate} - ${endDate}`);
+      // v339: Amazon API单次请求最多31天，需要分批请求
+      const MAX_DAYS_PER_REQUEST = 31;
+      const totalDays = Math.min(days, 90); // SP搜索词最多支持90天
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+      const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+      log.info(`v339: 开始同步SP搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
+      log.info(`v339: 总范围: ${rangeStartDate} - ${rangeEndDate}`);
 
-      // 请求SP搜索词报告
-      const reportId = await this.client.requestSpSearchTermReport(startDate, endDate);
-      const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
+      // v339: 分批请求报告，合并所有批次的数据
+      let allReportData: any[] = [];
+      for (let batch = 0; batch < batches; batch++) {
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const batchStartDate = startDateObj.toISOString().split('T')[0];
+        const batchEndDate = endDateObj.toISOString().split('T')[0];
+        log.info(`v339: SP搜索词第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+        try {
+          const reportId = await this.client.requestSpSearchTermReport(batchStartDate, batchEndDate);
+          const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
+          if (reportData && reportData.length > 0) {
+            allReportData = allReportData.concat(reportData);
+            log.info(`v339: 第${batch + 1}批获取到 ${reportData.length} 条数据`);
+          } else {
+            log.debug(`v339: 第${batch + 1}批数据为空`);
+          }
+          // 批次之间延迟，避免触发API速率限制
+          if (batch < batches - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (batchError: any) {
+          log.error(`v339: SP搜索词第${batch + 1}批请求失败:`, batchError.message);
+          // 继续下一批，不中断整个同步
+        }
+      }
 
-      if (!reportData || reportData.length === 0) {
-        log.debug('v196: 搜索词报告数据为空');
+      const startDate = rangeStartDate;
+      const endDate = rangeEndDate;
+
+      if (allReportData.length === 0) {
+        log.debug('v339: 所有批次搜索词报告数据为空');
         return 0;
       }
 
-      log.info(`v196: 获取到 ${reportData.length} 条搜索词数据，开始批量预加载...`);
+      const reportData = allReportData;
+      log.info(`v339: 共获取到 ${reportData.length} 条搜索词数据（${batches}批合并），开始批量预加载...`);
 
       // v196: 批量预加载所有关联数据，避免逐行查询
       // 1. 预加载campaigns: amazonCampaignId -> localCampaign
@@ -850,21 +887,43 @@ export class AmazonSyncService {
   async syncAutoTargeting(days: number = 14): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
-
     try {
-      const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      log.info(`开始同步自动定向数据: ${startDate} - ${endDate}`);
+      // v339: Amazon API单次请求最多31天，需要分批请求
+      const MAX_DAYS_PER_REQUEST = 31;
+      const totalDays = Math.min(days, 90);
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+      const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+      log.info(`v339: 开始同步SP自动定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-      // 请求SP自动定向报告
-      const reportId = await this.client.requestSpAutoTargetingReport(startDate, endDate);
-      const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
-
-      if (!reportData || reportData.length === 0) {
-        log.debug('自动定向报告数据为空');
-        return 0;
+      let allReportData: any[] = [];
+      for (let batch = 0; batch < batches; batch++) {
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const batchStartDate = startDateObj.toISOString().split('T')[0];
+        const batchEndDate = endDateObj.toISOString().split('T')[0];
+        log.info(`v339: SP自动定向第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+        try {
+          const reportId = await this.client.requestSpAutoTargetingReport(batchStartDate, batchEndDate);
+          const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
+          if (batchData && batchData.length > 0) {
+            allReportData = allReportData.concat(batchData);
+            log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+          }
+          if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (batchError: any) {
+          log.error(`v339: SP自动定向第${batch + 1}批请求失败:`, batchError.message);
+        }
       }
 
-      log.debug(`获取到 ${reportData.length} 条自动定向数据`);
+      const reportData = allReportData;
+      if (!reportData || reportData.length === 0) {
+        log.debug('v339: 所有批次自动定向报告数据为空');
+        return 0;
+      }
+      log.info(`v339: 共获取到 ${reportData.length} 条自动定向数据（${batches}批合并）`);;
       let synced = 0;
 
       for (const row of reportData) {

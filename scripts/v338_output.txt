@@ -1,0 +1,175 @@
+================================================================================
+v338 生产环境数据分析
+================================================================================
+✅ 数据库连接成功
+
+
+============================================================
+1. 系统版本和部署信息
+============================================================
+
+v338相关事件数: 10
+  [2026-02-18 08:50:47] None |  | 基于历史表现优化出价
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅2，探测性提价+$0.06寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅45，探测性提价+$0.08寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅2，探测性提价+$0.07寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅0，探测性提价+$0.09寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅1，探测性提价+$0.05寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅0，探测性提价+$0.08寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅0，探测性提价+$0.05寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅2，探测性提价+$0.07寻找合理价位
+  [2026-02-18 12:19:21] bayesian |  | 商品定向 - [bayesian] [探索模式] 曝光量仅0，探测性提价+$0.08寻找合理价位
+
+最近系统事件:
+  [2026-03-06 02:00:56] v336 | v336 启动恢复: 重置 2 个被中断的任务
+    detail: {"type":"task_recovery","systemVersion":336,"recoveredTasks":2,"recoveryReason":"restart_after_deploy"}
+  [2026-03-05 16:58:58] v336 | v336 部署后效果验证: 通过
+    detail: {"type":"post_deploy_verification","systemVersion":336,"deployResult":{"triggered":true,"targetsProcessed":9,"targetsSucceeded":9,"targetsFailed":0,"totalActions":385},"correctionResult":{"issuesFound
+  [2026-03-05 12:11:27] v329 | v329 部署后效果验证: 通过
+    detail: {"type":"post_deploy_verification","systemVersion":329,"deployResult":{"triggered":true,"targetsProcessed":9,"targetsSucceeded":9,"targetsFailed":0,"totalActions":298},"correctionResult":{"issuesFound
+  [2026-03-05 11:29:49] v329 | v329 部署后效果验证: 通过
+    detail: {"type":"post_deploy_verification","systemVersion":329,"deployResult":{"triggered":true,"targetsProcessed":9,"targetsSucceeded":7,"targetsFailed":2,"totalActions":127},"correctionResult":{"issuesFound
+  [2026-03-04 18:31:13] v305 | v305-Cal checkpoint 3/9
+
+✅ v338部署时间: 2026-02-18 08:50:47
+
+============================================================
+3. 优化事件总览（自v338部署以来）
+============================================================
+
+总事件分类统计:
+
+  📁 :
+                                   | status=success    | api_sync=synced          | count=     1 | 2026-02-28 17:50:03 ~ 2026-02-28 17:50:03
+
+  📁 bid_adjustment:
+    bid_increase                   | status=success    | api_sync=synced          | count= 28502 | 2026-02-18 08:57:08 ~ 2026-03-06 04:13:36
+    bid_decrease                   | status=success    | api_sync=synced          | count= 27468 | 2026-02-18 09:14:49 ~ 2026-03-06 04:13:36
+    auto_correction                | status=success    | api_sync=synced          | count= 14378 | 2026-02-21 09:17:43 ~ 2026-03-05 18:27:41
+                                   | status=success    | api_sync=synced          | count=  4070 | 2026-02-20 16:21:24 ~ 2026-03-06 02:27:34
+    bid_increase                   | status=rolled_back | api_sync=synced          | count=  1486 | 2026-02-18 08:50:47 ~ 2026-02-19 14:19:19
+    bid_decrease                   | status=success    | api_sync=not_applicable  | count=   983 | 2026-02-19 02:50:15 ~ 2026-03-05 14:28:58
+    bid_increase                   | status=success    | api_sync=not_applicable  | count=   640 | 2026-02-19 18:44:34 ~ 2026-02-19 20:25:43
+    bid_decrease                   | status=failed     | api_sync=not_applicable  | count=   292 | 2026-02-18 17:11:54 ~ 2026-02-20 02:56:08
+    bid_decrease                   | status=success    | api_sync=pending         | count=   233 | 2026-02-26 01:34:35 ~ 2026-03-05 14:28:58
+    target_enable                  | status=success    | api_sync=not_applicable  | count=   206 | 2026-02-20 02:56:08 ~ 2026-03-05 01:20:11
+    target_pause                   | status=success    | api_sync=synced          | count=   142 | 2026-02-26 03:29:45 ~ 2026-03-06 00:34:10
+    target_enable                  | status=success    | api_sync=synced          | count=   137 | 2026-02-26 08:58:22 ~ 2026-03-06 04:12:54
+    bid_increase                   | status=failed     | api_sync=not_applicable  | count=   123 | 2026-02-18 17:12:24 ~ 2026-02-19 22:41:52
+    bid_decrease                   | status=failed     | api_sync=failed          | count=    14 | 2026-03-05 07:11:41 ~ 2026-03-06 06:13:26
+    dayparting_bid                 | status=success    | api_sync=synced          | count=    11 | 2026-02-27 16:47:22 ~ 2026-03-03 01:35:43
+    bid_increase                   | status=failed     | api_sync=synced          | count=     4 | 2026-03-02 03:18:41 ~ 2026-03-02 03:18:42
+    bid_decrease                   | status=failed     | api_sync=synced          | count=     2 | 2026-03-02 03:18:42 ~ 2026-03-02 03:18:42
+    bid_auto_adjust                | status=success    | api_sync=not_applicable  | count=     1 | 2026-02-19 14:23:16 ~ 2026-02-19 14:23:16
+
+  📁 placement_adjustment:
+    placement_adjust               | status=success    | api_sync=not_applicable  | count=     1 | 2026-02-19 14:24:28 ~ 2026-02-19 14:24:28
+
+  📁 budget_adjustment:
+    budget_adjustment              | status=success    | api_sync=not_applicable  | count=   525 | 2026-02-18 12:19:21 ~ 2026-02-19 22:46:59
+    settings_update                | status=success    | api_sync=synced          | count=   478 | 2026-03-04 15:55:22 ~ 2026-03-05 01:21:51
+    auto_correction                | status=success    | api_sync=synced          | count=   236 | 2026-02-21 09:17:38 ~ 2026-02-22 10:26:47
+    budget_adjustment              | status=success    | api_sync=synced          | count=   121 | 2026-02-18 12:19:21 ~ 2026-02-19 23:46:06
+
+  📁 keyword_action:
+    target_enable                  | status=success    | api_sync=not_applicable  | count=    32 | 2026-02-18 17:11:54 ~ 2026-02-19 23:46:06
+
+  📁 settings_change:
+    settings_update                | status=success    | api_sync=not_applicable  | count= 19095 | 2026-02-20 02:56:08 ~ 2026-03-06 07:36:47
+    keyword_create                 | status=success    | api_sync=invalid_legacy  | count=  2242 | 2026-02-18 08:50:47 ~ 2026-03-06 02:15:59
+    keyword_create                 | status=success    | api_sync=not_applicable  | count=  2116 | 2026-02-26 19:36:40 ~ 2026-03-06 06:14:39
+    keyword_create                 | status=success    | api_sync=synced          | count=  1988 | 2026-02-18 08:50:47 ~ 2026-02-27 16:47:22
+    keyword_create                 | status=failed     | api_sync=synced          | count=  1657 | 2026-02-18 10:16:56 ~ 2026-02-19 23:46:06
+    keyword_create                 | status=success    | api_sync=                | count=  1049 | 2026-03-04 03:23:17 ~ 2026-03-06 06:14:39
+    settings_update                | status=failed     | api_sync=not_applicable  | count=   288 | 2026-02-20 02:56:08 ~ 2026-02-28 16:19:37
+    negative_keyword_add           | status=success    | api_sync=synced          | count=   149 | 2026-02-27 16:47:22 ~ 2026-03-06 06:14:38
+    auto_correction                | status=success    | api_sync=not_applicable  | count=    34 | 2026-02-23 14:11:35 ~ 2026-03-06 02:00:56
+    negative_keyword_add           | status=success    | api_sync=not_applicable  | count=    25 | 2026-02-18 17:14:16 ~ 2026-02-19 22:45:34
+    keyword_create                 | status=failed     | api_sync=invalid_legacy  | count=    21 | 2026-02-18 12:19:21 ~ 2026-03-04 07:19:13
+    settings_update                | status=success    | api_sync=synced          | count=    10 | 2026-02-20 02:56:08 ~ 2026-02-20 02:56:08
+    settings_update                | status=failed     | api_sync=failed          | count=    10 | 2026-02-28 22:03:53 ~ 2026-03-04 07:08:33
+    settings_update                | status=pending    | api_sync=not_applicable  | count=     3 | 2026-02-26 17:09:37 ~ 2026-03-05 08:20:22
+    campaign_pause                 | status=success    | api_sync=synced          | count=     2 | 2026-02-19 11:32:20 ~ 2026-02-19 11:34:37
+    keyword_create                 | status=failed     | api_sync=failed          | count=     2 | 2026-03-06 06:14:13 ~ 2026-03-06 06:14:53
+    settings_update                | status=           | api_sync=not_applicable  | count=     1 | 2026-03-05 11:28:35 ~ 2026-03-05 11:28:35
+
+  📁 auto_correction:
+    auto_correction                | status=success    | api_sync=synced          | count=     9 | 2026-02-21 10:15:04 ~ 2026-02-23 21:39:48
+
+============================================================
+4. 否词（Negative Keyword）分析
+============================================================
+
+否词添加统计:
+  status=success    | api_sync=synced          | count=   149 | campaigns=3 | adgroups=0 | accounts=1
+  status=success    | api_sync=not_applicable  | count=    25 | campaigns=3 | adgroups=0 | accounts=1
+
+否词按算法版本:
+  N/A             | total=   174 | synced=  149 | failed=    0 | pending=    0
+
+最近否词样本:
+  [2026-03-06 06:14:38] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 22次点击, 0订单, 花费$9.00(AOV=$0, 超过容忍线$9.00)
+  [2026-03-06 02:34:02] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-06 02:16:09] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-06 01:02:45] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-06 00:35:08] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-06 00:34:10] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 22次点击, 0订单, 花费$9.00(AOV=$0, 超过容忍线$9.00)
+  [2026-03-06 00:01:28] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-05 23:02:05] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-05 21:43:27] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-05 21:40:51] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 22次点击, 0订单, 花费$9.00(AOV=$0, 超过容忍线$9.00)
+  [2026-03-05 20:38:25] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-05 20:36:06] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 22次点击, 0订单, 花费$9.00(AOV=$0, 超过容忍线$9.00)
+  [2026-03-05 19:41:52] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+  [2026-03-05 19:39:56] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 22次点击, 0订单, 花费$9.00(AOV=$0, 超过容忍线$9.00)
+  [2026-03-05 19:08:48] 'None' (None) | success | api=synced | vNone
+    reason: v204智能否定: 高点击无转化: 21次点击, 0订单, 花费$21.57(AOV=$0, 超过容忍线$21.57)
+
+============================================================
+5. 否ASIN分析
+============================================================
+
+否ASIN/Target管理统计:
+  target_pause              | status=success    | api_sync=synced          | count=   142
+Traceback (most recent call last):
+  File "/home/ubuntu/amazon-ads-optimizer/scripts/v338_analysis.py", line 709, in <module>
+    main()
+  File "/home/ubuntu/amazon-ads-optimizer/scripts/v338_analysis.py", line 232, in main
+    neg_asin_table = run_query(conn, """
+                     ^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/amazon-ads-optimizer/scripts/v338_analysis.py", line 26, in run_query
+    cursor.execute(sql, params)
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/cursors.py", line 153, in execute
+    result = self._query(query)
+             ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/cursors.py", line 322, in _query
+    conn.query(q)
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/connections.py", line 575, in query
+    self._affected_rows = self._read_query_result(unbuffered=unbuffered)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/connections.py", line 826, in _read_query_result
+    result.read()
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/connections.py", line 1203, in read
+    first_packet = self.connection._read_packet()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/connections.py", line 782, in _read_packet
+    packet.raise_for_error()
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/protocol.py", line 219, in raise_for_error
+    err.raise_mysql_exception(self._data)
+  File "/usr/local/lib/python3.11/dist-packages/pymysql/err.py", line 150, in raise_mysql_exception
+    raise errorclass(errno, errval)
+pymysql.err.OperationalError: (1054, "Unknown column 'match_type' in 'field list'")

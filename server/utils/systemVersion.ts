@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 338;  // v338: 统一智能冷启动机制——四大场景(新授权/凭证刷新/新站点/版本升级)自动全量同步+数据年龄分层优化
+export const SYSTEM_VERSION = 339;  // v339: 数据同步分批处理全面修复——所有报告类型支持31天分批请求，确保90天历史数据完整拉取
