@@ -303,16 +303,70 @@ export async function syncNewKeywordsToAmazon(
     return result;
   }
   
+  // v337: Amazon端存在性检查 - 在创建前检查关键词是否已存在于Amazon
+  // 按adGroupId分组，批量查询已存在的关键词
+  let keywordsToCreate = [...newKeywords]; // v337: 使用副本避免修改原始参数
+  const existingKeywordsMap = new Map<string, Set<string>>(); // adGroupId -> Set<"keywordText::matchType">
+  try {
+    const adGroupIds = [...new Set(newKeywords.map(k => String(k.adGroupId)))];
+    for (const agId of adGroupIds) {
+      try {
+        const existingKws = await syncService.client.listSpKeywords(Number(agId));
+        const keySet = new Set<string>();
+        for (const kw of existingKws) {
+          const text = (kw.keywordText || '').toLowerCase().trim();
+          const mt = (kw.matchType || '').toLowerCase();
+          if (text) keySet.add(`${text}::${mt}`);
+        }
+        existingKeywordsMap.set(agId, keySet);
+        log.debug(`[AmazonApiHelper] v337: AdGroup ${agId} 已有 ${keySet.size} 个关键词`);
+      } catch (listErr: any) {
+        log.warn(`[AmazonApiHelper] v337: 查询AdGroup ${agId} 关键词列表失败(继续创建): ${listErr.message}`);
+      }
+    }
+    
+    // 过滤掉已存在的关键词
+    const filteredKeywords: typeof newKeywords = [];
+    for (const kw of newKeywords) {
+      const agKeySet = existingKeywordsMap.get(String(kw.adGroupId));
+      const lookupKey = `${kw.keywordText.toLowerCase().trim()}::${kw.matchType.toLowerCase()}`;
+      if (agKeySet && agKeySet.has(lookupKey)) {
+        result.success++; // 已存在视为成功（幂等）
+        result.createdKeywords.push({
+          localId: kw.localKeywordId,
+          amazonKeywordId: 0,
+          keywordText: kw.keywordText,
+        });
+        log.info(`[AmazonApiHelper] v337: 关键词已存在于Amazon，跳过创建: "${kw.keywordText}" [${kw.matchType}] in adGroup ${kw.adGroupId}`);
+      } else {
+        filteredKeywords.push(kw);
+      }
+    }
+    
+    if (filteredKeywords.length < newKeywords.length) {
+      log.info(`[AmazonApiHelper] v337: Amazon端去重: ${newKeywords.length}个 -> ${filteredKeywords.length}个 (${newKeywords.length - filteredKeywords.length}个已存在)`);
+    }
+    
+    // 使用过滤后的列表继续
+    keywordsToCreate = filteredKeywords;
+    if (keywordsToCreate.length === 0) {
+      log.info(`[AmazonApiHelper] v337: 所有关键词已存在于Amazon，无需创建`);
+      return result;
+    }
+  } catch (checkErr: any) {
+    log.warn(`[AmazonApiHelper] v337: Amazon端存在性检查失败(继续正常创建): ${checkErr.message}`);
+  }
+  
   // v127: 分批处理机制 - 每批最多50个关键词，批间延迟1秒避免限流
   const BATCH_SIZE = 50;
   const BATCH_DELAY_MS = 2000;  // v248: 从1000增加到2000ms，减少Amazon API 429限流
-  const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
-  log.info(`[AmazonApiHelper] 分批处理: 总计${newKeywords.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
+  const totalBatches = Math.ceil(keywordsToCreate.length / BATCH_SIZE);
+  log.info(`[AmazonApiHelper] 分批处理: 总计${keywordsToCreate.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
   
   for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
     const batchStart = batchIdx * BATCH_SIZE;
-    const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
-    const batch = newKeywords.slice(batchStart, batchEnd);
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, keywordsToCreate.length);
+    const batch = keywordsToCreate.slice(batchStart, batchEnd);
     
     log.info(`[AmazonApiHelper] 处理第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词 (索引 ${batchStart}-${batchEnd - 1})`);
     

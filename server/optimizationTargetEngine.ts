@@ -1445,6 +1445,11 @@ async function executeBidOptimization(
             // v258: 传递结构化归因和护栏信息
             reasonDetails: nextGenResult.reasonDetails,
             guardrailInfo: nextGenResult.guardrailInfo,
+            // v337: 传递修正层标记和Meta-Learning决策详情
+            correctionLayers: nextGenResult.correctionLayers,
+            metaLearningDetail: nextGenResult.metaLearningDetail,
+            gtoModifier: nextGenResult.gtoModifier,
+            causalAdjustment: nextGenResult.causalAdjustment,
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -1520,6 +1525,11 @@ async function executeBidOptimization(
             // v258: 传递结构化归因和护栏信息
             reasonDetails: nextGenResult.reasonDetails,
             guardrailInfo: nextGenResult.guardrailInfo,
+            // v337: 传递修正层标记和Meta-Learning决策详情
+            correctionLayers: nextGenResult.correctionLayers,
+            metaLearningDetail: nextGenResult.metaLearningDetail,
+            gtoModifier: nextGenResult.gtoModifier,
+            causalAdjustment: nextGenResult.causalAdjustment,
           });
           if (!dryRun) adjustmentsCount++;
         }
@@ -2056,6 +2066,71 @@ async function executeDaypartingOptimization(
           }
         );
       }
+      
+      // v337: 分时竞价全量开启 — draft状态的策略自动分析数据并升级为active
+      if (strategy && strategy.daypartingStatus === 'draft') {
+        try {
+          // 检查广告活动是否有足够数据（至少7天的每日数据）
+          const weeklyData = await daypartingService.analyzeWeeklyPerformance(Number(campaignAmazonId), 30);
+          const totalDataPoints = weeklyData.reduce((sum, d) => sum + d.dataPoints, 0);
+          
+          if (totalDataPoints >= 7) {
+            // 有足够数据，自动分析并生成有意义的分时规则
+            const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
+            
+            if (hourlyData.length > 0) {
+              // 计算最优出价调整并保存
+              const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
+                optimizationGoal: config.optimizationGoal as any,
+                targetAcos: config.targetAcos,
+                targetRoas: config.targetRoas,
+              });
+              await daypartingService.saveBidRules(strategy.id, bidAdjustments.map(rule => ({
+                dayOfWeek: rule.dayOfWeek,
+                hour: rule.hour,
+                bidMultiplier: rule.bidMultiplier.toString(),
+                avgClicks: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgClicks?.toString(),
+                avgSpend: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgSpend?.toString(),
+                avgSales: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgSales?.toString(),
+                avgCvr: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgCvr?.toString(),
+                avgCpc: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgCpc?.toString(),
+                avgAcos: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgAcos?.toString(),
+                dataPoints: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.dataPoints || 0,
+                isEnabled: 1,
+              })));
+              
+              // 计算最优预算分配并保存
+              const budgetAllocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
+                optimizationGoal: config.optimizationGoal as any,
+                targetAcos: config.targetAcos,
+                targetRoas: config.targetRoas,
+              });
+              await daypartingService.saveBudgetRules(strategy.id, budgetAllocation.map(rule => ({
+                dayOfWeek: rule.dayOfWeek,
+                budgetMultiplier: rule.budgetMultiplier.toString(),
+                budgetPercentage: rule.budgetPercentage.toString(),
+                avgSpend: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.avgSpend?.toString(),
+                avgSales: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.avgSales?.toString(),
+                avgAcos: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.avgAcos?.toString(),
+                avgRoas: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.avgRoas?.toString(),
+                dataPoints: weeklyData.find(d => d.dayOfWeek === rule.dayOfWeek)?.dataPoints || 0,
+                isEnabled: 1,
+              })));
+              
+              // 升级策略状态为active
+              await daypartingService.updateDaypartingStrategy(strategy.id, { daypartingStatus: 'active' as any });
+              strategy.daypartingStatus = 'active';
+              log.info(`[DaypartingOptimization] v337: 自动升级分时策略 strategyId=${strategy.id} 从draft→active，数据点=${totalDataPoints}，小时数据=${hourlyData.length}条`);
+            }
+          } else {
+            log.info(`[DaypartingOptimization] v337: 广告活动 ${campaign.campaignName} 数据不足(${totalDataPoints}<7)，保持draft状态`);
+          }
+        } catch (upgradeErr: any) {
+          log.warn(`[DaypartingOptimization] v337: 自动升级分时策略失败: ${upgradeErr.message}`);
+        }
+      }
+      
+      // v337: 全量开启——active策略正常执行，draft策略在数据充足后自动升级
       if (!strategy || strategy.daypartingStatus !== 'active') continue;
       
       // 获取当前时段的调整规则

@@ -5106,6 +5106,20 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
           if (detail.causalAdjustment) {
             meta.causal = detail.causalAdjustment;
           }
+          // v337: 提取修正层标记
+          if (detail.correctionLayers) {
+            meta.correctionLayers = detail.correctionLayers;
+          }
+          // v337: 提取Meta-Learning决策详情
+          if (detail.metaLearningDetail) {
+            meta.metaLearning = {
+              candidateAlgorithms: detail.metaLearningDetail.candidateAlgorithms,
+              selectedAlgorithm: detail.metaLearningDetail.selectedAlgorithm,
+              selectionReason: detail.metaLearningDetail.selectionReason,
+              fusionMode: detail.metaLearningDetail.fusionMode,
+              fusionDetail: detail.metaLearningDetail.fusionDetail,
+            };
+          }
           if (detail.algorithmTier) meta.algorithmTier = detail.algorithmTier;
           if (detail.algorithmUsed) meta.algorithmUsed = detail.algorithmUsed;
           return Object.keys(meta).length > 0 ? JSON.stringify(meta) : undefined;

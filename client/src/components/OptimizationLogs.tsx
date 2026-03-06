@@ -903,6 +903,75 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                       </div>
                     )}
                     
+                    {/* v337: 修正层标记 — GTO/Cascade Fusion/因果推断 */}
+                    {actionDetail.correctionLayers && (
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-xs font-medium text-muted-foreground">修正层:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {actionDetail.correctionLayers.gtoApplied && (
+                            <Badge variant="secondary" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/20">
+                              GTO博弈论修正 (×{actionDetail.correctionLayers.gtoCompositeModifier?.toFixed(3) || '?'})
+                            </Badge>
+                          )}
+                          {actionDetail.correctionLayers.cascadeFusionApplied && (
+                            <Badge variant="secondary" className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">
+                              Cascade Fusion [{actionDetail.correctionLayers.cascadeFusionAlgorithms?.join('+') || '?'}]
+                            </Badge>
+                          )}
+                          {actionDetail.correctionLayers.causalInferenceApplied && (
+                            <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600 border-green-500/20">
+                              因果推断修正
+                            </Badge>
+                          )}
+                          {!actionDetail.correctionLayers.gtoApplied && !actionDetail.correctionLayers.cascadeFusionApplied && !actionDetail.correctionLayers.causalInferenceApplied && (
+                            <span className="text-xs text-muted-foreground">无修正层介入</span>
+                          )}
+                        </div>
+                        {actionDetail.correctionLayers.gtoApplied && actionDetail.correctionLayers.gtoActiveEngines?.length > 0 && (
+                          <p className="text-xs text-muted-foreground pl-1">
+                            GTO子引擎: {actionDetail.correctionLayers.gtoActiveEngines.join(', ')}
+                          </p>
+                        )}
+                        {actionDetail.correctionLayers.cascadeFusionDetail && (
+                          <p className="text-xs text-muted-foreground pl-1 break-all">
+                            {actionDetail.correctionLayers.cascadeFusionDetail}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* v337: Meta-Learning决策详情 */}
+                    {actionDetail.metaLearningDetail && (
+                      <div className="space-y-1.5 pt-1">
+                        <p className="text-xs font-medium text-muted-foreground">Meta-Learning算法选择:</p>
+                        <div className="bg-muted/30 rounded p-2 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">模式:</span>
+                            <Badge variant="outline" className="text-xs">
+                              {actionDetail.metaLearningDetail.fusionMode === 'cascade_ensemble' ? 'Cascade融合' : '单算法'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{actionDetail.metaLearningDetail.selectionReason}</p>
+                          {actionDetail.metaLearningDetail.candidateAlgorithms?.length > 0 && (
+                            <div className="space-y-0.5">
+                              <p className="text-xs text-muted-foreground">候选算法评分:</p>
+                              {actionDetail.metaLearningDetail.candidateAlgorithms.map((alg: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className={`font-mono ${alg.algorithm === actionDetail.metaLearningDetail.selectedAlgorithm ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                    {alg.algorithm}
+                                  </span>
+                                  <span className="text-muted-foreground">得分={alg.score.toFixed(3)}</span>
+                                  <Badge variant={alg.eligible ? 'default' : 'destructive'} className="text-[10px] px-1 py-0">
+                                    {alg.eligible ? '可用' : '不可用'}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* 决策上下文面板 */}
                     {renderDecisionContext(actionDetail)}
                     {/* v258: 护栏机制信息 */}

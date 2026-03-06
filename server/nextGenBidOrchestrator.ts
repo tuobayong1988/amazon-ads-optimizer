@@ -454,6 +454,26 @@ export interface NextGenBidResult {
     maxBidCapped: boolean;       // 最高出价限制
     details?: string;            // 护栏详情说明
   };
+  /** v337: 修正层标记 — 显式记录GTO和Cascade Fusion的介入 */
+  correctionLayers?: {
+    gtoApplied: boolean;           // GTO博弈论修正是否生效
+    gtoCompositeModifier?: number; // GTO综合修正系数
+    gtoActiveEngines?: string[];   // GTO生效的子引擎列表
+    cascadeFusionApplied: boolean; // Cascade Fusion是否生效
+    cascadeFusionAlgorithms?: string[]; // 参与融合的算法列表
+    cascadeFusionDetail?: string;  // Cascade Fusion融合详情
+    causalInferenceApplied: boolean; // 因果推断修正是否生效
+  };
+  /** v337: Meta-Learning决策详情 — 记录算法选择的完整过程 */
+  metaLearningDetail?: {
+    candidateAlgorithms: Array<{ algorithm: string; score: number; eligible: boolean; reason: string }>;
+    selectedAlgorithm: string;
+    selectionReason: string;
+    fusionMode: 'single' | 'cascade_ensemble';
+    fusionDetail: string;
+    dynamicConfidenceThreshold: number;
+    evolvedConfidenceMultiplier: number;
+  };
 }
 
 export interface SafetyConfig {
@@ -1347,6 +1367,35 @@ function buildResult(
     details: reason.includes('guardrail') ? reason.split('guardrail:')[1]?.trim() : undefined,
   };
   
+  // v337: 构建修正层标记 — 显式记录GTO和Cascade Fusion的介入
+  const correctionLayers = {
+    gtoApplied: false,
+    gtoCompositeModifier: undefined as number | undefined,
+    gtoActiveEngines: undefined as string[] | undefined,
+    cascadeFusionApplied: metaDecision?.fusionMode === 'cascade_ensemble',
+    cascadeFusionAlgorithms: metaDecision?.fusionMode === 'cascade_ensemble'
+      ? metaDecision.algorithmScores?.filter(s => s.eligible).slice(0, 2).map(s => s.algorithm)
+      : undefined,
+    cascadeFusionDetail: metaDecision?.fusionDetail || undefined,
+    causalInferenceApplied: false,
+  };
+
+  // v337: 构建Meta-Learning决策详情
+  const metaLearningDetail = metaDecision ? {
+    candidateAlgorithms: metaDecision.algorithmScores?.map(s => ({
+      algorithm: s.algorithm,
+      score: s.score,
+      eligible: s.eligible,
+      reason: s.reason,
+    })) || [],
+    selectedAlgorithm: metaDecision.selectedAlgorithm,
+    selectionReason: metaDecision.reasoning,
+    fusionMode: metaDecision.fusionMode || 'single' as const,
+    fusionDetail: metaDecision.fusionDetail || '',
+    dynamicConfidenceThreshold: 0, // 将在调用处填充
+    evolvedConfidenceMultiplier: 1, // 将在调用处填充
+  } : undefined;
+
   return {
     targetId: target.id,
     targetType: target.type,
@@ -1361,6 +1410,8 @@ function buildResult(
     algorithmTier: tier,
     reasonDetails,
     guardrailInfo,
+    correctionLayers,
+    metaLearningDetail,
   };
 }
 
@@ -1488,6 +1539,10 @@ export async function batchCalculateNextGenBids(
         result.newBid = finalCausalBid;
         result.reason += ` | 因果修正: uplift=${causalData.upliftScore.toFixed(3)}, 最优出价=$${causalData.optimalBid.toFixed(2)}`;
       }
+      // v337: 填充correctionLayers的因果推断标记
+      if (result.correctionLayers) {
+        result.correctionLayers.causalInferenceApplied = result.causalAdjustment.applied;
+      }
     }
     
     // v236: 应用GTO修正
@@ -1517,6 +1572,22 @@ export async function batchCalculateNextGenBids(
         : 'hold';
       result.reason += ` | GTO修正: ${gtoMod.reasoning}`;
       result.gtoModifier = gtoMod;
+      // v337: 填充correctionLayers的GTO标记
+      if (result.correctionLayers) {
+        result.correctionLayers.gtoApplied = true;
+        result.correctionLayers.gtoCompositeModifier = gtoMod.compositeModifier;
+        // 提取GTO生效的子引擎列表（修正系数不为1.0的引擎）
+        const activeEngines: string[] = [];
+        if (gtoMod.breakdown) {
+          if (gtoMod.breakdown.evModifier !== 1.0) activeEngines.push('ev_analysis');
+          if (gtoMod.breakdown.explorationModifier !== 1.0) activeEngines.push('exploration');
+          if (gtoMod.breakdown.budgetModifier !== 1.0) activeEngines.push('budget_pool');
+          if (gtoMod.breakdown.windowModifier !== 1.0) activeEngines.push('opportunity_window');
+          if (gtoMod.breakdown.portfolioModifier !== 1.0) activeEngines.push('portfolio_role');
+          if (gtoMod.breakdown.competitionModifier !== 1.0) activeEngines.push('competition');
+        }
+        result.correctionLayers.gtoActiveEngines = activeEngines;
+      }
     }
     
     results.push(result);
