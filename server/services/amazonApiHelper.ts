@@ -1052,7 +1052,8 @@ export async function syncCampaignStatusToAmazon(
         } catch (e: any) {
           lastError = e;
           // 不可重试的错误立即跳出
-          if (e.response?.status === 400 || e.response?.status === 404 || e.response?.status === 422) {
+          // v336.2: 401/403也加入不可重试列表，认证失败重试无意义
+          if (e.response?.status === 400 || e.response?.status === 401 || e.response?.status === 403 || e.response?.status === 404 || e.response?.status === 422) {
             break;
           }
         }

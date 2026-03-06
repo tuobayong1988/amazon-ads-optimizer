@@ -62324,7 +62324,7 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
           break;
         } catch (e6) {
           lastError = e6;
-          if (e6.response?.status === 400 || e6.response?.status === 404 || e6.response?.status === 422) {
+          if (e6.response?.status === 400 || e6.response?.status === 401 || e6.response?.status === 403 || e6.response?.status === 404 || e6.response?.status === 422) {
             break;
           }
         }
