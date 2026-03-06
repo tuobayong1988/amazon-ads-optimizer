@@ -3958,7 +3958,7 @@ export const prelaunchProjects = mysqlTable("prelaunch_projects", {
 export type PrelaunchProject = InferSelectModel<typeof prelaunchProjects>;
 export type InsertPrelaunchProject = InferInsertModel<typeof prelaunchProjects>;
 
-/** 预发布关键词表 */
+/** 预发布关键词表 — v4.0 关系型词库升级：四维画像 + 关系网络 */
 export const prelaunchKeywords = mysqlTable("prelaunch_keywords", {
   id: int().autoincrement().notNull(),
   projectId: int("project_id").notNull(),
@@ -3980,17 +3980,48 @@ export const prelaunchKeywords = mysqlTable("prelaunch_keywords", {
   scenarioConfidence: decimal("scenario_confidence", { precision: 8, scale: 4 }),
   dataSource: varchar("data_source", { length: 50 }),
   rawData: json("raw_data"),
+  // === v4.0 四维画像字段 (4D Profile) ===
+  // 第一维：商业价值 (Commercial Value)
+  commercialValue: mysqlEnum("commercial_value", [
+    'core_traffic', 'core_conversion', 'precision_longtail', 'broad_traffic', 'low_value'
+  ]),
+  commercialScore: decimal("commercial_score", { precision: 8, scale: 4 }),
+  clickConcentration: decimal("click_concentration", { precision: 8, scale: 4 }),
+  ppcBidEstimate: decimal("ppc_bid_estimate", { precision: 10, scale: 2 }),
+  purchaseRate: decimal("purchase_rate", { precision: 8, scale: 4 }),
+  // 第二维：用户意图 (User Intent)
+  userIntent: mysqlEnum("user_intent", [
+    'informational', 'navigational', 'commercial_investigation', 'transactional'
+  ]),
+  intentConfidence: decimal("intent_confidence", { precision: 8, scale: 4 }),
+  // 第三维：购买阶段 (Purchase Stage)
+  purchaseStage: mysqlEnum("purchase_stage", [
+    'awareness', 'interest', 'consideration', 'purchase', 'loyalty'
+  ]),
+  purchaseStageConfidence: decimal("purchase_stage_confidence", { precision: 8, scale: 4 }),
+  // 第四维：产品属性标签 (Product Attributes)
+  productAttributes: json("product_attributes"),
+  // === v4.0 场景分布画像 ===
+  sceneDistribution: json("scene_distribution"),
+  // === v4.0 蓝海验证 ===
+  blueOceanVerified: tinyint("blue_ocean_verified").default(0),
+  blueOceanEvidence: text("blue_ocean_evidence"),
   createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
 }, (table) => [
   index("idx_plkw_project").on(table.projectId),
   index("idx_plkw_relevance").on(table.relevanceLayer),
   index("idx_plkw_scenario").on(table.scenarioCode),
   index("idx_plkw_kvi").on(table.kviScore),
+  index("idx_plkw_commercial").on(table.commercialValue),
+  index("idx_plkw_intent").on(table.userIntent),
+  index("idx_plkw_stage").on(table.purchaseStage),
+  index("idx_plkw_cluster").on(table.clusterId),
 ]);
 export type PrelaunchKeyword = InferSelectModel<typeof prelaunchKeywords>;
 export type InsertPrelaunchKeyword = InferInsertModel<typeof prelaunchKeywords>;
 
-/** 关键词聚类表 */
+/** 关键词聚类表（意图簇）— v4.0 升级：场景绑定 + 广告组映射 */
 export const prelaunchKeywordClusters = mysqlTable("prelaunch_keyword_clusters", {
   id: int().autoincrement().notNull(),
   projectId: int("project_id").notNull(),
@@ -3999,27 +4030,42 @@ export const prelaunchKeywordClusters = mysqlTable("prelaunch_keyword_clusters",
   memberCount: int("member_count").default(0),
   avgKvi: decimal("avg_kvi", { precision: 8, scale: 4 }),
   topScenario: varchar("top_scenario", { length: 10 }),
+  // v4.0 新增字段
+  scenarioTags: json("scenario_tags"),
+  dominantIntent: varchar("dominant_intent", { length: 50 }),
+  dominantPurchaseStage: varchar("dominant_purchase_stage", { length: 50 }),
+  adGroupMapping: varchar("ad_group_mapping", { length: 200 }),
+  clusterStrength: decimal("cluster_strength", { precision: 8, scale: 4 }),
   createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 }, (table) => [
   index("idx_plkc_project").on(table.projectId),
 ]);
 
-/** 关键词关系表 */
+/** 关键词关系表 — v4.0 升级：六种语义关系类型 + 双向关系 */
 export const prelaunchKeywordRelations = mysqlTable("prelaunch_keyword_relations", {
   id: int().autoincrement().notNull(),
   projectId: int("project_id").notNull(),
   sourceKeywordId: int("source_keyword_id").notNull(),
   targetKeywordId: int("target_keyword_id").notNull(),
-  relationType: varchar("relation_type", { length: 50 }).notNull(),
+  sourceKeyword: varchar("source_keyword", { length: 500 }),
+  targetKeyword: varchar("target_keyword", { length: 500 }),
+  relationType: mysqlEnum("relation_type", [
+    'hypernym', 'hyponym', 'synonym', 'related', 'alternative', 'complementary'
+  ]).notNull(),
   strength: decimal("strength", { precision: 8, scale: 4 }),
   evidence: text("evidence"),
+  detectionMethod: varchar("detection_method", { length: 50 }),
+  coOccurrenceScore: decimal("co_occurrence_score", { precision: 8, scale: 4 }),
+  serpOverlap: decimal("serp_overlap", { precision: 8, scale: 4 }),
   createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 }, (table) => [
   index("idx_plkr_project").on(table.projectId),
   index("idx_plkr_source").on(table.sourceKeywordId),
+  index("idx_plkr_target").on(table.targetKeywordId),
+  index("idx_plkr_type").on(table.relationType),
 ]);
 
-/** COSMO因果链三元组表 */
+/** COSMO因果链三元组表 — v4.0 升级：丰富因果链元数据 */
 export const prelaunchCosmoTriples = mysqlTable("prelaunch_cosmo_triples", {
   id: int().autoincrement().notNull(),
   projectId: int("project_id").notNull(),
@@ -4029,9 +4075,50 @@ export const prelaunchCosmoTriples = mysqlTable("prelaunch_cosmo_triples", {
   relationLabel: varchar("relation_label", { length: 100 }),
   confidence: decimal("confidence", { precision: 8, scale: 4 }),
   sourceKeywordIds: json("source_keyword_ids"),
+  // v4.0 新增字段
+  sourceType: varchar("source_type", { length: 50 }),
+  scenarioCode: varchar("scenario_code", { length: 10 }),
+  painPointCategory: varchar("pain_point_category", { length: 100 }),
+  solutionCategory: varchar("solution_category", { length: 100 }),
+  valueProposition: text("value_proposition"),
+  relatedCompetitorIds: json("related_competitor_ids"),
   createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 }, (table) => [
   index("idx_plct_project").on(table.projectId),
+  index("idx_plct_scenario").on(table.scenarioCode),
+]);
+
+/** 关键词场景权重表 — v4.0 新增 */
+export const prelaunchKeywordSceneWeights = mysqlTable("prelaunch_keyword_scene_weights", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  keywordId: int("keyword_id").notNull(),
+  scenarioCode: varchar("scenario_code", { length: 10 }).notNull(),
+  scenarioLabel: varchar("scenario_label", { length: 100 }),
+  weight: decimal("weight", { precision: 8, scale: 4 }).notNull(),
+  confidence: decimal("confidence", { precision: 8, scale: 4 }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plksw_project").on(table.projectId),
+  index("idx_plksw_keyword").on(table.keywordId),
+  index("idx_plksw_scenario").on(table.scenarioCode),
+]);
+
+/** 知识图谱快照表 — v4.0 新增：存储图谱版本和统计信息 */
+export const prelaunchGraphSnapshots = mysqlTable("prelaunch_graph_snapshots", {
+  id: int().autoincrement().notNull(),
+  projectId: int("project_id").notNull(),
+  version: int("version").default(1),
+  totalNodes: int("total_nodes").default(0),
+  totalEdges: int("total_edges").default(0),
+  totalClusters: int("total_clusters").default(0),
+  totalCosmoTriples: int("total_cosmo_triples").default(0),
+  graphMetrics: json("graph_metrics"),
+  pipelineLog: json("pipeline_log"),
+  status: mysqlEnum("snapshot_status", ['building', 'completed', 'failed']).default('building'),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+}, (table) => [
+  index("idx_plgs_project").on(table.projectId),
 ]);
 
 // --- M2: 竞品库引擎 ---

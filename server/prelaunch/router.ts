@@ -79,16 +79,19 @@ export const prelaunchRouter = router({
       return svc.deleteProject(input.projectId);
     }),
 
-  // ==================== M1: 搜索词库引擎 ====================
+  // ==================== M1: 搜索词库引擎（关系型词库 / 知识图谱） ====================
 
-  /** 获取项目关键词列表 */
+  /** 获取项目关键词列表（支持四维画像筛选） */
   getKeywords: adminProcedure
     .input(z.object({
       projectId: z.number(),
       relevanceLayer: z.enum(['core', 'extended', 'long_tail', 'irrelevant']).optional(),
       scenarioCode: z.string().optional(),
       clusterId: z.number().optional(),
-      sortBy: z.enum(['kviScore', 'searchVolume', 'drAmScore']).default('kviScore'),
+      commercialValue: z.enum(['core_traffic', 'core_conversion', 'precision_longtail', 'broad_traffic', 'low_value']).optional(),
+      userIntent: z.enum(['informational', 'navigational', 'commercial_investigation', 'transactional']).optional(),
+      purchaseStage: z.enum(['awareness', 'interest', 'consideration', 'purchase', 'loyalty']).optional(),
+      sortBy: z.enum(['kviScore', 'searchVolume', 'drAmScore', 'commercialScore']).default('kviScore'),
       page: z.number().default(1),
       pageSize: z.number().default(50),
     }))
@@ -98,7 +101,7 @@ export const prelaunchRouter = router({
       return svc.getKeywords(input);
     }),
 
-  /** 运行M1词库分析流水线 */
+  /** 运行M1知识图谱构建流水线（完整的关系型词库构建） */
   runM1Pipeline: adminProcedure
     .input(z.object({
       projectId: z.number(),
@@ -111,7 +114,7 @@ export const prelaunchRouter = router({
       return svc.runPipeline(input.projectId, input.seedKeywords, input.marketplace);
     }),
 
-  /** 获取关键词聚类 */
+  /** 获取关键词意图簇（聚类） */
   getKeywordClusters: adminProcedure
     .input(z.object({ projectId: z.number() }))
     .query(async ({ input }) => {
@@ -120,13 +123,16 @@ export const prelaunchRouter = router({
       return svc.getClusters(input.projectId);
     }),
 
-  /** 获取关键词关系图 */
+  /** 获取关键词关系网络（支持按关系类型筛选） */
   getKeywordRelations: adminProcedure
-    .input(z.object({ projectId: z.number() }))
+    .input(z.object({
+      projectId: z.number(),
+      relationType: z.enum(['hypernym', 'hyponym', 'synonym', 'related', 'alternative', 'complementary']).optional(),
+    }))
     .query(async ({ input }) => {
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
-      return svc.getRelations(input.projectId);
+      return svc.getRelations(input.projectId, input.relationType);
     }),
 
   /** 获取COSMO因果链三元组 */
@@ -136,6 +142,99 @@ export const prelaunchRouter = router({
       const { M1KeywordService } = await import('./services/m1-keywords');
       const svc = new M1KeywordService();
       return svc.getCosmoTriples(input.projectId);
+    }),
+
+  /** 获取场景权重分布 */
+  getSceneWeights: adminProcedure
+    .input(z.object({
+      projectId: z.number(),
+      keywordId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const { M1KeywordService } = await import('./services/m1-keywords');
+      const svc = new M1KeywordService();
+      return svc.getSceneWeights(input.projectId, input.keywordId);
+    }),
+
+  /** 获取完整知识图谱数据（用于前端可视化） */
+  getKnowledgeGraph: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    .query(async ({ input }) => {
+      const { M1KeywordService } = await import('./services/m1-keywords');
+      const svc = new M1KeywordService();
+      return svc.getKnowledgeGraph(input.projectId);
+    }),
+
+  /** 获取图谱快照历史 */
+  getGraphSnapshots: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    .query(async ({ input }) => {
+      const { M1KeywordService } = await import('./services/m1-keywords');
+      const svc = new M1KeywordService();
+      return svc.getGraphSnapshots(input.projectId);
+    }),
+
+  /** 图谱拓扑分析（枢纽词/桥接词/孤立词识别） */
+  analyzeGraphTopology: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    .query(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.analyzeTopology(input.projectId);
+    }),
+
+  /** 蓝海验证（CT扫描） */
+  verifyBlueOcean: adminProcedure
+    .input(z.object({
+      projectId: z.number(),
+      keywordIds: z.array(z.number()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.verifyBlueOcean(input.projectId, input.keywordIds);
+    }),
+
+  /** 竞品校准（DR×AM评分） */
+  calibrateWithCompetitors: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.calibrateWithCompetitors(input.projectId);
+    }),
+
+  /** 导出图谱可视化数据（ECharts/D3格式） */
+  exportGraphVisualization: adminProcedure
+    .input(z.object({
+      projectId: z.number(),
+      format: z.enum(['echarts', 'd3']).default('echarts'),
+    }))
+    .query(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.exportForVisualization(input.projectId, input.format);
+    }),
+
+  /** 生成广告组映射建议 */
+  generateAdGroupMappings: adminProcedure
+    .input(z.object({ projectId: z.number() }))
+    .query(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.generateAdGroupMappings(input.projectId);
+    }),
+
+  /** 增量添加关键词并融合到现有图谱 */
+  addKeywordsIncremental: adminProcedure
+    .input(z.object({
+      projectId: z.number(),
+      keywords: z.array(z.string()).min(1),
+    }))
+    .mutation(async ({ input }) => {
+      const { M1KnowledgeGraphService } = await import('./services/m1-knowledge-graph');
+      const svc = new M1KnowledgeGraphService();
+      return svc.addKeywordsIncremental(input.projectId, input.keywords);
     }),
 
   // ==================== M2: 竞品库引擎 ====================
