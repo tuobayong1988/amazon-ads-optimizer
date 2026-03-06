@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 348;  // v348: 构建修复(dist缺失config防护)+报告同步_retryCount崩溃修复+SB/SD/SP报告请求400错误增强诊断
+export const SYSTEM_VERSION = 348;  // v348: P0-凭证解密修复(discoverSyncableAccounts绕过safeDecrypt)+构建修复(dist缺失config防护)+报告错误诊断增强

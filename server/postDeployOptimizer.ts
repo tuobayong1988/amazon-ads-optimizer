@@ -456,7 +456,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
   },
   {
     version: 348,
-    description: 'v348: [P0报告同步崩溃修复 + 构建修复 + 错误诊断增强] — (1)P0-构建修复: V347的config undefined防护代码未被编译到dist/index.js,导致所有SP/SB/SD报告请求崩溃(Cannot read properties of undefined reading _retryCount),绩效数据同步完全失败 (2)P0-重新构建: 确保所有V347源码修复正确编译到产物中 (3)P1-报告错误诊断增强: SP/SB/SD报告请求失败时记录完整的status/data/headers/requestBody信息,便于快速定位400错误原因',
+    description: 'v348: [P0凭证解密修复 + P0构建修复 + P1报告诊断增强] — (1)P0-凭证解密修复: discoverSyncableAccounts()直接JOIN查询绕过getAmazonApiCredential()的safeDecrypt(),V345加密凭证后clientSecret和refreshToken以enc:v1:格式发送给Amazon OAuth导致全部账户Token刷新401失败 (2)P0-构建修复: V347的config undefined防护代码未被编译到dist/index.js,导致拦截器崩溃 (3)P1-报告错误诊断增强: SP/SB/SD报告请求失败时记录完整的status/data/headers/requestBody信息',
     affectedModules: ['sync', 'build'],
     correctionActions: ['resync_data'],
   },

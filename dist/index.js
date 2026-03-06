@@ -83202,6 +83202,7 @@ async function discoverSyncableAccounts() {
       syncStatus: amazonApiCredentials2.syncStatus,
       accountStatus: adAccounts3.status
     }).from(adAccounts3).innerJoin(amazonApiCredentials2, eq(adAccounts3.id, amazonApiCredentials2.accountId));
+    const { safeDecrypt: safeDecrypt2 } = await Promise.resolve().then(() => (init_cryptoService(), cryptoService_exports));
     const syncable = results.filter((r5) => {
       if (!r5.clientId || !r5.clientSecret || !r5.refreshToken || !r5.profileId) {
         return false;
@@ -83217,8 +83218,8 @@ async function discoverSyncableAccounts() {
       marketplace: r5.marketplace,
       profileId: r5.profileId,
       clientId: r5.clientId,
-      clientSecret: r5.clientSecret,
-      refreshToken: r5.refreshToken,
+      clientSecret: safeDecrypt2(r5.clientSecret),
+      refreshToken: safeDecrypt2(r5.refreshToken),
       region: r5.region || "NA",
       lastSyncAt: r5.lastSyncAt,
       syncStatus: r5.syncStatus
@@ -170763,7 +170764,7 @@ var init_postDeployOptimizer = __esm({
       },
       {
         version: 348,
-        description: "v348: [P0\u62A5\u544A\u540C\u6B65\u5D29\u6E83\u4FEE\u590D + \u6784\u5EFA\u4FEE\u590D + \u9519\u8BEF\u8BCA\u65AD\u589E\u5F3A] \u2014 (1)P0-\u6784\u5EFA\u4FEE\u590D: V347\u7684config undefined\u9632\u62A4\u4EE3\u7801\u672A\u88AB\u7F16\u8BD1\u5230dist/index.js,\u5BFC\u81F4\u6240\u6709SP/SB/SD\u62A5\u544A\u8BF7\u6C42\u5D29\u6E83(Cannot read properties of undefined reading _retryCount),\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u5168\u5931\u8D25 (2)P0-\u91CD\u65B0\u6784\u5EFA: \u786E\u4FDD\u6240\u6709V347\u6E90\u7801\u4FEE\u590D\u6B63\u786E\u7F16\u8BD1\u5230\u4EA7\u7269\u4E2D (3)P1-\u62A5\u544A\u9519\u8BEF\u8BCA\u65AD\u589E\u5F3A: SP/SB/SD\u62A5\u544A\u8BF7\u6C42\u5931\u8D25\u65F6\u8BB0\u5F55\u5B8C\u6574\u7684status/data/headers/requestBody\u4FE1\u606F,\u4FBF\u4E8E\u5FEB\u901F\u5B9A\u4F4D400\u9519\u8BEF\u539F\u56E0",
+        description: "v348: [P0\u51ED\u8BC1\u89E3\u5BC6\u4FEE\u590D + P0\u6784\u5EFA\u4FEE\u590D + P1\u62A5\u544A\u8BCA\u65AD\u589E\u5F3A] \u2014 (1)P0-\u51ED\u8BC1\u89E3\u5BC6\u4FEE\u590D: discoverSyncableAccounts()\u76F4\u63A5JOIN\u67E5\u8BE2\u7ED5\u8FC7getAmazonApiCredential()\u7684safeDecrypt(),V345\u52A0\u5BC6\u51ED\u8BC1\u540EclientSecret\u548CrefreshToken\u4EE5enc:v1:\u683C\u5F0F\u53D1\u9001\u7ED9Amazon OAuth\u5BFC\u81F4\u5168\u90E8\u8D26\u6237Token\u5237\u65B0401\u5931\u8D25 (2)P0-\u6784\u5EFA\u4FEE\u590D: V347\u7684config undefined\u9632\u62A4\u4EE3\u7801\u672A\u88AB\u7F16\u8BD1\u5230dist/index.js,\u5BFC\u81F4\u62E6\u622A\u5668\u5D29\u6E83 (3)P1-\u62A5\u544A\u9519\u8BEF\u8BCA\u65AD\u589E\u5F3A: SP/SB/SD\u62A5\u544A\u8BF7\u6C42\u5931\u8D25\u65F6\u8BB0\u5F55\u5B8C\u6574\u7684status/data/headers/requestBody\u4FE1\u606F",
         affectedModules: ["sync", "build"],
         correctionActions: ["resync_data"]
       },

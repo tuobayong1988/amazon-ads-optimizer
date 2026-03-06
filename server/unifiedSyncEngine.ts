@@ -944,6 +944,10 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
       .from(adAccounts)
       .innerJoin(amazonApiCredentials, eq(adAccounts.id, amazonApiCredentials.accountId));
 
+    // v348: 解密凭证 - discoverSyncableAccounts直接JOIN查询绕过了getAmazonApiCredential的safeDecrypt
+    // V345加密凭证后，必须在此处解密，否则Token刷新会使用加密格式的凭证导致401
+    const { safeDecrypt } = await import('./utils/cryptoService');
+
     // 过滤：只保留有效的账户（有clientId, clientSecret, refreshToken, profileId）
     const syncable = results
       .filter(r => {
@@ -964,8 +968,8 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
         marketplace: r.marketplace,
         profileId: r.profileId!,
         clientId: r.clientId,
-        clientSecret: r.clientSecret,
-        refreshToken: r.refreshToken as string,
+        clientSecret: safeDecrypt(r.clientSecret),
+        refreshToken: safeDecrypt(r.refreshToken as string),
         region: (r.region as 'NA' | 'EU' | 'FE') || 'NA',
         lastSyncAt: r.lastSyncAt,
         syncStatus: r.syncStatus,
