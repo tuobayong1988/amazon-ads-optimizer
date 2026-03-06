@@ -11,6 +11,8 @@
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('ExchangeRate');
 
 // ========== 静态兜底汇率（当API不可用时使用） ==========
 const FALLBACK_RATES_TO_USD: Record<string, number> = {
@@ -55,11 +57,11 @@ const API_URL = 'https://open.er-api.com/v6/latest/USD';
  */
 async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
   try {
-    console.log('[ExchangeRateService] 正在从API获取最新汇率...');
+    log.info('[ExchangeRateService] 正在从API获取最新汇率...');
     const response = await axios.get(API_URL, { timeout: 10000 });
     
     if (response.data?.result !== 'success' || !response.data?.rates) {
-      console.error('[ExchangeRateService] API返回异常:', response.data?.result);
+      log.error('[ExchangeRateService] API返回异常:', response.data?.result);
       return null;
     }
     
@@ -74,13 +76,13 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     }
     ratesToUsd['USD'] = 1.0;
     
-    console.log(`[ExchangeRateService] API获取成功，共${Object.keys(ratesToUsd).length}种货币`);
+    log.info(`[ExchangeRateService] API获取成功，共${Object.keys(ratesToUsd).length}种货币`);
     
     // 验证关键货币是否存在
     const requiredCurrencies = ['CAD', 'MXN', 'GBP', 'EUR', 'JPY', 'AUD'];
     const missing = requiredCurrencies.filter(c => !ratesToUsd[c]);
     if (missing.length > 0) {
-      console.warn(`[ExchangeRateService] 缺少关键货币: ${missing.join(', ')}，使用兜底值补充`);
+      log.warn(`[ExchangeRateService] 缺少关键货币: ${missing.join(', ')}，使用兜底值补充`);
       for (const c of missing) {
         ratesToUsd[c] = FALLBACK_RATES_TO_USD[c] || 1.0;
       }
@@ -88,7 +90,7 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     
     return ratesToUsd;
   } catch (error: any) {
-    console.error(`[ExchangeRateService] API请求失败: ${error.message}`);
+    log.error(`[ExchangeRateService] API请求失败: ${error.message}`);
     return null;
   }
 }
@@ -101,11 +103,11 @@ function loadRatesFromFile(): RateCache | null {
     if (!fs.existsSync(CACHE_FILE_PATH)) return null;
     const data = JSON.parse(fs.readFileSync(CACHE_FILE_PATH, 'utf-8'));
     if (data?.rates && data?.lastUpdated) {
-      console.log(`[ExchangeRateService] 从文件缓存加载汇率，更新时间: ${new Date(data.lastUpdated).toISOString()}`);
+      log.info(`[ExchangeRateService] 从文件缓存加载汇率，更新时间: ${new Date(data.lastUpdated).toISOString()}`);
       return { rates: data.rates, lastUpdated: data.lastUpdated, source: 'file' };
     }
   } catch (error: any) {
-    console.warn(`[ExchangeRateService] 文件缓存读取失败: ${error.message}`);
+    log.warn(`[ExchangeRateService] 文件缓存读取失败: ${error.message}`);
   }
   return null;
 }
@@ -117,9 +119,9 @@ function saveRatesToFile(rates: Record<string, number>): void {
   try {
     const data = { rates, lastUpdated: Date.now() };
     fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(data, null, 2));
-    console.log('[ExchangeRateService] 汇率已保存到文件缓存');
+    log.info('[ExchangeRateService] 汇率已保存到文件缓存');
   } catch (error: any) {
-    console.warn(`[ExchangeRateService] 文件缓存写入失败: ${error.message}`);
+    log.warn(`[ExchangeRateService] 文件缓存写入失败: ${error.message}`);
   }
 }
 
@@ -149,7 +151,7 @@ export async function getExchangeRates(): Promise<Record<string, number>> {
   }
   
   // 4. 全部失败，使用静态兜底汇率
-  console.warn('[ExchangeRateService] 所有汇率源不可用，使用静态兜底汇率');
+  log.warn('[ExchangeRateService] 所有汇率源不可用，使用静态兜底汇率');
   rateCache = { rates: FALLBACK_RATES_TO_USD, lastUpdated: Date.now(), source: 'fallback' };
   return FALLBACK_RATES_TO_USD;
 }

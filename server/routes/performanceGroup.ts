@@ -510,7 +510,7 @@ export const performanceGroupRouter = router({
           confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: any) => {
             log.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
           });
-        } catch (e) { /* ignore */ }
+        } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
       }
 
       return {

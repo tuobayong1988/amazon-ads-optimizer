@@ -1311,7 +1311,7 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
     set: updateSet,
   });
   
-  console.log(`[db] v345: saveAmazonApiCredentials 完成 (accountId=${data.accountId}, 更新字段=[${Object.keys(updateSet).filter(k => k !== 'updatedAt').join(',')}], 凭证已加密)`);
+  log.info(`[db] v345: saveAmazonApiCredentials 完成 (accountId=${data.accountId}, 更新字段=[${Object.keys(updateSet).filter(k => k !== 'updatedAt').join(',')}], 凭证已加密)`);
 }
 
 export async function getAmazonApiCredentials(accountId: number): Promise<AmazonApiCredential | null> {
@@ -4813,7 +4813,7 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
         COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), 0) as sales,
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
-      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
         AND DATE(date) >= ${startDateStr}
         AND DATE(date) <= ${endDateStr}
       GROUP BY DATE(date)
@@ -4878,7 +4878,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MIN(DATE(date)) as min_date,
         MAX(DATE(date)) as max_date
       FROM daily_performance
-      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
     `) as any;
     
     const rows = results[0] || results;
@@ -4889,7 +4889,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
       const syncResults = await db.execute(sql`
         SELECT MAX(lastSyncAt) as last_sync
         FROM amazon_api_credentials
-        WHERE accountId IN (${sql.raw(accountIds.join(','))})
+        WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
       `) as any;
       const syncRows = syncResults[0] || syncResults;
       const syncRow = Array.isArray(syncRows) ? syncRows[0] : syncRows;
@@ -4908,7 +4908,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MIN(DATE(createdAt)) as min_date,
         MAX(DATE(updatedAt)) as max_date
       FROM campaigns
-      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
     `) as any;
     
     const campaignRows = campaignResults[0] || campaignResults;

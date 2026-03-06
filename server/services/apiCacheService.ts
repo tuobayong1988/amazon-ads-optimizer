@@ -13,6 +13,8 @@
  * - 写操作（mutation）自动触发相关缓存失效
  * - 缓存键包含用户ID，确保数据隔离
  */
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('ApiCache');
 
 interface CacheEntry<T = any> {
   data: T;
@@ -217,7 +219,7 @@ class ApiCacheService {
     if (cleaned > 0) {
       this.stats.evictions += cleaned;
       this.stats.size = this.cache.size;
-      console.log(`[ApiCache] Cleaned ${cleaned} expired entries, ${this.cache.size} remaining`);
+      log.info(`[ApiCache] Cleaned ${cleaned} expired entries, ${this.cache.size} remaining`);
     }
   }
 }

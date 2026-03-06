@@ -939,7 +939,7 @@ export class SQSConsumerService {
           .where(eq((await import('../drizzle/schema')).keywords.keywordId, params.amazonKeywordId))
           .limit(1);
         if (result[0]) localKeywordId = result[0].id;
-      } catch (e) { /* 映射失败不影响写入 */ }
+      } catch (e: any) { log.debug(`关键词ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
     }
 
     if (params.amazonTargetId) {
@@ -949,7 +949,7 @@ export class SQSConsumerService {
           .where(eq((await import('../drizzle/schema')).productTargets.targetId, params.amazonTargetId))
           .limit(1);
         if (result[0]) localTargetId = result[0].id;
-      } catch (e) { /* 映射失败不影响写入 */ }
+      } catch (e: any) { log.debug(`目标ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
     }
 
     // 如果无法映射到本地ID，跳过写入

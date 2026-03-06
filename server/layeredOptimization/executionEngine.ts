@@ -5,6 +5,8 @@
  */
 
 import { OptimizationObjective } from './strategyOrchestrator';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('LayeredExecution');
 
 // 优化操作类型
 export enum OptimizationType {
@@ -223,7 +225,7 @@ export async function executeOptimizationPlan(
   for (const action of plan.actions) {
     try {
       if (dryRun) {
-        console.log(`[DRY RUN] Would execute: ${action.type} on ${action.targetName}`);
+        log.info(`[DRY RUN] Would execute: ${action.type} on ${action.targetName}`);
         success++;
       } else {
         // TODO: 实际执行优化操作

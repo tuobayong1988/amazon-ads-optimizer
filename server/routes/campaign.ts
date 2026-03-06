@@ -183,7 +183,7 @@ export const campaignRouter = router({
             confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: any) => {
               log.error(`[campaign.update] v219: 确认同步失败:`, err.message);
             });
-          } catch (e) { /* ignore */ }
+          } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
         }
       }
       

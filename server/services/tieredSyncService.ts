@@ -19,6 +19,8 @@ import { getDb } from '../db';
 import { reportJobs, adAccounts } from '../../drizzle/schema';
 import { eq, and, sql, gte, lte, inArray } from 'drizzle-orm';
 import { AmazonAdsApiClient } from '../amazonAdsApi';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('TieredSync');
 
 // 数据层级定义
 export type DataTier = 'realtime' | 'hot' | 'warm' | 'cold';
@@ -272,8 +274,8 @@ export class TieredSyncService {
       }
     }
 
-    console.log(`[TieredSyncService] Created ${taskIds.length} tiered initialization tasks for account ${accountId}`);
-    console.log(`[TieredSyncService] Tasks by tier:`, tasksByTier);
+    log.info(`[TieredSyncService] Created ${taskIds.length} tiered initialization tasks for account ${accountId}`);
+    log.info(`[TieredSyncService] Tasks by tier:`, tasksByTier);
 
     return {
       totalTasks: taskIds.length,
@@ -607,7 +609,7 @@ export class TieredSyncService {
       }
     }
 
-    console.log(`[TieredSyncService] Retried ${retriedCount} tasks, skipped ${skippedCount} (max retries exceeded)`);
+    log.info(`[TieredSyncService] Retried ${retriedCount} tasks, skipped ${skippedCount} (max retries exceeded)`);
 
     return { retriedCount, skippedCount };
   }

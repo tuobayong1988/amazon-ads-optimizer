@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 345;  // v345: P0安全加固(凭证加密+JWT安全+运维认证) + P1性能优化(数据库索引+N+1查询) + P2代码质量
+export const SYSTEM_VERSION = 346;  // v346: P2全面优化(除零防护+竞态锁+内存泄漏修复+SQL注入加固+空catch修复+any收窄+归档清理+日志统一)

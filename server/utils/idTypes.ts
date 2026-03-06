@@ -131,7 +131,7 @@ export function assertAmazonCampaignId(
     log.error(errorMsg);
     // 在生产环境中记录但不抛错，避免中断服务
     // 但在日志中留下明确的错误痕迹
-    console.error(errorMsg);
+    log.error(errorMsg);
   }
 }
 
@@ -149,7 +149,7 @@ export function assertAmazonAdGroupId(
     const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地adGroupId(${value})被用于需要Amazon ID的场景! ` +
       `调用来源: ${context}. 必须传入adGroup.adGroupId而非adGroup.id`;
     log.error(errorMsg);
-    console.error(errorMsg);
+    log.error(errorMsg);
   }
 }
 
@@ -355,7 +355,7 @@ export function guardCampaignIdParam(
     const msg = `${functionName}() 收到本地campaignId(${value})! 调用者必须传入campaign.campaignId而非campaign.id`;
     log.error(`[IdTypes] ⛔ ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdParam: ${msg}`, { functionName, value: String(value), classification });
-    console.error(new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`).stack);
+    log.error(new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`).stack || '');
   }
   
   return str;
@@ -380,7 +380,7 @@ export function guardCampaignIdInsert(
     const msg = `尝试将本地campaignId(${value})写入${tableName}.campaignId! 该字段应存储Amazon Campaign ID`;
     log.error(`[IdTypes] ⛔ ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdInsert: ${msg}`, { tableName, value: String(value), classification });
-    console.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack);
+    log.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack || '');
   }
   
   return str;

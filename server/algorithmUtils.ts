@@ -706,14 +706,48 @@ export function getDateAdjustmentMultipliers(
 // ==================== 账号站点查询 ====================
 
 // v182: 将getAccountMarketplace提取为共享工具函数，供所有服务使用
-const marketplaceCache = new Map<number, string>();
+// v346: 添加TTL清理机制，防止内存泄漏
+interface CacheEntry<T> {
+  value: T;
+  expiresAt: number;
+}
+const MARKETPLACE_CACHE_TTL_MS = 30 * 60 * 1000; // 30分钟TTL
+const MARKETPLACE_CACHE_MAX_SIZE = 500; // 最大缓存条目数
+const marketplaceCache = new Map<number, CacheEntry<string>>();
+
+// 定期清理过期缓存条目
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [key, entry] of marketplaceCache.entries()) {
+    if (now > entry.expiresAt) {
+      marketplaceCache.delete(key);
+      cleaned++;
+    }
+  }
+  // 如果超过最大容量，清除最早的条目
+  if (marketplaceCache.size > MARKETPLACE_CACHE_MAX_SIZE) {
+    const entries = Array.from(marketplaceCache.entries())
+      .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+    const toRemove = entries.slice(0, marketplaceCache.size - MARKETPLACE_CACHE_MAX_SIZE);
+    for (const [key] of toRemove) {
+      marketplaceCache.delete(key);
+    }
+  }
+}, 10 * 60 * 1000); // 每10分钟清理一次
 
 export async function getAccountMarketplace(accountId: number): Promise<string> {
-  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId)!;
+  const cached = marketplaceCache.get(accountId);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
   // 动态导入避免循环依赖
   const db = await import('./db');
   const account = await db.getAdAccountById(accountId);
   const marketplace = account?.marketplace || 'US';
-  marketplaceCache.set(accountId, marketplace);
+  marketplaceCache.set(accountId, { value: marketplace, expiresAt: Date.now() + MARKETPLACE_CACHE_TTL_MS });
   return marketplace;
+}
+
+/** 清除marketplace缓存（用于测试或手动刷新） */
+export function clearMarketplaceCache(): void {
+  marketplaceCache.clear();
 }

@@ -14,6 +14,8 @@
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { getSQSConsumer } from '../sqsConsumerService';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('DualTrackSync');
 
 // 数据源类型
 export type DataSource = 'api' | 'ams' | 'merged';
@@ -119,7 +121,7 @@ export async function getDualTrackStatus(accountId: number): Promise<{
       overallHealth,
     };
   } catch (error: any) {
-    console.error('[DualTrackSync] 获取状态失败:', error);
+    log.error('[DualTrackSync] 获取状态失败:', error);
     return {
       api: { source: 'api', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: error.message },
       ams: { source: 'ams', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: error.message },
@@ -418,7 +420,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
       },
     };
   } catch (error) {
-    console.error('[DualTrackSync] 获取数据源统计失败:', error);
+    log.error('[DualTrackSync] 获取数据源统计失败:', error);
     return {
       api: { records: 0, lastUpdate: null },
       ams: { records: 0, lastUpdate: null },
@@ -475,7 +477,7 @@ export async function runConsistencyCheck(
       status: 'consistent',
     };
   } catch (error: any) {
-    console.error('[DualTrackSync] 一致性检查失败:', error);
+    log.error('[DualTrackSync] 一致性检查失败:', error);
     throw error;
   }
 }
@@ -511,7 +513,7 @@ export async function getMergedPerformanceData(
 
     return Array.isArray(rows) ? rows : [];
   } catch (error: any) {
-    console.error('[DualTrackSync] 获取合并数据失败:', error);
+    log.error('[DualTrackSync] 获取合并数据失败:', error);
     return [];
   }
 }
@@ -623,7 +625,7 @@ export async function getDataForAlgorithm(
         : undefined,
     };
   } catch (error: any) {
-    console.error('[DualTrackSync] 获取算法数据失败:', error);
+    log.error('[DualTrackSync] 获取算法数据失败:', error);
     return { data: [], safeEndDate, excludedDays: excludeDays, warning: error.message };
   }
 }
@@ -714,7 +716,7 @@ export async function getRealtimeSpendForGuard(
       warning: dataSource === 'api' ? '使用API数据，可能有延迟' : undefined,
     };
   } catch (error: any) {
-    console.error('[DualTrackSync] 获取实时花费失败:', error);
+    log.error('[DualTrackSync] 获取实时花费失败:', error);
     return {
       todaySpend: 0,
       todayClicks: 0,

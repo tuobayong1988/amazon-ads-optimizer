@@ -16,6 +16,8 @@ import { adAccounts, reportJobs } from '../../drizzle/schema';
 import { eq, and, sql, gte, lte } from 'drizzle-orm';
 import { accountInitializationService } from './accountInitializationService';
 import { AsyncReportService } from './asyncReportService';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('SmartSync');
 
 // 同步模式
 export type SyncMode = 'initialization' | 'incremental';
@@ -121,7 +123,7 @@ export class SmartSyncService {
       .limit(1);
 
     if (!account || !account.profileId) {
-      console.log(`[SmartSync] 账号 ${accountId} 无效或未配置profileId`);
+      log.info(`[SmartSync] 账号 ${accountId} 无效或未配置profileId`);
       return 0;
     }
 
@@ -150,14 +152,14 @@ export class SmartSyncService {
       // 完整归因回溯
       const attributionTasks = await this.asyncReportService.createAttributionJobs(accountId, profileId);
       tasksCreated += attributionTasks.length;
-      console.log(`[SmartSync] 账号 ${accountId} 执行完整归因回溯，创建 ${attributionTasks.length} 个任务`);
+      log.info(`[SmartSync] 账号 ${accountId} 执行完整归因回溯，创建 ${attributionTasks.length} 个任务`);
     } else {
       // 日常归因校验（只校验最近几天）
       const dailyTasks = await this.createDailyAttributionCheck(accountId, profileId);
       tasksCreated += dailyTasks;
     }
 
-    console.log(`[SmartSync] 账号 ${accountId} 增量同步完成，共创建 ${tasksCreated} 个任务`);
+    log.info(`[SmartSync] 账号 ${accountId} 增量同步完成，共创建 ${tasksCreated} 个任务`);
     return tasksCreated;
   }
 

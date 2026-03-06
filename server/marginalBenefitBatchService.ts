@@ -167,7 +167,7 @@ export async function executeBatchAnalysis(
     SELECT id, campaign_id, campaign_name, spend, sales
     FROM campaigns
     WHERE account_id = ${request.accountId}
-    AND campaign_id IN (${sql.raw(request.campaignIds.map(id => `'${id}'`).join(','))})
+    AND campaign_id IN (${sql.raw(request.campaignIds.map(id => `'${id.replace(/'/g, "''")}'`).join(','))})
   `);
 
   const campaignMap = new Map(

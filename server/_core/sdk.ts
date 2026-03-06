@@ -1,4 +1,6 @@
 import { AXIOS_TIMEOUT_MS, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('SDK');
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
 import { parse as parseCookieHeader } from "cookie";
@@ -33,9 +35,9 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+    log.info("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
     if (!ENV.oAuthServerUrl) {
-      console.error(
+      log.error(
         "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
       );
     }
@@ -204,7 +206,7 @@ class SDKServer {
     cookieValue: string | undefined | null
   ): Promise<{ openId: string; appId: string; name: string } | null> {
     if (!cookieValue) {
-      console.warn("[Auth] Missing session cookie");
+      log.warn("[Auth] Missing session cookie");
       return null;
     }
 
@@ -220,7 +222,7 @@ class SDKServer {
         !isNonEmptyString(appId) ||
         !isNonEmptyString(name)
       ) {
-        console.warn("[Auth] Session payload missing required fields");
+        log.warn("[Auth] Session payload missing required fields");
         return null;
       }
 
@@ -230,7 +232,7 @@ class SDKServer {
         name,
       };
     } catch (error) {
-      console.warn("[Auth] Session verification failed", String(error));
+      log.warn("[Auth] Session verification failed", String(error));
       return null;
     }
   }
@@ -312,7 +314,7 @@ class SDKServer {
               } as any;
             }
           } catch (dbError: any) {
-            console.error('[Auth] JWT DB query failed:', dbError.message);
+            log.error('[Auth] JWT DB query failed:', dbError.message);
             // v257.1: 数据库查询失败时，从 JWT payload 构建基本用户信息（降级策略）
             return {
               id: decoded.userId,
@@ -329,7 +331,7 @@ class SDKServer {
       } catch (jwtError: any) {
         // JWT verification failed, fall through to cookie auth
         if (jwtError.name !== 'TokenExpiredError') {
-          console.error('[Auth] JWT verification failed:', jwtError.message);
+          log.error('[Auth] JWT verification failed:', jwtError.message);
         }
       }
     }
@@ -360,7 +362,7 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        log.error("[Auth] Failed to sync user from OAuth:", error);
         throw ForbiddenError("Failed to sync user info");
       }
     }

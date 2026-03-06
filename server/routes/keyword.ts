@@ -184,7 +184,7 @@ export const keywordRouter = router({
                   confirmationSync(accountId, ['keywords'], 'batchUpdateBid').catch((err: any) => {
                     log.error(`[Keyword.batchUpdateBid] v220: 确认同步失败:`, err.message);
                   });
-                } catch (e) { /* ignore */ }
+                } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
               }
             }
           }
@@ -256,7 +256,7 @@ export const keywordRouter = router({
                 confirmationSync(accountId, ['keywords'], 'batchUpdateStatus').catch((err: any) => {
                   log.error(`[Keyword.batchUpdateStatus] v220: 确认同步失败:`, err.message);
                 });
-              } catch (e) { /* ignore */ }
+              } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
             }
           }
         }

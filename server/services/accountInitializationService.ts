@@ -14,6 +14,8 @@ import { getDb } from '../db';
 import { adAccounts, accountInitializationProgress, reportJobs } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { AsyncReportService } from './asyncReportService';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('AccountInitialization');
 
 // 初始化配置
 const INITIALIZATION_CONFIG = {
@@ -89,7 +91,7 @@ export class AccountInitializationService {
       return { success: false, message: '账号已完成初始化' };
     }
 
-    console.log(`[AccountInit] 开始初始化账号 ${accountId} (${account.accountName})`);
+    log.info(`[AccountInit] 开始初始化账号 ${accountId} (${account.accountName})`);
 
     // 更新账号状态为初始化中
     await db
@@ -143,7 +145,7 @@ export class AccountInitializationService {
     }
 
     const totalTasks = phases.reduce((sum, p) => sum + p.totalTasks, 0);
-    console.log(`[AccountInit] 账号 ${accountId} 初始化任务创建完成，共 ${totalTasks} 个任务`);
+    log.info(`[AccountInit] 账号 ${accountId} 初始化任务创建完成，共 ${totalTasks} 个任务`);
 
     return {
       success: true,
@@ -200,7 +202,7 @@ export class AccountInitializationService {
       }
     }
 
-    console.log(`[AccountInit] 账号 ${accountId} 热数据任务创建完成: ${taskCount} 个`);
+    log.info(`[AccountInit] 账号 ${accountId} 热数据任务创建完成: ${taskCount} 个`);
     return taskCount;
   }
 
@@ -251,7 +253,7 @@ export class AccountInitializationService {
       }
     }
 
-    console.log(`[AccountInit] 账号 ${accountId} 冷数据任务创建完成: ${taskCount} 个`);
+    log.info(`[AccountInit] 账号 ${accountId} 冷数据任务创建完成: ${taskCount} 个`);
     return taskCount;
   }
 
@@ -273,7 +275,7 @@ export class AccountInitializationService {
       taskCount++;
     }
 
-    console.log(`[AccountInit] 账号 ${accountId} 结构数据任务创建完成: ${taskCount} 个`);
+    log.info(`[AccountInit] 账号 ${accountId} 结构数据任务创建完成: ${taskCount} 个`);
     return taskCount;
   }
 
@@ -427,7 +429,7 @@ export class AccountInitializationService {
         })
         .where(eq(adAccounts.id, accountId));
 
-      console.log(`[AccountInit] 账号 ${accountId} 初始化完成！`);
+      log.info(`[AccountInit] 账号 ${accountId} 初始化完成！`);
     } else if (anyFailed) {
       const failedPhases = progressRecords
         .filter(r => r.phaseStatus === 'failed')

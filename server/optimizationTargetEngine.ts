@@ -46,13 +46,24 @@ import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeN
 const log = createModuleLogger('TargetEngine');
 
 // 缓存账号站点信息，避免重复查询
-const marketplaceCache = new Map<number, string>();
+// v346: 添加TTL清理机制，防止内存泄漏
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30分钟TTL
+const marketplaceCache = new Map<number, { value: string; expiresAt: number }>();
+
+// 定期清理过期缓存
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of marketplaceCache.entries()) {
+    if (now > entry.expiresAt) marketplaceCache.delete(key);
+  }
+}, 10 * 60 * 1000);
 
 async function getAccountMarketplace(accountId: number): Promise<string> {
-  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId)!;
+  const cached = marketplaceCache.get(accountId);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
   const account = await db.getAdAccountById(accountId);
   const marketplace = account?.marketplace || 'US';
-  marketplaceCache.set(accountId, marketplace);
+  marketplaceCache.set(accountId, { value: marketplace, expiresAt: Date.now() + CACHE_TTL_MS });
   return marketplace;
 }
 
@@ -1287,19 +1298,19 @@ async function executeBidOptimization(
   };
   // v330: 将建议出价数据和CVR来源注入到bidConfig中，供nextGenBidOrchestrator使用
   if (suggestedBidData) {
-    (bidConfig as any)._suggestedBid = suggestedBidData.suggestedBid;
-    (bidConfig as any)._suggestedBidRangeStart = suggestedBidData.rangeStart;
-    (bidConfig as any)._suggestedBidRangeEnd = suggestedBidData.rangeEnd;
+    bidConfig._suggestedBid = suggestedBidData.suggestedBid;
+    bidConfig._suggestedBidRangeStart = suggestedBidData.rangeStart;
+    bidConfig._suggestedBidRangeEnd = suggestedBidData.rangeEnd;
   }
-  (bidConfig as any)._cvrSource = cvrSource;
+  bidConfig._cvrSource = cvrSource;
   
   // v164: 从自我进化引擎获取自适应参数，注入到bidConfig中
   try {
     // 优先使用v164自我进化的自适应参数
     const evoParams = await selfEvolution.getAdaptiveOptimizationParams(config.id, config.strategyTemplateId);
-    (bidConfig as any)._evolvedMaxChangePercent = evoParams.maxBidIncrease;
-    (bidConfig as any)._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
-    (bidConfig as any)._confidenceMultiplier = evoParams.confidenceMultiplier;
+    bidConfig._evolvedMaxChangePercent = evoParams.maxBidIncrease;
+    bidConfig._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
+    bidConfig._confidenceMultiplier = evoParams.confidenceMultiplier;
     log.info(`[BidOptimization] v164: 自适应参数已注入 - 最大提升${Math.round(evoParams.maxBidIncrease * 100)}%, 最大降低${Math.round(evoParams.maxBidDecrease * 100)}%, 成功率${Math.round(evoParams.recentSuccessRate * 100)}%`);
   } catch (e: any) {
     log.warn(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${e.message}`);

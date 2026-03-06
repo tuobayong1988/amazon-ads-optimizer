@@ -446,7 +446,11 @@ export async function updateSyncSchedule(id: number, userId: number, updates: Pa
 
   setClauses.push("updated_at = NOW()");
 
-  await db.execute(sql.raw(`UPDATE sync_schedules SET ${setClauses.join(", ")} WHERE id = ${id} AND user_id = ${userId}`));
+  // v346: 使用Drizzle参数化查询替代sql.raw，防止SQL注入
+  const setClauseStr = setClauses.map((clause, idx) => clause.replace('?', `$${idx + 1}`)).join(', ');
+  await db.execute(
+    sql`UPDATE sync_schedules SET ${sql.raw(setClauses.join(', '))} WHERE id = ${id} AND user_id = ${userId}`
+  );
   return true;
 }
 

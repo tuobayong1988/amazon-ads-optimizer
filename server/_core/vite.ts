@@ -1,4 +1,6 @@
 import express, { type Express } from "express";
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('Vite');
 import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
@@ -64,7 +66,7 @@ async function getViteConfig() {
 export async function setupVite(app: Express, server: Server) {
   // 双重检查确保只在开发模式下运行
   if (process.env.NODE_ENV !== "development") {
-    console.warn("[Vite] setupVite called in non-development mode, skipping...");
+    log.warn("[Vite] setupVite called in non-development mode, skipping...");
     return;
   }
   
@@ -125,7 +127,7 @@ export function serveStatic(app: Express) {
       ? path.resolve(baseDir, "../..", "dist", "public")
       : path.resolve(baseDir, "public");
   if (!fs.existsSync(distPath)) {
-    console.error(
+    log.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }

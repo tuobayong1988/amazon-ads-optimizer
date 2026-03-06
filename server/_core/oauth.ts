@@ -1,4 +1,6 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('OAuth');
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
@@ -46,7 +48,7 @@ export function registerOAuthRoutes(app: Express) {
 
       res.redirect(302, "/");
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      log.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
   });

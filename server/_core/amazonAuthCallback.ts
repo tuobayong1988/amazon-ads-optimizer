@@ -1,4 +1,6 @@
 import type { Express, Request, Response } from "express";
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('AmazonAuth');
 import { AmazonAdsApiClient, DEFAULT_REDIRECT_URI } from "../amazonAdsApi";
 import * as db from "../db";
 
@@ -34,7 +36,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
     const error = typeof req.query.error === "string" ? req.query.error : undefined;
     const state = typeof req.query.state === "string" ? req.query.state : undefined;
 
-    console.log("[AmazonAuthCallback] v342: Received callback:", {
+    log.info("[AmazonAuthCallback] v342: Received callback:", {
       hasCode: !!code,
       codeLength: code?.length,
       scope,
@@ -44,7 +46,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
 
     // 如果Amazon返回了错误（用户拒绝授权等）
     if (error) {
-      console.error("[AmazonAuthCallback] Amazon returned error:", error);
+      log.error("[AmazonAuthCallback] Amazon returned error:", error);
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(error)}`;
       res.redirect(302, redirectUrl);
       return;
@@ -52,7 +54,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
 
     // 没有code参数
     if (!code) {
-      console.error("[AmazonAuthCallback] No code parameter received");
+      log.error("[AmazonAuthCallback] No code parameter received");
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent("未收到授权码，请重新授权")}`;
       res.redirect(302, redirectUrl);
       return;
@@ -67,7 +69,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         throw new Error("缺少Amazon API凭证配置（AMAZON_ADS_CLIENT_ID/AMAZON_ADS_CLIENT_SECRET）");
       }
 
-      console.log("[AmazonAuthCallback] v342: Exchanging code for tokens...");
+      log.info("[AmazonAuthCallback] v342: Exchanging code for tokens...");
 
       // 步骤1: 用code换取token
       const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
@@ -78,7 +80,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
       );
 
       const newRefreshToken = tokens.refresh_token;
-      console.log("[AmazonAuthCallback] v342: Token exchange successful, newRefreshToken prefix:", newRefreshToken?.substring(0, 20) + '...');
+      log.info("[AmazonAuthCallback] v342: Token exchange successful, newRefreshToken prefix:", newRefreshToken?.substring(0, 20) + '...');
 
       // 步骤2: 获取profiles列表
       let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string; accountType: string }> = [];
@@ -101,8 +103,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
           accountType: p.accountInfo?.type || 'unknown', // seller / vendor / agency
         }));
         
-        console.log("[AmazonAuthCallback] v343: Fetched all profiles:", allProfiles.length, 
-          allProfiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`));
+        log.info(`[AmazonAuthCallback] v343: Fetched all profiles: ${allProfiles.length} - ${allProfiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`).join(', ')}`);
         
         // v343: 智能去重 - 对于同一国家的多个profile，优先保留已在系统中存在的profile
         // 如果都不存在，优先保留seller类型
@@ -130,30 +131,29 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
             if (existingInSystem.length > 0) {
               // 保留所有已在系统中的profile
               profiles.push(...existingInSystem);
-              console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个profile，保留${existingInSystem.length}个已存在的: ${existingInSystem.map(p => p.profileId).join(',')}`);
+              log.info(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个profile，保留${existingInSystem.length}个已存在的: ${existingInSystem.map(p => p.profileId).join(',')}`);
               // 不在系统中的profile不自动添加，避免创建重复站点
               if (notInSystem.length > 0) {
-                console.log(`[AmazonAuthCallback] v343: ${countryCode}跳过${notInSystem.length}个未在系统中的profile: ${notInSystem.map(p => `${p.profileId}(type=${p.accountType})`).join(',')}`);
+                log.info(`[AmazonAuthCallback] v343: ${countryCode}跳过${notInSystem.length}个未在系统中的profile: ${notInSystem.map(p => `${p.profileId}(type=${p.accountType})`).join(',')}`);
               }
             } else {
               // 都不在系统中，优先选择seller类型
               const sellerProfile = notInSystem.find(p => p.accountType === 'seller');
               if (sellerProfile) {
                 profiles.push(sellerProfile);
-                console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，优先选择seller类型: ${sellerProfile.profileId}`);
+                log.info(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，优先选择seller类型: ${sellerProfile.profileId}`);
               } else {
                 // 没有seller类型，取第一个
                 profiles.push(notInSystem[0]);
-                console.log(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，无seller类型，取第一个: ${notInSystem[0].profileId}(type=${notInSystem[0].accountType})`);
+                log.info(`[AmazonAuthCallback] v343: ${countryCode}有${countryProfiles.length}个新profile，无seller类型，取第一个: ${notInSystem[0].profileId}(type=${notInSystem[0].accountType})`);
               }
             }
           }
         }
         
-        console.log("[AmazonAuthCallback] v343: 去重后的profiles:", profiles.length, 
-          profiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`));
+        log.info(`[AmazonAuthCallback] v343: 去重后的profiles: ${profiles.length} - ${profiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`).join(', ')}`);
       } catch (profileError: any) {
-        console.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", profileError.message);
+        log.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", profileError.message);
       }
 
       // ★ 步骤3 (v342新增): 后端直接保存凭证到数据库
@@ -183,7 +183,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                     ...((!existingCreds.clientId || existingCreds.clientId === '') ? { clientId } : {}),
                     ...((!existingCreds.clientSecret || existingCreds.clientSecret === '') ? { clientSecret } : {}),
                   });
-                  console.log(`[AmazonAuthCallback] v342: 更新账户 ${matchingAccount.id} (${profile.countryCode}, profileId=${profile.profileId}) 的refresh_token`);
+                  log.info(`[AmazonAuthCallback] v342: 更新账户 ${matchingAccount.id} (${profile.countryCode}, profileId=${profile.profileId}) 的refresh_token`);
                 } else {
                   // 没有凭证记录，创建新的
                   await db.saveAmazonApiCredentials({
@@ -194,7 +194,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                     profileId: profile.profileId,
                     region: 'NA', // 默认NA，后续可根据countryCode推断
                   });
-                  console.log(`[AmazonAuthCallback] v342: 为账户 ${matchingAccount.id} (${profile.countryCode}) 创建新凭证记录`);
+                  log.info(`[AmazonAuthCallback] v342: 为账户 ${matchingAccount.id} (${profile.countryCode}) 创建新凭证记录`);
                 }
                 
                 // 更新连接状态
@@ -205,10 +205,10 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                 updatedAccountIds.push(matchingAccount.id);
                 credentialsSaved++;
               } else {
-                console.log(`[AmazonAuthCallback] v342: 未找到profileId=${profile.profileId}(${profile.countryCode})对应的账户，跳过（前端将处理新账户创建）`);
+                log.info(`[AmazonAuthCallback] v342: 未找到profileId=${profile.profileId}(${profile.countryCode})对应的账户，跳过（前端将处理新账户创建）`);
               }
             } catch (profileSaveError: any) {
-              console.error(`[AmazonAuthCallback] v342: 保存profile ${profile.profileId} 凭证失败:`, profileSaveError.message);
+              log.error(`[AmazonAuthCallback] v342: 保存profile ${profile.profileId} 凭证失败:`, profileSaveError.message);
               credentialsFailed++;
             }
           }
@@ -234,18 +234,18 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                     });
                     updatedAccountIds.push(account.id);
                     credentialsSaved++;
-                    console.log(`[AmazonAuthCallback] v342: 批量更新共享Token账户 ${account.id} (${account.marketplace}) 的refresh_token`);
+                    log.info(`[AmazonAuthCallback] v342: 批量更新共享Token账户 ${account.id} (${account.marketplace}) 的refresh_token`);
                   }
                 }
               }
             } catch (batchUpdateError: any) {
-              console.error(`[AmazonAuthCallback] v342: 批量更新共享Token失败:`, batchUpdateError.message);
+              log.error(`[AmazonAuthCallback] v342: 批量更新共享Token失败:`, batchUpdateError.message);
             }
           }
 
-          console.log(`[AmazonAuthCallback] v342: 凭证保存完成 - 成功=${credentialsSaved}, 失败=${credentialsFailed}, 更新账户IDs=[${updatedAccountIds.join(',')}]`);
+          log.info(`[AmazonAuthCallback] v342: 凭证保存完成 - 成功=${credentialsSaved}, 失败=${credentialsFailed}, 更新账户IDs=[${updatedAccountIds.join(',')}]`);
         } catch (dbError: any) {
-          console.error("[AmazonAuthCallback] v342: 数据库操作失败:", dbError.message);
+          log.error("[AmazonAuthCallback] v342: 数据库操作失败:", dbError.message);
         }
       }
 
@@ -258,13 +258,13 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
             for (const accountId of updatedAccountIds) {
               try {
                 await triggerImmediateSync(accountId, `v342: OAuth回调后自动同步 (accountId=${accountId})`);
-                console.log(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 立即同步`);
+                log.info(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 立即同步`);
               } catch (syncErr: any) {
-                console.error(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 同步失败:`, syncErr.message);
+                log.error(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 同步失败:`, syncErr.message);
               }
             }
           } catch (importErr: any) {
-            console.error(`[AmazonAuthCallback] v342: 导入dataSyncScheduler失败:`, importErr.message);
+            log.error(`[AmazonAuthCallback] v342: 导入dataSyncScheduler失败:`, importErr.message);
           }
         })();
       }
@@ -286,11 +286,11 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
       }
 
       const redirectUrl = `/amazon-api?${params.toString()}`;
-      console.log(`[AmazonAuthCallback] v342: Redirecting to settings page (backend saved ${credentialsSaved} credentials for accounts [${updatedAccountIds.join(',')}])`);
+      log.info(`[AmazonAuthCallback] v342: Redirecting to settings page (backend saved ${credentialsSaved} credentials for accounts [${updatedAccountIds.join(',')}])`);
 
       res.redirect(302, redirectUrl);
     } catch (err: any) {
-      console.error("[AmazonAuthCallback] v342: Token exchange failed:", err.response?.data || err.message);
+      log.error("[AmazonAuthCallback] v342: Token exchange failed:", err.response?.data || err.message);
       const errorMsg = err.response?.data?.error_description || err.message || "Token换取失败";
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);

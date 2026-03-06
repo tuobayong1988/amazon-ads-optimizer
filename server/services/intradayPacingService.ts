@@ -15,6 +15,8 @@ import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { getRealtimeSpendForGuard } from './dualTrackSyncService';
 import { getLocalHour, getAccountMarketplace } from '../algorithmUtils';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('IntradayPacing');
 
 // ==================== 类型定义 ====================
 
@@ -200,7 +202,7 @@ export async function checkAllCampaignsPacing(
     
     return results;
   } catch (error) {
-    console.error('[IntradayPacing] 批量检查失败:', error);
+    log.error('[IntradayPacing] 批量检查失败:', error);
     return [];
   }
 }
@@ -235,7 +237,7 @@ export async function applyIntradayAdjustment(
   // 这里应该调用分时服务来临时调整乘数
   // 而不是直接修改Base Bid
   
-  console.log('[IntradayPacing] 应用调整:', {
+  log.info('[IntradayPacing] 应用调整:', {
     campaignId: adjustment.campaignId,
     action: adjustment.suggestedAction,
     multiplier: adjustment.suggestedMultiplier,
@@ -280,7 +282,7 @@ async function getCampaignBudget(
     const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
     return campaign?.dailyBudget || 0;
   } catch (error) {
-    console.error('[IntradayPacing] 获取预算失败:', error);
+    log.error('[IntradayPacing] 获取预算失败:', error);
     return 0;
   }
 }

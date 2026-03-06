@@ -105,6 +105,16 @@ export interface PerformanceGroupConfig {
   groupAvgAov?: number;
   // v267 P3-3: 多品类自适应 — 品类信息用于调整出价策略参数
   productCategory?: string;
+  // v346: 进化引擎自适应参数（消除as any）
+  _evolvedMaxChangePercent?: number;
+  _evolvedMaxDecreasePercent?: number;
+  _confidenceMultiplier?: number;
+  // v346: Amazon建议出价参考（消除as any）
+  _suggestedBid?: number;
+  _suggestedBidRangeStart?: number;
+  _suggestedBidRangeEnd?: number;
+  // v346: CVR数据来源标记
+  _cvrSource?: string;
 }
 
 /**
@@ -139,7 +149,11 @@ export function estimateTrafficCeiling(
     const sumLnBidImpressions = historicalData.reduce((s, d) => s + Math.log(d.bid) * d.impressions, 0);
     const sumLnBidSq = historicalData.reduce((s, d) => s + Math.log(d.bid) ** 2, 0);
     
-    const a = (n * sumLnBidImpressions - sumLnBid * sumImpressions) / (n * sumLnBidSq - sumLnBid ** 2);
+    const denominator = n * sumLnBidSq - sumLnBid ** 2;
+    if (denominator === 0 || n === 0) {
+      return Math.round(currentImpressions * TRAFFIC_CEILING_MULTIPLIER);
+    }
+    const a = (n * sumLnBidImpressions - sumLnBid * sumImpressions) / denominator;
     
     // Estimate ceiling at bid = $10 (practical maximum)
     const ceilingBid = 10;
@@ -172,7 +186,7 @@ export function calculateMarginalValues(
   const clickElasticity = getElasticity(currentMetrics.bidChangeHistory || [], currentMetrics.category)
   
   // Estimate new clicks at higher bid
-  const bidChangePercent = bidIncrement / currentBid;
+  const bidChangePercent = currentBid > 0 ? bidIncrement / currentBid : 0;
   const estimatedClickIncrease = currentMetrics.clicks * clickElasticity * bidChangePercent;
   
   // Marginal cost = additional spend from bid increase
@@ -197,7 +211,7 @@ export function generateMarketCurve(
   steps: number = 20
 ): MarketCurvePoint[] {
   const points: MarketCurvePoint[] = [];
-  const bidStep = (maxBid - minBid) / steps;
+  const bidStep = steps > 0 ? (maxBid - minBid) / steps : 0.01;
   const { cvr, aov } = calculateMetrics(target);
   
   // Base metrics at current bid
@@ -212,12 +226,12 @@ export function generateMarketCurve(
     // 弹性系数可通过getElasticity()动态获取
     // 专家建议：使用动态弹性系数替代固定0.8
     const elasticity = getElasticity(target.bidChangeHistory || [], target.category)
-    const clickMultiplier = 1 + elasticity * Math.log(bidLevel / baseBid);
+    const clickMultiplier = baseBid > 0 ? 1 + elasticity * Math.log(bidLevel / baseBid) : 1;
     const estimatedClicks = Math.max(0, baseClicks * clickMultiplier);
     
     // Estimate impressions (clicks / CTR)
-    const ctr = target.impressions > 0 ? target.clicks / target.impressions : 0.01;
-    const estimatedImpressions = estimatedClicks / ctr;
+    const ctr = target.impressions > 0 ? target.clicks / target.impressions : DEFAULT_CTR_FALLBACK;
+    const estimatedImpressions = ctr > 0 ? estimatedClicks / ctr : estimatedClicks * 100;
     
     // Estimate conversions and sales
     const estimatedConversions = estimatedClicks * (cvr / 100);
@@ -450,7 +464,7 @@ function calculateSparseDataBidAdjustment(
     if (config.targetAcos && target.orders > 0) {
       const avgOrderValue = target.sales / target.orders;
       targetCpa = config.targetAcos / 100 * avgOrderValue;
-    } else if (config.targetRoas) {
+    } else if (config.targetRoas && config.targetRoas > 0) {
       targetCpa = groupAvgAov / config.targetRoas;
     } else {
       targetCpa = groupAvgAov * 0.3;
@@ -499,7 +513,7 @@ function calculateSparseDataBidAdjustment(
     actionType = "decrease";
   }
 
-  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
+  const bidChangePercent = target.currentBid > 0 ? ((newBid - target.currentBid) / target.currentBid) * 100 : 0;
 
   return {
     targetId: target.id,
@@ -539,7 +553,7 @@ export function calculateBidAdjustment(
   }
   if (aspSensitivity.acosAdjustmentMultiplier !== 1 && adjustedConfig.targetRoas) {
     // ROAS目标与ACoS目标反向调整
-    adjustedConfig.targetRoas = adjustedConfig.targetRoas / aspSensitivity.acosAdjustmentMultiplier;
+    adjustedConfig.targetRoas = aspSensitivity.acosAdjustmentMultiplier !== 0 ? adjustedConfig.targetRoas / aspSensitivity.acosAdjustmentMultiplier : adjustedConfig.targetRoas;
   }
 
   // 数据充足时，使用原有的市场曲线模型（使用ASP调整后的配置）
@@ -576,8 +590,8 @@ export function calculateBidAdjustment(
   }
   
   // Calculate change percentage
-  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
-  
+  const bidChangePercent = target.currentBid > 0 ? ((newBid - target.currentBid) / target.currentBid) * 100 : 0;
+
   // Generate reason (包含ASP变动信息)
   let reason = generateOptimizationReason(target, metrics, adjustedConfig, newBid);
   if (aspSensitivity.priceAction !== 'stable') {
@@ -765,7 +779,7 @@ function calculateExplorationBid(
     if (config.targetAcos && target.orders > 0) {
       const avgOrderValue = target.sales / target.orders;
       targetCpa = (config.targetAcos / 100) * avgOrderValue;
-    } else if (config.targetRoas) {
+    } else if (config.targetRoas && config.targetRoas > 0) {
       targetCpa = groupAvgAov / config.targetRoas;
     } else {
       targetCpa = groupAvgAov * 0.3;
@@ -924,7 +938,7 @@ export function optimizePerformanceGroup(
         previousBid: target.currentBid,
         newBid,
         actionType: 'decrease',
-        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        bidChangePercent: target.currentBid > 0 ? Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0,
         reason: `[强制回退] 当前出价$${target.currentBid.toFixed(2)}超过最高出价限制$${effectiveMaxBid.toFixed(2)}，强制降价`,
       });
       continue;
@@ -955,7 +969,7 @@ export function optimizePerformanceGroup(
         previousBid: target.currentBid,
         newBid,
         actionType: 'decrease',
-        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        bidChangePercent: target.currentBid > 0 ? Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0,
         reason: `[零曝光回退] 出价$${target.currentBid.toFixed(2)}已达上限的70%+但零曝光，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`,
       });
       continue;
@@ -1078,11 +1092,11 @@ export function calculateIntradayAdjustment(
  * 获取出价调整原因
  */
 export function getAdjustmentReason(
-  keyword: any,
+  keyword: { acos?: string | number; roas?: string | number; impressions?: number; clicks?: number; orders?: number; spend?: number; sales?: number },
   config: PerformanceGroupConfig
 ): string {
-  const acos = keyword.acos ? parseFloat(keyword.acos) : 0;
-  const roas = keyword.roas ? parseFloat(keyword.roas) : 0;
+  const acos = keyword.acos ? parseFloat(String(keyword.acos)) : 0;
+  const roas = keyword.roas ? parseFloat(String(keyword.roas)) : 0;
   const impressions = keyword.impressions || 0;
   const clicks = keyword.clicks || 0;
   const orders = keyword.orders || 0;
@@ -1565,9 +1579,9 @@ export function calculateEnhancedBidAdjustment(
   
   // 7. 限制单次调整幅度（v152: 从进化引擎获取自适应参数，默认30%）
   // 进化引擎会根据历史效果自动调整这些参数
-  const maxChangePercent = (config as any)._evolvedMaxChangePercent || 0.30;
+  const maxChangePercent = config._evolvedMaxChangePercent || 0.30;
   const maxIncrease = target.currentBid * (1 + maxChangePercent);
-  const maxDecrease = target.currentBid * (1 - ((config as any)._evolvedMaxDecreasePercent || 0.20));
+  const maxDecrease = target.currentBid * (1 - (config._evolvedMaxDecreasePercent || 0.20));
   
   newBid = Math.min(newBid, maxIncrease);
   newBid = Math.max(newBid, maxDecrease);
@@ -1584,7 +1598,7 @@ export function calculateEnhancedBidAdjustment(
   }
   
   // 10. 计算变化百分比
-  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
+  const bidChangePercent = target.currentBid > 0 ? ((newBid - target.currentBid) / target.currentBid) * 100 : 0;
   
   // 11. 生成原因
   const reasons: string[] = [];
@@ -1660,7 +1674,7 @@ export function optimizePerformanceGroupEnhanced(
         previousBid: target.currentBid,
         newBid,
         actionType: 'decrease',
-        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        bidChangePercent: target.currentBid > 0 ? Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0,
         reason: `[强制回退] 当前出价$${target.currentBid.toFixed(2)}超过用户设置的最高出价限制$${effectiveMaxBid.toFixed(2)}，强制降价到上限`,
         algorithmUsed: 'combined',
         confidenceScore: 1.0,
@@ -1698,7 +1712,7 @@ export function optimizePerformanceGroupEnhanced(
         previousBid: target.currentBid,
         newBid,
         actionType: 'decrease',
-        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        bidChangePercent: target.currentBid > 0 ? Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100 : 0,
         reason: `[零曝光回退] 出价$${target.currentBid.toFixed(2)}已达上限${effectiveMaxBid.toFixed(2)}的70%+但零曝光，该关键词可能无效，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`,
         algorithmUsed: 'bayesian',
         confidenceScore: 0.9,

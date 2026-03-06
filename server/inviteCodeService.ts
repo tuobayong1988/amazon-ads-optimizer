@@ -287,18 +287,19 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
   if (!db) return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
   
   try {
+    // v346: 使用Drizzle参数化查询替代sql.raw字符串拼接
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    const whereClause = createdBy ? `WHERE created_by = ${createdBy}` : '';
+    const whereClause = createdBy ? sql`WHERE created_by = ${createdBy}` : sql``;
     
-    const result = await db.execute(sql.raw(`
+    const result = await db.execute(sql`
       SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN is_active = 1 AND (expires_at IS NULL OR expires_at > '${now}') AND (max_uses = 0 OR used_count < max_uses) THEN 1 ELSE 0 END) as active,
+        SUM(CASE WHEN is_active = 1 AND (expires_at IS NULL OR expires_at > ${now}) AND (max_uses = 0 OR used_count < max_uses) THEN 1 ELSE 0 END) as active,
         SUM(CASE WHEN used_count > 0 THEN 1 ELSE 0 END) as used,
-        SUM(CASE WHEN expires_at IS NOT NULL AND expires_at <= '${now}' THEN 1 ELSE 0 END) as expired,
+        SUM(CASE WHEN expires_at IS NOT NULL AND expires_at <= ${now} THEN 1 ELSE 0 END) as expired,
         SUM(used_count) as total_usages
       FROM invite_codes ${whereClause}
-    `));
+    `);
     
     const rows = (result as any)[0];
     if (rows && rows.length > 0) {

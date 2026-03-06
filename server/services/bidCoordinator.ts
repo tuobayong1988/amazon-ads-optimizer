@@ -20,6 +20,8 @@
 
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('BidCoordinator');
 
 // ==================== 类型定义 ====================
 
@@ -339,14 +341,14 @@ async function logCoordinationResult(
     
     // 记录到日志表（如果存在）
     // 这里只打印日志，实际生产环境应该写入数据库
-    console.log('[BidCoordinator] 协调结果:', {
+    log.info('[BidCoordinator] 协调结果:', {
       accountId,
       campaignId,
       ...result,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('[BidCoordinator] 记录日志失败:', error);
+    log.error('[BidCoordinator] 记录日志失败:', error);
   }
 }
 
@@ -387,7 +389,7 @@ export async function getCampaignBidConfig(
       biddingStrategy: campaign.biddingStrategy || 'manual',
     };
   } catch (error) {
-    console.error('[BidCoordinator] 获取Campaign配置失败:', error);
+    log.error('[BidCoordinator] 获取Campaign配置失败:', error);
     return null;
   }
 }

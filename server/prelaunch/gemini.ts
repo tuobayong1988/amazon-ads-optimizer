@@ -3,6 +3,8 @@
  * 使用 Google Gemini 3.1 Pro Preview 和 Nano Banana 2
  */
 import { GoogleGenerativeAI, type GenerateContentResult } from '@google/generative-ai';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('Gemini');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCmBnQYBdNlaJ67U3nPkCGmP6S12KSH8Y4';
 const PRO_MODEL = 'gemini-3.1-pro-preview';
@@ -91,7 +93,7 @@ export async function geminiGenerateImage(
     });
 
     if (!response.ok) {
-      console.error(`Gemini Image API error: ${response.status} ${response.statusText}`);
+      log.error(`Gemini Image API error: ${response.status} ${response.statusText}`);
       return null;
     }
 
@@ -109,7 +111,7 @@ export async function geminiGenerateImage(
     }
     return null;
   } catch (error) {
-    console.error('Gemini image generation failed:', error);
+    log.error('Gemini image generation failed:', error);
     return null;
   }
 }

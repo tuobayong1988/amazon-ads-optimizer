@@ -19,6 +19,8 @@
  * - 自动广告活动(auto targeting): 不允许添加正面关键词，只能添加否定关键词
  * - 广告组不能同时有keyword和product target
  */
+import { createModuleLogger } from './logger';
+const log = createModuleLogger('KeywordValidator');
 
 export interface KeywordValidationResult {
   /** 是否通过校验 */
@@ -243,7 +245,7 @@ export async function adGroupHasProductTargets(
     );
     return (rows[0]?.cnt || 0) > 0;
   } catch (err: any) {
-    console.warn(`[KeywordValidator] 检查广告组product targets失败: ${err.message}`);
+    log.warn(`[KeywordValidator] 检查广告组product targets失败: ${err.message}`);
     return false;
   } finally {
     if (ownConn && conn) {
@@ -284,12 +286,12 @@ export function batchValidateKeywords(
   }
   
   if (rejected.length > 0) {
-    console.log(`[KeywordValidator] 批量校验: ${valid.length}个有效, ${rejected.length}个被拒绝`);
+    log.info(`[KeywordValidator] 批量校验: ${valid.length}个有效, ${rejected.length}个被拒绝`);
     for (const r of rejected.slice(0, 5)) {
-      console.log(`[KeywordValidator] 拒绝: "${r.originalText}" → ${r.reason}`);
+      log.info(`[KeywordValidator] 拒绝: "${r.originalText}" → ${r.reason}`);
     }
     if (rejected.length > 5) {
-      console.log(`[KeywordValidator] ... 还有${rejected.length - 5}个被拒绝`);
+      log.info(`[KeywordValidator] ... 还有${rejected.length - 5}个被拒绝`);
     }
   }
   

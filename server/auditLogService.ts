@@ -130,28 +130,33 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
   if (!db) return { logs: [], total: 0 };
   
   try {
-    const conditions: string[] = [];
+    // v346: 使用Drizzle参数化查询替代sql.raw字符串拼接，防止SQL注入
+    const conditions: ReturnType<typeof sql>[] = [];
     
-    if (query.organizationId) conditions.push(`organization_id = ${query.organizationId}`);
-    if (query.userId) conditions.push(`user_id = ${query.userId}`);
-    if (query.actionType) conditions.push(`actionType = '${query.actionType}'`);
-    if (query.actionCategory) conditions.push(`actionCategory = '${query.actionCategory}'`);
-    if (query.resourceType) conditions.push(`targetType = '${query.resourceType}'`);
-    if (query.status) conditions.push(`status = '${query.status}'`);
-    if (query.startDate) conditions.push(`createdAt >= '${query.startDate}'`);
-    if (query.endDate) conditions.push(`createdAt <= '${query.endDate}'`);
+    if (query.organizationId) conditions.push(sql`organization_id = ${query.organizationId}`);
+    if (query.userId) conditions.push(sql`user_id = ${query.userId}`);
+    if (query.actionType) conditions.push(sql`action_type = ${query.actionType}`);
+    if (query.actionCategory) conditions.push(sql`action_category = ${query.actionCategory}`);
+    if (query.resourceType) conditions.push(sql`resource_type = ${query.resourceType}`);
+    if (query.status) conditions.push(sql`status = ${query.status}`);
+    if (query.startDate) conditions.push(sql`created_at >= ${query.startDate}`);
+    if (query.endDate) conditions.push(sql`created_at <= ${query.endDate}`);
     
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limit = query.limit || 50;
-    const offset = query.offset || 0;
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 1), 500);
+    const offset = Math.max(Number(query.offset) || 0, 0);
     
-    const countResult = await db.execute(sql.raw(`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`));
+    let whereClause = sql``;
+    if (conditions.length > 0) {
+      whereClause = sql`WHERE ${conditions.reduce((acc, cond, idx) => idx === 0 ? cond : sql`${acc} AND ${cond}`)}`;  
+    }
+    
+    const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`);
     const total = (countResult as any)[0]?.[0]?.total || 0;
     
-    const result = await db.execute(sql.raw(`
+    const result = await db.execute(sql`
       SELECT * FROM audit_logs ${whereClause}
       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
-    `));
+    `);
     
     const rows = (result as any)[0] || [];
     const logs: AuditLog[] = rows.map((row: any) => ({

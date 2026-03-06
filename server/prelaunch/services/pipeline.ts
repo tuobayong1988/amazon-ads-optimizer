@@ -5,6 +5,8 @@
 import { getDb } from '../../db';
 import { prelaunchProjects } from '../../../drizzle/schema';
 import { eq } from 'drizzle-orm';
+import { createModuleLogger } from '../../utils/logger';
+const log = createModuleLogger('Pipeline');
 
 interface PipelineInput {
   projectId: number;
@@ -47,7 +49,7 @@ export class PrelaunchPipelineOrchestrator {
     // 异步执行流水线（不阻塞请求）
     this.executePipeline(input, status).catch(err => {
       status.currentModule = 'ERROR';
-      console.error('Pipeline execution error:', err);
+      log.error('Pipeline execution error:', err);
     });
 
     return {

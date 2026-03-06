@@ -20,6 +20,7 @@ import * as campaignLifecycleService from './services/campaignLifecycleService';
 import { runAutoCorrection, startAutoCorrector, stopAutoCorrector } from './optimizationAutoCorrector';
 import * as nextGenOrchestrator from './nextGenBidOrchestrator';
 import { createModuleLogger } from './utils/logger';
+import { AsyncMutex, withMutex } from './utils/asyncMutex';
 import { logSync, logSyncWarn, logSyncError, logSystem, logOptimization, logOptimizationError } from './utils/opsLogger';
 
 const log = createModuleLogger('Scheduler');
@@ -1640,7 +1641,7 @@ export function stopOptimizationScheduler(): void {
   // v167: 停止自动纠错服务
   try {
     stopAutoCorrector();
-  } catch (e) { /* ignore */ }
+  } catch (e: any) { log.debug(`停止AutoCorrector时忽略: ${e.message}`); }
 }
 
 /**

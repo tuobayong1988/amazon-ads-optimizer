@@ -38,6 +38,8 @@
  */
 
 import { sanitizeAndValidateKeyword, isAsinSearchTerm, canAddPositiveKeyword } from '../utils/keywordValidator';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('TargetingAlgorithm');
 
 // ==================== 类型定义 ====================
 
@@ -735,10 +737,10 @@ export function batchDecideTargeting(
     }
   }
   
-  console.log(`[TargetingAlgorithm] v2 批量决策完成: 总计${result.summary.total}个搜索词`);
-  console.log(`  精确匹配关键词: ${result.summary.exactKeywords}, 短语匹配: ${result.summary.phraseKeywords}, 广泛匹配: ${result.summary.broadKeywords}`);
-  console.log(`  精确ASIN定向: ${result.summary.exactAsinTargets}, 扩展ASIN定向: ${result.summary.expandedAsinTargets}`);
-  console.log(`  否定关键词: ${result.summary.negativeKeywords}, 否定产品: ${result.summary.negativeProductTargets}, 观察中: ${result.summary.monitors}, 跳过: ${result.summary.skipped}`);
+  log.info(`[TargetingAlgorithm] v2 批量决策完成: 总计${result.summary.total}个搜索词`);
+  log.info(`  精确匹配关键词: ${result.summary.exactKeywords}, 短语匹配: ${result.summary.phraseKeywords}, 广泛匹配: ${result.summary.broadKeywords}`);
+  log.info(`  精确ASIN定向: ${result.summary.exactAsinTargets}, 扩展ASIN定向: ${result.summary.expandedAsinTargets}`);
+  log.info(`  否定关键词: ${result.summary.negativeKeywords}, 否定产品: ${result.summary.negativeProductTargets}, 观察中: ${result.summary.monitors}, 跳过: ${result.summary.skipped}`);
   
   return result;
 }

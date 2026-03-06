@@ -17,6 +17,8 @@
  */
 
 import crypto from 'crypto';
+import { createModuleLogger } from './logger';
+const log = createModuleLogger('Crypto');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // GCM 推荐 12 字节 IV
@@ -132,7 +134,7 @@ export function safeEncrypt(plaintext: string): string {
   try {
     return encrypt(plaintext);
   } catch (error: any) {
-    console.warn(`[CryptoService] 加密失败，返回明文: ${error.message}`);
+    log.warn(`[CryptoService] 加密失败，返回明文: ${error.message}`);
     return plaintext;
   }
 }
@@ -146,7 +148,7 @@ export function safeDecrypt(ciphertext: string): string {
   try {
     return decrypt(ciphertext);
   } catch (error: any) {
-    console.warn(`[CryptoService] 解密失败，返回原始值: ${error.message}`);
+    log.warn(`[CryptoService] 解密失败，返回原始值: ${error.message}`);
     return ciphertext;
   }
 }

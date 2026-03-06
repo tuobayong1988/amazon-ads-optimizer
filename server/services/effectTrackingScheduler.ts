@@ -11,6 +11,8 @@
 import { getDb } from '../db';
 import { bidAdjustmentHistory, campaigns, keywords } from '../../drizzle/schema';
 import { eq, and, isNull, lte, gte, sql } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('EffectTrackingScheduler');
 
 // 追踪周期配置
 export const TRACKING_PERIODS = {
@@ -211,7 +213,7 @@ export async function getPendingTrackingRecords(): Promise<any[]> {
       return needs.collect7Day || needs.collect14Day || needs.collect30Day;
     });
   } catch (error) {
-    console.error('获取待追踪记录失败:', error);
+    log.error('获取待追踪记录失败:', error);
     return [];
   }
 }
@@ -287,7 +289,7 @@ export async function updateTrackingData(
     
     return true;
   } catch (error) {
-    console.error(`更新记录 ${recordId} 的 ${period} 天追踪数据失败:`, error);
+    log.error(`更新记录 ${recordId} 的 ${period} 天追踪数据失败:`, error);
     return false;
   }
 }
@@ -396,7 +398,7 @@ export async function runEffectTrackingTask(): Promise<{
  */
 export function startScheduler(intervalMs: number = 60 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
-    console.log('效果追踪定时任务已在运行中');
+    log.info('效果追踪定时任务已在运行中');
     return;
   }
   
@@ -405,17 +407,17 @@ export function startScheduler(intervalMs: number = 60 * 60 * 1000): void {
   
   // 立即执行一次
   runEffectTrackingTask().then(result => {
-    console.log('效果追踪任务执行完成:', result);
+    log.info('效果追踪任务执行完成:', result);
   });
   
   // 设置定时执行
   schedulerInterval = setInterval(async () => {
     schedulerStatus.nextRunTime = new Date(Date.now() + intervalMs);
     const result = await runEffectTrackingTask();
-    console.log('效果追踪任务执行完成:', result);
+    log.info('效果追踪任务执行完成:', result);
   }, intervalMs);
   
-  console.log(`效果追踪定时任务已启动，执行间隔: ${intervalMs / 1000 / 60} 分钟`);
+  log.info(`效果追踪定时任务已启动，执行间隔: ${intervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -423,7 +425,7 @@ export function startScheduler(intervalMs: number = 60 * 60 * 1000): void {
  */
 export function stopScheduler(): void {
   if (!schedulerStatus.isRunning) {
-    console.log('效果追踪定时任务未在运行');
+    log.info('效果追踪定时任务未在运行');
     return;
   }
   
@@ -435,7 +437,7 @@ export function stopScheduler(): void {
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
   
-  console.log('效果追踪定时任务已停止');
+  log.info('效果追踪定时任务已停止');
 }
 
 /**
@@ -642,7 +644,7 @@ export async function generateEffectTrackingReport(options: {
       },
     };
   } catch (error) {
-    console.error('生成效果追踪报告失败:', error);
+    log.error('生成效果追踪报告失败:', error);
     throw error;
   }
 }

@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('Server');
 import express from "express";
 import compression from "compression";
 import { createServer } from "http";
@@ -155,12 +157,12 @@ async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     port = await findAvailablePort(preferredPort);
     if (port !== preferredPort) {
-      console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+      log.info(`Port ${preferredPort} is busy, using port ${port} instead`);
     }
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
+    log.info(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
     logSystem('Startup', `系统启动完成 v${SYSTEM_VERSION}`, { port, nodeVersion: process.version, pid: process.pid });
     
     // v205: 初始化Logger数据库持久化
@@ -181,9 +183,9 @@ async function startServer() {
             INDEX \`idx_syslog_module\` (\`module\`(64)),
             INDEX \`idx_syslog_level_timestamp\` (\`level\`, \`timestamp\`)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
-          console.log('[Logger] system_logs表已就绪');
+          log.info('[Logger] system_logs表已就绪');
         } catch (e: any) {
-          console.error('[Logger] system_logs表创建失败:', e.message);
+          log.error('[Logger] system_logs表创建失败:', e.message);
         }
       }
     }).catch(() => {});
@@ -191,34 +193,34 @@ async function startServer() {
     // v198: 启动时自动创建NextGen算法所需的数据库表
     ensureNextGenTables().then(result => {
       if (result.success) {
-        console.log(`[NextGen] 数据库表检查完成: ${result.tablesCreated} 个表已就绪`);
+        log.info(`[NextGen] 数据库表检查完成: ${result.tablesCreated} 个表已就绪`);
       } else {
-        console.error('[NextGen] 数据库表创建失败:', result.error);
+        log.error('[NextGen] 数据库表创建失败:', result.error);
       }
     }).catch(err => {
-      console.error('[NextGen] 数据库表检查异常:', err.message);
+      log.error('[NextGen] 数据库表检查异常:', err.message);
     });
 
     // v248: 启动时自动创建v245+所需的数据库表和列
     runAutoDbMigration().then(result => {
       if (result.success) {
-        console.log(`[AutoDbMigration] v248数据库迁移完成: ${result.results.join('; ')}`);
+        log.info(`[AutoDbMigration] v248数据库迁移完成: ${result.results.join('; ')}`);
       } else {
-        console.error('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
+        log.error('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      console.error('[AutoDbMigration] v248迁移异常:', err.message);
+      log.error('[AutoDbMigration] v248迁移异常:', err.message);
     });
 
     // 预发布引擎数据库表自动创建
     runPrelaunchDbMigration().then(result => {
       if (result.success) {
-        console.log(`[PrelaunchDb] 预发布引擎表迁移完成: ${result.results.filter(r => r.includes('已就绪')).length} 张表创建/确认`);
+        log.info(`[PrelaunchDb] 预发布引擎表迁移完成: ${result.results.filter(r => r.includes('已就绪')).length} 张表创建/确认`);
       } else {
-        console.error('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
+        log.error('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      console.error('[PrelaunchDb] 预发布引擎表迁移异常:', err.message);
+      log.error('[PrelaunchDb] 预发布引擎表迁移异常:', err.message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
@@ -226,60 +228,60 @@ async function startServer() {
       if (result.success) {
         const total = Object.values(result.migrated).reduce((a, b) => a + b, 0);
         if (total > 0) {
-          console.log(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
+          log.info(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
         } else {
-          console.log('[AutoMigration] v146数据迁移: 无新数据需要迁移', result.skipped);
+          log.info('[AutoMigration] v146数据迁移: 无新数据需要迁移', result.skipped);
         }
       } else {
-        console.error('[AutoMigration] v146数据迁移失败:', result.skipped);
+        log.error('[AutoMigration] v146数据迁移失败:', result.skipped);
       }
     }).catch(err => {
-      console.error('[AutoMigration] v146迁移异常:', err.message);
+      log.error('[AutoMigration] v146迁移异常:', err.message);
     });
 
     // v208: 启动时自动修复历史数据中的campaignId（本地int → Amazon ID）
     migrateCampaignIdsToAmazonIds().then(() => {
-      console.log('[AutoMigration] v208 campaignId标准化迁移完成');
+      log.info('[AutoMigration] v208 campaignId标准化迁移完成');
       logMigration('CampaignIdMigration', 'v208 campaignId标准化迁移完成');
     }).catch(err => {
-      console.error('[AutoMigration] v208 campaignId迁移异常:', err.message);
+      log.error('[AutoMigration] v208 campaignId迁移异常:', err.message);
       logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${err.message}`);
     });
 
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
-    console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
+    log.info('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
     
     // v143: 启动生命周期感知的智能优化调度器
     startOptimizationScheduler();
-    console.log('[OptimizationScheduler] v143生命周期感知智能优化调度器已启动');
+    log.info('[OptimizationScheduler] v143生命周期感知智能优化调度器已启动');
     
     // v142: 禁用optimizationScheduler的daily全量执行，避免与dataSyncScheduler重复
-    console.log('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');
+    log.info('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');
 
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
       startSQSConsumer().then(() => {
-        console.log('[SQS Consumer] AMS实时数据流消费者已启动');
+        log.info('[SQS Consumer] AMS实时数据流消费者已启动');
       }).catch(err => {
-        console.error('[SQS Consumer] 启动失败:', err.message);
+        log.error('[SQS Consumer] 启动失败:', err.message);
       });
     } else {
-      console.log('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
+      log.info('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
     }
     
     // v267 P2-3: 启动统一可观测性服务
     startObservabilityService();
-    console.log('[Observability] v267: 统一可观测性服务已启动 - 指标收集/告警/健康摘要');
+    log.info('[Observability] v267: 统一可观测性服务已启动 - 指标收集/告警/健康摘要');
 
     // 启动异步报告任务调度器
     reportJobScheduler.start();
-    console.log('[ReportJobScheduler] 异步报告任务调度器已启动');
+    log.info('[ReportJobScheduler] 异步报告任务调度器已启动');
     
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
     orchestrateStartup(server).catch(err => {
-      console.error('[LifecycleManager] 启动协调失败:', err.message);
+      log.error('[LifecycleManager] 启动协调失败:', err.message);
     });
   });
 }
