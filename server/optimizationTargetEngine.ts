@@ -1765,16 +1765,16 @@ async function executePlacementOptimization(
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {
-      // v186: 修复campaignId MISMATCH - placement_performance表存储的是本地ID(campaigns.id)
-      // 本地数据库查询必须使用本地ID，Amazon API调用使用Amazon ID
-      const localCampaignIdStr = String(campaignLocalId);
+      // v337.1: 修复placement ID MISMATCH — placement_performance表存储的是Amazon ID (varchar)
+      // v186错误地认为存储的是本地ID，v207已将同步改为存储Amazon ID，但v186的查询未同步更新
+      // 修复: 统一使用Amazon ID查询placement_performance表
       
-      // 分析位置表现（使用本地ID查询placement_performance表）
-      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaignLocalId as any, config.accountId);
+      // 分析位置表现（使用Amazon ID查询placement_performance表）
+      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaignAmazonId, config.accountId);
       
-      // 生成位置调整建议（使用本地ID查询placement_performance表）
+      // 生成位置调整建议（使用Amazon ID查询placement_performance表）
       const suggestions = await placementOptimizationService.generatePlacementSuggestions(
-        campaignLocalId as any,
+        campaignAmazonId,
         config.accountId
       );
       
@@ -1826,9 +1826,9 @@ async function executePlacementOptimization(
         details.push(adjustment);
         
         if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
-          // v186: 本地记录使用本地ID
+          // v337.1: 修复 — placement_settings表的campaignId也是varchar，应使用Amazon ID
           await placementOptimizationService.applyPlacementAdjustment(
-            campaignLocalId as any,
+            campaignAmazonId,
             config.accountId,
             { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );

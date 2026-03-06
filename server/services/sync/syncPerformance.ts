@@ -1169,8 +1169,9 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
 
       const reportDate = row.date || new Date().toISOString().split('T')[0];
 
-      // v207: 统一使用Amazon campaignId（varchar字段应存储Amazon ID）
-      const localCampaignId = String(campaign.campaignId);
+      // v207/v337.1: 统一使用Amazon campaignId（varchar字段存储Amazon ID）
+      // v337.1: 修复误导性变量名 localCampaignId → amazonCampaignId
+      const amazonCampaignId = String(campaign.campaignId);
       
       // 检查是否已存在
       const [existing] = await db
@@ -1178,7 +1179,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         .from(placementPerformance)
         .where(
           and(
-            eq(placementPerformance.campaignId, localCampaignId),
+            eq(placementPerformance.campaignId, amazonCampaignId),
             eq(placementPerformance.accountId, this.accountId),
             eq(placementPerformance.placement, placement),
             eq(placementPerformance.date, reportDate)
@@ -1194,7 +1195,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       const orders = row.purchases7d || row.purchases14d || 0;
 
       const perfData = {
-        campaignId: localCampaignId,
+        campaignId: amazonCampaignId,
         accountId: this.accountId,
         placement,
         date: reportDate,
