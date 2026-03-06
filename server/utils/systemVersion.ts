@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 343;  // v343: 授权模块智能去重修复 - 防止刷新授权时创建重复站点，同一国家多个profile智能过滤
+export const SYSTEM_VERSION = 344;  // v344: 修复P0冷启动同步90天数据Bug + P1竞价日志表结构修复 + 数据库补全cold_start_logs表

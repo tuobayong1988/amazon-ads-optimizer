@@ -446,6 +446,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['auth', 'api'],
     correctionActions: ['resync_data'],
   },
+  {
+    version: 344,
+    description: 'v344: [P0冷启动同步天数修复 + P1竞价日志表修复] — (1)P0-coldStartService.executeFullSync修复: syncAll()调用时强制传入performanceDays=90天,之前未传参数导致默认只同步14天绩效数据 (2)P0-移除syncPerformanceOnly硬编码限制: 之前硬编码days>30?30:days导致最多只同步30天 (3)P1-bidding_logs表结构修复: 添加缺失的algorithm_used列,更新logTargetType和actionType枚举值 (4)P1-创建cold_start_logs表: 之前表不存在导致冷启动日志记录失败 (5)P1-amazon_api_credentials表添加last_cold_start_version和last_cold_start_at列',
+    affectedModules: ['sync', 'bidding', 'cold_start'],
+    correctionActions: ['resync_data', 'cold_start'],
+  },
 ];
 
 // ==================== 配置 ====================

@@ -404,8 +404,10 @@ async function executeFullSync(
       account.marketplace
     );
     
-    // 执行全量同步（包含搜索词、广告位、定向等所有数据）
-    const syncData = await syncService.syncAll();
+    // v344: 修复P0 Bug - 执行全量同步时必须传入完整的历史天数
+    // 之前syncAll()未传performanceDays参数，导致默认只同步14天绩效数据
+    log.info(`[ColdStart] v344: 执行全量同步，performanceDays=${days}天`);
+    const syncData = await syncService.syncAll({ performanceDays: days });
     result.campaigns = syncData.campaigns || 0;
     result.keywords = syncData.keywords || 0;
     result.targets = syncData.targets || 0;
@@ -413,13 +415,10 @@ async function executeFullSync(
     // 同步完成后更新lastSync时间
     await db.updateAmazonApiCredentialsLastSync(accountId);
     
-    // 额外同步绩效数据（覆盖更长时间范围）
-    try {
-      const perfResult = await syncService.syncPerformanceOnly(days > 30 ? 30 : days);
-      log.info(`[ColdStart] 绩效数据同步: ${perfResult.performance}条`);
-    } catch (perfErr: any) {
-      log.warn(`[ColdStart] 绩效数据同步失败（不影响后续）: ${perfErr.message}`);
-    }
+    // v344: 移除额外的syncPerformanceOnly调用
+    // syncAll已经通过performanceDays参数同步了完整的绩效数据
+    // 之前这里硬编码了 days > 30 ? 30 : days，导致最多只同步30天
+    log.info(`[ColdStart] v344: syncAll已包含${days}天绩效数据，无需额外同步`);
     
   } catch (err: any) {
     log.error(`[ColdStart] 全量同步失败: ${err.message}`);
