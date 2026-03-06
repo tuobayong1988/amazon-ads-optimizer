@@ -54771,7 +54771,29 @@ var init_amazonAdsApi = __esm({
             if (!config2._retryCount) {
               config2._retryCount = 0;
             }
-            if (status === 401 || status === 403) {
+            if (status === 401 && !config2._auth401Retried) {
+              const requestUrl = config2?.url || "unknown";
+              const profileId = config2?.headers?.["Amazon-Advertising-API-Scope"] || "unknown";
+              log6.warn(`[Amazon API] v341: \u6536\u5230401\uFF0C\u6E05\u9664Token\u7F13\u5B58\u5E76\u5F3A\u5236\u91CD\u5237\u65B0 (profileId=${profileId}, URL=${requestUrl})`);
+              this.accessToken = null;
+              this.tokenExpiry = null;
+              const refreshTokenKey = this.credentials.refreshToken.substring(0, 16);
+              _AmazonAdsApiClient._globalRefreshLocks.delete(refreshTokenKey);
+              config2._auth401Retried = true;
+              try {
+                const newToken = await this.getAccessToken();
+                config2.headers.Authorization = `Bearer ${newToken}`;
+                log6.info(`[Amazon API] v341: Token\u91CD\u5237\u65B0\u6210\u529F\uFF0C\u91CD\u8BD5\u8BF7\u6C42 (profileId=${profileId}, URL=${requestUrl})`);
+                return this.axiosInstance(config2);
+              } catch (refreshErr) {
+                log6.error(`[Amazon API] v341: Token\u91CD\u5237\u65B0\u5931\u8D25: ${refreshErr.message} (profileId=${profileId})`);
+                this._triggerAuthFailureAlert(401, "TOKEN_EXPIRED", profileId, requestUrl).catch((alertErr) => {
+                  log6.warn(`[Amazon API] v333: \u8BA4\u8BC1\u5931\u8D25\u544A\u8B66\u53D1\u9001\u5931\u8D25: ${alertErr.message}`);
+                });
+                throw error54;
+              }
+            }
+            if (status === 401 && config2._auth401Retried || status === 403) {
               const authErrorType = status === 401 ? "TOKEN_EXPIRED" : "PERMISSION_DENIED";
               const requestUrl = config2?.url || "unknown";
               const profileId = config2?.headers?.["Amazon-Advertising-API-Scope"] || "unknown";
@@ -163274,7 +163296,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 340;
+    SYSTEM_VERSION = 341;
   }
 });
 
@@ -170210,6 +170232,12 @@ var init_postDeployOptimizer = __esm({
         version: 340,
         description: "v340: [\u540C\u6B65\u5065\u5EB7\u76D1\u63A7+Token\u7ADE\u6001\u4FEE\u590D+\u5927\u8D26\u6237\u4FDD\u62A4] \u2014 (1)P0-syncAll\u8BE6\u7EC6\u65E5\u5FD7: \u4E3AsyncAll\u65B9\u6CD5\u589E\u52A0\u7EDF\u4E00runStep\u8BCA\u65AD\u65E5\u5FD7\u7CFB\u7EDF,\u8BB0\u5F55\u6BCF\u4E2A\u540C\u6B65\u6B65\u9AA4\u7684\u5F00\u59CB/\u7ED3\u675F/\u8017\u65F6/\u8BB0\u5F55\u6570/\u5F02\u5E38,\u540C\u6B65\u5B8C\u6210\u540E\u8F93\u51FA\u6C47\u603B\u62A5\u544A (2)P0-\u624B\u52A8\u89E6\u53D1\u540C\u6B65API: \u65B0\u589EPOST /api/ops/force-sync\u7AEF\u70B9,\u652F\u6301\u6307\u5B9A\u8D26\u6237ID\u548C\u540C\u6B65\u5C42\u7EA7(full/fast/minimal)\u624B\u52A8\u89E6\u53D1\u5168\u91CF\u540C\u6B65 (3)P0-Token\u5237\u65B0\u7ADE\u6001\u4FEE\u590D: \u5B9E\u73B0\u5168\u5C40\u7EA7\u522BRefresh Token\u5237\u65B0\u9501,\u89E3\u51B3\u591A\u4E2AAPI\u5BA2\u6237\u7AEF\u5B9E\u4F8B\u5171\u4EAB\u540C\u4E00Refresh Token\u65F6\u7684\u5E76\u53D1\u5237\u65B0\u51B2\u7A81,\u4E09\u7EA7Token\u83B7\u53D6\u8DEF\u5F84(\u5B9E\u4F8B\u7F13\u5B58\u2192\u5168\u5C40\u9501\u7F13\u5B58\u2192\u5168\u5C40\u9501\u5E76\u53D1\u7B49\u5F85\u2192\u5B9E\u9645\u5237\u65B0) (4)P1-\u540C\u6B65\u5065\u5EB7\u76D1\u63A7: \u5F53\u8D26\u6237\u540C\u6B65\u5B8C\u6210\u4F46totalSynced=0\u65F6\u81EA\u52A8\u89E6\u53D1critical\u7EA7\u522B\u544A\u8B66,\u5199\u5165anomaly_alert_logs\u8868 (5)P1-\u5927\u8D26\u6237\u81EA\u9002\u5E94\u4FDD\u62A4: \u8D85\u8FC71000\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u8D26\u6237\u81EA\u52A8\u542F\u7528\u4FDD\u62A4\u6A21\u5F0F(\u6B65\u9AA4\u95F4\u989D\u5916\u5EF6\u8FDF3\u79D2+\u5355\u8D26\u6237\u540C\u6B6545\u5206\u949F\u8D85\u65F6\u4FDD\u62A4)",
         affectedModules: ["sync", "api", "monitoring"],
+        correctionActions: ["resync_data"]
+      },
+      {
+        version: 341,
+        description: "v341: [401\u81EA\u52A8\u91CD\u5237\u65B0Token\u4FEE\u590D] \u2014 (1)P0-401\u81EA\u52A8\u91CD\u5237\u65B0Token\u5E76\u91CD\u8BD5: \u5F53Amazon API\u8FD4\u56DE401 Unauthorized\u65F6,\u81EA\u52A8\u6E05\u9664\u5B9E\u4F8B\u7EA7\u548C\u5168\u5C40\u7EA7Token\u7F13\u5B58,\u5F3A\u5236\u91CD\u65B0\u6267\u884CdoRefreshToken()\u83B7\u53D6\u65B0Token,\u7136\u540E\u91CD\u8BD5\u539F\u59CB\u8BF7\u6C42(\u6700\u591A1\u6B21),\u9632\u6B62\u65E0\u9650\u5FAA\u73AF (2)P0-\u89E3\u51B3LERUCCI\u5E97\u94FA\u540C\u6B65\u5931\u8D25\u6839\u56E0: \u8D26\u623790027/90026/90025\u7684accessToken\u4E3ANULL\u5BFC\u81F4\u6240\u6709API\u8BF7\u6C42\u8FD4\u56DE401,\u4F46\u65E7\u7248\u672C\u4E0D\u4F1A\u91CD\u8BD5\u5237\u65B0Token,\u73B0\u5728\u6536\u523001\u540E\u4F1A\u81EA\u52A8\u5C1D\u8BD5\u5237\u65B0\u5E76\u91CD\u8BD5",
+        affectedModules: ["api", "sync"],
         correctionActions: ["resync_data"]
       }
     ];

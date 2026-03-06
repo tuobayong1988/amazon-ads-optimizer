@@ -428,6 +428,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync', 'api', 'monitoring'],
     correctionActions: ['resync_data'],
   },
+  {
+    version: 341,
+    description: 'v341: [401自动重刷新Token修复] — (1)P0-401自动重刷新Token并重试: 当Amazon API返回401 Unauthorized时,自动清除实例级和全局级Token缓存,强制重新执行doRefreshToken()获取新Token,然后重试原始请求(最多1次),防止无限循环 (2)P0-解决LERUCCI店铺同步失败根因: 账户90027/90026/90025的accessToken为NULL导致所有API请求返回401,但旧版本不会重试刷新Token,现在收到01后会自动尝试刷新并重试',
+    affectedModules: ['api', 'sync'],
+    correctionActions: ['resync_data'],
+  },
 ];
 
 // ==================== 配置 ====================

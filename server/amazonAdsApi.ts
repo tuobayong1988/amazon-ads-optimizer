@@ -210,8 +210,42 @@ export class AmazonAdsApiClient {
           config._retryCount = 0;
         }
         
-        // v333: 认证失败专项监控 - 检测401/403并触发告警
-        if (status === 401 || status === 403) {
+        // v341: 401自动重刷新Token并重试 — 解决Token过期后请求静默失败的问题
+        // 当收到401时，清除缓存的accessToken，强制重新刷新Token，然后重试请求（最多1次）
+        if (status === 401 && !config._auth401Retried) {
+          const requestUrl = config?.url || 'unknown';
+          const profileId = config?.headers?.['Amazon-Advertising-API-Scope'] || 'unknown';
+          log.warn(`[Amazon API] v341: 收到401，清除Token缓存并强制重刷新 (profileId=${profileId}, URL=${requestUrl})`);
+          
+          // 清除实例级Token缓存，强制下次getAccessToken()重新刷新
+          this.accessToken = null;
+          this.tokenExpiry = null;
+          
+          // 清除全局锁中的缓存Token，防止其他实例复用过期Token
+          const refreshTokenKey = this.credentials.refreshToken.substring(0, 16);
+          AmazonAdsApiClient._globalRefreshLocks.delete(refreshTokenKey);
+          
+          // 标记已重试401，防止无限循环
+          config._auth401Retried = true;
+          
+          try {
+            // 强制重新获取Token（会触发doRefreshToken）
+            const newToken = await this.getAccessToken();
+            config.headers.Authorization = `Bearer ${newToken}`;
+            log.info(`[Amazon API] v341: Token重刷新成功，重试请求 (profileId=${profileId}, URL=${requestUrl})`);
+            return this.axiosInstance(config);
+          } catch (refreshErr: any) {
+            log.error(`[Amazon API] v341: Token重刷新失败: ${refreshErr.message} (profileId=${profileId})`);
+            // Token刷新失败，触发告警并继续抛出原始401错误
+            this._triggerAuthFailureAlert(401, 'TOKEN_EXPIRED', profileId, requestUrl).catch((alertErr: any) => {
+              log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
+            });
+            throw error;
+          }
+        }
+        
+        // v333: 认证失败专项监控 - 检测401(已重试过)/403并触发告警
+        if ((status === 401 && config._auth401Retried) || status === 403) {
           const authErrorType = status === 401 ? 'TOKEN_EXPIRED' : 'PERMISSION_DENIED';
           const requestUrl = config?.url || 'unknown';
           const profileId = config?.headers?.['Amazon-Advertising-API-Scope'] || 'unknown';

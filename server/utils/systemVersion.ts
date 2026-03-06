@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 340;  // v340: 同步健康监控+Token刷新竞态修复+大账户保护+手动同步API+syncAll详细日志
+export const SYSTEM_VERSION = 341;  // v341: 401自动重刷新Token并重试+解决LERUCCI店铺同步失败根因
