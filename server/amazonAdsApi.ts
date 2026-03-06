@@ -205,6 +205,12 @@ export class AmazonAdsApiClient {
         const config = error.config;
         const status = error.response?.status;
         
+        // v347: 防护config为undefined的情况（axios在某些错误类型下不携带config）
+        if (!config) {
+          log.warn(`[Amazon API] v347: error.config为undefined, status=${status}, message=${error.message}`);
+          return Promise.reject(error);
+        }
+        
         // v148: 初始化重试计数器
         if (!config._retryCount) {
           config._retryCount = 0;
@@ -1593,7 +1599,14 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] 报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: any) {
-      log.error('[Amazon API] 请求SP广告活动报告失败:', error.response?.data || error.message);
+      // v348: 增强错误诊断日志
+      const errStatus = error.response?.status;
+      const errData = error.response?.data;
+      const errHeaders = error.response?.headers;
+      log.error(`[Amazon API] 请求SP广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error.message}`);
+      if (errStatus === 400) {
+        log.error(`[Amazon API] v348: SP报告400详情: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+      }
       throw error;
     }
   }
@@ -1785,7 +1798,14 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: any) {
-      log.error('[Amazon API] 请求SB广告活动报告失败:', error.response?.data || error.message);
+      // v348: 增强错误诊断日志
+      const errStatus = error.response?.status;
+      const errData = error.response?.data;
+      const errHeaders = error.response?.headers;
+      log.error(`[Amazon API] 请求SB广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error.message}`);
+      if (errStatus === 400) {
+        log.error(`[Amazon API] v348: SB报告400详情: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+      }
       throw error;
     }
   }
@@ -1903,7 +1923,14 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: any) {
-      log.error('[Amazon API] 请求SD广告活动报告失败:', error.response?.data || error.message);
+      // v348: 增强错误诊断日志
+      const errStatus = error.response?.status;
+      const errData = error.response?.data;
+      const errHeaders = error.response?.headers;
+      log.error(`[Amazon API] 请求SD广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error.message}`);
+      if (errStatus === 400) {
+        log.error(`[Amazon API] v348: SD报告400详情: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+      }
       throw error;
     }
   }

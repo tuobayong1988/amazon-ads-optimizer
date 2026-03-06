@@ -54934,6 +54934,10 @@ var init_amazonAdsApi = __esm({
           async (error54) => {
             const config2 = error54.config;
             const status = error54.response?.status;
+            if (!config2) {
+              log10.warn(`[Amazon API] v347: error.config\u4E3Aundefined, status=${status}, message=${error54.message}`);
+              return Promise.reject(error54);
+            }
             if (!config2._retryCount) {
               config2._retryCount = 0;
             }
@@ -55390,9 +55394,9 @@ Profile ID: ${profileId}
         if (formattedUpdates.dailyBudget !== void 0) {
           formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
         }
-        const requestBody = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
-        log10.debug(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        await this.axiosInstance.put("/sp/campaigns", requestBody, {
+        const requestBody2 = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
+        log10.debug(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody2).substring(0, 500));
+        await this.axiosInstance.put("/sp/campaigns", requestBody2, {
           headers: {
             "Content-Type": "application/vnd.spCampaign.v3+json",
             "Accept": "application/vnd.spCampaign.v3+json"
@@ -55539,8 +55543,8 @@ Profile ID: ${profileId}
               bid: Number(k5.bid.toFixed(2)),
               state: (k5.state || "enabled").toUpperCase()
             }));
-            const requestBody = { keywords: formattedKeywords };
-            const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
+            const requestBody2 = { keywords: formattedKeywords };
+            const response = await this.axiosInstance.post("/sp/keywords", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spKeyword.v3+json",
                 "Accept": "application/vnd.spKeyword.v3+json"
@@ -55611,10 +55615,10 @@ Profile ID: ${profileId}
         log10.info(`[SP API] v199: updateKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { keywords: batch };
+          const requestBody2 = { keywords: batch };
           log10.info(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
           try {
-            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spKeyword.v3+json",
                 "Accept": "application/vnd.spKeyword.v3+json"
@@ -55673,9 +55677,9 @@ Profile ID: ${profileId}
         log10.info(`[SP API] v199: updateKeywordStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { keywords: batch };
+          const requestBody2 = { keywords: batch };
           try {
-            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spKeyword.v3+json",
                 "Accept": "application/vnd.spKeyword.v3+json"
@@ -55723,9 +55727,9 @@ Profile ID: ${profileId}
         log10.info(`[SP API] v199: updateProductTargetStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { targetingClauses: batch };
+          const requestBody2 = { targetingClauses: batch };
           try {
-            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spTargetingClause.v3+json",
                 "Accept": "application/vnd.spTargetingClause.v3+json"
@@ -55772,9 +55776,9 @@ Profile ID: ${profileId}
         log10.info(`[SP API] v199: updateSpAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { adGroups: batch };
+          const requestBody2 = { adGroups: batch };
           try {
-            const response = await this.axiosInstance.put("/sp/adGroups", requestBody, {
+            const response = await this.axiosInstance.put("/sp/adGroups", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spAdGroup.v3+json",
                 "Accept": "application/vnd.spAdGroup.v3+json"
@@ -55879,9 +55883,9 @@ Profile ID: ${profileId}
         log10.info(`[SP API] v199: updateProductTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
         for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
           const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-          const requestBody = { targetingClauses: batch };
+          const requestBody2 = { targetingClauses: batch };
           try {
-            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spTargetingClause.v3+json",
                 "Accept": "application/vnd.spTargetingClause.v3+json"
@@ -55946,8 +55950,8 @@ Profile ID: ${profileId}
               bid: Number(t7.bid.toFixed(2)),
               state: (t7.state || "enabled").toUpperCase()
             }));
-            const requestBody = { targetingClauses: formattedTargets };
-            const response = await this.axiosInstance.post("/sp/targets", requestBody, {
+            const requestBody2 = { targetingClauses: formattedTargets };
+            const response = await this.axiosInstance.post("/sp/targets", requestBody2, {
               headers: {
                 "Content-Type": "application/vnd.spTargetingClause.v3+json",
                 "Accept": "application/vnd.spTargetingClause.v3+json"
@@ -56024,7 +56028,7 @@ Profile ID: ${profileId}
       async requestSpCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedSales7d", "attributedConversions7d"]) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Campaign Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56083,7 +56087,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56092,7 +56096,13 @@ Profile ID: ${profileId}
           log10.info(`[Amazon API] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
           return response.data.reportId;
         } catch (error54) {
-          log10.error("[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          const errStatus = error54.response?.status;
+          const errData = error54.response?.data;
+          const errHeaders = error54.response?.headers;
+          log10.error(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error54.message}`);
+          if (errStatus === 400) {
+            log10.error(`[Amazon API] v348: SP\u62A5\u544A400\u8BE6\u60C5: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+          }
           throw error54;
         }
       }
@@ -56103,7 +56113,7 @@ Profile ID: ${profileId}
       async requestSpKeywordReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5173\u952E\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Keyword Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56171,7 +56181,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56200,7 +56210,7 @@ Profile ID: ${profileId}
       async requestSbCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d"]) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SB\u54C1\u724C\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Campaign Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56317,7 +56327,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56326,7 +56336,13 @@ Profile ID: ${profileId}
           log10.info(`[Amazon API] SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
           return response.data.reportId;
         } catch (error54) {
-          log10.error("[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          const errStatus = error54.response?.status;
+          const errData = error54.response?.data;
+          const errHeaders = error54.response?.headers;
+          log10.error(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error54.message}`);
+          if (errStatus === 400) {
+            log10.error(`[Amazon API] v348: SB\u62A5\u544A400\u8BE6\u60C5: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+          }
           throw error54;
         }
       }
@@ -56349,7 +56365,7 @@ Profile ID: ${profileId}
       async requestSdCampaignReport(startDate, endDate, metrics = ["impressions", "clicks", "cost", "attributedConversions14d", "attributedSales14d", "viewAttributedSales14d"]) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SD\u5C55\u793A\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Campaign Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56428,7 +56444,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56437,7 +56453,13 @@ Profile ID: ${profileId}
           log10.info(`[Amazon API] SD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${response.data.reportId}`);
           return response.data.reportId;
         } catch (error54) {
-          log10.error("[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25:", error54.response?.data || error54.message);
+          const errStatus = error54.response?.status;
+          const errData = error54.response?.data;
+          const errHeaders = error54.response?.headers;
+          log10.error(`[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u6D3B\u52A8\u62A5\u544A\u5931\u8D25: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${error54.message}`);
+          if (errStatus === 400) {
+            log10.error(`[Amazon API] v348: SD\u62A5\u544A400\u8BE6\u60C5: requestBody=${JSON.stringify(requestBody)?.slice(0, 500)}, responseHeaders=${JSON.stringify(errHeaders)?.slice(0, 300)}`);
+          }
           throw error54;
         }
       }
@@ -56453,7 +56475,7 @@ Profile ID: ${profileId}
       async requestSpPlacementReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Placement Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56492,7 +56514,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56517,7 +56539,7 @@ Profile ID: ${profileId}
       async requestSpSearchTermReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Search Term Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56579,7 +56601,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56602,7 +56624,7 @@ Profile ID: ${profileId}
       async requestSpAdvertisedProductReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Advertised Product Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56662,7 +56684,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56684,7 +56706,7 @@ Profile ID: ${profileId}
       async requestSpPurchasedProductReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5DF2\u8D2D\u4E70\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Purchased Product Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56723,7 +56745,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56749,7 +56771,7 @@ Profile ID: ${profileId}
       async requestSpAutoTargetingReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Auto Targeting Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56785,7 +56807,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56805,7 +56827,7 @@ Profile ID: ${profileId}
       async requestSpAdGroupReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SP\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP AdGroup Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56834,7 +56856,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56854,7 +56876,7 @@ Profile ID: ${profileId}
       async requestSbAdGroupReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB AdGroup Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56882,7 +56904,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56902,7 +56924,7 @@ Profile ID: ${profileId}
       async requestSdAdGroupReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SD\u5E7F\u544A\u7EC4\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD AdGroup Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -56929,7 +56951,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -56953,7 +56975,7 @@ Profile ID: ${profileId}
       async requestSdTargetingReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SD\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Targeting Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57019,7 +57041,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57044,7 +57066,7 @@ Profile ID: ${profileId}
       async requestSdAdvertisedProductReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SD\u5DF2\u63A8\u5E7F\u5546\u54C1\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Advertised Product Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57114,7 +57136,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57136,7 +57158,7 @@ Profile ID: ${profileId}
       async requestSdMatchedTargetReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SD\u5339\u914D\u76EE\u6807\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Matched Target Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57177,7 +57199,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57197,7 +57219,7 @@ Profile ID: ${profileId}
       async requestSbTargetingReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SB\u5B9A\u5411\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Targeting Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57298,7 +57320,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57321,7 +57343,7 @@ Profile ID: ${profileId}
       async requestSbSearchTermReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SB\u641C\u7D22\u8BCD\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Search Term Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57382,7 +57404,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57407,7 +57429,7 @@ Profile ID: ${profileId}
       async requestSbCampaignPlacementReport(startDate, endDate) {
         try {
           log10.debug(`[Amazon API] \u8BF7\u6C42SB\u5E7F\u544A\u4F4D\u7F6E\u62A5\u544A: ${startDate} - ${endDate}`);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57503,7 +57525,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57523,7 +57545,7 @@ Profile ID: ${profileId}
       async requestSbAdsReport(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Ads Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57574,7 +57596,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57594,7 +57616,7 @@ Profile ID: ${profileId}
       async requestSdAdGroupReportDetailed(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD AdGroup Report Detailed ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57644,7 +57666,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57664,7 +57686,7 @@ Profile ID: ${profileId}
       async requestSdPurchasedProductReport(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Purchased Product Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57697,7 +57719,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57718,7 +57740,7 @@ Profile ID: ${profileId}
       async requestSpGrossAndInvalidsReport(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SP Gross And Invalids Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57747,7 +57769,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57768,7 +57790,7 @@ Profile ID: ${profileId}
       async requestSbGrossAndInvalidsReport(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SB Gross And Invalids Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57797,7 +57819,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -57818,7 +57840,7 @@ Profile ID: ${profileId}
       async requestSdGrossAndInvalidsReport(profileId, startDate, endDate) {
         try {
           this.setProfileId(profileId);
-          const requestBody = {
+          const requestBody2 = {
             name: `SD Gross And Invalids Report ${startDate} to ${endDate}`,
             startDate,
             endDate,
@@ -57842,7 +57864,7 @@ Profile ID: ${profileId}
               format: "GZIP_JSON"
             }
           };
-          const response = await this.axiosInstance.post("/reporting/reports", requestBody, {
+          const response = await this.axiosInstance.post("/reporting/reports", requestBody2, {
             headers: {
               "Content-Type": "application/vnd.createasyncreportrequest.v3+json",
               "Accept": "application/vnd.createasyncreportrequest.v3+json"
@@ -58668,7 +58690,7 @@ Profile ID: ${profileId}
         const clientRequestToken = generateUuidV4();
         log10.info(`[AMS] \u521B\u5EFA\u8BA2\u9605: dataSetId=${dataSetId}, destinationArn=${destinationArn}`);
         log10.debug(`[AMS] clientRequestToken: ${clientRequestToken} (\u957F\u5EA6: ${clientRequestToken.length})`);
-        const requestBody = {
+        const requestBody2 = {
           clientRequestToken,
           name: name2 || `${dataSetId}-subscription`,
           destination: {
@@ -58680,8 +58702,8 @@ Profile ID: ${profileId}
             // 注意: key是 "dataSet" (驼峰), 内部是 "id"
           }
         };
-        log10.debug(`[AMS] \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody, null, 2));
-        const response = await this.axiosInstance.post("/streams/subscriptions", requestBody);
+        log10.debug(`[AMS] \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody2, null, 2));
+        const response = await this.axiosInstance.post("/streams/subscriptions", requestBody2);
         log10.info(`[AMS] \u8BA2\u9605\u521B\u5EFA\u6210\u529F:`, response.data);
         return response.data;
       }
@@ -161705,7 +161727,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 347;
+    SYSTEM_VERSION = 348;
   }
 });
 
@@ -170738,6 +170760,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 348,
+        description: "v348: [P0\u62A5\u544A\u540C\u6B65\u5D29\u6E83\u4FEE\u590D + \u6784\u5EFA\u4FEE\u590D + \u9519\u8BEF\u8BCA\u65AD\u589E\u5F3A] \u2014 (1)P0-\u6784\u5EFA\u4FEE\u590D: V347\u7684config undefined\u9632\u62A4\u4EE3\u7801\u672A\u88AB\u7F16\u8BD1\u5230dist/index.js,\u5BFC\u81F4\u6240\u6709SP/SB/SD\u62A5\u544A\u8BF7\u6C42\u5D29\u6E83(Cannot read properties of undefined reading _retryCount),\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u5168\u5931\u8D25 (2)P0-\u91CD\u65B0\u6784\u5EFA: \u786E\u4FDD\u6240\u6709V347\u6E90\u7801\u4FEE\u590D\u6B63\u786E\u7F16\u8BD1\u5230\u4EA7\u7269\u4E2D (3)P1-\u62A5\u544A\u9519\u8BEF\u8BCA\u65AD\u589E\u5F3A: SP/SB/SD\u62A5\u544A\u8BF7\u6C42\u5931\u8D25\u65F6\u8BB0\u5F55\u5B8C\u6574\u7684status/data/headers/requestBody\u4FE1\u606F,\u4FBF\u4E8E\u5FEB\u901F\u5B9A\u4F4D400\u9519\u8BEF\u539F\u56E0",
+        affectedModules: ["sync", "build"],
+        correctionActions: ["resync_data"]
       },
       {
         version: 347,

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 347;  // v347: 分时竞价修复(缺失表创建)+内存检查逻辑修复+performanceGroupId赋值修复+anomaly_alert_logs参数化
+export const SYSTEM_VERSION = 348;  // v348: 构建修复(dist缺失config防护)+报告同步_retryCount崩溃修复+SB/SD/SP报告请求400错误增强诊断

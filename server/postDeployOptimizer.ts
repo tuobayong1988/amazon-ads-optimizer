@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 348,
+    description: 'v348: [P0报告同步崩溃修复 + 构建修复 + 错误诊断增强] — (1)P0-构建修复: V347的config undefined防护代码未被编译到dist/index.js,导致所有SP/SB/SD报告请求崩溃(Cannot read properties of undefined reading _retryCount),绩效数据同步完全失败 (2)P0-重新构建: 确保所有V347源码修复正确编译到产物中 (3)P1-报告错误诊断增强: SP/SB/SD报告请求失败时记录完整的status/data/headers/requestBody信息,便于快速定位400错误原因',
+    affectedModules: ['sync', 'build'],
+    correctionActions: ['resync_data'],
+  },
+  {
     version: 347,
     description: 'v347: [P0分时竞价修复 + 内存检查修复 + 优化日志修复] — (1)P0-缺失表创建: keyword_placement_hourly_performance和multi_dim_combo_analysis表从未在数据库中创建,导致分时竞价完全瘫痪 (2)P0-performanceGroupId修复: getOptimizationTargetConfig中未赋值导致所有optimization_logs查询失败(否词去重/搜索词去重/pending重试全部失效) (3)P0-内存检查逻辑修复: 从heapUsed/heapTotal百分比改为RSS绝对值(MB)阈值,解决内存实际只用102MB却报告89%导致任务被跳过 (4)P1-anomaly_alert_logs修复: INSERT全参数化+message列扩展为MEDIUMTEXT (5)P1-cold_start_logs缺失列补全',
     affectedModules: ['optimization', 'sync', 'db'],
