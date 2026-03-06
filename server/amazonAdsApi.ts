@@ -154,6 +154,17 @@ export class AmazonAdsApiClient {
   // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
   private tokenRefreshPromise: Promise<string> | null = null;
 
+  // v340: 全局级别Refresh Token刷新锁
+  // 解决多个实例共享同一个Refresh Token时的并发刷新竞态条件
+  // key = refreshToken的前16位（脱敏）, value = { promise, accessToken, expiry }
+  private static _globalRefreshLocks: Map<string, {
+    promise: Promise<string>;
+    accessToken: string | null;
+    tokenExpiry: Date | null;
+  }> = new Map();
+  private static readonly GLOBAL_LOCK_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5分钟清理一次过期锁
+  private static _lastCleanup = 0;
+
   constructor(credentials: AmazonApiCredentials) {
     this.credentials = credentials;
     this.axiosInstance = axios.create({
@@ -454,20 +465,73 @@ export class AmazonAdsApiClient {
       return this.accessToken;
     }
 
-    // v148: 并发锁 - 如果已有刷新在进行，复用同一个Promise而不是发起新的刷新请求
+    // v340: 全局锁快速路径 - 检查是否有其他实例已经用同一个Refresh Token刷新成功
+    const refreshTokenKey = this.credentials.refreshToken.substring(0, 16);
+    const globalLock = AmazonAdsApiClient._globalRefreshLocks.get(refreshTokenKey);
+    if (globalLock && globalLock.accessToken && globalLock.tokenExpiry && new Date() < globalLock.tokenExpiry) {
+      // 复用全局锁中已刷新的Token
+      this.accessToken = globalLock.accessToken;
+      this.tokenExpiry = globalLock.tokenExpiry;
+      log.debug(`[Amazon API] v340: 复用全局锁中已刷新的Token (refreshToken=${refreshTokenKey}...)`);
+      return this.accessToken;
+    }
+
+    // v148: 实例级并发锁 - 如果本实例已有刷新在进行，复用同一个Promise
     if (this.tokenRefreshPromise) {
       return this.tokenRefreshPromise;
     }
 
-    // v148: 创建刷新Promise并缓存，确保并发请求共享同一次刷新
+    // v340: 全局级并发锁 - 如果其他实例正在用同一个Refresh Token刷新，等待其完成
+    if (globalLock && globalLock.promise) {
+      log.debug(`[Amazon API] v340: 等待全局锁中的并发刷新 (refreshToken=${refreshTokenKey}...)`);
+      try {
+        const token = await globalLock.promise;
+        this.accessToken = token;
+        this.tokenExpiry = globalLock.tokenExpiry;
+        return token;
+      } catch (e) {
+        // 全局刷新失败，自己重试
+        log.warn(`[Amazon API] v340: 全局锁刷新失败，本实例将重新尝试`);
+      }
+    }
+
+    // v148+v340: 创建Promise并同时缓存到实例锁和全局锁
     this.tokenRefreshPromise = this.doRefreshToken();
+    const globalEntry = {
+      promise: this.tokenRefreshPromise,
+      accessToken: null as string | null,
+      tokenExpiry: null as Date | null,
+    };
+    AmazonAdsApiClient._globalRefreshLocks.set(refreshTokenKey, globalEntry);
     
     try {
       const token = await this.tokenRefreshPromise;
+      // 刷新成功，更新全局锁中的Token供其他实例复用
+      globalEntry.accessToken = this.accessToken;
+      globalEntry.tokenExpiry = this.tokenExpiry;
       return token;
     } finally {
-      // 刷新完成后清除锁，允许下次过期时重新刷新
+      // 刷新完成后清除实例锁
       this.tokenRefreshPromise = null;
+      // 定期清理过期的全局锁条目
+      this._cleanupGlobalLocks();
+    }
+  }
+
+  /**
+   * v340: 清理过期的全局刷新锁条目，防止内存泄漏
+   */
+  private _cleanupGlobalLocks(): void {
+    const now = Date.now();
+    if (now - AmazonAdsApiClient._lastCleanup < AmazonAdsApiClient.GLOBAL_LOCK_CLEANUP_INTERVAL) {
+      return;
+    }
+    AmazonAdsApiClient._lastCleanup = now;
+    const currentDate = new Date();
+    for (const [key, entry] of AmazonAdsApiClient._globalRefreshLocks.entries()) {
+      if (entry.tokenExpiry && currentDate > entry.tokenExpiry) {
+        AmazonAdsApiClient._globalRefreshLocks.delete(key);
+      }
     }
   }
 

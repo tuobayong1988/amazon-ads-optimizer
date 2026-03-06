@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 339;  // v339: 数据同步分批处理全面修复——所有报告类型支持31天分批请求，确保90天历史数据完整拉取
+export const SYSTEM_VERSION = 340;  // v340: 同步健康监控+Token刷新竞态修复+大账户保护+手动同步API+syncAll详细日志

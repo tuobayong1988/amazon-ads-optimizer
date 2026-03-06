@@ -26942,10 +26942,10 @@ var init_subquery = __esm({
     init_entity();
     Subquery = class {
       static [entityKind] = "Subquery";
-      constructor(sql18, fields, alias2, isWith = false, usedTables = []) {
+      constructor(sql17, fields, alias2, isWith = false, usedTables = []) {
         this._ = {
           brand: "Subquery",
-          sql: sql18,
+          sql: sql17,
           selectedFields: fields,
           alias: alias2,
           isWith,
@@ -33040,8 +33040,8 @@ var init_db = __esm({
 });
 
 // node_modules/drizzle-orm/cache/core/cache.js
-async function hashQuery(sql18, params) {
-  const dataToHash = `${sql18}-${JSON.stringify(params)}`;
+async function hashQuery(sql17, params) {
+  const dataToHash = `${sql17}-${JSON.stringify(params)}`;
   const encoder2 = new TextEncoder();
   const data4 = encoder2.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data4);
@@ -54727,6 +54727,13 @@ var init_amazonAdsApi = __esm({
       axiosInstance;
       // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
       tokenRefreshPromise = null;
+      // v340: 全局级别Refresh Token刷新锁
+      // 解决多个实例共享同一个Refresh Token时的并发刷新竞态条件
+      // key = refreshToken的前16位（脱敏）, value = { promise, accessToken, expiry }
+      static _globalRefreshLocks = /* @__PURE__ */ new Map();
+      static GLOBAL_LOCK_CLEANUP_INTERVAL = 5 * 60 * 1e3;
+      // 5分钟清理一次过期锁
+      static _lastCleanup = 0;
       constructor(credentials) {
         this.credentials = credentials;
         this.axiosInstance = axios_default.create({
@@ -54863,8 +54870,8 @@ var init_amazonAdsApi = __esm({
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
           if (dbInstance) {
-            const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-            await dbInstance.execute(sql18`
+            const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql17`
           INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
           VALUES (
             0,
@@ -54969,15 +54976,59 @@ Profile ID: ${profileId}
         if (this.accessToken && this.tokenExpiry && /* @__PURE__ */ new Date() < this.tokenExpiry) {
           return this.accessToken;
         }
+        const refreshTokenKey = this.credentials.refreshToken.substring(0, 16);
+        const globalLock = _AmazonAdsApiClient._globalRefreshLocks.get(refreshTokenKey);
+        if (globalLock && globalLock.accessToken && globalLock.tokenExpiry && /* @__PURE__ */ new Date() < globalLock.tokenExpiry) {
+          this.accessToken = globalLock.accessToken;
+          this.tokenExpiry = globalLock.tokenExpiry;
+          log6.debug(`[Amazon API] v340: \u590D\u7528\u5168\u5C40\u9501\u4E2D\u5DF2\u5237\u65B0\u7684Token (refreshToken=${refreshTokenKey}...)`);
+          return this.accessToken;
+        }
         if (this.tokenRefreshPromise) {
           return this.tokenRefreshPromise;
         }
+        if (globalLock && globalLock.promise) {
+          log6.debug(`[Amazon API] v340: \u7B49\u5F85\u5168\u5C40\u9501\u4E2D\u7684\u5E76\u53D1\u5237\u65B0 (refreshToken=${refreshTokenKey}...)`);
+          try {
+            const token = await globalLock.promise;
+            this.accessToken = token;
+            this.tokenExpiry = globalLock.tokenExpiry;
+            return token;
+          } catch (e6) {
+            log6.warn(`[Amazon API] v340: \u5168\u5C40\u9501\u5237\u65B0\u5931\u8D25\uFF0C\u672C\u5B9E\u4F8B\u5C06\u91CD\u65B0\u5C1D\u8BD5`);
+          }
+        }
         this.tokenRefreshPromise = this.doRefreshToken();
+        const globalEntry = {
+          promise: this.tokenRefreshPromise,
+          accessToken: null,
+          tokenExpiry: null
+        };
+        _AmazonAdsApiClient._globalRefreshLocks.set(refreshTokenKey, globalEntry);
         try {
           const token = await this.tokenRefreshPromise;
+          globalEntry.accessToken = this.accessToken;
+          globalEntry.tokenExpiry = this.tokenExpiry;
           return token;
         } finally {
           this.tokenRefreshPromise = null;
+          this._cleanupGlobalLocks();
+        }
+      }
+      /**
+       * v340: 清理过期的全局刷新锁条目，防止内存泄漏
+       */
+      _cleanupGlobalLocks() {
+        const now = Date.now();
+        if (now - _AmazonAdsApiClient._lastCleanup < _AmazonAdsApiClient.GLOBAL_LOCK_CLEANUP_INTERVAL) {
+          return;
+        }
+        _AmazonAdsApiClient._lastCleanup = now;
+        const currentDate = /* @__PURE__ */ new Date();
+        for (const [key, entry] of _AmazonAdsApiClient._globalRefreshLocks.entries()) {
+          if (entry.tokenExpiry && currentDate > entry.tokenExpiry) {
+            _AmazonAdsApiClient._globalRefreshLocks.delete(key);
+          }
         }
       }
       /**
@@ -61943,11 +61994,11 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
         const errorSummary = result.errors.slice(0, 3).join("; ");
-        await dbInstance.execute(sql18`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+        await dbInstance.execute(sql17`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
       log12.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
@@ -61962,8 +62013,8 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-        await dbInstance.execute(sql18`
+        const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        await dbInstance.execute(sql17`
           INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
           VALUES (
             ${accountId},
@@ -62678,8 +62729,8 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbInstance = await getDb2();
           if (dbInstance) {
-            const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-            await dbInstance.execute(sql18`
+            const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql17`
               INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
               VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
             `);
@@ -79453,9 +79504,9 @@ async function checkBidDirectionConsistency(accountId, keywordId, targetId) {
   try {
     const db = await getDb();
     if (!db) return { isOscillating: false, reason: "" };
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const entityCondition = keywordId ? sql18`keyword_id = ${keywordId}` : sql18`target_id = ${targetId}`;
-    const [rows] = await db.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const entityCondition = keywordId ? sql17`keyword_id = ${keywordId}` : sql17`target_id = ${targetId}`;
+    const [rows] = await db.execute(sql17`
       SELECT action_type, new_value, previous_value, created_at
       FROM optimization_events
       WHERE account_id = ${accountId}
@@ -84247,167 +84298,99 @@ var init_amazonSyncService = __esm({
           performance: 0,
           spCampaigns: 0,
           sbCampaigns: 0,
-          sdCampaigns: 0
+          sdCampaigns: 0,
+          _syncDiagnostics: []
         };
-        const spResult = await this.syncSpCampaigns();
-        results.spCampaigns = typeof spResult === "number" ? spResult : spResult.synced;
-        results.campaigns += results.spCampaigns;
-        const sbResult = await this.syncSbCampaigns();
-        results.sbCampaigns = typeof sbResult === "number" ? sbResult : sbResult.synced;
-        results.campaigns += results.sbCampaigns;
-        const sdResult = await this.syncSdCampaigns();
-        results.sdCampaigns = typeof sdResult === "number" ? sdResult : sdResult.synced;
-        results.campaigns += results.sdCampaigns;
-        const spAdGroupResult = await this.syncSpAdGroups();
-        results.adGroups += typeof spAdGroupResult === "number" ? spAdGroupResult : spAdGroupResult.synced;
-        try {
-          const sbAdGroupResult = await this.syncSbAdGroups();
-          results.adGroups += sbAdGroupResult.synced;
-        } catch (e6) {
-          log38.error("SB\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
+        const syncAllStartTime = Date.now();
+        let totalSteps = 0;
+        let failedSteps = 0;
+        log38.info(`[syncAll] \u23F1\uFE0F \u8D26\u6237${this.accountId} \u5F00\u59CB\u5168\u91CF\u540C\u6B65 (performanceDays=${options?.performanceDays || 14})`);
+        const runStep = async (stepName, fn2) => {
+          totalSteps++;
+          const stepStart = Date.now();
+          log38.info(`[syncAll] \u{1F4CC} \u8D26\u6237${this.accountId} \u6B65\u9AA4[${totalSteps}] ${stepName} \u5F00\u59CB...`);
+          try {
+            const result = await fn2();
+            const durationMs = Date.now() - stepStart;
+            let synced = 0;
+            if (typeof result === "number") synced = result;
+            else if (result && typeof result === "object" && "synced" in result) synced = result.synced;
+            results._syncDiagnostics.push({ stepName, synced, durationMs });
+            log38.info(`[syncAll] \u2705 \u8D26\u6237${this.accountId} \u6B65\u9AA4[${totalSteps}] ${stepName} \u5B8C\u6210: ${synced}\u6761, \u8017\u65F6${durationMs}ms`);
+            return result;
+          } catch (error54) {
+            const durationMs = Date.now() - stepStart;
+            failedSteps++;
+            results._syncDiagnostics.push({ stepName, synced: 0, durationMs, error: error54.message });
+            log38.error(`[syncAll] \u274C \u8D26\u6237${this.accountId} \u6B65\u9AA4[${totalSteps}] ${stepName} \u5931\u8D25(${durationMs}ms): ${error54.message}`);
+            return null;
+          }
+        };
+        const spResult = await runStep("SP\u5E7F\u544A\u6D3B\u52A8", () => this.syncSpCampaigns());
+        if (spResult !== null) {
+          results.spCampaigns = typeof spResult === "number" ? spResult : spResult?.synced || 0;
+          results.campaigns += results.spCampaigns;
         }
-        try {
-          const sdAdGroupResult = await this.syncSdAdGroups();
-          results.adGroups += sdAdGroupResult.synced;
-        } catch (e6) {
-          log38.error("SD\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
+        const sbResult = await runStep("SB\u5E7F\u544A\u6D3B\u52A8", () => this.syncSbCampaigns());
+        if (sbResult !== null) {
+          results.sbCampaigns = typeof sbResult === "number" ? sbResult : sbResult?.synced || 0;
+          results.campaigns += results.sbCampaigns;
         }
-        const spKeywordResult = await this.syncSpKeywords();
-        results.keywords += typeof spKeywordResult === "number" ? spKeywordResult : spKeywordResult.synced;
-        try {
-          const sbKeywordResult = await this.syncSbKeywords();
-          results.keywords += sbKeywordResult.synced;
-        } catch (e6) {
-          log38.error("SB\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
+        const sdResult = await runStep("SD\u5E7F\u544A\u6D3B\u52A8", () => this.syncSdCampaigns());
+        if (sdResult !== null) {
+          results.sdCampaigns = typeof sdResult === "number" ? sdResult : sdResult?.synced || 0;
+          results.campaigns += results.sdCampaigns;
         }
-        const spTargetResult = await this.syncSpProductTargets();
-        results.targets += typeof spTargetResult === "number" ? spTargetResult : spTargetResult.synced;
-        try {
-          const sbTargetResult = await this.syncSbProductTargets();
-          results.targets += sbTargetResult.synced;
-        } catch (e6) {
-          log38.error("SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
+        const spAdGroupResult = await runStep("SP\u5E7F\u544A\u7EC4", () => this.syncSpAdGroups());
+        if (spAdGroupResult !== null) {
+          results.adGroups += typeof spAdGroupResult === "number" ? spAdGroupResult : spAdGroupResult?.synced || 0;
         }
-        try {
-          const sdTargetResult = await this.syncSdProductTargets();
-          results.targets += sdTargetResult.synced;
-        } catch (e6) {
-          log38.error("SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
+        const sbAdGroupResult = await runStep("SB\u5E7F\u544A\u7EC4", () => this.syncSbAdGroups());
+        if (sbAdGroupResult !== null) results.adGroups += sbAdGroupResult?.synced || 0;
+        const sdAdGroupResult = await runStep("SD\u5E7F\u544A\u7EC4", () => this.syncSdAdGroups());
+        if (sdAdGroupResult !== null) results.adGroups += sdAdGroupResult?.synced || 0;
+        const spKeywordResult = await runStep("SP\u5173\u952E\u8BCD", () => this.syncSpKeywords());
+        if (spKeywordResult !== null) {
+          results.keywords += typeof spKeywordResult === "number" ? spKeywordResult : spKeywordResult?.synced || 0;
         }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SP\u5426\u5B9A\u5173\u952E\u8BCD...`);
-          const negResult = await this.syncSpNegativeKeywords();
-          log38.info(`SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${negResult.synced}\u6761\u65B0\u589E, ${negResult.updated}\u6761\u66F4\u65B0`);
-        } catch (e6) {
-          log38.error("SP\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
+        const sbKeywordResult = await runStep("SB\u5173\u952E\u8BCD", () => this.syncSbKeywords());
+        if (sbKeywordResult !== null) results.keywords += sbKeywordResult?.synced || 0;
+        const spTargetResult = await runStep("SP\u5546\u54C1\u5B9A\u4F4D", () => this.syncSpProductTargets());
+        if (spTargetResult !== null) {
+          results.targets += typeof spTargetResult === "number" ? spTargetResult : spTargetResult?.synced || 0;
         }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
-          const negPtResult = await this.syncSpNegativeProductTargets();
-          log38.info(`SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${negPtResult.synced}\u6761\u65B0\u589E, ${negPtResult.updated}\u6761\u66F4\u65B0`);
-        } catch (e6) {
-          log38.error("SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SP\u641C\u7D22\u8BCD\u6570\u636E...`);
-          const spSearchTermSynced = await this.syncSearchTerms(90);
-          log38.info(`SP\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${spSearchTermSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SP\u641C\u7D22\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u641C\u7D22\u8BCD\u6570\u636E...`);
-          const sbSearchTermSynced = await this.syncSbSearchTerms(60);
-          log38.info(`SB\u641C\u7D22\u8BCD\u540C\u6B65\u5B8C\u6210: ${sbSearchTermSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SB\u641C\u7D22\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u7D20\u6750...`);
-          const sbAdsResult = await this.syncSbAds();
-          log38.info(`SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5B8C\u6210: ${sbAdsResult.synced}\u6761\u540C\u6B65, ${sbAdsResult.skipped}\u6761\u8DF3\u8FC7`);
-        } catch (e6) {
-          log38.error("SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5426\u5B9A\u5173\u952E\u8BCD...`);
-          const sbNegKwResult = await this.syncSbNegativeKeywords();
-          log38.info(`SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${sbNegKwResult.synced}\u6761\u65B0\u589E, ${sbNegKwResult.updated}\u6761\u66F4\u65B0`);
-        } catch (e6) {
-          log38.error("SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
-          const sbNegTgtResult = await this.syncSbNegativeTargets();
-          log38.info(`SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${sbNegTgtResult.synced}\u6761\u65B0\u589E, ${sbNegTgtResult.updated}\u6761\u66F4\u65B0`);
-        } catch (e6) {
-          log38.error("SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
-          const placementSynced = await this.syncPlacementPerformance(90);
-          log38.info(`SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${placementSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
-          const sbPlacementSynced = await this.syncSbPlacementPerformance(60);
-          log38.info(`SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${sbPlacementSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const autoTargetSynced = await this.syncAutoTargeting(90);
-          log38.info(`SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${autoTargetSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const sdTargetSynced = await this.syncSdTargeting(90);
-          log38.info(`SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sdTargetSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
-          const sbTargetSynced = await this.syncSbTargeting(60);
-          log38.info(`SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sbTargetSynced}\u6761`);
-        } catch (e6) {
-          log38.error("SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u89E3\u6790SB\u5E7F\u544A\u7D20\u6750URL...`);
-          const assetUrlsSynced = await this.syncAssetUrls();
-          log38.info(`SB\u7D20\u6750URL\u89E3\u6790\u5B8C\u6210: ${assetUrlsSynced}\u4E2A\u5E7F\u544A\u7EC4\u5DF2\u66F4\u65B0`);
-        } catch (e6) {
-          log38.error("SB\u7D20\u6750URL\u89E3\u6790\u5931\u8D25:", e6.message);
-        }
+        const sbTargetResult = await runStep("SB\u5546\u54C1\u5B9A\u4F4D", () => this.syncSbProductTargets());
+        if (sbTargetResult !== null) results.targets += sbTargetResult?.synced || 0;
+        const sdTargetResult = await runStep("SD\u5546\u54C1\u5B9A\u4F4D", () => this.syncSdProductTargets());
+        if (sdTargetResult !== null) results.targets += sdTargetResult?.synced || 0;
+        await runStep("SP\u5426\u5B9A\u5173\u952E\u8BCD", () => this.syncSpNegativeKeywords());
+        await runStep("SP\u5426\u5B9A\u5546\u54C1\u5B9A\u5411", () => this.syncSpNegativeProductTargets());
+        await runStep("SP\u641C\u7D22\u8BCD(90\u5929)", () => this.syncSearchTerms(90));
+        await runStep("SB\u641C\u7D22\u8BCD(60\u5929)", () => this.syncSbSearchTerms(60));
+        await runStep("SB\u5E7F\u544A\u7D20\u6750", () => this.syncSbAds());
+        await runStep("SB\u5426\u5B9A\u5173\u952E\u8BCD", () => this.syncSbNegativeKeywords());
+        await runStep("SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411", () => this.syncSbNegativeTargets());
+        await runStep("SP\u5E7F\u544A\u4F4D\u7EE9\u6548(90\u5929)", () => this.syncPlacementPerformance(90));
+        await runStep("SB\u5E7F\u544A\u4F4D\u7EE9\u6548(60\u5929)", () => this.syncSbPlacementPerformance(60));
+        await runStep("SP\u81EA\u52A8\u5B9A\u5411(90\u5929)", () => this.syncAutoTargeting(90));
+        await runStep("SD\u5B9A\u5411\u62A5\u544A(90\u5929)", () => this.syncSdTargeting(90));
+        await runStep("SB\u5B9A\u5411\u62A5\u544A(60\u5929)", () => this.syncSbTargeting(60));
+        await runStep("SB\u7D20\u6750URL\u89E3\u6790", () => this.syncAssetUrls());
         const performanceDays = options?.performanceDays || 14;
-        log38.info(`v339: \u540C\u6B65\u6700\u8FD1${performanceDays}\u5929\u5386\u53F2\u7EE9\u6548\u6570\u636E\uFF08\u5F52\u56E0\u56DE\u6EAF\u673A\u5236\uFF0C\u8986\u76D6\u65E7\u8BB0\u5F55\uFF09`);
-        results.performance += await this.syncPerformanceData(performanceDays);
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EA7\u522B\u7EE9\u6548\u6570\u636E...`);
-          const keywordPerfSynced = await this.syncKeywordPerformanceData(performanceDays);
-          log38.info(`\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${keywordPerfSynced}\u6761`);
-        } catch (kwPerfError) {
-          log38.error("\u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", kwPerfError.message);
+        const perfResult = await runStep(`\u5E7F\u544A\u6D3B\u52A8\u7EE9\u6548(${performanceDays}\u5929)`, () => this.syncPerformanceData(performanceDays));
+        if (perfResult !== null) results.performance += typeof perfResult === "number" ? perfResult : perfResult?.synced || 0;
+        await runStep(`\u5173\u952E\u8BCD\u7EE9\u6548(${performanceDays}\u5929)`, () => this.syncKeywordPerformanceData(performanceDays));
+        await runStep(`\u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548(${performanceDays}\u5929)`, () => this.syncProductTargetPerformanceData(performanceDays));
+        await runStep(`\u5E7F\u544A\u7EC4\u7EE9\u6548(${performanceDays}\u5929)`, () => this.syncAdGroupPerformanceData(performanceDays));
+        const totalDurationMs = Date.now() - syncAllStartTime;
+        const totalSynced = results._syncDiagnostics.reduce((sum2, d5) => sum2 + d5.synced, 0);
+        const failedStepNames = results._syncDiagnostics.filter((d5) => d5.error).map((d5) => d5.stepName);
+        log38.info(`[syncAll] \u{1F4CA} \u8D26\u6237${this.accountId} \u5168\u91CF\u540C\u6B65\u5B8C\u6210: \u603B\u6B65\u9AA4=${totalSteps}, \u6210\u529F=${totalSteps - failedSteps}, \u5931\u8D25=${failedSteps}, \u603B\u8BB0\u5F55=${totalSynced}, \u603B\u8017\u65F6=${totalDurationMs}ms`);
+        if (failedSteps > 0) {
+          log38.warn(`[syncAll] \u26A0\uFE0F \u8D26\u6237${this.accountId} \u5931\u8D25\u6B65\u9AA4: ${failedStepNames.join(", ")}`);
         }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65\u5546\u54C1\u5B9A\u4F4D\u7EA7\u522B\u7EE9\u6548\u6570\u636E...`);
-          const targetPerfSynced = await this.syncProductTargetPerformanceData(performanceDays);
-          log38.info(`\u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${targetPerfSynced}\u6761`);
-        } catch (ptPerfError) {
-          log38.error("\u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", ptPerfError.message);
-        }
-        try {
-          log38.info(`\u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u7EA7\u522B\u7EE9\u6548\u6570\u636E...`);
-          const adGroupPerfSynced = await this.syncAdGroupPerformanceData(performanceDays);
-          log38.info(`\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${adGroupPerfSynced}\u6761`);
-        } catch (agPerfError) {
-          log38.error("\u5E7F\u544A\u7EC4\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", agPerfError.message);
+        if (totalSynced === 0 && totalSteps > 0) {
+          log38.error(`[syncAll] \u{1F6A8} \u8D26\u6237${this.accountId} \u5168\u91CF\u540C\u6B65\u5B8C\u6210\u4F46\u603B\u8BB0\u5F55\u6570\u4E3A0\uFF01\u53EF\u80FD\u5B58\u5728API\u6388\u6743\u6216\u6570\u636E\u95EE\u9898\uFF0C\u8BF7\u68C0\u67E5\u4EE5\u4E0A\u5404\u6B65\u9AA4\u8BE6\u60C5\u3002`);
         }
         return results;
       }
@@ -85229,6 +85212,25 @@ async function syncAccount(account, tier, options) {
       steps = steps.filter((s4) => !options.skipSteps.includes(s4.id));
     }
     result.totalSteps = steps.length;
+    let campaignCount = 0;
+    let isLargeAccount = false;
+    const LARGE_ACCOUNT_THRESHOLD = 1e3;
+    const LARGE_ACCOUNT_STEP_DELAY_MS = 3e3;
+    const SYNC_TIMEOUT_MS = 45 * 60 * 1e3;
+    try {
+      const database = await getDb();
+      if (database) {
+        const { campaigns: campaignsTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const countResult = await database.select({ count: sql`COUNT(*)` }).from(campaignsTable).where(eq(campaignsTable.accountId, account.accountId));
+        campaignCount = countResult[0]?.count || 0;
+        isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
+        if (isLargeAccount) {
+          log39.warn(`[UnifiedSync] v340: \u5927\u8D26\u6237\u68C0\u6D4B! \u8D26\u6237${account.accountId}(${account.accountName})\u62E5\u6709${campaignCount}\u4E2A\u5E7F\u544A\u6D3B\u52A8\uFF0C\u542F\u7528\u81EA\u9002\u5E94\u4FDD\u62A4\u6A21\u5F0F`);
+        }
+      }
+    } catch (e6) {
+      log39.debug(`[UnifiedSync] v340: \u67E5\u8BE2\u8D26\u6237\u5E7F\u544A\u6D3B\u52A8\u6570\u5931\u8D25: ${e6.message}`);
+    }
     const context = {
       accountId: account.accountId,
       userId: account.userId,
@@ -85252,10 +85254,22 @@ async function syncAccount(account, tier, options) {
         options.onProgress(step.name, i4, steps.length);
       }
       log39.info(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u6267\u884C\u6B65\u9AA4 [${i4 + 1}/${steps.length}]: ${step.name}`);
+      const elapsed = Date.now() - startTime.getTime();
+      if (elapsed > SYNC_TIMEOUT_MS) {
+        const timeoutMsg = `\u8D26\u6237${account.accountId} \u540C\u6B65\u8D85\u65F6(${Math.round(elapsed / 6e4)}\u5206\u949F>\u9608\u503C${SYNC_TIMEOUT_MS / 6e4}\u5206\u949F)\uFF0C\u5DF2\u5B8C\u6210${i4}/${steps.length}\u6B65\u9AA4\uFF0C\u5269\u4F59\u6B65\u9AA4\u8DF3\u8FC7`;
+        log39.warn(`[UnifiedSync] v340: ${timeoutMsg}`);
+        result.errors.push(timeoutMsg);
+        break;
+      }
       if (i4 > 0) {
-        const stepDelay = rateController.getStepDelay();
-        if (stepDelay > 0) {
-          await sleep2(stepDelay);
+        const baseDelay = rateController.getStepDelay();
+        const extraDelay = isLargeAccount ? LARGE_ACCOUNT_STEP_DELAY_MS : 0;
+        const totalDelay = baseDelay + extraDelay;
+        if (totalDelay > 0) {
+          if (isLargeAccount) {
+            log39.debug(`[UnifiedSync] v340: \u5927\u8D26\u6237\u6B65\u9AA4\u95F4\u5EF6\u8FDF ${totalDelay}ms (\u57FA\u7840${baseDelay}ms + \u5927\u8D26\u6237\u4FDD\u62A4${extraDelay}ms)`);
+          }
+          await sleep2(totalDelay);
         }
       }
       try {
@@ -85306,6 +85320,44 @@ async function syncAccount(account, tier, options) {
       log39.warn(`[UnifiedSync] \u66F4\u65B0\u8D26\u6237 ${account.accountId} \u540C\u6B65\u72B6\u6001\u5931\u8D25: ${e6.message}`);
     }
     result.success = result.failedSteps === 0 || result.completedSteps > 0;
+    if (result.totalSynced === 0 && result.totalSteps > 0) {
+      const alertMsg = `\u26A0\uFE0F \u8D26\u6237${account.accountId}(${account.accountName}) ${tier}\u5C42\u540C\u6B65\u5B8C\u6210\u4F46\u603B\u8BB0\u5F55\u6570\u4E3A0\uFF01\u6B65\u9AA4=${result.totalSteps}, \u5931\u8D25=${result.failedSteps}, \u9519\u8BEF=${result.errors.slice(0, 3).join("; ")}`;
+      log39.error(`[UnifiedSync] \u{1F6A8} \u540C\u6B65\u5065\u5EB7\u544A\u8B66: ${alertMsg}`);
+      logSyncError("UnifiedSync", alertMsg, {
+        accountId: account.accountId,
+        accountName: account.accountName,
+        marketplace: account.marketplace,
+        tier,
+        totalSteps: result.totalSteps,
+        completedSteps: result.completedSteps,
+        failedSteps: result.failedSteps,
+        errors: result.errors
+      });
+      try {
+        const database = await getDb();
+        if (database) {
+          await database.execute(sql`
+            INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+            VALUES (
+              ${account.accountId},
+              'SYNC_ZERO_RECORDS',
+              'critical',
+              ${JSON.stringify({
+            alertMessage: alertMsg,
+            tier,
+            totalSteps: result.totalSteps,
+            failedSteps: result.failedSteps,
+            errors: result.errors.slice(0, 5),
+            stepResults: Object.entries(result.stepResults).map(([id, r5]) => ({ id, success: r5.success, synced: r5.synced }))
+          })},
+              NOW()
+            )
+          `);
+        }
+      } catch (alertDbErr) {
+        log39.warn(`[UnifiedSync] \u540C\u6B65\u5065\u5EB7\u544A\u8B66\u5199\u5165DB\u5931\u8D25: ${alertDbErr.message}`);
+      }
+    }
   } catch (error54) {
     result.errors.push(`\u540C\u6B65\u521D\u59CB\u5316\u5931\u8D25: ${error54.message}`);
     log39.error(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u540C\u6B65\u521D\u59CB\u5316\u5931\u8D25: ${error54.message}`);
@@ -89120,8 +89172,8 @@ async function persistRiskAlert(accountId, alertType, severity, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql17`
       INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
       VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
     `);
@@ -89133,8 +89185,8 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
   const dbInstance = await getDb();
   if (!dbInstance) return false;
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [existing] = await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [existing] = await dbInstance.execute(sql17`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
       LIMIT 1
@@ -89143,7 +89195,7 @@ async function persistEmergencyTask(accountId, actionType, priority, detail) {
       log41.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u6709\u672A\u5904\u7406\u7684${actionType}\u4EFB\u52A1\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5165\u961F`);
       return true;
     }
-    await dbInstance.execute(sql18`
+    await dbInstance.execute(sql17`
       INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
       VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
     `);
@@ -89252,9 +89304,9 @@ async function assessSyncHealth() {
     };
   }
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
     const [statusStats] = await dbInstance.execute(
-      sql18`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+      sql17`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     );
     const dist = statusStats || [];
     const synced = Number(dist.find((d5) => d5.api_sync_status === "synced")?.count || 0);
@@ -89454,8 +89506,8 @@ async function isAccountInEmergencyQueue(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { inQueue: false };
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql17`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
       ORDER BY createdAt DESC LIMIT 1
@@ -89473,8 +89525,8 @@ async function markEmergencyOptimizationProcessed(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql17`
       UPDATE emergency_optimization_queue 
       SET processed = 1, processedAt = NOW()
       WHERE accountId = ${accountId} AND processed = 0
@@ -89488,8 +89540,8 @@ async function getPendingEmergencyAccounts() {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [rows] = await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql17`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
       ORDER BY 
@@ -89583,15 +89635,15 @@ async function checkAcosTrendForAccount(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [recentRows] = await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [recentRows] = await dbInstance.execute(sql17`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
       WHERE account_id = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `);
-    const [prevRows] = await dbInstance.execute(sql18`
+    const [prevRows] = await dbInstance.execute(sql17`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
@@ -89661,8 +89713,8 @@ async function cleanupProcessedEntries() {
   const dbInstance = await getDb();
   if (!dbInstance) return;
   try {
-    const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-    const [result] = await dbInstance.execute(sql18`
+    const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [result] = await dbInstance.execute(sql17`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
@@ -92509,8 +92561,8 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
   try {
     const dbConn2 = await getDb();
     if (dbConn2 && config2.performanceGroupId) {
-      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const pendingDayparting = await dbConn2.execute(sql18`
+      const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const pendingDayparting = await dbConn2.execute(sql17`
         SELECT ol.id, ol.action_detail, ol.created_at,
                JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.keywordId')) as kw_id,
                JSON_UNQUOTE(JSON_EXTRACT(ol.action_detail, '$.newBid')) as new_bid,
@@ -92538,10 +92590,10 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
           }
         }
         if (olderIds.length > 0) {
-          await dbConn2.execute(sql18`
+          await dbConn2.execute(sql17`
             UPDATE optimization_logs SET api_sync_status = 'superseded',
               api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 同一keyword已有更新的分时竞价指令')
-            WHERE id IN (${sql18.raw(olderIds.join(","))})
+            WHERE id IN (${sql17.raw(olderIds.join(","))})
           `);
           superseded = olderIds.length;
         }
@@ -92554,7 +92606,7 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
             const createdAt = new Date(row.created_at);
             const ageHours = (Date.now() - createdAt.getTime()) / (1e3 * 60 * 60);
             if (ageHours > 72) {
-              await dbConn2.execute(sql18`
+              await dbConn2.execute(sql17`
                 UPDATE optimization_logs SET api_sync_status = 'superseded',
                   api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 分时竞价超过72小时已过时')
                 WHERE id = ${row.id}
@@ -92575,14 +92627,14 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
                 }]
               );
               if (syncResult.success > 0) {
-                await dbConn2.execute(sql18`
+                await dbConn2.execute(sql17`
                   UPDATE optimization_logs SET api_sync_status = 'synced',
                     api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: dayparting_bid重试成功')
                   WHERE id = ${row.id}
                 `);
                 retried++;
               } else {
-                await dbConn2.execute(sql18`
+                await dbConn2.execute(sql17`
                   UPDATE optimization_logs SET api_sync_status = 'failed',
                     api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${syncResult.errors.join("; ")})
                   WHERE id = ${row.id}
@@ -92940,8 +92992,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   try {
     const dbInstance = await getDb();
     if (dbInstance) {
-      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const recentLogs = await dbInstance.execute(sql18`
+      const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const recentLogs = await dbInstance.execute(sql17`
         SELECT DISTINCT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
                JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
         FROM optimization_logs 
@@ -92965,8 +93017,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   try {
     const dbInstance = await getDb();
     if (dbInstance) {
-      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const failedLogs = await dbInstance.execute(sql18`
+      const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const failedLogs = await dbInstance.execute(sql17`
         SELECT search_term, MAX(fail_count) as fail_count FROM (
           SELECT LOWER(TRIM(JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')))) as search_term,
                  COUNT(*) as fail_count
@@ -93004,8 +93056,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   try {
     const dbInstance = await getDb();
     if (dbInstance) {
-      const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const pendingKeywords = await dbInstance.execute(sql18`
+      const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      const pendingKeywords = await dbInstance.execute(sql17`
         SELECT id, action_detail, account_id, performance_group_id
         FROM optimization_logs 
         WHERE performance_group_id = ${config2.performanceGroupId}
@@ -93027,7 +93079,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             const bid = detail?.suggestedBid || 0.5;
             const amazonCampaignIdStr = detail?.amazonCampaignId;
             if (searchTerm && permanentlyFailedKeywords.has(searchTerm.toLowerCase().trim())) {
-              await dbInstance.execute(sql18`
+              await dbInstance.execute(sql17`
                 UPDATE optimization_logs SET api_sync_status = 'permanently_failed',
                   api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_skip_reason', 'v310: 关键词在永久失败名单中')
                 WHERE id = ${row.id}
@@ -93038,7 +93090,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             if (!amazonCampaignIdStr || !searchTerm) {
               const localCampaignId = detail?.localCampaignId || detail?.campaignId;
               if (localCampaignId) {
-                const campaignLookup = await dbInstance.execute(sql18`
+                const campaignLookup = await dbInstance.execute(sql17`
                   SELECT campaign_id FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
                 `);
                 const lookupRows = campaignLookup[0] || [];
@@ -93055,14 +93107,14 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                           [{ adGroupId: amazonAdGroupId, campaignId: foundAmazonCampaignId, keywordText: searchTerm, matchType, bid }]
                         );
                         if (apiResult.success > 0) {
-                          await dbInstance.execute(sql18`
+                          await dbInstance.execute(sql17`
                             UPDATE optimization_logs SET api_sync_status = 'synced',
                               api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
                             WHERE id = ${row.id}
                           `);
                           retrySuccess++;
                         } else {
-                          await dbInstance.execute(sql18`
+                          await dbInstance.execute(sql17`
                             UPDATE optimization_logs SET api_sync_status = 'failed',
                               api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join("; ")})
                             WHERE id = ${row.id}
@@ -93070,7 +93122,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                           retryFailed++;
                         }
                       } catch (retryApiErr) {
-                        await dbInstance.execute(sql18`
+                        await dbInstance.execute(sql17`
                           UPDATE optimization_logs SET api_sync_status = 'failed',
                             api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
                           WHERE id = ${row.id}
@@ -93082,7 +93134,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                   }
                 }
               }
-              await dbInstance.execute(sql18`
+              await dbInstance.execute(sql17`
                 UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
                   api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 无法解析Amazon ID')
                 WHERE id = ${row.id}
@@ -93100,14 +93152,14 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                       [{ adGroupId: amazonAdGroupId, campaignId: amazonCampaignIdStr, keywordText: searchTerm, matchType, bid }]
                     );
                     if (apiResult.success > 0) {
-                      await dbInstance.execute(sql18`
+                      await dbInstance.execute(sql17`
                         UPDATE optimization_logs SET api_sync_status = 'synced',
                           api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_synced', 'v310: pending重试成功')
                         WHERE id = ${row.id}
                       `);
                       retrySuccess++;
                     } else {
-                      await dbInstance.execute(sql18`
+                      await dbInstance.execute(sql17`
                         UPDATE optimization_logs SET api_sync_status = 'failed',
                           api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${apiResult.errors.join("; ")})
                         WHERE id = ${row.id}
@@ -93115,7 +93167,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                       retryFailed++;
                     }
                   } catch (retryApiErr) {
-                    await dbInstance.execute(sql18`
+                    await dbInstance.execute(sql17`
                       UPDATE optimization_logs SET api_sync_status = 'failed',
                         api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
                       WHERE id = ${row.id}
@@ -93123,7 +93175,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                     retryFailed++;
                   }
                 } else {
-                  await dbInstance.execute(sql18`
+                  await dbInstance.execute(sql17`
                     UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
                       api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: adGroupId无效')
                     WHERE id = ${row.id}
@@ -93131,7 +93183,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                   retryFailed++;
                 }
               } else {
-                await dbInstance.execute(sql18`
+                await dbInstance.execute(sql17`
                   UPDATE optimization_logs SET api_sync_status = 'timeout_failed',
                     api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: 找不到广告组')
                   WHERE id = ${row.id}
@@ -93146,7 +93198,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         }
         log44.warn(`[SearchTermAnalysis] v310: pending keyword_create\u91CD\u8BD5\u5B8C\u6210: \u6210\u529F=${retrySuccess}, \u5931\u8D25=${retryFailed}, \u603B\u8BA1=${pendingKwRows.length}`);
       }
-      const timeoutResult = await dbInstance.execute(sql18`
+      const timeoutResult = await dbInstance.execute(sql17`
         UPDATE optimization_logs 
         SET api_sync_status = 'timeout_failed',
             api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.timeout_reason', 'v310: pending超过72小时未同步')
@@ -163123,7 +163175,7 @@ var init_sqsConsumerService = __esm({
       async upsertKeywordPlacementHourlyData(params) {
         const { keywordPlacementHourlyPerformance: keywordPlacementHourlyPerformance2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
-        const { eq: eq7, and: and10, sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { eq: eq7, and: and10, sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const dbConn = await getDb2();
         if (!dbConn) return;
         let hour2 = 0;
@@ -163157,8 +163209,8 @@ var init_sqsConsumerService = __esm({
         const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and10(
           eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
           eq7(keywordPlacementHourlyPerformance2.campaignId, String(params.campaignId)),
-          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql18`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
-          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql18`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
+          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql17`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
+          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql17`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
           eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
           eq7(keywordPlacementHourlyPerformance2.date, params.date),
           eq7(keywordPlacementHourlyPerformance2.hour, hour2)
@@ -163222,7 +163274,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 339;
+    SYSTEM_VERSION = 340;
   }
 });
 
@@ -170152,6 +170204,12 @@ var init_postDeployOptimizer = __esm({
         version: 339,
         description: "v339: [\u6570\u636E\u540C\u6B65\u5206\u6279\u5904\u7406\u5168\u9762\u4FEE\u590D] \u2014 (1)P0-SP\u641C\u7D22\u8BCD\u540C\u6B65\u5206\u6279: syncSearchTerms\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91,\u786E\u4FDD90\u5929\u641C\u7D22\u8BCD\u6570\u636E\u5B8C\u6574\u62C9\u53D6 (2)P0-SP\u81EA\u52A8\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncAutoTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (3)P0-SB\u641C\u7D22\u8BCD\u540C\u6B65\u5206\u6279: syncSbSearchTerms\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91(60\u5929\u4E0A\u9650) (4)P0-SB\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncSbTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (5)P0-SB\u5E7F\u544A\u4F4D\u540C\u6B65\u5206\u6279: syncSbPlacementPerformance\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (6)P0-SD\u5B9A\u5411\u540C\u6B65\u5206\u6279: syncSdTargeting\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (7)P0-SP\u5E7F\u544A\u4F4D\u540C\u6B65\u5206\u6279: syncPlacementPerformance\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (8)P0-\u5173\u952E\u8BCD\u7EE9\u6548\u540C\u6B65\u5206\u6279: syncKeywordPerformanceData\u589E\u52A031\u5929\u5206\u6279\u903B\u8F91 (9)P0-\u5E7F\u544A\u7EC4\u7EE9\u6548\u540C\u6B65\u5206\u6279: syncAdGroupPerformanceData\u4E2DSP/SB/SD\u4E09\u4E2A\u5B50\u62A5\u544A\u5747\u589E\u52A0\u5206\u6279\u903B\u8F91 (10)P1-syncAll\u53C2\u6570\u5316: performanceDays\u652F\u6301\u5916\u90E8\u4F20\u5165,\u9ED8\u8BA414\u5929,unifiedSyncEngine full tier\u4F20\u516590\u5929",
         affectedModules: ["sync"],
+        correctionActions: ["resync_data"]
+      },
+      {
+        version: 340,
+        description: "v340: [\u540C\u6B65\u5065\u5EB7\u76D1\u63A7+Token\u7ADE\u6001\u4FEE\u590D+\u5927\u8D26\u6237\u4FDD\u62A4] \u2014 (1)P0-syncAll\u8BE6\u7EC6\u65E5\u5FD7: \u4E3AsyncAll\u65B9\u6CD5\u589E\u52A0\u7EDF\u4E00runStep\u8BCA\u65AD\u65E5\u5FD7\u7CFB\u7EDF,\u8BB0\u5F55\u6BCF\u4E2A\u540C\u6B65\u6B65\u9AA4\u7684\u5F00\u59CB/\u7ED3\u675F/\u8017\u65F6/\u8BB0\u5F55\u6570/\u5F02\u5E38,\u540C\u6B65\u5B8C\u6210\u540E\u8F93\u51FA\u6C47\u603B\u62A5\u544A (2)P0-\u624B\u52A8\u89E6\u53D1\u540C\u6B65API: \u65B0\u589EPOST /api/ops/force-sync\u7AEF\u70B9,\u652F\u6301\u6307\u5B9A\u8D26\u6237ID\u548C\u540C\u6B65\u5C42\u7EA7(full/fast/minimal)\u624B\u52A8\u89E6\u53D1\u5168\u91CF\u540C\u6B65 (3)P0-Token\u5237\u65B0\u7ADE\u6001\u4FEE\u590D: \u5B9E\u73B0\u5168\u5C40\u7EA7\u522BRefresh Token\u5237\u65B0\u9501,\u89E3\u51B3\u591A\u4E2AAPI\u5BA2\u6237\u7AEF\u5B9E\u4F8B\u5171\u4EAB\u540C\u4E00Refresh Token\u65F6\u7684\u5E76\u53D1\u5237\u65B0\u51B2\u7A81,\u4E09\u7EA7Token\u83B7\u53D6\u8DEF\u5F84(\u5B9E\u4F8B\u7F13\u5B58\u2192\u5168\u5C40\u9501\u7F13\u5B58\u2192\u5168\u5C40\u9501\u5E76\u53D1\u7B49\u5F85\u2192\u5B9E\u9645\u5237\u65B0) (4)P1-\u540C\u6B65\u5065\u5EB7\u76D1\u63A7: \u5F53\u8D26\u6237\u540C\u6B65\u5B8C\u6210\u4F46totalSynced=0\u65F6\u81EA\u52A8\u89E6\u53D1critical\u7EA7\u522B\u544A\u8B66,\u5199\u5165anomaly_alert_logs\u8868 (5)P1-\u5927\u8D26\u6237\u81EA\u9002\u5E94\u4FDD\u62A4: \u8D85\u8FC71000\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u8D26\u6237\u81EA\u52A8\u542F\u7528\u4FDD\u62A4\u6A21\u5F0F(\u6B65\u9AA4\u95F4\u989D\u5916\u5EF6\u8FDF3\u79D2+\u5355\u8D26\u6237\u540C\u6B6545\u5206\u949F\u8D85\u65F6\u4FDD\u62A4)",
+        affectedModules: ["sync", "api", "monitoring"],
         correctionActions: ["resync_data"]
       }
     ];
@@ -350348,7 +350406,7 @@ var SDKServer = class {
         const secret = process.env.JWT_SECRET || "default-secret-key";
         const decoded = jwt3.default.verify(token, secret);
         if (decoded && decoded.userId) {
-          const { sql: sql18 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
           const dbQueryWithTimeout = async (timeoutMs = 8e3) => {
             const localDb = await getDb2();
@@ -350357,7 +350415,7 @@ var SDKServer = class {
               (_3, reject) => setTimeout(() => reject(new Error("DB query timeout")), timeoutMs)
             );
             return Promise.race([
-              localDb.execute(sql18`
+              localDb.execute(sql17`
                 SELECT tm.*, o.name as organization_name 
                 FROM team_members tm 
                 LEFT JOIN organizations o ON tm.organization_id = o.id 
@@ -393514,6 +393572,45 @@ router3.get("/rl-diagnostics", opsAuth, async (req, res) => {
       totalStats: extractRows(totalStats),
       accountDistribution: extractRows(accountDist),
       timeDistribution: extractRows(timeDist)
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.post("/force-sync", async (req, res) => {
+  try {
+    const { accountId, tier = "full" } = req.body || {};
+    if (!accountId) {
+      return res.status(400).json({ error: "\u7F3A\u5C11accountId\u53C2\u6570" });
+    }
+    const { syncAccount: syncAccount2, discoverSyncableAccounts: discoverSyncableAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const accounts = await discoverSyncableAccounts2();
+    const targetAccount = accounts.find((a4) => a4.accountId === Number(accountId));
+    if (!targetAccount) {
+      return res.status(404).json({
+        error: `\u8D26\u6237${accountId}\u672A\u627E\u5230\u6216\u7F3A\u5C11API\u51ED\u8BC1`,
+        availableAccounts: accounts.map((a4) => ({ id: a4.accountId, name: a4.accountName, marketplace: a4.marketplace }))
+      });
+    }
+    const syncStartTime = /* @__PURE__ */ new Date();
+    logger.info("OPS", `\u624B\u52A8\u89E6\u53D1\u8D26\u6237${accountId}\u7684${tier}\u5C42\u5168\u91CF\u540C\u6B65`);
+    syncAccount2(targetAccount, tier).then((result) => {
+      const durationMin = ((Date.now() - syncStartTime.getTime()) / 6e4).toFixed(1);
+      logger.info("OPS", `\u8D26\u6237${accountId} ${tier}\u5C42\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u6B65\u9AA4=${result.completedSteps}/${result.totalSteps}, \u8BB0\u5F55=${result.totalSynced}, \u8017\u65F6=${durationMin}\u5206\u949F`);
+      if (result.errors.length > 0) {
+        logger.warn("OPS", `\u8D26\u6237${accountId} \u540C\u6B65\u9519\u8BEF: ${result.errors.join("; ")}`);
+      }
+    }).catch((err2) => {
+      logger.error("OPS", `\u8D26\u6237${accountId} ${tier}\u5C42\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
+    });
+    res.json({
+      message: `\u5DF2\u89E6\u53D1\u8D26\u6237${accountId}\u7684${tier}\u5C42\u5168\u91CF\u540C\u6B65\uFF0C\u540E\u53F0\u6267\u884C\u4E2D`,
+      accountId: targetAccount.accountId,
+      accountName: targetAccount.accountName,
+      marketplace: targetAccount.marketplace,
+      tier,
+      triggeredAt: syncStartTime.toISOString(),
+      note: "\u540C\u6B65\u5728\u540E\u53F0\u5F02\u6B65\u6267\u884C\uFF0C\u53EF\u901A\u8FC7 GET /api/ops/sync-health \u67E5\u770B\u8FDB\u5EA6"
     });
   } catch (e6) {
     res.status(500).json({ error: e6.message });

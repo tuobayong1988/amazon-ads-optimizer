@@ -1171,4 +1171,54 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
   }
 });
 
+// ==================== v340: 手动触发指定账户的全量同步 ====================
+router.post('/force-sync', async (req: Request, res: Response) => {
+  try {
+    const { accountId, tier = 'full' } = req.body || {};
+    if (!accountId) {
+      return res.status(400).json({ error: '缺少accountId参数' });
+    }
+
+    const { syncAccount, discoverSyncableAccounts } = await import('../unifiedSyncEngine');
+    
+    // 发现所有可同步账户，找到目标账户
+    const accounts = await discoverSyncableAccounts();
+    const targetAccount = accounts.find(a => a.accountId === Number(accountId));
+    
+    if (!targetAccount) {
+      return res.status(404).json({ 
+        error: `账户${accountId}未找到或缺少API凭证`,
+        availableAccounts: accounts.map(a => ({ id: a.accountId, name: a.accountName, marketplace: a.marketplace }))
+      });
+    }
+
+    // 异步执行同步，立即返回响应
+    const syncStartTime = new Date();
+    logger.info('OPS', `手动触发账户${accountId}的${tier}层全量同步`);
+    
+    // 异步执行，不阻塞响应
+    syncAccount(targetAccount, tier as any).then(result => {
+      const durationMin = ((Date.now() - syncStartTime.getTime()) / 60000).toFixed(1);
+      logger.info('OPS', `账户${accountId} ${tier}层同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);
+      if (result.errors.length > 0) {
+        logger.warn('OPS', `账户${accountId} 同步错误: ${result.errors.join('; ')}`);
+      }
+    }).catch(err => {
+      logger.error('OPS', `账户${accountId} ${tier}层同步异常: ${err.message}`);
+    });
+
+    res.json({
+      message: `已触发账户${accountId}的${tier}层全量同步，后台执行中`,
+      accountId: targetAccount.accountId,
+      accountName: targetAccount.accountName,
+      marketplace: targetAccount.marketplace,
+      tier,
+      triggeredAt: syncStartTime.toISOString(),
+      note: '同步在后台异步执行，可通过 GET /api/ops/sync-health 查看进度',
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

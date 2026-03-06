@@ -422,6 +422,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync'],
     correctionActions: ['resync_data'],
   },
+  {
+    version: 340,
+    description: 'v340: [同步健康监控+Token竞态修复+大账户保护] — (1)P0-syncAll详细日志: 为syncAll方法增加统一runStep诊断日志系统,记录每个同步步骤的开始/结束/耗时/记录数/异常,同步完成后输出汇总报告 (2)P0-手动触发同步API: 新增POST /api/ops/force-sync端点,支持指定账户ID和同步层级(full/fast/minimal)手动触发全量同步 (3)P0-Token刷新竞态修复: 实现全局级别Refresh Token刷新锁,解决多个API客户端实例共享同一Refresh Token时的并发刷新冲突,三级Token获取路径(实例缓存→全局锁缓存→全局锁并发等待→实际刷新) (4)P1-同步健康监控: 当账户同步完成但totalSynced=0时自动触发critical级别告警,写入anomaly_alert_logs表 (5)P1-大账户自适应保护: 超过1000个广告活动的账户自动启用保护模式(步骤间额外延迟3秒+单账户同步45分钟超时保护)',
+    affectedModules: ['sync', 'api', 'monitoring'],
+    correctionActions: ['resync_data'],
+  },
 ];
 
 // ==================== 配置 ====================

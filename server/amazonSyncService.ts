@@ -301,6 +301,7 @@ export class AmazonSyncService {
     spCampaigns?: number;
     sbCampaigns?: number;
     sdCampaigns?: number;
+    _syncDiagnostics?: { stepName: string; synced: number; durationMs: number; error?: string }[];
   }> {
     const results = {
       campaigns: 0,
@@ -311,218 +312,139 @@ export class AmazonSyncService {
       spCampaigns: 0,
       sbCampaigns: 0,
       sdCampaigns: 0,
+      _syncDiagnostics: [] as { stepName: string; synced: number; durationMs: number; error?: string }[],
+    };
+
+    // v340: 分步诊断日志系统 — 记录每个步骤的开始、结束、耗时和异常
+    const syncAllStartTime = Date.now();
+    let totalSteps = 0;
+    let failedSteps = 0;
+    log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始全量同步 (performanceDays=${options?.performanceDays || 14})`);
+
+    const runStep = async <T>(stepName: string, fn: () => Promise<T>): Promise<T | null> => {
+      totalSteps++;
+      const stepStart = Date.now();
+      log.info(`[syncAll] 📌 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 开始...`);
+      try {
+        const result = await fn();
+        const durationMs = Date.now() - stepStart;
+        // 提取synced数量
+        let synced = 0;
+        if (typeof result === 'number') synced = result;
+        else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
+        results._syncDiagnostics!.push({ stepName, synced, durationMs });
+        log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms`);
+        return result;
+      } catch (error: any) {
+        const durationMs = Date.now() - stepStart;
+        failedSteps++;
+        results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: error.message });
+        log.error(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${error.message}`);
+        return null;
+      }
     };
 
     // 同步SP广告活动
-    const spResult = await this.syncSpCampaigns();
-    results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
-    results.campaigns += results.spCampaigns;
+    const spResult = await runStep('SP广告活动', () => this.syncSpCampaigns());
+    if (spResult !== null) {
+      results.spCampaigns = typeof spResult === 'number' ? spResult : (spResult as any)?.synced || 0;
+      results.campaigns += results.spCampaigns;
+    }
     
     // 同步SB广告活动
-    const sbResult = await this.syncSbCampaigns();
-    results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
-    results.campaigns += results.sbCampaigns;
+    const sbResult = await runStep('SB广告活动', () => this.syncSbCampaigns());
+    if (sbResult !== null) {
+      results.sbCampaigns = typeof sbResult === 'number' ? sbResult : (sbResult as any)?.synced || 0;
+      results.campaigns += results.sbCampaigns;
+    }
     
     // 同步SD广告活动
-    const sdResult = await this.syncSdCampaigns();
-    results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
-    results.campaigns += results.sdCampaigns;
+    const sdResult = await runStep('SD广告活动', () => this.syncSdCampaigns());
+    if (sdResult !== null) {
+      results.sdCampaigns = typeof sdResult === 'number' ? sdResult : (sdResult as any)?.synced || 0;
+      results.campaigns += results.sdCampaigns;
+    }
     
     // ==================== 同步广告组（SP + SB + SD） ====================
-    const spAdGroupResult = await this.syncSpAdGroups();
-    results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
-
-    try {
-      const sbAdGroupResult = await this.syncSbAdGroups();
-      results.adGroups += sbAdGroupResult.synced;
-    } catch (e: any) {
-      log.error('SB广告组同步失败:', e.message);
+    const spAdGroupResult = await runStep('SP广告组', () => this.syncSpAdGroups());
+    if (spAdGroupResult !== null) {
+      results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : (spAdGroupResult as any)?.synced || 0;
     }
 
-    try {
-      const sdAdGroupResult = await this.syncSdAdGroups();
-      results.adGroups += sdAdGroupResult.synced;
-    } catch (e: any) {
-      log.error('SD广告组同步失败:', e.message);
-    }
+    const sbAdGroupResult = await runStep('SB广告组', () => this.syncSbAdGroups());
+    if (sbAdGroupResult !== null) results.adGroups += (sbAdGroupResult as any)?.synced || 0;
+
+    const sdAdGroupResult = await runStep('SD广告组', () => this.syncSdAdGroups());
+    if (sdAdGroupResult !== null) results.adGroups += (sdAdGroupResult as any)?.synced || 0;
     
     // ==================== 同步关键词投放（SP + SB） ====================
-    const spKeywordResult = await this.syncSpKeywords();
-    results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
-
-    try {
-      const sbKeywordResult = await this.syncSbKeywords();
-      results.keywords += sbKeywordResult.synced;
-    } catch (e: any) {
-      log.error('SB关键词同步失败:', e.message);
+    const spKeywordResult = await runStep('SP关键词', () => this.syncSpKeywords());
+    if (spKeywordResult !== null) {
+      results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : (spKeywordResult as any)?.synced || 0;
     }
+
+    const sbKeywordResult = await runStep('SB关键词', () => this.syncSbKeywords());
+    if (sbKeywordResult !== null) results.keywords += (sbKeywordResult as any)?.synced || 0;
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
-    const spTargetResult = await this.syncSpProductTargets();
-    results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
-
-    try {
-      const sbTargetResult = await this.syncSbProductTargets();
-      results.targets += sbTargetResult.synced;
-    } catch (e: any) {
-      log.error('SB商品定位同步失败:', e.message);
+    const spTargetResult = await runStep('SP商品定位', () => this.syncSpProductTargets());
+    if (spTargetResult !== null) {
+      results.targets += typeof spTargetResult === 'number' ? spTargetResult : (spTargetResult as any)?.synced || 0;
     }
 
-    try {
-      const sdTargetResult = await this.syncSdProductTargets();
-      results.targets += sdTargetResult.synced;
-    } catch (e: any) {
-      log.error('SD商品定位同步失败:', e.message);
-    }
+    const sbTargetResult = await runStep('SB商品定位', () => this.syncSbProductTargets());
+    if (sbTargetResult !== null) results.targets += (sbTargetResult as any)?.synced || 0;
+
+    const sdTargetResult = await runStep('SD商品定位', () => this.syncSdProductTargets());
+    if (sdTargetResult !== null) results.targets += (sdTargetResult as any)?.synced || 0;
 
     // ==================== 同步否定关键词 ====================
-    try {
-      log.info(`开始同步SP否定关键词...`);
-      const negResult = await this.syncSpNegativeKeywords();
-      log.info(`SP否定关键词同步完成: ${negResult.synced}条新增, ${negResult.updated}条更新`);
-    } catch (e: any) {
-      log.error('SP否定关键词同步失败:', e.message);
-    }
-    // ==================== 同步SP否定商品定向 ====================
-    try {
-      log.info(`开始同步SP否定商品定向...`);
-      const negPtResult = await this.syncSpNegativeProductTargets();
-      log.info(`SP否定商品定向同步完成: ${negPtResult.synced}条新增, ${negPtResult.updated}条更新`);
-    } catch (e: any) {
-      log.error('SP否定商品定向同步失败:', e.message);
-    }
-    // ==================== 同步SP搜索词 ====================
-    try {
-      log.info(`开始同步SP搜索词数据...`);
-      const spSearchTermSynced = await this.syncSearchTerms(90); // v337.2: SP搜索词扩展到90天
-      log.info(`SP搜索词同步完成: ${spSearchTermSynced}条`);
-    } catch (e: any) {
-      log.error('SP搜索词同步失败:', e.message);
-    }
-    // ==================== 同步SB搜索词 ====================
-    try {
-      log.info(`开始同步SB搜索词数据...`);
-      const sbSearchTermSynced = await this.syncSbSearchTerms(60); // v337.2: SB搜索词扩展到60天
-      log.info(`SB搜索词同步完成: ${sbSearchTermSynced}条`);
-    } catch (e: any) {
-      log.error('SB搜索词同步失败:', e.message);
-    }
-    // ==================== 同步SB广告素材（品牌广告创意） ====================
-    try {
-      log.info(`开始同步SB广告素材...`);
-      const sbAdsResult = await this.syncSbAds();
-      log.info(`SB广告素材同步完成: ${sbAdsResult.synced}条同步, ${sbAdsResult.skipped}条跳过`);
-    } catch (e: any) {
-      log.error('SB广告素材同步失败:', e.message);
-    }
+    await runStep('SP否定关键词', () => this.syncSpNegativeKeywords());
+    await runStep('SP否定商品定向', () => this.syncSpNegativeProductTargets());
 
-    // ==================== 同步SB否定关键词 ====================
-    try {
-      log.info(`开始同步SB否定关键词...`);
-      const sbNegKwResult = await this.syncSbNegativeKeywords();
-      log.info(`SB否定关键词同步完成: ${sbNegKwResult.synced}条新增, ${sbNegKwResult.updated}条更新`);
-    } catch (e: any) {
-      log.error('SB否定关键词同步失败:', e.message);
-    }
+    // ==================== 同步搜索词 ====================
+    await runStep('SP搜索词(90天)', () => this.syncSearchTerms(90));
+    await runStep('SB搜索词(60天)', () => this.syncSbSearchTerms(60));
 
-    // ==================== 同步SB否定商品定向 ====================
-    try {
-      log.info(`开始同步SB否定商品定向...`);
-      const sbNegTgtResult = await this.syncSbNegativeTargets();
-      log.info(`SB否定商品定向同步完成: ${sbNegTgtResult.synced}条新增, ${sbNegTgtResult.updated}条更新`);
-    } catch (e: any) {
-      log.error('SB否定商品定向同步失败:', e.message);
-    }
+    // ==================== 同步SB广告素材 ====================
+    await runStep('SB广告素材', () => this.syncSbAds());
 
-    // ==================== 同步SP广告位绩效 ====================
-    try {
-      log.info(`开始同步SP广告位绩效数据...`);
-      const placementSynced = await this.syncPlacementPerformance(90); // v337.2: SP广告位扩展到90天
-      log.info(`SP广告位绩效同步完成: ${placementSynced}条`);
-    } catch (e: any) {
-      log.error('SP广告位绩效同步失败:', e.message);
-    }
+    // ==================== 同步SB否定 ====================
+    await runStep('SB否定关键词', () => this.syncSbNegativeKeywords());
+    await runStep('SB否定商品定向', () => this.syncSbNegativeTargets());
 
-    // ==================== 同步SB广告位绩效 ====================
-    try {
-      log.info(`开始同步SB广告位绩效数据...`);
-      const sbPlacementSynced = await this.syncSbPlacementPerformance(60); // v337.2: SB广告位扩展到60天
-      log.info(`SB广告位绩效同步完成: ${sbPlacementSynced}条`);
-    } catch (e: any) {
-      log.error('SB广告位绩效同步失败:', e.message);
-    }
+    // ==================== 同步广告位绩效 ====================
+    await runStep('SP广告位绩效(90天)', () => this.syncPlacementPerformance(90));
+    await runStep('SB广告位绩效(60天)', () => this.syncSbPlacementPerformance(60));
 
-    // ==================== 同步SP自动定向报告 ====================
-    try {
-      log.info(`开始同步SP自动定向报告数据...`);
-      const autoTargetSynced = await this.syncAutoTargeting(90); // v337.2: SP自动定向扩展到90天
-      log.info(`SP自动定向报告同步完成: ${autoTargetSynced}条`);
-    } catch (e: any) {
-      log.error('SP自动定向报告同步失败:', e.message);
-    }
+    // ==================== 同步定向报告 ====================
+    await runStep('SP自动定向(90天)', () => this.syncAutoTargeting(90));
+    await runStep('SD定向报告(90天)', () => this.syncSdTargeting(90));
+    await runStep('SB定向报告(60天)', () => this.syncSbTargeting(60));
 
-    // ==================== 同步SD定向报告 ====================
-    try {
-      log.info(`开始同步SD定向报告数据...`);
-      const sdTargetSynced = await this.syncSdTargeting(90); // v337.2: SD定向扩展到90天
-      log.info(`SD定向报告同步完成: ${sdTargetSynced}条`);
-    } catch (e: any) {
-      log.error('SD定向报告同步失败:', e.message);
-    }
+    // ==================== 解析SB素材URL ====================
+    await runStep('SB素材URL解析', () => this.syncAssetUrls());
 
-    // ==================== 同步SB定向报告 ====================
-    try {
-      log.info(`开始同步SB定向报告数据...`);
-      const sbTargetSynced = await this.syncSbTargeting(60); // v337.2: SB定向扩展到60天
-      log.info(`SB定向报告同步完成: ${sbTargetSynced}条`);
-    } catch (e: any) {
-      log.error('SB定向报告同步失败:', e.message);
-    }
-    
-    // ==================== 解析SB素材Asset URL ====================
-    try {
-      log.info(`开始解析SB广告素材URL...`);
-      const assetUrlsSynced = await this.syncAssetUrls();
-      log.info(`SB素材URL解析完成: ${assetUrlsSynced}个广告组已更新`);
-    } catch (e: any) {
-      log.error('SB素材URL解析失败:', e.message);
-    }
-
-    // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
-    // 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
-    // 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
-    // 这能确保存下来的数据和亚马逊后台最终结算的数据一致
+    // 同步绩效数据（快慢双轨架构）
     // v339: performanceDays支持外部传入，默认14天归因回溯
-    // unifiedSyncEngine full tier会传入90天，常规同步保持14天
     const performanceDays = options?.performanceDays || 14;
-    log.info(`v339: 同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
-    results.performance += await this.syncPerformanceData(performanceDays);
+    const perfResult = await runStep(`广告活动绩效(${performanceDays}天)`, () => this.syncPerformanceData(performanceDays));
+    if (perfResult !== null) results.performance += typeof perfResult === 'number' ? perfResult : (perfResult as any)?.synced || 0;
 
-    // ✅ 修复P0-4/P1-1: 同步关键词级别绩效数据（之前缺失，导致keywords表绩效全为0）
-    try {
-      log.info(`开始同步关键词级别绩效数据...`);
-      const keywordPerfSynced = await this.syncKeywordPerformanceData(performanceDays);
-      log.info(`关键词绩效数据同步完成: ${keywordPerfSynced}条`);
-    } catch (kwPerfError: any) {
-      log.error('关键词绩效数据同步失败:', kwPerfError.message);
+    await runStep(`关键词绩效(${performanceDays}天)`, () => this.syncKeywordPerformanceData(performanceDays));
+    await runStep(`商品定位绩效(${performanceDays}天)`, () => this.syncProductTargetPerformanceData(performanceDays));
+    await runStep(`广告组绩效(${performanceDays}天)`, () => this.syncAdGroupPerformanceData(performanceDays));
+
+    // v340: 同步完成汇总报告
+    const totalDurationMs = Date.now() - syncAllStartTime;
+    const totalSynced = results._syncDiagnostics!.reduce((sum, d) => sum + d.synced, 0);
+    const failedStepNames = results._syncDiagnostics!.filter(d => d.error).map(d => d.stepName);
+    log.info(`[syncAll] 📊 账户${this.accountId} 全量同步完成: 总步骤=${totalSteps}, 成功=${totalSteps - failedSteps}, 失败=${failedSteps}, 总记录=${totalSynced}, 总耗时=${totalDurationMs}ms`);
+    if (failedSteps > 0) {
+      log.warn(`[syncAll] ⚠️ 账户${this.accountId} 失败步骤: ${failedStepNames.join(', ')}`);
     }
-
-    // ✅ 修复P1-2: 同步商品定位级别绩效数据
-    try {
-      log.info(`开始同步商品定位级别绩效数据...`);
-      const targetPerfSynced = await this.syncProductTargetPerformanceData(performanceDays);
-      log.info(`商品定位绩效数据同步完成: ${targetPerfSynced}条`);
-    } catch (ptPerfError: any) {
-      log.error('商品定位绩效数据同步失败:', ptPerfError.message);
-    }
-
-    // ✅ 同步广告组级别绩效数据（SP/SB/SD）
-    try {
-      log.info(`开始同步广告组级别绩效数据...`);
-      const adGroupPerfSynced = await this.syncAdGroupPerformanceData(performanceDays);
-      log.info(`广告组绩效数据同步完成: ${adGroupPerfSynced}条`);
-    } catch (agPerfError: any) {
-      log.error('广告组绩效数据同步失败:', agPerfError.message);
+    if (totalSynced === 0 && totalSteps > 0) {
+      log.error(`[syncAll] 🚨 账户${this.accountId} 全量同步完成但总记录数为0！可能存在API授权或数据问题，请检查以上各步骤详情。`);
     }
 
     return results;

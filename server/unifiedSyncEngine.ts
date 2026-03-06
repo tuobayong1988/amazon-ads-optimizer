@@ -1105,6 +1105,31 @@ export async function syncAccount(
 
     result.totalSteps = steps.length;
 
+    // v340: 大账户自适应保护机制
+    // 查询账户的广告活动数量，动态调整同步策略
+    let campaignCount = 0;
+    let isLargeAccount = false;
+    const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
+    const LARGE_ACCOUNT_STEP_DELAY_MS = 3000; // 大账户步骤间额外延迟3秒
+    const SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 单账户同步最大超时45分钟
+    try {
+      const database = await db.getDb();
+      if (database) {
+        const { campaigns: campaignsTable } = await import('../drizzle/schema');
+        const countResult = await database
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(campaignsTable)
+          .where(eq(campaignsTable.accountId, account.accountId));
+        campaignCount = countResult[0]?.count || 0;
+        isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
+        if (isLargeAccount) {
+          log.warn(`[UnifiedSync] v340: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，启用自适应保护模式`);
+        }
+      }
+    } catch (e: any) {
+      log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${e.message}`);
+    }
+
     // 创建同步上下文
     const context: SyncContext = {
       accountId: account.accountId,
@@ -1137,11 +1162,25 @@ export async function syncAccount(
 
       log.info(`[UnifiedSync] 账户 ${account.accountId} 执行步骤 [${i + 1}/${steps.length}]: ${step.name}`);
 
-      // v220: 步骤间速率控制延迟
+      // v340: 单账户同步超时保护
+      const elapsed = Date.now() - startTime.getTime();
+      if (elapsed > SYNC_TIMEOUT_MS) {
+        const timeoutMsg = `账户${account.accountId} 同步超时(${Math.round(elapsed / 60000)}分钟>阈值${SYNC_TIMEOUT_MS / 60000}分钟)，已完成${i}/${steps.length}步骤，剩余步骤跳过`;
+        log.warn(`[UnifiedSync] v340: ${timeoutMsg}`);
+        result.errors.push(timeoutMsg);
+        break;
+      }
+
+      // v220+v340: 步骤间速率控制延迟（大账户额外增加延迟）
       if (i > 0) {
-        const stepDelay = rateController.getStepDelay();
-        if (stepDelay > 0) {
-          await sleep(stepDelay);
+        const baseDelay = rateController.getStepDelay();
+        const extraDelay = isLargeAccount ? LARGE_ACCOUNT_STEP_DELAY_MS : 0;
+        const totalDelay = baseDelay + extraDelay;
+        if (totalDelay > 0) {
+          if (isLargeAccount) {
+            log.debug(`[UnifiedSync] v340: 大账户步骤间延迟 ${totalDelay}ms (基础${baseDelay}ms + 大账户保护${extraDelay}ms)`);
+          }
+          await sleep(totalDelay);
         }
       }
 
@@ -1213,6 +1252,47 @@ export async function syncAccount(
     }
 
     result.success = result.failedSteps === 0 || result.completedSteps > 0;
+
+    // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警
+    if (result.totalSynced === 0 && result.totalSteps > 0) {
+      const alertMsg = `⚠️ 账户${account.accountId}(${account.accountName}) ${tier}层同步完成但总记录数为0！步骤=${result.totalSteps}, 失败=${result.failedSteps}, 错误=${result.errors.slice(0, 3).join('; ')}`;
+      log.error(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
+      logSyncError('UnifiedSync', alertMsg, {
+        accountId: account.accountId,
+        accountName: account.accountName,
+        marketplace: account.marketplace,
+        tier,
+        totalSteps: result.totalSteps,
+        completedSteps: result.completedSteps,
+        failedSteps: result.failedSteps,
+        errors: result.errors,
+      });
+      // 异步写入告警日志到数据库
+      try {
+        const database = await db.getDb();
+        if (database) {
+          await database.execute(sql`
+            INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+            VALUES (
+              ${account.accountId},
+              'SYNC_ZERO_RECORDS',
+              'critical',
+              ${JSON.stringify({
+                alertMessage: alertMsg,
+                tier,
+                totalSteps: result.totalSteps,
+                failedSteps: result.failedSteps,
+                errors: result.errors.slice(0, 5),
+                stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: r.success, synced: r.synced })),
+              })},
+              NOW()
+            )
+          `);
+        }
+      } catch (alertDbErr: any) {
+        log.warn(`[UnifiedSync] 同步健康告警写入DB失败: ${alertDbErr.message}`);
+      }
+    }
 
   } catch (error: any) {
     result.errors.push(`同步初始化失败: ${error.message}`);
