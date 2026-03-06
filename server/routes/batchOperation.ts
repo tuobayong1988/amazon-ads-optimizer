@@ -10,6 +10,9 @@ import { AmazonSyncService } from '../amazonSyncService';
 import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
 import * as batchOperationService from '../batchOperationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_batchOperation');
 
 export const batchOperationRouter = router({
   // List batch operations
@@ -475,7 +478,7 @@ export const batchOperationRouter = router({
             }
           }
         } catch (initError: any) {
-          console.error('[applyBidAdjustments] 创建Amazon API客户端失败:', initError.message);
+          log.error('[applyBidAdjustments] 创建Amazon API客户端失败:', initError.message);
         }
       }
 
@@ -502,7 +505,7 @@ export const batchOperationRouter = router({
               }]);
               apiSuccess = true;
             } catch (apiError: any) {
-              console.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, apiError.message);
+              log.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, apiError.message);
             }
           }
 

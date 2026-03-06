@@ -13,6 +13,9 @@ import { accountInitializationService } from '../services/accountInitializationS
 import { smartSyncService } from '../services/smartSyncService';
 import { tieredSyncService } from '../services/tieredSyncService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('DataSyncRoute');
 
 
 export const dataSyncRouter = router({
@@ -53,7 +56,7 @@ export const dataSyncRouter = router({
       });
       
       // 异步执行任务
-      dataSyncService.executeSyncJob(jobId).catch(console.error);
+      dataSyncService.executeSyncJob(jobId).catch((err: any) => log.error(`同步任务执行失败 (jobId=${jobId}):`, err.message));
       return { success: true, jobId };
     }),
 

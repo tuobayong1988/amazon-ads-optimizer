@@ -5,6 +5,9 @@ import { z } from 'zod';
 import { router, protectedProcedure } from '../_core/trpc';
 import { scanAccountHealth } from '../intelligentRecommendationEngine';
 import * as db from '../db';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_intelligentRecommendation');
 
 export const intelligentRecommendationRouter = router({
   scan: protectedProcedure
@@ -46,16 +49,16 @@ export const intelligentRecommendationRouter = router({
         try {
           const { triggerInitialOptimization } = await import('../optimizationScheduler');
           triggerInitialOptimization(id, { triggeredBy: 'create' as any }).catch(err => {
-            console.error(`[智能推荐] 触发首次优化失败:`, err);
+            log.error(`[智能推荐] 触发首次优化失败:`, err);
           });
         } catch (e) {
-          console.error('[智能推荐] 导入optimizationScheduler失败:', e);
+          log.error('[智能推荐] 导入optimizationScheduler失败:', e);
         }
 
-        console.log(`[智能推荐] 成功创建优化目标 #${id}，包含${input.campaignIds.length}个广告活动`);
+        log.info(`[智能推荐] 成功创建优化目标 #${id}，包含${input.campaignIds.length}个广告活动`);
         return { success: true, goalId: id, campaignCount: input.campaignIds.length };
       } catch (error: any) {
-        console.error('[智能推荐] 创建优化目标失败:', error);
+        log.error('[智能推荐] 创建优化目标失败:', error);
         throw new Error(`创建优化目标失败: ${error.message}`);
       }
     }),

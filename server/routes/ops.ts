@@ -39,9 +39,12 @@ const router = Router();
 function opsAuth(req: Request, res: Response, next: Function): void {
   const apiKey = process.env.OPS_API_KEY;
   
-  // 如果未配置API密钥，允许所有访问（开发环境）
+  // v345: 强制认证 — 移除未配置时的无认证分支
   if (!apiKey) {
-    next();
+    res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'OPS_API_KEY 环境变量未配置，运维接口已禁用。',
+    });
     return;
   }
   

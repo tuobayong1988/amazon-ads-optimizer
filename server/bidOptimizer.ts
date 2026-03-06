@@ -6,6 +6,39 @@
 import { Keyword, ProductTarget, PerformanceGroup, Campaign } from "../drizzle/schema";
 import { calculateDynamicElasticity, getElasticity, estimateCPC, type BidChangeRecord } from "./algorithmUtils";
 
+// ==================== v345: 算法常量定义 ====================
+// 将魔法数字替换为具名常量，提高代码可读性和可维护性
+
+/** 默认CPC最高出价限制 ($) — 优化目标的max_bid为绝对红线 */
+export const DEFAULT_MAX_BID_CPC = 2.00;
+
+/** 默认最低出价限制 ($) */
+export const DEFAULT_MIN_BID = 0.02;
+
+/** 默认组平均CVR回退值 (当无数据时使用) */
+export const DEFAULT_GROUP_AVG_CVR = 0.05;
+
+/** 默认组平均AOV回退值 ($) */
+export const DEFAULT_GROUP_AVG_AOV = 30;
+
+/** 默认组平均CPC回退值 ($) */
+export const DEFAULT_GROUP_AVG_CPC = 0.75;
+
+/** 单次出价调整最大变动百分比 (防止剧烈波动) */
+export const MAX_BID_CHANGE_PERCENT = 0.25;
+
+/** 探索上限绝对值 ($) */
+export const EXPLORATION_CEILING_ABSOLUTE = 3.00;
+
+/** CPC到出价的估算系数 (estimatedCpc = bidLevel * 此值) */
+export const CPC_BID_RATIO = 0.7;
+
+/** 默认CTR回退值 (当无展示量数据时) */
+export const DEFAULT_CTR_FALLBACK = 0.01;
+
+/** 流量天花板乘数 */
+export const TRAFFIC_CEILING_MULTIPLIER = 1.5;
+
 // Types for optimization
 export interface OptimizationTarget {
   id: number;
@@ -112,7 +145,7 @@ export function estimateTrafficCeiling(
     const ceilingBid = 10;
     const ceiling = a * Math.log(ceilingBid) + (sumImpressions - a * sumLnBid) / n;
     
-    return Math.max(ceiling, currentImpressions * 1.5);
+    return Math.max(ceiling, currentImpressions * TRAFFIC_CEILING_MULTIPLIER);
   }
   
   // Default estimation based on current performance
@@ -192,7 +225,7 @@ export function generateMarketCurve(
     
     // Estimate spend (clicks * estimated CPC at this bid level)
     // CPC is typically 60-80% of max bid
-    const estimatedCpc = bidLevel * 0.7;
+    const estimatedCpc = bidLevel * CPC_BID_RATIO;
     const estimatedSpend = estimatedClicks * estimatedCpc;
     
     // Calculate marginal values
@@ -525,9 +558,8 @@ export function calculateBidAdjustment(
   newBid = Math.max(newBid, minBidLimit);
   
   // Limit bid change to 25% per adjustment to avoid drastic changes
-  const maxChangePercent = 0.25;
-  const maxIncrease = target.currentBid * (1 + maxChangePercent);
-  const maxDecrease = target.currentBid * (1 - maxChangePercent);
+  const maxIncrease = target.currentBid * (1 + MAX_BID_CHANGE_PERCENT);
+  const maxDecrease = target.currentBid * (1 - MAX_BID_CHANGE_PERCENT);
   
   newBid = Math.min(newBid, maxIncrease);
   newBid = Math.max(newBid, maxDecrease);

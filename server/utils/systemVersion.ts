@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 344;  // v344: 修复P0冷启动同步90天数据Bug + P1竞价日志表结构修复 + 数据库补全cold_start_logs表
+export const SYSTEM_VERSION = 345;  // v345: P0安全加固(凭证加密+JWT安全+运维认证) + P1性能优化(数据库索引+N+1查询) + P2代码质量

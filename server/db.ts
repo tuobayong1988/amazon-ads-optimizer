@@ -680,14 +680,9 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   if (adGroupsList.length === 0) return [];
   
-  // 获取所有广告组的关键词
+  // v345: 优化N+1查询 — 使用inArray批量查询替代循环单查
   const adGroupIds = adGroupsList.map(ag => ag.id);
-  const allKeywords = [];
-  
-  for (const adGroupId of adGroupIds) {
-    const groupKeywords = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
-    allKeywords.push(...groupKeywords);
-  }
+  const allKeywords = await db.select().from(keywords).where(inArray(keywords.adGroupId, adGroupIds));
   
   return allKeywords;
 }
@@ -706,6 +701,14 @@ export async function getProductTargetsByAdGroupId(adGroupId: number) {
   if (!db) return [];
   
   return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+}
+
+// v345: 批量获取多个广告组的商品定向 — 解决N+1查询问题
+export async function getProductTargetsByAdGroupIds(adGroupIds: number[]) {
+  const db = await getDb();
+  if (!db || adGroupIds.length === 0) return [];
+  
+  return db.select().from(productTargets).where(inArray(productTargets.adGroupId, adGroupIds));
 }
 
 export async function getProductTargetById(id: number) {
@@ -1273,8 +1276,10 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v345: 凭证加密 — 在写入数据库前加密敏感字段
+  const { safeEncrypt } = await import('./utils/cryptoService');
+  
   // v342: 保护性更新 - 不用空值覆盖已有的有效值
-  // 使用SQL的COALESCE/IF逻辑：只有当新值非空时才更新
   const updateSet: Record<string, any> = {
     updatedAt: new Date().toISOString(),
   };
@@ -1283,10 +1288,10 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
     updateSet.clientId = data.clientId;
   }
   if (data.clientSecret && data.clientSecret !== '' && data.clientSecret !== '__USE_SERVER_SECRET__') {
-    updateSet.clientSecret = data.clientSecret;
+    updateSet.clientSecret = safeEncrypt(data.clientSecret);
   }
   if (data.refreshToken && data.refreshToken !== '') {
-    updateSet.refreshToken = data.refreshToken;
+    updateSet.refreshToken = safeEncrypt(data.refreshToken);
   }
   if (data.profileId && data.profileId !== '') {
     updateSet.profileId = data.profileId;
@@ -1295,11 +1300,18 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
     updateSet.region = data.region;
   }
   
-  await db.insert(amazonApiCredentials).values(data).onDuplicateKeyUpdate({
+  // v345: 加密 insert values 中的敏感字段
+  const encryptedData = {
+    ...data,
+    clientSecret: data.clientSecret ? safeEncrypt(data.clientSecret) : data.clientSecret,
+    refreshToken: data.refreshToken ? safeEncrypt(data.refreshToken) : data.refreshToken,
+  };
+  
+  await db.insert(amazonApiCredentials).values(encryptedData).onDuplicateKeyUpdate({
     set: updateSet,
   });
   
-  console.log(`[db] v342: saveAmazonApiCredentials 完成 (accountId=${data.accountId}, 更新字段=[${Object.keys(updateSet).filter(k => k !== 'updatedAt').join(',')}])`);
+  console.log(`[db] v345: saveAmazonApiCredentials 完成 (accountId=${data.accountId}, 更新字段=[${Object.keys(updateSet).filter(k => k !== 'updatedAt').join(',')}], 凭证已加密)`);
 }
 
 export async function getAmazonApiCredentials(accountId: number): Promise<AmazonApiCredential | null> {
@@ -1311,15 +1323,34 @@ export async function getAmazonApiCredentials(accountId: number): Promise<Amazon
     .where(eq(amazonApiCredentials.accountId, accountId))
     .limit(1);
   
-  return result[0] || null;
+  const row = result[0] || null;
+  if (!row) return null;
+  
+  // v345: 自动解密敏感字段（向后兼容明文数据）
+  const { safeDecrypt } = await import('./utils/cryptoService');
+  return {
+    ...row,
+    clientSecret: safeDecrypt(row.clientSecret),
+    refreshToken: safeDecrypt(row.refreshToken as string),
+  };
 }
 
 export async function updateAmazonApiCredentials(accountId: number, data: Partial<InsertAmazonApiCredential>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v345: 加密敏感字段
+  const { safeEncrypt } = await import('./utils/cryptoService');
+  const encryptedData: Record<string, any> = { ...data, updatedAt: new Date().toISOString() };
+  if (encryptedData.clientSecret) {
+    encryptedData.clientSecret = safeEncrypt(encryptedData.clientSecret);
+  }
+  if (encryptedData.refreshToken) {
+    encryptedData.refreshToken = safeEncrypt(encryptedData.refreshToken);
+  }
+  
   await db.update(amazonApiCredentials)
-    .set({ ...data, updatedAt: new Date().toISOString() })
+    .set(encryptedData)
     .where(eq(amazonApiCredentials.accountId, accountId));
 }
 

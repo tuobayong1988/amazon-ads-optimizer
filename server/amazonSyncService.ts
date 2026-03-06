@@ -321,27 +321,44 @@ export class AmazonSyncService {
     let failedSteps = 0;
     log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始全量同步 (performanceDays=${options?.performanceDays || 14})`);
 
+    // v345: 步骤级重试配置
+    const STEP_RETRY_CONFIG = { maxRetries: 1, baseDelayMs: 3000 };
+
     const runStep = async <T>(stepName: string, fn: () => Promise<T>): Promise<T | null> => {
       totalSteps++;
       const stepStart = Date.now();
       log.info(`[syncAll] 📌 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 开始...`);
-      try {
-        const result = await fn();
-        const durationMs = Date.now() - stepStart;
-        // 提取synced数量
-        let synced = 0;
-        if (typeof result === 'number') synced = result;
-        else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
-        results._syncDiagnostics!.push({ stepName, synced, durationMs });
-        log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms`);
-        return result;
-      } catch (error: any) {
-        const durationMs = Date.now() - stepStart;
-        failedSteps++;
-        results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: error.message });
-        log.error(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${error.message}`);
-        return null;
+      
+      // v345: 步骤级重试 — 对可重试错误(429/5xx)自动重试一次
+      for (let attempt = 0; attempt <= STEP_RETRY_CONFIG.maxRetries; attempt++) {
+        try {
+          const result = await fn();
+          const durationMs = Date.now() - stepStart;
+          let synced = 0;
+          if (typeof result === 'number') synced = result;
+          else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
+          results._syncDiagnostics!.push({ stepName, synced, durationMs, ...(attempt > 0 ? { retried: true } : {}) });
+          log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms${attempt > 0 ? ` (第${attempt}次重试成功)` : ''}`);
+          return result;
+        } catch (error: any) {
+          const errMsg = error.message || '';
+          const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET');
+          
+          if (isRetryable && attempt < STEP_RETRY_CONFIG.maxRetries) {
+            const delay = STEP_RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
+            log.warn(`[syncAll] ⚠️ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(可重试): ${errMsg}, ${delay}ms后重试...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          
+          const durationMs = Date.now() - stepStart;
+          failedSteps++;
+          results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: errMsg });
+          log.error(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${errMsg}`);
+          return null;
+        }
       }
+      return null;
     };
 
     // 同步SP广告活动

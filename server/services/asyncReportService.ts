@@ -95,7 +95,15 @@ export class AsyncReportService {
       throw new Error(`No API credentials found for account ${accountId}`);
     }
 
-    return new AmazonAdsApiClient(credentials as any);
+    // v345: 解密敏感字段
+    const { safeDecrypt } = await import('../utils/cryptoService');
+    const decryptedCreds = {
+      ...credentials,
+      clientSecret: safeDecrypt(credentials.clientSecret),
+      refreshToken: safeDecrypt(credentials.refreshToken as string),
+    };
+
+    return new AmazonAdsApiClient(decryptedCreds as any);
   }
 
   /**

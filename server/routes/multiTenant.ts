@@ -5,6 +5,9 @@
 import { z } from 'zod';
 import { publicProcedure, router } from '../_core/trpc';
 import { withTenant, withQuota, type TenantContext } from '../middleware/tenantMiddleware';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_multiTenant');
 
 export const multiTenantRouter = router({
   /**
@@ -393,7 +396,7 @@ async function createInvitation(data: any) {
 
 async function sendInvitationEmail(invitation: any) {
   // 实际实现需要发送邮件
-  console.log('Sending invitation email to:', invitation.email);
+  log.info('Sending invitation email to:', invitation.email);
 }
 
 async function updateMemberRole(

@@ -6,6 +6,9 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_user');
 
 // 缓存：是否已确认 preferences 列存在于 team_members 表
 let columnEnsured = false;
@@ -19,7 +22,7 @@ async function ensurePreferencesColumn(db: any) {
   } catch (error: any) {
     try {
       await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`);
-      console.log('[User] preferences column added to team_members table');
+      log.info('[User] preferences column added to team_members table');
       columnEnsured = true;
     } catch (alterError: any) {
       if (alterError?.message?.includes('Duplicate column')) {
@@ -54,7 +57,7 @@ export const userRouter = router({
       }
       return {};
     } catch (error: any) {
-      console.warn('[User] Failed to get preferences:', error?.message);
+      log.warn('[User] Failed to get preferences:', error?.message);
       return {};
     }
   }),
@@ -98,14 +101,14 @@ export const userRouter = router({
         const affectedRows = updateResult[0]?.affectedRows ?? 0;
         
         if (affectedRows === 0) {
-          console.warn(`[User] No rows affected when updating preferences for user ${ctx.user.id}`);
+          log.warn(`[User] No rows affected when updating preferences for user ${ctx.user.id}`);
           return { success: false, error: 'User not found' };
         }
         
-        console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
+        log.info(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
         return { success: true };
       } catch (error: any) {
-        console.error('[User] Failed to update preferences:', error?.message);
+        log.error('[User] Failed to update preferences:', error?.message);
         return { success: false, error: error?.message };
       }
     }),

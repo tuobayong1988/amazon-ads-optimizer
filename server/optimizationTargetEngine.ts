@@ -1476,32 +1476,33 @@ async function executeBidOptimization(
     const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     const allTargets: any[] = [];
     
-    for (const ag of adGroupsList) {
-      const targets = await db.getProductTargetsByAdGroupId(ag.id);
-      for (const target of targets) {
-        if (target.targetStatus !== 'enabled') continue;
-        const currentBid = parseFloat(target.bid || '0');
-        if (currentBid <= 0) continue;
-        
-        allTargets.push(target);
-        productTargets.push({
-          id: target.id,
-          type: 'product_target',
-          currentBid,
-          impressions: target.impressions || 0,
-          clicks: target.clicks || 0,
-          spend: parseFloat(target.spend || '0'),
-          sales: parseFloat(target.sales || '0'),
-          orders: target.orders || 0,
-          matchType: target.targetMatchType || 'exact',
-          campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
-          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : undefined, // v163
-          dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
-          marketplace: config.marketplace,
-          localCampaignId: campaignLocalId,
-          amazonCampaignId: campaignAmazonId,
-        });
-      }
+    // v345: 优化N+1查询 — 批量获取所有广告组的商品定向
+    const adGroupIds = adGroupsList.map(ag => ag.id);
+    const allTargetsFromDb = await db.getProductTargetsByAdGroupIds(adGroupIds);
+    
+    for (const target of allTargetsFromDb) {
+      if (target.targetStatus !== 'enabled') continue;
+      const currentBid = parseFloat(target.bid || '0');
+      if (currentBid <= 0) continue;
+      
+      allTargets.push(target);
+      productTargets.push({
+        id: target.id,
+        type: 'product_target',
+        currentBid,
+        impressions: target.impressions || 0,
+        clicks: target.clicks || 0,
+        spend: parseFloat(target.spend || '0'),
+        sales: parseFloat(target.sales || '0'),
+        orders: target.orders || 0,
+        matchType: target.targetMatchType || 'exact',
+        campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
+        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : undefined, // v163
+        dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
+        marketplace: config.marketplace,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
+      });
     }
     
     // v198: 商品定向也使用NextGen统一出价引擎 — 100%覆盖，无回退

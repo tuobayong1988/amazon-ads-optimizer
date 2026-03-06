@@ -13,6 +13,9 @@ import '../services/sync/syncWithTracking'; // 注册 WithTracking prototype 方
 import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sqsConsumerService';
 import { accountInitializationService } from '../services/accountInitializationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('AmazonApi');
 
 
 // ==================== Amazon API Integration Router ====================
@@ -71,7 +74,7 @@ export const amazonApiRouter = router({
           throw new Error('缺少Amazon API凭证。请在系统设置中配置AMAZON_ADS_CLIENT_ID和AMAZON_ADS_CLIENT_SECRET环境变量。');
         }
         
-        console.log('[ExchangeCode] Exchanging code for tokens...', {
+        log.info('[ExchangeCode] Exchanging code for tokens...', {
           codeLength: input.code.length,
           clientIdPrefix: clientId.substring(0, 20) + '...',
           redirectUri,
@@ -85,12 +88,12 @@ export const amazonApiRouter = router({
           redirectUri
         );
         
-        console.log('[ExchangeCode] Token exchange successful');
+        log.info('[ExchangeCode] Token exchange successful');
         
         // 尝试获取Profile列表
         let profiles: Array<{ profileId: string; countryCode: string; accountName: string; sellerId: string; sellerName: string }> = [];
         try {
-          console.log('[ExchangeCode] Creating client to fetch profiles...');
+          log.info('[ExchangeCode] Creating client to fetch profiles...');
           const client = new AmazonAdsApiClient({
             clientId,
             clientSecret,
@@ -98,9 +101,9 @@ export const amazonApiRouter = router({
             profileId: '', // 获取profiles不需要profileId
             region,
           });
-          console.log('[ExchangeCode] Calling getProfiles()...');
+          log.info('[ExchangeCode] Calling getProfiles()...');
           const profileList = await client.getProfiles();
-          console.log('[ExchangeCode] Raw profile list:', JSON.stringify(profileList, null, 2));
+          log.info('[ExchangeCode] Raw profile list:', JSON.stringify(profileList, null, 2));
           profiles = profileList.map(p => ({
             profileId: String(p.profileId),
             countryCode: p.countryCode || '',
@@ -109,10 +112,10 @@ export const amazonApiRouter = router({
             sellerId: p.accountInfo?.id || '',
             sellerName: p.accountInfo?.name || '',
           }));
-          console.log('[ExchangeCode] Fetched profiles:', profiles.length, profiles);
+          log.info(`[ExchangeCode] Fetched profiles: ${profiles.length} 个`);
         } catch (profileError: any) {
-          console.error('[ExchangeCode] Failed to fetch profiles:', profileError.message);
-          console.error('[ExchangeCode] Profile error details:', profileError.response?.data || profileError.stack);
+          log.error('[ExchangeCode] Failed to fetch profiles:', profileError.message);
+          log.error(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || profileError.stack).substring(0, 500)}`);
           // 不抛出错误，继续返回其他信息
         }
         
@@ -127,7 +130,7 @@ export const amazonApiRouter = router({
           profiles,
         };
       } catch (error: any) {
-        console.error('[ExchangeCode] Token exchange failed:', error.response?.data || error.message);
+        log.error('[ExchangeCode] Token exchange failed:', error.response?.data || error.message);
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: `授权码换取失败: ${error.response?.data?.error_description || error.response?.data?.error || error.message}`,
@@ -147,7 +150,7 @@ export const amazonApiRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       // 添加详细日志
-      console.log('[saveCredentials] 收到保存凭证请求:', {
+      log.info('[saveCredentials] 收到保存凭证请求:', {
         accountId: input.accountId,
         clientIdPrefix: input.clientId?.substring(0, 30) + '...',
         clientSecretPrefix: input.clientSecret?.substring(0, 20) + '...',
@@ -161,15 +164,15 @@ export const amazonApiRouter = router({
       let effectiveClientSecret = input.clientSecret;
       if (!input.clientSecret || input.clientSecret === '__USE_SERVER_SECRET__' || input.clientSecret === '') {
         effectiveClientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
-        console.log('[saveCredentials] v342: 使用服务端环境变量中的clientSecret');
+        log.info('[saveCredentials] v342: 使用服务端环境变量中的clientSecret');
       }
       if (!input.clientId || input.clientId === '') {
         effectiveClientId = process.env.AMAZON_ADS_CLIENT_ID || '';
-        console.log('[saveCredentials] v342: 使用服务端环境变量中的clientId');
+        log.info('[saveCredentials] v342: 使用服务端环境变量中的clientId');
       }
       // 检查必填字段
       if (!effectiveClientId || !effectiveClientSecret || !input.refreshToken) {
-        console.error('[saveCredentials] 缺少必填字段');
+        log.error('[saveCredentials] 缺少必填字段');
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: '缺少必填的API凭证字段',
@@ -177,7 +180,7 @@ export const amazonApiRouter = router({
       }
       
       // Validate credentials before saving
-      console.log('[saveCredentials] 开始验证凭证...');
+      log.info('[saveCredentials] 开始验证凭证...');
       const isValid = await validateCredentials({
         clientId: effectiveClientId,
         clientSecret: effectiveClientSecret,
@@ -185,9 +188,9 @@ export const amazonApiRouter = router({
         profileId: input.profileId,
         region: input.region,
       });
-      console.log('[saveCredentials] 验证结果:', isValid);
+      log.info('[saveCredentials] 验证结果:', isValid);
       if (!isValid) {
-        console.error('[saveCredentials] 凭证验证失败');
+        log.error('[saveCredentials] 凭证验证失败');
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Invalid API credentials. Please check your credentials and try again.',
@@ -229,7 +232,7 @@ export const amazonApiRouter = router({
       });
       
       initPromise.then(async initResult => {
-        console.log(`[授权后初始化] 账号 ${input.accountId} (${marketplace}) 初始化完成:`, {
+        log.info(`[授权后初始化] 账号 ${input.accountId} (${marketplace}) 初始化完成:`, {
           sync: initResult.syncResult.success ? '✅' : '❌',
           schedule: initResult.scheduleResult.success ? '✅' : '❌',
           ams: initResult.amsResult.success ? '✅' : '❌',
@@ -240,7 +243,7 @@ export const amazonApiRouter = router({
           const { triggerImmediateSync } = await import('../dataSyncScheduler');
           await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
         } catch (syncErr: any) {
-          console.error(`[v336] 事件驱动同步触发失败:`, syncErr.message);
+          log.error(`[v336] 事件驱动同步触发失败:`, syncErr.message);
         }
         
         // v338: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
@@ -253,13 +256,13 @@ export const amazonApiRouter = router({
               historicalDays: 90,
               recentDays: 14,
             });
-            console.log(`[v338] 账号 ${input.accountId} 凭证刷新冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
+            log.info(`[v338] 账号 ${input.accountId} 凭证刷新冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
           } catch (coldStartErr: any) {
-            console.error(`[v338] 凭证刷新冷启动触发失败:`, coldStartErr.message);
+            log.error(`[v338] 凭证刷新冷启动触发失败:`, coldStartErr.message);
           }
         }
       }).catch(err => {
-        console.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
+        log.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
       });
 
       return { 
@@ -309,18 +312,18 @@ export const amazonApiRouter = router({
         if (existingStoreAccount?.sellerId === currentSellerId) {
           // 同一卖家账户，可以复用已有店铺名称（比如添加新站点）
           effectiveStoreName = input.existingStoreName;
-          console.log(`[saveMultipleProfiles] 同一卖家账户(${currentSellerId})，复用店铺名称: ${effectiveStoreName}`);
+          log.info(`[saveMultipleProfiles] 同一卖家账户(${currentSellerId})，复用店铺名称: ${effectiveStoreName}`);
         } else {
           // 不同卖家账户，使用新店铺名称，防止覆盖已有店铺的凭证
           effectiveStoreName = input.storeName;
-          console.log(`[saveMultipleProfiles] 不同卖家账户! 已有店铺卖家=${existingStoreAccount?.sellerId || 'unknown'}, 当前授权卖家=${currentSellerId}, 使用新店铺名称: ${effectiveStoreName}`);
+          log.info(`[saveMultipleProfiles] 不同卖家账户! 已有店铺卖家=${existingStoreAccount?.sellerId || 'unknown'}, 当前授权卖家=${currentSellerId}, 使用新店铺名称: ${effectiveStoreName}`);
         }
       } else if (input.existingStoreName) {
         // 没有sellerId信息，回退到旧逻辑
         effectiveStoreName = input.existingStoreName;
       }
       
-      console.log('[saveMultipleProfiles] 收到多站点授权请求:', {
+      log.info('[saveMultipleProfiles] 收到多站点授权请求:', {
         storeName: input.storeName,
         existingStoreName: input.existingStoreName,
         effectiveStoreName,
@@ -336,11 +339,11 @@ export const amazonApiRouter = router({
       let effectiveClientSecret = input.clientSecret;
       if (!input.clientSecret || input.clientSecret === '__USE_SERVER_SECRET__' || input.clientSecret === '') {
         effectiveClientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
-        console.log('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientSecret');
+        log.info('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientSecret');
       }
       if (!input.clientId || input.clientId === '') {
         effectiveClientId = process.env.AMAZON_ADS_CLIENT_ID || '';
-        console.log('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientId');
+        log.info('[saveMultipleProfiles] v342: 使用服务端环境变量中的clientId');
       }
       // 检查必填字段
       if (!effectiveClientId || !effectiveClientSecret || !input.refreshToken) {
@@ -380,7 +383,7 @@ export const amazonApiRouter = router({
         a => a.storeName === effectiveStoreName && (!a.marketplace || a.marketplace === '')
       );
       if (emptyStoreRecord) {
-        console.log(`[saveMultipleProfiles] 删除空店铺占位记录 ${emptyStoreRecord.id}`);
+        log.info(`[saveMultipleProfiles] 删除空店铺占位记录 ${emptyStoreRecord.id}`);
         await db.deleteAdAccount(emptyStoreRecord.id);
       }
 
@@ -410,7 +413,7 @@ export const amazonApiRouter = router({
           if (existingAccountByCountry && profileSellerId && existingAccountByCountry.sellerId) {
             if (existingAccountByCountry.sellerId !== profileSellerId) {
               countryMatchIsSameSeller = false;
-              console.log(`[saveMultipleProfiles] ❗ 店铺+国家匹配到账号 ${existingAccountByCountry.id}，但卖家不同(${existingAccountByCountry.sellerId} vs ${profileSellerId})，将创建新账号`);
+              log.info(`[saveMultipleProfiles] ❗ 店铺+国家匹配到账号 ${existingAccountByCountry.id}，但卖家不同(${existingAccountByCountry.sellerId} vs ${profileSellerId})，将创建新账号`);
             }
           }
           
@@ -425,7 +428,7 @@ export const amazonApiRouter = router({
               marketplace: marketplaceCode,
               sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配, sellerId=${profileSellerId}`);
+            log.info(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配, sellerId=${profileSellerId}`);
           } else if (existingAccountByCountry && countryMatchIsSameSeller) {
             // 更新现有账号（同店铺同国家同卖家）
             accountId = existingAccountByCountry.id;
@@ -435,11 +438,11 @@ export const amazonApiRouter = router({
               accountId: profile.profileId,
               sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配, sellerId=${profileSellerId}`);
+            log.info(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配, sellerId=${profileSellerId}`);
           } else {
             // v343: 刷新授权时不创建新账户，只更新已有账户
             if (input.isRefreshAuth) {
-              console.log(`[saveMultipleProfiles] v343: 刷新授权模式，跳过未匹配的profile ${profile.profileId}(${profile.countryCode})，不创建新账户`);
+              log.info(`[saveMultipleProfiles] v343: 刷新授权模式，跳过未匹配的profile ${profile.profileId}(${profile.countryCode})，不创建新账户`);
               continue;
             }
             
@@ -449,7 +452,7 @@ export const amazonApiRouter = router({
               a => a.storeName === effectiveStoreName && a.marketplace === marketplaceCode
             );
             if (duplicateCheck) {
-              console.log(`[saveMultipleProfiles] v343: 店铺"${effectiveStoreName}"下已存在${marketplaceCode}站点(账户${duplicateCheck.id})，跳过重复的profile ${profile.profileId}`);
+              log.info(`[saveMultipleProfiles] v343: 店铺"${effectiveStoreName}"下已存在${marketplaceCode}站点(账户${duplicateCheck.id})，跳过重复的profile ${profile.profileId}`);
               // 更新已有账户的凭证而不是创建新的
               accountId = duplicateCheck.id;
               await db.saveAmazonApiCredentials({
@@ -466,7 +469,7 @@ export const amazonApiRouter = router({
                 accountId,
                 success: true,
               });
-              console.log(`[saveMultipleProfiles] v343: 更新已有账户 ${accountId} (${profile.countryCode}) 的凭证，未创建重复站点`);
+              log.info(`[saveMultipleProfiles] v343: 更新已有账户 ${accountId} (${profile.countryCode}) 的凭证，未创建重复站点`);
               continue;
             }
             
@@ -481,7 +484,7 @@ export const amazonApiRouter = router({
               connectionStatus: 'pending',
               sellerId: profileSellerId || undefined,
             });
-            console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode}), sellerId=${profileSellerId}`);
+            log.info(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode}), sellerId=${profileSellerId}`);
           }
 
           // 保存API凭证 (v342: 使用effective凭证)
@@ -506,9 +509,9 @@ export const amazonApiRouter = router({
             success: true,
           });
 
-          console.log(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
+          log.info(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
         } catch (error: any) {
-          console.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
+          log.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
           results.push({
             profileId: profile.profileId,
             countryCode: profile.countryCode,
@@ -537,7 +540,7 @@ export const amazonApiRouter = router({
         }))
       ).then(async initResults => {
         for (const initResult of initResults) {
-          console.log(`[saveMultipleProfiles] 账号 ${initResult.accountId} (${initResult.marketplace}) 初始化完成:`, {
+          log.info(`[saveMultipleProfiles] 账号 ${initResult.accountId} (${initResult.marketplace}) 初始化完成:`, {
             sync: initResult.syncResult.success ? '✅' : '❌',
             schedule: initResult.scheduleResult.success ? '✅' : '❌',
             ams: initResult.amsResult.success ? '✅' : '❌',
@@ -550,7 +553,7 @@ export const amazonApiRouter = router({
           const accountIds = initResults.map((r: any) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: any) {
-          console.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
+          log.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
         }
         
         // v338: 批量初始化完成后，为每个新站点触发智能冷启动
@@ -564,16 +567,16 @@ export const amazonApiRouter = router({
                 historicalDays: 90,
                 recentDays: 14,
               });
-              console.log(`[v338] 账号 ${initResult.accountId} (${initResult.marketplace}) 新站点冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
+              log.info(`[v338] 账号 ${initResult.accountId} (${initResult.marketplace}) 新站点冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
             } catch (csErr: any) {
-              console.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, csErr.message);
+              log.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, csErr.message);
             }
           }
         } catch (coldStartErr: any) {
-          console.error(`[v338] 批量冷启动触发失败:`, coldStartErr.message);
+          log.error(`[v338] 批量冷启动触发失败:`, coldStartErr.message);
         }
       }).catch(err => {
-        console.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
+        log.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
       });
 
       return {
@@ -867,7 +870,7 @@ export const amazonApiRouter = router({
               return await fn();
             } catch (error: any) {
               lastError = error;
-              console.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+              log.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
               if (attempt < maxRetries) {
                 const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -941,10 +944,10 @@ export const amazonApiRouter = router({
                 matchingProfile.timezone,
                 matchingProfile.currencyCode
               );
-              console.log(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
+              log.info(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
             }
           } catch (profileError: any) {
-            console.error('[同步] 获取profile信息失败:', profileError.message);
+            log.error('[同步] 获取profile信息失败:', profileError.message);
             // 不影响后续同步
           }
           currentStepIndex++;
@@ -1010,7 +1013,7 @@ export const amazonApiRouter = router({
             );
             results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as any).synced) || 0;
           } catch (e: any) {
-            console.error('[SB广告组同步] 失败:', e.message);
+            log.error('[SB广告组同步] 失败:', e.message);
           }
           currentStepIndex++;
 
@@ -1023,7 +1026,7 @@ export const amazonApiRouter = router({
             );
             results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as any).synced) || 0;
           } catch (e: any) {
-            console.error('[SD广告组同步] 失败:', e.message);
+            log.error('[SD广告组同步] 失败:', e.message);
           }
           currentStepIndex++;
 
@@ -1049,7 +1052,7 @@ export const amazonApiRouter = router({
             );
             results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as any).synced) || 0;
           } catch (e: any) {
-            console.error('[SB关键词同步] 失败:', e.message);
+            log.error('[SB关键词同步] 失败:', e.message);
           }
           currentStepIndex++;
 
@@ -1075,7 +1078,7 @@ export const amazonApiRouter = router({
             );
             results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as any).synced) || 0;
           } catch (e: any) {
-            console.error('[SB商品定位同步] 失败:', e.message);
+            log.error('[SB商品定位同步] 失败:', e.message);
           }
           currentStepIndex++;
 
@@ -1088,7 +1091,7 @@ export const amazonApiRouter = router({
             );
             results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as any).synced) || 0;
           } catch (e: any) {
-            console.error('[SD商品定位同步] 失败:', e.message);
+            log.error('[SD商品定位同步] 失败:', e.message);
           }
           currentStepIndex++;
 
@@ -1100,15 +1103,15 @@ export const amazonApiRouter = router({
           
           await updateProgress('绩效数据', currentStepIndex);
           try {
-            console.log(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
+            log.info(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
             const performanceCount = await executeWithRetry(
               () => syncService.syncPerformanceData(performanceDays),
               '绩效数据同步'
             );
             results.performance = performanceCount;
-            console.log(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
+            log.info(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
           } catch (error: any) {
-            console.error('[绩效数据同步] 失败:', error.message);
+            log.error('[绩效数据同步] 失败:', error.message);
             results.performance = 0;
             results.performanceError = error.message;
           }
@@ -1117,12 +1120,12 @@ export const amazonApiRouter = router({
           currentStepIndex++;
           await updateProgress('搜索词', currentStepIndex);
           try {
-            console.log('[搜索词同步] 开始同步搜索词数据...');
+            log.info('[搜索词同步] 开始同步搜索词数据...');
             const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
             results.searchTerms = searchTermsCount;
-            console.log(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
+            log.info(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
           } catch (error: any) {
-            console.error('[搜索词同步] 失败:', error.message);
+            log.error('[搜索词同步] 失败:', error.message);
             results.searchTerms = 0;
           }
 
@@ -1130,50 +1133,50 @@ export const amazonApiRouter = router({
           currentStepIndex++;
           await updateProgress('否定关键词', currentStepIndex);
           try {
-            console.log('[否定关键词同步] 开始同步SP否定关键词...');
+            log.info('[否定关键词同步] 开始同步SP否定关键词...');
             const negKwResult = await syncService.syncSpNegativeKeywords();
             results.negativeKeywords = (negKwResult.synced || 0);
-            console.log(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
+            log.info(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
           } catch (error: any) {
-            console.error('[否定关键词同步] 失败:', error.message);
+            log.error('[否定关键词同步] 失败:', error.message);
             results.negativeKeywords = 0;
           }
           try {
             const sbNegKwResult = await syncService.syncSbNegativeKeywords();
             results.negativeKeywords += (sbNegKwResult.synced || 0);
           } catch (e: any) {
-            console.error('[SB否定关键词同步] 失败:', e.message);
+            log.error('[SB否定关键词同步] 失败:', e.message);
           }
 
           // 否定商品定位同步
           currentStepIndex++;
           await updateProgress('否定商品定位', currentStepIndex);
           try {
-            console.log('[否定商品定位同步] 开始同步SP否定商品定位...');
+            log.info('[否定商品定位同步] 开始同步SP否定商品定位...');
             const negTargetResult = await syncService.syncSpNegativeProductTargets();
             results.negativeTargets = (negTargetResult.synced || 0);
-            console.log(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
+            log.info(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
           } catch (error: any) {
-            console.error('[否定商品定位同步] 失败:', error.message);
+            log.error('[否定商品定位同步] 失败:', error.message);
             results.negativeTargets = 0;
           }
           try {
             const sbNegTargetResult = await syncService.syncSbNegativeTargets();
             results.negativeTargets += (sbNegTargetResult.synced || 0);
           } catch (e: any) {
-            console.error('[SB否定商品定位同步] 失败:', e.message);
+            log.error('[SB否定商品定位同步] 失败:', e.message);
           }
 
           // 广告位置绩效同步
           currentStepIndex++;
           await updateProgress('广告位置绩效', currentStepIndex);
           try {
-            console.log('[位置绩效同步] 开始同步广告位置绩效...');
+            log.info('[位置绩效同步] 开始同步广告位置绩效...');
             const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
             results.placements = placementsCount;
-            console.log(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
+            log.info(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
           } catch (error: any) {
-            console.error('[位置绩效同步] 失败:', error.message);
+            log.error('[位置绩效同步] 失败:', error.message);
             results.placements = 0;
           }
 
@@ -1210,10 +1213,10 @@ export const amazonApiRouter = router({
             lastSyncAt: new Date().toISOString(),
           });
 
-          console.log(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
+          log.info(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
         } catch (error: any) {
           // 更新同步任务记录为失败
-          console.error(`[同步失败] 账号 ${input.accountId}:`, error.message);
+          log.error(`[同步失败] 账号 ${input.accountId}:`, error.message);
           if (jobId) {
             await db.updateSyncJob(jobId, {
               status: 'failed',
@@ -1227,11 +1230,11 @@ export const amazonApiRouter = router({
 
       // 异步执行同步任务，不等待完成
       runSyncAsync().catch(err => {
-        console.error(`[同步异常] 账号 ${input.accountId}:`, err);
+        log.error(`[同步异常] 账号 ${input.accountId}:`, err);
       }).finally(() => {
         // ✅ 始终释放同步锁，无论成功或失败
         releaseSyncLock(input.accountId, 'all', lockId);
-        console.log(`[同步锁] 账号 ${input.accountId} 同步锁已释放`);
+        log.info(`[同步锁] 账号 ${input.accountId} 同步锁已释放`);
       });
 
       // 立即返回jobId，前端通过轮询获取进度
@@ -1834,7 +1837,7 @@ export const amazonApiRouter = router({
       );
 
       // v148: 已废弃模拟数据生成功能，生产环境不应使用假数据
-      console.warn('[API] v148: generateMockPerformance已废弃，生产环境禁止生成模拟数据');
+      log.warn('[API] v148: generateMockPerformance已废弃，生产环境禁止生成模拟数据');
       return { generated: 0, warning: 'v148: 模拟数据生成已废弃，请使用真实数据同步' };
     }),
   
@@ -1962,7 +1965,7 @@ export const amazonApiRouter = router({
         const subscriptions = await client.listAmsSubscriptions();
         return { subscriptions };
       } catch (error: any) {
-        console.error('[AMS] 获取订阅列表失败:', error.message);
+        log.error('[AMS] 获取订阅列表失败:', error.message);
         return { subscriptions: [], error: error.message };
       }
     }),
@@ -2009,7 +2012,7 @@ export const amazonApiRouter = router({
         
         return { success: true, subscription };
       } catch (error: any) {
-        console.error('[AMS] 创建订阅失败:', error.message);
+        log.error('[AMS] 创建订阅失败:', error.message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `创建AMS订阅失败: ${error.response?.data?.message || error.message}`,
@@ -2072,7 +2075,7 @@ export const amazonApiRouter = router({
           if (!sqsQueueArn) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列环境变量' });
           }
-          console.log('[AMS] 使用单一队列ARN模式:', sqsQueueArn);
+          log.info('[AMS] 使用单一队列ARN模式:', sqsQueueArn);
           
           const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
           const client = new AmazonAdsApiClient({
@@ -2092,8 +2095,8 @@ export const amazonApiRouter = router({
           };
         }
         
-        console.log(`[AMS] 使用队列映射模式，已配置 ${configuredQueues.length} 个队列:`);
-        configuredQueues.forEach(([name, arn]) => console.log(`  - ${name}: ${arn}`));
+        log.info(`[AMS] 使用队列映射模式，已配置 ${configuredQueues.length} 个队列:`);
+        configuredQueues.forEach(([name, arn]) => log.info(`  - ${name}: ${arn}`));
         
         const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
         const client = new AmazonAdsApiClient({
@@ -2114,7 +2117,7 @@ export const amazonApiRouter = router({
           message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
         };
       } catch (error: any) {
-        console.error('[AMS] 批量创建订阅失败:', error.message);
+        log.error('[AMS] 批量创建订阅失败:', error.message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `批量创建AMS订阅失败: ${error.message}`,
@@ -2153,7 +2156,7 @@ export const amazonApiRouter = router({
         
         return { success: true };
       } catch (error: any) {
-        console.error('[AMS] 归档订阅失败:', error.message);
+        log.error('[AMS] 归档订阅失败:', error.message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `归档AMS订阅失败: ${error.message}`,
@@ -2359,7 +2362,7 @@ export const amazonApiRouter = router({
       // 依次处理每个区域的授权码
       for (const { regionCode, code } of input.authCodes) {
         try {
-          console.log(`[BatchAuth] 处理 ${regionCode} 区域授权码...`);
+          log.info(`[BatchAuth] 处理 ${regionCode} 区域授权码...`);
           
           // 1. 换取Token
           const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
@@ -2379,7 +2382,7 @@ export const amazonApiRouter = router({
           });
           
           const profiles = await client.getProfiles();
-          console.log(`[BatchAuth] ${regionCode} 区域获取到 ${profiles.length} 个Profile`);
+          log.info(`[BatchAuth] ${regionCode} 区域获取到 ${profiles.length} 个Profile`);
           
           // 3. 为每个Profile创建账号
           let accountsCreated = 0;
@@ -2400,7 +2403,7 @@ export const amazonApiRouter = router({
                   storeName: input.storeName,
                   marketplace: profile.countryCode,
                 });
-                console.log(`[BatchAuth] 更新现有账号 ${accountId} (${profile.countryCode})`);
+                log.info(`[BatchAuth] 更新现有账号 ${accountId} (${profile.countryCode})`);
               } else {
                 // 创建新账号
                 accountId = await db.createAdAccount({
@@ -2413,7 +2416,7 @@ export const amazonApiRouter = router({
                   connectionStatus: 'pending',
                 });
                 accountsCreated++;
-                console.log(`[BatchAuth] 创建新账号 ${accountId} (${profile.countryCode})`);
+                log.info(`[BatchAuth] 创建新账号 ${accountId} (${profile.countryCode})`);
               }
               
               // 4. 保存API凭证
@@ -2443,7 +2446,7 @@ export const amazonApiRouter = router({
                 region: regionCode as 'NA' | 'EU' | 'FE',
                 marketplace: profile.countryCode,
               }).then(async initResult => {
-                console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
+                log.info(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
                   sync: initResult.syncResult.success ? '✅' : '❌',
                   schedule: initResult.scheduleResult.success ? '✅' : '❌',
                   ams: initResult.amsResult.success ? '✅' : '❌',
@@ -2454,14 +2457,14 @@ export const amazonApiRouter = router({
                   const { triggerImmediateSync } = await import('../dataSyncScheduler');
                   await triggerImmediateSync(accountId, `BatchAuth初始化完成后同步 (accountId=${accountId}, marketplace=${profile.countryCode})`);
                 } catch (syncErr: any) {
-                  console.error(`[v336] BatchAuth事件驱动同步触发失败:`, syncErr.message);
+                  log.error(`[v336] BatchAuth事件驱动同步触发失败:`, syncErr.message);
                 }
               }).catch(err => {
-                console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
+                log.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
               });
               
             } catch (profileError: any) {
-              console.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
+              log.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
             }
           }
           
@@ -2473,7 +2476,7 @@ export const amazonApiRouter = router({
           });
           
         } catch (error: any) {
-          console.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
+          log.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
           results.push({
             regionCode,
             status: 'error',

@@ -9,6 +9,9 @@ import * as db from "../db";
 import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_TIMEZONES } from '../../shared/timezone';
 import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_campaign');
 
 // ==================== Campaign Router ====================
 export const campaignRouter = router({
@@ -39,7 +42,7 @@ export const campaignRouter = router({
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
         todayDate = getMarketplaceLocalDate(input.marketplace);
-        console.log(`[campaign.list] 站点时区日期计算: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}, todayDate=${todayDate}`);
+        log.info(`[campaign.list] 站点时区日期计算: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}, todayDate=${todayDate}`);
       } else if (input.marketplace) {
         // custom时间范围也需要站点本地时间的“今天”
         const { getMarketplaceLocalDate } = await import('../../shared/timezone');
@@ -126,7 +129,7 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'campaignStatus', success: result.success > 0, error: result.errors[0] });
           } catch (e: any) {
             apiSyncResults.push({ field: 'campaignStatus', success: false, error: e.message });
-            console.error(`[campaign.update] 状态同步失败:`, e.message);
+            log.error(`[campaign.update] 状态同步失败:`, e.message);
           }
         }
         
@@ -143,7 +146,7 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'dailyBudget', success });
           } catch (e: any) {
             apiSyncResults.push({ field: 'dailyBudget', success: false, error: e.message });
-            console.error(`[campaign.update] 预算同步失败:`, e.message);
+            log.error(`[campaign.update] 预算同步失败:`, e.message);
           }
         }
         
@@ -164,11 +167,11 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'placementAdjustment', success });
           } catch (e: any) {
             apiSyncResults.push({ field: 'placementAdjustment', success: false, error: e.message });
-            console.error(`[campaign.update] 位置调整同步失败:`, e.message);
+            log.error(`[campaign.update] 位置调整同步失败:`, e.message);
           }
         }
         
-        console.log(`[campaign.update] Amazon API同步结果:`, JSON.stringify(apiSyncResults));
+        log.info(`[campaign.update] Amazon API同步结果:`, JSON.stringify(apiSyncResults));
         
         // v219: 单个广告活动更新后触发确认同步
         const successfulSyncs = apiSyncResults.filter(r => r.success);
@@ -178,7 +181,7 @@ export const campaignRouter = router({
             const entities: ('campaigns' | 'keywords' | 'targets' | 'budgets')[] = ['campaigns'];
             if (successfulSyncs.some(r => r.field === 'dailyBudget')) entities.push('budgets');
             confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: any) => {
-              console.error(`[campaign.update] v219: 确认同步失败:`, err.message);
+              log.error(`[campaign.update] v219: 确认同步失败:`, err.message);
             });
           } catch (e) { /* ignore */ }
         }
@@ -400,7 +403,7 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
           generatedAt: new Date().toISOString()
         };
       } catch (error) {
-        console.error("AI摘要生成失败:", error);
+        log.error("AI摘要生成失败:", error);
         throw new TRPCError({ 
           code: "INTERNAL_SERVER_ERROR", 
           message: "AI摘要生成失败，请稍后重试" 

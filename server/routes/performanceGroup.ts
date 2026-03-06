@@ -12,6 +12,9 @@ import * as advancedAnalyticsService from '../advancedAnalyticsService';
 import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { bidAdjustmentHistory } from '../../drizzle/schema';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_performanceGroup');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
@@ -145,9 +148,9 @@ export const performanceGroupRouter = router({
   list: publicProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
-      console.log('[performanceGroup.list] accountId:', input.accountId);
+      log.info('[performanceGroup.list] accountId:', input.accountId);
       const result = await db.getPerformanceGroupsByAccountId(input.accountId);
-      console.log('[performanceGroup.list] result count:', result.length);
+      log.info('[performanceGroup.list] result count:', result.length);
       
       // 为每个绩效组实时计算绩效汇总数据
       const enrichedResult = await Promise.all(result.map(async (group) => {
@@ -210,7 +213,7 @@ export const performanceGroupRouter = router({
               if (twResult) timeWeighted = twResult as TimeWeightedMetrics;
               if (mwResult) multiWindow = mwResult as MultiWindowTrendData;
             } catch (dataErr) {
-              console.log(`[performanceGroup.list] Data fetch failed for group ${group.id}:`, dataErr);
+              log.info(`[performanceGroup.list] Data fetch failed for group ${group.id}:`, dataErr);
             }
             
             // v235: 获取NextGen算法效能数据
@@ -224,7 +227,7 @@ export const performanceGroupRouter = router({
             
             goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow, algorithmData);
           } catch (progressErr) {
-            console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
+            log.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
           }
           
           return {
@@ -249,7 +252,7 @@ export const performanceGroupRouter = router({
             } : null,
           };
         } catch (error) {
-          console.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
+          log.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
           return {
             ...group,
             campaignCount: 0,
@@ -342,10 +345,10 @@ export const performanceGroupRouter = router({
         const { triggerInitialOptimization } = await import('../optimizationScheduler');
         // 异步执行，不阻塞API响应
         triggerInitialOptimization(id, { triggeredBy: 'create' }).catch(err => {
-          console.error(`[Router] 创建优化目标后触发首次优化失败:`, err);
+          log.error(`[Router] 创建优化目标后触发首次优化失败:`, err);
         });
       } catch (e) {
-        console.error('[Router] 导入optimizationScheduler失败:', e);
+        log.error('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { id };
@@ -376,10 +379,10 @@ export const performanceGroupRouter = router({
         try {
           const { onTargetStatusChanged } = await import('../optimizationScheduler');
           onTargetStatusChanged(id, data.status as 'active' | 'paused' | 'archived').catch(err => {
-            console.error(`[Router] 状态变更触发失败:`, err);
+            log.error(`[Router] 状态变更触发失败:`, err);
           });
         } catch (e) {
-          console.error('[Router] 导入optimizationScheduler失败:', e);
+          log.error('[Router] 导入optimizationScheduler失败:', e);
         }
       }
       
@@ -421,10 +424,10 @@ export const performanceGroupRouter = router({
       try {
         const { onCampaignsAdded } = await import('../optimizationScheduler');
         onCampaignsAdded(input.performanceGroupId, input.campaignIds).catch(err => {
-          console.error(`[Router] 批量分配后触发优化失败:`, err);
+          log.error(`[Router] 批量分配后触发优化失败:`, err);
         });
       } catch (e) {
-        console.error('[Router] 导入optimizationScheduler失败:', e);
+        log.error('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { success: true, count };
@@ -486,7 +489,7 @@ export const performanceGroupRouter = router({
           reason: `批量${input.newStatus === 'paused' ? '暂停' : '启用'}操作`,
         }));
       
-      console.log(`[batchUpdateCampaignStatus] 准备同步${statusChanges.length}个campaign状态到Amazon (总计${targetCampaigns.length}个)`);
+      log.info(`[batchUpdateCampaignStatus] 准备同步${statusChanges.length}个campaign状态到Amazon (总计${targetCampaigns.length}个)`);
       
       let apiResult = { success: 0, failed: 0, errors: [] as string[] };
       if (statusChanges.length > 0 && group.accountId) {
@@ -494,7 +497,7 @@ export const performanceGroupRouter = router({
           apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
         } catch (syncError: any) {
           // v161: 捕获API同步过程中的未预期异常，防止500错误
-          console.error(`[batchUpdateCampaignStatus] API同步异常:`, syncError.message);
+          log.error(`[batchUpdateCampaignStatus] API同步异常:`, syncError.message);
           apiResult.failed = statusChanges.length;
           apiResult.errors.push(`API同步过程发生异常: ${syncError.message}`);
         }
@@ -505,7 +508,7 @@ export const performanceGroupRouter = router({
         try {
           const { confirmationSync } = await import('../unifiedSyncEngine');
           confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: any) => {
-            console.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
+            log.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
           });
         } catch (e) { /* ignore */ }
       }
@@ -606,10 +609,10 @@ export const performanceGroupRouter = router({
       try {
         const { onCampaignsAdded } = await import('../optimizationScheduler');
         onCampaignsAdded(input.groupId, input.campaignIds).catch(err => {
-          console.error(`[Router] 添加广告活动后触发优化失败:`, err);
+          log.error(`[Router] 添加广告活动后触发优化失败:`, err);
         });
       } catch (e) {
-        console.error('[Router] 导入optimizationScheduler失败:', e);
+        log.error('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { success: true, count };

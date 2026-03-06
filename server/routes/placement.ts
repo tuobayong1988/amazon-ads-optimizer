@@ -13,6 +13,9 @@ import { bidAdjustmentHistory } from '../../drizzle/schema';
 import * as advancedPlacementService from '../advancedPlacementService';
 import * as marketCurveService from '../marketCurveService';
 import * as decisionTreeService from '../decisionTreeService';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_placement');
 
 
 export const placementRouter = router({
@@ -106,7 +109,7 @@ export const placementRouter = router({
           optimizationResult,
         };
       } catch (e) {
-        console.error('[generateSuggestions] 边际效益分析失败:', e);
+        log.error('[generateSuggestions] 边际效益分析失败:', e);
       }
       
       return {

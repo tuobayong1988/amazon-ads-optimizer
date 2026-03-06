@@ -13,6 +13,9 @@ import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
 import * as unifiedOptimizationEngine from '../unifiedOptimizationEngine';
 import * as nextGenOrchestrator from '../nextGenBidOrchestrator';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_optimization');
 
 
 // ==================== Optimization Router ====================
@@ -52,7 +55,7 @@ export const optimizationRouter = router({
         successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
       };
     } catch (error: any) {
-      console.error('[optimization.getMetrics] 查询失败:', error.message);
+      log.error('[optimization.getMetrics] 查询失败:', error.message);
       return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
     }
   }),
@@ -84,7 +87,7 @@ export const optimizationRouter = router({
           completedAt: log.executedAt ? String(log.executedAt) : undefined,
         }));
       } catch (error: any) {
-        console.error('[optimization.getRecentActions] 查询失败:', error.message);
+        log.error('[optimization.getRecentActions] 查询失败:', error.message);
         return [];
       }
     }),
@@ -116,7 +119,7 @@ export const optimizationRouter = router({
           costSavings: 0,
         }));
       } catch (error: any) {
-        console.error('[optimization.getTrends] 查询失败:', error.message);
+        log.error('[optimization.getTrends] 查询失败:', error.message);
         return [];
       }
     }),
@@ -244,10 +247,10 @@ export const optimizationRouter = router({
               marketplace
             );
           } catch (apiError: any) {
-            console.error('[runOptimization] 创建Amazon API客户端失败:', apiError.message);
+            log.error('[runOptimization] 创建Amazon API客户端失败:', apiError.message);
           }
         } else {
-          console.warn('[runOptimization] 未找到API凭证，仅更新本地数据库');
+          log.warn('[runOptimization] 未找到API凭证，仅更新本地数据库');
         }
 
         let apiSuccessCount = 0;
@@ -305,7 +308,7 @@ export const optimizationRouter = router({
               apiSuccess = true;
               apiSuccessCount++;
             } catch (apiError: any) {
-              console.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, apiError.message);
+              log.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, apiError.message);
               apiFailCount++;
             }
           }
@@ -336,7 +339,7 @@ export const optimizationRouter = router({
           });
         }
 
-        console.log(`[runOptimization] 执行完成: API成功=${apiSuccessCount}, API失败=${apiFailCount}, 总计=${results.length}`);
+        log.info(`[runOptimization] 执行完成: API成功=${apiSuccessCount}, API失败=${apiFailCount}, 总计=${results.length}`);
       }
       
       return {

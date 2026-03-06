@@ -454,6 +454,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['sync', 'bidding', 'cold_start'],
     correctionActions: ['resync_data', 'cold_start'],
   },
+  {
+    version: 345,
+    description: 'v345: [P0安全加固 + P1性能优化 + P2代码质量] — (1)P0-凭证加密存储: 新增CryptoService(AES-256-GCM)加解密服务,clientSecret和refreshToken在数据库中加密存储,读取时自动解密,向后兼容明文数据 (2)P0-JWT密钥安全: 移除硬编码default-secret-key回退逻辑,未配置JWT_SECRET时系统拒绝启动 (3)P0-运维接口强制认证: 移除OPS_API_KEY未配置时的无认证分支 (4)P1-数据库索引优化: 为hourly_performance和bidding_logs大表添加复合索引 (5)P1-N+1查询优化: 批量化改造优化引擎中的循环查询 (6)P2-魔法数字常量化: 优化服务中的硬编码数字替换为具名常量',
+    affectedModules: ['security', 'db', 'optimization', 'ops'],
+    correctionActions: ['rerun_optimization'],
+  },
 ];
 
 // ==================== 配置 ====================
@@ -1503,6 +1509,25 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       log.info(`[PostDeployOptimizer] v268: 性能优化索引创建完成`);
     } catch (migrationErr: any) {
       log.error(`[PostDeployOptimizer] v268: 性能优化索引创建失败: ${migrationErr.message}`);
+    }
+  }
+
+  // 4e. v345: 凭证加密迁移 + 性能索引
+  if (!lastVersion || lastVersion < 345) {
+    try {
+      const { migrateEncryptCredentials } = await import('./migrations/v345_encrypt_credentials');
+      const migResult = await migrateEncryptCredentials();
+      log.info(`[PostDeployOptimizer] v345: 凭证加密迁移完成 (加密=${migResult.encrypted}, 跳过=${migResult.skipped}, 失败=${migResult.failed})`);
+    } catch (migrationErr: any) {
+      log.error(`[PostDeployOptimizer] v345: 凭证加密迁移失败: ${migrationErr.message}`);
+    }
+
+    try {
+      const { runV345PerformanceIndexMigration } = await import('./migrations/v345_performance_indexes');
+      await runV345PerformanceIndexMigration();
+      log.info(`[PostDeployOptimizer] v345: 性能索引创建完成`);
+    } catch (migrationErr: any) {
+      log.error(`[PostDeployOptimizer] v345: 性能索引创建失败: ${migrationErr.message}`);
     }
   }
 

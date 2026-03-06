@@ -291,7 +291,9 @@ export async function verifyToken(token: string): Promise<{
 }> {
   try {
     const jwt = await import('jsonwebtoken');
-    const secret = process.env.JWT_SECRET || 'default-secret-key';
+    // v345: 移除不安全的默认密钥回退
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
     const decoded = jwt.default.verify(token, secret) as any;
     
@@ -336,8 +338,9 @@ export async function verifyToken(token: string): Promise<{
  * 生成JWT token
  */
 function generateToken(userId: number, organizationId: number, username: string, name: string): string {
-  // Using imported jwt module
-  const secret = process.env.JWT_SECRET || 'default-secret-key';
+  // v345: 移除不安全的默认密钥回退
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET 环境变量未配置，无法生成Token');
   
   return jwt.sign(
     { userId, organizationId, username, name },
