@@ -386,7 +386,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -395,8 +395,8 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const targetData = {
-        adGroupId: adGroup.id,
-        campaignId: Number(adGroup.campaignId),
+        adGroupId: String(adGroup.id),  // v357
+        campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
@@ -497,7 +497,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(row.targetId))
           )
         )
@@ -528,8 +528,8 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       }
 
        const targetData = {
-        adGroupId: adGroup.id,
-        campaignId: Number(adGroup.campaignId),
+        adGroupId: String(adGroup.id),  // v357
+        campaignId: adGroup.campaignId || '',  // v357
         targetId: String(row.targetId),
         targetType,
         targetValue,

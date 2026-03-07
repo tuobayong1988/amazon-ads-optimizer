@@ -744,7 +744,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+        .where(and(eq(keywords.adGroupId, String(ag.id)), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
       if (ex) allExKwIds.push(ex.id);
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExKwIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -768,7 +768,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         .from(keywords)
         .where(
           and(
-            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.adGroupId, String(adGroup.id)),
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -782,9 +782,9 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       
       const keywordData = {
-        adGroupId: adGroup.id,
+        adGroupId: String(adGroup.id),  // v357
         accountId: this.accountId,
-        campaignId: Number(adGroup.campaignId),
+        campaignId: adGroup.campaignId || '',  // v357
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
         matchType: normalizedMatchType,
@@ -918,7 +918,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+        .where(and(eq(productTargets.adGroupId, String(ag.id)), eq(productTargets.targetId, String(at.targetId)))).limit(1);
       if (ex) allExTgtIds.push(ex.id);
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExTgtIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -942,7 +942,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -967,8 +967,8 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const targetData = {
-        adGroupId: adGroup.id,
-        campaignId: Number(adGroup.campaignId),
+        adGroupId: String(adGroup.id),  // v357
+        campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
         targetValue,

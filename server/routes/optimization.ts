@@ -267,7 +267,7 @@ export const optimizationRouter = router({
           if (result.targetType === "keyword") {
             const keyword = await db.getKeywordById(result.targetId);
             if (keyword) {
-              const adGroup = await db.getAdGroupById(keyword.adGroupId);
+              const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
               if (adGroup) {
                 adGroupId = adGroup.id;
                 campaignId = adGroup.campaignId as any;
@@ -279,7 +279,7 @@ export const optimizationRouter = router({
           } else {
             const target = await db.getProductTargetById(result.targetId);
             if (target) {
-              const adGroup = await db.getAdGroupById(target.adGroupId);
+              const adGroup = await db.getAdGroupById(Number(target.adGroupId));  // v357: adGroupId现在是string类型
               if (adGroup) {
                 adGroupId = adGroup.id;
                 campaignId = adGroup.campaignId as any;

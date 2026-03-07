@@ -20,15 +20,18 @@ export interface AdGroupRecord {
   [key: string]: any;
 }
 
+// v357: adGroupId和campaignId字段类型修复为string，与数据库实际varchar(64)一致
 export interface KeywordRecord {
   id: number;
-  adGroupId: number | null;
+  adGroupId: string | null;
+  campaignId: string | null;
   [key: string]: any;
 }
 
 export interface ProductTargetRecord {
   id: number;
-  adGroupId: number | null;
+  adGroupId: string | null;
+  campaignId: string | null;
   [key: string]: any;
 }
 

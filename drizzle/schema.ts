@@ -1898,10 +1898,10 @@ export const keywordPredictions = mysqlTable("keyword_predictions", {
 
 export const keywords = mysqlTable("keywords", {
 	id: int().autoincrement().notNull(),
-	// v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+	// v357: 修复字段类型与数据库实际结构一致（数据库中campaignId和adGroupId是varchar(64)）
 	accountId: int(),
-	campaignId: int(),
-	adGroupId: int().notNull(),
+	campaignId: varchar({ length: 64 }),
+	adGroupId: varchar({ length: 64 }),
 	keywordId: varchar({ length: 64 }),
 	keywordText: varchar({ length: 500 }).notNull(),
 	matchType: mysqlEnum(['broad','phrase','exact']).notNull(),
@@ -2061,7 +2061,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: int(),
+	adGroupId: varchar({ length: 64 }),  // v357: 修复为varchar以匹配数据库实际类型
 	// v2: 新增campaignType字段，记录来源广告活动类型（sp/sb/sd）
 	campaignType: mysqlEnum('campaignTypeNeg', ['sp','sb','sd']).default('sp'),
 	// v2: 新增negativeScope字段，明确否定层级（campaign/ad_group）
@@ -2275,10 +2275,10 @@ export const placementSettings = mysqlTable("placement_settings", {
 
 export const productTargets = mysqlTable("product_targets", {
 	id: int().autoincrement().notNull(),
-	// v311: 添加缺失的accountId和campaignId字段，确保与数据库实际表结构一致
+	// v357: 修复字段类型与数据库实际结构一致（数据库中campaignId和adGroupId是varchar(64)）
 	accountId: int(),
-	campaignId: int(),
-	adGroupId: int().notNull(),
+	campaignId: varchar({ length: 64 }),
+	adGroupId: varchar({ length: 64 }),
 	targetId: varchar({ length: 64 }),
 	targetType: mysqlEnum(['asin','category']).notNull(),
 	targetValue: varchar({ length: 64 }).notNull(),
@@ -2478,7 +2478,7 @@ export const searchTerms = mysqlTable("search_terms", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: int().notNull(),
+	adGroupId: varchar({ length: 64 }).notNull(),  // v357: 修复为varchar以匹配数据库实际类型
 	searchTerm: varchar({ length: 500 }).notNull(),
 	searchTermTargetType: mysqlEnum(['keyword','product_target']).notNull(),
 	searchTermTargetId: int(),

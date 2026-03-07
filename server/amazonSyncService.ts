@@ -773,7 +773,7 @@ export class AmazonSyncService {
         const searchTermData = {
           accountId: this.accountId,
           campaignId: (campaign as any).campaignId,
-          adGroupId: adGroup.id,
+          adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
           searchTermTargetId,
@@ -890,7 +890,7 @@ export class AmazonSyncService {
           .from(productTargets)
           .where(
             and(
-              eq(productTargets.adGroupId, adGroup.id),
+              eq(productTargets.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
               eq(productTargets.targetId, String(row.targetId))
             )
           )
@@ -920,8 +920,8 @@ export class AmazonSyncService {
         }
 
         const targetData = {
-          adGroupId: adGroup.id,
-          campaignId: Number(adGroup.campaignId),
+          adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
+          campaignId: adGroup.campaignId || '',  // v357: campaignId已是varchar类型
           targetId: String(row.targetId),
           targetType,
           targetValue,

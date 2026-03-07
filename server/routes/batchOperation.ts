@@ -455,7 +455,7 @@ export const batchOperationRouter = router({
         try {
           const firstKw = await db.getKeywordById(input.adjustments[0].keywordId);
           if (firstKw) {
-            const adGroup = await db.getAdGroupById(firstKw.adGroupId);
+            const adGroup = await db.getAdGroupById(Number(firstKw.adGroupId));  // v357: adGroupId现在是string类型
             // v209: 使用getCampaignByAmazonId — adGroup.campaignId是Amazon varchar ID
             const campaign = adGroup ? await db.getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
             if (campaign?.accountId) {
@@ -491,7 +491,7 @@ export const batchOperationRouter = router({
           }
 
           // Get ad group to find campaign
-          const adGroup = await db.getAdGroupById(keyword.adGroupId);
+          const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
           // v209: 使用getCampaignByAmazonId — adGroup.campaignId是Amazon varchar ID
           const campaign = adGroup ? await db.getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
 
@@ -515,8 +515,8 @@ export const batchOperationRouter = router({
           // Log the adjustment using biddingLogs
           await db.createBiddingLog({
             accountId: campaign?.accountId || 0,
-            campaignId: adGroup?.campaignId ?? 0 as any,
-            adGroupId: keyword.adGroupId,
+            campaignId: adGroup?.campaignId ?? '0',
+            adGroupId: Number(keyword.adGroupId) || 0,  // v357: 转为number以匹配biddingLogs类型
             logTargetType: 'keyword',
             targetId: adj.keywordId,
             targetName: keyword.keywordText || '',

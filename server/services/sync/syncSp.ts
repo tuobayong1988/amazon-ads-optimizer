@@ -371,7 +371,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
         .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+        .where(and(eq(keywords.adGroupId, String(ag.id)), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
       if (ex) allExistingKeywordIds.push(ex.id);
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -394,7 +394,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
         .from(keywords)
         .where(
           and(
-            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.adGroupId, String(adGroup.id)),
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -405,9 +405,9 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const keywordData: any = {
-        adGroupId: adGroup.id,
+        adGroupId: String(adGroup.id),  // v357
         accountId: this.accountId,
-        campaignId: Number(adGroup.campaignId),
+        campaignId: adGroup.campaignId || '',  // v357
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
         matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
@@ -479,7 +479,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+        .where(and(eq(productTargets.adGroupId, String(ag.id)), eq(productTargets.targetId, String(at.targetId)))).limit(1);
       if (ex) allExistingTargetIds.push(ex.id);
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -600,7 +600,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -611,8 +611,8 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const targetData = {
-        adGroupId: adGroup.id,
-        campaignId: Number(adGroup.campaignId),
+        adGroupId: String(adGroup.id),  // v357
+        campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
         targetValue,
@@ -771,7 +771,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, adGroup.id),
+            eq(negativeKeywords.adGroupId, String(adGroup.id)),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeText, neg.keywordText || '')
           )
@@ -786,7 +786,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroup.id,
+          adGroupId: String(adGroup.id),  // v357
           negativeLevel: 'ad_group',
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
@@ -902,7 +902,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, adGroup.id),
+            eq(negativeKeywords.adGroupId, String(adGroup.id)),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeType, 'product'),
             eq(negativeKeywords.negativeText, negativeText)
@@ -918,7 +918,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroup.id,
+          adGroupId: String(adGroup.id),  // v357
           negativeLevel: 'ad_group',
           negativeType: 'product',
           negativeText: negativeText,

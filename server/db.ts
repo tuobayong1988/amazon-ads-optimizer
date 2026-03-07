@@ -746,11 +746,12 @@ export async function createKeyword(keyword: InsertKeyword) {
   return result[0].insertId;
 }
 
-export async function getKeywordsByAdGroupId(adGroupId: number) {
+// v357: adGroupId参数类型改为string | number，内部转换为string
+export async function getKeywordsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  return db.select().from(keywords).where(eq(keywords.adGroupId, String(adGroupId)));
 }
 
 export async function getKeywordById(id: number) {
@@ -788,8 +789,8 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   if (adGroupsList.length === 0) return [];
   
-  // v345: 优化N+1查询 — 使用inArray批量查询替代循环单查
-  const adGroupIds = adGroupsList.map(ag => ag.id);
+  // v357: adGroupId现在是varchar类型，需要转换为string数组
+  const adGroupIds = adGroupsList.map(ag => String(ag.id));
   const allKeywords = await db.select().from(keywords).where(inArray(keywords.adGroupId, adGroupIds));
   
   return allKeywords;
@@ -804,19 +805,20 @@ export async function createProductTarget(target: InsertProductTarget) {
   return result[0].insertId;
 }
 
-export async function getProductTargetsByAdGroupId(adGroupId: number) {
+// v357: adGroupId参数类型改为string | number
+export async function getProductTargetsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  return db.select().from(productTargets).where(eq(productTargets.adGroupId, String(adGroupId)));
 }
 
-// v345: 批量获取多个广告组的商品定向 — 解决N+1查询问题
-export async function getProductTargetsByAdGroupIds(adGroupIds: number[]) {
+// v357: 批量获取多个广告组的商品定向 — adGroupId现在是varchar类型
+export async function getProductTargetsByAdGroupIds(adGroupIds: (number | string)[]) {
   const db = await getDb();
   if (!db || adGroupIds.length === 0) return [];
   
-  return db.select().from(productTargets).where(inArray(productTargets.adGroupId, adGroupIds));
+  return db.select().from(productTargets).where(inArray(productTargets.adGroupId, adGroupIds.map(id => String(id))));
 }
 
 export async function getProductTargetById(id: number) {
@@ -2967,11 +2969,12 @@ export async function getSearchTermsByCampaignId(campaignId: number) {
   return db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignIdStr));
 }
 
-export async function getSearchTermsByAdGroupId(adGroupId: number) {
+// v357: adGroupId参数类型改为string | number
+export async function getSearchTermsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(searchTerms).where(eq(searchTerms.adGroupId, adGroupId));
+  return db.select().from(searchTerms).where(eq(searchTerms.adGroupId, String(adGroupId)));
 }
 
 export async function createSearchTerm(data: InsertSearchTerm) {
@@ -3102,15 +3105,15 @@ export async function getCampaignTargets(campaignId: number) {
   const productTargetList = await db.select().from(productTargets)
     .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   
-  // 添加广告组名称
+  // v357: adGroupId现在是string类型，需要转换为number才能匹配map key
   const keywordsWithAdGroup = keywordList.map(k => ({
     ...k,
-    adGroupName: adGroupMap.get(k.adGroupId) || "未知广告组"
+    adGroupName: adGroupMap.get(Number(k.adGroupId)) || "未知广告组"
   }));
   
   const productTargetsWithAdGroup = productTargetList.map(pt => ({
     ...pt,
-    adGroupName: adGroupMap.get(pt.adGroupId) || "未知广告组"
+    adGroupName: adGroupMap.get(Number(pt.adGroupId)) || "未知广告组"
   }));
   
   return {

@@ -182,13 +182,14 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
 async function resolveAdGroupIdFromTarget(targetLocalId: number, targetType: string): Promise<number | null> {
   try {
     // v223: 通过 dbQueryProvider 间接查询，避免循环依赖
+    // v357: adGroupId现在是string类型，需要转换为number
     if (targetType === 'product_target') {
       const target = await queryProductTargetById(targetLocalId);
-      return target?.adGroupId || null;
+      return target?.adGroupId ? Number(target.adGroupId) : null;
     } else {
       // 默认按 keyword 处理
       const keyword = await queryKeywordById(targetLocalId);
-      return keyword?.adGroupId || null;
+      return keyword?.adGroupId ? Number(keyword.adGroupId) : null;
     }
   } catch (err: any) {
     log.error(`[CampaignIdResolver] 通过 ${targetType} id=${targetLocalId} 解析 adGroupId 失败: ${err.message}`);

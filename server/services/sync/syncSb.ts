@@ -339,7 +339,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
         .from(keywords)
         .where(
           and(
-            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.adGroupId, String(adGroup.id)),
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -349,9 +349,9 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const keywordData = {
-        adGroupId: adGroup.id,
+        adGroupId: String(adGroup.id),  // v357
         accountId: this.accountId,
-        campaignId: Number(adGroup.campaignId),
+        campaignId: adGroup.campaignId || '',  // v357
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText || apiKeyword.keyword || '',
         matchType: normalizedMatchType,
@@ -481,7 +481,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -490,8 +490,8 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
        const targetData = {
-        adGroupId: adGroup.id,
-        campaignId: Number(adGroup.campaignId),
+        adGroupId: String(adGroup.id),  // v357
+        campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
@@ -616,7 +616,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
           and(
             eq(searchTerms.accountId, this.accountId),
             eq(searchTerms.campaignId, String(campaign.campaignId)),
-            eq(searchTerms.adGroupId, adGroup.id),
+            eq(searchTerms.adGroupId, String(adGroup.id)),
             eq(searchTerms.searchTerm, row.searchTerm || '')
           )
         )
@@ -643,7 +643,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
           .from(keywords)
           .where(
             and(
-              eq(keywords.adGroupId, adGroup.id),
+              eq(keywords.adGroupId, String(adGroup.id)),
               eq(keywords.keywordText, targetingText)
             )
           )
@@ -659,7 +659,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
           .from(productTargets)
           .where(
             and(
-              eq(productTargets.adGroupId, adGroup.id),
+              eq(productTargets.adGroupId, String(adGroup.id)),
               eq(productTargets.targetValue, targetingText)
             )
           )
@@ -682,7 +682,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       const searchTermData = {
         accountId: this.accountId,
         campaignId: campaign.campaignId,
-        adGroupId: adGroup.id,
+        adGroupId: String(adGroup.id),  // v357
         searchTerm: searchTermText,
         searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
         searchTermTargetId,
@@ -794,7 +794,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
           .from(keywords)
           .where(
             and(
-              eq(keywords.adGroupId, adGroup.id),
+              eq(keywords.adGroupId, String(adGroup.id)),
               eq(keywords.keywordId, String(row.keywordId))
             )
           )
@@ -807,9 +807,9 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
         const orders = row.purchasesClicks || 0;  // 修正字段名 (Clicks后缀)
 
         const keywordData = {
-          adGroupId: adGroup.id,
+          adGroupId: String(adGroup.id),  // v357
           accountId: this.accountId,
-          campaignId: Number(adGroup.campaignId),
+          campaignId: adGroup.campaignId || '',  // v357
           keywordId: String(row.keywordId),
           keywordText: row.keyword || '',
           matchType: (row.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
@@ -950,14 +950,15 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
       if (!campaign) continue;
       
       // 查找对应的广告组（如果有）
-      let adGroupId: number | null = null;
+      // v357: adGroupId现在是varchar类型
+      let adGroupId: string | null = null;
       if (neg.adGroupId) {
         const [adGroup] = await db
           .select()
           .from(adGroups)
           .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
           .limit(1);
-        if (adGroup) adGroupId = adGroup.id;
+        if (adGroup) adGroupId = String(adGroup.id);
       }
       
       const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
@@ -1038,14 +1039,15 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
         .limit(1);
       if (!campaign) continue;
       
-      let adGroupId: number | null = null;
+      // v357: adGroupId现在是varchar类型
+      let adGroupId: string | null = null;
       if (neg.adGroupId) {
         const [adGroup] = await db
           .select()
           .from(adGroups)
           .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
           .limit(1);
-        if (adGroup) adGroupId = adGroup.id;
+        if (adGroup) adGroupId = String(adGroup.id);
       }
       
       const expression = neg.expression || [];

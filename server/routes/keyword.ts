@@ -366,7 +366,7 @@ export const keywordRouter = router({
           }
           
           const id = await db.createKeyword({
-            adGroupId: input.adGroupId,
+            adGroupId: String(input.adGroupId),  // v357: adGroupId现在是varchar类型
             keywordText: kw.keywordText,
             matchType: kw.matchType,
             bid: kw.bid,

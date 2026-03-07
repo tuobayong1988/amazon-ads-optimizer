@@ -399,30 +399,25 @@ export async function syncNewKeywordsToAmazon(
             keywordText: created.keywordText || original.keywordText,
           });
           
-          // 如果有本地ID，更新本地数据库的keywordId
+          // v357: 更新本地数据库的keywordId，同时回填accountId和campaignId
           if (original.localKeywordId) {
             try {
-              // v132: 使用mysql2直接连接更新keywordId，绕过Drizzle ORM的casing问题
-              const dbInstance = await db.getDb();
-              if (dbInstance) {
-                const { sql: sqlTag } = await import('drizzle-orm');
-                try {
-                  await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
-                  log.info(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
-                } catch (updateErr: any) {
-                  // v350: 使用连接池获取直接连接，替代独立createConnection
-                  log.warn(`[AmazonApiHelper] Drizzle execute失败，尝试连接池直接连接:`, updateErr.message);
-                  const rawConn = await db.getDirectConnection();
-                  try {
-                    await rawConn.execute('UPDATE keywords SET keywordId = ? WHERE id = ?', [String(created.keywordId), original.localKeywordId]);
-                    log.info(`[AmazonApiHelper] ✅ (连接池) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
-                  } finally {
-                    rawConn.release(); // v350: 归还连接到池
-                  }
-                }
+              // v357: 使用连接池直接连接，同时回填完整ID信息
+              const rawConn = await db.getDirectConnection();
+              try {
+                await rawConn.execute(
+                  `UPDATE keywords SET keywordId = ?,
+                   accountId = COALESCE(accountId, ?),
+                   campaignId = COALESCE(campaignId, ?)
+                   WHERE id = ?`,
+                  [String(created.keywordId), accountId, String(original.campaignId || ''), original.localKeywordId]
+                );
+                log.info(`[AmazonApiHelper] ✅ v357: 关键词已同步: "${original.keywordText}" -> amazonKeywordId=${created.keywordId}, accountId=${accountId}`);
+              } finally {
+                rawConn.release();
               }
             } catch (dbError: any) {
-              log.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
+              log.error(`[AmazonApiHelper] v357: 更新本地keywordId失败:`, dbError.message);
             }
           }
         } else {

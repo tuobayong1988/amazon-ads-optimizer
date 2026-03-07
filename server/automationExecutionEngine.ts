@@ -487,7 +487,7 @@ export async function executeOptimization(
         let bidAdGroupId = 0;
         const keyword = await db.getKeywordById(targetId);
         if (keyword) {
-          const adGroup = await db.getAdGroupById(keyword.adGroupId);
+          const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
           if (adGroup) {
             bidAdGroupId = adGroup.id;
             bidCampaignId = adGroup.campaignId; // Amazon varchar ID
@@ -610,7 +610,7 @@ export async function executeOptimization(
         let ptAdGroupId = 0;
         const productTarget = await db.getProductTargetById(targetId);
         if (productTarget) {
-          const ptAdGroup = await db.getAdGroupById(productTarget.adGroupId);
+          const ptAdGroup = await db.getAdGroupById(Number(productTarget.adGroupId));  // v357: adGroupId现在是string类型
           if (ptAdGroup) {
             ptAdGroupId = ptAdGroup.id;
             ptCampaignId = ptAdGroup.campaignId; // Amazon varchar ID
@@ -804,7 +804,7 @@ export async function executeOptimization(
         let negAccountId = accountId;
         
         if (negKeyword) {
-          const negAdGroup = await db.getAdGroupById(negKeyword.adGroupId);
+          const negAdGroup = await db.getAdGroupById(Number(negKeyword.adGroupId));  // v357: adGroupId现在是string类型
           if (negAdGroup) {
             negCampaignId = negAdGroup.campaignId;
             const negCampaign = await db.getCampaignByAmazonCampaignId(negAdGroup.campaignId);
@@ -878,8 +878,9 @@ export async function executeOptimization(
         let harvestAdGroupId: number = 0;
         let harvestAmazonAdGroupId: string = '';
         let harvestAmazonCampaignId: string = '';
+        let harvestSyncResult: any = null;  // v357: 提升作用域以便在try块外访问
         
-        // 从reason中解析目标campaign和adGroup信息
+        // 从Reason中解析目标campaign和adGroup信息
         // reason格式通常包含: "源Campaign=X → 目标Campaign=Y"
         const targetCampaignMatch = reason.match(/目标Campaign=(\d+)/);
         const targetCampaignIdFromReason = targetCampaignMatch ? parseInt(targetCampaignMatch[1]) : targetId;
@@ -893,7 +894,7 @@ export async function executeOptimization(
         
         try {
           // 通过amazonApiHelper创建新关键词到Amazon
-          const harvestSyncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
+          harvestSyncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
             adGroupId: harvestAmazonAdGroupId || harvestAdGroupId,
             campaignId: harvestAmazonCampaignId || harvestCampaignId,
             keywordText: targetName || '',
@@ -911,19 +912,30 @@ export async function executeOptimization(
           log.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, harvestApiErr.message);
         }
         
-        // 先API后DB原则: 只有API成功才写入本地DB
+        // v357: 先API后DB原则 - 只有API成功且返回有效keywordId才写入本地DB
         if (harvestApiSuccess) {
-          try {
-            await db.createKeyword({
-              adGroupId: harvestAdGroupId || targetId,
-              keywordId: '',
-              keywordText: targetName || '',
-              matchType: 'exact',
-              bid: String(newValue || 0.75),
-              keywordStatus: 'enabled',
-            });
-          } catch (dbErr: any) {
-            log.warn(`[AutoExec] v266: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
+          // v357: 从syncResult中获取Amazon keywordId
+          const harvestAmazonKeywordId = harvestSyncResult.createdKeywords?.[0]?.amazonKeywordId;
+          const validKeywordId = harvestAmazonKeywordId ? String(harvestAmazonKeywordId) : '';
+          
+          if (!validKeywordId || validKeywordId === '0') {
+            log.warn(`[AutoExec] v357: API成功但未获取到有效keywordId，不写入本地DB以避免幽灵记录`);
+          } else {
+            try {
+              await db.createKeyword({
+                accountId: accountId,  // v357: 包含accountId
+                campaignId: harvestAmazonCampaignId || String(harvestCampaignId),  // v357: 包含Amazon campaignId
+                adGroupId: String(harvestAdGroupId || targetId),  // v357: adGroupId现在是string类型
+                keywordId: validKeywordId,  // v357: 使用API返回的Amazon keywordId
+                keywordText: targetName || '',
+                matchType: 'exact',
+                bid: String(newValue || 0.75),
+                keywordStatus: 'enabled',
+              });
+              log.info(`[AutoExec] v357: 本地keyword已创建: amazonKeywordId=${validKeywordId}, accountId=${accountId}`);
+            } catch (dbErr: any) {
+              log.warn(`[AutoExec] v357: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
+            }
           }
         }
         

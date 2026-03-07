@@ -1,10 +1,14 @@
 /**
  * Search Term Harvester - 搜索词收割原子操作模块
  * 
- * 数据专家改进2：将搜索词收割拆分为原子操作，确保三步操作的一致性：
- * 1. 在目标广告组创建精确匹配关键词（createSpKeywords）
- * 2. 在源广告组添加否定精确关键词（createSpNegativeKeywords）
- * 3. 记录本地数据库日志
+ * v357: 重构实体创建流程 - "先API后DB"原子操作原则
+ * 核心原则: 必须先成功创建Amazon实体并获取有效ID后，才写入本地数据库。
+ * API调用失败时不在本地留下任何痕迹，彻底杜绝"幽灵记录"。
+ * 
+ * 三步原子操作：
+ * 1. 在目标广告组创建精确匹配关键词（createSpKeywords）→ 获取Amazon keywordId
+ * 2. 在源广告组添加否定精确关键词（createSpNegativeKeywords）→ 获取Amazon negativeKeywordId
+ * 3. 仅当Step1&2均成功后，才记录本地数据库（包含完整的accountId, campaignId, keywordId）
  * 
  * 任一步骤失败时执行补偿回滚，避免"关键词已创建但否定词未添加"导致的流量重叠。
  */
@@ -208,12 +212,12 @@ export async function identifyHarvestCandidates(
         );
         
         // 7. 获取源广告组信息
-        const sourceAdGroup = await db.getAdGroupById(st.adGroupId);
+        const sourceAdGroup = await db.getAdGroupById(Number(st.adGroupId));  // v357: adGroupId现在是string类型
         if (!sourceAdGroup) continue;
         
         candidates.push({
           searchTerm: st.searchTerm,
-          sourceAdGroupId: st.adGroupId,
+          sourceAdGroupId: Number(st.adGroupId),  // v357: 转为number
           sourceCampaignId: sourceCampaign.id,
           sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
           sourceAmazonCampaignId: sourceCampaign.campaignId,
@@ -358,18 +362,33 @@ export async function harvestSearchTermAtomic(
     return result;
   }
 
-  // ============ Step 3: 记录本地数据库 ============
+  // ============ Step 3: 记录本地数据库（v357: 包含完整ID信息） ============
+  // v357: 核心改进 - createKeyword时必须包含accountId、campaignId和Amazon keywordId
+  // 确保本地记录与Amazon实体完全对应，杜绝幽灵记录
   try {
-    // 3a. 在本地keywords表创建记录
+    // v357: 验证Amazon keywordId有效性 - 必须是有效的非空值
+    const amazonKeywordId = String(result.createdKeywordId || '');
+    if (!amazonKeywordId || amazonKeywordId === 'undefined' || amazonKeywordId === 'null' || amazonKeywordId === '0') {
+      log.error(`v357: Step3 中止 - Amazon keywordId无效: "${amazonKeywordId}"，不写入本地数据库`);
+      result.error = `Step3 中止: Amazon keywordId无效 (${amazonKeywordId})，API操作已生效但本地未记录`;
+      result.success = true; // API层面成功
+      result.stage = 'negative_added';
+      return result;
+    }
+
+    // 3a. 在本地keywords表创建记录（v357: 包含完整的accountId, campaignId, keywordId）
     const localKeywordId = await db.createKeyword({
-      adGroupId: candidate.targetAdGroupId,
-      keywordId: String(result.createdKeywordId),
+      accountId: accountId,
+      campaignId: String(candidate.targetAmazonCampaignId),  // v357: 使用Amazon Campaign ID
+      adGroupId: String(candidate.targetAdGroupId),  // v357: adGroupId现在是string类型
+      keywordId: amazonKeywordId,  // v357: 已验证的Amazon keywordId
       keywordText: candidate.searchTerm,
       matchType: 'exact',
       bid: candidate.suggestedBid.toFixed(2),
       keywordStatus: 'enabled',
     });
     result.localKeywordId = localKeywordId;
+    log.info(`v357: 本地keyword已创建: localId=${localKeywordId}, amazonKeywordId=${amazonKeywordId}, accountId=${accountId}, campaignId=${candidate.targetAmazonCampaignId}`);
 
     // 3b. 在本地negativeKeywords表创建记录 (v230: 使用智能选择的否定类型)
     await db.addNegativeKeyword({
@@ -380,10 +399,10 @@ export async function harvestSearchTermAtomic(
       level: 'ad_group',
     });
 
-    // 3c. 创建出价日志
+    // 3c. 创建出价日志（v357: 增强日志信息，记录Amazon ID便于追踪）
     await db.createBiddingLog({
       accountId,
-      campaignId: String(candidate.targetCampaignId),
+      campaignId: String(candidate.targetAmazonCampaignId),  // v357: 使用Amazon Campaign ID
       adGroupId: candidate.targetAdGroupId,
       logTargetType: 'keyword',
       targetId: localKeywordId,
@@ -393,13 +412,12 @@ export async function harvestSearchTermAtomic(
       previousBid: '0.00',
       newBid: candidate.suggestedBid.toFixed(2),
       bidChangePercent: '100.00',
-      reason: `[搜索词收割] ${candidate.reason} | 源Campaign=${candidate.sourceCampaignId} → 目标Campaign=${candidate.targetCampaignId}`,
-      algorithmVersion: '2.0.0-harvest',
+      reason: `[搜索词收割] ${candidate.reason} | 源Campaign=${candidate.sourceAmazonCampaignId} → 目标Campaign=${candidate.targetAmazonCampaignId} | amazonKeywordId=${amazonKeywordId}`,
+      algorithmVersion: '2.0.0-harvest-v357',
       isIntradayAdjustment: 0,
     });
 
-    // v189: 直接记录到optimization_events表，正确标记apiSyncStatus为synced
-    // 之前只通过createBiddingLog双写，但双写时apiSyncStatus被设为not_applicable导致统计不准确
+    // v357: 增强optimization_events记录，包含Amazon ID用于追踪
     try {
       await db.insertOptimizationEvent({
         accountId,
@@ -411,7 +429,7 @@ export async function harvestSearchTermAtomic(
         matchType: 'exact',
         previousBid: '0.00',
         newBid: candidate.suggestedBid.toFixed(2),
-        changeReason: `[搜索词收割] ${candidate.reason}`,
+        changeReason: `[搜索词收割] ${candidate.reason} | amazonKeywordId=${amazonKeywordId} | targetCampaign=${candidate.targetAmazonCampaignId}`,
         status: 'success',
         apiSyncStatus: 'synced',
         sourceTable: 'search_term_harvester',
@@ -424,13 +442,13 @@ export async function harvestSearchTermAtomic(
         campaignId: candidate.sourceCampaignId,
         keywordText: candidate.searchTerm,
         matchType: 'exact',
-        changeReason: `[搜索词收割-否定] 源广告组添加否定词`,
+        changeReason: `[搜索词收割-否定] 源广告组添加否定词 | amazonNegKeywordId=${result.createdNegativeKeywordId || 'N/A'} | sourceCampaign=${candidate.sourceAmazonCampaignId}`,
         status: 'success',
         apiSyncStatus: 'synced',
         sourceTable: 'search_term_harvester',
       });
     } catch (eventErr: any) {
-      log.warn(`v189: 记录optimization_events失败: ${eventErr.message}`);
+      log.warn(`v357: 记录optimization_events失败: ${eventErr.message}`);
     }
 
     result.stage = 'db_logged';

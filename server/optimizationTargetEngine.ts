@@ -3290,7 +3290,7 @@ async function executeSearchTermAnalysis(
                 const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId, matchType: keywords.matchType })
                   .from(keywords)
                   .where(andOp(
-                    eqOp(keywords.adGroupId, adGroup.id),
+                    eqOp(keywords.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
                     eqOp(keywords.keywordText, decision.targetValue)
                   ))
                   .limit(10);
@@ -3317,7 +3317,7 @@ async function executeSearchTermAnalysis(
                 } else {
                   // v191: 使用算法建议的出价而非固定$0.50
                   const insertResult = await dbInstance.insert(keywords).values({
-                    adGroupId: adGroup.id,
+                    adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
                     keywordText: decision.targetValue,
                     matchType: matchType as any,
                     bid: String(bid),
@@ -3406,7 +3406,7 @@ async function executeSearchTermAnalysis(
                 const existingTargets = await dbInstance.select({ id: productTargets.id, targetId: productTargets.targetId })
                   .from(productTargets)
                   .where(andOp(
-                    eqOp(productTargets.adGroupId, adGroup.id),
+                    eqOp(productTargets.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
                     eqOp(productTargets.targetValue, decision.targetValue)
                   ))
                   .limit(5);
@@ -3419,7 +3419,7 @@ async function executeSearchTermAnalysis(
                   // 先写入本地DB
                   try {
                     const insertResult = await dbInstance.insert(productTargets).values({
-                      adGroupId: adGroup.id,
+                      adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
                       targetType: 'asin',
                       targetValue: decision.targetValue,
                       bid: String(bid),
@@ -4010,7 +4010,7 @@ async function executeKeywordStatusChanges(
                 try {
                   postOptVerifier.scheduleKeywordStatusVerification(
                     config.accountId,
-                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: keyword.adGroupId }]
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
                   );
                 } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
@@ -4068,7 +4068,7 @@ async function executeKeywordStatusChanges(
                 try {
                   postOptVerifier.scheduleKeywordStatusVerification(
                     config.accountId,
-                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: keyword.adGroupId }]
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
                   );
                 } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
@@ -4704,6 +4704,12 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         }
         
         try {
+          // v357: 增强出价调整日志 - 添加Amazon ID追踪信息
+          const enhancedBidDetail = {
+            ...detail,
+            v357_amazonKeywordId: detail.amazonKeywordId || detail.keywordId || '',
+            v357_amazonCampaignId: detail.amazonCampaignId || '',
+          };
           await db.createOptimizationLog({
             performanceGroupId: result.targetId,
             performanceGroupName: result.targetName,
@@ -4712,7 +4718,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             actionType: (detail.newBid ?? 0) > (detail.currentBid ?? 0) ? 'bid_increase' : 'bid_decrease',
             campaignId: detail.localCampaignId,
             campaignName: detail.campaignName,
-            actionDetail: JSON.stringify(detail),
+            actionDetail: JSON.stringify(enhancedBidDetail),  // v357: 使用增强后的detail
             previousValue: `${(typeof detail.currentBid === 'number' ? detail.currentBid : 0).toFixed(2)}`,
             newValue: `${(typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2)}`,
             changeReason: detail.reason || `出价调整 ${detail.changePercent || '0'}%`,
@@ -4774,15 +4780,25 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           'add_keyword': 'keyword_create',
         };
         const actionType = actionTypeMap[detail.action] || 'keyword_create';
+        // v357: 增强日志 - 在action_detail中添加Amazon ID追踪信息
+        const enhancedDetail = {
+          ...detail,
+          // v357: 明确记录尝试创建的文本和目标广告组/活动
+          v357_targetText: detail.searchTerm || detail.keyword || '',
+          v357_targetAdGroupId: detail.adGroupId || detail.targetAdGroupId || '',
+          v357_targetCampaignId: detail.campaignId || detail.localCampaignId || '',
+          v357_amazonKeywordId: detail.amazonKeywordId || detail.createdKeywordId || '',
+          v357_amazonTargetId: detail.amazonTargetId || detail.createdTargetId || '',
+        };
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
+          accountId: result.accountId || detail.accountId || 0,
           logCategory: 'optimization_settings',
-          actionType: actionType as any,  // v356: actionTypeMap返回string类型，需要断言为枚举类型
+          actionType: actionType as any,
           campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
-          actionDetail: JSON.stringify(detail),
+          actionDetail: JSON.stringify(enhancedDetail),  // v357: 使用增强后的detail
           previousValue: '',
           newValue: detail.searchTerm || '',
           changeReason: detail.reason || '',

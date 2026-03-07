@@ -83,7 +83,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         try {
           const { resolveKeywordIdOnDemand } = await import('../amazonIdResolver');
           // 获取accountId: 通过adGroup -> campaign -> accountId
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(kw.adGroupId))).limit(1);  // v357: adGroupId现在是string类型
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -109,7 +109,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       amazonId = kw.keywordId;
       oldBid = parseFloat(kw.bid);
       targetName = kw.keywordText;
-      adGroupId = kw.adGroupId;
+      adGroupId = Number(kw.adGroupId) || null;  // v357: adGroupId现在是string类型
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../../utils/campaignIdResolver');
@@ -117,7 +117,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         campaignId,
         targetLocalId: targetId,
         targetType: 'keyword',
-        adGroupId: kw.adGroupId,
+        adGroupId: Number(kw.adGroupId) || null,  // v357: adGroupId现在是string类型
         caller: 'applyBidAdjustment:keyword',
       });
 
@@ -152,7 +152,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
         try {
           const { resolveProductTargetIdOnDemand } = await import('../amazonIdResolver');
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(pt.adGroupId))).limit(1);  // v357: adGroupId现在是string类型
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -178,7 +178,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       amazonId = pt.targetId;
       oldBid = parseFloat(pt.bid);
       targetName = pt.targetValue || 'Product Target';
-      adGroupId = pt.adGroupId;
+      adGroupId = Number(pt.adGroupId) || null;  // v357: adGroupId现在是string类型
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../../utils/campaignIdResolver');
@@ -186,7 +186,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         campaignId,
         targetLocalId: targetId,
         targetType: 'product_target',
-        adGroupId: pt.adGroupId,
+        adGroupId: Number(pt.adGroupId) || null,  // v357: adGroupId现在是string类型
         caller: 'applyBidAdjustment:product_target',
       });
 

@@ -925,12 +925,16 @@ async function executeBatchByType(
             const created = createResult?.createdKeywords?.[i];
             if (created && created.code === 'SUCCESS' && created.keywordId) {
               await markTaskSynced(conn, t.id);
-              // 更新本地关键词的Amazon keywordId
+              // v357: 更新本地关键词的Amazon keywordId，同时回填accountId和campaignId
               if (t.target_entity_id) {
                 await conn.execute(
-                  'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
-                  [String(created.keywordId), t.target_entity_id]
+                  `UPDATE keywords SET keywordId = ?, 
+                   accountId = COALESCE(accountId, ?),
+                   campaignId = COALESCE(campaignId, ?)
+                   WHERE id = ? AND keywordId IS NULL`,
+                  [String(created.keywordId), t.account_id || null, t.campaign_id || null, t.target_entity_id]
                 );
+                log.info(`[SyncEngine] v357: keyword已同步: localId=${t.target_entity_id}, amazonKeywordId=${created.keywordId}`);
               }
               result.synced++;
             } else {

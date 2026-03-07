@@ -226,14 +226,26 @@ async function resolveKeywordIds(
         const amazonKeywordId = amazonKwMap.get(key);
 
         if (amazonKeywordId) {
-          // 匹配成功 → 回填keywordId
+          // 匹配成功 → 回填keywordId（v357: 同时回填accountId和campaignId）
+          // v357: 查询该adGroup对应的campaignId用于回填
+          let resolvedCampaignId = '';
+          try {
+            const [campLookup] = await conn.execute(
+              `SELECT c.campaignId FROM campaigns c INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId WHERE ag.id = ? LIMIT 1`,
+              [adGroupLocalId]
+            );
+            resolvedCampaignId = campLookup[0]?.campaignId || '';
+          } catch (_) {}
           try {
             await conn.execute(
-              'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
-              [amazonKeywordId, kw.id]
+              `UPDATE keywords SET keywordId = ?,
+               accountId = COALESCE(accountId, ?),
+               campaignId = COALESCE(campaignId, ?)
+               WHERE id = ? AND keywordId IS NULL`,
+              [amazonKeywordId, accountId, resolvedCampaignId || null, kw.id]
             );
             result.keywordsResolved++;
-            log.debug(`✅ 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}`);
+            log.debug(`✅ v357: 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}, accountId=${accountId}`);
           } catch (updateErr: any) {
             if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               // 唯一约束冲突 → 说明是重复记录，删除
@@ -318,12 +330,16 @@ async function resolveKeywordIds(
                 const original = batch[j];
                 if (created.code === 'SUCCESS' && created.keywordId) {
                   try {
+                    // v357: 创建成功时同时回填keywordId、accountId和campaignId
                     await conn.execute(
-                      'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
-                      [String(created.keywordId), original.id]
+                      `UPDATE keywords SET keywordId = ?,
+                       accountId = COALESCE(accountId, ?),
+                       campaignId = COALESCE(campaignId, ?)
+                       WHERE id = ? AND keywordId IS NULL`,
+                      [String(created.keywordId), accountId, String(amazonCampaignId), original.id]
                     );
                     result.keywordsCreated++;
-                    log.info(`✅ 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}`);
+                    log.info(`✅ v357: 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}, accountId=${accountId}, campaignId=${amazonCampaignId}`);
                   } catch (upErr: any) {
                     if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
                       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
@@ -360,12 +376,16 @@ async function resolveKeywordIds(
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
                       );
                       if (matchedKw && matchedKw.keywordId) {
+                        // v357: 回填时同时填充accountId和campaignId
                         await conn.execute(
-                          'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
-                          [String(matchedKw.keywordId), original.id]
+                          `UPDATE keywords SET keywordId = ?,
+                           accountId = COALESCE(accountId, ?),
+                           campaignId = COALESCE(campaignId, ?)
+                           WHERE id = ? AND keywordId IS NULL`,
+                          [String(matchedKw.keywordId), accountId, String(amazonCampaignId), original.id]
                         );
                         result.keywordsCreated++;
-                        log.debug(`✅ 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}`);
+                        log.debug(`✅ v357: 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}, accountId=${accountId}`);
                         resolved = true;
                       }
                     } catch (lookupErr: any) {
@@ -671,11 +691,15 @@ export async function resolveKeywordIdOnDemand(
         const createdKws = createResults.createdKeywords || createResults;
         if (createdKws[0]?.code === 'SUCCESS' && createdKws[0]?.keywordId) {
           const newKeywordId = String(createdKws[0].keywordId);
+          // v357: 创建成功时同时回填accountId和campaignId
           await conn.execute(
-            'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
-            [newKeywordId, keywordLocalId]
+            `UPDATE keywords SET keywordId = ?,
+             accountId = COALESCE(accountId, ?),
+             campaignId = COALESCE(campaignId, ?)
+             WHERE id = ? AND keywordId IS NULL`,
+            [newKeywordId, accountId, String(amazonCampaignId), keywordLocalId]
           );
-          log.info(`✅ 即时创建keyword id=${keywordLocalId} → keywordId=${newKeywordId}`);
+          log.info(`✅ v357: 即时创建keyword id=${keywordLocalId} → keywordId=${newKeywordId}, accountId=${accountId}`);
           return newKeywordId;
         }
       } catch (createErr: any) {

@@ -72,7 +72,7 @@ export async function runAutoBidOptimization(
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.id, kw.adGroupId))
+        .where(eq(adGroups.id, Number(kw.adGroupId)))  // v357: adGroupId现在是string类型
         .limit(1);
 
       if (adGroup) {
@@ -120,7 +120,7 @@ export async function runAutoBidOptimization(
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.id, kw.adGroupId))
+        .where(eq(adGroups.id, Number(kw.adGroupId)))  // v357: adGroupId现在是string类型
         .limit(1);
 
       if (adGroup) {
