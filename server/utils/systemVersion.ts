@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 348;  // v348: P0-凭证解密修复(discoverSyncableAccounts绕过safeDecrypt)+构建修复(dist缺失config防护)+报告错误诊断增强
+export const SYSTEM_VERSION = 349;  // v349: P0-分时竞价修复(dayparting_adjustment升级为关键任务)+SB搜索词报告400修复(移除campaignStatus过滤器)+report_jobs表创建+分时竞价诊断日志

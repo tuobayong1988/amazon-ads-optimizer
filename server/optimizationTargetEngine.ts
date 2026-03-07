@@ -2078,9 +2078,14 @@ async function executeDaypartingOptimization(
     log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理失败: ${pendingErr.message}`);
   }
   
+  // v349: 分时竞价诊断统计
+  let dpDiag = { total: 0, noStrategy: 0, draftInsufficient: 0, draftUpgraded: 0, draftUpgradeFailed: 0, noHourlyRule: 0, noKeywords: 0, bidUnchanged: 0, adjusted: 0 };
+  log.info(`[DaypartingOptimization] v349: 开始分时竞价执行, campaigns=${campaigns.length}, hour=${currentHour}, dayOfWeek=${currentDayOfWeek}, marketplace=${marketplace}`);
+  
   for (const campaign of campaigns) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
+    dpDiag.total++;
     try {
       // v157: 修复分时策略查找 - 按campaignId查找，并自动创建缺失的策略
       let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignAmazonId);
@@ -2156,16 +2161,23 @@ async function executeDaypartingOptimization(
             log.info(`[DaypartingOptimization] v337: 广告活动 ${campaign.campaignName} 数据不足(${totalDataPoints}<7)，保持draft状态`);
           }
         } catch (upgradeErr: any) {
+          dpDiag.draftUpgradeFailed++;
           log.warn(`[DaypartingOptimization] v337: 自动升级分时策略失败: ${upgradeErr.message}`);
         }
       }
       
       // v337: 全量开启——active策略正常执行，draft策略在数据充足后自动升级
-      if (!strategy || strategy.daypartingStatus !== 'active') continue;
+      if (!strategy || strategy.daypartingStatus !== 'active') {
+        dpDiag.noStrategy++;
+        continue;
+      }
       
       // 获取当前时段的调整规则
       const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
-      if (!hourlyRule) continue;
+      if (!hourlyRule) {
+        dpDiag.noHourlyRule++;
+        continue;
+      }
       
       // 基础分时乘数（广告活动级别）
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');
@@ -2330,6 +2342,9 @@ async function executeDaypartingOptimization(
       });
     }
   }
+  
+  // v349: 分时竞价诊断日志总结
+  log.info(`[DaypartingOptimization] v349: 分时竞价执行完成 - 总计=${dpDiag.total}, 无策略/非draft=${dpDiag.noStrategy}, 无小时规则=${dpDiag.noHourlyRule}, 调整=${adjustmentsCount}, 详情=${details.length}条`);
   
   return { executed: true, adjustmentsCount, details };
 }

@@ -1670,8 +1670,9 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   const MEMORY_CRITICAL_MB = 1200;  // RSS超过1200MB: 危急，跳过所有任务
   const MEMORY_WARNING_MB = 900;    // RSS超过900MB: 紧张，跳过非关键任务
   
-  // 关键任务：出价优化、风控扫描、日内节奏
-  const criticalTasks: OptimizationTaskType[] = ['daily_bid_optimization', 'risk_scan', 'intraday_pacing'];
+  // 关键任务：出价优化、风控扫描、日内节奏、分时策略
+  // v349: 将dayparting_adjustment添加为关键任务，防止因内存压力被跳过导致分时策略停滞
+  const criticalTasks: OptimizationTaskType[] = ['daily_bid_optimization', 'risk_scan', 'intraday_pacing', 'dayparting_adjustment'];
   const isCritical = criticalTasks.includes(taskType);
   
   if (rssMB > MEMORY_CRITICAL_MB) {

@@ -234,11 +234,48 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       ALTER TABLE cold_start_logs ADD COLUMN historical_negatives_processed INT DEFAULT 0
     `, 'cold_start_logs.historical_negatives_processed', results);
 
-    log.info(`v347: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ============================================================
+    // 7. v349: report_jobs 表
+    //    报告任务队列表，schema中定义但从未创建，导致所有report_jobs查询失败
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS report_jobs (
+        id INT NOT NULL AUTO_INCREMENT,
+        accountId INT NOT NULL,
+        profileId VARCHAR(64) NOT NULL,
+        reportType VARCHAR(64) NOT NULL,
+        adProduct VARCHAR(32) NOT NULL,
+        reportId VARCHAR(128),
+        status ENUM('pending', 'submitted', 'processing', 'completed', 'failed', 'expired') NOT NULL DEFAULT 'pending',
+        startDate VARCHAR(10) NOT NULL,
+        endDate VARCHAR(10) NOT NULL,
+        requestPayload JSON,
+        downloadUrl TEXT,
+        recordsProcessed INT DEFAULT 0,
+        errorMessage TEXT,
+        retryCount INT DEFAULT 0,
+        maxRetries INT DEFAULT 3,
+        priority ENUM('critical', 'high', 'medium', 'low') DEFAULT 'medium',
+        metadata JSON,
+        submittedAt TIMESTAMP NULL,
+        completedAt TIMESTAMP NULL,
+        processedAt TIMESTAMP NULL,
+        expiresAt TIMESTAMP NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_report_jobs_account (accountId),
+        INDEX idx_report_jobs_status (status),
+        INDEX idx_report_jobs_report_id (reportId),
+        INDEX idx_report_jobs_profile (profileId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'report_jobs', results);
+
+    log.info(`v349: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: any) {
-    log.error(`v347: 数据库自动迁移异常: ${error.message}`);
+    log.error(`v349: 数据库自动迁移异常: ${error.message}`);
     return { success: false, results: [`迁移异常: ${error.message}`] };
   }
 }

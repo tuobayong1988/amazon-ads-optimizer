@@ -2786,13 +2786,7 @@ export class AmazonAdsApiClient {
             'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
             'purchasesClicks'                    // Excel: purchasesClicks - 14天总订单数(点击)
           ],
-          // 添加filters配置
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v349: 移除campaignStatus过滤器 — Amazon API不允许在searchTerm groupBy中使用此过滤器(返回400)
           reportTypeId: 'sbSearchTerm',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',

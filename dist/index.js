@@ -57392,13 +57392,7 @@ Profile ID: ${profileId}
                 "purchasesClicks"
                 // Excel: purchasesClicks - 14天总订单数(点击)
               ],
-              // 添加filters配置
-              filters: [
-                {
-                  field: "campaignStatus",
-                  values: ["ARCHIVED", "ENABLED", "PAUSED"]
-                }
-              ],
+              // v349: 移除campaignStatus过滤器 — Amazon API不允许在searchTerm groupBy中使用此过滤器(返回400)
               reportTypeId: "sbSearchTerm",
               timeUnit: "DAILY",
               format: "GZIP_JSON"
@@ -92440,9 +92434,12 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
   } catch (pendingErr) {
     log50.warn(`[DaypartingOptimization] v310: pending dayparting_bid\u5904\u7406\u5931\u8D25: ${pendingErr.message}`);
   }
+  let dpDiag = { total: 0, noStrategy: 0, draftInsufficient: 0, draftUpgraded: 0, draftUpgradeFailed: 0, noHourlyRule: 0, noKeywords: 0, bidUnchanged: 0, adjusted: 0 };
+  log50.info(`[DaypartingOptimization] v349: \u5F00\u59CB\u5206\u65F6\u7ADE\u4EF7\u6267\u884C, campaigns=${campaigns7.length}, hour=${currentHour}, dayOfWeek=${currentDayOfWeek}, marketplace=${marketplace}`);
   for (const campaign of campaigns7) {
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
+    dpDiag.total++;
     try {
       let strategy = await getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy) {
@@ -92506,12 +92503,19 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
             log50.info(`[DaypartingOptimization] v337: \u5E7F\u544A\u6D3B\u52A8 ${campaign.campaignName} \u6570\u636E\u4E0D\u8DB3(${totalDataPoints}<7)\uFF0C\u4FDD\u6301draft\u72B6\u6001`);
           }
         } catch (upgradeErr) {
+          dpDiag.draftUpgradeFailed++;
           log50.warn(`[DaypartingOptimization] v337: \u81EA\u52A8\u5347\u7EA7\u5206\u65F6\u7B56\u7565\u5931\u8D25: ${upgradeErr.message}`);
         }
       }
-      if (!strategy || strategy.daypartingStatus !== "active") continue;
+      if (!strategy || strategy.daypartingStatus !== "active") {
+        dpDiag.noStrategy++;
+        continue;
+      }
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
-      if (!hourlyRule) continue;
+      if (!hourlyRule) {
+        dpDiag.noHourlyRule++;
+        continue;
+      }
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
       const keywords9 = await getKeywordsByCampaignId(campaignAmazonId);
       for (const keyword of keywords9) {
@@ -92645,6 +92649,7 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
       });
     }
   }
+  log50.info(`[DaypartingOptimization] v349: \u5206\u65F6\u7ADE\u4EF7\u6267\u884C\u5B8C\u6210 - \u603B\u8BA1=${dpDiag.total}, \u65E0\u7B56\u7565/\u975Edraft=${dpDiag.noStrategy}, \u65E0\u5C0F\u65F6\u89C4\u5219=${dpDiag.noHourlyRule}, \u8C03\u6574=${adjustmentsCount}, \u8BE6\u60C5=${details.length}\u6761`);
   return { executed: true, adjustmentsCount, details };
 }
 async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) {
@@ -161728,7 +161733,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 348;
+    SYSTEM_VERSION = 349;
   }
 });
 
@@ -162356,7 +162361,7 @@ async function executeOptimizationTask(taskType) {
   const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
   const MEMORY_CRITICAL_MB = 1200;
   const MEMORY_WARNING_MB = 900;
-  const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing"];
+  const criticalTasks = ["daily_bid_optimization", "risk_scan", "intraday_pacing", "dayparting_adjustment"];
   const isCritical = criticalTasks.includes(taskType);
   if (rssMB > MEMORY_CRITICAL_MB) {
     log55.warn(`[OptimizationScheduler] v347: \u5185\u5B58\u5371\u6025(RSS=${rssMB}MB, heap=${heapUsedMB}/${heapTotalMB}MB)\uFF0C\u8DF3\u8FC7\u4EFB\u52A1: ${taskType}`);
@@ -170761,6 +170766,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 349,
+        description: "v349: [P0\u5206\u65F6\u7ADE\u4EF7\u4FEE\u590D + SB\u641C\u7D22\u8BCD\u62A5\u544A\u4FEE\u590D + report_jobs\u8868\u521B\u5EFA + \u8BCA\u65AD\u589E\u5F3A] \u2014 (1)P0-\u5206\u65F6\u7ADE\u4EF7\u505C\u6EDE\u4FEE\u590D: dayparting_adjustment\u5347\u7EA7\u4E3A\u5173\u952E\u4EFB\u52A1,\u9632\u6B62\u56E0\u5185\u5B58\u538B\u529B\u88AB\u8DF3\u8FC7\u5BFC\u81F4\u5206\u65F6\u7B56\u7565\u5B8C\u5168\u505C\u6EDE (2)P1-SB\u641C\u7D22\u8BCD\u62A5\u544A400\u4FEE\u590D: \u79FB\u9664searchTerm groupBy\u4E2D\u4E0D\u5141\u8BB8\u7684campaignStatus\u8FC7\u6EE4\u5668 (3)P1-report_jobs\u8868\u521B\u5EFA: schema\u4E2D\u5B9A\u4E49\u4F46\u4ECE\u672A\u5728\u6570\u636E\u5E93\u4E2D\u521B\u5EFA,\u5BFC\u81F421\u4E2AFailed query\u9519\u8BEF (4)P2-\u5206\u65F6\u7ADE\u4EF7\u8BCA\u65AD\u65E5\u5FD7: \u6DFB\u52A0campaigns\u5FAA\u73AF\u4E2D\u7684\u8BE6\u7EC6\u8DF3\u8FC7\u539F\u56E0\u7EDF\u8BA1",
+        affectedModules: ["optimization", "sync", "db"],
+        correctionActions: ["rerun_optimization"]
       },
       {
         version: 348,
@@ -394602,10 +394613,42 @@ async function runAutoDbMigration() {
     await safeDDL(database, sql`
       ALTER TABLE cold_start_logs ADD COLUMN historical_negatives_processed INT DEFAULT 0
     `, "cold_start_logs.historical_negatives_processed", results);
-    log112.info(`v347: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5B8C\u6210, \u7ED3\u679C: ${results.join("; ")}`);
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS report_jobs (
+        id INT NOT NULL AUTO_INCREMENT,
+        accountId INT NOT NULL,
+        profileId VARCHAR(64) NOT NULL,
+        reportType VARCHAR(64) NOT NULL,
+        adProduct VARCHAR(32) NOT NULL,
+        reportId VARCHAR(128),
+        status ENUM('pending', 'submitted', 'processing', 'completed', 'failed', 'expired') NOT NULL DEFAULT 'pending',
+        startDate VARCHAR(10) NOT NULL,
+        endDate VARCHAR(10) NOT NULL,
+        requestPayload JSON,
+        downloadUrl TEXT,
+        recordsProcessed INT DEFAULT 0,
+        errorMessage TEXT,
+        retryCount INT DEFAULT 0,
+        maxRetries INT DEFAULT 3,
+        priority ENUM('critical', 'high', 'medium', 'low') DEFAULT 'medium',
+        metadata JSON,
+        submittedAt TIMESTAMP NULL,
+        completedAt TIMESTAMP NULL,
+        processedAt TIMESTAMP NULL,
+        expiresAt TIMESTAMP NULL,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_report_jobs_account (accountId),
+        INDEX idx_report_jobs_status (status),
+        INDEX idx_report_jobs_report_id (reportId),
+        INDEX idx_report_jobs_profile (profileId)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, "report_jobs", results);
+    log112.info(`v349: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5B8C\u6210, \u7ED3\u679C: ${results.join("; ")}`);
     return { success: true, results };
   } catch (error54) {
-    log112.error(`v347: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`);
+    log112.error(`v349: \u6570\u636E\u5E93\u81EA\u52A8\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`);
     return { success: false, results: [`\u8FC1\u79FB\u5F02\u5E38: ${error54.message}`] };
   }
 }

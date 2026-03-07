@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 349,
+    description: 'v349: [P0分时竞价修复 + SB搜索词报告修复 + report_jobs表创建 + 诊断增强] — (1)P0-分时竞价停滞修复: dayparting_adjustment升级为关键任务,防止因内存压力被跳过导致分时策略完全停滞 (2)P1-SB搜索词报告400修复: 移除searchTerm groupBy中不允许的campaignStatus过滤器 (3)P1-report_jobs表创建: schema中定义但从未在数据库中创建,导致21个Failed query错误 (4)P2-分时竞价诊断日志: 添加campaigns循环中的详细跳过原因统计',
+    affectedModules: ['optimization', 'sync', 'db'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 348,
     description: 'v348: [P0凭证解密修复 + P0构建修复 + P1报告诊断增强] — (1)P0-凭证解密修复: discoverSyncableAccounts()直接JOIN查询绕过getAmazonApiCredential()的safeDecrypt(),V345加密凭证后clientSecret和refreshToken以enc:v1:格式发送给Amazon OAuth导致全部账户Token刷新401失败 (2)P0-构建修复: V347的config undefined防护代码未被编译到dist/index.js,导致拦截器崩溃 (3)P1-报告错误诊断增强: SP/SB/SD报告请求失败时记录完整的status/data/headers/requestBody信息',
     affectedModules: ['sync', 'build'],
