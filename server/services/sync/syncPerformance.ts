@@ -231,25 +231,37 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
     return null;
   };
 
-  // 并行请求三种报告 (v351: 传入adType用于数据保留期处理)
-  const [spData, sbData, sdData] = await Promise.all([
-    retryReport('SP', 'SP', (start, end) => this.client.requestSpCampaignReport(start, end)),
-    retryReport('SB', 'SB', (start, end) => this.client.requestSbCampaignReport(start, end)),
-    retryReport('SD', 'SD', (start, end) => this.client.requestSdCampaignReport(start, end)),
-  ]);
-
-  // 串行处理数据（避免数据库并发冲突）
+   // v352: 串行请求三种报告（替代v351的Promise.all并行）
+  // 原因：并行请求3种报告会在短时间内集中发出大量API调用，容易触发Amazon API速率限制
+  // 新策略：SP→延迟→SB→延迟→SD，每种广告类型之间加入3秒自适应延迟
+  // 这样单次批次的API调用从瞬时3个降为间隔3秒的3个，大幅降低限流风险
+  const AD_TYPE_DELAY_MS = 3000; // 广告类型间延迟
+  
+  log.info(`[v352] 开始串行请求报告: SP→SB→SD (类型间延迟${AD_TYPE_DELAY_MS}ms)`);
+  
+  // SP报告
+  const spData = await retryReport('SP', 'SP', (start, end) => this.client.requestSpCampaignReport(start, end));
   if (spData && spData.length > 0) {
     totalSynced += await this.processReportData(db, spData, 'SP');
   }
+  log.info(`[v352] SP报告完成: ${spData?.length||0}条, 等待${AD_TYPE_DELAY_MS}ms后请求SB...`);
+  await new Promise(resolve => setTimeout(resolve, AD_TYPE_DELAY_MS));
+  
+  // SB报告
+  const sbData = await retryReport('SB', 'SB', (start, end) => this.client.requestSbCampaignReport(start, end));
   if (sbData && sbData.length > 0) {
     totalSynced += await this.processReportData(db, sbData, 'SB');
   }
+  log.info(`[v352] SB报告完成: ${sbData?.length||0}条, 等待${AD_TYPE_DELAY_MS}ms后请求SD...`);
+  await new Promise(resolve => setTimeout(resolve, AD_TYPE_DELAY_MS));
+  
+  // SD报告
+  const sdData = await retryReport('SD', 'SD', (start, end) => this.client.requestSdCampaignReport(start, end));
   if (sdData && sdData.length > 0) {
     totalSynced += await this.processReportData(db, sdData, 'SD');
   }
-
-  log.info(`绩效数据同步完成: SP=${spData?.length||0}, SB=${sbData?.length||0}, SD=${sdData?.length||0}, 总入库=${totalSynced}`);
+  
+  log.info(`[v352] 绩效数据同步完成(串行模式): SP=${spData?.length||0}, SB=${sbData?.length||0}, SD=${sdData?.length||0}, 总入库=${totalSynced}`);
   return totalSynced;
 };
 

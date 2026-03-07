@@ -900,8 +900,8 @@ const engineStatus: EngineStatus = {
   discoveredAccounts: 0,
 };
 
-// 并发控制
-const MAX_CONCURRENT_ACCOUNTS = 3;
+// v352: 并发控制 - 从3降为2，降低API并发压力
+const MAX_CONCURRENT_ACCOUNTS = 2;
 const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date }>();
 
 // 导出速率控制器供外部使用
@@ -1324,9 +1324,39 @@ export async function syncAccount(
 // ==================== 核心功能：批量同步 ====================
 
 /**
- * 对所有发现的账户执行指定层级的同步
- * 支持并发控制：最多同时同步 MAX_CONCURRENT_ACCOUNTS 个账户
+ * v352: 智能账户交错排序
+ * 同一品牌（userId）的不同站点账户分散到不同批次，避免共享API凭证的账户同时发起请求
+ * 
+ * 例如：输入 [ElaraFit-US, ElaraFit-CA, ElaraFit-MX, LERUCCI-US, LERUCCI-CA, LERUCCI-MX]
+ * 输出 [ElaraFit-US, LERUCCI-US, ElaraFit-CA, LERUCCI-CA, ElaraFit-MX, LERUCCI-MX]
  */
+function interleaveAccountsByUser(accounts: SyncableAccount[]): SyncableAccount[] {
+  if (accounts.length <= 1) return accounts;
+  
+  // 按userId分组
+  const groups = new Map<number, SyncableAccount[]>();
+  for (const account of accounts) {
+    const userId = account.userId;
+    if (!groups.has(userId)) groups.set(userId, []);
+    groups.get(userId)!.push(account);
+  }
+  
+  // 交错合并：每轮从每个组取一个
+  const result: SyncableAccount[] = [];
+  const groupArrays = Array.from(groups.values());
+  const maxLen = Math.max(...groupArrays.map(g => g.length));
+  
+  for (let i = 0; i < maxLen; i++) {
+    for (const group of groupArrays) {
+      if (i < group.length) {
+        result.push(group[i]);
+      }
+    }
+  }
+  
+  return result;
+}
+
 export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> {
   const startTime = new Date();
   const batchResult: BatchSyncResult = {
@@ -1355,15 +1385,25 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     return batchResult;
   }
 
-  log.info(`[UnifiedSync] 发现 ${accounts.length} 个账户，开始并行同步（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
+  // v352: 智能账户交错排序 - 同一品牌不同站点的账户分散到不同批次
+  // 目的：避免同一品牌的多个站点账户同时发起API请求，因为它们共享API凭证
+  // 策略：按userId分组，然后交错合并（如[A-US, B-US, A-CA, B-CA, A-MX, B-MX]）
+  const interleaved = interleaveAccountsByUser(accounts);
+  log.info(`[UnifiedSync] [v352] 发现 ${accounts.length} 个账户，智能交错排序后开始串行同步（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
+  log.info(`[UnifiedSync] [v352] 交错顺序: ${interleaved.map(a => `${a.accountId}(${a.accountName})`).join(' → ')}`);
 
-  // 分批并行执行
-  for (let i = 0; i < accounts.length; i += MAX_CONCURRENT_ACCOUNTS) {
-    const batch = accounts.slice(i, i + MAX_CONCURRENT_ACCOUNTS);
+  // v352: 串行执行每个账户（替代之前的并行批次）
+  // 原因：并行执行多个账户会导致API调用集中爆发，而且数据库写入也会产生竞争
+  // 新策略：逐个账户串行执行，账户间加入5秒延迟，确保单个账户完成后再开始下一个
+  const ACCOUNT_DELAY_MS = 5000; // 账户间延迟5秒
+  
+  for (let i = 0; i < interleaved.length; i++) {
+    const account = interleaved[i];
     
-    const batchResults = await Promise.all(
-      batch.map(account => syncAccount(account, tier))
-    );
+    log.info(`[UnifiedSync] [v352] 开始同步账户 [${i + 1}/${interleaved.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
+    
+    const accountResult = await syncAccount(account, tier);
+    const batchResults = [accountResult];
 
     for (const accountResult of batchResults) {
       batchResult.accountResults.push(accountResult);
@@ -1383,11 +1423,13 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       }
     }
 
-    // v220: 批次间自适应延迟，根据API限流反馈动态调整
-    if (i + MAX_CONCURRENT_ACCOUNTS < accounts.length) {
-      const batchDelay = rateController.getBatchDelay();
-      log.info(`[UnifiedSync] 批次间延迟 ${batchDelay}ms (利用率: ${rateController.getStatus().utilizationPercent}%)`);
-      await sleep(batchDelay);
+    // v352: 账户间自适应延迟（替代旧的批次间延迟）
+    if (i < interleaved.length - 1) {
+      const baseDelay = ACCOUNT_DELAY_MS;
+      const rateDelay = rateController.getBatchDelay();
+      const totalDelay = Math.max(baseDelay, rateDelay); // 取较大值
+      log.info(`[UnifiedSync] [v352] 账户间延迟 ${totalDelay}ms (基础${baseDelay}ms, 速率控制${rateDelay}ms, 利用率: ${rateController.getStatus().utilizationPercent}%)`);
+      await sleep(totalDelay);
     }
   }
 

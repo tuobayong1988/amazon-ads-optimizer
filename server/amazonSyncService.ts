@@ -339,6 +339,10 @@ export class AmazonSyncService {
           else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
           results._syncDiagnostics!.push({ stepName, synced, durationMs, ...(attempt > 0 ? { retried: true } : {}) });
           log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms${attempt > 0 ? ` (第${attempt}次重试成功)` : ''}`);
+          // v352: 步骤间延迟，降低API调用密度
+          if (totalSteps > 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
           return result;
         } catch (error: any) {
           const errMsg = error.message || '';

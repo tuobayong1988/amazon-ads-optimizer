@@ -206,9 +206,15 @@ export async function executeBatchSync(options?: {
     
     log.debug(`[SyncEngine] 分为 ${accountGroups.size} 个账号组`);
     
-    // 3. 逐账号处理
+    // 3. v352: 逐账号串行处理，账号间加入延迟，降低API并发压力
+    const ACCOUNT_SYNC_DELAY_MS = 3000; // 账号间延迟3秒
+    const TYPE_SYNC_DELAY_MS = 1000;    // 任务类型间延迟1秒
+    let accountIndex = 0;
+    const totalAccountGroups = accountGroups.size;
+    
     for (const [accountId, accountTasks] of accountGroups) {
-      log.info(`[SyncEngine] --- 处理账号 ${accountId}: ${accountTasks.length} 条任务 ---`);
+      accountIndex++;
+      log.info(`[SyncEngine] [v352] --- 处理账号 [${accountIndex}/${totalAccountGroups}] ${accountId}: ${accountTasks.length} 条任务 ---`);
       
       // 按任务类型分组
       const typeGroups = new Map<string, any[]>();
@@ -218,9 +224,12 @@ export async function executeBatchSync(options?: {
         typeGroups.get(type)!.push(task);
       }
       
-      // 按类型批量处理
+      // v352: 按类型串行处理，类型间加入延迟
+      let typeIndex = 0;
+      const totalTypes = typeGroups.size;
       for (const [taskType, typeTasks] of typeGroups) {
-        log.info(`[SyncEngine] 处理 ${taskType}: ${typeTasks.length} 条`);
+        typeIndex++;
+        log.info(`[SyncEngine] [v352] 处理 ${taskType} [${typeIndex}/${totalTypes}]: ${typeTasks.length} 条`);
         
         try {
           const typeResult = await syncTasksByType(conn, accountId, taskType, typeTasks, options?.dryRun);
@@ -238,6 +247,18 @@ export async function executeBatchSync(options?: {
           await markTasksFailed(conn, taskIds, err.message);
           result.failed += typeTasks.length;
         }
+        
+        // v352: 任务类型间延迟
+        if (typeIndex < totalTypes) {
+          log.debug(`[SyncEngine] [v352] 任务类型间延迟 ${TYPE_SYNC_DELAY_MS}ms`);
+          await new Promise(resolve => setTimeout(resolve, TYPE_SYNC_DELAY_MS));
+        }
+      }
+      
+      // v352: 账号间延迟
+      if (accountIndex < totalAccountGroups) {
+        log.info(`[SyncEngine] [v352] 账号间延迟 ${ACCOUNT_SYNC_DELAY_MS}ms`);
+        await new Promise(resolve => setTimeout(resolve, ACCOUNT_SYNC_DELAY_MS));
       }
     }
     

@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 352,
+    description: 'v352: [数据同步架构重构 - 精细化分账户/分广告类型/分步骤串行化] — (1)P0-报告请求串行化: SP→SB→SD从并行Promise.all改为串行执行,每种广告类型间加3秒延迟,大幅降低API限流风险 (2)P0-智能账户交错排序: 同一品牌(userId)不同站点账户分散到不同批次,避免共享API凭证的账户同时发起请求 (3)P0-账户间串行+5秒延迟: 替代旧的并行批次执行,确保单个账户完成后再开始下一个 (4)P1-并发控制降级: MAX_CONCURRENT_ACCOUNTS从3降为2 (5)P1-优化指令同步增强: 账号间3秒延迟+任务类型间1秒延迟 (6)P1-syncAll步骤间1秒延迟: 降低API调用密度',
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: ['resync_data'],
+  },
+  {
     version: 351,
     description: 'v351: [P1分时竞价灵敏度重写 + bidding_logs修复 + 永久失败标记增强 + SB/SD数据保留期处理] — (1)P1-分时竞价算法灵敏度彻底重写: 三层级联放大(3x偏差放大+最小偏差保证±0.05+时段特征增强),解决95.6%规则为1.00的根因 (2)P1-分时规则24h自动重算: 替换旧算法生成的无效规则 (3)P1-分时执行阈值降低: $0.01→$0.005+2%双重判断 (4)P1-dayparting recordModuleExecution修复: dayparting_adjustment使用executeAllEnabledTargets但遗漏recordModuleExecution调用 (5)P1-bidding_logs原生SQL列名修复: snake_case→camelCase匹配Drizzle schema (6)P1-SB/SD关键词创建过滤: 阻止对SB/SD广告活动的无效API调用 (7)P1-permanently_failed标记增强: 移除localKeywordId前提条件,覆盖所有失败记录 (8)P1-SB/SD数据保留期自动处理: startDate自动clamp到保留期范围内 (9)P2-placement诊断日志增强',
     affectedModules: ['dayparting', 'bid', 'sync', 'optimization'],

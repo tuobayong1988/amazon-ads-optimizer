@@ -60067,6 +60067,9 @@ var init_amazonSyncService = __esm({
               else if (result && typeof result === "object" && "synced" in result) synced = result.synced;
               results._syncDiagnostics.push({ stepName, synced, durationMs, ...attempt > 0 ? { retried: true } : {} });
               log12.info(`[syncAll] \u2705 \u8D26\u6237${this.accountId} \u6B65\u9AA4[${totalSteps}] ${stepName} \u5B8C\u6210: ${synced}\u6761, \u8017\u65F6${durationMs}ms${attempt > 0 ? ` (\u7B2C${attempt}\u6B21\u91CD\u8BD5\u6210\u529F)` : ""}`);
+              if (totalSteps > 1) {
+                await new Promise((resolve8) => setTimeout(resolve8, 1e3));
+              }
               return result;
             } catch (error51) {
               const errMsg = error51.message || "";
@@ -83965,6 +83968,26 @@ async function syncAccount(account, tier, options) {
   }
   return result;
 }
+function interleaveAccountsByUser(accounts) {
+  if (accounts.length <= 1) return accounts;
+  const groups2 = /* @__PURE__ */ new Map();
+  for (const account of accounts) {
+    const userId = account.userId;
+    if (!groups2.has(userId)) groups2.set(userId, []);
+    groups2.get(userId).push(account);
+  }
+  const result = [];
+  const groupArrays = Array.from(groups2.values());
+  const maxLen = Math.max(...groupArrays.map((g6) => g6.length));
+  for (let i4 = 0; i4 < maxLen; i4++) {
+    for (const group of groupArrays) {
+      if (i4 < group.length) {
+        result.push(group[i4]);
+      }
+    }
+  }
+  return result;
+}
 async function syncAllAccounts(tier) {
   const startTime = /* @__PURE__ */ new Date();
   const batchResult = {
@@ -83988,17 +84011,20 @@ async function syncAllAccounts(tier) {
     batchResult.durationMs = batchResult.endTime.getTime() - startTime.getTime();
     return batchResult;
   }
-  log36.info(`[UnifiedSync] \u53D1\u73B0 ${accounts.length} \u4E2A\u8D26\u6237\uFF0C\u5F00\u59CB\u5E76\u884C\u540C\u6B65\uFF08\u6700\u5927\u5E76\u53D1: ${MAX_CONCURRENT_ACCOUNTS}\uFF09`);
-  for (let i4 = 0; i4 < accounts.length; i4 += MAX_CONCURRENT_ACCOUNTS) {
-    const batch = accounts.slice(i4, i4 + MAX_CONCURRENT_ACCOUNTS);
-    const batchResults = await Promise.all(
-      batch.map((account) => syncAccount(account, tier))
-    );
-    for (const accountResult of batchResults) {
-      batchResult.accountResults.push(accountResult);
-      if (accountResult.success) {
+  const interleaved = interleaveAccountsByUser(accounts);
+  log36.info(`[UnifiedSync] [v352] \u53D1\u73B0 ${accounts.length} \u4E2A\u8D26\u6237\uFF0C\u667A\u80FD\u4EA4\u9519\u6392\u5E8F\u540E\u5F00\u59CB\u4E32\u884C\u540C\u6B65\uFF08\u6700\u5927\u5E76\u53D1: ${MAX_CONCURRENT_ACCOUNTS}\uFF09`);
+  log36.info(`[UnifiedSync] [v352] \u4EA4\u9519\u987A\u5E8F: ${interleaved.map((a4) => `${a4.accountId}(${a4.accountName})`).join(" \u2192 ")}`);
+  const ACCOUNT_DELAY_MS = 5e3;
+  for (let i4 = 0; i4 < interleaved.length; i4++) {
+    const account = interleaved[i4];
+    log36.info(`[UnifiedSync] [v352] \u5F00\u59CB\u540C\u6B65\u8D26\u6237 [${i4 + 1}/${interleaved.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
+    const accountResult = await syncAccount(account, tier);
+    const batchResults = [accountResult];
+    for (const accountResult2 of batchResults) {
+      batchResult.accountResults.push(accountResult2);
+      if (accountResult2.success) {
         batchResult.successfulAccounts++;
-      } else if (accountResult.errors.some(
+      } else if (accountResult2.errors.some(
         (e6) => e6.includes("\u5DF2\u6709") && e6.includes("\u5728\u8FD0\u884C") || e6.includes("\u5C42\u540C\u6B65\u5728\u8FD0\u884C") || e6.includes("\u5C42\u6B63\u5728\u8FD0\u884C") || e6.includes("\u5C42\u8DDF\u8FC7") || e6.includes("\u667A\u80FD\u8DF3\u8FC7") || e6.includes("\u7B49\u4E0B\u4E00\u8F6E")
       )) {
         batchResult.skippedAccounts++;
@@ -84006,10 +84032,12 @@ async function syncAllAccounts(tier) {
         batchResult.failedAccounts++;
       }
     }
-    if (i4 + MAX_CONCURRENT_ACCOUNTS < accounts.length) {
-      const batchDelay = rateController.getBatchDelay();
-      log36.info(`[UnifiedSync] \u6279\u6B21\u95F4\u5EF6\u8FDF ${batchDelay}ms (\u5229\u7528\u7387: ${rateController.getStatus().utilizationPercent}%)`);
-      await sleep2(batchDelay);
+    if (i4 < interleaved.length - 1) {
+      const baseDelay = ACCOUNT_DELAY_MS;
+      const rateDelay = rateController.getBatchDelay();
+      const totalDelay = Math.max(baseDelay, rateDelay);
+      log36.info(`[UnifiedSync] [v352] \u8D26\u6237\u95F4\u5EF6\u8FDF ${totalDelay}ms (\u57FA\u7840${baseDelay}ms, \u901F\u7387\u63A7\u5236${rateDelay}ms, \u5229\u7528\u7387: ${rateController.getStatus().utilizationPercent}%)`);
+      await sleep2(totalDelay);
     }
   }
   rateController.onSyncCycleComplete();
@@ -84760,7 +84788,7 @@ var init_unifiedSyncEngine = __esm({
       recentErrors: [],
       discoveredAccounts: 0
     };
-    MAX_CONCURRENT_ACCOUNTS = 3;
+    MAX_CONCURRENT_ACCOUNTS = 2;
     activeSyncs = /* @__PURE__ */ new Map();
   }
 });
@@ -85202,16 +85230,24 @@ async function executeBatchSync(options) {
       accountGroups.get(accId).push(row);
     }
     log38.debug(`[SyncEngine] \u5206\u4E3A ${accountGroups.size} \u4E2A\u8D26\u53F7\u7EC4`);
+    const ACCOUNT_SYNC_DELAY_MS = 3e3;
+    const TYPE_SYNC_DELAY_MS = 1e3;
+    let accountIndex = 0;
+    const totalAccountGroups = accountGroups.size;
     for (const [accountId, accountTasks] of accountGroups) {
-      log38.info(`[SyncEngine] --- \u5904\u7406\u8D26\u53F7 ${accountId}: ${accountTasks.length} \u6761\u4EFB\u52A1 ---`);
+      accountIndex++;
+      log38.info(`[SyncEngine] [v352] --- \u5904\u7406\u8D26\u53F7 [${accountIndex}/${totalAccountGroups}] ${accountId}: ${accountTasks.length} \u6761\u4EFB\u52A1 ---`);
       const typeGroups = /* @__PURE__ */ new Map();
       for (const task of accountTasks) {
         const type = task.task_type;
         if (!typeGroups.has(type)) typeGroups.set(type, []);
         typeGroups.get(type).push(task);
       }
+      let typeIndex = 0;
+      const totalTypes = typeGroups.size;
       for (const [taskType, typeTasks] of typeGroups) {
-        log38.info(`[SyncEngine] \u5904\u7406 ${taskType}: ${typeTasks.length} \u6761`);
+        typeIndex++;
+        log38.info(`[SyncEngine] [v352] \u5904\u7406 ${taskType} [${typeIndex}/${totalTypes}]: ${typeTasks.length} \u6761`);
         try {
           const typeResult = await syncTasksByType(conn, accountId, taskType, typeTasks, options?.dryRun);
           result.synced += typeResult.synced;
@@ -85227,6 +85263,14 @@ async function executeBatchSync(options) {
           await markTasksFailed(conn, taskIds, err2.message);
           result.failed += typeTasks.length;
         }
+        if (typeIndex < totalTypes) {
+          log38.debug(`[SyncEngine] [v352] \u4EFB\u52A1\u7C7B\u578B\u95F4\u5EF6\u8FDF ${TYPE_SYNC_DELAY_MS}ms`);
+          await new Promise((resolve8) => setTimeout(resolve8, TYPE_SYNC_DELAY_MS));
+        }
+      }
+      if (accountIndex < totalAccountGroups) {
+        log38.info(`[SyncEngine] [v352] \u8D26\u53F7\u95F4\u5EF6\u8FDF ${ACCOUNT_SYNC_DELAY_MS}ms`);
+        await new Promise((resolve8) => setTimeout(resolve8, ACCOUNT_SYNC_DELAY_MS));
       }
     }
     if (options?.batchId) {
@@ -122295,7 +122339,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 351;
+    SYSTEM_VERSION = 352;
   }
 });
 
@@ -131369,6 +131413,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 352,
+        description: "v352: [\u6570\u636E\u540C\u6B65\u67B6\u6784\u91CD\u6784 - \u7CBE\u7EC6\u5316\u5206\u8D26\u6237/\u5206\u5E7F\u544A\u7C7B\u578B/\u5206\u6B65\u9AA4\u4E32\u884C\u5316] \u2014 (1)P0-\u62A5\u544A\u8BF7\u6C42\u4E32\u884C\u5316: SP\u2192SB\u2192SD\u4ECE\u5E76\u884CPromise.all\u6539\u4E3A\u4E32\u884C\u6267\u884C,\u6BCF\u79CD\u5E7F\u544A\u7C7B\u578B\u95F4\u52A03\u79D2\u5EF6\u8FDF,\u5927\u5E45\u964D\u4F4EAPI\u9650\u6D41\u98CE\u9669 (2)P0-\u667A\u80FD\u8D26\u6237\u4EA4\u9519\u6392\u5E8F: \u540C\u4E00\u54C1\u724C(userId)\u4E0D\u540C\u7AD9\u70B9\u8D26\u6237\u5206\u6563\u5230\u4E0D\u540C\u6279\u6B21,\u907F\u514D\u5171\u4EABAPI\u51ED\u8BC1\u7684\u8D26\u6237\u540C\u65F6\u53D1\u8D77\u8BF7\u6C42 (3)P0-\u8D26\u6237\u95F4\u4E32\u884C+5\u79D2\u5EF6\u8FDF: \u66FF\u4EE3\u65E7\u7684\u5E76\u884C\u6279\u6B21\u6267\u884C,\u786E\u4FDD\u5355\u4E2A\u8D26\u6237\u5B8C\u6210\u540E\u518D\u5F00\u59CB\u4E0B\u4E00\u4E2A (4)P1-\u5E76\u53D1\u63A7\u5236\u964D\u7EA7: MAX_CONCURRENT_ACCOUNTS\u4ECE3\u964D\u4E3A2 (5)P1-\u4F18\u5316\u6307\u4EE4\u540C\u6B65\u589E\u5F3A: \u8D26\u53F7\u95F43\u79D2\u5EF6\u8FDF+\u4EFB\u52A1\u7C7B\u578B\u95F41\u79D2\u5EF6\u8FDF (6)P1-syncAll\u6B65\u9AA4\u95F41\u79D2\u5EF6\u8FDF: \u964D\u4F4EAPI\u8C03\u7528\u5BC6\u5EA6",
+        affectedModules: ["sync", "optimization"],
+        correctionActions: ["resync_data"]
       },
       {
         version: 351,
@@ -357916,21 +357966,25 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(startDateS
     }
     return null;
   };
-  const [spData, sbData, sdData] = await Promise.all([
-    retryReport("SP", "SP", (start, end) => this.client.requestSpCampaignReport(start, end)),
-    retryReport("SB", "SB", (start, end) => this.client.requestSbCampaignReport(start, end)),
-    retryReport("SD", "SD", (start, end) => this.client.requestSdCampaignReport(start, end))
-  ]);
+  const AD_TYPE_DELAY_MS = 3e3;
+  log118.info(`[v352] \u5F00\u59CB\u4E32\u884C\u8BF7\u6C42\u62A5\u544A: SP\u2192SB\u2192SD (\u7C7B\u578B\u95F4\u5EF6\u8FDF${AD_TYPE_DELAY_MS}ms)`);
+  const spData = await retryReport("SP", "SP", (start, end) => this.client.requestSpCampaignReport(start, end));
   if (spData && spData.length > 0) {
     totalSynced += await this.processReportData(db, spData, "SP");
   }
+  log118.info(`[v352] SP\u62A5\u544A\u5B8C\u6210: ${spData?.length || 0}\u6761, \u7B49\u5F85${AD_TYPE_DELAY_MS}ms\u540E\u8BF7\u6C42SB...`);
+  await new Promise((resolve8) => setTimeout(resolve8, AD_TYPE_DELAY_MS));
+  const sbData = await retryReport("SB", "SB", (start, end) => this.client.requestSbCampaignReport(start, end));
   if (sbData && sbData.length > 0) {
     totalSynced += await this.processReportData(db, sbData, "SB");
   }
+  log118.info(`[v352] SB\u62A5\u544A\u5B8C\u6210: ${sbData?.length || 0}\u6761, \u7B49\u5F85${AD_TYPE_DELAY_MS}ms\u540E\u8BF7\u6C42SD...`);
+  await new Promise((resolve8) => setTimeout(resolve8, AD_TYPE_DELAY_MS));
+  const sdData = await retryReport("SD", "SD", (start, end) => this.client.requestSdCampaignReport(start, end));
   if (sdData && sdData.length > 0) {
     totalSynced += await this.processReportData(db, sdData, "SD");
   }
-  log118.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: SP=${spData?.length || 0}, SB=${sbData?.length || 0}, SD=${sdData?.length || 0}, \u603B\u5165\u5E93=${totalSynced}`);
+  log118.info(`[v352] \u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210(\u4E32\u884C\u6A21\u5F0F): SP=${spData?.length || 0}, SB=${sbData?.length || 0}, SD=${sdData?.length || 0}, \u603B\u5165\u5E93=${totalSynced}`);
   return totalSynced;
 };
 AmazonSyncService.prototype.processReportData = async function(db, reportData, adType) {
