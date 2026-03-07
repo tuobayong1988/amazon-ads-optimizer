@@ -1290,7 +1290,7 @@ export async function syncAccount(
             stepResults: Object.entries(result.stepResults).map(([id, r]) => ({ id, success: r.success, synced: r.synced })),
           });
           await database.execute(sql`
-            INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+            INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
             VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
           `);
         }

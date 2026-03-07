@@ -278,8 +278,8 @@ async function persistShutdownState(): Promise<void> {
       const syncResetResult = await database.execute(sql`
         UPDATE data_sync_jobs 
         SET status = 'failed', 
-            completed_at = NOW(),
-            error_message = CONCAT(COALESCE(error_message, ''), ' [', ${syncResetNote}, ']')
+            completedAt = NOW(),
+            errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
         WHERE status = 'running'
       `);
       const syncAffected = (syncResetResult as any)?.[0]?.affectedRows || 0;
@@ -293,8 +293,8 @@ async function persistShutdownState(): Promise<void> {
       const syncCancelResult = await database.execute(sql`
         UPDATE data_sync_jobs 
         SET status = 'cancelled', 
-            completed_at = NOW(),
-            error_message = CONCAT(COALESCE(error_message, ''), ' [', ${syncResetNote}, ']')
+            completedAt = NOW(),
+            errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
         WHERE status = 'pending'
       `);
       const syncCancelled = (syncCancelResult as any)?.[0]?.affectedRows || 0;
@@ -679,11 +679,12 @@ export async function orchestrateStartup(server: any): Promise<void> {
     const database = await getDb();
     if (database) {
       // 3.5a: 清理所有卡死的running任务（部署中断导致）
+      const staleCleanNote = `v${SYSTEM_VERSION}-startup: cleaned stale running job`;
       const staleResult = await database.execute(sql`
         UPDATE data_sync_jobs 
         SET status = 'failed', 
-            completed_at = NOW(),
-            error_message = CONCAT(COALESCE(error_message, ''), ' [v${SYSTEM_VERSION}-startup: cleaned stale running job]')
+            completedAt = NOW(),
+            errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${staleCleanNote}, ']')
         WHERE status = 'running'
       `);
       const staleCleaned = (staleResult as any)?.[0]?.affectedRows || 0;
@@ -693,10 +694,10 @@ export async function orchestrateStartup(server: any): Promise<void> {
       
       // 3.5b: 检查最后成功同步时间，如果超过2小时未同步则记录告警
       const lastSyncResult = await database.execute(sql`
-        SELECT account_id, MAX(completed_at) as last_sync 
+        SELECT accountId as account_id, MAX(completedAt) as last_sync 
         FROM data_sync_jobs 
         WHERE status = 'completed' 
-        GROUP BY account_id
+        GROUP BY accountId
       `);
       const lastSyncs = (lastSyncResult as any)?.[0] || [];
       const now = Date.now();

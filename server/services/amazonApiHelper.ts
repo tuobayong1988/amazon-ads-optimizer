@@ -240,7 +240,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (dbInstance) {
         const { sql } = await import('drizzle-orm');
         await dbInstance.execute(sql`
-          INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+          INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
           VALUES (
             ${accountId},
             ${'AUTH_FAILURE_SYNC'},

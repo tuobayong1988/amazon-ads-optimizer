@@ -628,11 +628,11 @@ export async function getScheduleHistory(scheduleId: number, limit: number = 20)
   if (!db) return [];
   
   const result = await db.execute(sql`
-    SELECT j.id, j.status, j.records_synced as recordsSynced, j.error_message as errorMessage, j.started_at as startedAt, j.completed_at as completedAt, j.created_at as createdAt
+    SELECT j.id, j.status, j.recordsSynced, j.errorMessage, j.startedAt, j.completedAt, j.createdAt
     FROM data_sync_jobs j
-    INNER JOIN sync_schedules s ON j.account_id = s.account_id AND j.user_id = s.user_id
+    INNER JOIN sync_schedules s ON j.accountId = s.account_id AND j.userId = s.user_id
     WHERE s.id = ${scheduleId}
-    ORDER BY j.created_at DESC
+    ORDER BY j.createdAt DESC
     LIMIT ${limit}
   `);
   
@@ -683,19 +683,19 @@ export async function getScheduleExecutionHistory(
         j.id as jobId,
         j.status,
         COALESCE(j.retry_count, 0) as retryCount,
-        j.error_message as errorMessage,
-        j.started_at as startedAt,
-        j.completed_at as completedAt,
-        COALESCE(j.records_synced, 0) as recordsSynced,
+        j.errorMessage,
+        j.startedAt,
+        j.completedAt,
+        COALESCE(j.recordsSynced, 0) as recordsSynced,
         CASE 
-          WHEN j.completed_at IS NOT NULL AND j.started_at IS NOT NULL 
-          THEN TIMESTAMPDIFF(SECOND, j.started_at, j.completed_at)
+          WHEN j.completedAt IS NOT NULL AND j.startedAt IS NOT NULL 
+          THEN TIMESTAMPDIFF(SECOND, j.startedAt, j.completedAt)
           ELSE NULL 
         END as duration
       FROM data_sync_jobs j
-      INNER JOIN sync_schedules s ON j.account_id = s.account_id
+      INNER JOIN sync_schedules s ON j.accountId = s.account_id
       WHERE s.id = ${scheduleId}
-      ORDER BY j.created_at DESC
+      ORDER BY j.createdAt DESC
       LIMIT ${limit}
     `);
 
@@ -884,14 +884,14 @@ export async function getScheduleExecutionStats(scheduleId: number): Promise<{
         SUM(CASE WHEN j.status = 'completed' THEN 1 ELSE 0 END) as successCount,
         SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END) as failureCount,
         AVG(CASE 
-          WHEN j.completed_at IS NOT NULL AND j.started_at IS NOT NULL 
-          THEN TIMESTAMPDIFF(SECOND, j.started_at, j.completed_at)
+          WHEN j.completedAt IS NOT NULL AND j.startedAt IS NOT NULL 
+          THEN TIMESTAMPDIFF(SECOND, j.startedAt, j.completedAt)
           ELSE NULL 
         END) as avgDuration,
-        MAX(CASE WHEN j.status = 'completed' THEN j.completed_at ELSE NULL END) as lastSuccessAt,
-        MAX(CASE WHEN j.status = 'failed' THEN j.completed_at ELSE NULL END) as lastFailureAt
+        MAX(CASE WHEN j.status = 'completed' THEN j.completedAt ELSE NULL END) as lastSuccessAt,
+        MAX(CASE WHEN j.status = 'failed' THEN j.completedAt ELSE NULL END) as lastFailureAt
       FROM data_sync_jobs j
-      INNER JOIN sync_schedules s ON j.account_id = s.account_id
+      INNER JOIN sync_schedules s ON j.accountId = s.account_id
       WHERE s.id = ${scheduleId}
     `);
 

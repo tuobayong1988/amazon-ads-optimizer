@@ -2164,10 +2164,10 @@ async function verifySyncHealth(): Promise<void> {
     
     // 检查最近的dataSyncJobs状态
     const recentJobs = await database.execute(sql`
-      SELECT account_id, status, sync_type, completed_at, error_message
+      SELECT accountId as account_id, status, syncType as sync_type, completedAt as completed_at, errorMessage as error_message
       FROM data_sync_jobs 
-      WHERE created_at > DATE_SUB(NOW(), INTERVAL 2 HOUR)
-      ORDER BY created_at DESC
+      WHERE createdAt > DATE_SUB(NOW(), INTERVAL 2 HOUR)
+      ORDER BY createdAt DESC
       LIMIT 20
     `);
     
