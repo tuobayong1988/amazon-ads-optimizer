@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, datetime, date, decimal, varchar, text, mysqlEnum, timestamp, json, time, foreignKey, tinyint } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, unique, int, datetime, date, decimal, varchar, text, mysqlEnum, timestamp, json, time, foreignKey, tinyint } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignments", {
@@ -1800,7 +1800,10 @@ export const hourlyPerformance = mysqlTable("hourly_performance", {
 	treatmentType: mysqlEnum("treatment_type", ['treatment', 'control', 'organic']).default('treatment'),
 	estimatedCompetition: decimal("estimated_competition", { precision: 5, scale: 4 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	unique('uk_hourly_perf').on(table.accountId, table.campaignId, table.date, table.hour),
+]));
 
 export const hourpartingBidRules = mysqlTable("hourparting_bid_rules", {
 	id: int().autoincrement().notNull(),
@@ -2241,7 +2244,10 @@ export const placementPerformance = mysqlTable("placement_performance", {
 	roas: decimal({ precision: 10, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+},
+(table) => ([
+	unique('uk_placement_perf').on(table.campaignId, table.accountId, table.placement, table.date),
+]));
 
 export const placementSettings = mysqlTable("placement_settings", {
 	id: int().autoincrement().notNull(),

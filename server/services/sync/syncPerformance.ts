@@ -978,7 +978,20 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         });
         
         if (batch.length >= 500) {
-          await db.insert(hourlyPerformance).values(batch);
+          await db.insert(hourlyPerformance).values(batch).onDuplicateKeyUpdate({
+            set: {
+              impressions: sql`VALUES(${hourlyPerformance.impressions})`,
+              clicks: sql`VALUES(${hourlyPerformance.clicks})`,
+              spend: sql`VALUES(${hourlyPerformance.spend})`,
+              sales: sql`VALUES(${hourlyPerformance.sales})`,
+              orders: sql`VALUES(${hourlyPerformance.orders})`,
+              hourlyAcos: sql`VALUES(${hourlyPerformance.hourlyAcos})`,
+              hourlyRoas: sql`VALUES(${hourlyPerformance.hourlyRoas})`,
+              hourlyCtr: sql`VALUES(${hourlyPerformance.hourlyCtr})`,
+              hourlyCvr: sql`VALUES(${hourlyPerformance.hourlyCvr})`,
+              hourlyCpc: sql`VALUES(${hourlyPerformance.hourlyCpc})`,
+            }
+          });
           insertedCount += batch.length;
           batch = [];
         }
@@ -986,7 +999,20 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     }
     
     if (batch.length > 0) {
-      await db.insert(hourlyPerformance).values(batch);
+      await db.insert(hourlyPerformance).values(batch).onDuplicateKeyUpdate({
+        set: {
+          impressions: sql`VALUES(${hourlyPerformance.impressions})`,
+          clicks: sql`VALUES(${hourlyPerformance.clicks})`,
+          spend: sql`VALUES(${hourlyPerformance.spend})`,
+          sales: sql`VALUES(${hourlyPerformance.sales})`,
+          orders: sql`VALUES(${hourlyPerformance.orders})`,
+          hourlyAcos: sql`VALUES(${hourlyPerformance.hourlyAcos})`,
+          hourlyRoas: sql`VALUES(${hourlyPerformance.hourlyRoas})`,
+          hourlyCtr: sql`VALUES(${hourlyPerformance.hourlyCtr})`,
+          hourlyCvr: sql`VALUES(${hourlyPerformance.hourlyCvr})`,
+          hourlyCpc: sql`VALUES(${hourlyPerformance.hourlyCpc})`,
+        }
+      });
       insertedCount += batch.length;
     }
     
@@ -1387,17 +1413,26 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
-      if (existing) {
-        await db
-          .update(placementPerformance)
-          .set(perfData)
-          .where(eq(placementPerformance.id, existing.id));
-      } else {
-        await db.insert(placementPerformance).values({
-          ...perfData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
-      }
+      // v356: 使用UPSERT策略（ON DUPLICATE KEY UPDATE）替代existing检查+INSERT/UPDATE
+      // 依赖唯一约束 uk_placement_perf(campaignId, accountId, placement, date) 防止重复
+      await db.insert(placementPerformance).values({
+        ...perfData,
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      }).onDuplicateKeyUpdate({
+        set: {
+          impressions: perfData.impressions,
+          clicks: perfData.clicks,
+          spend: perfData.spend,
+          sales: perfData.sales,
+          orders: perfData.orders,
+          ctr: perfData.ctr,
+          cpc: perfData.cpc,
+          cvr: perfData.cvr,
+          acos: perfData.acos,
+          roas: perfData.roas,
+          updatedAt: perfData.updatedAt,
+        }
+      });
       synced++;
     }
 
