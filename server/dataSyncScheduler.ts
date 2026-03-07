@@ -1825,6 +1825,17 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           for (const r of daypartingResults) {
             log.debug(`  - ${r.targetName}: 分时调整=${r.daypartingOptimization.adjustmentsCount}`);
           }
+          // v351: 修复遗漏 — dayparting使用executeAllEnabledTargets但未记录模块执行时间
+          // 导致module_execution_times中dayparting停留在2月28日，其他模块正常更新
+          for (const r of daypartingResults) {
+            if (r.status !== 'failed') {
+              try {
+                await recordModuleExecution(r.targetId, 'dayparting');
+              } catch (recErr: any) {
+                log.warn(`[OptimizationScheduler] v351: recordModuleExecution(dayparting)失败: ${recErr.message}`);
+              }
+            }
+          }
         } catch (daypartingError: any) {
           log.error(`[OptimizationScheduler] 分时竞价调整失败:`, daypartingError.message);
         }

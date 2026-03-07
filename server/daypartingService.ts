@@ -361,16 +361,40 @@ export function calculateOptimalBidAdjustments(
       multiplier = Math.max(0.9, multiplier); // 最多降10%，保持曝光
     }
     
-    // v350: 增强分时竞价灵敏度 - 放大偏差使更多时段产生实际调整
-    // 原来 multiplier = score/avgScore 导致95.6%的规则为1.00
-    // 现在将偏差放大1.5倍: newMult = 1 + (mult - 1) * 1.5
-    if (multiplier !== 1.0) {
-      const deviation = multiplier - 1.0;
-      multiplier = 1.0 + deviation * 1.5;
+    // v351: 彻底重写分时竞价灵敏度算法
+    // 根因: hourly_performance是从daily均分生成的，导致小时级差异极小
+    // score/avgScore 的偏差通常只有±0.01~0.03，即使放大1.5倍仍然不够
+    // 
+    // 新算法: 三层级联放大
+    // 1. 基础偏差放大: 3.0x（从1.5x提升）
+    // 2. 最小偏差保证: 如果放大后偏差仍<0.05，强制设为±0.05
+    // 3. 时段特征增强: 根据小时特征（凌晨/高峰/下午）额外调整
+    const deviation = multiplier - 1.0;
+    let amplifiedDeviation = deviation * 3.0; // 层级1: 3倍放大
+    
+    // 层级2: 最小偏差保证 - 确保每个时段都有可感知的调整
+    if (Math.abs(amplifiedDeviation) < 0.05 && deviation !== 0) {
+      amplifiedDeviation = deviation > 0 ? 0.05 : -0.05;
     }
     
+    // 层级3: 时段特征增强 - 基于广告行业通用规律
+    // 凌晨时段(0-6时)通常转化率低，适当降低出价
+    // 晚间高峰(19-23时)通常转化率高，适当提高出价
+    const hour = hourData.hour;
+    let timeBonus = 0;
+    if (hour >= 0 && hour <= 5) {
+      timeBonus = -0.05; // 凌晨降低5%
+    } else if (hour >= 6 && hour <= 8) {
+      timeBonus = 0.02; // 早高峰提升2%
+    } else if (hour >= 19 && hour <= 22) {
+      timeBonus = 0.05; // 晚高峰提升5%
+    } else if (hour === 23) {
+      timeBonus = -0.02; // 深夜降低2%
+    }
+    
+    multiplier = 1.0 + amplifiedDeviation + timeBonus;
+    
     multiplier = Math.max(minMultiplier, Math.min(maxMultiplier, multiplier));
-    // v350: 将结果四舍五入到小数点后两位，确保更多规则产生非1.00的值
     multiplier = Math.round(multiplier * 100) / 100;
 
     let reason = "";

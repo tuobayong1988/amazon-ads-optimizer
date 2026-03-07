@@ -444,26 +444,26 @@ export async function syncNewKeywordsToAmazon(
             errorDetail.toLowerCase().includes('not eligible') ||
             errorDetail.toLowerCase().includes('duplicate')
           );
-          if (isPermanentError && original.localKeywordId) {
+          // v351: 移除localKeywordId前提条件，确保所有永久性失败都被标记
+          // 原来的问题: localKeywordId在搜索词收割场景中经常为空，导致239/276个失败未被标记
+          if (isPermanentError) {
             try {
               const dbInstance = await db.getDb();
               if (dbInstance) {
                 const { sql: sqlTag } = await import('drizzle-orm');
-                // 将该关键词在optimization_logs中的最新记录标记为permanently_failed
+                // 将该关键词在optimization_logs中的所有failed记录标记为permanently_failed
                 await dbInstance.execute(sqlTag`
                   UPDATE optimization_logs 
                   SET api_sync_status = 'permanently_failed',
-                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: 'v310-fix: Amazon永久性拒绝' })}
+                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: 'v351: Amazon永久性拒绝' })}
                   WHERE action_type = 'keyword_create'
                     AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')) = ${original.keywordText}
                     AND api_sync_status = 'failed'
-                  ORDER BY created_at DESC
-                  LIMIT 1
                 `);
-                log.warn(`[AmazonApiHelper] v310-fix: 关键词"${original.keywordText}"已标记为永久失败 (${errorCode})`);
+                log.warn(`[AmazonApiHelper] v351: 关键词"${original.keywordText}"已标记为永久失败 (${errorCode})`);
               }
             } catch (markErr: any) {
-              log.error(`[AmazonApiHelper] v310-fix: 标记永久失败异常: ${markErr.message}`);
+              log.error(`[AmazonApiHelper] v351: 标记永久失败异常: ${markErr.message}`);
             }
           }
         }

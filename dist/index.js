@@ -62903,7 +62903,7 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
           log16.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           const isPermanentError = errorCode === "INVALID_VALUE" || errorCode === "INVALID_ARGUMENT" || errorCode === "ERROR" || // v350: Amazon通用拒绝码，通常为品牌词/受限词
           errorDetail.toLowerCase().includes("trademark") || errorDetail.toLowerCase().includes("brand") || errorDetail.toLowerCase().includes("restricted") || errorDetail.toLowerCase().includes("not eligible") || errorDetail.toLowerCase().includes("duplicate");
-          if (isPermanentError && original.localKeywordId) {
+          if (isPermanentError) {
             try {
               const dbInstance = await getDb();
               if (dbInstance) {
@@ -62911,17 +62911,15 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
                 await dbInstance.execute(sqlTag`
                   UPDATE optimization_logs 
                   SET api_sync_status = 'permanently_failed',
-                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: "v310-fix: Amazon\u6C38\u4E45\u6027\u62D2\u7EDD" })}
+                      api_sync_detail = ${JSON.stringify({ code: errorCode, detail: errorDetail, reason: "v351: Amazon\u6C38\u4E45\u6027\u62D2\u7EDD" })}
                   WHERE action_type = 'keyword_create'
                     AND JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.searchTerm')) = ${original.keywordText}
                     AND api_sync_status = 'failed'
-                  ORDER BY created_at DESC
-                  LIMIT 1
                 `);
-                log16.warn(`[AmazonApiHelper] v310-fix: \u5173\u952E\u8BCD"${original.keywordText}"\u5DF2\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25 (${errorCode})`);
+                log16.warn(`[AmazonApiHelper] v351: \u5173\u952E\u8BCD"${original.keywordText}"\u5DF2\u6807\u8BB0\u4E3A\u6C38\u4E45\u5931\u8D25 (${errorCode})`);
               }
             } catch (markErr) {
-              log16.error(`[AmazonApiHelper] v310-fix: \u6807\u8BB0\u6C38\u4E45\u5931\u8D25\u5F02\u5E38: ${markErr.message}`);
+              log16.error(`[AmazonApiHelper] v351: \u6807\u8BB0\u6C38\u4E45\u5931\u8D25\u5F02\u5E38: ${markErr.message}`);
             }
           }
         }
@@ -86305,10 +86303,23 @@ function calculateOptimalBidAdjustments(hourlyData, options = { optimizationGoal
     if (isHighTrafficLowConversion && multiplier < 1) {
       multiplier = Math.max(0.9, multiplier);
     }
-    if (multiplier !== 1) {
-      const deviation = multiplier - 1;
-      multiplier = 1 + deviation * 1.5;
+    const deviation = multiplier - 1;
+    let amplifiedDeviation = deviation * 3;
+    if (Math.abs(amplifiedDeviation) < 0.05 && deviation !== 0) {
+      amplifiedDeviation = deviation > 0 ? 0.05 : -0.05;
     }
+    const hour2 = hourData.hour;
+    let timeBonus = 0;
+    if (hour2 >= 0 && hour2 <= 5) {
+      timeBonus = -0.05;
+    } else if (hour2 >= 6 && hour2 <= 8) {
+      timeBonus = 0.02;
+    } else if (hour2 >= 19 && hour2 <= 22) {
+      timeBonus = 0.05;
+    } else if (hour2 === 23) {
+      timeBonus = -0.02;
+    }
+    multiplier = 1 + amplifiedDeviation + timeBonus;
     multiplier = Math.max(minMultiplier, Math.min(maxMultiplier, multiplier));
     multiplier = Math.round(multiplier * 100) / 100;
     let reason = "";
@@ -92995,6 +93006,37 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
         dpDiag.noStrategy++;
         continue;
       }
+      try {
+        const lastAnalyzed = strategy.lastAnalyzedAt ? new Date(strategy.lastAnalyzedAt).getTime() : 0;
+        const hoursSinceLastAnalysis = (Date.now() - lastAnalyzed) / (1e3 * 60 * 60);
+        if (hoursSinceLastAnalysis >= 24) {
+          const hourlyData = await analyzeHourlyPerformance(Number(campaignAmazonId), 30);
+          if (hourlyData.length > 0) {
+            const bidAdjustments = calculateOptimalBidAdjustments(hourlyData, {
+              optimizationGoal: config2.optimizationGoal,
+              targetAcos: config2.targetAcos,
+              targetRoas: config2.targetRoas
+            });
+            await saveBidRules(strategy.id, bidAdjustments.map((rule2) => ({
+              dayOfWeek: rule2.dayOfWeek,
+              hour: rule2.hour,
+              bidMultiplier: rule2.bidMultiplier.toString(),
+              avgClicks: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgClicks?.toString(),
+              avgSpend: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgSpend?.toString(),
+              avgSales: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgSales?.toString(),
+              avgCvr: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgCvr?.toString(),
+              avgCpc: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgCpc?.toString(),
+              avgAcos: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.avgAcos?.toString(),
+              dataPoints: hourlyData.find((h6) => h6.dayOfWeek === rule2.dayOfWeek && h6.hour === rule2.hour)?.dataPoints || 0,
+              isEnabled: 1
+            })));
+            await updateDaypartingStrategy(strategy.id, { lastAnalyzedAt: (/* @__PURE__ */ new Date()).toISOString() });
+            log50.info(`[DaypartingOptimization] v351: \u91CD\u65B0\u8BA1\u7B97\u5206\u65F6\u89C4\u5219 strategyId=${strategy.id}, \u4E0A\u6B21\u5206\u6790=${hoursSinceLastAnalysis.toFixed(0)}h\u524D`);
+          }
+        }
+      } catch (recalcErr) {
+        log50.warn(`[DaypartingOptimization] v351: \u91CD\u65B0\u8BA1\u7B97\u5206\u65F6\u89C4\u5219\u5931\u8D25: ${recalcErr.message}`);
+      }
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) {
         dpDiag.noHourlyRule++;
@@ -93070,7 +93112,9 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
           // v335: 添加算法标识
           apiSyncStatus: dryRun ? "pending" : "pending"
         };
-        if (Math.abs(adjustedBid - baseBid) <= 0.01) {
+        const bidDiff = Math.abs(adjustedBid - baseBid);
+        const bidDiffPct = baseBid > 0 ? bidDiff / baseBid : 0;
+        if (bidDiff < 5e-3 && bidDiffPct < 0.02) {
           continue;
         }
         details.push(adjustment);
@@ -93734,6 +93778,10 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             negativeKeywordsAdded++;
           }
         } else if (decision.action === "CREATE_KEYWORD") {
+          if (v2CampaignType === "sb" || v2CampaignType === "sd") {
+            log50.info(`[SearchTermAnalysis] v351: ${v2CampaignType.toUpperCase()}\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301\u901A\u8FC7API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            continue;
+          }
           if (isProductTargetingCamp) {
             log50.info(`[SearchTermAnalysis] v2: PT campaign\u4E0D\u652F\u6301\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
             continue;
@@ -122247,7 +122295,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 349;
+    SYSTEM_VERSION = 351;
   }
 });
 
@@ -122999,6 +123047,15 @@ async function executeOptimizationTask(taskType) {
           log55.info(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
           for (const r5 of daypartingResults) {
             log55.debug(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
+          }
+          for (const r5 of daypartingResults) {
+            if (r5.status !== "failed") {
+              try {
+                await recordModuleExecution(r5.targetId, "dayparting");
+              } catch (recErr) {
+                log55.warn(`[OptimizationScheduler] v351: recordModuleExecution(dayparting)\u5931\u8D25: ${recErr.message}`);
+              }
+            }
           }
         } catch (daypartingError) {
           log55.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
@@ -131312,6 +131369,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 351,
+        description: "v351: [P1\u5206\u65F6\u7ADE\u4EF7\u7075\u654F\u5EA6\u91CD\u5199 + bidding_logs\u4FEE\u590D + \u6C38\u4E45\u5931\u8D25\u6807\u8BB0\u589E\u5F3A + SB/SD\u6570\u636E\u4FDD\u7559\u671F\u5904\u7406] \u2014 (1)P1-\u5206\u65F6\u7ADE\u4EF7\u7B97\u6CD5\u7075\u654F\u5EA6\u5F7B\u5E95\u91CD\u5199: \u4E09\u5C42\u7EA7\u8054\u653E\u5927(3x\u504F\u5DEE\u653E\u5927+\u6700\u5C0F\u504F\u5DEE\u4FDD\u8BC1\xB10.05+\u65F6\u6BB5\u7279\u5F81\u589E\u5F3A),\u89E3\u51B395.6%\u89C4\u5219\u4E3A1.00\u7684\u6839\u56E0 (2)P1-\u5206\u65F6\u89C4\u521924h\u81EA\u52A8\u91CD\u7B97: \u66FF\u6362\u65E7\u7B97\u6CD5\u751F\u6210\u7684\u65E0\u6548\u89C4\u5219 (3)P1-\u5206\u65F6\u6267\u884C\u9608\u503C\u964D\u4F4E: $0.01\u2192$0.005+2%\u53CC\u91CD\u5224\u65AD (4)P1-dayparting recordModuleExecution\u4FEE\u590D: dayparting_adjustment\u4F7F\u7528executeAllEnabledTargets\u4F46\u9057\u6F0FrecordModuleExecution\u8C03\u7528 (5)P1-bidding_logs\u539F\u751FSQL\u5217\u540D\u4FEE\u590D: snake_case\u2192camelCase\u5339\u914DDrizzle schema (6)P1-SB/SD\u5173\u952E\u8BCD\u521B\u5EFA\u8FC7\u6EE4: \u963B\u6B62\u5BF9SB/SD\u5E7F\u544A\u6D3B\u52A8\u7684\u65E0\u6548API\u8C03\u7528 (7)P1-permanently_failed\u6807\u8BB0\u589E\u5F3A: \u79FB\u9664localKeywordId\u524D\u63D0\u6761\u4EF6,\u8986\u76D6\u6240\u6709\u5931\u8D25\u8BB0\u5F55 (8)P1-SB/SD\u6570\u636E\u4FDD\u7559\u671F\u81EA\u52A8\u5904\u7406: startDate\u81EA\u52A8clamp\u5230\u4FDD\u7559\u671F\u8303\u56F4\u5185 (9)P2-placement\u8BCA\u65AD\u65E5\u5FD7\u589E\u5F3A",
+        affectedModules: ["dayparting", "bid", "sync", "optimization"],
+        correctionActions: ["reset_dayparting_rules", "rerun_optimization"]
       },
       {
         version: 349,
@@ -357794,23 +357857,59 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(startDateS
   const db = await getDb();
   if (!db) return 0;
   let totalSynced = 0;
-  const retryReport = async (name2, requestFn, maxRetries = 3) => {
+  const clampStartDateForRetention = (adType, originalStartDate) => {
+    const now = /* @__PURE__ */ new Date();
+    const retentionDays = {
+      "SP": 90,
+      // SP支持95天，留5天缓冲
+      "SB": 55,
+      // SB保留约60天，留5天缓冲
+      "SD": 58
+      // SD保留约65天，留7天缓冲
+    };
+    const maxDays = retentionDays[adType] || 90;
+    const safeStartDate = new Date(now.getTime() - maxDays * 24 * 60 * 60 * 1e3);
+    const safeStartStr = safeStartDate.toISOString().split("T")[0];
+    if (originalStartDate < safeStartStr) {
+      log118.info(`[v351] [${adType}] startDate ${originalStartDate} \u8D85\u51FA\u6570\u636E\u4FDD\u7559\u671F\uFF0C\u81EA\u52A8\u8C03\u6574\u4E3A ${safeStartStr}`);
+      return safeStartStr;
+    }
+    return originalStartDate;
+  };
+  const retryReport = async (name2, adType, requestFn, maxRetries = 3) => {
+    let effectiveStartDate = clampStartDateForRetention(adType, startDateStr);
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        log118.info(`[${name2}] \u8BF7\u6C42\u62A5\u544A (\u5C1D\u8BD5${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
-        const reportId = await requestFn();
+        log118.info(`[${name2}] \u8BF7\u6C42\u62A5\u544A (\u5C1D\u8BD5${attempt}/${maxRetries}): ${effectiveStartDate} - ${endDateStr}`);
+        const reportId = await requestFn(effectiveStartDate, endDateStr);
         log118.info(`[${name2}] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
         const data2 = await this.client.waitAndDownloadReport(reportId, 9e5);
         log118.info(`[${name2}] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${data2?.length || 0}`);
         return data2;
       } catch (err2) {
-        const isRetryable = !err2.message?.includes("401") && !err2.message?.includes("403") && !err2.message?.includes("not enabled");
+        const errMsg = err2.message || "";
+        const errData = err2.response?.data;
+        const errDetail = typeof errData === "string" ? errData : JSON.stringify(errData || "");
+        const retentionMatch = errDetail.match(/retention start date \((\d{4}-\d{2}-\d{2})\)/);
+        if (retentionMatch) {
+          const retentionStartDate = retentionMatch[1];
+          log118.warn(`[v351] [${name2}] Amazon\u6570\u636E\u4FDD\u7559\u671F\u8D77\u59CB\u65E5: ${retentionStartDate}\uFF0C\u81EA\u52A8\u8C03\u6574startDate`);
+          const retentionDate = new Date(retentionStartDate);
+          retentionDate.setDate(retentionDate.getDate() + 1);
+          effectiveStartDate = retentionDate.toISOString().split("T")[0];
+          if (attempt < maxRetries) {
+            log118.info(`[v351] [${name2}] \u4F7F\u7528\u8C03\u6574\u540E\u7684startDate\u91CD\u8BD5: ${effectiveStartDate} - ${endDateStr}`);
+            await new Promise((r5) => setTimeout(r5, 2e3));
+            continue;
+          }
+        }
+        const isRetryable = !errMsg.includes("401") && !errMsg.includes("403") && !errMsg.includes("not enabled");
         if (attempt < maxRetries && isRetryable) {
           const delay = attempt * 5e3;
-          log118.warn(`[${name2}] \u5C1D\u8BD5${attempt}\u5931\u8D25: ${err2.message}, ${delay / 1e3}\u79D2\u540E\u91CD\u8BD5...`);
+          log118.warn(`[${name2}] \u5C1D\u8BD5${attempt}\u5931\u8D25: ${errMsg}, ${delay / 1e3}\u79D2\u540E\u91CD\u8BD5...`);
           await new Promise((r5) => setTimeout(r5, delay));
         } else {
-          log118.error(`[${name2}] \u62A5\u544A\u540C\u6B65\u6700\u7EC8\u5931\u8D25 (${attempt}\u6B21\u5C1D\u8BD5): ${err2.message}`);
+          log118.error(`[${name2}] \u62A5\u544A\u540C\u6B65\u6700\u7EC8\u5931\u8D25 (${attempt}\u6B21\u5C1D\u8BD5): ${errMsg}`);
           return null;
         }
       }
@@ -357818,9 +357917,9 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(startDateS
     return null;
   };
   const [spData, sbData, sdData] = await Promise.all([
-    retryReport("SP", () => this.client.requestSpCampaignReport(startDateStr, endDateStr)),
-    retryReport("SB", () => this.client.requestSbCampaignReport(startDateStr, endDateStr)),
-    retryReport("SD", () => this.client.requestSdCampaignReport(startDateStr, endDateStr))
+    retryReport("SP", "SP", (start, end) => this.client.requestSpCampaignReport(start, end)),
+    retryReport("SB", "SB", (start, end) => this.client.requestSbCampaignReport(start, end)),
+    retryReport("SD", "SD", (start, end) => this.client.requestSdCampaignReport(start, end))
   ]);
   if (spData && spData.length > 0) {
     totalSynced += await this.processReportData(db, spData, "SP");
@@ -358637,6 +358736,19 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(days = 14)
       return 0;
     }
     log118.info(`v339: \u5171\u83B7\u53D6\u5230 ${reportData.length} \u6761SP\u5E7F\u544A\u4F4D\u6570\u636E\uFF08${batches}\u6279\u5408\u5E76\uFF09`);
+    if (reportData.length > 0) {
+      const sampleRow = reportData[0];
+      const allKeys = Object.keys(sampleRow);
+      const placementKeys = allKeys.filter((k5) => k5.toLowerCase().includes("placement") || k5.toLowerCase().includes("position") || k5.toLowerCase().includes("location"));
+      log118.info(`v351: SP\u5E7F\u544A\u4F4D\u62A5\u544A\u5B57\u6BB5\u8BCA\u65AD: allKeys=[${allKeys.join(",")}], placementKeys=[${placementKeys.join(",")}]`);
+      log118.info(`v351: \u7B2C\u4E00\u6761\u6570\u636Eplacement\u503C: placementClassification="${sampleRow.placementClassification}", campaignPlacement="${sampleRow.campaignPlacement}", placement="${sampleRow.placement}"`);
+      const placementDist = {};
+      for (const r5 of reportData) {
+        const raw = r5.placementClassification || r5.campaignPlacement || r5.placement || "MISSING";
+        placementDist[raw] = (placementDist[raw] || 0) + 1;
+      }
+      log118.info(`v351: placement\u503C\u5206\u5E03: ${JSON.stringify(placementDist)}`);
+    }
     let synced = 0;
     for (const row of reportData) {
       const [campaign] = await db.select().from(campaigns).where(
@@ -358950,7 +359062,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
       try {
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
-        await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
+        await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
         log119.info(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
       } catch (rawSqlError) {
         log119.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
@@ -358985,7 +359097,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(targetType, targ
       const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
       const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
       const errMsg = errorDetail.substring(0, 500);
-      await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
+      await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
     } catch (logErr) {
       log119.error(`[applyBidAdjustment] \u26A0\uFE0F \u5931\u8D25\u65E5\u5FD7\u8BB0\u5F55\u4E5F\u5931\u8D25: ${logErr.message}`);
     }

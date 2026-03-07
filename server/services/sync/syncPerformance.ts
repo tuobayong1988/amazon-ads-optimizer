@@ -155,24 +155,75 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 
   let totalSynced = 0;
 
+  // v351: 动态数据保留期处理
+  // Amazon API对不同广告类型有不同的数据保留期限：
+  // - SP: 约95天
+  // - SB: 约60天 (数据保留起始日约60天前)
+  // - SD: 约65天 (数据保留起始日约65天前)
+  // 当请求的startDate超出保留期时，API返回400错误
+  // 解决方案：为SB/SD动态计算安全的startDate，确保不超出保留期
+  const clampStartDateForRetention = (adType: string, originalStartDate: string): string => {
+    const now = new Date();
+    // 各广告类型的安全回溯天数（保留5天缓冲）
+    const retentionDays: Record<string, number> = {
+      'SP': 90,   // SP支持95天，留5天缓冲
+      'SB': 55,   // SB保留约60天，留5天缓冲
+      'SD': 58,   // SD保留约65天，留7天缓冲
+    };
+    const maxDays = retentionDays[adType] || 90;
+    const safeStartDate = new Date(now.getTime() - maxDays * 24 * 60 * 60 * 1000);
+    const safeStartStr = safeStartDate.toISOString().split('T')[0];
+    
+    // 如果原始startDate早于安全日期，使用安全日期
+    if (originalStartDate < safeStartStr) {
+      log.info(`[v351] [${adType}] startDate ${originalStartDate} 超出数据保留期，自动调整为 ${safeStartStr}`);
+      return safeStartStr;
+    }
+    return originalStartDate;
+  };
+
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
-  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+  // v351增强: 支持动态startDate和data retention错误自动重试
+  const retryReport = async (name: string, adType: string, requestFn: (start: string, end: string) => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+    let effectiveStartDate = clampStartDateForRetention(adType, startDateStr);
+    
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
-        const reportId = await requestFn();
+        log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${effectiveStartDate} - ${endDateStr}`);
+        const reportId = await requestFn(effectiveStartDate, endDateStr);
         log.info(`[${name}] 报告请求成功, reportId: ${reportId}`);
         const data = await this.client.waitAndDownloadReport(reportId, 900000);
         log.info(`[${name}] 报告下载完成, 数据条数: ${data?.length || 0}`);
         return data;
       } catch (err: any) {
-        const isRetryable = !err.message?.includes('401') && !err.message?.includes('403') && !err.message?.includes('not enabled');
+        const errMsg = err.message || '';
+        const errData = err.response?.data;
+        const errDetail = typeof errData === 'string' ? errData : JSON.stringify(errData || '');
+        
+        // v351: 检测data retention错误并动态调整startDate
+        const retentionMatch = errDetail.match(/retention start date \((\d{4}-\d{2}-\d{2})\)/);
+        if (retentionMatch) {
+          const retentionStartDate = retentionMatch[1];
+          log.warn(`[v351] [${name}] Amazon数据保留期起始日: ${retentionStartDate}，自动调整startDate`);
+          // 使用Amazon返回的保留期起始日作为新的startDate（加1天缓冲）
+          const retentionDate = new Date(retentionStartDate);
+          retentionDate.setDate(retentionDate.getDate() + 1);
+          effectiveStartDate = retentionDate.toISOString().split('T')[0];
+          
+          if (attempt < maxRetries) {
+            log.info(`[v351] [${name}] 使用调整后的startDate重试: ${effectiveStartDate} - ${endDateStr}`);
+            await new Promise(r => setTimeout(r, 2000));
+            continue; // 立即重试，不计入常规重试延迟
+          }
+        }
+        
+        const isRetryable = !errMsg.includes('401') && !errMsg.includes('403') && !errMsg.includes('not enabled');
         if (attempt < maxRetries && isRetryable) {
           const delay = attempt * 5000; // 5s, 10s, 15s
-          log.warn(`[${name}] 尝试${attempt}失败: ${err.message}, ${delay/1000}秒后重试...`);
+          log.warn(`[${name}] 尝试${attempt}失败: ${errMsg}, ${delay/1000}秒后重试...`);
           await new Promise(r => setTimeout(r, delay));
         } else {
-          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${err.message}`);
+          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${errMsg}`);
           return null;
         }
       }
@@ -180,11 +231,11 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
     return null;
   };
 
-  // 并行请求三种报告
+  // 并行请求三种报告 (v351: 传入adType用于数据保留期处理)
   const [spData, sbData, sdData] = await Promise.all([
-    retryReport('SP', () => this.client.requestSpCampaignReport(startDateStr, endDateStr)),
-    retryReport('SB', () => this.client.requestSbCampaignReport(startDateStr, endDateStr)),
-    retryReport('SD', () => this.client.requestSdCampaignReport(startDateStr, endDateStr)),
+    retryReport('SP', 'SP', (start, end) => this.client.requestSpCampaignReport(start, end)),
+    retryReport('SB', 'SB', (start, end) => this.client.requestSbCampaignReport(start, end)),
+    retryReport('SD', 'SD', (start, end) => this.client.requestSdCampaignReport(start, end)),
   ]);
 
   // 串行处理数据（避免数据库并发冲突）
@@ -1206,6 +1257,21 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       return 0;
     }
     log.info(`v339: 共获取到 ${reportData.length} 条SP广告位数据（${batches}批合并）`);
+    // v351: 增强诊断日志 - 记录第一条数据的完整字段名和placement相关值
+    if (reportData.length > 0) {
+      const sampleRow = reportData[0];
+      const allKeys = Object.keys(sampleRow);
+      const placementKeys = allKeys.filter(k => k.toLowerCase().includes('placement') || k.toLowerCase().includes('position') || k.toLowerCase().includes('location'));
+      log.info(`v351: SP广告位报告字段诊断: allKeys=[${allKeys.join(',')}], placementKeys=[${placementKeys.join(',')}]`);
+      log.info(`v351: 第一条数据placement值: placementClassification="${sampleRow.placementClassification}", campaignPlacement="${sampleRow.campaignPlacement}", placement="${sampleRow.placement}"`);
+      // 统计各placement值的分布
+      const placementDist: Record<string, number> = {};
+      for (const r of reportData) {
+        const raw = r.placementClassification || r.campaignPlacement || r.placement || 'MISSING';
+        placementDist[raw] = (placementDist[raw] || 0) + 1;
+      }
+      log.info(`v351: placement值分布: ${JSON.stringify(placementDist)}`);
+    }
     let synced = 0;
 
     for (const row of reportData) {

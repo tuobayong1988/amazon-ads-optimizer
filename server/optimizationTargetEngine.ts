@@ -2172,6 +2172,42 @@ async function executeDaypartingOptimization(
         continue;
       }
       
+      // v351: 定期重新计算分时规则（每24小时重算一次）
+      // 解决问题: 已有的bid rules是用旧算法生成的，95.6%为1.00
+      // 重算后使用v351新算法，确保规则有意义的偏差
+      try {
+        const lastAnalyzed = strategy.lastAnalyzedAt ? new Date(strategy.lastAnalyzedAt).getTime() : 0;
+        const hoursSinceLastAnalysis = (Date.now() - lastAnalyzed) / (1000 * 60 * 60);
+        
+        if (hoursSinceLastAnalysis >= 24) {
+          const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
+          if (hourlyData.length > 0) {
+            const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
+              optimizationGoal: config.optimizationGoal as any,
+              targetAcos: config.targetAcos,
+              targetRoas: config.targetRoas,
+            });
+            await daypartingService.saveBidRules(strategy.id, bidAdjustments.map(rule => ({
+              dayOfWeek: rule.dayOfWeek,
+              hour: rule.hour,
+              bidMultiplier: rule.bidMultiplier.toString(),
+              avgClicks: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgClicks?.toString(),
+              avgSpend: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgSpend?.toString(),
+              avgSales: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgSales?.toString(),
+              avgCvr: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgCvr?.toString(),
+              avgCpc: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgCpc?.toString(),
+              avgAcos: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgAcos?.toString(),
+              dataPoints: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.dataPoints || 0,
+              isEnabled: 1,
+            })));
+            await daypartingService.updateDaypartingStrategy(strategy.id, { lastAnalyzedAt: new Date().toISOString() as any });
+            log.info(`[DaypartingOptimization] v351: 重新计算分时规则 strategyId=${strategy.id}, 上次分析=${hoursSinceLastAnalysis.toFixed(0)}h前`);
+          }
+        }
+      } catch (recalcErr: any) {
+        log.warn(`[DaypartingOptimization] v351: 重新计算分时规则失败: ${recalcErr.message}`);
+      }
+      
       // 获取当前时段的调整规则
       const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) {
@@ -2275,9 +2311,12 @@ async function executeDaypartingOptimization(
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
-        // v231: 出价不变时跳过日志记录，避免生成大量无效pending日志
-        if (Math.abs(adjustedBid - baseBid) <= 0.01) {
-          continue; // 跳过出价未变化的关键词
+        // v351: 降低分时竞价执行阈值 - 使用绝对值和百分比双重判断
+        // 原来的$0.01阈值导致97.7%的调整被跳过
+        const bidDiff = Math.abs(adjustedBid - baseBid);
+        const bidDiffPct = baseBid > 0 ? bidDiff / baseBid : 0;
+        if (bidDiff < 0.005 && bidDiffPct < 0.02) {
+          continue; // 只有当绝对差异<$0.005且百分比差异<2%时才跳过
         }
         
         details.push(adjustment);
@@ -3056,6 +3095,13 @@ async function executeSearchTermAnalysis(
         
         // ===== 正面关键词处理 =====
         else if (decision.action === 'CREATE_KEYWORD') {
+          // v351: SB/SD广告活动不支持通过API创建新关键词
+          // Amazon SB API只有listSbKeywords，没有createSbKeywords
+          // 尝试用createSpKeywords会返回ERROR，导致大量无效重试
+          if (v2CampaignType === 'sb' || v2CampaignType === 'sd') {
+            log.info(`[SearchTermAnalysis] v351: ${v2CampaignType.toUpperCase()}广告活动不支持通过API创建关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            continue;
+          }
           // v2: Product Targeting campaign不能添加正面关键词
           if (isProductTargetingCamp) {
             log.info(`[SearchTermAnalysis] v2: PT campaign不支持正面关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}")`);

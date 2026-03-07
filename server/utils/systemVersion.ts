@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 349;  // v349: P0-分时竞价修复(dayparting_adjustment升级为关键任务)+SB搜索词报告400修复(移除campaignStatus过滤器)+report_jobs表创建+分时竞价诊断日志
+export const SYSTEM_VERSION = 351;  // v351: P1-SB/SD数据保留期自动处理+分时竞价算法灵敏度重写(三层级联放大)+分时规则24h自动重算+分时执行阈值降低($0.005+2%)+SB/SD关键词创建过滤+permanently_failed标记增强+bidding_logs列名修复(snake_case→camelCase)+dayparting recordModuleExecution修复+placement诊断日志
