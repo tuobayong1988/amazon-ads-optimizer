@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 354;  // v354: P0-budget_adjustment ID不匹配修复(campaign.id→campaign.campaignId)+P1-placement_adjust阈值修复(>5→0激活位置优化)+P2-SB/SBV keyword_create前置过滤(pending重试路径+日志记录)
+export const SYSTEM_VERSION = 355;  // v355: P0-pending重试SQL列名修复(campaign_id→campaignId)+P1-searchTermHarvester ID混用修复(.id→.campaignId)+P2-内存优化(排除构建依赖+minify压缩bundle 71%+修复heapUtilization计算)

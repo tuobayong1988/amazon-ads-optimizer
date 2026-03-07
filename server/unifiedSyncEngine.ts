@@ -261,7 +261,10 @@ export function captureHealthSnapshot(): HealthSnapshot {
       rss: Math.round(mem.rss / 1024 / 1024),
       heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
       heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
-      heapUtilization: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+      // v355: 使用heapUsed/max-old-space-size替代heapUsed/heapTotal
+      // heapTotal是V8动态调整的，会紧贴heapUsed，导致百分比永远在85-97%
+      // max-old-space-size=1400MB是真实的内存上限，用它计算才能反映真实的内存压力
+      heapUtilization: Math.round((mem.heapUsed / (1400 * 1024 * 1024)) * 100),
     },
     rateControl: rateController.getStatus(),
     syncStats: {

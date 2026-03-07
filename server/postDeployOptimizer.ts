@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 355,
+    description: 'v355: [pending重试SQL修复 + searchTermHarvester ID修复 + 内存优化] — (1)P0-pending重试SQL列名修复: campaigns表查询中campaign_id(下划线)改为campaignId(驼峰),修复SELECT和结果引用三处错误,解决pending keyword_create重试时无法查找Amazon Campaign ID导致重试失败 (2)P1-searchTermHarvester ID混用修复: getSearchTermsByCampaignId传入sourceCampaign.id(本地ID)改为sourceCampaign.campaignId(Amazon ID),解决搜索词收割无法查询到search_terms数据导致收割候选为空 (3)P2-内存优化-bundle瘦身: build-server.js排除vite/rollup/babel/tailwindcss等构建时依赖+开启minify压缩,bundle体14.59MB降至4.23MB(减少71%) (4)P2-内存优化-heapUtilization修复: 使用heapUsed/max-old-space-size(1400MB)替代heapUsed/heapTotal,消除V8动态收缩heapTotal导致的虚假高内存使用率告警(97%→实际约7-15%)',
+    affectedModules: ['optimization', 'sync'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 354,
     description: 'v354: [budget_adjustment修复 + placement_adjust激活 + SB/SBV前置过滤] — (1)P0-budget_adjustment ID不匹配修复: aggregatePerformanceData传入campaign.id(本地自增ID)改为campaign.campaignId(Amazon ID),解决daily_performance查询永远匹配不到数据导致模块完全休眠 (2)P0-CampaignPerformanceData/BudgetAllocationSuggestion增加amazonCampaignId字段,修复整个ID链路(campaigns.find匹配+db.updateCampaign+scheduleBudgetVerification) (3)P1-placement_adjust阈值修复: generatePlacementSuggestions过滤阈值从>5降低为>0,解决confidence=0.6时maxDeltaPercent=5但严格大于5导致中等置信度建议永远被过滤 (4)P1-analyzePlacementOptimization中的needsAdjustment和adjustedCount阈值同步修复 (5)P2-v310 pending重试路径增加SB/SD campaignType前置过滤,解决V351过滤被绕过导致244条SB pending记录反复重试失败 (6)P2-V351 SB/SD过滤增加optimization_logs记录(skipped_unsupported_campaign_type),避免静默跳过无法追踪',
     affectedModules: ['optimization'],

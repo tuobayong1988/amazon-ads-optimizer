@@ -2706,13 +2706,14 @@ async function executeSearchTermAnalysis(
               // 缺少关键信息，尝试通过localCampaignId查找Amazon ID
               const localCampaignId = detail?.localCampaignId || detail?.campaignId;
               if (localCampaignId) {
+                // v355: P0修复 — campaigns表的Amazon ID列名是campaignId（驼峰），不是campaign_id（下划线）
                 const campaignLookup = await dbInstance.execute(sql`
-                  SELECT campaign_id FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
+                  SELECT campaignId FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
                 `);
                 const lookupRows = (campaignLookup as any)[0] || [];
-                if (lookupRows.length > 0 && lookupRows[0].campaign_id) {
+                if (lookupRows.length > 0 && lookupRows[0].campaignId) {
                   // 找到了Amazon Campaign ID，更新action_detail并继续
-                  const foundAmazonCampaignId = lookupRows[0].campaign_id;
+                  const foundAmazonCampaignId = lookupRows[0].campaignId;
                   const adGroups = await db.getAdGroupsByCampaignId(foundAmazonCampaignId);
                   if (adGroups.length > 0 && searchTerm) {
                     const adGroup = adGroups[0];

@@ -149,7 +149,9 @@ export async function identifyHarvestCandidates(
 
     // 3. 遍历每个源Campaign的搜索词
     for (const sourceCampaign of sourceCampaigns) {
-      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.id);
+      // v355: P1修复 — getSearchTermsByCampaignId期望Amazon ID，不是本地自增ID
+      // sourceCampaign.id是本地ID，sourceCampaign.campaignId是Amazon ID
+      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.campaignId as any);
       
       for (const st of searchTermsList) {
         const clicks = Number(st.searchTermClicks) || 0;
