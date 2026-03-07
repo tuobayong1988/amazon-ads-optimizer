@@ -361,14 +361,24 @@ export function calculateOptimalBidAdjustments(
       multiplier = Math.max(0.9, multiplier); // 最多降10%，保持曝光
     }
     
+    // v350: 增强分时竞价灵敏度 - 放大偏差使更多时段产生实际调整
+    // 原来 multiplier = score/avgScore 导致95.6%的规则为1.00
+    // 现在将偏差放大1.5倍: newMult = 1 + (mult - 1) * 1.5
+    if (multiplier !== 1.0) {
+      const deviation = multiplier - 1.0;
+      multiplier = 1.0 + deviation * 1.5;
+    }
+    
     multiplier = Math.max(minMultiplier, Math.min(maxMultiplier, multiplier));
+    // v350: 将结果四舍五入到小数点后两位，确保更多规则产生非1.00的值
+    multiplier = Math.round(multiplier * 100) / 100;
 
     let reason = "";
     if (isHighTrafficLowConversion) {
       reason = "高流量时段（可能为种草时段），仅轻微调整保持曝光";
-    } else if (multiplier > 1.3) {
+    } else if (multiplier > 1.15) {
       reason = "高转化时段，建议提高出价";
-    } else if (multiplier < 0.7) {
+    } else if (multiplier < 0.85) {
       reason = "低效时段，建议降低出价";
     } else {
       reason = "正常时段，维持标准出价";

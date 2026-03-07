@@ -2,9 +2,62 @@ import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
 import { sql } from "drizzle-orm";
-import { getDb } from "../db";
+import { getDb, getPoolStats, getDirectConnection } from "../db";
 
 export const systemRouter = router({
+  // v350: 连接池监控API
+  dbPoolStats: adminProcedure
+    .query(async () => {
+      const stats = getPoolStats();
+      return {
+        ...stats,
+        timestamp: new Date().toISOString(),
+      };
+    }),
+
+  // v350: 手动触发数据清理
+  cleanupOldData: adminProcedure
+    .input(z.object({
+      retentionDays: z.number().min(7).max(90).default(30),
+    }))
+    .mutation(async ({ input }) => {
+      const conn = await getDirectConnection(120_000); // 2分钟超时
+      const results: string[] = [];
+      try {
+        // 清理sync_conflicts
+        const [r1] = await conn.execute(
+          `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+          [input.retentionDays]
+        ) as any[];
+        results.push(`sync_conflicts: 删除${r1.affectedRows}条`);
+
+        // 清理sync_change_records
+        const [r2] = await conn.execute(
+          `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+          [input.retentionDays]
+        ) as any[];
+        results.push(`sync_change_records: 删除${r2.affectedRows}条`);
+
+        // 清理system_logs
+        const [r3] = await conn.execute(
+          `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+          [input.retentionDays]
+        ) as any[];
+        results.push(`system_logs: 删除${r3.affectedRows}条`);
+
+        // 清理optimization_tasks已完成的任务
+        const [r4] = await conn.execute(
+          `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
+          [input.retentionDays]
+        ) as any[];
+        results.push(`optimization_tasks: 删除${r4.affectedRows}条`);
+
+        return { success: true, results };
+      } finally {
+        conn.release();
+      }
+    }),
+
   health: publicProcedure
     .input(
       z.object({

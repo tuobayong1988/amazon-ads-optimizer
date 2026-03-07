@@ -1228,21 +1228,41 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       // - placementClassification (旧版)
       // - campaignPlacement (v3 groupBy名)
       // - placement (通用fallback)
+      // v350: 全面增强广告位映射 - 覆盖Amazon API v3所有已知的placement值
       const placementMap: Record<string, 'top_of_search' | 'product_page' | 'rest_of_search'> = {
+        // Amazon Ads API v3 标准值
         'TOP_OF_SEARCH': 'top_of_search',
         'DETAIL_PAGE': 'product_page',
         'OTHER': 'rest_of_search',
-        // v157: 添加更多可能的值映射
+        // Amazon Ads API v3 campaignPlacement groupBy 返回值
         'Top of Search on-Amazon': 'top_of_search',
         'Detail Page on-Amazon': 'product_page',
         'Other on-Amazon': 'rest_of_search',
+        // Amazon Ads API v3 新版报告格式 (2026年新增)
+        'TOP_OF_SEARCH_ON_AMAZON': 'top_of_search',
+        'DETAIL_PAGE_ON_AMAZON': 'product_page',
+        'OTHER_ON_AMAZON': 'rest_of_search',
+        // 小写变体
         'top_of_search': 'top_of_search',
         'product_page': 'product_page',
         'rest_of_search': 'rest_of_search',
+        'detail_page': 'product_page',
+        'other': 'rest_of_search',
+        // Amazon Ads 报告中可能的其他变体
+        'Top of search': 'top_of_search',
+        'Product page': 'product_page',
+        'Rest of search': 'rest_of_search',
+        'Remarketing off-Amazon': 'rest_of_search',
+        'REMARKETING_OFF_AMAZON': 'rest_of_search',
       };
       const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || 'OTHER';
       const placement = placementMap[rawPlacement] || 'rest_of_search';
-      log.debug(`v157: 位置映射: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter(k => k.toLowerCase().includes('place')).join(',')})`);
+      // v350: 对未匹配的placement值记录警告日志，便于调试
+      if (!placementMap[rawPlacement]) {
+        log.warn(`v350: 未知的广告位置值: raw="${rawPlacement}", campaignId=${row.campaignId}, 已默认映射为rest_of_search (row keys: ${Object.keys(row).join(',')})`);
+      } else {
+        log.debug(`v157: 位置映射: raw="${rawPlacement}" -> "${placement}"`);
+      }
 
       const reportDate = row.date || new Date().toISOString().split('T')[0];
 

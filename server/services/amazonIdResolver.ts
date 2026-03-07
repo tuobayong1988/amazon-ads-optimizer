@@ -20,6 +20,7 @@
 
 // v223: 从 syncServiceProvider 导入，避免循环依赖
 import { getAmazonSyncService } from './syncServiceProvider';
+import * as db from '../db'; // v350: 统一使用连接池
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from '../utils/keywordValidator';
 import { createModuleLogger } from '../utils/logger';
 
@@ -58,13 +59,8 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
 
   let directConn: any = null;
   try {
-    const mysql2 = await import('mysql2/promise');
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      result.errors.push('DATABASE_URL未配置');
-      return result;
-    }
-    directConn = await mysql2.createConnection(dbUrl);
+    // v350: 使用连接池获取直接连接，替代独立createConnection
+    directConn = await db.getDirectConnection(60_000); // 60秒超时，ID解析可能较长
 
     // ========== 阶段1: 回填缺失的 keywordId ==========
     await resolveKeywordIds(accountId, directConn, result);
@@ -99,7 +95,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     log.error(`异常: ${err.message}`);
   } finally {
     if (directConn) {
-      try { await directConn.end(); } catch (_) {}
+      try { directConn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }
 
@@ -552,10 +548,8 @@ export async function resolveKeywordIdOnDemand(
 ): Promise<string | null> {
   let conn: any = null;
   try {
-    const mysql2 = await import('mysql2/promise');
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) return null;
-    conn = await mysql2.createConnection(dbUrl);
+    // v350: 使用连接池获取直接连接
+    conn = await db.getDirectConnection();
 
     // 获取关键词信息
     const [kwRows] = await conn.execute(
@@ -695,7 +689,7 @@ export async function resolveKeywordIdOnDemand(
     return null;
   } finally {
     if (conn) {
-      try { await conn.end(); } catch (_) {}
+      try { conn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }
 }
@@ -710,10 +704,8 @@ export async function resolveProductTargetIdOnDemand(
 ): Promise<string | null> {
   let conn: any = null;
   try {
-    const mysql2 = await import('mysql2/promise');
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) return null;
-    conn = await mysql2.createConnection(dbUrl);
+    // v350: 使用连接池获取直接连接
+    conn = await db.getDirectConnection();
 
     const [ptRows] = await conn.execute(
       `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue,
@@ -770,7 +762,7 @@ export async function resolveProductTargetIdOnDemand(
     return null;
   } finally {
     if (conn) {
-      try { await conn.end(); } catch (_) {}
+      try { conn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }
 }

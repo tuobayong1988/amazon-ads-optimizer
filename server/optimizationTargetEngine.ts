@@ -4800,18 +4800,17 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         .where(eqOp(performanceGroups.id, result.targetId));
       log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr: any) {
-      // 如果Drizzle ORM的casing映射有问题，使用mysql2直接更新
+      // v350: 使用连接池获取直接连接，替代独立createConnection
       try {
-        const mysql2 = await import('mysql2/promise');
-        const dbUrl = process.env.DATABASE_URL;
-        if (dbUrl) {
-          const directConn = await mysql2.createConnection(dbUrl);
+        const directConn = await db.getDirectConnection();
+        try {
           await directConn.execute(
             'UPDATE performance_groups SET last_optimization_at = NOW() WHERE id = ?',
             [result.targetId]
           );
-          await directConn.end();
-          log.info(`[OptimizationTargetEngine] 已通过mysql2更新 last_optimization_at: targetId=${result.targetId}`);
+          log.info(`[OptimizationTargetEngine] 已通过连接池更新 last_optimization_at: targetId=${result.targetId}`);
+        } finally {
+          directConn.release(); // v350: 归还连接到池
         }
       } catch (directErr: any) {
         log.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${directErr.message}`);

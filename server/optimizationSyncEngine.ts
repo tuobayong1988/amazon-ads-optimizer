@@ -84,14 +84,8 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
   
   log.debug(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${tasks.length}条`);
   
-  // 使用直接SQL批量插入，避免ORM开销
-  const mysql2 = await import('mysql2/promise');
-  const conn = await mysql2.createConnection({
-    host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-    user: process.env.DATABASE_USER || 'admin',
-    password: process.env.DATABASE_PASSWORD || 'Mucers2025',
-    database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-  });
+  // v350: 使用连接池获取直接连接，替代独立createConnection
+  const conn = await db.getDirectConnection();
   
   try {
     // 分批插入（每批500条）
@@ -126,7 +120,7 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
     
     log.info(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${tasks.length}条任务`);
   } finally {
-    await conn.end();
+    conn.release(); // v350: 归还连接到池，而不是关闭
   }
   
   return batchId;
@@ -167,13 +161,8 @@ export async function executeBatchSync(options?: {
   log.info(`[SyncEngine] ========== 开始批量同步 ==========`);
   log.debug(`[SyncEngine] 参数: batchId=${options?.batchId || 'all'}, accountId=${options?.accountId || 'all'}, maxTasks=${options?.maxTasks || 'unlimited'}`);
   
-  const mysql2 = await import('mysql2/promise');
-  const conn = await mysql2.createConnection({
-    host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-    user: process.env.DATABASE_USER || 'admin',
-    password: process.env.DATABASE_PASSWORD || 'Mucers2025',
-    database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-  });
+  // v350: 使用连接池获取直接连接，替代独立createConnection
+  const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
   const accountGroups = new Map<number, any[]>();
   try {
@@ -258,7 +247,7 @@ export async function executeBatchSync(options?: {
     }
     
   } finally {
-    await conn.end();
+    conn.release(); // v350: 归还连接到池
   }
   
   result.duration = Date.now() - startTime;
@@ -1234,13 +1223,8 @@ export async function processRetryTasks(): Promise<{ processed: number; synced: 
  * 检查永久失败的任务是否现在有了Amazon ID（通过绩效同步回填等），如果有则重新入队
  */
 async function resetRecoverableFailedTasks(): Promise<number> {
-  const mysql2 = await import('mysql2/promise');
-  const conn = await mysql2.createConnection({
-    host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-    user: process.env.DATABASE_USER || 'admin',
-    password: process.env.DATABASE_PASSWORD || 'Mucers2025',
-    database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-  });
+  // v350: 使用连接池获取直接连接
+  const conn = await db.getDirectConnection();
   
   try {
     // 查找永久失败且缺少Amazon ID的任务
@@ -1296,7 +1280,7 @@ async function resetRecoverableFailedTasks(): Promise<number> {
     log.error(`[SyncEngine] v196: 重置失败任务异常: ${err.message}`);
     return 0;
   } finally {
-    await conn.end();
+    conn.release(); // v350: 归还连接到池
   }
 }
 
@@ -1311,13 +1295,8 @@ export async function getBatchStatus(batchId: string): Promise<{
   retry: number;
   permanentlyFailed: number;
 }> {
-  const mysql2 = await import('mysql2/promise');
-  const conn = await mysql2.createConnection({
-    host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-    user: process.env.DATABASE_USER || 'admin',
-    password: process.env.DATABASE_PASSWORD || 'Mucers2025',
-    database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-  });
+  // v350: 使用连接池获取直接连接
+  const conn = await db.getDirectConnection();
   
   try {
     const [rows] = await conn.execute(
@@ -1337,6 +1316,6 @@ export async function getBatchStatus(batchId: string): Promise<{
     
     return result;
   } finally {
-    await conn.end();
+    conn.release(); // v350: 归还连接到池
   }
 }

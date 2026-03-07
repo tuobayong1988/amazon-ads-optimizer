@@ -2817,13 +2817,8 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
   const results: CorrectionResult[] = [];
   
   try {
-    const mysql2 = await import('mysql2/promise');
-    const conn = await mysql2.createConnection({
-      host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-      user: process.env.DATABASE_USER || 'admin',
-      password: process.env.DATABASE_PASSWORD || 'Mucers2025',
-      database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-    });
+    // v350: 使用连接池获取直接连接，替代独立createConnection
+    const conn = await db.getDirectConnection();
     
     try {
       // 查找超过2小时但不超过7天的permanently_failed任务
@@ -2924,7 +2919,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
         });
       }
     } finally {
-      await conn.end();
+      conn.release(); // v350: 归还连接到池
     }
   } catch (error: any) {
     log.error(`v190: 账户${accountId} rescuePermanentlyFailedTasks失败: ${error.message}`);

@@ -1621,8 +1621,45 @@ export async function startOptimizationScheduler(): Promise<void> {
         log.error(`[ABTestScheduler] v267: A/B测试调度失败: ${err.message}`);
       }
     }
+  }, 60 * 60 * 1000);  log.info(`[OptimizationScheduler] v267: A/B测试指标收集已启动，执行时间: 每日凌昨昨3:00`);
+
+  // v350: 自动数据清理 - 每天凌晨4:00执行，防止历史数据无限增长拖慢数据库
+  setInterval(async () => {
+    const now = new Date();
+    const localHour = getLocalHour(now, 'US');
+    if (localHour === 4 && shouldExecuteThisHour('data_cleanup')) {
+      try {
+        log.info('[DataCleanup] v350: 开始自动数据清理...');
+        const { getDirectConnection } = await import('./db');
+        const conn = await getDirectConnection(120_000);
+        try {
+          const RETENTION_DAYS = 30;
+          // 清理sync_conflicts
+          const [r1] = await conn.execute(
+            `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+          ) as any[];
+          // 清理sync_change_records
+          const [r2] = await conn.execute(
+            `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+          ) as any[];
+          // 清理system_logs
+          const [r3] = await conn.execute(
+            `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+          ) as any[];
+          // 清理已完成的optimization_tasks
+          const [r4] = await conn.execute(
+            `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
+          ) as any[];
+          log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
+        } finally {
+          conn.release();
+        }
+      } catch (err: any) {
+        log.error(`[DataCleanup] v350: 自动数据清理失败: ${err.message}`);
+      }
+    }
   }, 60 * 60 * 1000);
-  log.info(`[OptimizationScheduler] v267: A/B测试指标收集已启动，执行时间: 每日凌昨3:00`);
+  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌晨4:00 (EST)`);
 }
 
 /**

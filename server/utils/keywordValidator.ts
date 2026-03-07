@@ -20,6 +20,7 @@
  * - 广告组不能同时有keyword和product target
  */
 import { createModuleLogger } from './logger';
+import * as db from '../db'; // v350: 统一使用连接池
 const log = createModuleLogger('KeywordValidator');
 
 export interface KeywordValidationResult {
@@ -233,10 +234,8 @@ export async function adGroupHasProductTargets(
   let ownConn = false;
   try {
     if (!conn) {
-      const mysql2 = await import('mysql2/promise');
-      const dbUrl = process.env.DATABASE_URL;
-      if (!dbUrl) return false;
-      conn = await mysql2.createConnection(dbUrl);
+      // v350: 使用连接池获取直接连接，替代独立createConnection
+      conn = await db.getDirectConnection();
       ownConn = true;
     }
     const [rows] = await conn.execute(
@@ -249,7 +248,7 @@ export async function adGroupHasProductTargets(
     return false;
   } finally {
     if (ownConn && conn) {
-      try { await conn.end(); } catch (_) {}
+      try { conn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }
 }

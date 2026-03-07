@@ -410,19 +410,15 @@ export async function syncNewKeywordsToAmazon(
                   await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
                   log.info(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
                 } catch (updateErr: any) {
-                  // 如果Drizzle execute也失败，尝试使用底层mysql2连接
-                  log.warn(`[AmazonApiHelper] Drizzle execute失败，尝试底层连接:`, updateErr.message);
-                  const mysql = await import('mysql2/promise');
-                  const rawConn = await mysql.createConnection({
-                    host: process.env.DB_HOST || process.env.DATABASE_HOST,
-                    port: Number(process.env.DB_PORT || process.env.DATABASE_PORT || 3306),
-                    user: process.env.DB_USER || process.env.DATABASE_USER || 'admin',
-                    password: process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD,
-                    database: process.env.DB_NAME || process.env.DATABASE_NAME || 'amazon_ads_optimizer',
-                  });
-                  await rawConn.execute('UPDATE keywords SET keywordId = ? WHERE id = ?', [String(created.keywordId), original.localKeywordId]);
-                  await rawConn.end();
-                  log.info(`[AmazonApiHelper] ✅ (底层连接) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  // v350: 使用连接池获取直接连接，替代独立createConnection
+                  log.warn(`[AmazonApiHelper] Drizzle execute失败，尝试连接池直接连接:`, updateErr.message);
+                  const rawConn = await db.getDirectConnection();
+                  try {
+                    await rawConn.execute('UPDATE keywords SET keywordId = ? WHERE id = ?', [String(created.keywordId), original.localKeywordId]);
+                    log.info(`[AmazonApiHelper] ✅ (连接池) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  } finally {
+                    rawConn.release(); // v350: 归还连接到池
+                  }
                 }
               }
             } catch (dbError: any) {
@@ -436,14 +432,17 @@ export async function syncNewKeywordsToAmazon(
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
           log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           
-          // v310-fix: 识别品牌词拒绝、无效值等永久性错误，立即标记为permanently_failed
+          // v350: 增强永久性错误识别 - 包含Amazon返回的通用ERROR码
+          // 原因: 大量code=ERROR的关键词反复重试浪费API配额
           const isPermanentError = (
             errorCode === 'INVALID_VALUE' ||
             errorCode === 'INVALID_ARGUMENT' ||
+            errorCode === 'ERROR' || // v350: Amazon通用拒绝码，通常为品牌词/受限词
             errorDetail.toLowerCase().includes('trademark') ||
             errorDetail.toLowerCase().includes('brand') ||
             errorDetail.toLowerCase().includes('restricted') ||
-            errorDetail.toLowerCase().includes('not eligible')
+            errorDetail.toLowerCase().includes('not eligible') ||
+            errorDetail.toLowerCase().includes('duplicate')
           );
           if (isPermanentError && original.localKeywordId) {
             try {
@@ -544,7 +543,8 @@ export async function syncNewProductTargetsToAmazon(
         };
       });
       
-      const apiResult = await (syncService as any).createSpProductTargets(apiTargets);
+      // v350: 修复API调用路径 - 应通过syncService.client调用而非syncService
+      const apiResult = await (syncService.client as any).createSpProductTargets(apiTargets);
       
       for (let j = 0; j < apiResult.createdTargets.length; j++) {
         const created = apiResult.createdTargets[j];
