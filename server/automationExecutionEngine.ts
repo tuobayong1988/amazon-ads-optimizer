@@ -511,7 +511,7 @@ export async function executeOptimization(
                     accountInfo?.marketplace || 'US'
                   );
                   await svc.client.updateKeywordBids([{
-                    keywordId: parseInt(keyword.keywordId),
+                    keywordId: String(keyword.keywordId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
                     bid: newValue,
                   }]);
                   bidApiSuccess = true;
@@ -569,7 +569,7 @@ export async function executeOptimization(
                 budgetAccountInfo?.marketplace || 'US'
               );
               await budgetSvc.client.updateSpCampaign(
-                parseInt(budgetCampaign.campaignId),
+                String(budgetCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
                 { dailyBudget: newValue } as any
               );
               budgetApiSuccess = true;
@@ -634,7 +634,7 @@ export async function executeOptimization(
                     ptAccountInfo?.marketplace || 'US'
                   );
                   await ptSvc.client.updateProductTargetBids([{
-                    targetId: parseInt(productTarget.targetId),
+                    targetId: String(productTarget.targetId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
                     bid: newValue,
                   }]);
                   ptApiSuccess = true;
@@ -693,7 +693,7 @@ export async function executeOptimization(
               );
               // 更新广告活动的广告位置竞价调整
               await plSvc.client.updateSpCampaign(
-                parseInt(placementCampaign.campaignId),
+                String(placementCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
                 {
                   dynamicBidding: {
                     placementBidding: [
@@ -761,7 +761,7 @@ export async function executeOptimization(
               );
               // 分时策略通过调整日预算实现（newValue为调整后的日预算）
               await dpSvc.client.updateSpCampaign(
-                parseInt(dpCampaign.campaignId),
+                String(dpCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
                 { dailyBudget: newValue } as any
               );
               daypartingApiSuccess = true;

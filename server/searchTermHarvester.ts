@@ -263,8 +263,8 @@ export async function harvestSearchTermAtomic(
   // ============ Step 1: 创建精确匹配关键词 ============
   try {
     const createResult = await apiClient.createSpKeywords([{
-      adGroupId: parseInt(candidate.targetAmazonAdGroupId),
-      campaignId: parseInt(candidate.targetAmazonCampaignId),
+      adGroupId: String(candidate.targetAmazonAdGroupId),  // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
+      campaignId: String(candidate.targetAmazonCampaignId),  // v356: 使用String()替代parseInt()，全程保持字符串类型
       keywordText: candidate.searchTerm,
       matchType: 'exact',
       bid: candidate.suggestedBid,
@@ -312,8 +312,8 @@ export async function harvestSearchTermAtomic(
     log.info(`v230: 搜索词"${candidate.searchTerm}"包含${searchTermWords.length}个词，使用${negativeMatchType}否定类型`);
     
     const negativeResult = await apiClient.createSpNegativeKeywords([{
-      adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
-      campaignId: parseInt(candidate.sourceAmazonCampaignId),
+      adGroupId: String(candidate.sourceAmazonAdGroupId),  // v356: 使用String()替代parseInt()，避免未来ID格式变更导致截断
+      campaignId: String(candidate.sourceAmazonCampaignId),  // v356: 使用String()替代parseInt()，全程保持字符串类型
       keywordText: candidate.searchTerm,
       matchType: negativeMatchType,
       state: 'enabled',
@@ -673,12 +673,12 @@ function calculateHarvestBid(
  */
 async function rollbackKeywordCreation(
   apiClient: AmazonAdsApiClient,
-  keywordId: number
+  keywordId: number | string  // v356: 支持string类型
 ): Promise<void> {
   try {
     // Amazon SP API: 通过将关键词状态设为archived来"删除"
     await apiClient.updateKeywordBids([{
-      keywordId,
+      keywordId: String(keywordId),  // v356: 统一使用String类型传递Amazon ID
       bid: 0.02, // 设置最低出价
     }]);
     

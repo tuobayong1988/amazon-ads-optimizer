@@ -500,7 +500,7 @@ export const batchOperationRouter = router({
           if (syncService && keyword.keywordId) {
             try {
               await syncService.client.updateKeywordBids([{
-                keywordId: Number(keyword.keywordId),
+                keywordId: String(keyword.keywordId),  // v356: 统一使用String类型传递Amazon ID
                 bid: Number(adj.newBid.toFixed(2)),
               }]);
               apiSuccess = true;

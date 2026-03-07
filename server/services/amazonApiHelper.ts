@@ -599,7 +599,7 @@ export async function syncBudgetAdjustmentToAmazon(
           budget: newBudget,
         });
       } else if (type === 'sd') {
-        await syncService.client.updateSdCampaign(Number(campaignId), {
+        await syncService.client.updateSdCampaign(String(campaignId), {  // v356: 统一使用String类型传递Amazon ID
           budget: newBudget,
         });
       } else {
@@ -675,8 +675,8 @@ function normalizeMatchTypeForComparison(matchType: string): string {
 export async function syncNegativeKeywordsToAmazon(
   accountId: number,
   negatives: Array<{
-    campaignId: number | string;  // v201: Amazon Campaign ID (支持string避免大数字精度丢失)
-    adGroupId?: number | string;  // Amazon AdGroup ID (optional for campaign-level)
+    campaignId: string;  // v356: 统一Amazon Campaign ID为string类型
+    adGroupId?: string;  // v356: 统一Amazon AdGroup ID为string类型
     keywordText: string;
     matchType: 'negativeExact' | 'negativePhrase';
     level: 'campaign' | 'adgroup';
@@ -707,7 +707,7 @@ export async function syncNegativeKeywordsToAmazon(
       const existingNegatives = new Set<string>();
       for (const cid of uniqueCampaignIds) {
         try {
-          const existing = await syncService.client.listSpCampaignNegativeKeywords(cid);
+          const existing = await syncService.client.listSpCampaignNegativeKeywords(String(cid));  // v356: 确保string类型
           for (const e of existing) {
             const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
@@ -1219,7 +1219,7 @@ export async function syncCampaignStatusToAmazon(
               state: change.newStatus.toUpperCase(),
             });
           } else if (campaignType === 'sd') {
-            await syncService.client.updateSdCampaign(Number(change.amazonCampaignId), {
+            await syncService.client.updateSdCampaign(String(change.amazonCampaignId), {  // v356: 统一使用String类型传递Amazon ID
               state: change.newStatus.toUpperCase(),
             });
           } else {

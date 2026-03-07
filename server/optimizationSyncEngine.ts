@@ -866,7 +866,7 @@ async function executeBatchByType(
           const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
             validTasks[0].account_id,
             validTasks.map((t: any) => ({
-              campaignId: Number(t.amazon_entity_id || t.campaign_id),
+              campaignId: String(t.amazon_entity_id || t.campaign_id),  // v356: 统一使用String类型传递Amazon ID
               keywordText: t.target_entity_name,
               matchType: (t.action || '').includes('exact') || (t.action || '').includes('Exact') 
                 ? 'negativeExact' as const : 'negativePhrase' as const,

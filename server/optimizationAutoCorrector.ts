@@ -1727,8 +1727,8 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
       accountId,
       toRetry.map(nk => ({
-        campaignId: nk.campaignId,
-        adGroupId: nk.adGroupId,
+        campaignId: String(nk.campaignId),  // v356: 统一使用String类型传递Amazon ID
+        adGroupId: nk.adGroupId ? String(nk.adGroupId) : undefined,  // v356: 统一使用String类型
         keywordText: nk.keywordText,
         matchType: nk.matchType,
         level: nk.level,

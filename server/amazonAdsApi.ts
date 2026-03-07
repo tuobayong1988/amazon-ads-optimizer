@@ -777,7 +777,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新SP广告活动
    */
-  async updateSpCampaign(campaignId: number | string, updates: Partial<SpCampaign>): Promise<void> {
+  async updateSpCampaign(campaignId: string, updates: Partial<SpCampaign>): Promise<void> {  // v356: 统一ID参数类型为string
     // v125: Amazon SP API v3 要求campaignId为字符串类型，dailyBudget四舍五入到两位小数
     const formattedUpdates: any = { ...updates };
     if (formattedUpdates.dailyBudget !== undefined) {
@@ -934,8 +934,8 @@ export class AmazonAdsApiClient {
    */
   async createSpKeywords(
     keywords: Array<{
-      adGroupId: number;
-      campaignId: number;
+      adGroupId: string;  // v356: 统一ID参数类型为string
+      campaignId: string;  // v356: 统一ID参数类型为string
       keywordText: string;
       matchType: 'exact' | 'phrase' | 'broad';
       bid: number;
@@ -1027,7 +1027,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新关键词出价
    */
-  async updateKeywordBids(updates: Array<{ keywordId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {
+  async updateKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理，Amazon SP API v3单次最多接受1000条
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
@@ -1105,7 +1105,7 @@ export class AmazonAdsApiClient {
    * 通过 PUT /sp/keywords API 更新关键词的 state 字段
    * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
    */
-  async updateKeywordStatus(updates: Array<{ keywordId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+  async updateKeywordStatus(updates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理，确保大批量状态更新不会被截断
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
@@ -1164,7 +1164,7 @@ export class AmazonAdsApiClient {
    * v134: 更新商品定向状态（enabled/paused/archived）
    * 通过 PUT /sp/targets API 更新商品定向的 state 字段
    */
-  async updateProductTargetStatus(updates: Array<{ targetId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+  async updateProductTargetStatus(updates: Array<{ targetId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
@@ -1222,7 +1222,7 @@ export class AmazonAdsApiClient {
    * v135: 更新SP广告组状态
    * 通过 PUT /sp/adGroups 更新广告组的state字段
    */
-  async updateSpAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+  async updateSpAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
@@ -1344,7 +1344,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新商品定位出价
    */
-  async updateProductTargetBids(updates: Array<{ targetId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {
+  async updateProductTargetBids(updates: Array<{ targetId: string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
@@ -1421,8 +1421,8 @@ export class AmazonAdsApiClient {
    */
   async createSpProductTargets(
     targets: Array<{
-      adGroupId: number | string;
-      campaignId: number | string;
+      adGroupId: string;  // v356: 统一ID参数类型为string
+      campaignId: string;  // v356: 统一ID参数类型为string
       expression: Array<{ type: string; value?: string }>;
       expressionType?: 'auto' | 'manual';
       bid: number;
@@ -1537,13 +1537,15 @@ export class AmazonAdsApiClient {
     endDate: string,
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales7d', 'attributedConversions7d']
   ): Promise<string> {
+    // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
+    let requestBody: any = null;
     try {
       log.debug(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
       // ⚠️ 重要: SP必须使用7天归因窗口 (7d)，不是14天!
       // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-      const requestBody = {
+      requestBody = {
         name: `SP Campaign Report ${startDate} to ${endDate}`,
         startDate,
         endDate,
@@ -1704,13 +1706,15 @@ export class AmazonAdsApiClient {
     endDate: string,
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
+    // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
+    let requestBody: any = null;
     try {
       log.debug(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
       // 重要: 基于专家提供的Postman配置
       // ⚠️ 必须添加filters配置，否则可能返回空数据！
-      const requestBody = {
+      requestBody = {
         name: `SB Campaign Report ${startDate} to ${endDate}`,
         startDate,
         endDate,
@@ -1831,13 +1835,15 @@ export class AmazonAdsApiClient {
     endDate: string,
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d', 'viewAttributedSales14d']
   ): Promise<string> {
+    // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
+    let requestBody: any = null;
     try {
       log.debug(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
       // 重要: 基于专家提供的Postman配置
       // reportTypeId: sdCampaigns 是正确的（Postman中有954次使用）
-      const requestBody = {
+      requestBody = {
         name: `SD Campaign Report ${startDate} to ${endDate}`,
         startDate,
         endDate,
@@ -3708,14 +3714,14 @@ export class AmazonAdsApiClient {
   /**
    * 更新SD广告活动
    */
-  async updateSdCampaign(campaignId: number, updates: any): Promise<void> {
-    await this.axiosInstance.put('/sd/campaigns', [{ campaignId, ...updates }]);
+  async updateSdCampaign(campaignId: string, updates: any): Promise<void> {  // v356: 统一ID参数类型为string
+    await this.axiosInstance.put('/sd/campaigns', [{ campaignId: String(campaignId), ...updates }]);
   }
 
   /**
    * 更新SD商品定位出价
    */
-  async updateSdTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<void> {
+  async updateSdTargetBids(updates: Array<{ targetId: string; bid: number }>): Promise<void> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理，确保SD商品定位出价更新完整执行
     const BATCH_SIZE = 100; // SD API使用旧版接口，批次较小
     const BATCH_DELAY_MS = 300;
@@ -3739,7 +3745,7 @@ export class AmazonAdsApiClient {
    * v310-fix: 更新SD广告组状态
    * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
    */
-  async updateSdAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+  async updateSdAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
     // v328: 修复SD adGroup状态更新 — 之前使用Number(adGroupId)导致大数字精度丢失，
     // 且缺少Content-Type header，导致所有18次adgroup_pause全部失败返回"Unknown error"
     const BATCH_SIZE = 100;
@@ -3815,7 +3821,7 @@ export class AmazonAdsApiClient {
    * 获取SP活动级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpCampaignNegativeKeywords(campaignId?: number | string): Promise<any[]> {
+  async listSpCampaignNegativeKeywords(campaignId?: string): Promise<any[]> {  // v356: 统一ID参数类型为string
     const allNegatives: any[] = [];
     let nextToken: string | undefined;
     
@@ -3850,7 +3856,7 @@ export class AmazonAdsApiClient {
    */
   async createSpCampaignNegativeKeywords(
     negatives: Array<{
-      campaignId: number | string;  // v201: 支持string避免大数字精度丢失
+      campaignId: string;  // v356: 统一ID参数类型为string
       keywordText: string;
       matchType: 'negativeExact' | 'negativePhrase';
       state?: 'enabled' | 'paused';
@@ -4019,8 +4025,8 @@ export class AmazonAdsApiClient {
    */
   async createSpNegativeKeywords(
     negatives: Array<{
-      adGroupId: number;
-      campaignId: number;
+      adGroupId: string;  // v356: 统一ID参数类型为string
+      campaignId: string;  // v356: 统一ID参数类型为string
       keywordText: string;
       matchType: 'negativeExact' | 'negativePhrase';
       state?: 'enabled' | 'paused';
@@ -4141,7 +4147,7 @@ export class AmazonAdsApiClient {
    */
   async createSpCampaignNegativeTargets(
     negatives: Array<{
-      campaignId: number;
+      campaignId: string;  // v356: 统一ID参数类型为string
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
@@ -4202,8 +4208,8 @@ export class AmazonAdsApiClient {
    */
   async createSpNegativeTargets(
     negatives: Array<{
-      adGroupId: number;
-      campaignId: number;
+      adGroupId: string;  // v356: 统一ID参数类型为string
+      campaignId: string;  // v356: 统一ID参数类型为string
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
@@ -4231,11 +4237,11 @@ export class AmazonAdsApiClient {
    * 获取关键词出价建议
    */
   async getKeywordBidRecommendations(
-    adGroupId: number,
+    adGroupId: string,  // v356: 统一ID参数类型为string
     keywords: Array<{ keyword: string; matchType: string }>
   ): Promise<Array<{ keyword: string; suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
     const response = await this.axiosInstance.post('/sp/keywords/bidRecommendations', {
-      adGroupId,
+      adGroupId: String(adGroupId),
       keywords,
     });
     return response.data.recommendations || [];
@@ -4245,11 +4251,11 @@ export class AmazonAdsApiClient {
    * 获取商品定位出价建议
    */
   async getTargetBidRecommendations(
-    adGroupId: number,
+    adGroupId: string,  // v356: 统一ID参数类型为string
     expressions: Array<{ type: string; value?: string }>
   ): Promise<Array<{ expression: any; suggestedBid: number }>> {
     const response = await this.axiosInstance.post('/sp/targets/bidRecommendations', {
-      adGroupId,
+      adGroupId: String(adGroupId),
       expressions,
     });
     return response.data.recommendations || [];
@@ -4925,7 +4931,7 @@ export class AmazonAdsApiClient {
    */
   async createSdNegativeTargets(
     negatives: Array<{
-      adGroupId: number | string;
+      adGroupId: string;  // v356: 统一ID参数类型为string
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
@@ -4940,7 +4946,7 @@ export class AmazonAdsApiClient {
       
       try {
         const formattedBatch = batch.map(n => ({
-          adGroupId: Number(n.adGroupId),
+          adGroupId: String(n.adGroupId),  // v356: 使用String()替代Number()，避免大数字ID精度丢失
           expression: n.expression,
           state: n.state || 'enabled',
         }));

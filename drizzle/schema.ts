@@ -3353,6 +3353,14 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     'keyword_create',
     'target_pause',
     'target_enable',
+    // v356: 否定商品定位操作
+    'negative_product_target_add',
+    'product_target_create',
+    // v356: 搜索词分析保护和验证状态
+    'search_term_brand_protect',
+    'search_term_exploration_protect',
+    'search_term_permanent_fail_skip',
+    'search_term_validation_fail',
     // 广告活动状态变更
     'campaign_pause',
     'campaign_enable',
@@ -3440,6 +3448,10 @@ export const optimizationEvents = mysqlTable("optimization_events", {
     'placement_adjust', 'placement_enable', 'placement_disable',
     'search_term_harvest', 'negative_keyword_add', 'negative_keyword_remove', 'keyword_create',
     'target_pause', 'target_enable',
+    // v356: 否定商品定位操作和搜索词分析状态
+    'negative_product_target_add', 'product_target_create',
+    'search_term_brand_protect', 'search_term_exploration_protect',
+    'search_term_permanent_fail_skip', 'search_term_validation_fail',
     'campaign_pause', 'campaign_enable',
     'adgroup_pause', 'adgroup_enable',
     'create_target', 'update_target', 'delete_target', 'pause_target', 'resume_target',

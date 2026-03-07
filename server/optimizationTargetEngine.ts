@@ -1214,7 +1214,7 @@ async function executeBidOptimization(
         // 尝试从第一个campaign的第一个adGroup获取建议出价
         const firstCampaign = campaigns[0];
         if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
-          const adGroupId = Number(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);
+          const adGroupId = String(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);  // v356: 统一使用String类型传递Amazon ID
           if (adGroupId) {
             try {
               // 尝试获取关键词建议出价
@@ -4779,7 +4779,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
-          actionType: actionType,
+          actionType: actionType as any,  // v356: actionTypeMap返回string类型，需要断言为枚举类型
           campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
