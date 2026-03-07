@@ -60408,7 +60408,7 @@ var init_amazonSyncService = __esm({
               searchTermUnitsOrdered: unitsOrdered,
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             };
-            const existingKey = `${campaign.id}:${adGroup.id}:${searchTermText.toLowerCase()}`;
+            const existingKey = `${campaign.campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
             const existingId = existingMap.get(existingKey);
             if (existingId) {
               await db.update(searchTerms).set(searchTermData).where(eq(searchTerms.id, existingId));
@@ -92755,6 +92755,15 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         campaignAmazonId,
         config2.accountId
       );
+      if (suggestions.length === 0) {
+        log50.info(`[PlacementOptimization] v353\u8BCA\u65AD: Campaign "${campaign.campaignName}" (${campaignAmazonId}) \u751F\u62100\u6761\u5EFA\u8BAE, analysis=${JSON.stringify({
+          hasData: !!analysis,
+          dataPoints: analysis?.dataPoints || 0,
+          placements: analysis?.placements?.length || 0
+        })}`);
+      } else {
+        log50.info(`[PlacementOptimization] v353\u8BCA\u65AD: Campaign "${campaign.campaignName}" (${campaignAmazonId}) \u751F\u6210${suggestions.length}\u6761\u5EFA\u8BAE: ${suggestions.map((s4) => `${s4.placement}: ${s4.currentMultiplier}\u2192${s4.suggestedMultiplier}%`).join(", ")}`);
+      }
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
       const goldenCombos = campaignCombos.filter((c5) => c5.comboCategory === "golden" && c5.confidenceLevel !== "insufficient");
       let topOfSearchGoldenCount = 0;
@@ -93364,8 +93373,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
         FROM optimization_logs 
         WHERE performance_group_id = ${config2.performanceGroupId}
-          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest')
-          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest', 'search_term_brand_protect', 'search_term_exploration_protect', 'search_term_permanent_fail_skip', 'search_term_validation_fail', 'product_target_create')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
       `);
@@ -93374,7 +93383,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
         }
       }
-      log50.info(`[SearchTermAnalysis] v328: \u9884\u52A0\u8F7D${recentlyProcessedSearchTerms.size}\u4E2A\u5DF2\u5904\u7406\u641C\u7D22\u8BCD\u7528\u4E8E\u53BB\u91CD(7\u5929\u7A97\u53E3)`);
+      log50.info(`[SearchTermAnalysis] v353: \u9884\u52A0\u8F7D${recentlyProcessedSearchTerms.size}\u4E2A\u5DF2\u5904\u7406\u641C\u7D22\u8BCD\u7528\u4E8E\u53BB\u91CD(30\u5929\u7A97\u53E3)`);
     }
   } catch (dedupErr) {
     log50.warn(`[SearchTermAnalysis] v328: \u53BB\u91CD\u9884\u52A0\u8F7D\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${dedupErr.message}`, dedupErr.stack?.slice(0, 300));
@@ -93586,6 +93595,15 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
     try {
       const campaignNameStr = campaign.campaignName || "";
       const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
+      let campaignHasProductTargetAdGroup = false;
+      try {
+        const campaignAdGroups = await getAdGroupsByCampaignId(campaignAmazonId);
+        if (campaignAdGroups.length > 0) {
+          campaignHasProductTargetAdGroup = await adGroupHasProductTargets(campaignAdGroups[0].id);
+        }
+      } catch (ptPreCheckErr) {
+        log50.debug(`[SearchTermAnalysis] v353: \u9884\u68C0\u67E5PT\u5E7F\u544A\u7EC4\u5931\u8D25(\u7EE7\u7EED\u5904\u7406): ${ptPreCheckErr.message}`);
+      }
       if (isProductTargetingCamp) {
         log50.info(`[SearchTermAnalysis] v2: Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})\uFF0C\u4EC5\u5141\u8BB8\u5426\u5B9A\u4EA7\u54C1\u5B9A\u5411\u64CD\u4F5C`);
       }
@@ -93832,6 +93850,35 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           }
           if (!canAddPositiveKeyword(campaignTargetingType, campaignNameStr)) {
             log50.info(`[SearchTermAnalysis] v311: campaign\u4E0D\u652F\u6301\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}", type=${campaignTargetingType})`);
+            continue;
+          }
+          if (brandTerms.length > 0 && isProtectedKeyword(decision.targetValue, brandTerms)) {
+            log50.info(`[SearchTermAnalysis] v353: \u54C1\u724C\u8BCD\u524D\u7F6E\u8FC7\u6EE4: "${decision.targetValue}" \u542B\u54C1\u724C\u8BCD\uFF0C\u8DF3\u8FC7\u6B63\u9762\u5173\u952E\u8BCD\u521B\u5EFA`);
+            details.push({
+              accountId: config2.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: "brand_protect_skip",
+              reason: `v353: \u54C1\u724C\u8BCD\u524D\u7F6E\u8FC7\u6EE4 - "${decision.targetValue}"\u542B\u54C1\u724C\u8BCD\uFF0C\u4E0D\u521B\u5EFA\u6B63\u9762\u5173\u952E\u8BCD`,
+              algorithmUsed: "search_term_analyzer"
+            });
+            continue;
+          }
+          if (campaignHasProductTargetAdGroup) {
+            log50.info(`[SearchTermAnalysis] v353: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u524D\u7F6E\u8DF3\u8FC7keyword\u521B\u5EFA: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            details.push({
+              accountId: config2.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: "keyword_validation_failed",
+              reason: `v353: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u4E0D\u652F\u6301\u6DFB\u52A0keyword`,
+              algorithmUsed: "search_term_analyzer",
+              apiSyncStatus: "skipped_pt_adgroup"
+            });
             continue;
           }
           if (isAsinSearchTerm(decision.targetValue)) {
@@ -94220,6 +94267,9 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
   let adjustmentsCount = 0;
   try {
     const budgetResult = await generateBudgetAllocationSuggestions(config2.id);
+    log50.info(`[BudgetAllocation] v353\u8BCA\u65AD: \u76EE\u6807${config2.id} \u751F\u6210${budgetResult.suggestions.length}\u6761\u9884\u7B97\u5EFA\u8BAE, campaigns=${campaigns7.length}`);
+    let skippedBelowThreshold = 0;
+    let appliedCount = 0;
     for (const suggestion of budgetResult.suggestions) {
       const campaign = campaigns7.find((c5) => c5.id === suggestion.campaignId);
       if (!campaign) continue;
@@ -94301,6 +94351,10 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
   } catch (error51) {
     details.push({ error: error51.message });
   }
+  const budgetApplied = details.filter((d5) => d5.apiSyncStatus === "synced").length;
+  const budgetNotApplicable = details.filter((d5) => d5.apiSyncStatus === "not_applicable").length;
+  const budgetFailed = details.filter((d5) => d5.apiSyncStatus === "failed").length;
+  log50.info(`[BudgetAllocation] v353\u8BCA\u65AD\u6C47\u603B: \u5171${details.length}\u6761\u5EFA\u8BAE, \u5DF2\u5E94\u7528=${budgetApplied}, \u4F4E\u4E8E\u9608\u503C=${budgetNotApplicable}, \u5931\u8D25=${budgetFailed}`);
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
 async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
@@ -95139,7 +95193,17 @@ async function recordExecutionLog(result) {
     }
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
-        const actionType = detail.action === "add_negative" ? "negative_keyword_add" : detail.action === "add_negative_product_target" ? "negative_product_target_add" : "keyword_create";
+        const actionTypeMap = {
+          "add_negative": "negative_keyword_add",
+          "add_negative_product_target": "negative_product_target_add",
+          "brand_protect_skip": "search_term_brand_protect",
+          "exploration_protect_skip": "search_term_exploration_protect",
+          "keyword_permanently_failed_skip": "search_term_permanent_fail_skip",
+          "keyword_validation_failed": "search_term_validation_fail",
+          "add_product_target": "product_target_create",
+          "add_keyword": "keyword_create"
+        };
+        const actionType = actionTypeMap[detail.action] || "keyword_create";
         await createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
@@ -122339,7 +122403,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 352;
+    SYSTEM_VERSION = 353;
   }
 });
 
@@ -131413,6 +131477,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 353,
+        description: "v353: [\u641C\u7D22\u8BCD\u6536\u5272\u4F18\u5316 + \u4F11\u7720\u6A21\u5757\u8BCA\u65AD + search_terms\u53BB\u91CD\u4FEE\u590D] \u2014 (1)P0-search_terms\u53BB\u91CDkey\u4FEE\u590D: existingMap\u4ECEbuildExistingKey\u4F7F\u7528\u672C\u5730campaign.id\u6539\u4E3AAmazon campaignId,\u89E3\u51B3\u53BB\u91CD\u5931\u6548\u5BFC\u81F4\u91CD\u590DINSERT (2)P0-\u54C1\u724C\u8BCD\u524D\u7F6E\u8FC7\u6EE4: \u5728CREATE_KEYWORD\u51B3\u7B56\u540E\u7ACB\u5373\u68C0\u67E5\u54C1\u724C\u8BCD,\u907F\u514D\u54C1\u724C\u8BCD\u901A\u8FC7API\u521B\u5EFA\u88AB\u62D2\u7EDD\u5BFC\u81F4\u53CD\u590D\u91CD\u8BD5 (3)P0-PT\u5E7F\u544A\u7EC4\u524D\u7F6E\u68C0\u67E5: \u5728campaign\u5FAA\u73AF\u5F00\u5934\u9884\u52A0\u8F7DPT\u72B6\u6001,\u907F\u514D\u5728API\u540C\u6B65\u9636\u6BB5\u624D\u53D1\u73B0skipped_pt_adgroup (4)P1-\u53BB\u91CD\u7A97\u53E3\u4ECE7\u5929\u6269\u5C55\u523030\u5929: \u8FDB\u4E00\u6B65\u6D88\u9664already_exists\u91CD\u590D\u521B\u5EFA (5)P1-action_type\u6620\u5C04\u4FEE\u590D: brand_protect_skip/exploration_protect_skip\u7B49\u4E0D\u518D\u88AB\u9519\u8BEF\u5F52\u7C7B\u4E3Akeyword_create (6)P1-\u53BB\u91CD\u67E5\u8BE2\u8986\u76D6\u65B0action_type: \u5305\u542Bsearch_term_brand_protect\u7B49\u65B0\u7C7B\u578B (7)P2-placement\u8BCA\u65AD\u65E5\u5FD7\u589E\u5F3A: \u8FFD\u8E2A\u5EFA\u8BAE\u751F\u6210\u548C\u8FC7\u6EE4\u539F\u56E0 (8)P2-budget\u8BCA\u65AD\u65E5\u5FD7\u589E\u5F3A: \u8FFD\u8E2A\u5EFA\u8BAE\u751F\u6210\u548C\u5E94\u7528\u7EDF\u8BA1",
+        affectedModules: ["optimization", "sync"],
+        correctionActions: ["rerun_optimization"]
       },
       {
         version: 352,

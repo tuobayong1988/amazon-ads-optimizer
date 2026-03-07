@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 352;  // v352: 数据同步架构重构-串行化(SP→SB→SD报告请求串行+3s延迟)+智能账户交错排序(同品牌不同站点分散)+账户间5s延迟+并发从3降为2+优化指令同步账号间3s延迟+类型间1s延迟+syncAll步骤间1s延迟
+export const SYSTEM_VERSION = 353;  // v353: 搜索词收割优化(品牌词前置过滤+PT广告组前置检查+去重窗口30天+action_type映射修复)+search_terms去重key修复+placement/budget诊断日志增强

@@ -455,6 +455,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
+    version: 353,
+    description: 'v353: [搜索词收割优化 + 休眠模块诊断 + search_terms去重修复] — (1)P0-search_terms去重key修复: existingMap从buildExistingKey使用本地campaign.id改为Amazon campaignId,解决去重失效导致重复INSERT (2)P0-品牌词前置过滤: 在CREATE_KEYWORD决策后立即检查品牌词,避免品牌词通过API创建被拒绝导致反复重试 (3)P0-PT广告组前置检查: 在campaign循环开头预加载PT状态,避免在API同步阶段才发现skipped_pt_adgroup (4)P1-去重窗口从7天扩展到30天: 进一步消除already_exists重复创建 (5)P1-action_type映射修复: brand_protect_skip/exploration_protect_skip等不再被错误归类为keyword_create (6)P1-去重查询覆盖新action_type: 包含search_term_brand_protect等新类型 (7)P2-placement诊断日志增强: 追踪建议生成和过滤原因 (8)P2-budget诊断日志增强: 追踪建议生成和应用统计',
+    affectedModules: ['optimization', 'sync'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
     version: 352,
     description: 'v352: [数据同步架构重构 - 精细化分账户/分广告类型/分步骤串行化] — (1)P0-报告请求串行化: SP→SB→SD从并行Promise.all改为串行执行,每种广告类型间加3秒延迟,大幅降低API限流风险 (2)P0-智能账户交错排序: 同一品牌(userId)不同站点账户分散到不同批次,避免共享API凭证的账户同时发起请求 (3)P0-账户间串行+5秒延迟: 替代旧的并行批次执行,确保单个账户完成后再开始下一个 (4)P1-并发控制降级: MAX_CONCURRENT_ACCOUNTS从3降为2 (5)P1-优化指令同步增强: 账号间3秒延迟+任务类型间1秒延迟 (6)P1-syncAll步骤间1秒延迟: 降低API调用密度',
     affectedModules: ['sync', 'optimization'],

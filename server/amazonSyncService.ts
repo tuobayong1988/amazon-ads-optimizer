@@ -708,7 +708,8 @@ export class AmazonSyncService {
         targetMap.set(key, { id: t.id, targetMatchType: t.targetMatchType });
       }
 
-      // 5. 预加载已有搜索词: accountId:campaignLocalId:adGroupLocalId:searchTerm -> existing
+      // 5. 预加载已有搜索词: amazonCampaignId:adGroupLocalId:searchTerm -> existing
+      // v353修复: existingMap key统一使用Amazon campaignId (与写入时一致)
       const allSearchTerms = await db
         .select({ id: searchTerms.id, campaignId: searchTerms.campaignId, adGroupId: searchTerms.adGroupId, searchTerm: searchTerms.searchTerm })
         .from(searchTerms)
@@ -798,7 +799,8 @@ export class AmazonSyncService {
         };
 
         // 检查是否已存在（从Map查找，O(1)）
-        const existingKey = `${campaign.id}:${adGroup.id}:${searchTermText.toLowerCase()}`;
+        // v353修复: 使用Amazon campaignId构建key (与existingMap中存储的campaignId一致)
+        const existingKey = `${(campaign as any).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
         const existingId = existingMap.get(existingKey);
 
         if (existingId) {

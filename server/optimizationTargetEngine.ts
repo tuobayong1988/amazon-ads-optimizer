@@ -1808,6 +1808,17 @@ async function executePlacementOptimization(
         config.accountId
       );
       
+      // v353: 增强位置优化诊断日志 - 追踪建议生成和过滤原因
+      if (suggestions.length === 0) {
+        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成0条建议, analysis=${JSON.stringify({
+          hasData: !!analysis,
+          dataPoints: analysis?.dataPoints || 0,
+          placements: analysis?.placements?.length || 0,
+        })}`);
+      } else {
+        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: any) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
+      }
+      
       // v183: 基于多维度组合分析智能调整位置倾斜
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
       const goldenCombos = campaignCombos.filter((c: any) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
@@ -2562,8 +2573,8 @@ async function executeSearchTermAnalysis(
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
-  // v328: 预加载最近7天已处理的搜索词（含 already_exists/synced/failed/permanently_failed），
-  // 从24h扩展到7天，从根本上消除already_exists重复创建问题（之前24h窗口导致46.5%的already_exists）
+  // v353: 预加载最近30天已处理的搜索词（含 already_exists/synced/failed/permanently_failed），
+  // v328: 从24h扩展到7天; v353: 从7天扩展到30天，进一步消除already_exists重复创建（7天窗口仍有74%的already_exists）
   const recentlyProcessedSearchTerms = new Set<string>();
   try {
     const dbInstance = await db.getDb();
@@ -2574,8 +2585,8 @@ async function executeSearchTermAnalysis(
                JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.amazonCampaignId')) as campaign_id
         FROM optimization_logs 
         WHERE performance_group_id = ${config.performanceGroupId}
-          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest')
-          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND action_type IN ('keyword_create', 'negative_keyword_add', 'negative_product_target_add', 'search_term_harvest', 'search_term_brand_protect', 'search_term_exploration_protect', 'search_term_permanent_fail_skip', 'search_term_validation_fail', 'product_target_create')
+          AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
       `);
@@ -2584,7 +2595,7 @@ async function executeSearchTermAnalysis(
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
         }
       }
-      log.info(`[SearchTermAnalysis] v328: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重(7天窗口)`);
+      log.info(`[SearchTermAnalysis] v353: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重(30天窗口)`);
     }
   } catch (dedupErr: any) {
     log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${dedupErr.message}`, dedupErr.stack?.slice(0, 300));
@@ -2818,6 +2829,19 @@ async function executeSearchTermAnalysis(
       // v2修改: PT campaigns不再完全跳过，而是标记为PT类型，允许否定产品定向操作
       const campaignNameStr = (campaign as any).campaignName || '';
       const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
+      
+      // v353: 在campaign循环开头预加载广告组PT状态，避免在每个搜索词处理中重复查询
+      // 解决skipped_pt_adgroup在API同步阶段才发现导致13%无效keyword_create的问题
+      let campaignHasProductTargetAdGroup = false;
+      try {
+        const campaignAdGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
+        if (campaignAdGroups.length > 0) {
+          campaignHasProductTargetAdGroup = await adGroupHasProductTargets(campaignAdGroups[0].id);
+        }
+      } catch (ptPreCheckErr: any) {
+        log.debug(`[SearchTermAnalysis] v353: 预检查PT广告组失败(继续处理): ${ptPreCheckErr.message}`);
+      }
+      
       if (isProductTargetingCamp) {
         log.info(`[SearchTermAnalysis] v2: Product Targeting campaign: "${campaignNameStr}" (id=${campaignAmazonId})，仅允许否定产品定向操作`);
       }
@@ -2871,7 +2895,7 @@ async function executeSearchTermAnalysis(
           continue;
         }
         
-        // v328: 搜索词级别去重 — 如果该搜索词+campaign在最近7天内已处理过，直接跳过
+        // v353: 搜索词级别去重 — 如果该搜索词+campaign在最近30天内已处理过，直接跳过
         const dedupKey = `${campaignAmazonId}::${stPerf.searchTerm.toLowerCase().trim()}`;
         if (recentlyProcessedSearchTerms.has(dedupKey)) {
           log.debug(`[SearchTermAnalysis] v328: 跳过已处理搜索词: "${stPerf.searchTerm}" (campaign=${campaignAmazonId})`);
@@ -3110,6 +3134,40 @@ async function executeSearchTermAnalysis(
           // v191+v311: 自动广告活动和Product Targeting campaign不能添加正面关键词（双重保险）
           if (!canAddPositiveKeyword(campaignTargetingType, campaignNameStr)) {
             log.info(`[SearchTermAnalysis] v311: campaign不支持添加正面关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}", type=${campaignTargetingType})`);
+            continue;
+          }
+          
+          // v353: 品牌词前置过滤 - 品牌词不应作为正面关键词创建
+          // 品牌词通过Amazon API创建会被拒绝(code=ERROR)，导致反复重试浪费API配额
+          if (brandTerms.length > 0 && isProtectedKeyword(decision.targetValue, brandTerms)) {
+            log.info(`[SearchTermAnalysis] v353: 品牌词前置过滤: "${decision.targetValue}" 含品牌词，跳过正面关键词创建`);
+            details.push({
+              accountId: config.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: 'brand_protect_skip',
+              reason: `v353: 品牌词前置过滤 - "${decision.targetValue}"含品牌词，不创建正面关键词`,
+              algorithmUsed: 'search_term_analyzer',
+            });
+            continue;
+          }
+          
+          // v353: 广告组级别PT前置检查 - 如果广告组已有product targets，不能添加keyword
+          if (campaignHasProductTargetAdGroup) {
+            log.info(`[SearchTermAnalysis] v353: 广告组已有product targets，前置跳过keyword创建: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            details.push({
+              accountId: config.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: 'keyword_validation_failed',
+              reason: `v353: 广告组已有product targets，不支持添加keyword`,
+              algorithmUsed: 'search_term_analyzer',
+              apiSyncStatus: 'skipped_pt_adgroup',
+            });
             continue;
           }
           
@@ -3567,6 +3625,12 @@ async function executeBudgetAllocation(
     // 获取预算分配建议
     const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(config.id);
     
+    // v353: 预算分配诊断日志
+    log.info(`[BudgetAllocation] v353诊断: 目标${config.id} 生成${budgetResult.suggestions.length}条预算建议, campaigns=${campaigns.length}`);
+    
+    let skippedBelowThreshold = 0;
+    let appliedCount = 0;
+    
     for (const suggestion of budgetResult.suggestions) {
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
       if (!campaign) continue;
@@ -3662,6 +3726,12 @@ async function executeBudgetAllocation(
   } catch (error: any) {
     details.push({ error: error.message });
   }
+  
+  // v353: 预算分配汇总诊断日志
+  const budgetApplied = details.filter(d => d.apiSyncStatus === 'synced').length;
+  const budgetNotApplicable = details.filter(d => d.apiSyncStatus === 'not_applicable').length;
+  const budgetFailed = details.filter(d => d.apiSyncStatus === 'failed').length;
+  log.info(`[BudgetAllocation] v353诊断汇总: 共${details.length}条建议, 已应用=${budgetApplied}, 低于阈值=${budgetNotApplicable}, 失败=${budgetFailed}`);
   
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
@@ -4655,10 +4725,19 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     // v250+v2: 记录搜索词分析日志（使用createOptimizationLog确保双写）
     if (result.searchTermAnalysis.executed) {
       for (const detail of result.searchTermAnalysis.details) {
-        // v2: 添加否定产品定向的action_type映射
-        const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' 
-          : detail.action === 'add_negative_product_target' ? 'negative_product_target_add' 
-          : 'keyword_create';
+        // v353: 完善action_type映射 - 为所有action类型分配正确的action_type
+        // 旧版本将brand_protect_skip/exploration_protect_skip等错误归类为keyword_create
+        const actionTypeMap: Record<string, string> = {
+          'add_negative': 'negative_keyword_add',
+          'add_negative_product_target': 'negative_product_target_add',
+          'brand_protect_skip': 'search_term_brand_protect',
+          'exploration_protect_skip': 'search_term_exploration_protect',
+          'keyword_permanently_failed_skip': 'search_term_permanent_fail_skip',
+          'keyword_validation_failed': 'search_term_validation_fail',
+          'add_product_target': 'product_target_create',
+          'add_keyword': 'keyword_create',
+        };
+        const actionType = actionTypeMap[detail.action] || 'keyword_create';
         await db.createOptimizationLog({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
