@@ -30,7 +30,8 @@ import * as gradualEngine from "./gradualOptimizationEngine";
 
 /** 广告活动表现数据 */
 interface CampaignPerformanceData {
-  campaignId: number;
+  campaignId: number; // v354: 这是本地自增ID (campaigns.id)，用于db.updateCampaign等本地数据库操作
+  amazonCampaignId: string; // v354: 新增 — Amazon Campaign ID，用于查询daily_performance等绰效数据表
   campaignName: string;
   currentBudget: number;
   // 7天数据（趋势分析）
@@ -104,7 +105,8 @@ interface MarginalBenefitAnalysis {
 
 /** 预算调整建议 */
 interface BudgetAllocationSuggestion {
-  campaignId: number;
+  campaignId: number; // v354: 本地自增ID (campaigns.id)
+  amazonCampaignId: string; // v354: 新增 — Amazon Campaign ID
   campaignName: string;
   currentBudget: number;
   suggestedBudget: number;
@@ -200,10 +202,13 @@ export async function collectCampaignPerformanceData(
   
   for (const campaign of campaignList) {
     // v163: 获取各时间窗口的数据 + 90天完整数据用于时间衰减加权
+    // v354: P0修复 — campaign.id是本地自增ID，但daily_performance.campaignId存储的是Amazon Campaign ID
+    // 必须使用campaign.campaignId(Amazon ID)查询，否则永远匹配不到数据，导致budget_adjustment模块完全休眠
+    const amazonCampaignId = String(campaign.campaignId);
     const [data7d, data14d, data30d] = await Promise.all([
-      aggregatePerformanceData(campaign.id, date7dAgo, endDate),
-      aggregatePerformanceData(campaign.id, date14dAgo, endDate),
-      aggregatePerformanceData(campaign.id, date30dAgo, endDate)
+      aggregatePerformanceData(amazonCampaignId, date7dAgo, endDate),
+      aggregatePerformanceData(amazonCampaignId, date14dAgo, endDate),
+      aggregatePerformanceData(amazonCampaignId, date30dAgo, endDate)
     ]);
     
     // v163: 获取90天每日数据用于时间衰减加权计算
@@ -247,7 +252,8 @@ export async function collectCampaignPerformanceData(
     const budgetUtilization = currentBudget > 0 ? (dailyAvgSpend / currentBudget) * 100 : 0;
     
     results.push({
-      campaignId: campaign.campaignId as any,
+      campaignId: campaign.id, // v354: 本地自增ID，用于本地数据库操作
+      amazonCampaignId: String(campaign.campaignId), // v354: Amazon Campaign ID，用于绰效数据查询
       campaignName: campaign.campaignName,
       currentBudget,
       // 7天数据
@@ -301,7 +307,7 @@ export async function collectCampaignPerformanceData(
  * 聚合指定时间范围的表现数据
  */
 async function aggregatePerformanceData(
-  campaignId: number,
+  campaignId: string, // v354: 修正参数类型为string，接收Amazon Campaign ID（与daily_performance.campaignId一致）
   startDate: Date,
   endDate: Date
 ): Promise<{ spend: number; sales: number; conversions: number; clicks: number; impressions: number }> {
@@ -738,7 +744,8 @@ export async function generateBudgetAllocationSuggestions(
     confidence = Math.min(95, Math.max(30, confidence));
     
     suggestions.push({
-      campaignId: campaign.campaignId,
+      campaignId: campaign.campaignId, // v354: 本地自增ID (campaigns.id)
+      amazonCampaignId: campaign.amazonCampaignId, // v354: Amazon Campaign ID
       campaignName: campaign.campaignName,
       currentBudget: campaign.currentBudget,
       suggestedBudget,

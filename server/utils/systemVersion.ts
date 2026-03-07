@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 353;  // v353: 搜索词收割优化(品牌词前置过滤+PT广告组前置检查+去重窗口30天+action_type映射修复)+search_terms去重key修复+placement/budget诊断日志增强
+export const SYSTEM_VERSION = 354;  // v354: P0-budget_adjustment ID不匹配修复(campaign.id→campaign.campaignId)+P1-placement_adjust阈值修复(>5→0激活位置优化)+P2-SB/SBV keyword_create前置过滤(pending重试路径+日志记录)

@@ -2652,13 +2652,16 @@ async function executeSearchTermAnalysis(
       const { sql } = await import('drizzle-orm');
       
       // 查找所有pending的keyword_create记录（最多处理50条，避免API超载）
+      // v354: P2修复 — JOIN campaigns表获取campaignType，排除SB/SD广告活动的pending记录
       const pendingKeywords = await dbInstance.execute(sql`
-        SELECT id, action_detail, account_id, performance_group_id
-        FROM optimization_logs 
-        WHERE performance_group_id = ${config.performanceGroupId}
-          AND action_type = 'keyword_create'
-          AND api_sync_status = 'pending'
-        ORDER BY created_at ASC
+        SELECT ol.id, ol.action_detail, ol.account_id, ol.performance_group_id, ol.campaign_id,
+               c.campaignType AS campaign_type
+        FROM optimization_logs ol
+        LEFT JOIN campaigns c ON c.id = ol.campaign_id
+        WHERE ol.performance_group_id = ${config.performanceGroupId}
+          AND ol.action_type = 'keyword_create'
+          AND ol.api_sync_status = 'pending'
+        ORDER BY ol.created_at ASC
         LIMIT 50
       `);
       const pendingKwRows = (pendingKeywords as any)[0] || [];
@@ -2670,6 +2673,18 @@ async function executeSearchTermAnalysis(
         
         for (const row of pendingKwRows) {
           try {
+            // v354: P2修复 — SB/SD广告活动不支持通过API创建关键词，直接标记为skipped_unsupported_campaign_type
+            const rowCampaignType = (row as any).campaign_type;
+            if (rowCampaignType === 'sb' || rowCampaignType === 'sd') {
+              await dbInstance.execute(sql`
+                UPDATE optimization_logs SET api_sync_status = 'skipped_unsupported_campaign_type',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.skip_reason', ${`v354: ${rowCampaignType.toUpperCase()}广告活动不支持通过API创建关键词`})
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+              continue;
+            }
+            
             const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
             const searchTerm = detail?.searchTerm;
             const matchType = detail?.matchType || 'phrase';
@@ -3124,6 +3139,18 @@ async function executeSearchTermAnalysis(
           // 尝试用createSpKeywords会返回ERROR，导致大量无效重试
           if (v2CampaignType === 'sb' || v2CampaignType === 'sd') {
             log.info(`[SearchTermAnalysis] v351: ${v2CampaignType.toUpperCase()}广告活动不支持通过API创建关键词，跳过: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            // v354: P2修复 — 记录到optimization_logs，避免静默跳过无法追踪
+            details.push({
+              accountId: config.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: 'keyword_create',
+              reason: `v354: ${v2CampaignType.toUpperCase()}广告活动不支持通过API创建关键词，跳过`,
+              algorithmUsed: 'search_term_analyzer',
+              apiSyncStatus: 'skipped_unsupported_campaign_type',
+            });
             continue;
           }
           // v2: Product Targeting campaign不能添加正面关键词
@@ -3632,8 +3659,13 @@ async function executeBudgetAllocation(
     let appliedCount = 0;
     
     for (const suggestion of budgetResult.suggestions) {
+      // v354: P0修复 — suggestion.campaignId现在是本地ID，与campaigns.id匹配
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
-      if (!campaign) continue;
+      if (!campaign) {
+        // v354: 诊断日志 — 记录未匹配的campaign
+        log.warn(`[BudgetAllocation] v354: suggestion.campaignId=${suggestion.campaignId} (amazonId=${suggestion.amazonCampaignId}) 未在campaigns列表中找到匹配`);
+        continue;
+      }
       
       // v163: 应用渐进式预算调整
       let finalBudget = suggestion.suggestedBudget;
@@ -3653,7 +3685,8 @@ async function executeBudgetAllocation(
       
       const adjustment: any = {
         accountId: config.accountId,
-        campaignId: suggestion.campaignId,
+        campaignId: suggestion.campaignId, // v354: 本地ID
+        amazonCampaignId: suggestion.amazonCampaignId, // v354: Amazon ID
         campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
         suggestedBudget: finalBudget, // v163: 使用渐进式调整后的预算
@@ -3677,7 +3710,8 @@ async function executeBudgetAllocation(
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
-          const amazonCampaignId = getCampaignAmazonId(campaign);
+          // v354: 使用suggestion中的amazonCampaignId，确保Amazon API调用使用正确的ID
+          const amazonCampaignId = suggestion.amazonCampaignId || getCampaignAmazonId(campaign);
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
@@ -3688,6 +3722,7 @@ async function executeBudgetAllocation(
           if (budgetSyncResult) {
             // API成功后才更新本地DB
             // v166: 同时标记pending状态，等待下次同步确认
+            // v354: suggestion.campaignId现在是本地ID，与db.updateCampaign(id: number)匹配
             await db.updateCampaign(suggestion.campaignId, { 
               dailyBudget: finalBudget.toFixed(2),
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -3702,8 +3737,8 @@ async function executeBudgetAllocation(
               postOptVerifier.scheduleBudgetVerification(
                 config.accountId,
                 [{
-                  localCampaignId: suggestion.campaignId,
-                  amazonCampaignId: amazonCampaignId,
+                  localCampaignId: suggestion.campaignId, // v354: 现在正确传入本地ID
+                  amazonCampaignId: suggestion.amazonCampaignId || amazonCampaignId, // v354: 使用Amazon ID
                   expectedBudget: finalBudget,
                 }]
               );

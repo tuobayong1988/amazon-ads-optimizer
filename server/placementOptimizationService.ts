@@ -939,8 +939,9 @@ export async function executeAutomaticPlacementOptimization(
     );
 
     // 6. 检查是否有需要调整的项目
+    // v354: P1修复 — 与generatePlacementSuggestions保持一致，将阈值从 >= 5 降低为 > 0
     const needsAdjustment = suggestions.some(s => 
-      Math.abs(s.adjustmentDelta) >= 5 && 
+      Math.abs(s.adjustmentDelta) > 0 && 
       s.isReliable && 
       !s.cooldownStatus?.inCooldown
     );
@@ -960,8 +961,9 @@ export async function executeAutomaticPlacementOptimization(
       await updatePlacementSettings(campaignId, accountId, suggestions);
     }
 
+    // v354: P1修复 — 与上方阈值保持一致
     const adjustedCount = suggestions.filter(s => 
-      Math.abs(s.adjustmentDelta) >= 5 && 
+      Math.abs(s.adjustmentDelta) > 0 && 
       s.isReliable && 
       !s.cooldownStatus?.inCooldown
     ).length;
@@ -1119,7 +1121,11 @@ export async function generatePlacementSuggestions(
   const suggestions: any[] = [];
   
   for (const suggestion of adjustmentSuggestions) {
-    if (Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment) > 5) {
+    const adjustmentDelta = Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment);
+    // v354: P1修复 — 将过滤阈值从 > 5 降低为 > 0
+    // 原因: 当confidence=0.6时maxDeltaPercent=5，但过滤条件是严格大于5，导致中等置信度的建议永远被过滤
+    // 调整幅度已由calculateAdjustmentDelta中的maxDeltaPercent控制，无需额外的硬编码阈值过滤
+    if (adjustmentDelta > 0) {
       suggestions.push({
         placement: suggestion.placementType,
         currentAdjustment: suggestion.currentAdjustment,

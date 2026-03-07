@@ -87091,7 +87091,7 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId, opti
       accountId
     );
     const needsAdjustment = suggestions.some(
-      (s4) => Math.abs(s4.adjustmentDelta) >= 5 && s4.isReliable && !s4.cooldownStatus?.inCooldown
+      (s4) => Math.abs(s4.adjustmentDelta) > 0 && s4.isReliable && !s4.cooldownStatus?.inCooldown
     );
     if (!needsAdjustment) {
       return {
@@ -87106,7 +87106,7 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId, opti
       await updatePlacementSettings(campaignId, accountId, suggestions);
     }
     const adjustedCount = suggestions.filter(
-      (s4) => Math.abs(s4.adjustmentDelta) >= 5 && s4.isReliable && !s4.cooldownStatus?.inCooldown
+      (s4) => Math.abs(s4.adjustmentDelta) > 0 && s4.isReliable && !s4.cooldownStatus?.inCooldown
     ).length;
     return {
       success: true,
@@ -87200,7 +87200,8 @@ async function generatePlacementSuggestions(campaignId, accountId) {
   );
   const suggestions = [];
   for (const suggestion of adjustmentSuggestions) {
-    if (Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment) > 5) {
+    const adjustmentDelta = Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment);
+    if (adjustmentDelta > 0) {
       suggestions.push({
         placement: suggestion.placementType,
         currentAdjustment: suggestion.currentAdjustment,
@@ -87537,10 +87538,11 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
   const campaignList = await dbInstance.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
   const results = [];
   for (const campaign of campaignList) {
+    const amazonCampaignId = String(campaign.campaignId);
     const [data7d, data14d, data30d] = await Promise.all([
-      aggregatePerformanceData(campaign.id, date7dAgo, endDate),
-      aggregatePerformanceData(campaign.id, date14dAgo, endDate),
-      aggregatePerformanceData(campaign.id, date30dAgo, endDate)
+      aggregatePerformanceData(amazonCampaignId, date7dAgo, endDate),
+      aggregatePerformanceData(amazonCampaignId, date14dAgo, endDate),
+      aggregatePerformanceData(amazonCampaignId, date30dAgo, endDate)
     ]);
     let timeWeightedMetrics;
     try {
@@ -87575,7 +87577,10 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
     const dailyAvgSpend = timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30;
     const budgetUtilization = currentBudget > 0 ? dailyAvgSpend / currentBudget * 100 : 0;
     results.push({
-      campaignId: campaign.campaignId,
+      campaignId: campaign.id,
+      // v354: 本地自增ID，用于本地数据库操作
+      amazonCampaignId: String(campaign.campaignId),
+      // v354: Amazon Campaign ID，用于绰效数据查询
       campaignName: campaign.campaignName,
       currentBudget,
       // 7天数据
@@ -87902,6 +87907,9 @@ async function generateBudgetAllocationSuggestions(performanceGroupId, config2 =
     confidence = Math.min(95, Math.max(30, confidence));
     suggestions.push({
       campaignId: campaign.campaignId,
+      // v354: 本地自增ID (campaigns.id)
+      amazonCampaignId: campaign.amazonCampaignId,
+      // v354: Amazon Campaign ID
       campaignName: campaign.campaignName,
       currentBudget: campaign.currentBudget,
       suggestedBudget,
@@ -93433,12 +93441,14 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
     if (dbInstance && config2.performanceGroupId) {
       const { sql: sql17 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const pendingKeywords = await dbInstance.execute(sql17`
-        SELECT id, action_detail, account_id, performance_group_id
-        FROM optimization_logs 
-        WHERE performance_group_id = ${config2.performanceGroupId}
-          AND action_type = 'keyword_create'
-          AND api_sync_status = 'pending'
-        ORDER BY created_at ASC
+        SELECT ol.id, ol.action_detail, ol.account_id, ol.performance_group_id, ol.campaign_id,
+               c.campaignType AS campaign_type
+        FROM optimization_logs ol
+        LEFT JOIN campaigns c ON c.id = ol.campaign_id
+        WHERE ol.performance_group_id = ${config2.performanceGroupId}
+          AND ol.action_type = 'keyword_create'
+          AND ol.api_sync_status = 'pending'
+        ORDER BY ol.created_at ASC
         LIMIT 50
       `);
       const pendingKwRows = pendingKeywords[0] || [];
@@ -93448,6 +93458,16 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         let retryFailed = 0;
         for (const row of pendingKwRows) {
           try {
+            const rowCampaignType = row.campaign_type;
+            if (rowCampaignType === "sb" || rowCampaignType === "sd") {
+              await dbInstance.execute(sql17`
+                UPDATE optimization_logs SET api_sync_status = 'skipped_unsupported_campaign_type',
+                  api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.skip_reason', ${`v354: ${rowCampaignType.toUpperCase()}\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301\u901A\u8FC7API\u521B\u5EFA\u5173\u952E\u8BCD`})
+                WHERE id = ${row.id}
+              `);
+              retryFailed++;
+              continue;
+            }
             const detail = typeof row.action_detail === "string" ? JSON.parse(row.action_detail) : row.action_detail;
             const searchTerm = detail?.searchTerm;
             const matchType = detail?.matchType || "phrase";
@@ -93842,6 +93862,17 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         } else if (decision.action === "CREATE_KEYWORD") {
           if (v2CampaignType === "sb" || v2CampaignType === "sd") {
             log50.info(`[SearchTermAnalysis] v351: ${v2CampaignType.toUpperCase()}\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301\u901A\u8FC7API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (campaign="${campaignNameStr}")`);
+            details.push({
+              accountId: config2.accountId,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: "keyword_create",
+              reason: `v354: ${v2CampaignType.toUpperCase()}\u5E7F\u544A\u6D3B\u52A8\u4E0D\u652F\u6301\u901A\u8FC7API\u521B\u5EFA\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7`,
+              algorithmUsed: "search_term_analyzer",
+              apiSyncStatus: "skipped_unsupported_campaign_type"
+            });
             continue;
           }
           if (isProductTargetingCamp) {
@@ -94272,7 +94303,10 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
     let appliedCount = 0;
     for (const suggestion of budgetResult.suggestions) {
       const campaign = campaigns7.find((c5) => c5.id === suggestion.campaignId);
-      if (!campaign) continue;
+      if (!campaign) {
+        log50.warn(`[BudgetAllocation] v354: suggestion.campaignId=${suggestion.campaignId} (amazonId=${suggestion.amazonCampaignId}) \u672A\u5728campaigns\u5217\u8868\u4E2D\u627E\u5230\u5339\u914D`);
+        continue;
+      }
       let finalBudget = suggestion.suggestedBudget;
       const campaignPerf = budgetResult.suggestions.find((s4) => s4.campaignId === suggestion.campaignId);
       const twMetrics = campaignPerf?.timeWeightedMetrics;
@@ -94289,6 +94323,9 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
       const adjustment = {
         accountId: config2.accountId,
         campaignId: suggestion.campaignId,
+        // v354: 本地ID
+        amazonCampaignId: suggestion.amazonCampaignId,
+        // v354: Amazon ID
         campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
         suggestedBudget: finalBudget,
@@ -94308,7 +94345,7 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
       }
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.5) {
         try {
-          const amazonCampaignId = getCampaignAmazonId(campaign);
+          const amazonCampaignId = suggestion.amazonCampaignId || getCampaignAmazonId(campaign);
           const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
             config2.accountId,
             amazonCampaignId,
@@ -94330,7 +94367,9 @@ async function executeBudgetAllocation(config2, campaigns7, dryRun) {
                 config2.accountId,
                 [{
                   localCampaignId: suggestion.campaignId,
-                  amazonCampaignId,
+                  // v354: 现在正确传入本地ID
+                  amazonCampaignId: suggestion.amazonCampaignId || amazonCampaignId,
+                  // v354: 使用Amazon ID
                   expectedBudget: finalBudget
                 }]
               );
@@ -122403,7 +122442,7 @@ var SYSTEM_VERSION;
 var init_systemVersion = __esm({
   "server/utils/systemVersion.ts"() {
     "use strict";
-    SYSTEM_VERSION = 353;
+    SYSTEM_VERSION = 354;
   }
 });
 
@@ -131477,6 +131516,12 @@ var init_postDeployOptimizer = __esm({
         description: "v344: [P0\u51B7\u542F\u52A8\u540C\u6B65\u5929\u6570\u4FEE\u590D + P1\u7ADE\u4EF7\u65E5\u5FD7\u8868\u4FEE\u590D] \u2014 (1)P0-coldStartService.executeFullSync\u4FEE\u590D: syncAll()\u8C03\u7528\u65F6\u5F3A\u5236\u4F20\u5165performanceDays=90\u5929,\u4E4B\u524D\u672A\u4F20\u53C2\u6570\u5BFC\u81F4\u9ED8\u8BA4\u53EA\u540C\u6B6514\u5929\u7EE9\u6548\u6570\u636E (2)P0-\u79FB\u9664syncPerformanceOnly\u786C\u7F16\u7801\u9650\u5236: \u4E4B\u524D\u786C\u7F16\u7801days>30?30:days\u5BFC\u81F4\u6700\u591A\u53EA\u540C\u6B6530\u5929 (3)P1-bidding_logs\u8868\u7ED3\u6784\u4FEE\u590D: \u6DFB\u52A0\u7F3A\u5931\u7684algorithm_used\u5217,\u66F4\u65B0logTargetType\u548CactionType\u679A\u4E3E\u503C (4)P1-\u521B\u5EFAcold_start_logs\u8868: \u4E4B\u524D\u8868\u4E0D\u5B58\u5728\u5BFC\u81F4\u51B7\u542F\u52A8\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25 (5)P1-amazon_api_credentials\u8868\u6DFB\u52A0last_cold_start_version\u548Clast_cold_start_at\u5217",
         affectedModules: ["sync", "bidding", "cold_start"],
         correctionActions: ["resync_data", "cold_start"]
+      },
+      {
+        version: 354,
+        description: "v354: [budget_adjustment\u4FEE\u590D + placement_adjust\u6FC0\u6D3B + SB/SBV\u524D\u7F6E\u8FC7\u6EE4] \u2014 (1)P0-budget_adjustment ID\u4E0D\u5339\u914D\u4FEE\u590D: aggregatePerformanceData\u4F20\u5165campaign.id(\u672C\u5730\u81EA\u589EID)\u6539\u4E3Acampaign.campaignId(Amazon ID),\u89E3\u51B3daily_performance\u67E5\u8BE2\u6C38\u8FDC\u5339\u914D\u4E0D\u5230\u6570\u636E\u5BFC\u81F4\u6A21\u5757\u5B8C\u5168\u4F11\u7720 (2)P0-CampaignPerformanceData/BudgetAllocationSuggestion\u589E\u52A0amazonCampaignId\u5B57\u6BB5,\u4FEE\u590D\u6574\u4E2AID\u94FE\u8DEF(campaigns.find\u5339\u914D+db.updateCampaign+scheduleBudgetVerification) (3)P1-placement_adjust\u9608\u503C\u4FEE\u590D: generatePlacementSuggestions\u8FC7\u6EE4\u9608\u503C\u4ECE>5\u964D\u4F4E\u4E3A>0,\u89E3\u51B3confidence=0.6\u65F6maxDeltaPercent=5\u4F46\u4E25\u683C\u5927\u4E8E5\u5BFC\u81F4\u4E2D\u7B49\u7F6E\u4FE1\u5EA6\u5EFA\u8BAE\u6C38\u8FDC\u88AB\u8FC7\u6EE4 (4)P1-analyzePlacementOptimization\u4E2D\u7684needsAdjustment\u548CadjustedCount\u9608\u503C\u540C\u6B65\u4FEE\u590D (5)P2-v310 pending\u91CD\u8BD5\u8DEF\u5F84\u589E\u52A0SB/SD campaignType\u524D\u7F6E\u8FC7\u6EE4,\u89E3\u51B3V351\u8FC7\u6EE4\u88AB\u7ED5\u8FC7\u5BFC\u81F4244\u6761SB pending\u8BB0\u5F55\u53CD\u590D\u91CD\u8BD5\u5931\u8D25 (6)P2-V351 SB/SD\u8FC7\u6EE4\u589E\u52A0optimization_logs\u8BB0\u5F55(skipped_unsupported_campaign_type),\u907F\u514D\u9759\u9ED8\u8DF3\u8FC7\u65E0\u6CD5\u8FFD\u8E2A",
+        affectedModules: ["optimization"],
+        correctionActions: ["rerun_optimization"]
       },
       {
         version: 353,
