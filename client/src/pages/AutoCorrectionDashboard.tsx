@@ -584,7 +584,7 @@ export default function AutoCorrectionDashboard() {
                   <div className="space-y-3">
                     {(dashboard.recentCorrections as any[]).map((c: any, i: number) => {
                       let detail: any = {};
-                      try { detail = typeof c.api_sync_detail === 'string' ? JSON.parse(c.api_sync_detail) : c.api_sync_detail; } catch {}
+                      try { detail = typeof c.api_sync_detail === 'string' ? JSON.parse(c.api_sync_detail) : (c.api_sync_detail || {}); } catch { detail = {}; }
                       
                       return (
                         <div key={i} className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-lg">

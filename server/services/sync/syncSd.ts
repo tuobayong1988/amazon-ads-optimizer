@@ -67,18 +67,17 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
     }
     log.debug(`获取到 ${apiCampaigns.length} 个SD广告活动`);
 
+    // v363: 批量预查询所有已存在的SD campaign（消除N+1查询）
+    const sdCampaignIds = apiCampaigns.map(c => String(c.campaignId));
+    const existingSdCampaignRows = sdCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sdCampaignIds)))
+      : [];
+    const existingSdCampaignMap = new Map(existingSdCampaignRows.map(r => [r.campaignId, r]));
+
     for (const apiCampaign of apiCampaigns) {
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(apiCampaign.campaignId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const existing = existingSdCampaignMap.get(String(apiCampaign.campaignId)) || null;
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑
@@ -222,34 +221,26 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
     let synced = 0;
     let skipped = 0;
 
-    log.debug(`获取到 ${apiAdGroups.length} 个SD广告组`);
+      log.debug(`获取到 ${apiAdGroups.length} 个SD广告组`);
+
+    // v363: 批量预查询所有相关campaign和adGroup（消除N+1查询）
+    const sdAdGroupCampaignIds = [...new Set(apiAdGroups.map(ag => String(ag.campaignId)))];
+    const sdCampaignRows = sdAdGroupCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sdAdGroupCampaignIds)))
+      : [];
+    const sdCampaignMap = new Map(sdCampaignRows.map(r => [r.campaignId, r]));
+    const sdAdGroupIds = apiAdGroups.map(ag => String(ag.adGroupId));
+    const existingSdAdGroupRows = sdAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdAdGroupIds))
+      : [];
+    const existingSdAdGroupMap = new Map(existingSdAdGroupRows.map(r => [`${r.campaignId}:${r.adGroupId}`, r]));
 
     for (const apiAdGroup of apiAdGroups) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
-          )
-        )
-        .limit(1);
-
+      // v363: 使用批量预查询结果
+      const campaign = sdCampaignMap.get(String(apiAdGroup.campaignId));
       if (!campaign) continue;
-
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(adGroups)
-        .where(
-          and(
-            eq(adGroups.campaignId, String(campaign.campaignId)),
-            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
-          )
-        )
-        .limit(1);
+      const existing = existingSdAdGroupMap.get(`${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`) || null;
 
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -304,14 +295,21 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
 
     log.debug(`获取到 ${apiTargets.length} 个SD商品定位`);
 
-    for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
+    // v363: 批量预查询所有相关adGroup（消除N+1查询）
+    const sdTgtAdGroupIds = [...new Set(apiTargets.map(t => String(t.adGroupId)))];
+    const sdTgtAdGroupRows = sdTgtAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdTgtAdGroupIds))
+      : [];
+    const sdTgtAdGroupMap = new Map(sdTgtAdGroupRows.map(r => [r.adGroupId, r]));
+    const sdTgtIds = apiTargets.map(t => String(t.targetId));
+    const existingSdTgtRows = sdTgtIds.length > 0
+      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sdTgtIds))
+      : [];
+    const existingSdTgtMap = new Map(existingSdTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
+    for (const apiTarget of apiTargets) {
+      // v363: 使用批量预查询结果
+      const adGroup = sdTgtAdGroupMap.get(String(apiTarget.adGroupId));
       if (!adGroup) continue;
 
       // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
@@ -380,23 +378,12 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
         }
       }
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.adGroupId, String(adGroup.id)),
-            eq(productTargets.targetId, String(apiTarget.targetId))
-          )
-        )
-        .limit(1);
-
+       // v363: 使用批量预查询结果
+      const existing = existingSdTgtMap.get(`${String(adGroup.id)}:${String(apiTarget.targetId)}`) || null;
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
-
       const targetData = {
         adGroupId: String(adGroup.id),  // v357
-        campaignId: adGroup.campaignId || '',  // v357
+        campaignId: adGroup.campaignId || '',  // v3577
         targetId: String(apiTarget.targetId),
         targetType,
         targetValue,
@@ -480,29 +467,25 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       return 0;
     }
     log.info(`v339: 共获取到 ${reportData.length} 条SD定向数据（${batches}批合并）`);
-    let synced = 0;
+       let synced = 0;
+
+    // v363: 批量预查询所有相关adGroup和productTarget（消除N+1查询）
+    const sdRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
+    const sdRptAdGroupRows = sdRptAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdRptAdGroupIds))
+      : [];
+    const sdRptAdGroupMap = new Map(sdRptAdGroupRows.map(r => [r.adGroupId, r]));
+    const sdRptTgtIds = (reportData as any[]).map(r => String(r.targetId));
+    const existingSdRptTgtRows = sdRptTgtIds.length > 0
+      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sdRptTgtIds))
+      : [];
+    const existingSdRptTgtMap = new Map(existingSdRptTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
     for (const row of (reportData as any[])) {
-      // 查找对应的adGroup
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(row.adGroupId)))
-        .limit(1);
-
+      // v363: 使用批量预查询结果
+      const adGroup = sdRptAdGroupMap.get(String(row.adGroupId));
       if (!adGroup) continue;
-
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.adGroupId, String(adGroup.id)),
-            eq(productTargets.targetId, String(row.targetId))
-          )
-        )
-        .limit(1);
+      const existing = existingSdRptTgtMap.get(`${String(adGroup.id)}:${String(row.targetId)}`) || null;
 
       // SD的销售额 - 使用修正后的字段名 (Clicks后缀)
       const clickSales = row.salesClicks || 0;

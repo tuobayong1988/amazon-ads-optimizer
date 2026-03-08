@@ -122,6 +122,7 @@ function Router() {
       {/* v144: 智能优化中心已合并到策略管理 */}
       <Route path="/optimization-engine">{() => <Redirect to="/strategy-center" />}</Route>
       <Route path="/smart-optimization">{() => <Redirect to="/strategy-center" />}</Route>
+      <Route path="/strategy-management">{() => <Redirect to="/strategy-center" />}</Route>
       <Route path="/optimization-targets">{() => <LazyRoute component={OptimizationTargets} />}</Route>
       <Route path="/optimization-targets/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
       <Route path="/performance-groups">{() => <Redirect to="/strategy-center" />}</Route>

@@ -73,18 +73,17 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
     }
     log.debug(`获取到 ${apiCampaigns.length} 个SB广告活动`);
 
+    // v363: 批量预查询所有已存在的SB campaign（消除N+1查询）
+    const sbCampaignIds = apiCampaigns.map(c => String(c.campaignId));
+    const existingSbCampaignRows = sbCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sbCampaignIds)))
+      : [];
+    const existingSbCampaignMap = new Map(existingSbCampaignRows.map(r => [r.campaignId, r]));
+
     for (const apiCampaign of apiCampaigns) {
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(apiCampaign.campaignId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const existing = existingSbCampaignMap.get(String(apiCampaign.campaignId)) || null;
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑
@@ -245,34 +244,27 @@ AmazonSyncService.prototype.syncSbAdGroups = async function(this: AmazonSyncServ
     let synced = 0;
     let skipped = 0;
 
-    log.debug(`获取到 ${apiAdGroups.length} 个SB广告组`);
+       log.debug(`获取到 ${apiAdGroups.length} 个SB广告组`);
+
+    // v363: 批量预查询所有相关campaign和adGroup（消除N+1查询）
+    const sbAdGroupCampaignIds = [...new Set(apiAdGroups.map(ag => String(ag.campaignId)))];
+    const sbCampaignRows = sbAdGroupCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sbAdGroupCampaignIds)))
+      : [];
+    const sbCampaignMap = new Map(sbCampaignRows.map(r => [r.campaignId, r]));
+    const sbAdGroupIds = apiAdGroups.map(ag => String(ag.adGroupId));
+    const existingSbAdGroupRows = sbAdGroupIds.length > 0
+      ? await db.select().from(adGroups)
+          .where(inArray(adGroups.adGroupId, sbAdGroupIds))
+      : [];
+    const existingSbAdGroupMap = new Map(existingSbAdGroupRows.map(r => [`${r.campaignId}:${r.adGroupId}`, r]));
 
     for (const apiAdGroup of apiAdGroups) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
-          )
-        )
-        .limit(1);
-
+      // v363: 使用批量预查询结果
+      const campaign = sbCampaignMap.get(String(apiAdGroup.campaignId));
       if (!campaign) continue;
-
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(adGroups)
-        .where(
-          and(
-            eq(adGroups.campaignId, String(campaign.campaignId)),
-            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
-          )
-        )
-        .limit(1);
+      const existing = existingSbAdGroupMap.get(`${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`) || null;
 
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -322,29 +314,25 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
     let synced = 0;
     let skipped = 0;
 
-    log.debug(`获取到 ${apiKeywords.length} 个SB关键词`);
+     log.debug(`获取到 ${apiKeywords.length} 个SB关键词`);
+
+    // v363: 批量预查询所有相关adGroup和keyword（消除N+1查询）
+    const sbKwAdGroupIds = [...new Set(apiKeywords.map(k => String(k.adGroupId)))];
+    const sbKwAdGroupRows = sbKwAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbKwAdGroupIds))
+      : [];
+    const sbKwAdGroupMap = new Map(sbKwAdGroupRows.map(r => [r.adGroupId, r]));
+    const sbKwIds = apiKeywords.map(k => String(k.keywordId));
+    const existingSbKwRows = sbKwIds.length > 0
+      ? await db.select().from(keywords).where(inArray(keywords.keywordId, sbKwIds))
+      : [];
+    const existingSbKwMap = new Map(existingSbKwRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
 
     for (const apiKeyword of apiKeywords) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
-        .limit(1);
-
+      // v363: 使用批量预查询结果
+      const adGroup = sbKwAdGroupMap.get(String(apiKeyword.adGroupId));
       if (!adGroup) continue;
-
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(keywords)
-        .where(
-          and(
-            eq(keywords.adGroupId, String(adGroup.id)),
-            eq(keywords.keywordId, String(apiKeyword.keywordId))
-          )
-        )
-        .limit(1);
+      const existing = existingSbKwMap.get(`${String(adGroup.id)}:${String(apiKeyword.keywordId)}`) || null;
 
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -404,16 +392,23 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
     let synced = 0;
     let skipped = 0;
 
-    log.debug(`获取到 ${apiTargets.length} 个SB商品定位`);
+      log.debug(`获取到 ${apiTargets.length} 个SB商品定位`);
+
+    // v363: 批量预查询所有相关adGroup和productTarget（消除N+1查询）
+    const sbTgtAdGroupIds = [...new Set(apiTargets.map(t => String(t.adGroupId)))];
+    const sbTgtAdGroupRows = sbTgtAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbTgtAdGroupIds))
+      : [];
+    const sbTgtAdGroupMap = new Map(sbTgtAdGroupRows.map(r => [r.adGroupId, r]));
+    const sbTgtIds = apiTargets.map(t => String(t.targetId));
+    const existingSbTgtRows = sbTgtIds.length > 0
+      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sbTgtIds))
+      : [];
+    const existingSbTgtMap = new Map(existingSbTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
     for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
-
+      // v363: 使用批量预查询结果
+      const adGroup = sbTgtAdGroupMap.get(String(apiTarget.adGroupId));
       if (!adGroup) continue;
 
       // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
@@ -478,17 +473,8 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
         targetExpression = exprArray;
       }
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(productTargets)
-        .where(
-          and(
-            eq(productTargets.adGroupId, String(adGroup.id)),
-            eq(productTargets.targetId, String(apiTarget.targetId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const existing = existingSbTgtMap.get(`${String(adGroup.id)}:${String(apiTarget.targetId)}`) || null;
 
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -879,14 +865,17 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
       log.debug('SB广告素材API返回结构示例:', JSON.stringify(apiAds[0], null, 2));
     }
     
+    // v363: 批量预查询所有相关adGroup（消除N+1查询）
+    const sbAdAdGroupIds = [...new Set(apiAds.map(a => String(a.adGroupId)))];
+    const sbAdAdGroupRows = sbAdAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbAdAdGroupIds))
+      : [];
+    const sbAdAdGroupMap = new Map(sbAdAdGroupRows.map(r => [r.adGroupId, r]));
+
     for (const ad of apiAds) {
-      // 查找对应的广告组
+      // v363: 使用批量预查询结果
       const adGroupIdStr = String(ad.adGroupId);
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, adGroupIdStr))
-        .limit(1);
+      const adGroup = sbAdAdGroupMap.get(adGroupIdStr) || null;
       
       if (!adGroup) {
         skipped++;
@@ -941,32 +930,31 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
     const sbNegatives = await this.client.listSbNegativeKeywords();
     log.debug(`获取到 ${sbNegatives.length} 个SB否定关键词`);
     
+    // v363: 批量预查询所有相关campaign和adGroup（消除N+1查询）
+    const sbNegCampaignIds = [...new Set(sbNegatives.map(n => String(n.campaignId)))];
+    const sbNegCampaignRows = sbNegCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sbNegCampaignIds)))
+      : [];
+    const sbNegCampaignMap = new Map(sbNegCampaignRows.map(r => [r.campaignId, r]));
+    const sbNegAdGroupIds = [...new Set(sbNegatives.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
+    const sbNegAdGroupRows = sbNegAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbNegAdGroupIds))
+      : [];
+    const sbNegAdGroupMap = new Map(sbNegAdGroupRows.map(r => [r.adGroupId, r]));
+
     for (const neg of sbNegatives) {
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(neg.campaignId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const campaign = sbNegCampaignMap.get(String(neg.campaignId));
       if (!campaign) continue;
       
-      // 查找对应的广告组（如果有）
-      // v357: adGroupId现在是varchar类型
+      // v363: 使用批量预查询结果
       let adGroupId: string | null = null;
       if (neg.adGroupId) {
-        const [adGroup] = await db
-          .select()
-          .from(adGroups)
-          .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
-          .limit(1);
+        const adGroup = sbNegAdGroupMap.get(String(neg.adGroupId));
         if (adGroup) adGroupId = String(adGroup.id);
       }
       
@@ -1032,30 +1020,31 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
     const sbNegTargets = await this.client.listSbNegativeTargets();
     log.debug(`获取到 ${sbNegTargets.length} 个SB否定商品定向`);
     
+    // v363: 批量预查询所有相关campaign和adGroup（消除N+1查询）
+    const sbNegTgtCampaignIds = [...new Set(sbNegTargets.map(n => String(n.campaignId)))];
+    const sbNegTgtCampaignRows = sbNegTgtCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sbNegTgtCampaignIds)))
+      : [];
+    const sbNegTgtCampaignMap = new Map(sbNegTgtCampaignRows.map(r => [r.campaignId, r]));
+    const sbNegTgtAdGroupIds = [...new Set(sbNegTargets.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
+    const sbNegTgtAdGroupRows = sbNegTgtAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbNegTgtAdGroupIds))
+      : [];
+    const sbNegTgtAdGroupMap = new Map(sbNegTgtAdGroupRows.map(r => [r.adGroupId, r]));
+
     for (const neg of sbNegTargets) {
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(neg.campaignId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const campaign = sbNegTgtCampaignMap.get(String(neg.campaignId));
       if (!campaign) continue;
       
-      // v357: adGroupId现在是varchar类型
+      // v363: 使用批量预查询结果
       let adGroupId: string | null = null;
       if (neg.adGroupId) {
-        const [adGroup] = await db
-          .select()
-          .from(adGroups)
-          .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
-          .limit(1);
+        const adGroup = sbNegTgtAdGroupMap.get(String(neg.adGroupId));
         if (adGroup) adGroupId = String(adGroup.id);
       }
       

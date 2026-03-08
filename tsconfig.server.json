@@ -17,6 +17,10 @@
   "exclude": [
     "node_modules",
     "dist",
-    "client"
+    "client",
+    "server/sync",
+    "server/_archived",
+    "server/__tests__",
+    "server/_core/vite.*"
   ]
 }

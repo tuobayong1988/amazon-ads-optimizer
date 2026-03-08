@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 361.0;  // v361.0: 架构质量全面优化 - 模块拆分/安全增强/类型安全/审计日志/部署后指令重评估与纠错
+export const SYSTEM_VERSION = 363.0;  // v363.0: 全方位排查修复 - 纠错页面崩溃/数据同步Tab/N+1查询优化/TS编译错误清理/版本号修正

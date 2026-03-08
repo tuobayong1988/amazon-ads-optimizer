@@ -387,6 +387,7 @@ export const autoCorrectionRouter = router({
     // @ts-ignore
     const [recentCorrections] = await dbInstance.execute(
       sql`SELECT id, action_type, api_sync_status, action_detail,
+             COALESCE(api_sync_detail, '{}') as api_sync_detail,
              campaign_name, ad_group_name, keyword_text,
              created_at, api_synced_at
           FROM optimization_events

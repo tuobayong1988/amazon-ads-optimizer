@@ -110,6 +110,9 @@ const baseMenuGroups = [
     description: "系统运行状态监控",
     items: [
       { icon: Activity, label: "纠错监控", path: "/auto-correction" },
+      { icon: Activity, label: "系统健康", path: "/health" },
+      { icon: Activity, label: "数据健康", path: "/data-health" },
+      { icon: Activity, label: "同步日志", path: "/sync-logs" },
     ]
   },
 ];

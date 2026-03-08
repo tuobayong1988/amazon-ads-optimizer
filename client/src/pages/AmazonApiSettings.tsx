@@ -3233,7 +3233,17 @@ export default function AmazonApiSettings() {
 
           {/* Sync Tab */}
           <TabsContent value="sync" className="space-y-4">
-            {selectedAccount && (<>
+            {!selectedAccount ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg font-medium">请先在“店铺账号列表”Tab中选择一个账号</p>
+                    <p className="text-sm mt-2">选择账号后可以查看和管理该账号的数据同步状态</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (<>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">

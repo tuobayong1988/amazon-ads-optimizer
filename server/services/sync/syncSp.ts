@@ -85,30 +85,35 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       log.debug('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
     }
 
-    // v150.1: 批量预查询所有需要保护的广告活动ID（减少循环内DB查询）
-    const allExistingCampaignIds: number[] = [];
-    for (const ac of apiCampaigns) {
-      const [ex] = await db.select({ id: campaigns.id }).from(campaigns)
-        .where(and(eq(campaigns.accountId, this.accountId), eq(campaigns.campaignId, String(ac.campaignId))))
-        .limit(1);
-      if (ex) allExistingCampaignIds.push(ex.id);
-    }
+    // v363: 批量预查询所有需要保护的广告活动ID（消除N+1查询）
+    const apiCampaignIds = apiCampaigns.map(ac => String(ac.campaignId));
+    const existingCampaignRows = apiCampaignIds.length > 0
+      ? await db.select({ id: campaigns.id, campaignId: campaigns.campaignId }).from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, apiCampaignIds)))
+      : [];
+    const existingCampaignMap = new Map(existingCampaignRows.map(r => [r.campaignId, r.id]));
+    const allExistingCampaignIds = existingCampaignRows.map(r => r.id);
     const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
     log.info(`syncSpCampaigns: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
 
+    // v363: 批量预查询所有已存在的campaign完整记录（消除循环内查询）
+    const existingCampaignFullRows = apiCampaignIds.length > 0
+      ? await db.select({
+          id: campaigns.id,
+          campaignId: campaigns.campaignId,
+          campaignName: campaigns.campaignName,
+          dailyBudget: campaigns.dailyBudget,
+          placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+          placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+        }).from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, apiCampaignIds)))
+      : [];
+    const existingCampaignFullMap = new Map(existingCampaignFullRows.map(r => [r.campaignId, r]));
+
     for (const apiCampaign of apiCampaigns) {
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(apiCampaign.campaignId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果替代循环内查询
+      const existing = existingCampaignFullMap.get(String(apiCampaign.campaignId)) || null;
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       if (lastSyncTime && existing) {
@@ -375,41 +380,35 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     let synced = 0;
     let skipped = 0;
 
-    // v150.1: 批量预查询所有需要保护的关键词ID（减少循环内DB查询）
-    const allExistingKeywordIds: number[] = [];
-    for (const ak of apiKeywords) {
-      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
-        .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
-      if (!ag) continue;
-      const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.adGroupId, String(ag.id)), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
-      if (ex) allExistingKeywordIds.push(ex.id);
-    }
+    // v363: 批量预查询所有需要保护的关键词ID（消除N+1查询）
+    // 步骤1: 批量查询所有相关adGroup
+    const apiKeywordAdGroupIds = [...new Set(apiKeywords.map(ak => String(ak.adGroupId)))];
+    const adGroupRows = apiKeywordAdGroupIds.length > 0
+      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
+          .where(inArray(adGroups.adGroupId, apiKeywordAdGroupIds))
+      : [];
+    const adGroupIdMap = new Map(adGroupRows.map(r => [r.adGroupId, r.id]));
+    const adGroupFullMap = new Map(adGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
+    // 步骤2: 批量查询所有已存在的keyword
+    const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
+    const existingKeywordRows = apiKeywordIds.length > 0
+      ? await db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
+          .where(inArray(keywords.keywordId, apiKeywordIds))
+      : [];
+    const existingKeywordMap = new Map(existingKeywordRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
+    const allExistingKeywordIds = existingKeywordRows.map(r => r.id);
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
     log.info(`syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
 
     for (const apiKeyword of apiKeywords) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
-        .limit(1);
+      // v363: 使用批量预查询结果替代循环内查询
+      const adGroupInfo = adGroupFullMap.get(String(apiKeyword.adGroupId));
+      if (!adGroupInfo) continue;
+      const adGroup = adGroupInfo;
 
-      if (!adGroup) continue;
-
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(keywords)
-        .where(
-          and(
-            eq(keywords.adGroupId, String(adGroup.id)),
-            eq(keywords.keywordId, String(apiKeyword.keywordId))
-          )
-        )
-        .limit(1);
+      // v363: 使用批量预查询结果
+      const existing = existingKeywordMap.get(`${adGroup.id}:${String(apiKeyword.keywordId)}`) || null;
 
       // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
       // v215修复: 移除错误的updatedAt跳过逻辑
@@ -484,29 +483,30 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     let synced = 0;
     let skipped = 0;
 
-    // v150.1: 批量预查询所有需要保护的产品定向ID（减少循环内DB查询）
-    const allExistingTargetIds: number[] = [];
-    for (const at of apiTargets) {
-      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
-        .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
-      if (!ag) continue;
-      const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.adGroupId, String(ag.id)), eq(productTargets.targetId, String(at.targetId)))).limit(1);
-      if (ex) allExistingTargetIds.push(ex.id);
-    }
+    // v363: 批量预查询所有需要保护的产品定向ID（消除N+1查询）
+    const apiTargetAdGroupIds = [...new Set(apiTargets.map(at => String(at.adGroupId)))];
+    const targetAdGroupRows = apiTargetAdGroupIds.length > 0
+      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
+          .where(inArray(adGroups.adGroupId, apiTargetAdGroupIds))
+      : [];
+    const targetAdGroupFullMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
+    const targetAdGroupIdMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, r.id]));
+    const apiTargetIds = apiTargets.map(at => String(at.targetId));
+    const existingTargetRows = apiTargetIds.length > 0
+      ? await db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.adGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
+          .where(inArray(productTargets.targetId, apiTargetIds))
+      : [];
+    const existingTargetMap = new Map(existingTargetRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
+    const allExistingTargetIds = existingTargetRows.map(r => r.id);
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
     log.info(`syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
     for (const apiTarget of apiTargets) {
-      // 查找对应的ad group
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
-        .limit(1);
-
-      if (!adGroup) continue;
+      // v363: 使用批量预查询结果替代循环内查询
+      const targetAdGroupInfo = targetAdGroupFullMap.get(String(apiTarget.adGroupId));
+      if (!targetAdGroupInfo) continue;
+      const adGroup = targetAdGroupInfo;
 
       // ============================================================
       // 解析定向表达式 - 支持ASIN定向和品类定向两种模式
