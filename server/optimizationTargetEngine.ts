@@ -43,6 +43,7 @@ import type { SearchTermPerformance, TargetingDecision } from "./services/target
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "./utils/keywordValidator";
 import { createModuleLogger } from './utils/logger';
 import { getCampaignAmazonId, getCampaignLocalId } from './utils/idTypes';
+import { recordAudit, auditBidChange } from './services/auditLogService';
 import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from './ngramAnalysis';
 
 const log = createModuleLogger('TargetEngine');
@@ -1674,6 +1675,19 @@ async function executeBidOptimization(
               }
             });
             log.info(`[BidOptimization] v178: 事务批量DB更新成功: ${syncedDetails.length}条出价 + campaigns.last_optimized_at已更新`);
+            
+            // v361: 记录出价调整审计日志
+            for (const detail of syncedDetails) {
+              auditBidChange(
+                0, // system user
+                accountId,
+                detail.keywordId,
+                detail.keywordText || '',
+                typeof detail.previousBid === 'number' ? detail.previousBid : 0,
+                typeof detail.newBid === 'number' ? detail.newBid : 0,
+                'system'
+              );
+            }
             
             // v230: 记录出价-绩效历史数据到 bidPerformanceHistory 表，为Sigmoid曲线拟合提供训练数据
             try {

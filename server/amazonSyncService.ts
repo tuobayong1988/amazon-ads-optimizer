@@ -528,6 +528,29 @@ export class AmazonSyncService {
     if (totalSynced === 0 && totalSteps > 0) {
       log.error(`[syncAll] 🚨 账户${this.accountId} 全量同步完成但总记录数为0！可能存在API授权或数据问题，请检查以上各步骤详情。`);
     }
+    
+    // v361: 记录数据同步审计日志
+    try {
+      const { recordAudit } = await import('./services/auditLogService');
+      recordAudit({
+        action: 'sync.full_sync',
+        accountId: this.accountId,
+        entityType: 'account',
+        entityId: this.accountId,
+        source: 'system',
+        result: failedSteps === 0 ? 'success' : (totalSynced > 0 ? 'partial' : 'failure'),
+        metadata: {
+          totalSteps,
+          successSteps: totalSteps - failedSteps,
+          failedSteps,
+          totalSynced,
+          durationMs: totalDurationMs,
+          failedStepNames,
+        },
+      });
+    } catch (auditErr: unknown) {
+      // 审计日志失败不影响主流程
+    }
 
     return results;
   }

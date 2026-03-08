@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 361,
+    description: 'v361.0: [架构质量全面优化] — (1)P0-多租户数据隔离修复 (2)P0-幂等性UPSERT (3)P0-统一同步架构 (4)P0-定时器泄漏修复 (5)P0-SQL注入消除 (6)P1-db.ts拆分26子模块 (7)P1-统一竞价与预算架构 (8)P1-连接池+索引优化 (9)P1-前端巨型页面拆分 (10)P2-类型安全提升 (11)P2-API访问控制审计 (12)P2-统一审计日志服务 (13)P2-日志规范化 (14)P3-React.memo优化 (15)P3-算法常量集中管理 (16)P3-环境变量统一管理',
+    affectedModules: ['all'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization', 'cleanup_stale_pending'],
+  },
+  {
     version: 360,
     description: 'v360.0: [业务优化全面升级] — (1)P0-daily_performance唯一约束+批量UPSERT重构,消除数据重复累积 (2)P0-API限流服务统一集成,所有API调用经过限流许可检查 (3)P0-新授权24h数据采集周期 (4)P0-优化目标日预算约束修复 (5)P1-统一预算分配机制 (6)P1-84时段分时优化重构 (7)P1-跨广告活动智能倾斜 (8)P2-全局否定功能 (9)P2-优化日志透明度增强',
     affectedModules: ['all'],

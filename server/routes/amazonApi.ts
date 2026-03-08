@@ -14,6 +14,7 @@ import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sqsConsume
 import { accountInitializationService } from '../services/accountInitializationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
+import { auditAccountAction, recordAudit } from '../services/auditLogService';
 
 const log = createModuleLogger('AmazonApi');
 
@@ -269,13 +270,20 @@ export const amazonApiRouter = router({
         log.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
       });
 
+      // v361: 记录账户凭证更新审计日志
+      auditAccountAction(
+        isCredentialRefresh ? 'account.credentials_update' : 'account.create',
+        ctx.user.id,
+        input.accountId,
+        { entityName: accountInfo?.accountName || `Account ${input.accountId}` }
+      );
+      
       return { 
         success: true,
         syncResult: { campaigns: 0, adGroups: 0, keywords: 0, targets: 0, performance: 0, error: null as string | null },
       };
     }),
-
-  // Save credentials for multiple profiles (multi-marketplace authorization)
+  // Save credentials for multiple profiles (multi-marketplace authorization))
   saveMultipleProfiles: protectedProcedure
     .input(z.object({
       storeName: z.string(),
@@ -840,6 +848,19 @@ export const amazonApiRouter = router({
       const account = await db.getAdAccountById(input.accountId);
       const marketplace = account?.marketplace || 'US';
 
+      // v361: 记录手动同步触发审计日志
+      recordAudit({
+        action: 'sync.manual_trigger',
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        entityType: 'account',
+        entityId: input.accountId,
+        entityName: account?.accountName || `Account ${input.accountId}`,
+        source: 'api',
+        result: 'success',
+        metadata: { isIncremental: input.isIncremental, jobId },
+      });
+      
       // 异步执行同步任务，立即返回jobId
       const runSyncAsync = async () => {
         const startTime = Date.now();

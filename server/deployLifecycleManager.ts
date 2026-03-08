@@ -893,6 +893,16 @@ export async function orchestrateStartup(server: any): Promise<void> {
         log.error(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
       }
       
+      // 步骤4e2: v361 部署后指令重评估与自动纠错（独立错误隔离）
+      try {
+        log.info('[LifecycleManager] v361: 运行部署后指令重评估与自动纠错...');
+        const { runFullRevalidation } = await import('./postDeployCommandRevalidator');
+        const revalResult = await runFullRevalidation();
+        log.info(`[LifecycleManager] v361: ✓ 指令重评估完成: ${revalResult.targetsProcessed}个目标, pending=${revalResult.totalPendingRevalidated}(取消${revalResult.totalPendingCancelled},重触发${revalResult.totalPendingRetriggered}), 历史纠正=${revalResult.totalCorrectionsGenerated}`);
+      } catch (revalErr: unknown) {
+        log.error(`[LifecycleManager] v361: 指令重评估失败（已隔离，不影响系统运行）: ${(revalErr as Error).message}`);
+      }
+      
       // 步骤4f: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
       if (diagnostics.lastShutdownType === 'crash') {
         try {
