@@ -177,17 +177,23 @@ const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
 
 const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 20, trend: 16, budgetEfficiency: 11, conversionEfficiency: 15, gradualProgress: 18, algorithmEfficacy: 8, profitHealth: 12 };
 
-async function getWeights(strategyTemplateId: string | null): Promise<WeightConfig> {
+function getWeights(strategyTemplateId: string | null): WeightConfig {
   const baseWeights = (!strategyTemplateId) ? DEFAULT_WEIGHTS : (STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS);
   
   // v272 P0-1: 集成weightAutoTuningService，优先使用自学习权重
-  // v358.1: 将require替换为动态import消除循环依赖风险
+  // v358.1: 使用延迟加载模式避免循环依赖，保持同步调用确保兼容性
+  let weightModule: Record<string, unknown> | null = null;
   try {
     if (strategyTemplateId) {
-      const { getEffectiveWeights } = await import('./weightAutoTuningService');
-      const tunedWeights = getEffectiveWeights(strategyTemplateId, baseWeights as Record<string, unknown>);
-      if (tunedWeights && Object.keys(tunedWeights).length > 0) {
-        return tunedWeights as unknown as WeightConfig;
+      if (!weightModule) {
+        weightModule = require('./weightAutoTuningService');
+      }
+      const getEffectiveWeights = (weightModule as Record<string, Function>).getEffectiveWeights;
+      if (typeof getEffectiveWeights === 'function') {
+        const tunedWeights = getEffectiveWeights(strategyTemplateId, baseWeights);
+        if (tunedWeights && Object.keys(tunedWeights).length > 0) {
+          return tunedWeights as unknown as WeightConfig;
+        }
       }
     }
   } catch (_e) {
