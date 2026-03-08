@@ -365,6 +365,18 @@ class Logger {
     this.config = { ...this.config, ...config };
   }
 
+  /** v362: 日志脱敏 - 移除敏感信息 */
+  private sanitize(message: string): string {
+    if (!message) return message;
+    try {
+      // 延迟加载以避免循环依赖
+      const { sanitizeLogMessage } = require('./logSanitizer');
+      return sanitizeLogMessage(message);
+    } catch {
+      return message;
+    }
+  }
+
   // ==================== 日志写入方法 ====================
 
   debug(module: string, message: string, metadata?: Record<string, any>): void {
@@ -448,15 +460,18 @@ class Logger {
       .slice(0, 100);                    // 截断到100字符
   }
 
-  /** 格式化控制台输出 */
+  /** 格式化控制台输出 - v362: 集成日志脱敏 */
   private writeToConsole(entry: LogEntry): void {
     const levelTag = entry.levelName.padEnd(5);
     const suppressedInfo = entry.suppressedCount 
       ? ` (+${entry.suppressedCount} suppressed)` 
       : '';
     
+    // v362: 对日志消息进行脱敏处理，防止敏感信息泄露
+    const sanitizedMessage = this.sanitize(entry.message);
+    
     // 精简格式：[级别] [模块] 消息
-    const line = `[${levelTag}] [${entry.module}] ${entry.message}${suppressedInfo}`;
+    const line = `[${levelTag}] [${entry.module}] ${sanitizedMessage}${suppressedInfo}`;
     
     if (entry.level >= LogLevel.ERROR) {
       console.error(line);
