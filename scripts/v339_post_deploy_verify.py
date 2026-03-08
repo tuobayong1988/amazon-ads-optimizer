@@ -4,12 +4,15 @@ V339部署后数据验证脚本 — 使用正确的列名
 V339部署时间: 2026-03-06 08:57 UTC
 """
 import pymysql
+import os
 from datetime import datetime
 
 def get_conn():
     return pymysql.connect(
-        host='amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
-        user='admin', password='Mucers2025', database='amazon_ads_optimizer',
+        host=os.environ.get('DATABASE_HOST', 'localhost'),
+        user=os.environ.get('DATABASE_USER', 'admin'),
+        password=os.environ.get('DATABASE_PASSWORD', ''),
+        database=os.environ.get('DATABASE_NAME', 'amazon_ads_optimizer'),
         charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor,
         connect_timeout=30, read_timeout=120,
     )

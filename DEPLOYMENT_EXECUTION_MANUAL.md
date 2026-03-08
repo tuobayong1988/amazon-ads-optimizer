@@ -30,8 +30,8 @@
 - **注意:** 请将`your_secret_key`替换为您自己的AWS Secret Key。
 
 ```bash
-export AWS_ACCESS_KEY_ID="AKIA2EFQHSMDFKEPNX6A"
-export AWS_SECRET_ACCESS_KEY="your_secret_key"
+export AWS_ACCESS_KEY_ID="AKIA************YOUR_KEY"
+export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
 export AWS_REGION="us-east-1"
 ```
 - **[✓] 完成**

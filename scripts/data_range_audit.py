@@ -9,9 +9,9 @@ from datetime import datetime, timedelta
 
 def get_conn():
     return pymysql.connect(
-        host=os.environ.get('DATABASE_HOST', 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com'),
+        host=os.environ.get('DATABASE_HOST', 'localhost'),
         user=os.environ.get('DATABASE_USER', 'admin'),
-        password=os.environ.get('DATABASE_PASSWORD', 'Mucers2025'),
+        password=os.environ.get('DATABASE_PASSWORD', ''),
         database=os.environ.get('DATABASE_NAME', 'amazon_ads_optimizer'),
         charset='utf8mb4',
         cursorclass=pymysql.cursors.DictCursor,
