@@ -543,13 +543,15 @@ export const autoRollbackRouter = router({
 // ==================== v184: 部署后自动重优化路由 ====================
 export const postDeployRouter = router({
   // 获取系统版本信息
-  getVersionInfo: publicProcedure.query(async () => {
+  // v360: P3-2安全加固 - 版本信息可能泄露系统内部结构
+  getVersionInfo: protectedProcedure.query(async () => {
     const { getSystemVersionInfo } = await import('../postDeployOptimizer');
     return getSystemVersionInfo();
   }),
   
   // 查询部署历史记录（从optimization_events中查询system_deploy事件）
-  getDeployHistory: publicProcedure.query(async () => {
+  // v360: P3-2安全加固 - 部署历史可能泄露系统内部信息
+  getDeployHistory: protectedProcedure.query(async () => {
     const { getDb } = await import('../db');
     const { optimizationEvents } = await import('../../drizzle/schema');
     const { desc, and, eq } = await import('drizzle-orm');

@@ -81,7 +81,8 @@ export const auditRouter = router({
     }),
 
   // 获取操作类型和描述
-  getActionTypes: publicProcedure.query(async () => {
+  // v360: P3-2安全加固 - 操作类型元数据也需要认证
+  getActionTypes: protectedProcedure.query(async () => {
     const { ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS } = await import("../auditService");
     return {
       categories: ACTION_CATEGORIES,

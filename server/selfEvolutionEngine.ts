@@ -260,7 +260,7 @@ export async function evaluateRecentOptimizations(
           const detail = JSON.parse(optLog.actionDetail || '{}');
           entityId = detail.keywordId?.toString() || detail.targetId?.toString() || '';
           entityType = detail.targetType || 'keyword';
-        } catch {}
+        } catch { /* v360: JSON解析失败不影响核心流程 */ }
         
         assessments.push({
           logId: optLog.id,
@@ -613,7 +613,7 @@ export async function generateAutoCorrections(
           correctionType = 'rollback_placement';
           correctedValue = assessment.correctionType === 'rollback' ? originalValue : Math.round((originalValue + currentValue) / 2);
         }
-      } catch {}
+      } catch { /* v360: 纠错值计算失败，跳过当前评估 */ }
       
       if (originalValue === 0 && currentValue === 0) continue;
       
