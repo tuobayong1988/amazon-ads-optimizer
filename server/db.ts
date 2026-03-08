@@ -315,6 +315,10 @@ export async function getAdAccountsByUserId(userId: number) {
     .orderBy(adAccounts.sortOrder, adAccounts.createdAt);
 }
 
+/**
+ * @deprecated v361: 此函数不进行租户隔离，仅限系统级内部任务使用（如数据迁移、全局调度）。
+ * 面向用户的查询请使用 getAdAccountsByUserId(userId) 确保数据隔离。
+ */
 export async function getAdAccounts() {
   const db = await getDb();
   if (!db) return [];
@@ -600,6 +604,10 @@ export async function getCampaignsWithPerformance(
   });
 }
 
+/**
+ * @deprecated v361: 此函数不进行租户隔离，仅限系统级内部任务使用。
+ * 面向用户的查询请使用 getCampaignsByAccountId(accountId) 确保数据隔离。
+ */
 export async function getAllCampaigns() {
   const db = await getDb();
   if (!db) return [];
