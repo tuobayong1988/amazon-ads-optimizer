@@ -9,14 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdownMenu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Filter, Loader2, MoreHorizontal, Plus, Tag } from 'lucide-react';
-import { trpc } from '@/utils/trpc';
-import { useToast } from '@/hooks/use-toast';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 
 export function SearchTermsList({ campaignId }: { campaignId: number }) {
   const { data: searchTerms, isLoading, refetch } = trpc.campaign.getSearchTerms.useQuery(

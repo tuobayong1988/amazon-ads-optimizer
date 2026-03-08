@@ -1,5 +1,5 @@
 
-import { publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';

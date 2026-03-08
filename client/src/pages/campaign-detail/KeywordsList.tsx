@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Tag } from 'lucide-react';
-import { trpc } from '@/utils/trpc';
+import { trpc } from '@/lib/trpc';
 
 export function KeywordsList({ adGroups }: { adGroups: any[] }) {
   const [allKeywords, setAllKeywords] = useState<any[]>([]);
