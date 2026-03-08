@@ -4374,3 +4374,33 @@ export const syncLocks = mysqlTable("sync_locks", {
 	unique("uk_lock_key").on(table.lockKey),
 	index("idx_sync_locks_expires_at").on(table.expiresAt),
 ]);
+
+// v360: 全局否定关键词表 - 跨广告活动的账户级否定词管理
+export const accountNegativeKeywords = mysqlTable("account_negative_keywords", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	negativeText: varchar("negative_text", { length: 500 }).notNull(),
+	negativeMatchType: mysqlEnum("negative_match_type", ['negative_exact','negative_phrase']).notNull(),
+	negativeType: mysqlEnum("negative_type", ['keyword','product']).default('keyword'),
+	/** 来源: 手动添加 / ngram分析 / 跨广告活动分析 / 搜索词收割 */
+	source: mysqlEnum("source", ['manual','ngram_analysis','cross_campaign_analysis','search_term_harvest','auto_optimization']).default('manual'),
+	sourceReason: text("source_reason"),
+	/** 已应用到的广告活动数量 */
+	appliedCampaignCount: int("applied_campaign_count").default(0),
+	/** 总共阻止的展示次数 */
+	totalBlockedImpressions: int("total_blocked_impressions").default(0),
+	/** 总共节省的花费 */
+	totalBlockedSpend: decimal("total_blocked_spend", { precision: 12, scale: 2 }).default('0'),
+	/** 否定前的平均ACoS */
+	preNegativeAvgAcos: decimal("pre_negative_avg_acos", { precision: 5, scale: 2 }),
+	status: mysqlEnum("status", ['active','paused','removed']).default('active'),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	unique("uk_account_negative").on(table.accountId, table.negativeText, table.negativeMatchType),
+	index("idx_ank_account_status").on(table.accountId, table.status),
+	index("idx_ank_source").on(table.source),
+]);
+export type AccountNegativeKeyword = InferSelectModel<typeof accountNegativeKeywords>;
+export type InsertAccountNegativeKeyword = InferInsertModel<typeof accountNegativeKeywords>;
