@@ -241,19 +241,27 @@ export class ApiRateLimitService {
     const bucketKey = `ratelimit:${accountId}:${endpointType}`;
     const minuteCounterKey = `ratelimit:minute:${accountId}:${endpointType}`;
     
-    // 检查每分钟限额
-    const minuteCount = await this.store.getCounter(minuteCounterKey);
-    if (minuteCount >= config.maxRequestsPerMinute) {
-      const waitMs = 60000; // 等待到下一分钟
-      this.recordThrottle(accountId, endpointType, waitMs);
-      
-      if (autoWait) {
-        log.warn(`[RateLimit] 账户${accountId} ${endpointType}端点每分钟限额已满(${minuteCount}/${config.maxRequestsPerMinute}), 等待${waitMs}ms`);
-        await this.delay(Math.min(waitMs, 10000)); // 最多等10秒
-        return this.acquirePermit(accountId, endpointType, autoWait); // 递归重试
+    // v360: 将递归重试改为迭代重试，防止死亡螺旋
+    const MAX_ACQUIRE_RETRIES = 3;
+    let acquireAttempt = 0;
+    
+    while (acquireAttempt < MAX_ACQUIRE_RETRIES) {
+      // 检查每分钟限额
+      const minuteCount = await this.store.getCounter(minuteCounterKey);
+      if (minuteCount >= config.maxRequestsPerMinute) {
+        const waitMs = 60000;
+        this.recordThrottle(accountId, endpointType, waitMs);
+        
+        if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
+          acquireAttempt++;
+          log.warn(`[RateLimit] 账户${accountId} ${endpointType}端点每分钟限额已满(${minuteCount}/${config.maxRequestsPerMinute}), 等待${Math.min(waitMs, 10000)}ms (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+          await this.delay(Math.min(waitMs, 10000));
+          continue; // v360: 迭代重试替代递归
+        }
+        
+        return { allowed: false, waitMs, remainingTokens: 0, retryAfterMs: waitMs };
       }
-      
-      return { allowed: false, waitMs, remainingTokens: 0, retryAfterMs: waitMs };
+      break; // 限额未满，继续执行令牌桶检查
     }
     
     // 令牌桶检查
