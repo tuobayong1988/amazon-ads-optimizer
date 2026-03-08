@@ -1617,7 +1617,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   }
 
   // 4f. v361: 核心表索引迁移
-  if (parseFloat(lastVersion) < 361.0) {
+  if (!lastVersion || parseFloat(String(lastVersion)) < 361.0) {
     try {
       const { runV361CoreTableIndexes } = await import('./migrations/v361_core_table_indexes');
       const database = await getDb();

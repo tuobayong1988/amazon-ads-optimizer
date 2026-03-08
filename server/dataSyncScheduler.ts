@@ -464,6 +464,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
  * @deprecated 使用 executeUnifiedSync 替代
  */
 async function executeLayeredSync(tier: SyncTier): Promise<void> {
+  log.warn(`[DEPRECATED] executeLayeredSync已废弃，请使用executeUnifiedSync替代`);
   log.info(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
   logSync('DataSyncScheduler', `开始执行${SYNC_TIER_CONFIG[tier].description}`, { tier });
   schedulerStatus.currentTier = tier;

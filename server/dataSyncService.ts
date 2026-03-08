@@ -139,6 +139,7 @@ const rateLimiter = new RateLimiter();
  * 创建同步任务
  */
 export async function createSyncJob(userId: number, accountId: number, syncType: SyncType = "all"): Promise<number | null> {
+  log.warn(`[DEPRECATED] dataSyncService.createSyncJob已废弃，请使用amazonSyncService替代`);
   const db = await getDb();
   if (!db) return null;
   const jobData: InsertDataSyncJob = { userId, accountId, syncType, status: "pending" };
@@ -150,6 +151,7 @@ export async function createSyncJob(userId: number, accountId: number, syncType:
  * 执行同步任务
  */
 export async function executeSyncJob(jobId: number): Promise<{ success: boolean; message: string; stats?: unknown }> {
+  log.warn(`[DEPRECATED] dataSyncService.executeSyncJob已废弃，请使用amazonSyncService替代`);
   const db = await getDb();
   if (!db) return { success: false, message: "数据库连接失败" };
 
