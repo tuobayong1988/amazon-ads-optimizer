@@ -373,8 +373,20 @@ export class SelfHealingScheduler {
   /**
    * 处理任务升级请求
    * 当低级别任务发现严重问题时，触发更高级别的修复
+   * v360: 添加升级连锁保护，防止升级风暴
    */
+  private escalationCooldowns: Map<string, number> = new Map();
+  private static readonly ESCALATION_COOLDOWN_MS = 10 * 60 * 1000; // 10分钟内不重复升级
+  
   private async handleEscalation(sourceTask: HealingTask, result: HealingTaskResult): Promise<void> {
+    // v360: 升级冷却保护 - 防止同一任务短时间内反复触发升级
+    const lastEscalation = this.escalationCooldowns.get(sourceTask.id) || 0;
+    if (Date.now() - lastEscalation < SelfHealingScheduler.ESCALATION_COOLDOWN_MS) {
+      log.info(`[SelfHealingScheduler] 升级冷却中: ${sourceTask.id} 在${Math.round((SelfHealingScheduler.ESCALATION_COOLDOWN_MS - (Date.now() - lastEscalation)) / 1000)}秒内不会再次升级`);
+      return;
+    }
+    this.escalationCooldowns.set(sourceTask.id, Date.now());
+    
     // 查找比当前任务级别更高的修复任务
     const levelOrder = ['probe', 'check', 'repair', 'emergency'];
     const currentLevelIndex = levelOrder.indexOf(sourceTask.level);
@@ -528,15 +540,19 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         const { sql } = await import('drizzle-orm');
         
         // 检查各核心表的最新数据时间
-        const tables = ['campaigns', 'ad_groups', 'keywords', 'daily_performance'];
+        // v360: 使用白名单表名替代sql.raw拼接，避免SQL注入风险
+        const CORE_TABLES = ['campaigns', 'ad_groups', 'keywords', 'daily_performance'] as const;
         let staleCount = 0;
         const details: string[] = [];
         
-        for (const table of tables) {
+        for (const table of CORE_TABLES) {
           try {
-            const result = await database.execute(sql.raw(
-              `SELECT MAX(updatedAt) as latest FROM ${table} LIMIT 1`
-            ));
+            // v360: 使用参数化查询，表名通过白名单确保安全
+            const safeQuery = table === 'campaigns' ? sql`SELECT MAX(updatedAt) as latest FROM campaigns LIMIT 1`
+              : table === 'ad_groups' ? sql`SELECT MAX(updatedAt) as latest FROM ad_groups LIMIT 1`
+              : table === 'keywords' ? sql`SELECT MAX(updatedAt) as latest FROM keywords LIMIT 1`
+              : sql`SELECT MAX(updatedAt) as latest FROM daily_performance LIMIT 1`;
+            const result = await database.execute(safeQuery);
             const latest = (result as unknown[][])?.[0]?.[0] as Record<string, unknown>;
             const latestTime = latest?.latest as string;
             
