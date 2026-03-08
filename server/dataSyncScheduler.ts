@@ -204,9 +204,9 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
   }, 60 * 1000);
 
   // v220: 系统健康监控 - 每15分钟输出健康快照（内存/API速率/同步率/确认同步统计）
-  setInterval(() => {
+  setInterval(async () => {
     try {
-      const { logHealthSnapshot } = require('./unifiedSyncEngine');
+      const { logHealthSnapshot } = await import('./unifiedSyncEngine');
       logHealthSnapshot();
     } catch (err: unknown) {
       log.warn(`[DataSyncScheduler] v220: 健康监控快照失败: ${(err as Error).message}`);
