@@ -289,7 +289,7 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     } catch (err: unknown) {
       log.error(`[DataSyncScheduler] v358.1: 数据完整性检查失败: ${(err as Error).message}`);
     }
-  }, 4 * 60 * 60 * 1000);
+  }, 4 * 60 * 60 * 1000));
   log.info('[DataSyncScheduler] v358.1: 数据完整性检查器已启动，间隔: 4小时');
 
   // v358.1: 启动后延迟5分钟执行一次完整性检查（确保部署后立即检查）
