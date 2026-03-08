@@ -384,7 +384,7 @@ async function getOrganizationMembers(organizationId: number) {
   ];
 }
 
-async function createInvitation(data: any) {
+async function createInvitation(data: Record<string, unknown>) {
   // 实际实现需要插入invitations表
   return {
     id: 1,
@@ -458,7 +458,7 @@ async function getSubscriptionPlanBySlug(slug: string) {
   return plans.find((p) => p.slug === slug);
 }
 
-async function createPaymentSession(data: any) {
+async function createPaymentSession(data: Record<string, unknown>) {
   // 实际实现需要集成Stripe等支付网关
   return {
     id: 'session_123',
@@ -492,7 +492,7 @@ async function getApiKeys(organizationId: number) {
   ];
 }
 
-async function createApiKey(data: any) {
+async function createApiKey(data: Record<string, unknown>) {
   // 实际实现需要插入api_keys表并生成密钥
   return {
     id: 1,

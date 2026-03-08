@@ -23,11 +23,11 @@ export async function preloadAccountCampaigns(
   db: any,
   accountId: number
 ): Promise<{
-  byId: Map<string, any>;
-  byName: Map<string, any>;
+  byId: Map<string, unknown>;
+  byName: Map<string, unknown>;
 }> {
-  const byId = new Map<string, any>();
-  const byName = new Map<string, any>();
+  const byId = new Map<string, unknown>();
+  const byName = new Map<string, unknown>();
 
   try {
     const allCampaigns = await db
@@ -63,8 +63,8 @@ export async function preloadExistingPerformance(
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, any>> {
-  const existingMap = new Map<string, any>();
+): Promise<Map<string, unknown>> {
+  const existingMap = new Map<string, unknown>();
 
   try {
     const existingRecords = await db
@@ -107,8 +107,8 @@ export async function preloadExistingPlacementPerformance(
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, any>> {
-  const existingMap = new Map<string, any>();
+): Promise<Map<string, unknown>> {
+  const existingMap = new Map<string, unknown>();
 
   try {
     const existingRecords = await db
@@ -149,7 +149,7 @@ export async function preloadExistingPlacementPerformance(
  * 替代原来的2次数据库查询
  */
 export function matchCampaign(
-  campaignMaps: { byId: Map<string, any>; byName: Map<string, any> },
+  campaignMaps: { byId: Map<string, unknown>; byName: Map<string, unknown> },
   campaignId: string | number | null,
   campaignName: string | null
 ): { campaign: any | null; matchType: 'id' | 'name' | 'none' } {
@@ -177,7 +177,7 @@ export function matchCampaign(
  * 替代原来的数据库查询
  */
 export function findExistingPerformance(
-  existingMap: Map<string, any>,
+  existingMap: Map<string, unknown>,
   campaignId: string,
   dateStr: string
 ): any | null {
@@ -189,7 +189,7 @@ export function findExistingPerformance(
  * v358: 快速检查existing placement记录（内存查找，O(1)）
  */
 export function findExistingPlacementPerformance(
-  existingMap: Map<string, any>,
+  existingMap: Map<string, unknown>,
   campaignId: string,
   dateStr: string,
   placement: string
@@ -211,7 +211,7 @@ export async function batchUpsertPerformance(
     accountId: number;
     campaignId: string;
     date: string;
-    data: any;
+    data: Record<string, unknown>;
   }>
 ): Promise<number> {
   if (records.length === 0) return 0;

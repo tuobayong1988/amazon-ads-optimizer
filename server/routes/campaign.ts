@@ -312,7 +312,7 @@ export const campaignRouter = router({
       // 获取广告组和关键词数据
       const adGroups = await db.getAdGroupsByCampaignId(input.campaignId);
       let totalKeywords = 0;
-      let topKeywords: any[] = [];
+      let topKeywords: unknown[] = [];
       
       for (const adGroup of adGroups) {
         const keywords = await db.getKeywordsByAdGroupId(adGroup.id);

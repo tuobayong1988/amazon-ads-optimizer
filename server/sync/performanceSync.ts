@@ -178,7 +178,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 /**
  * 处理报告数据并存储到数据库
  */
-async function processReportData(service: SyncContext, db: any, reportData: any[], adType: string): Promise<number> {
+async function processReportData(service: SyncContext, db: any, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     
@@ -556,7 +556,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
         AND hp.dt IS NULL
     `);
     
-    const rows = (dailyData as any)?.[0] || dailyData;
+    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
       return 0;
@@ -565,7 +565,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
     log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
     
     let insertedCount = 0;
-    let batch: any[] = [];
+    let batch: unknown[] = [];
     
     for (const daily of rows) {
       const dateObj = new Date(daily.date);

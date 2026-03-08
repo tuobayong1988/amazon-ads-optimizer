@@ -61,7 +61,7 @@ function generateSimulatedTrendData(target: any, days: number) {
 }
 
 // 计算趋势摘要数据
-function calculateTrendSummary(data: any[]) {
+function calculateTrendSummary(data: unknown[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,

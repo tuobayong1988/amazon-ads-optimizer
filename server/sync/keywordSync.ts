@@ -35,7 +35,7 @@ const log = createModuleLogger('keywordSync');
  */
 function serializeError(error: any): string {
   try {
-    const info: Record<string, any> = {
+    const info: Record<string, unknown> = {
       message: error.message || 'Unknown error',
       code: error.code,
       status: error.status || error.response?.status,
@@ -381,8 +381,8 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
     
     // 批量更新缓冲
-    const kwUpdates: { id: number; data: any }[] = [];
-    const ptUpdates: { id: number; data: any }[] = [];
+    const kwUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
     
     for (const row of reportData) {
       // v242: 字段兼容层 - spTargeting报告API返回keyword/keywordId/targeting，映射到旧字段名

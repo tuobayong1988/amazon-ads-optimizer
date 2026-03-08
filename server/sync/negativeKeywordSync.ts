@@ -298,7 +298,7 @@ export async function syncSbNegativeTargets(service: SyncContext,): Promise<{ sy
       }
       
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;

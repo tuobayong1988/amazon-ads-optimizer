@@ -68,7 +68,7 @@ function generateSimulatedTrendData(target: any, days: number) {
 }
 
 // 计算趋势摘要数据
-function calculateTrendSummary(data: any[]) {
+function calculateTrendSummary(data: unknown[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,
@@ -462,7 +462,7 @@ export const performanceGroupRouter = router({
       
       // 获取所有需要更新的campaign详情
       const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
-      const targetCampaigns = campaigns.filter((c: any) => input.campaignIds.includes(c.id));
+      const targetCampaigns = campaigns.filter((c: Record<string, unknown>) => input.campaignIds.includes(c.id));
       
       if (targetCampaigns.length === 0) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: '未找到指定的广告活动' });
@@ -479,8 +479,8 @@ export const performanceGroupRouter = router({
       // v158修复: campaigns表中Amazon Campaign ID存储在campaignId字段
       // v159修复: 添加campaignType以支持SP/SB/SD三种类型的API同步
       const statusChanges = targetCampaigns
-        .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
-        .map((c: any) => ({
+        .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+        .map((c: Record<string, unknown>) => ({
           campaignId: c.id,
           amazonCampaignId: String(c.campaignId),
           newStatus: input.newStatus as 'enabled' | 'paused',
@@ -935,7 +935,7 @@ export const performanceGroupRouter = router({
         offset: (input.page - 1) * input.pageSize,
       });
       return {
-        records: result.events.map((e: any) => ({
+        records: result.events.map((e: Record<string, unknown>) => ({
           ...e,
           appliedAt: e.createdAt,
           adjustmentType: e.adjustmentType || e.actionType,
@@ -1046,12 +1046,12 @@ export const performanceGroupRouter = router({
         limit: input.pageSize,
         offset: (input.page - 1) * input.pageSize,
       });
-      const allRecords = result.events.map((e: any) => ({
+      const allRecords = result.events.map((e: Record<string, unknown>) => ({
         ...e,
         appliedAt: e.createdAt,
         adjustmentType: e.adjustmentType || e.actionType,
       }));
-      const trackedRecords = allRecords.filter((r: any) => 
+      const trackedRecords = allRecords.filter((r: Record<string, unknown>) => 
         r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null
       );
       return {

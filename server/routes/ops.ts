@@ -398,7 +398,7 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
       return;
     }
     
-    const checks: Record<string, any> = {};
+    const checks: Record<string, unknown> = {};
     
     // 检查1: campaigns表中campaignId格式
     try {
@@ -477,9 +477,9 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
     
     // 总体判定
     const allChecks = Object.values(checks);
-    const hasFailure = allChecks.some((c: any) => c.verdict === 'FAIL');
-    const hasWarning = allChecks.some((c: any) => c.verdict === 'WARN');
-    const hasError = allChecks.some((c: any) => c.status === 'error');
+    const hasFailure = allChecks.some((c: Record<string, unknown>) => c.verdict === 'FAIL');
+    const hasWarning = allChecks.some((c: Record<string, unknown>) => c.verdict === 'WARN');
+    const hasError = allChecks.some((c: Record<string, unknown>) => c.status === 'error');
     
     res.json({
       overallStatus: hasFailure ? 'FAIL' : hasError ? 'ERROR' : hasWarning ? 'WARN' : 'PASS',
@@ -599,7 +599,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     ));
     
     // v249: 增加API同步状态统计，方便监控优化指令是否实际传达到Amazon
-    let apiSyncStats: any[] = [];
+    let apiSyncStats: unknown[] = [];
     try {
       const [syncRows] = await db.execute(sql.raw(
         `SELECT 
@@ -663,7 +663,7 @@ router.get('/id-audit', async (req: Request, res: Response) => {
     `));
     
     // 获取各表的campaignId样本
-    const tableSamples: Record<string, any> = {};
+    const tableSamples: Record<string, unknown> = {};
     const tables = ['negative_keywords', 'bidding_logs', 'ad_groups'];
     
     for (const table of tables) {
@@ -910,7 +910,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function extractCount(result: any): number {
+function extractCount(result: Record<string, unknown>): number {
   if (!result) return 0;
   // Drizzle ORM 返回格式可能是 [{cnt: N}] 或 [[{cnt: N}]] 或 {cnt: N}
   if (Array.isArray(result)) {
@@ -1156,7 +1156,7 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
       LIMIT 30
     `));
     
-    const extractRows = (result: any) => {
+    const extractRows = (result: Record<string, unknown>) => {
       if (Array.isArray(result) && Array.isArray(result[0])) return result[0];
       if (Array.isArray(result)) return result;
       return [result];

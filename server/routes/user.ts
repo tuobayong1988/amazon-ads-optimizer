@@ -83,7 +83,7 @@ export const userRouter = router({
         const rows = result[0];
         const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         
-        let currentPrefs: Record<string, any> = {};
+        let currentPrefs: Record<string, unknown> = {};
         if (row && row.preferences) {
           const prefs = row.preferences;
           currentPrefs = typeof prefs === 'string' ? JSON.parse(prefs) : prefs;

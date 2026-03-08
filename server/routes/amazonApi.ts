@@ -550,7 +550,7 @@ export const amazonApiRouter = router({
         // v336: 批量初始化完成后触发事件驱动同步
         try {
           const { triggerImmediateSync } = await import('../dataSyncScheduler');
-          const accountIds = initResults.map((r: any) => r.accountId).join(',');
+          const accountIds = initResults.map((r: Record<string, unknown>) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: any) {
           log.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
@@ -1011,7 +1011,7 @@ export const amazonApiRouter = router({
               () => syncService.syncSbAdGroups(),
               'SB广告组同步'
             );
-            results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as any).synced) || 0;
+            results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as Record<string, unknown>[]).synced) || 0;
           } catch (e: any) {
             log.error('[SB广告组同步] 失败:', e.message);
           }
@@ -1024,7 +1024,7 @@ export const amazonApiRouter = router({
               () => syncService.syncSdAdGroups(),
               'SD广告组同步'
             );
-            results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as any).synced) || 0;
+            results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as Record<string, unknown>[]).synced) || 0;
           } catch (e: any) {
             log.error('[SD广告组同步] 失败:', e.message);
           }
@@ -1050,7 +1050,7 @@ export const amazonApiRouter = router({
               () => syncService.syncSbKeywords(),
               'SB关键词同步'
             );
-            results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as any).synced) || 0;
+            results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as Record<string, unknown>[]).synced) || 0;
           } catch (e: any) {
             log.error('[SB关键词同步] 失败:', e.message);
           }
@@ -1076,7 +1076,7 @@ export const amazonApiRouter = router({
               () => syncService.syncSbProductTargets(),
               'SB商品定位同步'
             );
-            results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as any).synced) || 0;
+            results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as Record<string, unknown>[]).synced) || 0;
           } catch (e: any) {
             log.error('[SB商品定位同步] 失败:', e.message);
           }
@@ -1089,7 +1089,7 @@ export const amazonApiRouter = router({
               () => syncService.syncSdProductTargets(),
               'SD商品定位同步'
             );
-            results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as any).synced) || 0;
+            results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as Record<string, unknown>[]).synced) || 0;
           } catch (e: any) {
             log.error('[SD商品定位同步] 失败:', e.message);
           }

@@ -114,7 +114,7 @@ export const systemLogRouter = router({
       dbLevel: z.number().min(0).max(4).optional(),
     }))
     .mutation(async ({ input }) => {
-      const updates: Record<string, any> = {};
+      const updates: Record<string, unknown> = {};
       if (input.consoleLevel !== undefined) updates.consoleLevel = input.consoleLevel;
       if (input.dbLevel !== undefined) updates.dbLevel = input.dbLevel;
       logger.updateConfig(updates);
