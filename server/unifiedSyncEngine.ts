@@ -1,4 +1,8 @@
 /**
+ * @deprecated v361: 此模块已废弃，功能已被AmazonSyncService完全覆盖。
+ * 请使用 server/amazonSyncService.ts 作为统一的同步入口。
+ * 计划在v362中删除此文件。
+ * 
  * Unified Sync Engine v222 - 统一数据同步引擎
  * 
  * 核心职责：

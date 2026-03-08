@@ -24,8 +24,9 @@ export const campaignRouter = router({
       timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
     }))
     .query(async ({ input }: any) => {
+      // v361: 数据隔离修复 - 必须提供accountId，不允许查询全部广告活动
       if (!input.accountId) {
-        return db.getAllCampaigns();
+        return [];
       }
       
       // v122h: 使用站点时区计算正确的日期范围
@@ -57,8 +58,9 @@ export const campaignRouter = router({
     }),
 
   // 获取未分配到绩效组的广告活动
+  // v361: 数据隔离修复 - accountId改为必填
   listUnassigned: protectedProcedure
-    .input(z.object({ accountId: z.number().optional() }))
+    .input(z.object({ accountId: z.number() }))
     .query(async ({ input }: any) => {
       return db.getUnassignedCampaigns(input.accountId);
     }),

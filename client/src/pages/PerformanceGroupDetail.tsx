@@ -212,7 +212,7 @@ export default function PerformanceGroupDetail() {
 
   // 获取可添加的广告活动（未加入任何绩效组的）
   const { data: availableCampaigns, isLoading: availableLoading } = trpc.campaign.listUnassigned.useQuery(
-    { accountId: group?.accountId },
+    { accountId: group?.accountId! },
     { enabled: !!group?.accountId && showAddCampaignsDialog }
   );
 

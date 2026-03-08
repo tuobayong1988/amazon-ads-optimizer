@@ -201,7 +201,10 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
         eq(optimizationEvents.apiSyncStatus, 'synced'),
         gte(optimizationEvents.createdAt, startStr),
         lte(optimizationEvents.createdAt, endStr),
-        sql`${sql.raw(trackingField)} IS NULL`,
+        // v361: 使用白名单验证动态列名
+        trackingField === 'actual_profit_7d' ? sql`actual_profit_7d IS NULL` :
+        trackingField === 'actual_profit_14d' ? sql`actual_profit_14d IS NULL` :
+        sql`actual_profit_30d IS NULL`,
       ))
       .limit(200); // 每次最多处理200个
     

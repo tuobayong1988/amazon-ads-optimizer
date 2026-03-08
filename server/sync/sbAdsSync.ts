@@ -296,6 +296,8 @@ try {
 }
 
 // v230: 回退到旧算法
+// @deprecated v361: 此回退路径使用旧的calculateBidAdjustment，将在v362中移除
+log.warn('[AutoBidOpt] v361: 使用旧算法回退路径 - 此路径将在v362中移除');
 for (const kw of (keywordsToOptimize as any[])) {
   const target: OptimizationTarget = {
     id: kw.id,

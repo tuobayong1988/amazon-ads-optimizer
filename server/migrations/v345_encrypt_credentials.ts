@@ -1,3 +1,5 @@
+import { createModuleLogger } from "../utils/logger";
+const log = createModuleLogger("Migration:v345enc");
 /**
  * v345 数据迁移脚本: 加密现有明文凭证 + 扩展clientSecret列
  * 
@@ -34,7 +36,7 @@ export async function migrateEncryptCredentials(): Promise<{
     errors: [] as string[],
   };
 
-  console.log('[v345-migration] 开始凭证加密迁移...');
+  log.info('[v345-migration] 开始凭证加密迁移...');
 
   // 前置检查: 加密服务是否可用
   if (!isCryptoAvailable()) {
@@ -52,7 +54,7 @@ export async function migrateEncryptCredentials(): Promise<{
     result.errors.push(msg);
     return result;
   }
-  console.log('[v345-migration] 加密服务自检通过');
+  log.info('[v345-migration] 加密服务自检通过');
 
   const db = await getDb();
   if (!db) {
@@ -62,20 +64,20 @@ export async function migrateEncryptCredentials(): Promise<{
 
   try {
     // 步骤1: 扩展 clientSecret 列为 TEXT
-    console.log('[v345-migration] 步骤1: 检查并扩展 clientSecret 列...');
+    log.info('[v345-migration] 步骤1: 检查并扩展 clientSecret 列...');
     try {
       await db.execute(sql`
         ALTER TABLE amazon_api_credentials 
         MODIFY COLUMN clientSecret TEXT NOT NULL
       `);
-      console.log('[v345-migration] clientSecret 列已扩展为 TEXT');
+      log.info('[v345-migration] clientSecret 列已扩展为 TEXT');
     } catch (alterError: unknown) {
       // 如果已经是 TEXT 类型，忽略错误
-      console.log(`[v345-migration] ALTER TABLE 结果: ${(alterError as Error).message}`);
+      log.info(`[v345-migration] ALTER TABLE 结果: ${(alterError as Error).message}`);
     }
 
     // 步骤2: 读取所有凭证记录
-    console.log('[v345-migration] 步骤2: 读取所有凭证记录...');
+    log.info('[v345-migration] 步骤2: 读取所有凭证记录...');
     const rows = await db.execute(sql`
       SELECT id, accountId, clientSecret, refreshToken 
       FROM amazon_api_credentials
@@ -84,7 +86,7 @@ export async function migrateEncryptCredentials(): Promise<{
     // @ts-ignore
     const records = rows[0] || rows;
     result.totalRecords = records.length;
-    console.log(`[v345-migration] 共 ${records.length} 条凭证记录`);
+    log.info(`[v345-migration] 共 ${records.length} 条凭证记录`);
 
     // 步骤3: 逐条加密
     for (const record of (records as any[])) {
@@ -94,7 +96,7 @@ export async function migrateEncryptCredentials(): Promise<{
 
         if (!needEncryptSecret && !needEncryptToken) {
           result.skipped++;
-          console.log(`[v345-migration] 账户 ${record.accountId}: 已加密，跳过`);
+          log.info(`[v345-migration] 账户 ${record.accountId}: 已加密，跳过`);
           continue;
         }
 
@@ -121,7 +123,7 @@ export async function migrateEncryptCredentials(): Promise<{
         }
 
         result.encrypted++;
-        console.log(`[v345-migration] 账户 ${record.accountId}: 已加密 [${updates.join(', ')}]`);
+        log.info(`[v345-migration] 账户 ${record.accountId}: 已加密 [${updates.join(', ')}]`);
       } catch (recordError: unknown) {
         result.failed++;
         const msg = `账户 ${record.accountId} 加密失败: ${(recordError as Error).message}`;
@@ -131,7 +133,7 @@ export async function migrateEncryptCredentials(): Promise<{
     }
 
     result.success = result.failed === 0;
-    console.log(`[v345-migration] 迁移完成: 总计=${result.totalRecords}, 加密=${result.encrypted}, 跳过=${result.skipped}, 失败=${result.failed}`);
+    log.info(`[v345-migration] 迁移完成: 总计=${result.totalRecords}, 加密=${result.encrypted}, 跳过=${result.skipped}, 失败=${result.failed}`);
     
     return result;
   } catch (error: unknown) {

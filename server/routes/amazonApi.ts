@@ -1855,7 +1855,7 @@ export const amazonApiRouter = router({
     }),
 
   // Get API regions and marketplaces
-  getRegions: publicProcedure.query(() => {
+  getRegions: protectedProcedure.query(() => {
     return {
       endpoints: API_ENDPOINTS,
       marketplaceMapping: MARKETPLACE_TO_REGION,

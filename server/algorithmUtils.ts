@@ -715,8 +715,8 @@ const MARKETPLACE_CACHE_TTL_MS = 30 * 60 * 1000; // 30分钟TTL
 const MARKETPLACE_CACHE_MAX_SIZE = 500; // 最大缓存条目数
 const marketplaceCache = new Map<number, CacheEntry<string>>();
 
-// 定期清理过期缓存条目
-setInterval(() => {
+// v361: 定期清理过期缓存条目（保存引用以便清理）
+const _marketplaceCacheCleanupTimer = setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
   for (const [key, entry] of marketplaceCache.entries()) {

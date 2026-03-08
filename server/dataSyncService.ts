@@ -1,8 +1,12 @@
 import { createModuleLogger } from "./utils/logger";
 const log = createModuleLogger("DataSync");
 /**
+ * @deprecated v361: 此模块已废弃，功能已被AmazonSyncService和dataSyncScheduler完全覆盖。
+ * 请使用 server/amazonSyncService.ts 作为统一的同步入口。
+ * 计划在v362中删除此文件。
+ * 
  * Data Sync Service - 广告数据自动同步服务
- * 从Amazon API拉取广告活动、关键词和绩效数据
+ * 今Amazon API拉取广告活动、关键词和绩效数据
  * 包含API调用限流机制
  */
 
@@ -135,6 +139,7 @@ const rateLimiter = new RateLimiter();
  * 创建同步任务
  */
 export async function createSyncJob(userId: number, accountId: number, syncType: SyncType = "all"): Promise<number | null> {
+  log.warn(`[DEPRECATED] dataSyncService.createSyncJob已废弃，请使用amazonSyncService替代`);
   const db = await getDb();
   if (!db) return null;
   const jobData: InsertDataSyncJob = { userId, accountId, syncType, status: "pending" };
@@ -146,6 +151,7 @@ export async function createSyncJob(userId: number, accountId: number, syncType:
  * 执行同步任务
  */
 export async function executeSyncJob(jobId: number): Promise<{ success: boolean; message: string; stats?: unknown }> {
+  log.warn(`[DEPRECATED] dataSyncService.executeSyncJob已废弃，请使用amazonSyncService替代`);
   const db = await getDb();
   if (!db) return { success: false, message: "数据库连接失败" };
 
@@ -428,33 +434,24 @@ export async function updateSyncSchedule(id: number, userId: number, updates: Pa
   const db = await getDb();
   if (!db) return false;
 
-  const setClauses: string[] = [];
-  const values: any[] = [];
-
-  if (updates.syncType !== undefined) { setClauses.push("sync_type = ?"); values.push(updates.syncType); }
-  if (updates.frequency !== undefined) { setClauses.push("frequency = ?"); values.push(updates.frequency); }
-  if (updates.hour !== undefined) { setClauses.push("hour = ?"); values.push(updates.hour); }
-  if (updates.dayOfWeek !== undefined) { setClauses.push("day_of_week = ?"); values.push(updates.dayOfWeek); }
-  if (updates.dayOfMonth !== undefined) { setClauses.push("day_of_month = ?"); values.push(updates.dayOfMonth); }
-  if (updates.isEnabled !== undefined) { setClauses.push("is_enabled = ?"); values.push(updates.isEnabled); }
-
-  if (setClauses.length === 0) return true;
-
-  // 重新计算下次执行时间
+  // v361: 使用参数化查询替代sql.raw，彻底消除SQL注入风险
+  const setParts: ReturnType<typeof sql>[] = [];
+  if (updates.syncType !== undefined) setParts.push(sql`sync_type = ${updates.syncType}`);
+  if (updates.frequency !== undefined) setParts.push(sql`frequency = ${updates.frequency}`);
+  if (updates.hour !== undefined) setParts.push(sql`hour = ${updates.hour}`);
+  if (updates.dayOfWeek !== undefined) setParts.push(sql`day_of_week = ${updates.dayOfWeek}`);
+  if (updates.dayOfMonth !== undefined) setParts.push(sql`day_of_month = ${updates.dayOfMonth}`);
+  if (updates.isEnabled !== undefined) setParts.push(sql`is_enabled = ${updates.isEnabled}`);
+  if (setParts.length === 0) return true;
   const schedule = await getSyncScheduleById(id, userId);
   if (schedule) {
     const newConfig = { ...schedule, ...updates };
     const nextRunAt = calculateNextRunTime(newConfig as SyncScheduleConfig);
-    setClauses.push("next_run_at = ?");
-    values.push(nextRunAt);
+    setParts.push(sql`next_run_at = ${nextRunAt}`);
   }
-
-  setClauses.push("updated_at = NOW()");
-
-  // v346: 使用Drizzle参数化查询替代sql.raw，防止SQL注入
-  const setClauseStr = setClauses.map((clause: any, idx: any) => clause.replace('?', `$${idx + 1}`)).join(', ');
+  setParts.push(sql`updated_at = NOW()`);
   await db.execute(
-    sql`UPDATE sync_schedules SET ${sql.raw(setClauses.join(', '))} WHERE id = ${id} AND user_id = ${userId}`
+    sql`UPDATE sync_schedules SET ${sql.join(setParts, sql`, `)} WHERE id = ${id} AND user_id = ${userId}`
   );
   return true;
 }
