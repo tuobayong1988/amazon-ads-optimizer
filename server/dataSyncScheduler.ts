@@ -660,6 +660,11 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         targetsSynced: (result as unknown)?.targets || 0,
         // @ts-ignore
         performanceSynced: (result as unknown)?.performance || 0,
+        // v364: 修复同步任务步骤计数缺失
+        totalSteps: 7,
+        currentStepIndex: 7,
+        currentStep: '完成',
+        progressPercent: 100,
       });
     }
   } catch (logErr: unknown) {

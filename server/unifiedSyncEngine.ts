@@ -1686,6 +1686,14 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           recordsSynced: Object.values(accountResult.stepResults).reduce(
             (total: number, step: any) => total + safeNum(step?.synced), 0
           ),
+          // v364: 修复同步任务步骤计数缺失 - 添加totalSteps和currentStepIndex
+          totalSteps: accountResult.totalSteps || Object.keys(accountResult.stepResults).length,
+          currentStepIndex: accountResult.totalSteps || Object.keys(accountResult.stepResults).length,
+          currentStep: accountResult.success ? '完成' : '失败',
+          progressPercent: accountResult.success ? 100 : Math.round(
+            (Object.values(accountResult.stepResults).filter((s: any) => s?.success).length / 
+             Math.max(Object.keys(accountResult.stepResults).length, 1)) * 100
+          ),
         } as Record<string, any>);
       } catch (insertErr: unknown) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${(insertErr as Error).message}`);

@@ -1534,7 +1534,7 @@ export default function AmazonApiSettings() {
         syncTasks,
         MAX_CONCURRENT_SYNCS,
         (completed, total) => {
-          console.log(`同步进度: ${completed}/${total}`);
+          // console.log(`同步进度: ${completed}/${total}`);
         }
       );
       

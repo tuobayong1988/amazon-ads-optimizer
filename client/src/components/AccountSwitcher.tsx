@@ -235,7 +235,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
         // @ts-ignore
         const defaultAccount = accounts.find(a => a.isDefault) || accounts[0];
         setCurrentAccountId(defaultAccount.id);
-        console.log('[AccountSwitcher] Auto-selected account:', defaultAccount.id, defaultAccount.storeName);
+        // console.log('[AccountSwitcher] Auto-selected account:', defaultAccount.id, defaultAccount.storeName);
       }
     }
   }, [currentAccountId, accounts]);

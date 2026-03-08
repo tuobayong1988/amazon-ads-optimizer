@@ -2372,7 +2372,7 @@ export default function PerformanceGroupDetail() {
                 </Button>
                 <Button 
                   onClick={() => {
-                    console.log('Button clicked, selected:', selectedCampaigns);
+                    // console.log('Button clicked, selected:', selectedCampaigns);
                     handleAddCampaigns();
                   }}
                   disabled={visibleSelectedCount === 0 || addCampaignsMutation.isPending}

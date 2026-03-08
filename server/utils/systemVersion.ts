@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 363.0;  // v363.0: 全方位排查修复 - 纠错页面崩溃/数据同步Tab/N+1查询优化/TS编译错误清理/版本号修正
+export const SYSTEM_VERSION = 364.0;  // v364.0: 绩效同步N+1优化/同步步骤计数修复/纠错仪表盘多租户隔离/优化锁重试/并发能力提升/前端体验优化

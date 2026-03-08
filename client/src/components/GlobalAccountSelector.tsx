@@ -177,7 +177,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
         const firstStore = (firstAccount.storeName || firstAccount.accountName).trim();
         const firstMarketplace = firstAccount.marketplace;
         setCurrentSelection(firstStore, firstMarketplace);
-        console.log('[GlobalAccountSelector] Auto-selected:', firstStore, firstMarketplace);
+        // console.log('[GlobalAccountSelector] Auto-selected:', firstStore, firstMarketplace);
       }
       // 如果选中了店铺但没有选中站点，或者站点不属于当前店铺
       else if (!currentMarketplace) {
@@ -185,7 +185,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
         if (marketplaces.length > 0) {
           const target = marketplaces.includes('US') ? 'US' : marketplaces[0];
           setCurrentSelection(currentStore, target);
-          console.log('[GlobalAccountSelector] Auto-selected marketplace:', target);
+          // console.log('[GlobalAccountSelector] Auto-selected marketplace:', target);
         }
       }
       else if (!marketplaces.includes(currentMarketplace)) {
@@ -200,7 +200,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
           const target = currentStoreMarketplaces.includes('US') ? 'US' : (currentStoreMarketplaces[0] || null);
           if (target) {
             setCurrentSelection(currentStore, target);
-            console.log('[GlobalAccountSelector] Marketplace not in store, reset to:', target);
+            // console.log('[GlobalAccountSelector] Marketplace not in store, reset to:', target);
           }
         }
       }

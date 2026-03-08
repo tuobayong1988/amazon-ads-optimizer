@@ -103,7 +103,7 @@ export default function DataHealthDashboard() {
           <div>
             <h1 className="text-2xl font-bold">数据健康仪表盘</h1>
             <p className="text-muted-foreground mt-1">
-              v359 系统运行状态综合监控
+              系统运行状态综合监控
             </p>
           </div>
           <Button
@@ -325,7 +325,7 @@ export default function DataHealthDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>API限流配置</CardTitle>
-                <CardDescription>按端点类型区分的限流策略（v359增强）</CardDescription>
+                <CardDescription>按端点类型区分的限流策略</CardDescription>
               </CardHeader>
               <CardContent>
                 {rateLimitQuery.data?.configs ? (
@@ -371,7 +371,7 @@ export default function DataHealthDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>自愈调度器状态</CardTitle>
-                <CardDescription>独立于主同步流程的自愈任务执行情况（v359新增）</CardDescription>
+                <CardDescription>独立于主同步流程的自愈任务执行情况</CardDescription>
               </CardHeader>
               <CardContent>
                 {selfHealingQuery.data?.status ? (
@@ -478,7 +478,7 @@ export default function DataHealthDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>指令确认服务</CardTitle>
-                <CardDescription>可靠的指令确认机制，替代fire-and-forget模式（v359新增）</CardDescription>
+                <CardDescription>可靠的指令确认机制，替代fire-and-forget模式</CardDescription>
               </CardHeader>
               <CardContent>
                 {confirmationQuery.data?.metrics ? (

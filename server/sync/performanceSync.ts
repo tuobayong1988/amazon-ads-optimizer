@@ -19,6 +19,8 @@ import {
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient } from '../amazonAdsApi';
+import { getExchangeRateByMarketplace } from '../services/exchangeRateService';
+import { getMarketplaceDateRange, getMarketplaceCurrentDate } from '../utils/timezone';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
 export interface SyncContext {
@@ -204,43 +206,59 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     let matchedByName = 0;
     let notMatched = 0;
     
+    // v364: 批量预查询消除N+1 - 一次性加载当前账户所有campaigns
+    const allCampaigns = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.accountId, service.accountId));
+    
+    // 构建campaignId和campaignName的Map用于快速查找
+    const campaignByIdMap = new Map<string, typeof allCampaigns[0]>();
+    const campaignByNameMap = new Map<string, typeof allCampaigns[0]>();
+    for (const c of allCampaigns) {
+      if (c.campaignId) campaignByIdMap.set(String(c.campaignId), c);
+      if (c.campaignName) campaignByNameMap.set(c.campaignName, c);
+    }
+    
+    // v364: 批量预查询已存在的绩效数据 - 收集所有报告日期的数据
+    const reportDates = new Set<string>();
+    for (const row of (reportData as any[])) {
+      const d = row.date ? new Date(row.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      reportDates.add(d);
+    }
+    const existingPerformance = await db
+      .select({ id: dailyPerformance.id, accountId: dailyPerformance.accountId, campaignId: dailyPerformance.campaignId, date: dailyPerformance.date })
+      .from(dailyPerformance)
+      .where(
+        and(
+          eq(dailyPerformance.accountId, service.accountId),
+          sql`DATE(${dailyPerformance.date}) IN (${sql.join([...reportDates].map(d => sql`${d}`), sql`, `)})`
+        )
+      );
+    // 构建复合键 Map: "campaignId|date" -> existing record
+    const existingPerfMap = new Map<string, typeof existingPerformance[0]>();
+    for (const ep of existingPerformance) {
+      const dateStr = ep.date ? (typeof ep.date === 'string' ? ep.date.split('T')[0] : new Date(ep.date).toISOString().split('T')[0]) : '';
+      existingPerfMap.set(`${ep.campaignId}|${dateStr}`, ep);
+    }
+    
+    log.info(`v364批量预查询完成: campaigns=${allCampaigns.length}, existingPerf=${existingPerformance.length}, dates=${reportDates.size}`);
+    
     for (const row of (reportData as any[])) {
       // 策略：先用campaignId匹配，失败后用campaignName匹配
       // 这是因为SB/SD的报告ID可能与List API返回的ID不一致
       
-      // 策略1: 先用campaignId匹配
-      let [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, service.accountId),
-            eq(campaigns.campaignId, String(row.campaignId))
-          )
-        )
-        .limit(1);
+      // v364: 使用预查询Map替代循环内DB查询
+      let campaign = campaignByIdMap.get(String(row.campaignId)) || null;
 
       if (campaign) {
         matchedById++;
       } else if (row.campaignName) {
-        // 策略2: 用campaignName匹配（紧急规避方案）
-        // 亚马逊广告活动名称是唯一的，可以用作关联
-        [campaign] = await db
-          .select()
-          .from(campaigns)
-          .where(
-            and(
-              eq(campaigns.accountId, service.accountId),
-              eq(campaigns.campaignName, row.campaignName)
-            )
-          )
-          .limit(1);
+        // 策略2: 用campaignName匹配
+        campaign = campaignByNameMap.get(row.campaignName) || null;
         
         if (campaign) {
           matchedByName++;
-          // 注意：只做只读匹配，不修改campaigns表的campaignId
-          // 因为Management API (List)返回的V4 ID是系统的唯一真理
-          // 报表API返回的可能是Legacy ID，如果覆盖V4 ID会导致下次同步出错
           log.info(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
         }
       }
@@ -262,9 +280,11 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
               updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             }).returning();
             campaign = newCampaign;
+            // v364: 更新Map以便后续行可以匹配
+            campaignByIdMap.set(String(campaign.campaignId), campaign);
+            if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
             log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
           } catch (createError: unknown) {
-            // 可能是重复插入，尝试再次查询
             log.warn(`${adType}创建campaign失败，尝试再次查询:`, (createError as Error).message);
             [campaign] = await db
               .select()
@@ -276,12 +296,15 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
                 )
               )
               .limit(1);
+            if (campaign) {
+              campaignByIdMap.set(String(campaign.campaignId), campaign);
+              if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
+            }
           }
         }
         
         if (!campaign) {
           notMatched++;
-          // 记录未找到的campaign，用于调试
           if (notMatched <= 10) {
             log.warn(`${adType}未找到campaign: accountId=${service.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
           }
@@ -293,19 +316,9 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
-      // 检查是否已存在当天数据
-      // v323: 检查是否已存在当天数据 - 包含accountId防止跨账户混淆
-      const [existing] = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.accountId, service.accountId),
-            eq(dailyPerformance.campaignId, String(campaign.campaignId)),
-            sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
-          )
-        )
-        .limit(1);
+      // v364: 使用预查询Map替代循环内DB查询
+      const existingKey = `${String(campaign.campaignId)}|${reportDateStr}`;
+      const existing = existingPerfMap.get(existingKey) || null;
 
       // 使用 Amazon Ads API v3 的字段名 (2026年1月更新)
       // ⚠️ 重要: 不同广告类型使用不同的字段名
@@ -667,18 +680,31 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
     log.debug(`获取到 ${reportData.length} 条位置绩效数据`);
     let synced = 0;
 
+    // v364: 批量预查询消除N+1 - campaigns
+    const allCampaigns = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.accountId, service.accountId));
+    const campaignByIdMap = new Map<string, typeof allCampaigns[0]>();
+    for (const c of allCampaigns) {
+      if (c.campaignId) campaignByIdMap.set(String(c.campaignId), c);
+    }
+    
+    // v364: 批量预查询已存在的placement绩效数据
+    const existingPlacements = await db
+      .select({ id: placementPerformance.id, campaignId: placementPerformance.campaignId, accountId: placementPerformance.accountId, placement: placementPerformance.placement, date: placementPerformance.date })
+      .from(placementPerformance)
+      .where(eq(placementPerformance.accountId, service.accountId));
+    const existingPlacementMap = new Map<string, typeof existingPlacements[0]>();
+    for (const ep of existingPlacements) {
+      existingPlacementMap.set(`${ep.campaignId}|${ep.placement}|${ep.date}`, ep);
+    }
+    
+    log.info(`v364批量预查询完成: campaigns=${allCampaigns.length}, existingPlacements=${existingPlacements.length}`);
+
     for (const row of (reportData as any[])) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, service.accountId),
-            eq(campaigns.campaignId, String(row.campaignId))
-          )
-        )
-        .limit(1);
+      // v364: 使用预查询Map替代循环内DB查询
+      const campaign = campaignByIdMap.get(String(row.campaignId));
 
       if (!campaign) continue;
 
@@ -708,19 +734,8 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
       // v207: 统一使用Amazon campaignId（varchar字段应存储Amazon ID）
       const localCampaignId = String(campaign.campaignId);
       
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(placementPerformance)
-        .where(
-          and(
-            eq(placementPerformance.campaignId, localCampaignId),
-            eq(placementPerformance.accountId, service.accountId),
-            eq(placementPerformance.placement, placement),
-            eq(placementPerformance.date, reportDate)
-          )
-        )
-        .limit(1);
+      // v364: 使用预查询Map替代循环内DB查询
+      const existing = existingPlacementMap.get(`${localCampaignId}|${placement}|${reportDate}`) || null;
 
       const cost = row.cost || 0;
       // SP广告位置报告使用7天归因窗口（与SP其他报告一致）
@@ -790,26 +805,37 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
     // 使用站点时区计算最近30天的日期范围
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(service.marketplace, 30);
 
+    // v364: 批量查询消除N+1 - 一次性汇总所有campaign的绩效数据
+    const dailySummaries = await db
+      .select({
+        campaignId: dailyPerformance.campaignId,
+        totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
+        totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
+        totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
+        totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+      })
+      .from(dailyPerformance)
+      .where(
+        and(
+          eq(dailyPerformance.accountId, service.accountId),
+          sql`${dailyPerformance.date} >= ${startDateStr}`,
+          sql`${dailyPerformance.date} <= ${endDateStr}`
+        )
+      )
+      .groupBy(dailyPerformance.campaignId);
+    
+    // 构建campaignId -> summary的Map
+    const dailySummaryMap = new Map<string, typeof dailySummaries[0]>();
+    for (const ds of dailySummaries) {
+      if (ds.campaignId) dailySummaryMap.set(String(ds.campaignId), ds);
+    }
+    
+    log.info(`v364批量汇总完成: ${dailySummaries.length}个campaign有绩效数据`);
+
     for (const campaign of (accountCampaigns as any[])) {
-      // 首先尝试仍ailyPerformance表汇总
-      // v323: 添加accountId条件防止跨账户数据混淆
-      const [dailySummary] = await db
-        .select({
-          totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-          totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-          totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-          totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-          totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
-        })
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.accountId, service.accountId),
-            eq(dailyPerformance.campaignId, String(campaign.campaignId)),
-            sql`${dailyPerformance.date} >= ${startDateStr}`,
-            sql`${dailyPerformance.date} <= ${endDateStr}`
-          )
-        );
+      // v364: 使用预查询Map替代循环内DB查询
+      const dailySummary = dailySummaryMap.get(String(campaign.campaignId));
 
       let totalImpressions = dailySummary?.totalImpressions || 0;
       let totalClicks = dailySummary?.totalClicks || 0;
@@ -828,7 +854,6 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
         const adGroupIds = campaignAdGroups.map(ag => ag.id);
 
         if (adGroupIds.length > 0) {
-          // 从keywords表汇总
           const [keywordSummary] = await db
             .select({
               totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
@@ -840,7 +865,6 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
             .from(keywords)
             .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
 
-          // 从productTargets表汇总
           const [targetSummary] = await db
             .select({
               totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
@@ -852,7 +876,6 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
             .from(productTargets)
             .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
 
-          // 合并关键词和商品定位的数据
           totalImpressions = (keywordSummary?.totalImpressions || 0) + (targetSummary?.totalImpressions || 0);
           totalClicks = (keywordSummary?.totalClicks || 0) + (targetSummary?.totalClicks || 0);
           totalSpend = parseFloat(keywordSummary?.totalSpend || '0') + parseFloat(targetSummary?.totalSpend || '0');

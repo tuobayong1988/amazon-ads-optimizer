@@ -322,68 +322,83 @@ export const autoCorrectionRouter = router({
   }),
   
   // v177: 监控仪表盘 - 获取全面的纠错状态概览
-  getDashboard: protectedProcedure.query(async () => {
-    // v268 性能优化: 纠错仪表盘缓存（TTL 1分钟）
-    const cacheKey = 'correction.getDashboard:global';
-    const cached = apiCache.get<any>(cacheKey);
-    if (cached) return cached;
-
+  // v364: 修复多租户数据泄露 - 添加account_id过滤和缓存隔离
+  getDashboard: protectedProcedure.query(async ({ ctx }) => {
+    // v364: 获取当前用户关联的账户ID列表用于数据隔离
     const dbInstance = await db.getDb();
     if (!dbInstance) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '数据库连接失败' });
+    
+    // 获取当前用户的所有账户ID
+    const userAccounts = await dbInstance.execute(
+      sql`SELECT id FROM ad_accounts WHERE user_id = ${ctx.user.id}`
+    ) as any;
+    const accountIds = (userAccounts?.[0] || []).map((a: any) => a.id);
+    
+    // v364: 缓存按用户隔离，避免跨租户数据泄露
+    const cacheKey = `correction.getDashboard:user:${ctx.user.id}`;
+    const cached = apiCache.get<any>(cacheKey);
+    if (cached) return cached;
+    
+    // 构建accountId过滤条件
+    const accountFilter = accountIds.length > 0 
+      ? sql`account_id IN (${sql.join(accountIds.map((id: number) => sql`${id}`), sql`, `)})` 
+      : sql`1=0`;
     
     // 1. 获取最近扫描状态
     const scanStatus = getScanStatus();
     const lastScan = getLastScanResult();
     const config = getAutoCorrectorConfig();
     
-    // 2. 获取事件状态统计
+    // 2. 获取事件状态统计 - v364: 添加account_id过滤
     // @ts-ignore
     const [statusStats] = await dbInstance.execute(
-      sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+      sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} GROUP BY api_sync_status`
     ) as unknown;
     
-    // 3. 获取按操作类型的统计
+    // 3. 获取按操作类型的统计 - v364: 添加account_id过滤
     // @ts-ignore
     const [actionStats] = await dbInstance.execute(
       sql`SELECT action_type, api_sync_status, COUNT(*) as count 
           FROM optimization_events 
+          WHERE ${accountFilter}
           GROUP BY action_type, api_sync_status 
           ORDER BY action_type, api_sync_status`
     ) as unknown;
     
-    // 4. 获取最近7天的纠错活动趋势
+    // 4. 获取最近7天的纠错活动趋势 - v364: 添加account_id过滤
     // @ts-ignore
     const [trendData] = await dbInstance.execute(
       sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
              SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
              SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
           FROM optimization_events 
-          WHERE api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          WHERE ${accountFilter} AND api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           GROUP BY DATE(api_synced_at)
           ORDER BY date DESC`
     ) as unknown;
     
-    // 5. 获取待处理的关键词创建重试统计
+    // 5. 获取待处理的关键词创建重试统计 - v364: 添加account_id过滤
     // @ts-ignore
     const [harvestRetryStats] = await dbInstance.execute(
       sql`SELECT COUNT(*) as total,
              SUM(CASE WHEN action_detail LIKE '%code=ERROR%' THEN 1 ELSE 0 END) as retryable
           FROM optimization_events 
-          WHERE action_type = 'keyword_create' 
+          WHERE ${accountFilter}
+            AND action_type = 'keyword_create' 
             AND api_sync_status = 'not_applicable'
             AND keyword_id IS NULL`
     ) as unknown;
     
-    // 6. 获取否定关键词状态统计
+    // 6. 获取否定关键词状态统计 - v364: 添加account_id过滤
     // @ts-ignore
     const [negKeywordStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count 
           FROM optimization_events 
-          WHERE action_type = 'negative_keyword_add'
+          WHERE ${accountFilter} AND action_type = 'negative_keyword_add'
           GROUP BY api_sync_status`
     ) as unknown;
     
-    // 7. 获取最近的纠错活动日志（最近20条）
+    // 7. 获取最近的纠错活动日志（最近20条） - v364: 添加account_id过滤
     // @ts-ignore
     const [recentCorrections] = await dbInstance.execute(
       sql`SELECT id, action_type, api_sync_status, action_detail,
@@ -391,7 +406,7 @@ export const autoCorrectionRouter = router({
              campaign_name, ad_group_name, keyword_text,
              created_at, api_synced_at
           FROM optimization_events
-          WHERE api_sync_status IN ('synced', 'failed', 'permanently_failed')
+          WHERE ${accountFilter} AND api_sync_status IN ('synced', 'failed', 'permanently_failed')
           ORDER BY created_at DESC
           LIMIT 20`
     ) as unknown;

@@ -100,19 +100,19 @@ export async function getDb() {
   
   if (!_db) {
     try {
-      // v361: 进一步优化连接池配置 — 提升并发能力和稳定性
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || '25', 10);
-      const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '180000', 10);
+      // v364: 进一步优化连接池配置 — 支持200-500租户规模
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '50', 10);
+      const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         waitForConnections: true,
-        connectionLimit: poolSize,     // v361: 可配置，默认25（从20提升）
-        maxIdle: Math.floor(poolSize / 2), // v361: 动态计算，保持50%空闲连接
-        idleTimeout: poolIdleTimeout,  // v361: 可配置，默认180秒（从120秒提升）
+        connectionLimit: poolSize,     // v364: 可配置，默认50（从25提升，支持更多并发租户）
+        maxIdle: Math.floor(poolSize * 0.4), // v364: 保持40%空闲连接，减少内存占用
+        idleTimeout: poolIdleTimeout,  // v364: 可配置，默认300秒（从180秒提升，减少重建频率）
         connectTimeout: 15_000,        // v350: 15秒连接超时
         enableKeepAlive: true,         // 保持连接活跃
         keepAliveInitialDelay: 10_000, // v350: 10秒keepAlive
-        queueLimit: poolSize * 3,      // v361: 动态计算，队列为连接数的3倍
+        queueLimit: poolSize * 4,      // v364: 动态计算，队列为连接数的4倍（从3倍提升）
       });
       
       // v350: 注册连接池事件监听，用于诊断
@@ -124,7 +124,7 @@ export async function getDb() {
       _db = drizzle(_pool as unknown, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();
-      log.info(`[Database] v361: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize/2)}, connectTimeout=15s, keepAlive=10s, queueLimit=${poolSize*3})`);
+      log.info(`[Database] v364: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.4)}, connectTimeout=15s, keepAlive=10s, queueLimit=${poolSize*4})`);
     } catch (error) {
       log.warn("[Database] v350: 连接池创建失败:", error);
       _db = null;
