@@ -48,7 +48,7 @@ export const intelligentRecommendationRouter = router({
 
         try {
           const { triggerInitialOptimization } = await import('../optimizationScheduler');
-          triggerInitialOptimization(id, { triggeredBy: 'create' as any }).catch(err => {
+          triggerInitialOptimization(id, { triggeredBy: 'create' as unknown }).catch(err => {
             log.error(`[智能推荐] 触发首次优化失败:`, err);
           });
         } catch (e) {

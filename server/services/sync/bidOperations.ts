@@ -41,9 +41,9 @@ const log = createModuleLogger('bidOperations');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    applyBidAdjustment(...args: unknown[]): any;
-    applyBatchBidAdjustments(...args: unknown[]): any;
-    getPlacementMultiplier(...args: unknown[]): any;
+    applyBidAdjustment(...args: unknown[]): unknown;
+    applyBatchBidAdjustments(...args: unknown[]): unknown;
+    getPlacementMultiplier(...args: unknown[]): unknown;
   }
 }
 

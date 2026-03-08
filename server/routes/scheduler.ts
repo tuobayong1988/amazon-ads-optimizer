@@ -32,7 +32,7 @@ export const schedulerRouter = router({
       enabled: z.boolean().optional().default(true),
       autoApply: z.boolean().optional().default(false),
       requireApproval: z.boolean().optional().default(true),
-      parameters: z.record(z.string(), z.any()).optional(),
+      parameters: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const id = await db.createScheduledTask({
@@ -66,7 +66,7 @@ export const schedulerRouter = router({
       enabled: z.boolean().optional(),
       autoApply: z.boolean().optional(),
       requireApproval: z.boolean().optional(),
-      parameters: z.record(z.string(), z.any()).optional(),
+      parameters: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ input }) => {
       await db.updateScheduledTask(input.id, {

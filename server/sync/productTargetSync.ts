@@ -562,8 +562,8 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       }
       
       // 如果没有从expression中提取到值，尝试从resolvedExpression获取
-      if (!targetValue && (apiTarget as any).resolvedExpression) {
-        const resolved = (apiTarget as any).resolvedExpression;
+      if (!targetValue && (apiTarget as Record<string, unknown>).resolvedExpression) {
+        const resolved = (apiTarget as Record<string, unknown>).resolvedExpression;
         if (Array.isArray(resolved)) {
           for (const re of resolved) {
             const ret = (re.type || '').toLowerCase();

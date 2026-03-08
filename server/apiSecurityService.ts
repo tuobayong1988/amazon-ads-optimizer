@@ -322,7 +322,7 @@ export async function upsertSpendLimitConfig(params: SpendLimitConfigParams): Pr
 /**
  * 获取花费限额配置
  */
-export async function getSpendLimitConfig(userId: number, accountId: number): Promise<any | null> {
+export async function getSpendLimitConfig(userId: number, accountId: number): Promise<Record<string, unknown> | null> {
   const db = await getDb();
   if (!db) return null;
 
@@ -468,7 +468,7 @@ export async function getSpendAlertHistory(
   userId: number,
   accountId?: number,
   limit: number = 50
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -554,7 +554,7 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
 /**
  * 获取用户的异常检测规则
  */
-export async function getAnomalyRules(userId: number, accountId?: number): Promise<any[]> {
+export async function getAnomalyRules(userId: number, accountId?: number): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -588,7 +588,7 @@ export async function checkAnomalyRules(
   operationId?: number
 ): Promise<{
   triggered: boolean;
-  rule?: any;
+  rule?: unknown;
   action?: string;
 }> {
   const rules = await getAnomalyRules(userId, accountId);
@@ -846,7 +846,7 @@ export async function getAutoPauseRecords(
   userId: number,
   accountId?: number,
   includeResumed: boolean = false
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 

@@ -171,7 +171,7 @@ export async function executeBatchAnalysis(
   `);
 
   const campaignMap = new Map(
-    ((campaigns as any)[0] as unknown[]).map(c => [c.campaign_id, c])
+    ((campaigns as unknown)[0] as unknown[]).map(c => [c.campaign_id, c])
   );
 
   // 逐个分析广告活动
@@ -408,7 +408,7 @@ export async function applyOptimization(
     AND account_id = ${request.accountId}
   `);
 
-  const current = ((currentSettings as any)[0] as unknown[])[0] || {
+  const current = ((currentSettings as unknown)[0] as unknown[])[0] || {
     top_of_search_adjustment: 0,
     product_page_adjustment: 0
   };
@@ -575,7 +575,7 @@ export async function rollbackApplication(
     WHERE id = ${applicationId}
   `);
 
-  const record = ((records as any)[0] as unknown[])[0];
+  const record = ((records as unknown[][])[0] as unknown[])[0];
   if (!record) {
     return { success: false, error: "找不到应用记录" };
   }
@@ -640,7 +640,7 @@ export async function getApplicationHistory(
   accountId: number,
   campaignId?: string,
   limit: number = 20
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) {
     return [];
@@ -674,7 +674,7 @@ export async function getApplicationHistory(
 export async function getBatchAnalysisHistory(
   accountId: number,
   limit: number = 10
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) {
     return [];

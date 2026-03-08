@@ -38,7 +38,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     `);
     
     // 获取受影响的行数
-    const affectedRows = (result as Record<string, unknown>[][])[0]?.affectedRows || (result as any)?.affectedRows || 0;
+    const affectedRows = (result as Record<string, unknown>[][])[0]?.affectedRows || (result as unknown)?.affectedRows || 0;
     updated = affectedRows;
     
     log.info(`[v257] match_type回填完成: 更新了${updated}条记录`);

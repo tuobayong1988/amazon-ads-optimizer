@@ -297,7 +297,7 @@ export async function analyzeByAdjustmentType(
   });
   
   // 按调整类型分组
-  const byType: Record<string, any[]> = {};
+  const byType: Record<string, unknown[]> = {};
   for (const record of records) {
     const type = record.adjustmentType || 'unknown';
     if (!byType[type]) byType[type] = [];

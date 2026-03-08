@@ -64,7 +64,7 @@ export const userRouter = router({
   updatePreferences: protectedProcedure
     .input(z.object({
       key: z.string(),
-      value: z.any(),
+      value: z.unknown(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();

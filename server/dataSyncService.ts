@@ -37,7 +37,7 @@ interface QueuedRequest {
   accountId: number;
   endpoint: string;
   method: string;
-  params?: any;
+  params?: unknown;
   resolve: (value: Record<string, unknown>) => void;
   reject: (error: Error) => void;
   priority: number;
@@ -50,7 +50,7 @@ class RateLimiter {
   private lastReset = { second: Date.now(), minute: Date.now(), hour: Date.now() };
   private processing = false;
 
-  async enqueue(request: Omit<QueuedRequest, "id" | "addedAt" | "resolve" | "reject">): Promise<any> {
+  async enqueue(request: Omit<QueuedRequest, "id" | "addedAt" | "resolve" | "reject">): Promise<unknown> {
     return new Promise((resolve, reject) => {
       this.queue.push({
         ...request,
@@ -117,7 +117,7 @@ class RateLimiter {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private async executeRequest(request: QueuedRequest): Promise<any> {
+  private async executeRequest(request: QueuedRequest): Promise<unknown> {
     // 模拟API调用（实际实现需要调用Amazon API）
     return { success: true, endpoint: request.endpoint, timestamp: Date.now() };
   }
@@ -143,7 +143,7 @@ export async function createSyncJob(userId: number, accountId: number, syncType:
 /**
  * 执行同步任务
  */
-export async function executeSyncJob(jobId: number): Promise<{ success: boolean; message: string; stats?: any }> {
+export async function executeSyncJob(jobId: number): Promise<{ success: boolean; message: string; stats?: unknown }> {
   const db = await getDb();
   if (!db) return { success: false, message: "数据库连接失败" };
 
@@ -298,7 +298,7 @@ async function syncPerformance(userId: number, accountId: number, account: unkno
 /**
  * 记录同步日志
  */
-async function logSyncActivity(jobId: number, operation: string, status: string, message: string, details?: any) {
+async function logSyncActivity(jobId: number, operation: string, status: string, message: string, details?: unknown) {
   const db = await getDb();
   if (!db) return;
   await db.insert(dataSyncLogs).values({
@@ -623,7 +623,7 @@ export async function runScheduleCheck(): Promise<{ executed: number; failed: nu
 /**
  * 获取调度执行历史
  */
-export async function getScheduleHistory(scheduleId: number, limit: number = 20): Promise<any[]> {
+export async function getScheduleHistory(scheduleId: number, limit: number = 20): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
   

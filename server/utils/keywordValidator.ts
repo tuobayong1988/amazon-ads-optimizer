@@ -229,7 +229,7 @@ export function isProductTargetingCampaign(campaignName: string): boolean {
  */
 export async function adGroupHasProductTargets(
   adGroupId: number,
-  conn?: any
+  conn?: unknown
 ): Promise<boolean> {
   let ownConn = false;
   try {

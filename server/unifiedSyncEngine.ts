@@ -1200,7 +1200,7 @@ export async function syncAccount(
         // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
         const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
           (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
-            Object.values(stepResult.synced as any).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
+            Object.values(stepResult.synced as unknown).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
         stepResult.synced = safeSynced;
 
         if (stepResult.success) {

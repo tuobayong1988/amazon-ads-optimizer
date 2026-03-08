@@ -765,7 +765,7 @@ export async function createBudgetGoal(
     accountId: data.accountId,
     goalType: data.goalType as unknown,
     targetValue: data.targetValue.toString(),
-    periodType: (data.periodType as any) || "monthly",
+    periodType: (data.periodType as unknown) || "monthly",
     startDate: data.startDate?.toISOString(),
     endDate: data.endDate?.toISOString(),
     totalBudget: data.totalBudget?.toString(),

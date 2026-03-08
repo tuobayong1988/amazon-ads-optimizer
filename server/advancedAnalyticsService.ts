@@ -470,7 +470,7 @@ export async function getTrendAnalysis(params: {
   for (const metric of metricsToAnalyze) {
     const dataPoints = enrichedData.map(d => ({
       date: d.date,
-      value: Math.round((d as any)[metric] * 100) / 100,
+      value: Math.round((d as unknown)[metric] * 100) / 100,
     }));
     
     // 计算移动平均（7日窗口）
@@ -621,7 +621,7 @@ export async function detectAnomalies(params: {
   };
   
   for (const metric of metricsToCheck) {
-    const values = enrichedData.map(d => (d as any)[metric] as number);
+    const values = enrichedData.map(d => (d as unknown)[metric] as number);
     
     // 计算均值和标准差
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -634,7 +634,7 @@ export async function detectAnomalies(params: {
     const threshold = sensitivity; // 1σ, 2σ, 或 3σ
     
     for (let i = 0; i < enrichedData.length; i++) {
-      const value = (enrichedData[i] as any)[metric] as number;
+      const value = (enrichedData[i] as unknown)[metric] as number;
       const zScore = Math.abs((value - mean) / stdDev);
       
       if (zScore >= threshold) {

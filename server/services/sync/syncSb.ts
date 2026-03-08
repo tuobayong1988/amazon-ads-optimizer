@@ -39,16 +39,16 @@ const log = createModuleLogger('syncSb');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSbCampaigns(...args: unknown[]): any;
-    syncSbAdGroups(...args: unknown[]): any;
-    syncSbKeywords(...args: unknown[]): any;
-    syncSbProductTargets(...args: unknown[]): any;
-    syncSbSearchTerms(...args: unknown[]): any;
-    syncSbTargeting(...args: unknown[]): any;
-    syncSbAds(...args: unknown[]): any;
-    syncSbNegativeKeywords(...args: unknown[]): any;
-    syncSbNegativeTargets(...args: unknown[]): any;
-    syncSbPlacementPerformance(...args: unknown[]): any;
+    syncSbCampaigns(...args: unknown[]): unknown;
+    syncSbAdGroups(...args: unknown[]): unknown;
+    syncSbKeywords(...args: unknown[]): unknown;
+    syncSbProductTargets(...args: unknown[]): unknown;
+    syncSbSearchTerms(...args: unknown[]): unknown;
+    syncSbTargeting(...args: unknown[]): unknown;
+    syncSbAds(...args: unknown[]): unknown;
+    syncSbNegativeKeywords(...args: unknown[]): unknown;
+    syncSbNegativeTargets(...args: unknown[]): unknown;
+    syncSbPlacementPerformance(...args: unknown[]): unknown;
   }
 }
 

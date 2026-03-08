@@ -129,7 +129,7 @@ export class PrelaunchProjectService {
         status: 'draft',
       });
 
-      const projectId = (result as any).insertId;
+      const projectId = (result as Record<string, number>).insertId;
 
       // 返回创建的完整项目数据
       return {
@@ -243,7 +243,7 @@ export class PrelaunchProjectService {
   /**
    * 安全解析seedKeywords
    */
-  private parseSeedKeywords(raw: any): string[] {
+  private parseSeedKeywords(raw: unknown): string[] {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw;
     if (typeof raw === 'string') {

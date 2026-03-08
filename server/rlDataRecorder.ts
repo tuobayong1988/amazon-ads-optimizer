@@ -792,7 +792,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
 export async function getTrainingDataset(
   accountId: number,
   limit: number = 10000
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDbInstance();
   
   const data = await db.select().from(rlTrainingLogs)

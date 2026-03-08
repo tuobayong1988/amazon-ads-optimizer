@@ -230,7 +230,7 @@ export async function collectCampaignPerformanceData(
       ));
       
       const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
-        date: typeof d.date === 'string' ? d.date : new Date(d.date as any).toISOString(),
+        date: typeof d.date === 'string' ? d.date : new Date(d.date as unknown).toISOString(),
         impressions: d.impressions || 0,
         clicks: d.clicks || 0,
         spend: parseFloat(String(d.spend || '0')),

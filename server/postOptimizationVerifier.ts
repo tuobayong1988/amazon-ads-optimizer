@@ -51,7 +51,7 @@ export interface VerificationItem {
   /** Amazon侧的ID（keywordId/campaignId等） */
   amazonId: string;
   /** 期望的值（优化引擎设置的值） */
-  expectedValue: any;
+  expectedValue: unknown;
   /** 额外上下文信息 */
   context?: {
     campaignId?: number;
@@ -79,7 +79,7 @@ export interface VerificationTask {
 export interface VerificationResult {
   item: VerificationItem;
   status: 'confirmed' | 'conflict' | 'not_found' | 'error';
-  actualValue?: any;
+  actualValue?: unknown;
   message?: string;
 }
 

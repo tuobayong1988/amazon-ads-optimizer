@@ -614,7 +614,7 @@ export async function identifyFunnelTiers(
   const tierConfigs: FunnelTierConfig[] = [];
   
   for (const campaign of campaignData) {
-    const matchTypes = campaignMatchTypes.get(campaign.id as any);
+    const matchTypes = campaignMatchTypes.get(campaign.id as unknown);
     if (!matchTypes) continue;
     
     // 计算主要匹配类型

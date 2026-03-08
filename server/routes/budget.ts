@@ -46,7 +46,7 @@ export const budgetAllocationRouter = router({
       goalId: z.number().nullable(),
       allocationName: z.string().min(1),
       description: z.string(),
-      result: z.any(), // AllocationResult
+      result: z.unknown(), // AllocationResult
     }))
     .mutation(async ({ ctx, input }) => {
       const { saveBudgetAllocation } = await import("../budgetAllocationService");

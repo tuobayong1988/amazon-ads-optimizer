@@ -129,7 +129,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
   let totalSynced = 0;
 
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
-  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<Record<string, unknown>[] | null> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);

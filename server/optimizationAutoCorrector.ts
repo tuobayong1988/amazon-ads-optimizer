@@ -370,7 +370,7 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
  * 这些记录是 v165 之前的旧版本代码产生的，当时没有 API 同步机制
  * 将它们标记为 'legacy_unsynced' 以区分新版本的正常记录
  */
-async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
+async function fixNullApiSyncStatusRecords(database: unknown): Promise<number> {
   try {
     // v199: 循环处理，确保所有NULL记录都被修复，而不是只处理前500条
     let totalAffected = 0;
@@ -401,7 +401,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
         WHERE api_sync_status IS NULL
         LIMIT ${BATCH_SIZE}
       `);
-      batchAffected2 = (updateResult2 as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
+      batchAffected2 = (updateResult2 as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult2 as unknown)?.affectedRows || 0;
       totalAffected += batchAffected2;
       if (batchAffected2 > 0) {
         log.info(`v199: 本批修复 ${batchAffected2} 条 optimization_events NULL 记录, 累计: ${totalAffected}`);
@@ -606,7 +606,7 @@ async function correctBidMismatches(database: unknown, accountId: number): Promi
     `;
     
     const mismatches = await database.execute(mismatchQuery);
-    const rows = (mismatches as any)[0] || mismatches;
+    const rows = (mismatches as unknown[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
@@ -960,7 +960,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
     `;
     
     const mismatches = await database.execute(mismatchQuery);
-    const rows = (mismatches as any)[0] || mismatches;
+    const rows = (mismatches as unknown[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
@@ -1075,7 +1075,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
     `;
     
     const mismatches = await database.execute(mismatchQuery);
-    const rows = (mismatches as any)[0] || mismatches;
+    const rows = (mismatches as unknown[])[0] || mismatches;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
@@ -1679,7 +1679,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     const toPermanentlyFail: typeof negKeywordsToSync = [];
     
     for (const nk of negKeywordsToSync) {
-      if ((nk as any).retryCount >= maxRetries) {
+      if ((nk as unknown).retryCount >= maxRetries) {
         toPermanentlyFail.push(nk);
       } else {
         toRetry.push(nk);
@@ -1692,7 +1692,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
         apiSyncStatus: 'not_applicable',
         apiSyncDetail: JSON.stringify({ 
           reason: `超过最大重试次数(${maxRetries})，放弃重试`,
-          retryCount: (nk as any).retryCount,
+          retryCount: (nk as unknown).retryCount,
           lastRetryAt: new Date().toISOString()
         }),
       }).where(eq(optimizationEvents.id, nk.eventId));
@@ -1756,7 +1756,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
     for (const nk of toRetry) {
       const keywordFailed = failedKeywords.has(nk.keywordText.toLowerCase());
       const success = !keywordFailed && syncResult.success > 0;
-      const newRetryCount = ((nk as any).retryCount || 0) + 1;
+      const newRetryCount = ((nk as unknown).retryCount || 0) + 1;
       
       // v175b: 如果Amazon拒绝了关键词(PATTERN_NOT_MATCHED等)，直接标记为永久失败
       const isPermanentError = keywordFailed && syncResult.errors.some(e => 
@@ -1858,7 +1858,7 @@ async function retryFailedNegativeKeywordAdds(database: unknown, accountId: numb
 
 // ==================== 辅助函数 ====================
 
-async function getActiveAccountIds(database: any): Promise<number[]> {
+async function getActiveAccountIds(database: unknown): Promise<number[]> {
   try {
     const result = await database.execute(sql`
       SELECT DISTINCT account_id FROM optimization_events 
@@ -2283,7 +2283,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
     `;
     
     const violations = await database.execute(violationQuery);
-    const rows = (violations as any)[0] || violations;
+    const rows = (violations as unknown)[0] || violations;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
@@ -2354,7 +2354,7 @@ async function correctMaxBidViolations(database: unknown, accountId: number): Pr
     `;
     
     const ptViolations = await database.execute(ptViolationQuery);
-    const ptRows = (ptViolations as any)[0] || ptViolations;
+    const ptRows = (ptViolations as unknown)[0] || ptViolations;
     
     if (Array.isArray(ptRows) && ptRows.length > 0) {
       log.info(`v178: 账户${accountId} 发现${ptRows.length}个商品定向出价超出max_bid`);
@@ -2424,7 +2424,7 @@ async function cleanupOrphanKeywords(database: unknown, accountId: number): Prom
     `;
     
     const orphans = await database.execute(orphanQuery);
-    const rows = (orphans as any)[0] || orphans;
+    const rows = (orphans as unknown)[0] || orphans;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
@@ -2512,7 +2512,7 @@ async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId
       LIMIT ${MAX_PER_RUN}
     `);
     
-    const events = (failedEvents as any)[0] || failedEvents;
+    const events = (failedEvents as unknown)[0] || failedEvents;
     if (!events || events.length === 0) return results;
     
     log.warn(`v178: 账户${accountId} 发现${events.length}条历史失败的搜索词收割需要重试`);
@@ -3100,7 +3100,7 @@ async function verifyBiddingLogsExecution(database: unknown, accountId: number):
     // v200: 使用列名自动检测，兼容camelCase和snake_case两种列名
     // bidding_logs表无显式映射的列在DB中为camelCase（drizzle-kit push不会重命名已有列）
     // 显式映射的列为snake_case: execution_status, api_response_id, error_message
-    let recentBidLogs: any;
+    let recentBidLogs: unknown;
     try {
       // 首选camelCase列名（旧表实际列名），显式映射的列用snake_case
       recentBidLogs = await database.execute(sql`
@@ -3352,7 +3352,7 @@ async function auditAlgorithmDecisionQuality(database: unknown, accountId: numbe
     const { calculateNextGenBid } = await import('./nextGenBidOrchestrator');
     
     // 按performance_group分组，构建bidConfig
-    const groupConfigs = new Map<number, any>();
+    const groupConfigs = new Map<number, { optimizationGoal: string; targetAcos?: number; dailyBudget?: number; maxBid?: number }>();
     for (const row of rows) {
       if (!groupConfigs.has(row.perf_group_id)) {
         groupConfigs.set(row.perf_group_id, {
@@ -3514,8 +3514,8 @@ export function startAutoCorrector(): void {
     log.debug('定时纠错服务已在运行中');
     return;
   }
-  const intervalMs = (AUTO_CORRECTION_CONFIG as any).scanIntervalHours 
-    ? (AUTO_CORRECTION_CONFIG as any).scanIntervalHours * 60 * 60 * 1000 
+  const intervalMs = (AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours 
+    ? (AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours * 60 * 60 * 1000 
     : 4 * 60 * 60 * 1000;
   correctionInterval = setInterval(async () => {
     try {
@@ -3547,7 +3547,7 @@ export function startAutoCorrector(): void {
       log.error('定时纠错扫描失败:', (err as Error).message);
     }
   }, intervalMs);
-  log.info(`定时纠错服务已启动，每${(AUTO_CORRECTION_CONFIG as any).scanIntervalHours || 4}小时运行一次`);
+  log.info(`定时纠错服务已启动，每${(AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours || 4}小时运行一次`);
 }
 
 /**

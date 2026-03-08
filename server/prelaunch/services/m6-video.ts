@@ -88,7 +88,7 @@ Generate:
 
 Return JSON with all fields above.`;
 
-        const script = await geminiStructuredOutput<any>('', prompt, { temperature: 0.5 });
+        const script = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.5 });
 
         // 适配prelaunchVideoScripts表的实际字段：videoType, scriptFramework, hook, body, cta, duration, storyboard, generatedFrameUrls
         await db.insert(prelaunchVideoScripts).values({
@@ -129,7 +129,7 @@ Generate:
 
 Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"colorPalette":["#hex1","#hex2"]}`;
 
-        const brief = await geminiStructuredOutput<any>('', prompt, { temperature: 0.4 });
+        const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
           projectId,

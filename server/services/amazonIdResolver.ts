@@ -136,7 +136,7 @@ async function resolveKeywordIds(
   log.info(`Keywords: 发现${missingKws.length}个关键词缺少Amazon keywordId`);
 
   // 按adGroupId分组
-  const groupedByAdGroup = new Map<number, any[]>();
+  const groupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const kw of missingKws) {
     const group = groupedByAdGroup.get(kw.adGroupId) || [];
     group.push(kw);
@@ -195,8 +195,8 @@ async function resolveKeywordIds(
       // 构建匹配索引: "keywordText|matchType" -> keywordId
       const amazonKwMap = new Map<string, string>();
       for (const ak of amazonKeywords) {
-        const key = `${(ak as any).keywordText?.toLowerCase()}|${(ak as any).matchType?.toLowerCase()}`;
-        amazonKwMap.set(key, String((ak as any).keywordId));
+        const key = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
+        amazonKwMap.set(key, String((ak as unknown).keywordId));
       }
 
       // v194: 检查广告组是否已有product targets
@@ -395,7 +395,7 @@ async function resolveKeywordIds(
                   
                   if (!resolved) {
                     result.keywordsFailed++;
-                    const errDetail = (created as any).details || created.code || 'Unknown';
+                    const errDetail = (created as unknown).details || created.code || 'Unknown';
                     log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
@@ -455,7 +455,7 @@ async function resolveProductTargetIds(
   log.info(`ProductTargets: 发现${missingPts.length}个product_targets缺少Amazon targetId`);
 
   // 按adGroupId分组
-  const ptGroupedByAdGroup = new Map<number, any[]>();
+  const ptGroupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const pt of missingPts) {
     const group = ptGroupedByAdGroup.get(pt.adGroupId) || [];
     group.push(pt);
@@ -629,9 +629,9 @@ export async function resolveKeywordIdOnDemand(
     // 按 keywordText + matchType 匹配
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
-      const akKey = `${(ak as any).keywordText?.toLowerCase()}|${(ak as any).matchType?.toLowerCase()}`;
+      const akKey = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
       if (akKey === key) {
-        const amazonKeywordId = String((ak as any).keywordId);
+        const amazonKeywordId = String((ak as unknown).keywordId);
         try {
           await conn.execute(
             'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',

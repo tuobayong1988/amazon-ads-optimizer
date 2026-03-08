@@ -45,7 +45,7 @@ export const debugSyncRouter = router({
         );
 
         // 调用API
-        const apiResponse = await (syncService as any).client.listSpCampaigns();
+        const apiResponse = await (syncService as unknown).client.listSpCampaigns();
 
         return {
           success: true,
@@ -109,7 +109,7 @@ export const debugSyncRouter = router({
     .query(async ({ input }) => {
       try {
         // 直接查询sync_tasks表
-        const tasks = await (db as any).query(
+        const tasks = await (db as unknown).query(
           `SELECT * FROM sync_tasks 
            WHERE account_id = ? 
            ORDER BY created_at DESC 

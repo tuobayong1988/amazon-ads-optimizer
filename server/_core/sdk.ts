@@ -140,11 +140,11 @@ class SDKServer {
       accessToken,
     } as ExchangeTokenResponse);
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as any),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoResponse;
@@ -251,11 +251,11 @@ class SDKServer {
     );
 
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as any),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoWithJwtResponse;

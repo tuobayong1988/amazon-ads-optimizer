@@ -63,7 +63,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       SELECT id FROM team_members WHERE username = ${input.username}
     `);
     
-    const existingRows = (existingUser as any)[0];
+    const existingRows = (existingUser as unknown)[0];
     if (existingRows && existingRows.length > 0) {
       return { success: false, error: '用户名已存在' };
     }

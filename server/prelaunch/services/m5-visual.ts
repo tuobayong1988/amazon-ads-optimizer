@@ -79,7 +79,7 @@ Generate:
 
 Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"colorPalette":["#hex1","#hex2"],"photographyStyle":"..."}`;
 
-        const brief = await geminiStructuredOutput<any>('', prompt, { temperature: 0.4 });
+        const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
           projectId,

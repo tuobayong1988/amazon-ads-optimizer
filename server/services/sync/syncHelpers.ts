@@ -113,14 +113,14 @@ export async function getRecentlyOptimizedKeywordIds(
           }
         }
       } catch (fallbackErr) {
-        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr as any).message);
+        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)));
       }
     }
     
     log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: 批量查询优化关键词失败，保护机制降级！', (error as any).message);
+    log.error('v212: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? error.message : String(error)));
     return new Set();
   }
 }
@@ -157,7 +157,7 @@ export async function getRecentlyOptimizedCampaignIds(
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: 批量查询优化广告活动失败:', (error as any).message);
+    log.error('v212: 批量查询优化广告活动失败:', (error instanceof Error ? error.message : String(error)));
     return new Set();
   }
 }

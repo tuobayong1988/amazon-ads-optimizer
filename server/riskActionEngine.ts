@@ -705,7 +705,7 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
     log.warn(`[RiskActionEngine] v270: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
     
     // v270: 按账户+广告类型分组
-    const groupMap = new Map<string, any[]>();
+    const groupMap = new Map<string, Record<string, unknown>[]>();
     for (const c of activeCampaigns) {
       const key = `${c.accountId}_${c.campaignType || 'SP'}`;
       if (!groupMap.has(key)) groupMap.set(key, []);
@@ -919,7 +919,7 @@ export async function cleanupProcessedEntries(): Promise<void> {
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `) as unknown;
     
-    const deleted = (result as any)?.affectedRows || 0;
+    const deleted = (result as unknown)?.affectedRows || 0;
     if (deleted > 0) {
       log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);
     }

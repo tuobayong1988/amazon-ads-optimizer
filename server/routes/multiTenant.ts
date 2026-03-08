@@ -394,7 +394,7 @@ async function createInvitation(data: Record<string, unknown>) {
   };
 }
 
-async function sendInvitationEmail(invitation: any) {
+async function sendInvitationEmail(invitation: unknown) {
   // 实际实现需要发送邮件
   log.info('Sending invitation email to:', invitation.email);
 }

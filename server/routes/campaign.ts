@@ -112,7 +112,7 @@ export const campaignRouter = router({
       
       if (previousCampaign && previousCampaign.accountId && previousCampaign.campaignId) {
         const amazonCampaignId = String(previousCampaign.campaignId);
-        const campaignType = ((previousCampaign as any).campaignType || 'sp_manual').toLowerCase();
+        const campaignType = ((previousCampaign as unknown).campaignType || 'sp_manual').toLowerCase();
         
         // 同步状态变更到Amazon
         if (input.campaignStatus && input.campaignStatus !== previousCampaign.campaignStatus) {
@@ -134,7 +134,7 @@ export const campaignRouter = router({
         }
         
         // 同步日预算变更到Amazon (SP类型)
-        if (input.dailyBudget && input.dailyBudget !== (previousCampaign as any).dailyBudget) {
+        if (input.dailyBudget && input.dailyBudget !== (previousCampaign as unknown).dailyBudget) {
           try {
             const { syncBudgetAdjustmentToAmazon } = await import('../services/amazonApiHelper');
             const success = await syncBudgetAdjustmentToAmazon(
@@ -155,8 +155,8 @@ export const campaignRouter = router({
             && (campaignType === 'sp_manual' || campaignType === 'sp_auto')) {
           try {
             const { syncPlacementAdjustmentToAmazon } = await import('../services/amazonApiHelper');
-            const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as any).placementTopSearchBidAdjustment ?? 0;
-            const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as any).placementProductPageBidAdjustment ?? 0;
+            const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as unknown).placementTopSearchBidAdjustment ?? 0;
+            const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as unknown).placementProductPageBidAdjustment ?? 0;
             const success = await syncPlacementAdjustmentToAmazon(
               previousCampaign.accountId,
               amazonCampaignId,

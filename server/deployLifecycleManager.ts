@@ -96,7 +96,7 @@ let httpServer: unknown = null;
  * 注册优雅关闭处理器
  * 应在服务器启动后立即调用
  */
-export function registerGracefulShutdown(server: any): void {
+export function registerGracefulShutdown(server: unknown): void {
   httpServer = server;
   
   // 注册信号处理器
@@ -106,7 +106,7 @@ export function registerGracefulShutdown(server: any): void {
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
     log.error(`[LifecycleManager] 未捕获异常: ${error.message}`);
-    log.error(error.stack as any);
+    log.error(error.stack as unknown);
     await handleShutdown('uncaughtException');
   });
   
@@ -653,7 +653,7 @@ export async function flushPendingTasks(): Promise<void> {
  * 系统启动协调器 — 在HTTP服务器启动后调用
  * 按正确顺序执行所有启动任务
  */
-export async function orchestrateStartup(server: any): Promise<void> {
+export async function orchestrateStartup(server: unknown): Promise<void> {
   log.debug(`\n[LifecycleManager] ========================================`);
   log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 系统启动协调开始`);
   log.debug(`[LifecycleManager] ========================================\n`);

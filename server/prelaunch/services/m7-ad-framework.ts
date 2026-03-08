@@ -53,7 +53,7 @@ export class M7AdFrameworkService {
       const results: unknown[] = [];
 
       for (const fwType of input.frameworkTypes) {
-        let compiledPayload: any;
+        let compiledPayload: unknown;
 
         switch (fwType) {
           case 'SP_KW_MANUAL':
@@ -87,7 +87,7 @@ export class M7AdFrameworkService {
           status: 'draft',
         });
 
-        results.push({ frameworkType: fwType, frameworkId: (result as any).insertId, payload: compiledPayload });
+        results.push({ frameworkType: fwType, frameworkId: (result as Record<string, number>).insertId, payload: compiledPayload });
       }
 
       return { success: true, frameworks: results };
@@ -211,7 +211,7 @@ export class M7AdFrameworkService {
 
   /** SP搜索词手动广告 */
   private compileSPKeywordManual(keywords: unknown[], defaultBid: number, dailyBudget: number) {
-    const scenarioGroups = new Map<string, any[]>();
+    const scenarioGroups = new Map<string, Record<string, unknown>[]>();
     const relevantKws = keywords.filter((k: Record<string, unknown>) => 
       k.relevanceLayer === 'core' || k.relevanceLayer === 'extended'
     );
@@ -324,7 +324,7 @@ export class M7AdFrameworkService {
   /** SB视频搜索词广告 */
   private compileSBVKeyword(keywords: unknown[], defaultBid: number, dailyBudget: number) {
     const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core');
-    const scenarioGroups = new Map<string, any[]>();
+    const scenarioGroups = new Map<string, Record<string, unknown>[]>();
 
     for (const kw of coreKws) {
       const scenario = kw.scenarioCode || 'S01';
@@ -434,7 +434,7 @@ export class M7AdFrameworkService {
   }
 
   /** 估算API调用次数 */
-  private estimateApiCalls(structure: any): number {
+  private estimateApiCalls(structure: unknown): number {
     let calls = 0;
     for (const campaign of (structure?.campaigns || [])) {
       calls += 1;

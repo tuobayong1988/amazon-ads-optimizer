@@ -185,8 +185,8 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       experiments.push({
         testId: test.id,
         experimentType: test.testType || 'bid_strategy',
-        controlConfig: ((controlVariant as any).config as ExperimentVariantConfig) || {},
-        treatmentConfig: ((treatmentVariant as any).config as ExperimentVariantConfig) || {},
+        controlConfig: ((controlVariant as unknown).config as ExperimentVariantConfig) || {},
+        treatmentConfig: ((treatmentVariant as unknown).config as ExperimentVariantConfig) || {},
         controlCampaignIds,
         treatmentCampaignIds,
       });
@@ -239,7 +239,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
             AND account_id = ${accountId}
         `);
         
-        const metrics = (metricsQuery as any)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
+        const metrics = (metricsQuery as unknown)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
         
         await abTestService.recordDailyMetrics(
           exp.testId,

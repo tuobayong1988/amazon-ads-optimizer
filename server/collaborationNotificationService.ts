@@ -343,7 +343,7 @@ export async function markAllNotificationsAsRead(userId: number): Promise<number
     .update(collaborationNotifications)
     .set({ status: "read", readAt: new Date().toISOString() })
     .where(and(eq(collaborationNotifications.recipientUserId, userId), eq(collaborationNotifications.status, "sent")));
-  return (result as any).affectedRows || 0;
+  return (result as Record<string, number>).affectedRows || 0;
 }
 
 /**
@@ -379,7 +379,7 @@ export async function triggerCollaborationNotification(params: {
   } = params;
   
   // 检查是否是重要操作
-  if (!IMPORTANT_ACTIONS.includes(actionType as any)) {
+  if (!IMPORTANT_ACTIONS.includes(actionType as unknown)) {
     return 0;
   }
   

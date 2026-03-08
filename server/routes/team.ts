@@ -392,13 +392,13 @@ export const inviteCodeRouter = router({
       
       const result = await createInviteCode({
         createdBy: ctx.user.id,
-        organizationId: (ctx.user as any).organizationId || 1,
+        organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
         ...input,
       });
       
       if (result.success && result.inviteCode) {
         await createAuditLog({
-          organizationId: (ctx.user as any).organizationId || 1,
+          organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
           userId: ctx.user.id,
           userName: ctx.user.name || ctx.user.email || undefined,
           actionType: 'invite_create',
@@ -426,7 +426,7 @@ export const inviteCodeRouter = router({
       const { createInviteCodesBatch } = await import('../inviteCodeService');
       return createInviteCodesBatch({
         createdBy: ctx.user.id,
-        organizationId: (ctx.user as any).organizationId || 1,
+        organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
         inviteType: input.inviteType,
         maxUses: input.maxUses,
         expiresInDays: input.expiresInDays,

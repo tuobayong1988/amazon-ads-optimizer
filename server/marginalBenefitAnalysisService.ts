@@ -1135,7 +1135,7 @@ export function batchAnalyzeMarginalBenefitsSimple(
 ): Array<{
   campaignId: string;
   marginalBenefits: Record<string, unknown>;
-  optimizationResult: any;
+  optimizationResult: unknown;
 }> {
   return campaignData.map(campaign => {
     const marginalBenefits: Record<string, unknown> = {};

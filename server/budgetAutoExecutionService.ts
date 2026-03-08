@@ -378,7 +378,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetChange: String(budgetAfter - budgetBefore),
         adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
         adjustmentReason: suggestion.reasons.join('; '),
-        compositeScore: String((suggestion as any).compositeScore || 0),
+        compositeScore: String((suggestion as unknown).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
         status: details[details.length - 1].status as string,
         errorMessage: details[details.length - 1].reason,

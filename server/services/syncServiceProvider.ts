@@ -28,7 +28,7 @@ type SyncServiceFactory = (
   accountId: number,
   userId: number,
   marketplace: string
-) => Promise<any>;
+) => Promise<unknown>;
 
 let _syncServiceFactory: SyncServiceFactory | null = null;
 
@@ -53,7 +53,7 @@ export function isSyncServiceFactoryRegistered(): boolean {
  * 
  * v190: 添加重试机制 - DB临时中断或网络波动时自动重试
  */
-export async function getAmazonSyncService(accountId: number): Promise<any> {
+export async function getAmazonSyncService(accountId: number): Promise<unknown> {
   if (!_syncServiceFactory) {
     throw new Error(
       '[SyncServiceProvider] SyncService 工厂函数尚未注册。' +

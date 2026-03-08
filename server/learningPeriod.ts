@@ -328,7 +328,7 @@ function calculateDataSufficiencyScore(metrics: DataSufficiencyMetrics): number 
 function determineStage(
   metrics: DataSufficiencyMetrics,
   score: number,
-  group: any
+  group: unknown
 ): LearningStage {
   const createdAt = new Date(group.createdAt);
   const now = new Date();
@@ -362,7 +362,7 @@ function determineStage(
 /**
  * 获取调整后的冷启动期时长
  */
-function getAdjustedColdStartDuration(group: any): number {
+function getAdjustedColdStartDuration(group: unknown): number {
   let duration = STAGE_DURATION.COLD_START;
   
   // 大促期间缩短
@@ -376,7 +376,7 @@ function getAdjustedColdStartDuration(group: any): number {
 /**
  * 获取调整后的学习期时长
  */
-function getAdjustedLearningDuration(group: any): number {
+function getAdjustedLearningDuration(group: unknown): number {
   let duration = STAGE_DURATION.LEARNING;
   
   // 大促期间缩短
@@ -429,7 +429,7 @@ function checkPromotionPeriod(): boolean {
 function calculateAdjustmentFactor(
   stage: LearningStage,
   metrics: DataSufficiencyMetrics,
-  group: any
+  group: unknown
 ): number {
   if (stage === "cold_start") {
     return 0;
@@ -465,7 +465,7 @@ function calculateAdjustmentFactor(
 function calculateExpectedMatureDate(
   stage: LearningStage,
   metrics: DataSufficiencyMetrics,
-  group: any
+  group: unknown
 ): Date | null {
   if (stage === "mature") {
     return null;

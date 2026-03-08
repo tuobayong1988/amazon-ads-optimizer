@@ -46,7 +46,7 @@ export interface ExperimentGroup {
   experimentId: string;
   name: string;
   type: GroupType;
-  strategyConfig: any;        // 策略配置
+  strategyConfig: unknown;        // 策略配置
   campaignIds: number[];      // 分配的广告活动ID
   allocation: number;         // 流量分配比例(0-1)
 }
@@ -95,8 +95,8 @@ export async function createExperiment(
     description: string;
     startDate: Date;
     duration: number; // 天数
-    controlStrategy: any;
-    treatmentStrategy: any;
+    controlStrategy: unknown;
+    treatmentStrategy: unknown;
     campaignIds: number[];
     primaryMetric: string;
     confidenceLevel?: number;

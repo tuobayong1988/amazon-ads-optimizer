@@ -1139,11 +1139,11 @@ export const placementRouter = router({
         
         // 按广告活动分组
         if (record.campaignId) {
-          if (!(byCampaign as any)[record.campaignId]) {
-            (byCampaign as any)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
+          if (!(byCampaign as unknown)[record.campaignId]) {
+            (byCampaign as unknown)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
           }
-          (byCampaign as any)[record.campaignId].count++;
-          (byCampaign as any)[record.campaignId].estimated += estimated;
+          (byCampaign as unknown)[record.campaignId].count++;
+          (byCampaign as unknown)[record.campaignId].estimated += estimated;
         }
         
         // 统计已追踪的记录
@@ -1153,8 +1153,8 @@ export const placementRouter = router({
           count7d++;
           trackedRecords++;
           byAdjustmentType[type].actual += actual;
-          if (record.campaignId && (byCampaign as any)[record.campaignId]) {
-            (byCampaign as any)[record.campaignId].actual += actual;
+          if (record.campaignId && (byCampaign as unknown)[record.campaignId]) {
+            (byCampaign as unknown)[record.campaignId].actual += actual;
           }
         }
         if (record.actualProfit14D !== null) {

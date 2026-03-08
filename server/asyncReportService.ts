@@ -65,7 +65,7 @@ export async function createReportRequest(
     VALUES (${accountId}, ${profileId}, ${marketplace}, ${reportType}, ${startDate}, ${endDate}, 'pending')
   `);
 
-  const insertId = (result as any).insertId || (result as Record<string, unknown>[][])[0]?.insertId;
+  const insertId = (result as Record<string, number>).insertId || (result as Record<string, unknown>[][])[0]?.insertId;
   log.info(`[AsyncReportService] 创建报告请求: ${insertId}`);
   return insertId;
 }

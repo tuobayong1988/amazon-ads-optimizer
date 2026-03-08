@@ -39,12 +39,12 @@ const log = createModuleLogger('syncSp');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSpCampaigns(...args: unknown[]): any;
-    syncSpAdGroups(...args: unknown[]): any;
-    syncSpKeywords(...args: unknown[]): any;
-    syncSpProductTargets(...args: unknown[]): any;
-    syncSpNegativeKeywords(...args: unknown[]): any;
-    syncSpNegativeProductTargets(...args: unknown[]): any;
+    syncSpCampaigns(...args: unknown[]): unknown;
+    syncSpAdGroups(...args: unknown[]): unknown;
+    syncSpKeywords(...args: unknown[]): unknown;
+    syncSpProductTargets(...args: unknown[]): unknown;
+    syncSpNegativeKeywords(...args: unknown[]): unknown;
+    syncSpNegativeProductTargets(...args: unknown[]): unknown;
   }
 }
 
@@ -569,8 +569,8 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       }
       
       // 如果没有从expression中提取到值，尝试从resolvedExpression获取
-      if (!targetValue && (apiTarget as any).resolvedExpression) {
-        const resolved = (apiTarget as any).resolvedExpression;
+      if (!targetValue && (apiTarget as Record<string, unknown>).resolvedExpression) {
+        const resolved = (apiTarget as Record<string, unknown>).resolvedExpression;
         if (Array.isArray(resolved)) {
           for (const re of resolved) {
             const ret = (re.type || '').toLowerCase();

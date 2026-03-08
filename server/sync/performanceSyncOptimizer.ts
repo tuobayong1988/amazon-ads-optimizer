@@ -152,7 +152,7 @@ export function matchCampaign(
   campaignMaps: { byId: Map<string, unknown>; byName: Map<string, unknown> },
   campaignId: string | number | null,
   campaignName: string | null
-): { campaign: any | null; matchType: 'id' | 'name' | 'none' } {
+): { campaign: unknown | null; matchType: 'id' | 'name' | 'none' } {
   // 策略1: 先用campaignId匹配
   if (campaignId) {
     const campaign = campaignMaps.byId.get(String(campaignId));
@@ -180,7 +180,7 @@ export function findExistingPerformance(
   existingMap: Map<string, unknown>,
   campaignId: string,
   dateStr: string
-): any | null {
+): unknown | null {
   const key = `${campaignId}:${dateStr}`;
   return existingMap.get(key) || null;
 }
@@ -193,7 +193,7 @@ export function findExistingPlacementPerformance(
   campaignId: string,
   dateStr: string,
   placement: string
-): any | null {
+): unknown | null {
   const key = `${campaignId}:${dateStr}:${placement}`;
   return existingMap.get(key) || null;
 }

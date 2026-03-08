@@ -324,7 +324,7 @@ export const autoCorrectionRouter = router({
   getDashboard: protectedProcedure.query(async () => {
     // v268 性能优化: 纠错仪表盘缓存（TTL 1分钟）
     const cacheKey = 'correction.getDashboard:global';
-    const cached = apiCache.get<any>(cacheKey);
+    const cached = apiCache.get<unknown>(cacheKey);
     if (cached) return cached;
 
     const dbInstance = await db.getDb();

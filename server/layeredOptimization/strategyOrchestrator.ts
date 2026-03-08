@@ -247,7 +247,7 @@ export function mergeStrategies(
 /**
  * 计算策略的激进程度
  */
-function calculateAggressiveness(template: any): number {
+function calculateAggressiveness(template: unknown): number {
   // 基于目标ACoS和出价倍数计算
   const acosScore = (template.targetAcos - 15) / 35; // 归一化到0-1
   const bidScore = (template.bidMultiplier - 0.8) / 0.7; // 归一化到0-1

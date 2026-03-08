@@ -313,17 +313,17 @@ export class AmazonAdsApiClient {
             }
             
             const enhancedError = new Error(errorMessage);
-            (enhancedError as any).originalError = error;
-            (enhancedError as any).status = status;
-            (enhancedError as any).isHtmlResponse = true;
-            (enhancedError as any).retryCount = config._retryCount;
+            (enhancedError as unknown).originalError = error;
+            (enhancedError as unknown).status = status;
+            (enhancedError as unknown).isHtmlResponse = true;
+            (enhancedError as unknown).retryCount = config._retryCount;
             throw enhancedError;
           }
         }
         
         // v148: 非HTML错误也添加重试信息
         if (config._retryCount > 0) {
-          (error as any).retryCount = config._retryCount;
+          (error as unknown).retryCount = config._retryCount;
         }
         throw error;
       }
@@ -945,7 +945,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理，Amazon SP API v3单次最多接受1000个关键词
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allCreatedKeywords: Array<{ keywordId: any; keywordText: string; code: string }> = [];
+    const allCreatedKeywords: Array<{ keywordId: unknown; keywordText: string; code: string }> = [];
     const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(keywords.length / BATCH_SIZE);
@@ -1428,10 +1428,10 @@ export class AmazonAdsApiClient {
       bid: number;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<{ success: boolean; createdTargets: Array<{ targetId: number | null; expression: any; code: string }>; errors: unknown[] }> {
+  ): Promise<{ success: boolean; createdTargets: Array<{ targetId: number | null; expression: unknown; code: string }>; errors: unknown[] }> {
     const BATCH_SIZE = 100; // Amazon SP API v3 targeting clauses 单次最多100个
     const BATCH_DELAY_MS = 500;
-    const allCreatedTargets: Array<{ targetId: number | null; expression: any; code: string }> = [];
+    const allCreatedTargets: Array<{ targetId: number | null; expression: unknown; code: string }> = [];
     const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
@@ -3294,7 +3294,7 @@ export class AmazonAdsApiClient {
   /**
    * 下载报告数据
    */
-  async downloadReport(url: string): Promise<any[]> {
+  async downloadReport(url: string): Promise<Record<string, unknown>[]> {
     // ✅ 优化: 使用流式处理大文件，避免内存溢出
     // 参考文档: SP报告可能达到500MB+，必须流式处理
     const response = await axios.get(url, {
@@ -3341,7 +3341,7 @@ export class AmazonAdsApiClient {
   /**
    * 等待报告完成并下载
    */
-  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 900000): Promise<any[]> {
+  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 900000): Promise<Record<string, unknown>[]> {
     const startTime = Date.now();
     log.info(`[Amazon API] 开始等待报告完成: ${reportId}`);
     
@@ -3376,7 +3376,7 @@ export class AmazonAdsApiClient {
    * 获取SB广告活动列表
    * 注意：SB v4 API需要特定的Content-Type header
    */
-  async listSbCampaigns(): Promise<any[]> {
+  async listSbCampaigns(): Promise<Record<string, unknown>[]> {
     // SB API maxResults最大为100，需要分页获取
     const allCampaigns: unknown[] = [];
     let nextToken: string | undefined;
@@ -3428,7 +3428,7 @@ export class AmazonAdsApiClient {
    * 获取SB广告组列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbAdGroups(campaignId?: string): Promise<any[]> {
+  async listSbAdGroups(campaignId?: string): Promise<Record<string, unknown>[]> {
     const allAdGroups: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -3465,7 +3465,7 @@ export class AmazonAdsApiClient {
    * 获取SB关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbKeywords(adGroupId?: string): Promise<any[]> {
+  async listSbKeywords(adGroupId?: string): Promise<Record<string, unknown>[]> {
     const allKeywords: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -3511,7 +3511,7 @@ export class AmazonAdsApiClient {
    * 获取SB商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSbTargets(adGroupId?: string): Promise<any[]> {
+  async listSbTargets(adGroupId?: string): Promise<Record<string, unknown>[]> {
     const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -3608,7 +3608,7 @@ export class AmazonAdsApiClient {
    * 使用extended端点获取更多字段，包括startDate
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdCampaigns(): Promise<any[]> {
+  async listSdCampaigns(): Promise<Record<string, unknown>[]> {
     const allCampaigns: unknown[] = [];
     let startIndex = 0;
     const count = 100;
@@ -3655,7 +3655,7 @@ export class AmazonAdsApiClient {
    * 获取SD广告组列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdAdGroups(campaignId?: number): Promise<any[]> {
+  async listSdAdGroups(campaignId?: number): Promise<Record<string, unknown>[]> {
     const allAdGroups: unknown[] = [];
     let startIndex = 0;
     const count = 100;
@@ -3685,7 +3685,7 @@ export class AmazonAdsApiClient {
    * 获取SD商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSdTargets(adGroupId?: number): Promise<any[]> {
+  async listSdTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
     const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
@@ -3821,7 +3821,7 @@ export class AmazonAdsApiClient {
    * 获取SP活动级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpCampaignNegativeKeywords(campaignId?: string): Promise<any[]> {  // v356: 统一ID参数类型为string
+  async listSpCampaignNegativeKeywords(campaignId?: string): Promise<Record<string, unknown>[]> {  // v356: 统一ID参数类型为string
     const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -3989,7 +3989,7 @@ export class AmazonAdsApiClient {
    * 获取SP广告组级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpNegativeKeywords(adGroupId?: number): Promise<any[]> {
+  async listSpNegativeKeywords(adGroupId?: number): Promise<Record<string, unknown>[]> {
     const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -4114,7 +4114,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SP否定商品定位列表（活动级别）
    */
-  async listSpCampaignNegativeTargets(campaignId?: number): Promise<any[]> {
+  async listSpCampaignNegativeTargets(campaignId?: number): Promise<Record<string, unknown>[]> {
     // v199: 添加分页循环，确保获取所有否定商品定位
     const allTargets: unknown[] = [];
     let nextToken: string | undefined;
@@ -4171,7 +4171,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SP否定商品定位列表（广告组级别）
    */
-  async listSpNegativeTargets(adGroupId?: number): Promise<any[]> {
+  async listSpNegativeTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
     // v199: 添加分页循环，确保获取所有广告组级否定商品定位
     const allTargets: unknown[] = [];
     let nextToken: string | undefined;
@@ -4253,7 +4253,7 @@ export class AmazonAdsApiClient {
   async getTargetBidRecommendations(
     adGroupId: string,  // v356: 统一ID参数类型为string
     expressions: Array<{ type: string; value?: string }>
-  ): Promise<Array<{ expression: any; suggestedBid: number }>> {
+  ): Promise<Array<{ expression: unknown; suggestedBid: number }>> {
     const response = await this.axiosInstance.post('/sp/targets/bidRecommendations', {
       adGroupId: String(adGroupId),
       expressions,
@@ -4504,7 +4504,7 @@ export class AmazonAdsApiClient {
   /**
    * 等待并下载V2报告
    */
-  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<any[]> {
+  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, unknown>[]> {
     const startTime = Date.now();
     const pollInterval = 3000; // 3秒轮询一次
     
@@ -4548,7 +4548,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取完整的SB广告活动报告（结合V2和V3）
    */
-  async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<any[]> {
+  async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<Record<string, unknown>[]> {
     const allData: unknown[] = [];
     const seenCampaignIds = new Set<string>();
     
@@ -4619,7 +4619,7 @@ export class AmazonAdsApiClient {
    * 获取SB广告素材列表（品牌广告的创意素材）
    * 包含headline, brandLogo, customImage, video等素材信息
    */
-  async listSbAds(campaignId?: string): Promise<any[]> {
+  async listSbAds(campaignId?: string): Promise<Record<string, unknown>[]> {
     const allAds: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -4660,7 +4660,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SB否定关键词列表
    */
-  async listSbNegativeKeywords(campaignId?: string): Promise<any[]> {
+  async listSbNegativeKeywords(campaignId?: string): Promise<Record<string, unknown>[]> {
     const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -4705,7 +4705,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SB否定商品定向列表
    */
-  async listSbNegativeTargets(campaignId?: string): Promise<any[]> {
+  async listSbNegativeTargets(campaignId?: string): Promise<Record<string, unknown>[]> {
     const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
@@ -4766,7 +4766,7 @@ export class AmazonAdsApiClient {
       matchType: 'negativeExact' | 'negativePhrase';
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<any[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
     const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
@@ -4828,7 +4828,7 @@ export class AmazonAdsApiClient {
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<any[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
     const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
@@ -4883,7 +4883,7 @@ export class AmazonAdsApiClient {
    * SD不支持否定关键词，仅支持否定产品定向
    * 使用 POST /sd/negativeTargets/list 端点
    */
-  async listSdNegativeTargets(adGroupId?: number): Promise<any[]> {
+  async listSdNegativeTargets(adGroupId?: number): Promise<Record<string, unknown>[]> {
     const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
@@ -4935,7 +4935,7 @@ export class AmazonAdsApiClient {
       expression: Array<{ type: string; value?: string }>;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<any[]> {
+  ): Promise<Record<string, unknown>[]> {
     const BATCH_SIZE = 100;
     const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
@@ -4984,7 +4984,7 @@ export class AmazonAdsApiClient {
    * GET /assets?assetId={assetId}
    * 返回素材的完整URL（包括视频URL、缩略图等）
    */
-  async getAssetDetails(assetId: string): Promise<any> {
+  async getAssetDetails(assetId: string): Promise<unknown> {
     try {
       const headers = await this.getHeaders();
       const response = await this.axiosInstance.get('/assets', {

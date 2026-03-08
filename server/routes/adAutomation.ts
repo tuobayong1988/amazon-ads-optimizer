@@ -56,7 +56,7 @@ export const adAutomationRouter = router({
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
-      const conflicts = adAutomation.detectTrafficConflicts(searchTerms as any);
+      const conflicts = adAutomation.detectTrafficConflicts(searchTerms as unknown);
       return {
         totalConflicts: conflicts.length,
         totalWastedSpend: conflicts.reduce((sum, c) => sum + c.totalWastedSpend, 0),

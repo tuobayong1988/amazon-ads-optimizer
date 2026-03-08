@@ -172,7 +172,7 @@ export async function resolveLocalCampaignId(
     if (!db) return null;
     const { schema, eq, and } = await getSchemaImports();
     
-    const conditions: any[] = [eq(schema.campaigns.campaignId, amazonIdStr)];
+    const conditions: unknown[] = [eq(schema.campaigns.campaignId, amazonIdStr)];
     if (accountId) {
       conditions.push(eq(schema.campaigns.accountId, accountId));
     }

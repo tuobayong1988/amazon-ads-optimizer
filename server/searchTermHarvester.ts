@@ -589,7 +589,7 @@ export async function batchHarvestSearchTerms(
 async function findTargetAdGroup(
   searchTerm: string,
   manualCampaigns: unknown[],
-  sourceCampaign: any
+  sourceCampaign: unknown
 ): Promise<{
   adGroupId: number;
   campaignId: number;

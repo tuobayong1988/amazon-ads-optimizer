@@ -119,9 +119,9 @@ export async function logAudit(params: {
   targetId?: string;
   targetName?: string;
   description?: string;
-  previousValue?: any;
+  previousValue?: unknown;
   newValue?: unknown;
-  metadata?: any;
+  metadata?: unknown;
   accountId?: number;
   accountName?: string;
   ipAddress?: string;
@@ -174,11 +174,11 @@ export async function getAuditLogs(params: {
   }
 
   if (actionTypes && actionTypes.length > 0) {
-    conditions.push(inArray(auditLogs.actionType, actionTypes as any));
+    conditions.push(inArray(auditLogs.actionType, actionTypes as unknown));
   }
 
   if (targetTypes && targetTypes.length > 0) {
-    conditions.push(inArray(auditLogs.targetType, targetTypes as any));
+    conditions.push(inArray(auditLogs.targetType, targetTypes as unknown));
   }
 
   if (accountId) {
@@ -443,5 +443,5 @@ export async function cleanupOldAuditLogs(retentionDays: number = 365): Promise<
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
   const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
-  return (result as any).affectedRows || 0;
+  return (result as Record<string, number>).affectedRows || 0;
 }

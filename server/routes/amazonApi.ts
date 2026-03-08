@@ -913,7 +913,7 @@ export const amazonApiRouter = router({
         const totalSteps = 17; // v217: 完整同步流程17个步骤
         let currentStepIndex = 0;
 
-        const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
+        const updateProgress = async (stepName: string, stepIndex: number, stepResults?: unknown) => {
           if (!jobId) return;
           const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
           await db.updateSyncJob(jobId, {
@@ -2409,7 +2409,7 @@ export const amazonApiRouter = router({
                 accountId = await db.createAdAccount({
                   userId: ctx.user.id,
                   accountId: String(profile.profileId),
-                  accountName: (profile as any).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
+                  accountName: (profile as unknown).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
                   storeName: input.storeName,
                   marketplace: profile.countryCode,
                   profileId: String(profile.profileId),

@@ -48,7 +48,7 @@ const workerStatus: WorkerStatus = {
  * ```
  * // 旧代码:
  * const { syncAllAccounts } = await import('./unifiedSyncEngine');
- * const batchResult = await syncAllAccounts(tier as any);
+ * const batchResult = await syncAllAccounts(tier as unknown);
  * 
  * // 新代码:
  * const { executeShardSync } = await import('./services/sync/shardWorker');

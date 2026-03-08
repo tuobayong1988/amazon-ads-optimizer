@@ -490,7 +490,7 @@ export async function getMergedPerformanceData(
   startDate: string,
   endDate: string,
   priority: 'realtime' | 'historical' | 'reporting' = 'historical'
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
 

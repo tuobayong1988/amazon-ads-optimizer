@@ -214,7 +214,7 @@ export const nextGenRouter = router({
         const dailyCompetition: Record<string, { aggressive: number; tight: number; passive: number; neutral: number; total: number }> = {};
 
         for (const event of events) {
-          const perfData = event.performanceData as any;
+          const perfData = event.performanceData as Record<string, unknown>;
           if (!perfData) continue;
           
           // 从performanceData中提取GTO竞争分类
@@ -306,7 +306,7 @@ export const nextGenRouter = router({
         let fusedCount = 0;
 
         for (const event of events) {
-          const perfData = event.performanceData as any;
+          const perfData = event.performanceData as Record<string, unknown>;
           if (!perfData) continue;
 
           const budgetPool = perfData?.budgetPool || perfData?.gto?.budgetPool;

@@ -164,7 +164,7 @@ export async function executeBatchSync(options?: {
   // v350: 使用连接池获取直接连接，替代独立createConnection
   const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
-  const accountGroups = new Map<number, any[]>();
+  const accountGroups = new Map<number, Record<string, unknown>[]>();
   try {
     // 1. 读取待处理任务
     let query = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
@@ -217,7 +217,7 @@ export async function executeBatchSync(options?: {
       log.info(`[SyncEngine] [v352] --- 处理账号 [${accountIndex}/${totalAccountGroups}] ${accountId}: ${accountTasks.length} 条任务 ---`);
       
       // 按任务类型分组
-      const typeGroups = new Map<string, any[]>();
+      const typeGroups = new Map<string, Record<string, unknown>[]>();
       for (const task of accountTasks) {
         const type = task.task_type;
         if (!typeGroups.has(type)) typeGroups.set(type, []);

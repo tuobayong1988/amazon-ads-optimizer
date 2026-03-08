@@ -148,7 +148,7 @@ async function getApiPerformanceData(
   startDate: string,
   endDate: string,
   campaignIds?: string[]
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     let query = sql`
       SELECT 
@@ -187,7 +187,7 @@ async function getAmsPerformanceData(
   accountId: number,
   date: string,
   campaignIds?: string[]
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     const [rows] = await db.execute(sql`
       SELECT 

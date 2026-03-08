@@ -44,7 +44,7 @@ export interface TrackingResult {
  * 获取需要追踪的历史记录
  * @param period 追踪周期（7/14/30天）
  */
-export async function getRecordsToTrack(period: number): Promise<any[]> {
+export async function getRecordsToTrack(period: number): Promise<Record<string, unknown>[]> {
   const db = await getDb();
   if (!db) return [];
   
@@ -270,7 +270,7 @@ export async function getTrackingStatsSummary(): Promise<{
   let totalActual = 0;
   
   for (const record of records) {
-    const estimated = parseFloat((record as any).estimatedProfitChange || '0');
+    const estimated = parseFloat((record as Record<string, unknown>).estimatedProfitChange || '0');
     totalEstimated += estimated;
     
     if (record.actualProfit7D !== null) {

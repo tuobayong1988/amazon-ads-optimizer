@@ -39,10 +39,10 @@ const log = createModuleLogger('syncSd');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSdCampaigns(...args: unknown[]): any;
-    syncSdAdGroups(...args: unknown[]): any;
-    syncSdProductTargets(...args: unknown[]): any;
-    syncSdTargeting(...args: unknown[]): any;
+    syncSdCampaigns(...args: unknown[]): unknown;
+    syncSdAdGroups(...args: unknown[]): unknown;
+    syncSdProductTargets(...args: unknown[]): unknown;
+    syncSdTargeting(...args: unknown[]): unknown;
   }
 }
 
