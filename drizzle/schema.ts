@@ -3327,6 +3327,9 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     'performance_target',  // 绩效组和目标
     'bid_adjustment',      // 出价调整
     'placement_adjustment', // 层面调整
+    'budget_adjustment',   // v360: 预算调整
+    'dayparting',          // v360: 分时优化
+    'negative_keyword',    // v360: 否定词操作
     'optimization_settings' // 优化设置
   ]).notNull(),
   
@@ -3395,6 +3398,13 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
   previousValue: varchar("previous_value", { length: 500 }),
   newValue: varchar("new_value", { length: 500 }),
   changeReason: text("change_reason"),
+  
+  // v360: 分时段信息
+  timeSlotIndex: int("time_slot_index"),  // 0-83时间段索引
+  timeSlotLabel: varchar("time_slot_label", { length: 20 }),  // 如 "Mon 08:00"
+  
+  // v360: 位置倾斜原因
+  placementReason: text("placement_reason"),  // 位置调整的具体原因
   
   // 执行状态
   status: mysqlEnum("status", ['pending', 'success', 'failed', 'rolled_back']).default('success'),
