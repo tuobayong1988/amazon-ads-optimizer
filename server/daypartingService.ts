@@ -106,7 +106,70 @@ export async function analyzeWeeklyPerformance(
  * 专家建议：亚马逊的Hourly Data报告中，Spend/Clicks是基于"点击时间"，
  * 但Sales/Orders往往是基于"购买时间"或存在数小时甚至数天的归因延迟
  */
-const ATTRIBUTION_DELAY_DAYS = 3; // 排除最近3天的数据，避免归因延迟导致的误判
+// v360: 使用动态归因窗口，根据广告类型自动调整
+const ATTRIBUTION_DELAY_DAYS = 3; // 默认值，实际使用时应通过getAttributionWindowDays(adType)获取
+
+// ==================== v360: 统一84时间段定义 ====================
+
+/** 
+ * v360: 统一时间段定义
+ * 将一周划分为84个时间段（每天2小时×7天）
+ */
+export interface UnifiedTimeSlot {
+  slotIndex: number;       // 0-83
+  dayOfWeek: number;       // 0-6 (0=周日)
+  startHour: number;       // 0,2,4,...,22
+  endHour: number;         // 2,4,6,...,24
+  label: string;           // 如 "周一 08:00-10:00"
+}
+
+/** v360: 每天的时间段数量 */
+export const SLOTS_PER_DAY = 12;
+/** v360: 总时间段数量 */
+export const TOTAL_SLOTS = 84;
+
+/**
+ * v360: 生成所有84个统一时间段
+ */
+export function generateUnifiedTimeSlots(): UnifiedTimeSlot[] {
+  const slots: UnifiedTimeSlot[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let slot = 0; slot < SLOTS_PER_DAY; slot++) {
+      const startHour = slot * 2;
+      const endHour = startHour + 2;
+      slots.push({
+        slotIndex: day * SLOTS_PER_DAY + slot,
+        dayOfWeek: day,
+        startHour,
+        endHour,
+        label: `${DAY_OF_WEEK_LABELS[day]} ${startHour.toString().padStart(2, '0')}:00-${endHour.toString().padStart(2, '0')}:00`,
+      });
+    }
+  }
+  return slots;
+}
+
+/**
+ * v360: 根据星期和小时获取统一时间段索引
+ */
+export function getUnifiedSlotIndex(dayOfWeek: number, hour: number): number {
+  return dayOfWeek * SLOTS_PER_DAY + Math.floor(hour / 2);
+}
+
+/**
+ * v360: 将168小时级数据聚合为84个2小时时间段
+ */
+export function aggregateHourlyToSlots<T extends { dayOfWeek: number; hour: number }>(
+  hourlyData: T[]
+): Map<number, T[]> {
+  const slotMap = new Map<number, T[]>();
+  for (const item of hourlyData) {
+    const slotIndex = getUnifiedSlotIndex(item.dayOfWeek, item.hour);
+    if (!slotMap.has(slotIndex)) slotMap.set(slotIndex, []);
+    slotMap.get(slotIndex)!.push(item);
+  }
+  return slotMap;
+}
 
 /**
  * 分析广告活动的每小时表现

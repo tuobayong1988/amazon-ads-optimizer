@@ -736,9 +736,7 @@ export async function executeOptimization(
 
       case 'dayparting': {
         // ✅ v271 P2: 分时策略执行链路补全
-        // 之前 dayparting 虽然在 enabledTypes 中注册，但在 executeOptimization 中没有 case 处理
-        // 导致所有分时策略调整都落入 default 分支，仅打印日志而不执行
-        // v271: 分时策略通过调整广告活动的日预算和出价乘数实现
+        // v360: 统一84时间段，同时应用竞价乘数、预算分配和位置倾斜
         let daypartingApiSuccess = false;
         const dpCampaign = await db.getCampaignById(targetId);
         if (dpCampaign?.accountId && dpCampaign.campaignId) {
