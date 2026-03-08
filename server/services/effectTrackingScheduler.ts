@@ -338,8 +338,8 @@ export async function runEffectTrackingTask(): Promise<{
           );
           const success = await updateTrackingData(record.id, 7, data);
           if (success) result.updated7Day++;
-        } catch (error: any) {
-          result.errors.push(`记录 ${record.id} 7天数据收集失败: ${error.message}`);
+        } catch (error: unknown) {
+          result.errors.push(`记录 ${record.id} 7天数据收集失败: ${(error as Error).message}`);
         }
       }
       
@@ -356,8 +356,8 @@ export async function runEffectTrackingTask(): Promise<{
           );
           const success = await updateTrackingData(record.id, 14, data);
           if (success) result.updated14Day++;
-        } catch (error: any) {
-          result.errors.push(`记录 ${record.id} 14天数据收集失败: ${error.message}`);
+        } catch (error: unknown) {
+          result.errors.push(`记录 ${record.id} 14天数据收集失败: ${(error as Error).message}`);
         }
       }
       
@@ -374,8 +374,8 @@ export async function runEffectTrackingTask(): Promise<{
           );
           const success = await updateTrackingData(record.id, 30, data);
           if (success) result.updated30Day++;
-        } catch (error: any) {
-          result.errors.push(`记录 ${record.id} 30天数据收集失败: ${error.message}`);
+        } catch (error: unknown) {
+          result.errors.push(`记录 ${record.id} 30天数据收集失败: ${(error as Error).message}`);
         }
       }
     }
@@ -385,8 +385,8 @@ export async function runEffectTrackingTask(): Promise<{
     schedulerStatus.totalProcessed += result.processed;
     schedulerStatus.errors = result.errors;
     
-  } catch (error: any) {
-    result.errors.push(`任务执行失败: ${error.message}`);
+  } catch (error: unknown) {
+    result.errors.push(`任务执行失败: ${(error as Error).message}`);
   }
   
   return result;

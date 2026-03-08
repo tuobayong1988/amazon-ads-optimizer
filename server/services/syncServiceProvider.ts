@@ -106,14 +106,14 @@ export async function getAmazonSyncService(accountId: number): Promise<any> {
       );
       
       return syncService;
-    } catch (error: any) {
-      const isRetryable = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || 
-                          error.code === 'ECONNREFUSED' || error.code === 'PROTOCOL_CONNECTION_LOST' ||
-                          error.message?.includes('Connection lost') || error.message?.includes('ECONNRESET');
+    } catch (error: unknown) {
+      const isRetryable = (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT' || 
+                          (error as Error & { code?: string }).code === 'ECONNREFUSED' || (error as Error & { code?: string }).code === 'PROTOCOL_CONNECTION_LOST' ||
+                          (error as Error).message?.includes('Connection lost') || (error as Error).message?.includes('ECONNRESET');
       
       if (isRetryable && attempt < MAX_RETRIES) {
         const waitTime = RETRY_DELAY_MS * (attempt + 1);
-        log.warn(`[SyncServiceProvider] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${error.message}`);
+        log.warn(`[SyncServiceProvider] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${(error as Error).message}`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         continue;
       }

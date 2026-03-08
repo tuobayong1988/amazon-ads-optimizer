@@ -33,7 +33,7 @@ const log = createModuleLogger('PrelaunchDbMigration');
 /**
  * 检查MySQL错误是否为"已存在"类型（表/列已存在），可安全忽略
  */
-function isAlreadyExistsError(err: any): boolean {
+function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
@@ -395,12 +395,12 @@ export async function runPrelaunchDbMigration(): Promise<{ success: boolean; res
       try {
         await database.execute(sql.raw(table.ddl));
         results.push(`${table.name}: 表已就绪`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (isAlreadyExistsError(err)) {
           results.push(`${table.name}: 表已存在（跳过）`);
         } else {
-          results.push(`${table.name}: 创建失败 - ${err.message}`);
-          log.error(`${table.name} 创建失败: ${err.message}`);
+          results.push(`${table.name}: 创建失败 - ${(err as Error).message}`);
+          log.error(`${table.name} 创建失败: ${(err as Error).message}`);
         }
       }
     }
@@ -408,8 +408,8 @@ export async function runPrelaunchDbMigration(): Promise<{ success: boolean; res
     log.info(`预发布引擎数据库迁移完成: ${results.filter(r => r.includes('已就绪') || r.includes('已存在')).length}/${PRELAUNCH_TABLES.length} 张表就绪`);
     return { success: true, results };
 
-  } catch (error: any) {
-    log.error(`预发布引擎数据库迁移异常: ${error.message}`);
-    return { success: false, results: [`迁移异常: ${error.message}`] };
+  } catch (error: unknown) {
+    log.error(`预发布引擎数据库迁移异常: ${(error as Error).message}`);
+    return { success: false, results: [`迁移异常: ${(error as Error).message}`] };
   }
 }

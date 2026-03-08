@@ -59,12 +59,12 @@ export const debugSyncRouter = router({
             timestamp: new Date().toISOString(),
           }
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
-          stack: error.stack,
-          details: error.response?.data || error.toString(),
+          error: (error as Error).message,
+          stack: (error as Error).stack,
+          details: (error as Error & { response?: unknown }).response?.data || error.toString(),
         };
       }
     }),
@@ -89,11 +89,11 @@ export const debugSyncRouter = router({
             timestamp: new Date().toISOString(),
           }
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
-          stack: error.stack,
+          error: (error as Error).message,
+          stack: (error as Error).stack,
         };
       }
     }),
@@ -126,11 +126,11 @@ export const debugSyncRouter = router({
             timestamp: new Date().toISOString(),
           }
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
-          stack: error.stack,
+          error: (error as Error).message,
+          stack: (error as Error).stack,
         };
       }
     }),
@@ -170,7 +170,7 @@ export const debugSyncRouter = router({
         syncService.syncAll().then((result: Record<string, unknown>) => {
           log.info(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
             JSON.stringify(result).substring(0, 500));
-        }).catch((err: any) => {
+        }).catch((err: Error) => {
           log.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, err.message);
         });
 
@@ -179,11 +179,11 @@ export const debugSyncRouter = router({
           message: `全量同步已触发: ${account?.storeName} ${marketplace} (ID: ${input.accountId})`,
           startTime,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
-          stack: error.stack,
+          error: (error as Error).message,
+          stack: (error as Error).stack,
         };
       }
     }),
@@ -226,13 +226,13 @@ export const debugSyncRouter = router({
             // 异步执行，不等待完成
             syncService.syncAll().then((result: Record<string, unknown>) => {
               log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
-            }).catch((err: any) => {
+            }).catch((err: Error) => {
               log.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, err.message);
             });
 
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'triggered' });
-          } catch (err: any) {
-            results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'error', error: err.message });
+          } catch (err: unknown) {
+            results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'error', error: (err as Error).message });
           }
         }
 
@@ -242,10 +242,10 @@ export const debugSyncRouter = router({
           startTime,
           accounts: results,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: error.message,
+          error: (error as Error).message,
         };
       }
     }),

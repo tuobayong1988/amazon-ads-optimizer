@@ -243,8 +243,8 @@ export async function adGroupHasProductTargets(
       [adGroupId]
     );
     return (rows[0]?.cnt || 0) > 0;
-  } catch (err: any) {
-    log.warn(`[KeywordValidator] 检查广告组product targets失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.warn(`[KeywordValidator] 检查广告组product targets失败: ${(err as Error).message}`);
     return false;
   } finally {
     if (ownConn && conn) {

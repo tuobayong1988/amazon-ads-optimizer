@@ -147,8 +147,8 @@ export async function calculateDynamicTimeout(
 
     log.info(`[v358] 账户${accountId}动态超时: avg=${Math.round(avgDuration/1000)}s → timeout=${Math.round(dynamicTimeout/1000)}s (历史${rows.length}次)`);
     return dynamicTimeout;
-  } catch (error: any) {
-    log.warn(`[v358] 计算动态超时失败(${error.message})，使用默认值`);
+  } catch (error: unknown) {
+    log.warn(`[v358] 计算动态超时失败(${(error as Error).message})，使用默认值`);
     return profile.reportTimeoutMs;
   }
 }

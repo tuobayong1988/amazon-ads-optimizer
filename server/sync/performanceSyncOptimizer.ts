@@ -45,8 +45,8 @@ export async function preloadAccountCampaigns(
     }
 
     log.info(`[v358] 预加载账户${accountId}的campaigns: ${allCampaigns.length}个 (byId=${byId.size}, byName=${byName.size})`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载campaigns失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载campaigns失败: ${(error as Error).message}`);
   }
 
   return { byId, byName };
@@ -92,8 +92,8 @@ export async function preloadExistingPerformance(
     }
 
     log.info(`[v358] 预加载账户${accountId}的existing performance: ${existingRecords.length}条 (${startDate} ~ ${endDate})`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载existing performance失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载existing performance失败: ${(error as Error).message}`);
   }
 
   return existingMap;
@@ -137,8 +137,8 @@ export async function preloadExistingPlacementPerformance(
     }
 
     log.info(`[v358] 预加载账户${accountId}的existing placement performance: ${existingRecords.length}条`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载existing placement performance失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载existing placement performance失败: ${(error as Error).message}`);
   }
 
   return existingMap;
@@ -237,14 +237,14 @@ export async function batchUpsertPerformance(
             set: record.data,
           });
           totalUpserted++;
-        } catch (insertErr: any) {
+        } catch (insertErr: unknown) {
           // 如果没有唯一索引，降级到先查后改
-          log.debug(`[v358] UPSERT降级: ${insertErr.message}`);
+          log.debug(`[v358] UPSERT降级: ${(insertErr as Error).message}`);
           totalUpserted++;
         }
       }
-    } catch (error: any) {
-      log.error(`[v358] 批量UPSERT失败: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`[v358] 批量UPSERT失败: ${(error as Error).message}`);
     }
   }
 

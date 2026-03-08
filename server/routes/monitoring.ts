@@ -43,10 +43,10 @@ export const monitoringRouter = router({
             })),
           },
         };
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
       }
@@ -80,10 +80,10 @@ export const monitoringRouter = router({
             })),
           },
         };
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
       }
@@ -115,10 +115,10 @@ export const monitoringRouter = router({
         };
         apiCache.set(cacheKey, result, 5 * 60 * 1000);
         return result;
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           metrics: null,
         };
       }
@@ -224,10 +224,10 @@ export const monitoringRouter = router({
         };
         apiCache.set(cacheKey, result, 10 * 60 * 1000);
         return result;
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
       }
@@ -242,8 +242,8 @@ export const monitoringRouter = router({
         const { getSLOMetrics } = await import('../services/sync/sloMonitor');
         const metrics = await getSLOMetrics();
         return { success: true, error: null, metrics };
-      } catch (e: any) {
-        return { success: false, error: e.message, metrics: null };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, metrics: null };
       }
     }),
 
@@ -257,8 +257,8 @@ export const monitoringRouter = router({
         const { getSLOTrend } = await import('../services/sync/sloMonitor');
         const trend = await getSLOTrend(input?.days || 7);
         return { success: true, error: null, trend };
-      } catch (e: any) {
-        return { success: false, error: e.message, trend: [] };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, trend: [] };
       }
     }),
 
@@ -272,8 +272,8 @@ export const monitoringRouter = router({
         const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
         const report = await checkAllAccountsIntegrity(input?.daysToCheck || 14);
         return { success: true, error: null, report };
-      } catch (e: any) {
-        return { success: false, error: e.message, report: null };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, report: null };
       }
     }),
 
@@ -305,8 +305,8 @@ export const monitoringRouter = router({
           },
           repairResults,
         };
-      } catch (e: any) {
-        return { success: false, error: e.message, checkResult: null, repairResults: [] };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, checkResult: null, repairResults: [] };
       }
     }),
 });

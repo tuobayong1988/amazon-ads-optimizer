@@ -1231,8 +1231,8 @@ export const placementRouter = router({
           }
           
           results.push({ id, success: true });
-        } catch (error: any) {
-          results.push({ id, success: false, error: error.message });
+        } catch (error: unknown) {
+          results.push({ id, success: false, error: (error as Error).message });
         }
       }
       

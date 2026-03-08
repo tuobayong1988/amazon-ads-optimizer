@@ -701,8 +701,8 @@ export async function getCampaignPlacementPerformance(
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
         };
         log.info(`[PlacementOptimization] v163: ${placement} 时间衰减加权 - 加权ROAS=${twMetrics.weightedRoas.toFixed(2)}, 加权ACoS=${twMetrics.weightedAcos.toFixed(1)}%, 置信度=${twMetrics.dataQuality.confidenceLevel}`);
-      } catch (e: any) {
-        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${e.message}`);
+      } catch (e: unknown) {
+        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${(e as Error).message}`);
       }
     }
     
@@ -884,8 +884,8 @@ export async function updatePlacementSettings(
         );
       log.info(`[PlacementOptimization] v166: campaigns表位置倾斜已同步更新(待确认) - campaignId=${campaignId}`, campaignUpdateData);
     }
-  } catch (campaignUpdateError: any) {
-    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${campaignUpdateError.message}`);
+  } catch (campaignUpdateError: unknown) {
+    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${(campaignUpdateError as Error).message}`);
   }
 }
 

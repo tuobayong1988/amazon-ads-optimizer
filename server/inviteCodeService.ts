@@ -93,9 +93,9 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     }
     
     return { success: false, error: '创建邀请码失败' };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[InviteCode] 创建邀请码失败:', error);
-    return { success: false, error: error.message || '创建邀请码失败' };
+    return { success: false, error: (error as Error).message || '创建邀请码失败' };
   }
 }
 
@@ -163,9 +163,9 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
         creatorName: row.creator_name,
       }
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[InviteCode] 验证邀请码失败:', error);
-    return { valid: false, error: error.message || '验证邀请码失败' };
+    return { valid: false, error: (error as Error).message || '验证邀请码失败' };
   }
 }
 
@@ -190,9 +190,9 @@ export async function useInviteCode(code: string, userId: number, organizationId
     await db.execute(sql`UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ${inviteCode.id}`);
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[InviteCode] 使用邀请码失败:', error);
-    return { success: false, error: error.message || '使用邀请码失败' };
+    return { success: false, error: (error as Error).message || '使用邀请码失败' };
   }
 }
 
@@ -247,8 +247,8 @@ export async function disableInviteCode(id: number): Promise<{ success: boolean;
   try {
     await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -259,8 +259,8 @@ export async function enableInviteCode(id: number): Promise<{ success: boolean; 
   try {
     await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -271,8 +271,8 @@ export async function deleteInviteCode(id: number): Promise<{ success: boolean; 
   try {
     await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message };
   }
 }
 

@@ -287,7 +287,7 @@ class DbWriter {
       await db.execute(
         `INSERT INTO system_logs (timestamp, level, module, message, metadata) VALUES ${values}`
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 写入失败，静默处理（避免日志系统自身的错误导致递归）
       // 仅在控制台输出简短错误
       if (err?.code !== 'ER_NO_SUCH_TABLE') {

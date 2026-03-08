@@ -316,8 +316,8 @@ async function executeAutoOptimizationForTarget(
     
     return { status: result.status, actions, summary };
     
-  } catch (error: any) {
-    log.error(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败:`, (error as Error).message);
     return {
       status: 'error',
       actions: [{
@@ -325,9 +325,9 @@ async function executeAutoOptimizationForTarget(
         description: '自动优化执行',
         count: 0,
         status: 'skipped',
-        details: `执行失败: ${error.message}`,
+        details: `执行失败: ${(error as Error).message}`,
       }],
-      summary: `自动优化执行遇到问题: ${error.message}`,
+      summary: `自动优化执行遇到问题: ${(error as Error).message}`,
     };
   }
 }

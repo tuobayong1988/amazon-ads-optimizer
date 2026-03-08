@@ -181,15 +181,15 @@ export const keywordRouter = router({
               if (syncResult.success > 0) {
                 try {
                   const { confirmationSync } = await import('../unifiedSyncEngine');
-                  confirmationSync(accountId, ['keywords'], 'batchUpdateBid').catch((err: any) => {
+                  confirmationSync(accountId, ['keywords'], 'batchUpdateBid').catch((err: Error) => {
                     log.error(`[Keyword.batchUpdateBid] v220: 确认同步失败:`, err.message);
                   });
-                } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
+                } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
               }
             }
           }
-        } catch (syncError: any) {
-          log.error(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, syncError.message);
+        } catch (syncError: unknown) {
+          log.error(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
         }
       }
       
@@ -253,15 +253,15 @@ export const keywordRouter = router({
             if (syncResult.success > 0) {
               try {
                 const { confirmationSync } = await import('../unifiedSyncEngine');
-                confirmationSync(accountId, ['keywords'], 'batchUpdateStatus').catch((err: any) => {
+                confirmationSync(accountId, ['keywords'], 'batchUpdateStatus').catch((err: Error) => {
                   log.error(`[Keyword.batchUpdateStatus] v220: 确认同步失败:`, err.message);
                 });
-              } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
+              } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
             }
           }
         }
-      } catch (syncError: any) {
-        log.error(`[Keyword.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, syncError.message);
+      } catch (syncError: unknown) {
+        log.error(`[Keyword.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
       }
       
       return { success: true, updated };
@@ -514,8 +514,8 @@ export const productTargetRouter = router({
               log.info(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
             }
           }
-        } catch (syncError: any) {
-          log.error(`[ProductTarget.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, syncError.message);
+        } catch (syncError: unknown) {
+          log.error(`[ProductTarget.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
         }
       }
       
@@ -573,8 +573,8 @@ export const productTargetRouter = router({
             log.info(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
           }
         }
-      } catch (syncError: any) {
-        log.error(`[ProductTarget.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, syncError.message);
+      } catch (syncError: unknown) {
+        log.error(`[ProductTarget.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
       }
       
       return { success: true, updated };

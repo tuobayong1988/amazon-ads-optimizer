@@ -113,9 +113,9 @@ export const amazonApiRouter = router({
             sellerName: p.accountInfo?.name || '',
           }));
           log.info(`[ExchangeCode] Fetched profiles: ${profiles.length} 个`);
-        } catch (profileError: any) {
-          log.error('[ExchangeCode] Failed to fetch profiles:', profileError.message);
-          log.error(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || profileError.stack).substring(0, 500)}`);
+        } catch (profileError: unknown) {
+          log.error('[ExchangeCode] Failed to fetch profiles:', (profileError as Error).message);
+          log.error(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || (profileError as Error).stack).substring(0, 500)}`);
           // 不抛出错误，继续返回其他信息
         }
         
@@ -129,11 +129,11 @@ export const amazonApiRouter = router({
           clientSecret,
           profiles,
         };
-      } catch (error: any) {
-        log.error('[ExchangeCode] Token exchange failed:', error.response?.data || error.message);
+      } catch (error: unknown) {
+        log.error('[ExchangeCode] Token exchange failed:', error.response?.data || (error as Error).message);
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `授权码换取失败: ${error.response?.data?.error_description || error.response?.data?.error || error.message}`,
+          message: `授权码换取失败: ${error.response?.data?.error_description || error.response?.data?.error || (error as Error).message}`,
         });
       }
     }),
@@ -242,8 +242,8 @@ export const amazonApiRouter = router({
         try {
           const { triggerImmediateSync } = await import('../dataSyncScheduler');
           await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
-        } catch (syncErr: any) {
-          log.error(`[v336] 事件驱动同步触发失败:`, syncErr.message);
+        } catch (syncErr: unknown) {
+          log.error(`[v336] 事件驱动同步触发失败:`, (syncErr as Error).message);
         }
         
         // v338: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
@@ -257,8 +257,8 @@ export const amazonApiRouter = router({
               recentDays: 14,
             });
             log.info(`[v338] 账号 ${input.accountId} 凭证刷新冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
-          } catch (coldStartErr: any) {
-            log.error(`[v338] 凭证刷新冷启动触发失败:`, coldStartErr.message);
+          } catch (coldStartErr: unknown) {
+            log.error(`[v338] 凭证刷新冷启动触发失败:`, (coldStartErr as Error).message);
           }
         }
       }).catch(err => {
@@ -510,14 +510,14 @@ export const amazonApiRouter = router({
           });
 
           log.info(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           log.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
           results.push({
             profileId: profile.profileId,
             countryCode: profile.countryCode,
             accountId: 0,
             success: false,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       }
@@ -552,8 +552,8 @@ export const amazonApiRouter = router({
           const { triggerImmediateSync } = await import('../dataSyncScheduler');
           const accountIds = initResults.map((r: Record<string, unknown>) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
-        } catch (syncErr: any) {
-          log.error(`[v336] 批量事件驱动同步触发失败:`, syncErr.message);
+        } catch (syncErr: unknown) {
+          log.error(`[v336] 批量事件驱动同步触发失败:`, (syncErr as Error).message);
         }
         
         // v338: 批量初始化完成后，为每个新站点触发智能冷启动
@@ -568,12 +568,12 @@ export const amazonApiRouter = router({
                 recentDays: 14,
               });
               log.info(`[v338] 账号 ${initResult.accountId} (${initResult.marketplace}) 新站点冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
-            } catch (csErr: any) {
-              log.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, csErr.message);
+            } catch (csErr: unknown) {
+              log.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, (csErr as Error).message);
             }
           }
-        } catch (coldStartErr: any) {
-          log.error(`[v338] 批量冷启动触发失败:`, coldStartErr.message);
+        } catch (coldStartErr: unknown) {
+          log.error(`[v338] 批量冷启动触发失败:`, (coldStartErr as Error).message);
         }
       }).catch(err => {
         log.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
@@ -668,12 +668,12 @@ export const amazonApiRouter = router({
           syncWarning,
           region: credentials.region,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Check if it's an auth error
-        const isAuthError = error.message?.includes('401') || 
-                           error.message?.includes('unauthorized') ||
-                           error.message?.includes('invalid_grant') ||
-                           error.message?.includes('token');
+        const isAuthError = (error as Error).message?.includes('401') || 
+                           (error as Error).message?.includes('unauthorized') ||
+                           (error as Error).message?.includes('invalid_grant') ||
+                           (error as Error).message?.includes('token');
 
         if (isAuthError) {
           return {
@@ -681,7 +681,7 @@ export const amazonApiRouter = router({
             message: 'Token已过期，请重新授权',
             isHealthy: false,
             needsReauth: true,
-            error: error.message,
+            error: (error as Error).message,
           };
         }
 
@@ -733,10 +733,10 @@ export const amazonApiRouter = router({
             needsReauth: false,
             lastSyncAt: credentials.lastSyncAt,
           });
-        } catch (error: any) {
-          const isAuthError = error.message?.includes('401') || 
-                             error.message?.includes('unauthorized') ||
-                             error.message?.includes('invalid_grant');
+        } catch (error: unknown) {
+          const isAuthError = (error as Error).message?.includes('401') || 
+                             (error as Error).message?.includes('unauthorized') ||
+                             (error as Error).message?.includes('invalid_grant');
 
           results.push({
             accountId: account.id,
@@ -744,7 +744,7 @@ export const amazonApiRouter = router({
             status: isAuthError ? 'expired' as const : 'error' as const,
             isHealthy: false,
             needsReauth: isAuthError,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       }
@@ -868,9 +868,9 @@ export const amazonApiRouter = router({
           for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
               return await fn();
-            } catch (error: any) {
+            } catch (error: unknown) {
               lastError = error;
-              log.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+              log.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, (error as Error).message);
               if (attempt < maxRetries) {
                 const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
                 await new Promise(resolve => setTimeout(resolve, delay));
@@ -881,7 +881,7 @@ export const amazonApiRouter = router({
         };
 
         let totalRetries = 0;
-        let results: any = {
+        let results: Record<string, unknown>[] = {
           campaigns: 0,
           spCampaigns: 0,
           sbCampaigns: 0,
@@ -946,8 +946,8 @@ export const amazonApiRouter = router({
               );
               log.info(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
             }
-          } catch (profileError: any) {
-            log.error('[同步] 获取profile信息失败:', profileError.message);
+          } catch (profileError: unknown) {
+            log.error('[同步] 获取profile信息失败:', (profileError as Error).message);
             // 不影响后续同步
           }
           currentStepIndex++;
@@ -1012,8 +1012,8 @@ export const amazonApiRouter = router({
               'SB广告组同步'
             );
             results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as Record<string, unknown>[]).synced) || 0;
-          } catch (e: any) {
-            log.error('[SB广告组同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SB广告组同步] 失败:', (e as Error).message);
           }
           currentStepIndex++;
 
@@ -1025,8 +1025,8 @@ export const amazonApiRouter = router({
               'SD广告组同步'
             );
             results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as Record<string, unknown>[]).synced) || 0;
-          } catch (e: any) {
-            log.error('[SD广告组同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SD广告组同步] 失败:', (e as Error).message);
           }
           currentStepIndex++;
 
@@ -1051,8 +1051,8 @@ export const amazonApiRouter = router({
               'SB关键词同步'
             );
             results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as Record<string, unknown>[]).synced) || 0;
-          } catch (e: any) {
-            log.error('[SB关键词同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SB关键词同步] 失败:', (e as Error).message);
           }
           currentStepIndex++;
 
@@ -1077,8 +1077,8 @@ export const amazonApiRouter = router({
               'SB商品定位同步'
             );
             results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as Record<string, unknown>[]).synced) || 0;
-          } catch (e: any) {
-            log.error('[SB商品定位同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SB商品定位同步] 失败:', (e as Error).message);
           }
           currentStepIndex++;
 
@@ -1090,8 +1090,8 @@ export const amazonApiRouter = router({
               'SD商品定位同步'
             );
             results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as Record<string, unknown>[]).synced) || 0;
-          } catch (e: any) {
-            log.error('[SD商品定位同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SD商品定位同步] 失败:', (e as Error).message);
           }
           currentStepIndex++;
 
@@ -1110,10 +1110,10 @@ export const amazonApiRouter = router({
             );
             results.performance = performanceCount;
             log.info(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
-          } catch (error: any) {
-            log.error('[绩效数据同步] 失败:', error.message);
+          } catch (error: unknown) {
+            log.error('[绩效数据同步] 失败:', (error as Error).message);
             results.performance = 0;
-            results.performanceError = error.message;
+            results.performanceError = (error as Error).message;
           }
 
           // 搜索词数据同步
@@ -1124,8 +1124,8 @@ export const amazonApiRouter = router({
             const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
             results.searchTerms = searchTermsCount;
             log.info(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
-          } catch (error: any) {
-            log.error('[搜索词同步] 失败:', error.message);
+          } catch (error: unknown) {
+            log.error('[搜索词同步] 失败:', (error as Error).message);
             results.searchTerms = 0;
           }
 
@@ -1137,15 +1137,15 @@ export const amazonApiRouter = router({
             const negKwResult = await syncService.syncSpNegativeKeywords();
             results.negativeKeywords = (negKwResult.synced || 0);
             log.info(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
-          } catch (error: any) {
-            log.error('[否定关键词同步] 失败:', error.message);
+          } catch (error: unknown) {
+            log.error('[否定关键词同步] 失败:', (error as Error).message);
             results.negativeKeywords = 0;
           }
           try {
             const sbNegKwResult = await syncService.syncSbNegativeKeywords();
             results.negativeKeywords += (sbNegKwResult.synced || 0);
-          } catch (e: any) {
-            log.error('[SB否定关键词同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SB否定关键词同步] 失败:', (e as Error).message);
           }
 
           // 否定商品定位同步
@@ -1156,15 +1156,15 @@ export const amazonApiRouter = router({
             const negTargetResult = await syncService.syncSpNegativeProductTargets();
             results.negativeTargets = (negTargetResult.synced || 0);
             log.info(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
-          } catch (error: any) {
-            log.error('[否定商品定位同步] 失败:', error.message);
+          } catch (error: unknown) {
+            log.error('[否定商品定位同步] 失败:', (error as Error).message);
             results.negativeTargets = 0;
           }
           try {
             const sbNegTargetResult = await syncService.syncSbNegativeTargets();
             results.negativeTargets += (sbNegTargetResult.synced || 0);
-          } catch (e: any) {
-            log.error('[SB否定商品定位同步] 失败:', e.message);
+          } catch (e: unknown) {
+            log.error('[SB否定商品定位同步] 失败:', (e as Error).message);
           }
 
           // 广告位置绩效同步
@@ -1175,8 +1175,8 @@ export const amazonApiRouter = router({
             const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
             results.placements = placementsCount;
             log.info(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
-          } catch (error: any) {
-            log.error('[位置绩效同步] 失败:', error.message);
+          } catch (error: unknown) {
+            log.error('[位置绩效同步] 失败:', (error as Error).message);
             results.placements = 0;
           }
 
@@ -1214,13 +1214,13 @@ export const amazonApiRouter = router({
           });
 
           log.info(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
-        } catch (error: any) {
+        } catch (error: unknown) {
           // 更新同步任务记录为失败
-          log.error(`[同步失败] 账号 ${input.accountId}:`, error.message);
+          log.error(`[同步失败] 账号 ${input.accountId}:`, (error as Error).message);
           if (jobId) {
             await db.updateSyncJob(jobId, {
               status: 'failed',
-              errorMessage: error.message,
+              errorMessage: (error as Error).message,
               durationMs: Date.now() - startTime,
               retryCount: totalRetries,
             });
@@ -1653,7 +1653,7 @@ export const amazonApiRouter = router({
           { name: '商品定位', fn: () => syncService.syncSpProductTargets() },
         ];
 
-        const results: any = {};
+        const results: Record<string, unknown>[] = {};
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           await db.updateSyncTaskProgress(
@@ -1676,11 +1676,11 @@ export const amazonApiRouter = router({
         });
 
         return { success: true, results };
-      } catch (error: any) {
+      } catch (error: unknown) {
         await db.updateSyncTaskStatus(task.id, 'failed', {
-          errorMessage: error.message,
+          errorMessage: (error as Error).message,
         });
-        return { error: error.message };
+        return { error: (error as Error).message };
       }
     }),
 
@@ -1964,9 +1964,9 @@ export const amazonApiRouter = router({
         
         const subscriptions = await client.listAmsSubscriptions();
         return { subscriptions };
-      } catch (error: any) {
-        log.error('[AMS] 获取订阅列表失败:', error.message);
-        return { subscriptions: [], error: error.message };
+      } catch (error: unknown) {
+        log.error('[AMS] 获取订阅列表失败:', (error as Error).message);
+        return { subscriptions: [], error: (error as Error).message };
       }
     }),
 
@@ -2011,11 +2011,11 @@ export const amazonApiRouter = router({
         );
         
         return { success: true, subscription };
-      } catch (error: any) {
-        log.error('[AMS] 创建订阅失败:', error.message);
+      } catch (error: unknown) {
+        log.error('[AMS] 创建订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `创建AMS订阅失败: ${error.response?.data?.message || error.message}`,
+          message: `创建AMS订阅失败: ${error.response?.data?.message || (error as Error).message}`,
         });
       }
     }),
@@ -2116,11 +2116,11 @@ export const amazonApiRouter = router({
           failed: result.failed,
           message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
         };
-      } catch (error: any) {
-        log.error('[AMS] 批量创建订阅失败:', error.message);
+      } catch (error: unknown) {
+        log.error('[AMS] 批量创建订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `批量创建AMS订阅失败: ${error.message}`,
+          message: `批量创建AMS订阅失败: ${(error as Error).message}`,
         });
       }
     }),
@@ -2155,11 +2155,11 @@ export const amazonApiRouter = router({
         await client.archiveAmsSubscription(input.subscriptionId);
         
         return { success: true };
-      } catch (error: any) {
-        log.error('[AMS] 归档订阅失败:', error.message);
+      } catch (error: unknown) {
+        log.error('[AMS] 归档订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `归档AMS订阅失败: ${error.message}`,
+          message: `归档AMS订阅失败: ${(error as Error).message}`,
         });
       }
     }),
@@ -2199,12 +2199,12 @@ export const amazonApiRouter = router({
           consumers: status,
           queueStats,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           isRunning: false,
           consumers: [],
           queueStats: [],
-          error: error.message,
+          error: (error as Error).message,
         };
       }
     }),
@@ -2215,10 +2215,10 @@ export const amazonApiRouter = router({
       try {
         await startSQSConsumer();
         return { success: true, message: 'SQS消费者已启动' };
-      } catch (error: any) {
+      } catch (error: unknown) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `启动SQS消费者失败: ${error.message}`,
+          message: `启动SQS消费者失败: ${(error as Error).message}`,
         });
       }
     }),
@@ -2229,10 +2229,10 @@ export const amazonApiRouter = router({
       try {
         stopSQSConsumer();
         return { success: true, message: 'SQS消费者已停止' };
-      } catch (error: any) {
+      } catch (error: unknown) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: `停止SQS消费者失败: ${error.message}`,
+          message: `停止SQS消费者失败: ${(error as Error).message}`,
         });
       }
     }),
@@ -2456,14 +2456,14 @@ export const amazonApiRouter = router({
                 try {
                   const { triggerImmediateSync } = await import('../dataSyncScheduler');
                   await triggerImmediateSync(accountId, `BatchAuth初始化完成后同步 (accountId=${accountId}, marketplace=${profile.countryCode})`);
-                } catch (syncErr: any) {
-                  log.error(`[v336] BatchAuth事件驱动同步触发失败:`, syncErr.message);
+                } catch (syncErr: unknown) {
+                  log.error(`[v336] BatchAuth事件驱动同步触发失败:`, (syncErr as Error).message);
                 }
               }).catch(err => {
                 log.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
               });
               
-            } catch (profileError: any) {
+            } catch (profileError: unknown) {
               log.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
             }
           }
@@ -2475,12 +2475,12 @@ export const amazonApiRouter = router({
             accountsCreated,
           });
           
-        } catch (error: any) {
+        } catch (error: unknown) {
           log.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
           results.push({
             regionCode,
             status: 'error',
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       }

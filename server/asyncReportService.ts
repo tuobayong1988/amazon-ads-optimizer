@@ -139,10 +139,10 @@ export async function submitReportRequest(requestId: number): Promise<void> {
     `);
 
     log.info(`[AsyncReportService] 报告请求已提交: ${requestId}, reportId: ${reportId}`);
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 更新失败状态
     await database.execute(sql`
-      UPDATE report_requests SET status = 'failed', errorMessage = ${error.message}, retryCount = retryCount + 1, updatedAt = NOW() WHERE id = ${requestId}
+      UPDATE report_requests SET status = 'failed', errorMessage = ${(error as Error).message}, retryCount = retryCount + 1, updatedAt = NOW() WHERE id = ${requestId}
     `);
     log.error(`[AsyncReportService] 报告请求提交失败: ${requestId}`, error);
   }
@@ -237,7 +237,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
     `);
 
     return false;
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[AsyncReportService] 检查报告状态失败: ${requestId}`, error);
     return false;
   }
@@ -487,7 +487,7 @@ async function pollPendingReports(): Promise<void> {
         await checkAndDownloadReport(req.id);
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[AsyncReportService] 轮询报告失败:', error);
   }
 }

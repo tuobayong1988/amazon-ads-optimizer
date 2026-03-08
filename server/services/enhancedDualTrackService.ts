@@ -133,9 +133,9 @@ export async function getSmartMergedData(
       freshness,
       warnings,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[EnhancedDualTrack] 获取合并数据失败:', error);
-    return { data: [], dataSource: 'api', freshness: 'stale', warnings: [error.message] };
+    return { data: [], dataSource: 'api', freshness: 'stale', warnings: [(error as Error).message] };
   }
 }
 
@@ -390,9 +390,9 @@ export async function checkAndBackfillData(
       backfilledRecords: apiCount,
       message: `检测到${date}的AMS数据缺失，可使用${apiCount}条API数据进行回补`,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[EnhancedDualTrack] 数据回补检查失败:', error);
-    return { needsBackfill: false, backfilledRecords: 0, message: error.message };
+    return { needsBackfill: false, backfilledRecords: 0, message: (error as Error).message };
   }
 }
 
@@ -508,7 +508,7 @@ export async function getTimelineAggregatedData(
     totals.roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
 
     return { timeline, totals, dataSource: 'api' };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[EnhancedDualTrack] 获取时间线数据失败:', error);
     return {
       timeline: [],
@@ -619,7 +619,7 @@ export async function getRealtimeDashboardData(
       },
       dataSource,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[EnhancedDualTrack] 获取实时仪表盘数据失败:', error);
     return defaultResult;
   }

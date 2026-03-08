@@ -120,11 +120,11 @@ export async function getDualTrackStatus(accountId: number): Promise<{
       lastConsistencyCheck: lastCheck,
       overallHealth,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[DualTrackSync] 获取状态失败:', error);
     return {
-      api: { source: 'api', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: error.message },
-      ams: { source: 'ams', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: error.message },
+      api: { source: 'api', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: (error as Error).message },
+      ams: { source: 'ams', lastSyncAt: null, recordCount: 0, status: 'error', errorMessage: (error as Error).message },
       lastConsistencyCheck: null,
       overallHealth: 'error',
     };
@@ -196,13 +196,13 @@ async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus>
       status: 'degraded',
       errorMessage: '尚未同步过API数据',
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       source: 'api',
       lastSyncAt: null,
       recordCount: 0,
       status: 'error',
-      errorMessage: error.message,
+      errorMessage: (error as Error).message,
     };
   }
 }
@@ -268,7 +268,7 @@ async function getAmsSyncStatus(db: any, accountId: number): Promise<SyncStatus>
       status,
       errorMessage,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 如果查询失败，尝试只检查SQS消费者状态
     try {
       const sqsConsumer = getSQSConsumer();
@@ -476,7 +476,7 @@ export async function runConsistencyCheck(
       overallConsistency: 100,
       status: 'consistent',
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[DualTrackSync] 一致性检查失败:', error);
     throw error;
   }
@@ -512,7 +512,7 @@ export async function getMergedPerformanceData(
     `) as any;
 
     return Array.isArray(rows) ? rows : [];
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[DualTrackSync] 获取合并数据失败:', error);
     return [];
   }
@@ -624,9 +624,9 @@ export async function getDataForAlgorithm(
         ? `已排除最近${excludeDays}天数据以避免归因延迟误判` 
         : undefined,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[DualTrackSync] 获取算法数据失败:', error);
-    return { data: [], safeEndDate, excludedDays: excludeDays, warning: error.message };
+    return { data: [], safeEndDate, excludedDays: excludeDays, warning: (error as Error).message };
   }
 }
 
@@ -715,7 +715,7 @@ export async function getRealtimeSpendForGuard(
       dataSource,
       warning: dataSource === 'api' ? '使用API数据，可能有延迟' : undefined,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[DualTrackSync] 获取实时花费失败:', error);
     return {
       todaySpend: 0,
@@ -723,7 +723,7 @@ export async function getRealtimeSpendForGuard(
       todayImpressions: 0,
       lastUpdateTime: null,
       dataSource: 'api',
-      warning: error.message,
+      warning: (error as Error).message,
     };
   }
 }

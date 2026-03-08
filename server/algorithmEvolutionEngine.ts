@@ -242,14 +242,14 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
           .where(eq(optimizationEvents.id, event.id));
         
         processed++;
-      } catch (error: any) {
-        log.error(`[EvolutionEngine] 追踪事件 ${event.id} 失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[EvolutionEngine] 追踪事件 ${event.id} 失败:`, (error as Error).message);
       }
     }
     
     return processed;
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] ${period}天效果追踪失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] ${period}天效果追踪失败:`, (error as Error).message);
     return 0;
   }
 }
@@ -309,8 +309,8 @@ async function getEventPerformanceData(
     }
     
     return result || null;
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] 获取事件 ${event.id} 效果数据失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] 获取事件 ${event.id} 效果数据失败:`, (error as Error).message);
     return null;
   }
 }
@@ -495,8 +495,8 @@ export async function evaluateTargetPerformance(
     };
     
     return evaluation;
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] 评估优化目标 ${targetId} 效果失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] 评估优化目标 ${targetId} 效果失败:`, (error as Error).message);
     return null;
   }
 }
@@ -525,8 +525,8 @@ export async function getTargetAlgorithmConfig(targetId: number): Promise<Target
         return { ...DEFAULT_TARGET_ALGORITHM_CONFIG, ...storedConfig };
       }
     }
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] 获取目标 ${targetId} 算法配置失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] 获取目标 ${targetId} 算法配置失败:`, (error as Error).message);
   }
   
   return { ...DEFAULT_TARGET_ALGORITHM_CONFIG };
@@ -890,8 +890,8 @@ export async function runEvolutionCycle(targetId: number): Promise<EvolutionRepo
     };
     
     return report;
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] 进化周期执行失败 (targetId=${targetId}):`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] 进化周期执行失败 (targetId=${targetId}):`, (error as Error).message);
     return null;
   }
 }
@@ -940,8 +940,8 @@ export async function runGlobalEvolution(): Promise<{
         } else {
           result.skippedTargets++;
         }
-      } catch (error: any) {
-        log.error(`[EvolutionEngine] 目标 ${target.name} 进化失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[EvolutionEngine] 目标 ${target.name} 进化失败:`, (error as Error).message);
         result.skippedTargets++;
       }
     }
@@ -949,8 +949,8 @@ export async function runGlobalEvolution(): Promise<{
     log.info(`[EvolutionEngine] 全局进化完成: ` +
       `总目标=${result.totalTargets}, 已进化=${result.evolvedTargets}, 跳过=${result.skippedTargets}`);
     
-  } catch (error: any) {
-    log.error('[EvolutionEngine] 全局进化失败:', error.message);
+  } catch (error: unknown) {
+    log.error('[EvolutionEngine] 全局进化失败:', (error as Error).message);
   }
   
   return result;
@@ -999,8 +999,8 @@ export async function recordAlgorithmUsage(
         optimizationScore: Math.round(confidenceScore * 100),
       })
       .where(eq(optimizationEvents.id, eventId));
-  } catch (error: any) {
-    log.error(`[EvolutionEngine] 记录算法使用信息失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[EvolutionEngine] 记录算法使用信息失败:`, (error as Error).message);
   }
 }
 

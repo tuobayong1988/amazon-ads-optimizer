@@ -313,8 +313,8 @@ class SDKServer {
                 role: localUser.role,
               } as any;
             }
-          } catch (dbError: any) {
-            log.error('[Auth] JWT DB query failed:', dbError.message);
+          } catch (dbError: unknown) {
+            log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
             // v257.1: 数据库查询失败时，从 JWT payload 构建基本用户信息（降级策略）
             return {
               id: decoded.userId,
@@ -328,10 +328,10 @@ class SDKServer {
             } as any;
           }
         }
-      } catch (jwtError: any) {
+      } catch (jwtError: unknown) {
         // JWT verification failed, fall through to cookie auth
         if (jwtError.name !== 'TokenExpiredError') {
-          log.error('[Auth] JWT verification failed:', jwtError.message);
+          log.error('[Auth] JWT verification failed:', (jwtError as Error).message);
         }
       }
     }

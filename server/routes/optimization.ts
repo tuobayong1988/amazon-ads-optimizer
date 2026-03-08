@@ -54,8 +54,8 @@ export const optimizationRouter = router({
         averageActionDuration: 0,
         successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
       };
-    } catch (error: any) {
-      log.error('[optimization.getMetrics] 查询失败:', error.message);
+    } catch (error: unknown) {
+      log.error('[optimization.getMetrics] 查询失败:', (error as Error).message);
       return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
     }
   }),
@@ -86,8 +86,8 @@ export const optimizationRouter = router({
           createdAt: log.createdAt ? String(log.createdAt) : new Date().toISOString(),
           completedAt: log.executedAt ? String(log.executedAt) : undefined,
         }));
-      } catch (error: any) {
-        log.error('[optimization.getRecentActions] 查询失败:', error.message);
+      } catch (error: unknown) {
+        log.error('[optimization.getRecentActions] 查询失败:', (error as Error).message);
         return [];
       }
     }),
@@ -118,8 +118,8 @@ export const optimizationRouter = router({
           roiImprovement: 0,
           costSavings: 0,
         }));
-      } catch (error: any) {
-        log.error('[optimization.getTrends] 查询失败:', error.message);
+      } catch (error: unknown) {
+        log.error('[optimization.getTrends] 查询失败:', (error as Error).message);
         return [];
       }
     }),
@@ -246,8 +246,8 @@ export const optimizationRouter = router({
               0, // system user
               marketplace
             );
-          } catch (apiError: any) {
-            log.error('[runOptimization] 创建Amazon API客户端失败:', apiError.message);
+          } catch (apiError: unknown) {
+            log.error('[runOptimization] 创建Amazon API客户端失败:', (apiError as Error).message);
           }
         } else {
           log.warn('[runOptimization] 未找到API凭证，仅更新本地数据库');
@@ -307,8 +307,8 @@ export const optimizationRouter = router({
               }
               apiSuccess = true;
               apiSuccessCount++;
-            } catch (apiError: any) {
-              log.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, apiError.message);
+            } catch (apiError: unknown) {
+              log.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, (apiError as Error).message);
               apiFailCount++;
             }
           }

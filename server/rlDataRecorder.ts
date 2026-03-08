@@ -780,8 +780,8 @@ export async function backfillRewards(accountId: number): Promise<number> {
     rlLog.info(`[backfillRewards] v259健康检查: 真实数据率=${realDataRate}%, 通道A成功率=${channelARate}%, 零数据重试=${retriedFromZero}条`);
     return filledCount;
     
-  } catch (error: any) {
-    rlLog.error(`[backfillRewards] 账户${accountId}回填异常: ${error.message}`);
+  } catch (error: unknown) {
+    rlLog.error(`[backfillRewards] 账户${accountId}回填异常: ${(error as Error).message}`);
     return filledCount;
   }
 }

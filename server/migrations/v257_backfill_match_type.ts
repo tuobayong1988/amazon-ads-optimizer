@@ -61,8 +61,8 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     
     log.info(`[v257] match_type覆盖率: ${withMatchType}/${withKeyword}条关键词事件有match_type (${coverageRate}%), 总事件=${total}`);
     
-  } catch (error: any) {
-    log.error(`[v257] match_type回填失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v257] match_type回填失败: ${(error as Error).message}`);
     errors++;
   }
   

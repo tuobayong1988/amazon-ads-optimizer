@@ -32,8 +32,8 @@ export class M5VisualService {
         .where(eq(prelaunchVisualBriefs.projectId, projectId))
         .orderBy(prelaunchVisualBriefs.slotPosition);
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -95,8 +95,8 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
       }
 
       return { success: true, summary: { briefCount: SLOT_ROLES.length } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -132,8 +132,8 @@ ${brief.headline ? `Text overlay: "${brief.headline}"` : ''}`;
       }
 
       return { success: false, error: 'Image generation failed' };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 }

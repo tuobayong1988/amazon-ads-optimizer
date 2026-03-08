@@ -235,8 +235,8 @@ export async function identifyHarvestCandidates(
     log.debug(`账号 ${accountId} 识别到 ${candidates.length} 个收割候选项`);
     return candidates;
 
-  } catch (error: any) {
-    log.error(`识别候选项失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`识别候选项失败:`, (error as Error).message);
     return [];
   }
 }
@@ -300,8 +300,8 @@ export async function harvestSearchTermAtomic(
     result.stage = 'keyword_created';
     log.info(`Step1 完成: 创建关键词 ID=${result.createdKeywordId}`);
 
-  } catch (error: any) {
-    result.error = `Step1 异常: ${error.message}`;
+  } catch (error: unknown) {
+    result.error = `Step1 异常: ${(error as Error).message}`;
     log.error(`${result.error}`);
     return result;
   }
@@ -352,12 +352,12 @@ export async function harvestSearchTermAtomic(
     result.stage = 'negative_added';
     log.info(`Step2 完成: 添加否定词 ID=${result.createdNegativeKeywordId}`);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Step 2 异常，回滚 Step 1
-    log.error(`Step2 异常: ${error.message}，开始回滚 Step1...`);
+    log.error(`Step2 异常: ${(error as Error).message}，开始回滚 Step1...`);
     await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
     result.stage = 'rolled_back';
-    result.error = `Step2 异常: ${error.message}`;
+    result.error = `Step2 异常: ${(error as Error).message}`;
     result.rollbackInfo = `已回滚: 删除关键词 ID=${result.createdKeywordId}`;
     return result;
   }
@@ -447,19 +447,19 @@ export async function harvestSearchTermAtomic(
         apiSyncStatus: 'synced',
         sourceTable: 'search_term_harvester',
       });
-    } catch (eventErr: any) {
-      log.warn(`v357: 记录optimization_events失败: ${eventErr.message}`);
+    } catch (eventErr: unknown) {
+      log.warn(`v357: 记录optimization_events失败: ${(eventErr as Error).message}`);
     }
 
     result.stage = 'db_logged';
     result.success = true;
     log.info(`Step3 完成: 本地数据库已更新`);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Step 3 失败（本地DB），API操作已成功，记录警告但不回滚API
     // 因为API操作已经生效，回滚会造成更大的不一致
-    log.warn(`Step3 本地DB记录失败: ${error.message}，API操作已生效`);
-    result.error = `Step3 本地DB失败(API已生效): ${error.message}`;
+    log.warn(`Step3 本地DB记录失败: ${(error as Error).message}，API操作已生效`);
+    result.error = `Step3 本地DB失败(API已生效): ${(error as Error).message}`;
     // 标记为部分成功
     result.success = true; // API层面成功
     result.stage = 'negative_added'; // 停留在Step2完成状态
@@ -549,13 +549,13 @@ export async function batchHarvestSearchTerms(
       // API请求间隔，避免速率限制
       await new Promise(resolve => setTimeout(resolve, 500));
 
-    } catch (error: any) {
-      log.error(`收割异常: "${candidate.searchTerm}" - ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`收割异常: "${candidate.searchTerm}" - ${(error as Error).message}`);
       results.push({
         searchTerm: candidate.searchTerm,
         success: false,
         stage: 'failed',
-        error: error.message,
+        error: (error as Error).message,
       });
       failed++;
     }
@@ -703,8 +703,8 @@ async function rollbackKeywordCreation(
     // 注意：Amazon API不支持真正删除关键词，只能archive
     // 这里通过设置最低出价来最小化影响
     log.info(`回滚成功: 关键词 ${keywordId} 已设置最低出价`);
-  } catch (error: any) {
-    log.error(`回滚失败: 关键词 ${keywordId} - ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`回滚失败: 关键词 ${keywordId} - ${(error as Error).message}`);
     // 回滚失败时记录告警，需要人工介入
   }
 }

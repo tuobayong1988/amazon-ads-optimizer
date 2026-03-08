@@ -28,8 +28,8 @@ export class M7AdFrameworkService {
         .where(and(...conditions))
         .orderBy(desc(prelaunchAdFrameworks.createdAt));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -91,8 +91,8 @@ export class M7AdFrameworkService {
       }
 
       return { success: true, frameworks: results };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -121,8 +121,8 @@ export class M7AdFrameworkService {
           campaignStructure: structure,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -186,8 +186,8 @@ export class M7AdFrameworkService {
         .where(eq(prelaunchAdFrameworks.id, frameworkId));
 
       return deployResult;
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -202,8 +202,8 @@ export class M7AdFrameworkService {
         .where(eq(prelaunchAdDeployLogs.frameworkId, frameworkId))
         .orderBy(desc(prelaunchAdDeployLogs.createdAt));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 

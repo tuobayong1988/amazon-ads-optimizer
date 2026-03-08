@@ -340,9 +340,9 @@ export class AsyncReportService {
 
         submittedCount++;
         log.debug(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
-      } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error';
-        const statusCode = error.response?.status || error.status;
+      } catch (error: unknown) {
+        const errorMessage = (error as Error).message || 'Unknown error';
+        const statusCode = (error as Error & { response?: unknown }).response?.status || error.status;
         
         // 详细记录错误信息
         log.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
@@ -467,8 +467,8 @@ export class AsyncReportService {
 
           pending++;
         }
-      } catch (error: any) {
-        log.error(`[AsyncReportService] Error checking job ${job.id}:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[AsyncReportService] Error checking job ${job.id}:`, (error as Error).message);
         failed++;
       }
     }
@@ -543,13 +543,13 @@ export class AsyncReportService {
 
         processedCount++;
         log.debug(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
-      } catch (error: any) {
-        log.error(`[AsyncReportService] Error processing job ${job.id}:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[AsyncReportService] Error processing job ${job.id}:`, (error as Error).message);
 
         await db
           .update(reportJobs)
           .set({
-            errorMessage: error.message,
+            errorMessage: (error as Error).message,
           })
           .where(eq(reportJobs.id, job.id));
       }
@@ -666,8 +666,8 @@ export class AsyncReportService {
         }
 
         processedCount++;
-      } catch (error: any) {
-        log.error(`[AsyncReportService] Error processing row:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[AsyncReportService] Error processing row:`, (error as Error).message);
       }
     }
 

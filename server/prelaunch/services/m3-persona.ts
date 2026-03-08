@@ -22,8 +22,8 @@ export class M3PersonaService {
         .where(eq(prelaunchPersonas.projectId, projectId))
         .orderBy(desc(prelaunchPersonas.confidence));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -111,8 +111,8 @@ Write in first person, as if this persona is describing their shopping experienc
         success: true,
         summary: { personaCount: personas.length },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 }

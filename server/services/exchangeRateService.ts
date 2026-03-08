@@ -89,8 +89,8 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     }
     
     return ratesToUsd;
-  } catch (error: any) {
-    log.error(`[ExchangeRateService] API请求失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[ExchangeRateService] API请求失败: ${(error as Error).message}`);
     return null;
   }
 }
@@ -106,8 +106,8 @@ function loadRatesFromFile(): RateCache | null {
       log.info(`[ExchangeRateService] 从文件缓存加载汇率，更新时间: ${new Date(data.lastUpdated).toISOString()}`);
       return { rates: data.rates, lastUpdated: data.lastUpdated, source: 'file' };
     }
-  } catch (error: any) {
-    log.warn(`[ExchangeRateService] 文件缓存读取失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[ExchangeRateService] 文件缓存读取失败: ${(error as Error).message}`);
   }
   return null;
 }
@@ -120,8 +120,8 @@ function saveRatesToFile(rates: Record<string, number>): void {
     const data = { rates, lastUpdated: Date.now() };
     fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(data, null, 2));
     log.info('[ExchangeRateService] 汇率已保存到文件缓存');
-  } catch (error: any) {
-    log.warn(`[ExchangeRateService] 文件缓存写入失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[ExchangeRateService] 文件缓存写入失败: ${(error as Error).message}`);
   }
 }
 

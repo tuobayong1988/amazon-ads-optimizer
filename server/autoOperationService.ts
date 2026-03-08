@@ -477,8 +477,8 @@ export const autoOperationService = {
           totalOptimized++;
           totalAdjustments += result.bidOptimization.adjustmentsCount;
           log.info(`[AutoOperation] v167: 出价优化目标 ${target.name}: 调整=${result.bidOptimization.adjustmentsCount}`);
-        } catch (e: any) {
-          log.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, e.message);
+        } catch (e: unknown) {
+          log.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, (e as Error).message);
         }
       }
       

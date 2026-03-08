@@ -70,8 +70,8 @@ async function hasRecordsToMigrate(db: any, tableName: string): Promise<boolean>
     `));
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows.length > 0;
-  } catch (e: any) {
-    log.warn(`检查表 ${tableName} 是否需要迁移失败: ${e.message}`);
+  } catch (e: unknown) {
+    log.warn(`检查表 ${tableName} 是否需要迁移失败: ${(e as Error).message}`);
     return false;
   }
 }
@@ -105,8 +105,8 @@ async function findRecordsToMigrate(db: any, tableName: string): Promise<Array<{
         records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
       }
     }
-  } catch (e: any) {
-    log.warn(`${tableName}: 直接映射查询失败: ${e.message}`);
+  } catch (e: unknown) {
+    log.warn(`${tableName}: 直接映射查询失败: ${(e as Error).message}`);
   }
   
   // 方法2：对于 bidding_logs，通过 adGroupId → ad_groups.campaignId 链路解析未映射的记录
@@ -129,8 +129,8 @@ async function findRecordsToMigrate(db: any, tableName: string): Promise<Array<{
           records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
       }
-    } catch (e: any) {
-      log.warn(`bidding_logs: adGroupId链路查询失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`bidding_logs: adGroupId链路查询失败: ${(e as Error).message}`);
     }
   }
   
@@ -158,7 +158,7 @@ async function migrateTable(db: any, tableName: string): Promise<MigrationResult
       `));
       const rows = Array.isArray(orphanCheck[0]) ? orphanCheck[0] : orphanCheck;
       hasOrphanRecords = rows.length > 0;
-    } catch (e: any) {
+    } catch (e: unknown) {
       // ignore
     }
   }
@@ -195,9 +195,9 @@ async function migrateTable(db: any, tableName: string): Promise<MigrationResult
         `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
       ));
       updatedCount++;
-    } catch (e: any) {
+    } catch (e: unknown) {
       failedCount++;
-      const errMsg = `id=${record.id} → ${record.correctCampaignId} 失败: ${e.message}`;
+      const errMsg = `id=${record.id} → ${record.correctCampaignId} 失败: ${(e as Error).message}`;
       errors.push(errMsg);
       if (failedCount <= 3) {
         log.warn(`  ${tableName}: ${errMsg}`);
@@ -269,9 +269,9 @@ export async function migrateCampaignIdsToAmazonIds(): Promise<void> {
           errors: result.errors.length > 0 ? result.errors : undefined,
         });
       }
-    } catch (tableErr: any) {
-      log.error(`  迁移表 ${tableName} 异常: ${tableErr.message}`);
-      allErrors.push(`${tableName}: ${tableErr.message}`);
+    } catch (tableErr: unknown) {
+      log.error(`  迁移表 ${tableName} 异常: ${(tableErr as Error).message}`);
+      allErrors.push(`${tableName}: ${(tableErr as Error).message}`);
     }
   }
   

@@ -480,8 +480,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSpCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -494,8 +494,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSbCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -508,8 +508,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSdCampaigns();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -524,8 +524,8 @@ const SYNC_STEPS: SyncStep[] = [
         const synced = typeof result === 'number' ? result : 
           (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -540,8 +540,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSpAdGroups();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -553,8 +553,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbAdGroups();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -566,8 +566,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSdAdGroups();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -580,8 +580,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSpKeywords();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -593,8 +593,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbKeywords();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -607,8 +607,8 @@ const SYNC_STEPS: SyncStep[] = [
         const result = await service.syncSpProductTargets();
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -620,8 +620,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbProductTargets();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -633,8 +633,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSdProductTargets();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -649,8 +649,8 @@ const SYNC_STEPS: SyncStep[] = [
         const synced = typeof result === 'number' ? result :
           (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -664,8 +664,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSpNegativeKeywords();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -677,8 +677,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbNegativeKeywords();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -690,8 +690,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSpNegativeProductTargets();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -703,8 +703,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbNegativeTargets();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -716,8 +716,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncSearchTerms(90); // v337.2: SP搜索词扩展到90天（SP最大95天）
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -729,8 +729,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncSbSearchTerms(60); // v337.2: SB搜索词扩展到60天（SB最大60天）
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -742,8 +742,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncPlacementPerformance(90); // v337.2: SP广告位绩效扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -755,8 +755,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncSbPlacementPerformance(60); // v337.2: SB广告位绩效扩展到60天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -768,8 +768,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncAutoTargeting(90); // v337.2: SP自动定向扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -781,8 +781,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncSdTargeting(90); // v337.2: SD定向扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -794,8 +794,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncSbTargeting(60); // v337.2: SB定向扩展到60天（SB最大60天）
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -807,8 +807,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const result = await service.syncSbAds();
         return { success: true, synced: result.synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -820,8 +820,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncAssetUrls();
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -833,8 +833,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncPerformanceData(90); // v337.2: 绩效数据扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -846,8 +846,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncKeywordPerformanceData(90); // v337.2: 关键词绩效扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -859,8 +859,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncProductTargetPerformanceData(90); // v337.2: 定位绩效扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -872,8 +872,8 @@ const SYNC_STEPS: SyncStep[] = [
       try {
         const synced = await service.syncAdGroupPerformanceData(90); // v337.2: 广告组绩效扩展到90天
         return { success: true, synced, errors: [] };
-      } catch (e: any) {
-        return { success: false, synced: 0, errors: [e.message] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
       }
     },
   },
@@ -982,9 +982,9 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
     log.info(`[UnifiedSync] 自动发现 ${syncable.length} 个可同步账户（共 ${results.length} 个账户记录）`);
     
     return syncable;
-  } catch (error: any) {
-    log.error(`[UnifiedSync] 账户发现失败: ${error.message}`);
-    logSyncError('UnifiedSync', '账户发现失败', { error: error.message });
+  } catch (error: unknown) {
+    log.error(`[UnifiedSync] 账户发现失败: ${(error as Error).message}`);
+    logSyncError('UnifiedSync', '账户发现失败', { error: (error as Error).message });
     return [];
   }
 }
@@ -1133,8 +1133,8 @@ export async function syncAccount(
           log.warn(`[UnifiedSync] v340: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，启用自适应保护模式`);
         }
       }
-    } catch (e: any) {
-      log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[UnifiedSync] v340: 查询账户广告活动数失败: ${(e as Error).message}`);
     }
 
     // 创建同步上下文
@@ -1222,19 +1222,19 @@ export async function syncAccount(
           synced: stepResult.synced,
         };
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 步骤级错误隔离：单步失败不影响后续步骤
         result.failedSteps++;
         context.failedSteps.push(step.id);
         context.totalErrors++;
-        result.errors.push(`${step.name}: ${error.message}`);
-        result.stepResults[step.id] = { success: false, synced: 0, errors: [error.message] };
+        result.errors.push(`${step.name}: ${(error as Error).message}`);
+        result.stepResults[step.id] = { success: false, synced: 0, errors: [(error as Error).message] };
         
         // v220: 检测是否为API限流错误
-        const isThrottle = error.message?.includes('429') || 
-                          error.message?.includes('限流') || 
-                          error.message?.includes('TooManyRequests') ||
-                          error.message?.includes('throttl');
+        const isThrottle = (error as Error).message?.includes('429') || 
+                          (error as Error).message?.includes('限流') || 
+                          (error as Error).message?.includes('TooManyRequests') ||
+                          (error as Error).message?.includes('throttl');
         if (isThrottle) {
           rateController.recordThrottle();
           // 限流后额外等待
@@ -1254,8 +1254,8 @@ export async function syncAccount(
         syncStatus: result.failedSteps === 0 ? 'idle' : 'error',
         syncErrorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : null,
       });
-    } catch (e: any) {
-      log.warn(`[UnifiedSync] 更新账户 ${account.accountId} 同步状态失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[UnifiedSync] 更新账户 ${account.accountId} 同步状态失败: ${(e as Error).message}`);
     }
 
     // v358: 收紧成功判定 - 任何步骤失败都标记为失败
@@ -1297,14 +1297,14 @@ export async function syncAccount(
             VALUES (${account.accountId}, ${alertType}, ${alertSeverity}, ${alertMessage}, NOW())
           `);
         }
-      } catch (alertDbErr: any) {
-        log.warn(`[UnifiedSync] 同步健康告警写入DB失败: ${alertDbErr.message}`);
+      } catch (alertDbErr: unknown) {
+        log.warn(`[UnifiedSync] 同步健康告警写入DB失败: ${(alertDbErr as Error).message}`);
       }
     }
 
-  } catch (error: any) {
-    result.errors.push(`同步初始化失败: ${error.message}`);
-    log.error(`[UnifiedSync] 账户 ${account.accountId} 同步初始化失败: ${error.message}`);
+  } catch (error: unknown) {
+    result.errors.push(`同步初始化失败: ${(error as Error).message}`);
+    log.error(`[UnifiedSync] 账户 ${account.accountId} 同步初始化失败: ${(error as Error).message}`);
   } finally {
     // 清理
     activeSyncs.delete(lockKey);
@@ -1591,7 +1591,7 @@ export function getAllSyncSteps(): { id: string; name: string; tier: SyncTier }[
  */
 async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void> {
   // v222: 安全提取数字值，防止[object Object]写入数据库
-  const safeNum = (val: any): number => {
+  const safeNum = (val: Record<string, unknown>): number => {
     if (typeof val === 'number' && !isNaN(val)) return val;
     if (typeof val === 'object' && val !== null) {
       // 尝试从对象中提取数字值并求和
@@ -1647,12 +1647,12 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             (total: number, step: any) => total + safeNum(step?.synced), 0
           ),
         } as any);
-      } catch (insertErr: any) {
-        log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${insertErr.message}`);
+      } catch (insertErr: unknown) {
+        log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${(insertErr as Error).message}`);
       }
     }
-  } catch (error: any) {
-    log.warn(`[UnifiedSync] 记录批量同步结果失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[UnifiedSync] 记录批量同步结果失败: ${(error as Error).message}`);
   }
 }
 

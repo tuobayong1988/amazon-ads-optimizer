@@ -119,8 +119,8 @@ async function getAccountCurrencyCode(accountId: number): Promise<string> {
     const currencyCode = creds?.currencyCode || 'USD';
     accountCurrencyCache.set(accountId, { currencyCode, fetchedAt: Date.now() });
     return currencyCode;
-  } catch (err: any) {
-    log.warn(`v204: 获取账户${accountId}货币代码失败: ${err.message}，默认使用USD`);
+  } catch (err: unknown) {
+    log.warn(`v204: 获取账户${accountId}货币代码失败: ${(err as Error).message}，默认使用USD`);
     return 'USD';
   }
 }
@@ -245,8 +245,8 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
       if (nullFixResult > 0) {
         log.info(`v178: 已修复${nullFixResult}条历史NULL api_sync_status记录`);
       }
-    } catch (nullFixError: any) {
-      log.error(`v178: 修复NULL记录失败: ${nullFixError.message}`);
+    } catch (nullFixError: unknown) {
+      log.error(`v178: 修复NULL记录失败: ${(nullFixError as Error).message}`);
     }
     
     // 获取需要扫描的账户列表
@@ -338,8 +338,8 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         const pendingRevalidations = await revalidateStalePendingCommands(database, accId);
         corrections.push(...pendingRevalidations);
         
-      } catch (accError: any) {
-        log.error(`v178: 账户 ${accId} 纠错失败: ${accError.message}`);
+      } catch (accError: unknown) {
+        log.error(`v178: 账户 ${accId} 纠错失败: ${(accError as Error).message}`);
       }
     }
     
@@ -413,8 +413,8 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
     }
     
     return totalAffected;
-  } catch (error: any) {
-    log.error(`v199: fixNullApiSyncStatusRecords 失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v199: fixNullApiSyncStatusRecords 失败: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -524,8 +524,8 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
             .where(eq(keywords.id, item.keywordId));
         }
       }
-    } catch (apiError: any) {
-      log.error(`v178: 账户${accountId} 出价重试API调用失败: ${apiError.message}`);
+    } catch (apiError: unknown) {
+      log.error(`v178: 账户${accountId} 出价重试API调用失败: ${(apiError as Error).message}`);
       for (const item of retryItems) {
         results.push({
           type: 'bid_retry',
@@ -536,12 +536,12 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
           correctedValue: String(item.newBid),
           reason: `重试失败的出价调整`,
           success: false,
-          errorMessage: apiError.message,
+          errorMessage: (apiError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryFailedBidAdjustments失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryFailedBidAdjustments失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -771,8 +771,8 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
           });
         }
       }
-    } catch (apiError: any) {
-      log.error(`v178: 账户${accountId} 出价纠正API调用失败: ${apiError.message}`);
+    } catch (apiError: unknown) {
+      log.error(`v178: 账户${accountId} 出价纠正API调用失败: ${(apiError as Error).message}`);
       for (const row of arbitratedRows) {
         results.push({
           type: 'bid_mismatch',
@@ -783,12 +783,12 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
           correctedValue: String(row.expected_bid),
           reason: `出价不一致纠正失败`,
           success: false,
-          errorMessage: apiError.message,
+          errorMessage: (apiError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} correctBidMismatches失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} correctBidMismatches失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -893,7 +893,7 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
             .set({ dailyBudget: String(newBudget) })
             .where(eq(campaigns.id, campId));
         }
-      } catch (apiError: any) {
+      } catch (apiError: unknown) {
         results.push({
           type: 'budget_retry',
           accountId,
@@ -903,12 +903,12 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
           correctedValue: String(event.newValue || ''),
           reason: `重试失败的预算调整`,
           success: false,
-          errorMessage: apiError.message,
+          errorMessage: (apiError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryFailedBudgetAdjustments失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryFailedBudgetAdjustments失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1020,7 +1020,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
             changeReason: `[AutoCorrector] 预算不一致纠正`,
           });
         }
-      } catch (apiError: any) {
+      } catch (apiError: unknown) {
         results.push({
           type: 'budget_mismatch',
           accountId,
@@ -1030,12 +1030,12 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
           correctedValue: String(row.expected_budget),
           reason: `预算不一致纠正失败`,
           success: false,
-          errorMessage: apiError.message,
+          errorMessage: (apiError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} correctBudgetMismatches失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} correctBudgetMismatches失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1135,7 +1135,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
             .set(updateData)
             .where(eq(campaigns.id, row.campaign_id));
         }
-      } catch (apiError: any) {
+      } catch (apiError: unknown) {
         results.push({
           type: 'placement_mismatch',
           accountId,
@@ -1145,12 +1145,12 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
           correctedValue: '',
           reason: `位置倾斜纠正失败`,
           success: false,
-          errorMessage: apiError.message,
+          errorMessage: (apiError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} correctPlacementMismatches失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} correctPlacementMismatches失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1249,11 +1249,11 @@ async function executeUnfinishedRollbacks(database: any, accountId: number): Pro
             .where(eq(keywords.id, kwId));
         }
       }
-    } catch (apiError: any) {
-      log.error(`v178: 账户${accountId} 回滚执行API调用失败: ${apiError.message}`);
+    } catch (apiError: unknown) {
+      log.error(`v178: 账户${accountId} 回滚执行API调用失败: ${(apiError as Error).message}`);
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} executeUnfinishedRollbacks失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} executeUnfinishedRollbacks失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1389,7 +1389,7 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
             })
             .where(eq(optimizationEvents.id, event.id));
         }
-      } catch (retryError: any) {
+      } catch (retryError: unknown) {
         results.push({
           type: 'settings_retry',
           accountId,
@@ -1399,12 +1399,12 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
           correctedValue: '',
           reason: `设置变更重试失败`,
           success: false,
-          errorMessage: retryError.message,
+          errorMessage: (retryError as Error).message,
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryFailedSettingsChanges失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryFailedSettingsChanges失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1551,12 +1551,12 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
           success,
           errorMessage: success ? undefined : syncResult.errors.join('; '),
         });
-      } catch (retryError: any) {
-        results.push({ type: 'keyword_create_retry' as any, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: retryError.message });
+      } catch (retryError: unknown) {
+        results.push({ type: 'keyword_create_retry' as any, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: (retryError as Error).message });
       }
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryFailedKeywordCreations失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryFailedKeywordCreations失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1666,8 +1666,8 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           retryCount,
         };
         negKeywordsToSync.push(nkEntry);
-      } catch (parseErr: any) {
-        log.warn(`v178: 解析否定关键词事件失败: eventId=${event.id}, ${parseErr.message}`);
+      } catch (parseErr: unknown) {
+        log.warn(`v178: 解析否定关键词事件失败: eventId=${event.id}, ${(parseErr as Error).message}`);
       }
     }
     
@@ -1790,7 +1790,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
               AND campaignId = ${String(nk.campaignId)}
               AND amazon_negative_keyword_id IS NULL
             LIMIT 1
-          `).catch((err: any) => {
+          `).catch((err: Error) => {
             log.warn(`v196: 回写否定词ID失败: ${err.message}`);
           });
           log.info(`v196: 否定词同步成功并回写ID: "${nk.keywordText}" -> ${amazonNegId}`);
@@ -1821,7 +1821,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           UPDATE negative_keywords SET negativeStatus = 'removed'
           WHERE negativeText = ${nk.keywordText}
             AND amazon_negative_keyword_id IS NULL
-        `).catch((err: any) => {
+        `).catch((err: Error) => {
           log.warn(`v178: 更新negative_keywords失败: ${err.message}`);
         });
       } else {
@@ -1849,8 +1849,8 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryFailedNegativeKeywordAdds失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryFailedNegativeKeywordAdds失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -1927,8 +1927,8 @@ async function logCorrectionEvent(database: any, data: {
       algorithmVersion: 'AutoCorrector_v257',
       createdAt: new Date(),
     });
-  } catch (error: any) {
-    log.warn(`v257: 记录纠错事件失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`v257: 记录纠错事件失败: ${(error as Error).message}`);
   }
 }
 
@@ -2204,13 +2204,13 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
             log.error(`[SyncHealth] v204:   ${err.action_type}: "${String(err.error_message || '').slice(0, 80)}" (${err.count}次)`);
           }
         }
-      } catch (diagErr: any) {
-        log.error(`[SyncHealth] v204: 诊断信息获取失败: ${diagErr.message}`);
+      } catch (diagErr: unknown) {
+        log.error(`[SyncHealth] v204: 诊断信息获取失败: ${(diagErr as Error).message}`);
       }
     }
     
-  } catch (error: any) {
-    log.error(`[SyncHealth] v204: 健康度评估失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[SyncHealth] v204: 健康度评估失败: ${(error as Error).message}`);
   }
 }
 
@@ -2325,8 +2325,8 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
       try {
         const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(accountId, correctionItems);
         log.warn(`v178: 账户${accountId} max_bid纠正同步到Amazon: 成功${syncResult.success}, 失败${syncResult.failed}`);
-      } catch (syncError: any) {
-        log.error(`v178: 账户${accountId} max_bid纠正同步失败: ${syncError.message}`);
+      } catch (syncError: unknown) {
+        log.error(`v178: 账户${accountId} max_bid纠正同步失败: ${(syncError as Error).message}`);
       }
     }
     
@@ -2387,8 +2387,8 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
         changeReason: `[AutoCorrector v172] 纠正${results.length}个超出max_bid的出价`,
       });
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} correctMaxBidViolations失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} correctMaxBidViolations失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -2462,8 +2462,8 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
         changeReason: `[AutoCorrector v172] 清理${results.length}个缺少Amazon ID的孤儿关键词`,
       });
     }
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} cleanupOrphanKeywords失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} cleanupOrphanKeywords失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -2689,15 +2689,15 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
               matchType: normalizedMatchType,
               bid: 0.50,
             });
-          } catch (insertErr: any) {
-            log.warn(`v178: 本地创建关键词失败: "${kw.searchTerm}" - ${insertErr.message}`);
+          } catch (insertErr: unknown) {
+            log.warn(`v178: 本地创建关键词失败: "${kw.searchTerm}" - ${(insertErr as Error).message}`);
             // 可能是重复插入，标记为 invalid_legacy
             await database.execute(sql`
               UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
-                api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${insertErr.message}`, fixedAt: new Date().toISOString() })}
+                api_sync_detail = ${JSON.stringify({ reason: `v178: 本地创建失败: ${(insertErr as Error).message}`, fixedAt: new Date().toISOString() })}
               WHERE id = ${kw.eventId}
             `).catch(() => {});
-            results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `本地创建失败: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
+            results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `本地创建失败: ${kw.searchTerm}`, success: false, errorMessage: (insertErr as Error).message });
           }
         }
         
@@ -2782,18 +2782,18 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
         // 批次间延迟，避免触发限流
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-      } catch (campError: any) {
-        log.error(`v178: Campaign ${localCampaignId} 关键词收割重试失败: ${campError.message}`);
+      } catch (campError: unknown) {
+        log.error(`v178: Campaign ${localCampaignId} 关键词收割重试失败: ${(campError as Error).message}`);
         for (const kw of kwEvents) {
-          results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `Campaign处理异常: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
+          results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `Campaign处理异常: ${kw.searchTerm}`, success: false, errorMessage: (campError as Error).message });
         }
       }
     }
     
     log.warn(`v178: 账户${accountId} 搜索词收割重试完成: 成功=${results.filter(r => r.success).length}, 失败=${results.filter(r => !r.success).length}`);
     
-  } catch (error: any) {
-    log.error(`v178: 账户${accountId} retryHistoricalFailedKeywordHarvests失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v178: 账户${accountId} retryHistoricalFailedKeywordHarvests失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -2884,8 +2884,8 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
                 log.debug(`v190: 回填Amazon ID: campaign ${task.target_entity_id} -> ${task.amazon_entity_id}`);
               }
             }
-          } catch (resolveErr: any) {
-            log.warn(`v190: ID回填失败: ${resolveErr.message}`);
+          } catch (resolveErr: unknown) {
+            log.warn(`v190: ID回填失败: ${(resolveErr as Error).message}`);
           }
         }
       }
@@ -2921,8 +2921,8 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
     } finally {
       conn.release(); // v350: 归还连接到池
     }
-  } catch (error: any) {
-    log.error(`v190: 账户${accountId} rescuePermanentlyFailedTasks失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v190: 账户${accountId} rescuePermanentlyFailedTasks失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -2991,8 +2991,8 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
             amazonNegMap.set(key, String(neg.keywordId));
           }
         }
-      } catch (listErr: any) {
-          log.warn(`v203: 查询campaign localId=${localId} amazonId=${amazonCampaignId} 否定词失败: ${listErr.message}`);
+      } catch (listErr: unknown) {
+          log.warn(`v203: 查询campaign localId=${localId} amazonId=${amazonCampaignId} 否定词失败: ${(listErr as Error).message}`);
       }
     }
     
@@ -3070,15 +3070,15 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
               success: true,
             });
           }
-        } catch (createErr: any) {
-          log.warn(`v196: 重新创建否定词失败: ${createErr.message}`);
+        } catch (createErr: unknown) {
+          log.warn(`v196: 重新创建否定词失败: ${(createErr as Error).message}`);
         }
       }
     }
     
     log.info(`v196: 否定词ID回填完成: 成功${results.length}/${missingIdRows.length}`);
-  } catch (err: any) {
-    log.error(`v196: 否定词ID回填异常: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`v196: 否定词ID回填异常: ${(err as Error).message}`);
   }
   
   return results;
@@ -3118,8 +3118,8 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
         ) latest ON bl.id = latest.max_id
         LIMIT 200
       `);
-    } catch (camelErr: any) {
-      log.warn(`v200: camelCase查询失败，尝试snake_case列名: ${camelErr.message?.substring(0, 100)}`);
+    } catch (camelErr: unknown) {
+      log.warn(`v200: camelCase查询失败，尝试snake_case列名: ${(camelErr as Error).message?.substring(0, 100)}`);
       // 回退到snake_case列名（如果表在casing配置后被重建）
       recentBidLogs = await database.execute(sql`
         SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
@@ -3218,8 +3218,8 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
           reason: `[v196执行确认] bidding_logs记录成功但本地bid不一致: 期望$${expectedBid.toFixed(2)}, 实际$${currentBid.toFixed(2)}`,
           success: true,
         });
-      } catch (corrErr: any) {
-        log.error(`v196: 出价执行确认纠正失败: ${corrErr.message}`);
+      } catch (corrErr: unknown) {
+        log.error(`v196: 出价执行确认纠正失败: ${(corrErr as Error).message}`);
         results.push({
           type: 'bid_execution_verify',
           accountId,
@@ -3227,7 +3227,7 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
           targetType,
           previousValue: String(currentBid),
           correctedValue: String(expectedBid),
-          reason: `[v196执行确认] 纠正失败: ${corrErr.message}`,
+          reason: `[v196执行确认] 纠正失败: ${(corrErr as Error).message}`,
           success: false,
         });
       }
@@ -3235,8 +3235,8 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
     
     log.info(`v196: 账户${accountId} 出价执行确认完成: 检查=${rows.length}, 确认=${verified}, 不一致=${mismatched}, 纠正=${corrected}`);
     
-  } catch (err: any) {
-    log.error(`v199: 出价执行确认异常: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`v199: 出价执行确认异常: ${(err as Error).message}`);
     if (err.cause) log.error(`v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
     if (err.sql) log.error(`v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
@@ -3438,8 +3438,8 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
             });
           }
         }
-      } catch (kwErr: any) {
-        log.warn(`v198: 关键词${row.keyword_id}质量审计失败: ${kwErr.message}`);
+      } catch (kwErr: unknown) {
+        log.warn(`v198: 关键词${row.keyword_id}质量审计失败: ${(kwErr as Error).message}`);
       }
     }
     
@@ -3482,13 +3482,13 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
         }
         
         log.warn(`v198: 账户${accountId} NextGen质量审计API同步完成: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
-      } catch (apiErr: any) {
-        log.error(`v198: 账户${accountId} NextGen质量审计API同步失败: ${apiErr.message}`);
+      } catch (apiErr: unknown) {
+        log.error(`v198: 账户${accountId} NextGen质量审计API同步失败: ${(apiErr as Error).message}`);
         // 标记所有结果为失败
         for (const r of results) {
           if (r.type === 'nextgen_quality_audit') {
             r.success = false;
-            r.errorMessage = apiErr.message;
+            r.errorMessage = (apiErr as Error).message;
           }
         }
       }
@@ -3496,8 +3496,8 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
     
     log.info(`v198: 账户${accountId} NextGen质量审计完成: 审计=${audited}, 偏差=${deviationsFound}, 纠正=${corrected}`);
     
-  } catch (err: any) {
-    log.error(`v199: 账户${accountId} NextGen质量审计异常: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`v199: 账户${accountId} NextGen质量审计异常: ${(err as Error).message}`);
     if (err.cause) log.error(`v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
     if (err.sql) log.error(`v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
@@ -3540,11 +3540,11 @@ export function startAutoCorrector(): void {
             `critical账户=${riskResult.accountRisks.filter(a => a.riskLevel === 'critical').length}, ` +
             `同步健康=${riskResult.syncHealth.healthStatus}`);
         }
-      } catch (riskErr: any) {
-        log.error(`v235 风险行动引擎执行失败: ${riskErr.message}`);
+      } catch (riskErr: unknown) {
+        log.error(`v235 风险行动引擎执行失败: ${(riskErr as Error).message}`);
       }
-    } catch (err: any) {
-      log.error('定时纠错扫描失败:', err.message);
+    } catch (err: unknown) {
+      log.error('定时纠错扫描失败:', (err as Error).message);
     }
   }, intervalMs);
   log.info(`定时纠错服务已启动，每${(AUTO_CORRECTION_CONFIG as any).scanIntervalHours || 4}小时运行一次`);
@@ -3690,8 +3690,8 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
           reason: `[AutoCorrector v202] 重试关键词状态变更`,
           isProductTarget,
         });
-      } catch (parseErr: any) {
-        log.warn(`v202: 解析状态变更事件失败: eventId=${event.id}, ${parseErr.message}`);
+      } catch (parseErr: unknown) {
+        log.warn(`v202: 解析状态变更事件失败: eventId=${event.id}, ${(parseErr as Error).message}`);
       }
     }
     
@@ -3769,8 +3769,8 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });
     }
-  } catch (error: any) {
-    log.error(`v202: 账户${accountId} retryFailedTargetStatusChanges失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v202: 账户${accountId} retryFailedTargetStatusChanges失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -3864,8 +3864,8 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
           targetingType,
           bid: parseFloat(String(pt.bid)) || 0.75,
         });
-      } catch (parseErr: any) {
-        log.warn(`v310: 解析商品定向失败 id=${pt.id}: ${parseErr.message}`);
+      } catch (parseErr: unknown) {
+        log.warn(`v310: 解析商品定向失败 id=${pt.id}: ${(parseErr as Error).message}`);
       }
     }
     
@@ -3922,8 +3922,8 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
         });
       }
     }
-  } catch (error: any) {
-    log.error(`v310: 账户${accountId} retryFailedProductTargetCreations失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v310: 账户${accountId} retryFailedProductTargetCreations失败: ${(error as Error).message}`);
   }
   
   return results;
@@ -4040,16 +4040,16 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
         } else {
           kept++;
         }
-      } catch (evalErr: any) {
-        log.warn(`v310: 增量重评估单条失败: ${evalErr.message}`);
+      } catch (evalErr: unknown) {
+        log.warn(`v310: 增量重评估单条失败: ${(evalErr as Error).message}`);
       }
     }
     
     if (cancelled > 0 || kept > 0) {
       log.warn(`v310: 账户${accountId} 增量重评估完成: 总计=${stalePending.length}, 取消=${cancelled}, 保留=${kept}`);
     }
-  } catch (error: any) {
-    log.error(`v310: 账户${accountId} revalidateStalePendingCommands失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v310: 账户${accountId} revalidateStalePendingCommands失败: ${(error as Error).message}`);
   }
   
   return results;

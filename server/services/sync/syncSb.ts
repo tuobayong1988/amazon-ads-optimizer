@@ -376,7 +376,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
     const statusCode = error?.response?.status || 'unknown';
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
@@ -523,7 +523,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
 
     log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
     const statusCode = error?.response?.status || 'unknown';
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
@@ -570,8 +570,8 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB搜索词第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB搜索词第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -766,8 +766,8 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB定向第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB定向第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -916,8 +916,8 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
     
     log.info(`SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
-    log.error('SB广告素材同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告素材同步失败:', (error as Error).message);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -1008,8 +1008,8 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
     
     log.info(`SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定关键词同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定关键词同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -1098,8 +1098,8 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
     
     log.info(`SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定商品定向同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定商品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -1139,8 +1139,8 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB广告位第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB广告位第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -1240,8 +1240,8 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     }
     
     log.info(`SB广告位绩效同步完成: ${synced}条`);
-  } catch (error: any) {
-    log.error('SB广告位绩效同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告位绩效同步失败:', (error as Error).message);
   }
   return synced;
 };

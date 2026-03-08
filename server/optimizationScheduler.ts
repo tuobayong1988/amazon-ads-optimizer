@@ -215,9 +215,9 @@ export async function triggerInitialOptimization(
       if (executionResult.errors.length > 0) {
         errors.push(...executionResult.errors);
       }
-    } catch (execError: any) {
-      errors.push(`首次优化执行失败: ${execError.message}`);
-      log.error(`[${config.name}] 首次优化执行失败:`, execError.message);
+    } catch (execError: unknown) {
+      errors.push(`首次优化执行失败: ${(execError as Error).message}`);
+      log.error(`[${config.name}] 首次优化执行失败:`, (execError as Error).message);
     }
     
     // ==================== 阶段3: 注册后续定时调度 ====================
@@ -239,9 +239,9 @@ export async function triggerInitialOptimization(
       
       log.info(`[${config.name}] 调度注册完成: 频率=${frequency}, ` +
         `下次执行=${schedulingResult.nextExecutionTime.toISOString()}`);
-    } catch (schedError: any) {
-      errors.push(`调度注册失败: ${schedError.message}`);
-      log.error(`[${config.name}] 调度注册失败:`, schedError.message);
+    } catch (schedError: unknown) {
+      errors.push(`调度注册失败: ${(schedError as Error).message}`);
+      log.error(`[${config.name}] 调度注册失败:`, (schedError as Error).message);
     }
     
     result.success = errors.length === 0;
@@ -279,8 +279,8 @@ export async function triggerInitialOptimization(
       // 通知失败不影响主流程
     }
     
-  } catch (error: any) {
-    result.errors.push(`首次优化失败: ${error.message}`);
+  } catch (error: unknown) {
+    result.errors.push(`首次优化失败: ${(error as Error).message}`);
     log.error(`[${result.targetName}] 首次优化失败:`, error);
   }
   
@@ -408,11 +408,11 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
       }
     } catch (e) { /* 非关键 */ }
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     scheduled.status = 'error';
-    scheduled.lastError = error.message;
-    log.error(`定时执行失败: targetId=${targetId}:`, error.message);
-    logOptimizationError('OptScheduler', `定时执行失败`, { targetId, error: error.message });
+    scheduled.lastError = (error as Error).message;
+    log.error(`定时执行失败: targetId=${targetId}:`, (error as Error).message);
+    logOptimizationError('OptScheduler', `定时执行失败`, { targetId, error: (error as Error).message });
     
     // 连续失败3次后暂停调度
     if (scheduled.lastError) {
@@ -475,8 +475,8 @@ export async function startOptimizationScheduler(): Promise<{
         // 注册定时执行（默认每日）
         await registerScheduledExecution(target.id, target.name, 'daily');
         scheduled++;
-      } catch (error: any) {
-        log.error(`注册优化目标 ${target.id} 失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`注册优化目标 ${target.id} 失败:`, (error as Error).message);
         errors++;
       }
     }
@@ -488,8 +488,8 @@ export async function startOptimizationScheduler(): Promise<{
     });
     
     return { total: activeTargets.length, scheduled, errors };
-  } catch (error: any) {
-    log.error('调度器启动失败:', error.message);
+  } catch (error: unknown) {
+    log.error('调度器启动失败:', (error as Error).message);
     isSchedulerRunning = false;
     return { total: 0, scheduled: 0, errors: 1 };
   }
@@ -714,23 +714,23 @@ export async function triggerAccountOptimizations(
         });
         
         log.info(`v151: 优化目标 ${target.name} 执行完成`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         result.errorCount++;
         result.details.push({
           targetId: target.id,
           targetName: target.name,
           status: 'error',
-          reason: error.message,
+          reason: (error as Error).message,
         });
-        log.error(`v151: 优化目标 ${target.name} 执行失败:`, error.message);
+        log.error(`v151: 优化目标 ${target.name} 执行失败:`, (error as Error).message);
       }
     }
     
     log.info(`v151: 账户 ${accountId} 优化触发完成: ` +
       `触发=${result.triggeredCount}, 跳过=${result.skippedCount}, 错误=${result.errorCount}`);
     
-  } catch (error: any) {
-    log.error(`v151: 账户 ${accountId} 优化触发异常:`, error.message);
+  } catch (error: unknown) {
+    log.error(`v151: 账户 ${accountId} 优化触发异常:`, (error as Error).message);
     result.errorCount++;
   }
   

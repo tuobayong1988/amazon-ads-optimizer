@@ -69,9 +69,9 @@ export async function migrateEncryptCredentials(): Promise<{
         MODIFY COLUMN clientSecret TEXT NOT NULL
       `);
       console.log('[v345-migration] clientSecret 列已扩展为 TEXT');
-    } catch (alterError: any) {
+    } catch (alterError: unknown) {
       // 如果已经是 TEXT 类型，忽略错误
-      console.log(`[v345-migration] ALTER TABLE 结果: ${alterError.message}`);
+      console.log(`[v345-migration] ALTER TABLE 结果: ${(alterError as Error).message}`);
     }
 
     // 步骤2: 读取所有凭证记录
@@ -121,9 +121,9 @@ export async function migrateEncryptCredentials(): Promise<{
 
         result.encrypted++;
         console.log(`[v345-migration] 账户 ${record.accountId}: 已加密 [${updates.join(', ')}]`);
-      } catch (recordError: any) {
+      } catch (recordError: unknown) {
         result.failed++;
-        const msg = `账户 ${record.accountId} 加密失败: ${recordError.message}`;
+        const msg = `账户 ${record.accountId} 加密失败: ${(recordError as Error).message}`;
         result.errors.push(msg);
         console.error(`[v345-migration] ${msg}`);
       }
@@ -133,8 +133,8 @@ export async function migrateEncryptCredentials(): Promise<{
     console.log(`[v345-migration] 迁移完成: 总计=${result.totalRecords}, 加密=${result.encrypted}, 跳过=${result.skipped}, 失败=${result.failed}`);
     
     return result;
-  } catch (error: any) {
-    result.errors.push(`迁移异常: ${error.message}`);
+  } catch (error: unknown) {
+    result.errors.push(`迁移异常: ${(error as Error).message}`);
     console.error(`[v345-migration] 迁移异常:`, error);
     return result;
   }

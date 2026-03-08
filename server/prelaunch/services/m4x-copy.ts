@@ -27,8 +27,8 @@ export class M4XCopyService {
         .where(and(...conditions))
         .orderBy(desc(prelaunchCopyVersions.fitnessScore));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -41,8 +41,8 @@ export class M4XCopyService {
         .from(prelaunchQnaSeeds)
         .where(eq(prelaunchQnaSeeds.projectId, projectId));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -103,8 +103,8 @@ export class M4XCopyService {
       await this.generateQnaSeeds(db, projectId, cosmoTriples, keywords);
 
       return { success: true, generation: 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -194,8 +194,8 @@ Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKey
       }
 
       return { success: true, generation: nextGen };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 

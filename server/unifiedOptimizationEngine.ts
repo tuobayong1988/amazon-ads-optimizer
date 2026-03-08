@@ -328,8 +328,8 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
         groupTargetAcos = Number(groups[0].targetAcos);
         log.info(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} 使用优化目标targetAcos=${groupTargetAcos}%`);
       }
-    } catch (pgErr: any) {
-      log.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, pgErr.message);
+    } catch (pgErr: unknown) {
+      log.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, (pgErr as Error).message);
     }
   }
   
@@ -353,8 +353,8 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       correctionApplied = true;
       log.info(`[UnifiedOptEngine] Campaign ${campaign.campaignId} 归因校正系数: ${correctionFactor.toFixed(3)}`);
     }
-  } catch (corrErr: any) {
-    log.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, corrErr.message);
+  } catch (corrErr: unknown) {
+    log.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, (corrErr as Error).message);
   }
   
   // 获取广告活动的关键词

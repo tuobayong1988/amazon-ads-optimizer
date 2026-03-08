@@ -702,7 +702,7 @@ export async function applyHourlyBidRulesToStrategy(
   // 渐进式更新：新规则与现有规则混合
   const updatedRules = rules.map(newRule => {
     const existing = existingRules.find(
-      (e: any) => e.dayOfWeek === newRule.dayOfWeek && e.hour === newRule.hour
+      (e: Error) => e.dayOfWeek === newRule.dayOfWeek && e.hour === newRule.hour
     );
     
     let finalMultiplier = newRule.bidMultiplier;
@@ -906,8 +906,8 @@ export async function executeMultiDimensionOptimization(
           if (budgetApplyResult.success) {
             log.info(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} 分时预算规则已保存: ${budgetApplyResult.rulesApplied}条`);
           }
-        } catch (budgetErr: any) {
-          log.warn(`[MultiDimOptimizer] v179: 分时预算规则保存失败: ${budgetErr.message}`);
+        } catch (budgetErr: unknown) {
+          log.warn(`[MultiDimOptimizer] v179: 分时预算规则保存失败: ${(budgetErr as Error).message}`);
         }
       }
       
@@ -927,12 +927,12 @@ export async function executeMultiDimensionOptimization(
         budgetSuggestion: plan.budgetSuggestion,
       });
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         campaignId: campaign.campaignId,
         campaignName: campaign.campaignName,
         status: 'error',
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }

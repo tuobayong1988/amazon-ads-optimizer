@@ -344,8 +344,8 @@ export class AmazonSyncService {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
           return result;
-        } catch (error: any) {
-          const errMsg = error.message || '';
+        } catch (error: unknown) {
+          const errMsg = (error as Error).message || '';
           const isRetryable = errMsg.includes('429') || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('ETIMEDOUT') || errMsg.includes('ECONNRESET');
           
           if (isRetryable && attempt < STEP_RETRY_CONFIG.maxRetries) {
@@ -493,24 +493,24 @@ export class AmazonSyncService {
       const spResult = await this.syncSpCampaigns();
       results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
       results.campaigns += results.spCampaigns;
-    } catch (error: any) {
-      log.error('SP广告活动同步失败:', error.message);
+    } catch (error: unknown) {
+      log.error('SP广告活动同步失败:', (error as Error).message);
     }
     
     try {
       const sbResult = await this.syncSbCampaigns();
       results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
       results.campaigns += results.sbCampaigns;
-    } catch (error: any) {
-      log.error('SB广告活动同步失败:', error.message);
+    } catch (error: unknown) {
+      log.error('SB广告活动同步失败:', (error as Error).message);
     }
     
     try {
       const sdResult = await this.syncSdCampaigns();
       results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
       results.campaigns += results.sdCampaigns;
-    } catch (error: any) {
-      log.error('SD广告活动同步失败:', error.message);
+    } catch (error: unknown) {
+      log.error('SD广告活动同步失败:', (error as Error).message);
     }
     
     log.info(`广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
@@ -538,59 +538,59 @@ export class AmazonSyncService {
     try {
       const spAdGroupResult = await this.syncSpAdGroups();
       results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
-    } catch (e: any) {
-      log.error('SP广告组同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SP广告组同步失败:', (e as Error).message);
     }
 
     try {
       const sbAdGroupResult = await this.syncSbAdGroups();
       results.adGroups += sbAdGroupResult.synced;
-    } catch (e: any) {
-      log.error('SB广告组同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SB广告组同步失败:', (e as Error).message);
     }
 
     try {
       const sdAdGroupResult = await this.syncSdAdGroups();
       results.adGroups += sdAdGroupResult.synced;
-    } catch (e: any) {
-      log.error('SD广告组同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SD广告组同步失败:', (e as Error).message);
     }
     
     // ==================== 同步关键词投放（SP + SB） ====================
     try {
       const spKeywordResult = await this.syncSpKeywords();
       results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
-    } catch (e: any) {
-      log.error('SP关键词同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SP关键词同步失败:', (e as Error).message);
     }
 
     try {
       const sbKeywordResult = await this.syncSbKeywords();
       results.keywords += sbKeywordResult.synced;
-    } catch (e: any) {
-      log.error('SB关键词同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SB关键词同步失败:', (e as Error).message);
     }
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
     try {
       const spTargetResult = await this.syncSpProductTargets();
       results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
-    } catch (e: any) {
-      log.error('SP商品定位同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SP商品定位同步失败:', (e as Error).message);
     }
 
     try {
       const sbTargetResult = await this.syncSbProductTargets();
       results.targets += sbTargetResult.synced;
-    } catch (e: any) {
-      log.error('SB商品定位同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SB商品定位同步失败:', (e as Error).message);
     }
 
     try {
       const sdTargetResult = await this.syncSdProductTargets();
       results.targets += sdTargetResult.synced;
-    } catch (e: any) {
-      log.error('SD商品定位同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('SD商品定位同步失败:', (e as Error).message);
     }
 
     // v196: 中频同步时同时同步搜索词数据（7天窗口），确保搜索词数据不滞后
@@ -598,8 +598,8 @@ export class AmazonSyncService {
       log.info(`v196: 中频同步 - 开始同步SP搜索词数据(7天)...`);
       const spSearchTermSynced = await this.syncSearchTerms(7);
       log.info(`v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
-    } catch (e: any) {
-      log.error('v196: 中频同步 - SP搜索词同步失败:', e.message);
+    } catch (e: unknown) {
+      log.error('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
     }
 
     log.info(`全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
@@ -648,8 +648,8 @@ export class AmazonSyncService {
           if (batch < batches - 1) {
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
-        } catch (batchError: any) {
-          log.error(`v339: SP搜索词第${batch + 1}批请求失败:`, batchError.message);
+        } catch (batchError: unknown) {
+          log.error(`v339: SP搜索词第${batch + 1}批请求失败:`, (batchError as Error).message);
           // 继续下一批，不中断整个同步
         }
       }
@@ -858,8 +858,8 @@ export class AmazonSyncService {
             log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
           }
           if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (batchError: any) {
-          log.error(`v339: SP自动定向第${batch + 1}批请求失败:`, batchError.message);
+        } catch (batchError: unknown) {
+          log.error(`v339: SP自动定向第${batch + 1}批请求失败:`, (batchError as Error).message);
         }
       }
 
@@ -1001,11 +1001,11 @@ export class AmazonSyncService {
       try {
         const sbAdGroupResult = await this.syncSbAdGroups();
         results.adGroups += sbAdGroupResult.synced;
-      } catch (e: any) { log.error('[SyncAllAd] SB广告组同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SB广告组同步失败:', e.message); }
       try {
         const sdAdGroupResult = await this.syncSdAdGroups();
         results.adGroups += sdAdGroupResult.synced;
-      } catch (e: any) { log.error('[SyncAllAd] SD广告组同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SD广告组同步失败:', e.message); }
 
       // 3. 同步投放词（SP + SB）
       const keywordResult = await this.syncSpKeywords();
@@ -1013,7 +1013,7 @@ export class AmazonSyncService {
       try {
         const sbKeywordResult = await this.syncSbKeywords();
         results.keywords += sbKeywordResult.synced;
-      } catch (e: any) { log.error('[SyncAllAd] SB关键词同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SB关键词同步失败:', e.message); }
 
       // 4. 同步商品定向（SP + SB + SD）
       const targetResult = await this.syncSpProductTargets();
@@ -1021,11 +1021,11 @@ export class AmazonSyncService {
       try {
         const sbPtResult = await this.syncSbProductTargets();
         results.targets += sbPtResult.synced;
-      } catch (e: any) { log.error('[SyncAllAd] SB商品定向同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SB商品定向同步失败:', e.message); }
       try {
         const sdPtResult = await this.syncSdProductTargets();
         results.targets += sdPtResult.synced;
-      } catch (e: any) { log.error('[SyncAllAd] SD商品定向同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SD商品定向同步失败:', e.message); }
 
       // 5. 同步自动定向
       const autoTargetResult = await this.syncAutoTargeting(days);
@@ -1043,18 +1043,18 @@ export class AmazonSyncService {
       try {
         const negKwResult = await this.syncSpNegativeKeywords();
         log.info(`[SyncAllAd] SP否定关键词: ${negKwResult.synced}新增, ${negKwResult.updated}更新`);
-      } catch (e: any) { log.error('[SyncAllAd] SP否定关键词同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SP否定关键词同步失败:', e.message); }
       try {
         const negPtResult = await this.syncSpNegativeProductTargets();
         log.info(`[SyncAllAd] SP否定商品定向: ${negPtResult.synced}新增, ${negPtResult.updated}更新`);
-      } catch (e: any) { log.error('[SyncAllAd] SP否定商品定向同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SP否定商品定向同步失败:', e.message); }
 
       // 9. 同步搜索词（SP + SB）
       results.searchTerms = await this.syncSearchTerms(days);
       try {
         const sbStSynced = await this.syncSbSearchTerms(days);
         results.searchTerms += sbStSynced;
-      } catch (e: any) { log.error('[SyncAllAd] SB搜索词同步失败:', e.message); }
+      } catch (e: unknown) { log.error('[SyncAllAd] SB搜索词同步失败:', e.message); }
 
       // 10. 同步位置绩效
       results.placements = await this.syncPlacementPerformance(days);
@@ -1094,16 +1094,16 @@ export class AmazonSyncService {
       log.info(`开始同步关键词级别绩效数据（${days}天）...`);
       results.keywordPerf = await this.syncKeywordPerformanceData(days);
       log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
-    } catch (kwPerfError: any) {
-      log.error('关键词绩效数据同步失败:', kwPerfError.message);
+    } catch (kwPerfError: unknown) {
+      log.error('关键词绩效数据同步失败:', (kwPerfError as Error).message);
     }
     // v192: 同步商品定位级别绩效数据
     try {
       log.info(`开始同步商品定位级别绩效数据（${days}天）...`);
       results.targetPerf = await this.syncProductTargetPerformanceData(days);
       log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
-    } catch (ptPerfError: any) {
-      log.error('商品定位绩效数据同步失败:', ptPerfError.message);
+    } catch (ptPerfError: unknown) {
+      log.error('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
     }
     return results;
   }
@@ -1201,8 +1201,8 @@ export class AmazonSyncService {
       }
 
       return updated;
-    } catch (error: any) {
-      log.error('syncAssetUrls失败:', error.message);
+    } catch (error: unknown) {
+      log.error('syncAssetUrls失败:', (error as Error).message);
       throw error;
     }
   }

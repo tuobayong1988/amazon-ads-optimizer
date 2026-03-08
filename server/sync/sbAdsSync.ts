@@ -91,8 +91,8 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
     
     log.info(`SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
-    log.error('SB广告素材同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告素材同步失败:', (error as Error).message);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -191,8 +191,8 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
     }
 
     return updated;
-  } catch (error: any) {
-    log.error('syncAssetUrls失败:', error.message);
+  } catch (error: unknown) {
+    log.error('syncAssetUrls失败:', (error as Error).message);
     throw error;
   }
   }
@@ -291,8 +291,8 @@ try {
   
   log.info(`[AutoBidOpt] v230: NextGen优化完成 optimized=${results.optimized}, skipped=${results.skipped}`);
   return results;
-} catch (nextGenError: any) {
-  log.warn(`[AutoBidOpt] v230: NextGen算法失败，回退到旧算法: ${nextGenError.message}`);
+} catch (nextGenError: unknown) {
+  log.warn(`[AutoBidOpt] v230: NextGen算法失败，回退到旧算法: ${(nextGenError as Error).message}`);
 }
 
 // v230: 回退到旧算法
@@ -389,7 +389,7 @@ fieldsToCheck: string[]
 const conflictFields: string[] = [];
 
 // 判断值是否为"无数据"（空值）
-const isEmptyValue = (value: any): boolean => {
+const isEmptyValue = (value: Record<string, unknown>): boolean => {
   if (value === undefined || value === null) return true;
   const strValue = String(value).trim();
   // 空字符串、"0"、"0.00" 都视为空值（默认值）
@@ -637,14 +637,14 @@ try {
   log.info('[同步WithTracking] 结果:', result);
   logSyncProtectionSummary('syncSpCampaignsWithTracking', protectionStats);
   return result;
-} catch (error: any) {
+} catch (error: unknown) {
   log.error('[同步WithTracking] ❌ SP广告活动同步失败');
   log.error('[同步WithTracking] 错误类型:', error.constructor?.name);
   log.error('[同步WithTracking] 错误消息:', error?.message || error);
   log.error('[同步WithTracking] 错误堆栈:', error?.stack);
   if (error?.response) {
-    log.error('[同步WithTracking] API响应状态:', error.response.status);
-    log.error('[同步WithTracking] API响应数据:', JSON.stringify(error.response.data, null, 2));
+    log.error('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
+    log.error('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
   }
   return result;
 }

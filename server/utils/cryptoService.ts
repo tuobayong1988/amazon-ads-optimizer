@@ -133,8 +133,8 @@ export function decrypt(ciphertext: string): string {
 export function safeEncrypt(plaintext: string): string {
   try {
     return encrypt(plaintext);
-  } catch (error: any) {
-    log.warn(`[CryptoService] 加密失败，返回明文: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[CryptoService] 加密失败，返回明文: ${(error as Error).message}`);
     return plaintext;
   }
 }
@@ -147,8 +147,8 @@ export function safeEncrypt(plaintext: string): string {
 export function safeDecrypt(ciphertext: string): string {
   try {
     return decrypt(ciphertext);
-  } catch (error: any) {
-    log.warn(`[CryptoService] 解密失败，返回原始值: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[CryptoService] 解密失败，返回原始值: ${(error as Error).message}`);
     return ciphertext;
   }
 }
@@ -191,7 +191,7 @@ export function selfTest(): { success: boolean; error?: string } {
     }
     
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message };
   }
 }

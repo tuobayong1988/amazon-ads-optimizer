@@ -276,9 +276,9 @@ export async function checkAccountIntegrity(
       needsRepair: result.needsRepair,
     });
 
-  } catch (error: any) {
-    log.error(`[v358] 账户${accountId}完整性检查失败: ${error.message}`);
-    logSyncError('DataIntegrityChecker', `完整性检查失败`, { accountId, error: error.message });
+  } catch (error: unknown) {
+    log.error(`[v358] 账户${accountId}完整性检查失败: ${(error as Error).message}`);
+    logSyncError('DataIntegrityChecker', `完整性检查失败`, { accountId, error: (error as Error).message });
   }
 
   return result;
@@ -339,8 +339,8 @@ export async function checkAllAccountsIntegrity(
       unhealthyAccounts,
       results,
     };
-  } catch (error: any) {
-    log.error(`[v358] 批量完整性检查失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 批量完整性检查失败: ${(error as Error).message}`);
     return { totalAccounts: 0, healthyAccounts: 0, unhealthyAccounts: 0, results };
   }
 }
@@ -398,9 +398,9 @@ export async function executeAutoRepair(
           actionsExecuted++;
           break;
       }
-    } catch (error: any) {
-      errors.push(`${action.type}: ${error.message}`);
-      log.error(`[v358] 修复动作${action.type}失败: ${error.message}`);
+    } catch (error: unknown) {
+      errors.push(`${action.type}: ${(error as Error).message}`);
+      log.error(`[v358] 修复动作${action.type}失败: ${(error as Error).message}`);
     }
   }
 
@@ -436,8 +436,8 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
     const deletedCount = (result as any)?.affectedRows || 0;
     log.info(`[v358] 账户${accountId}去重完成: 删除${deletedCount}条重复记录`);
     return deletedCount;
-  } catch (error: any) {
-    log.error(`[v358] 去重失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 去重失败: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -468,7 +468,7 @@ async function recordPendingResync(accountId: number, dates: string[]): Promise<
     `);
 
     log.info(`[v358] 已记录账户${accountId}的补偿同步任务: ${dates.length}个日期`);
-  } catch (error: any) {
-    log.error(`[v358] 记录补偿同步失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 记录补偿同步失败: ${(error as Error).message}`);
   }
 }

@@ -232,9 +232,9 @@ export async function executeOptimizationPlan(
         // await executeAction(action);
         success++;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       failed++;
-      errors.push(`Failed to execute ${action.type} on ${action.targetName}: ${error.message}`);
+      errors.push(`Failed to execute ${action.type} on ${action.targetName}: ${(error as Error).message}`);
     }
   }
 

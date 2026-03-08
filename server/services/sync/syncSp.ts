@@ -260,14 +260,14 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     log.info(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
     logSyncProtectionSummary('syncSpCampaigns', protectionStats);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[同步] ❌ SP广告活动同步失败');
     log.error('[同步] 错误类型:', error.constructor.name);
-    log.error('[同步] 错误消息:', error.message);
-    log.error('[同步] 错误堆栈:', error.stack);
-    if (error.response) {
-      log.error('[同步] API响应状态:', error.response.status);
-      log.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
+    log.error('[同步] 错误消息:', (error as Error).message);
+    log.error('[同步] 错误堆栈:', (error as Error).stack);
+    if ((error as Error & { response?: unknown }).response) {
+      log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }

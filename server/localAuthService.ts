@@ -156,9 +156,9 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       },
       token,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[LocalAuth] 注册失败:', error);
-    return { success: false, error: error.message || '注册失败' };
+    return { success: false, error: (error as Error).message || '注册失败' };
   }
 }
 
@@ -275,9 +275,9 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       },
       token,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[LocalAuth] 登录失败:', error);
-    return { success: false, error: error.message || '登录失败' };
+    return { success: false, error: (error as Error).message || '登录失败' };
   }
 }
 
@@ -329,7 +329,7 @@ export async function verifyToken(token: string): Promise<{
         lastLoginAt: user.last_login_at,
       },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return { valid: false, error: 'Token无效或已过期' };
   }
 }
@@ -382,7 +382,7 @@ export async function changePassword(userId: number, oldPassword: string, newPas
     `);
     
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || '修改密码失败' };
+  } catch (error: unknown) {
+    return { success: false, error: (error as Error).message || '修改密码失败' };
   }
 }

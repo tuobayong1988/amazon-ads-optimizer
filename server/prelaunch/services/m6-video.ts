@@ -22,8 +22,8 @@ export class M6VideoService {
         .where(eq(prelaunchVideoScripts.projectId, projectId))
         .orderBy(desc(prelaunchVideoScripts.createdAt));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -38,8 +38,8 @@ export class M6VideoService {
       
       const banners = (data as any[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -151,8 +151,8 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
           bannerCreatives: bannerSizes.length,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -204,8 +204,8 @@ Aspect ratio: 16:9, cinematic, high quality, product photography style`;
         .where(eq(prelaunchVideoScripts.id, scriptId));
 
       return { success: true, framesGenerated: generatedFrames.length };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -240,8 +240,8 @@ High resolution, professional graphic design.`;
       }
 
       return { success: false, error: 'Banner image generation failed' };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 }

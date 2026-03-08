@@ -124,8 +124,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         metrics.syncSuccessRate.status = metrics.syncSuccessRate.actual >= 95 ? 'ok' 
           : metrics.syncSuccessRate.actual >= 80 ? 'warning' : 'critical';
       }
-    } catch (e: any) {
-      log.debug(`[v358] 同步成功率查询失败(表可能不存在): ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] 同步成功率查询失败(表可能不存在): ${(e as Error).message}`);
       metrics.syncSuccessRate.actual = 100;
       metrics.syncSuccessRate.status = 'ok';
     }
@@ -155,8 +155,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         metrics.dataCoverage.status = metrics.dataCoverage.actual >= 90 ? 'ok'
           : metrics.dataCoverage.actual >= 70 ? 'warning' : 'critical';
       }
-    } catch (e: any) {
-      log.debug(`[v358] 数据覆盖率查询失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] 数据覆盖率查询失败: ${(e as Error).message}`);
     }
 
     // 3. 数据新鲜度
@@ -176,8 +176,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         metrics.dataFreshness.status = minutesAgo <= 120 ? 'ok'
           : minutesAgo <= 360 ? 'warning' : 'critical';
       }
-    } catch (e: any) {
-      log.debug(`[v358] 数据新鲜度查询失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] 数据新鲜度查询失败: ${(e as Error).message}`);
     }
 
     // 4. 同步延迟P95
@@ -202,8 +202,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         metrics.syncLatencyP95.status = metrics.syncLatencyP95.p95 <= 30 ? 'ok'
           : metrics.syncLatencyP95.p95 <= 60 ? 'warning' : 'critical';
       }
-    } catch (e: any) {
-      log.debug(`[v358] 同步延迟查询失败(表可能不存在): ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] 同步延迟查询失败(表可能不存在): ${(e as Error).message}`);
       metrics.syncLatencyP95.status = 'ok';
     }
 
@@ -233,8 +233,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
           metrics.shardHealth.totalShards += count;
         }
       }
-    } catch (e: any) {
-      log.debug(`[v358] Shard健康度查询失败(表可能不存在): ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] Shard健康度查询失败(表可能不存在): ${(e as Error).message}`);
     }
 
     // 6. 锁状态
@@ -250,8 +250,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         metrics.lockStatus.activeLocks = Number(lockRow.active_locks) || 0;
         metrics.lockStatus.expiredLocks = Number(lockRow.expired_locks) || 0;
       }
-    } catch (e: any) {
-      log.debug(`[v358] 锁状态查询失败(表可能不存在): ${e.message}`);
+    } catch (e: unknown) {
+      log.debug(`[v358] 锁状态查询失败(表可能不存在): ${(e as Error).message}`);
     }
 
     // ==================== 计算整体健康评分 ====================
@@ -295,8 +295,8 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
       `syncRate=${metrics.syncSuccessRate.actual}%, coverage=${metrics.dataCoverage.actual}%, ` +
       `freshness=${metrics.dataFreshness.actual}`);
 
-  } catch (error: any) {
-    log.error(`[v358] SLO指标获取失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] SLO指标获取失败: ${(error as Error).message}`);
   }
 
   return metrics;
@@ -351,8 +351,8 @@ export async function getSLOTrend(days: number = 7): Promise<Array<{
         });
       }
     }
-  } catch (e: any) {
-    log.debug(`[v358] SLO趋势查询失败: ${e.message}`);
+  } catch (e: unknown) {
+    log.debug(`[v358] SLO趋势查询失败: ${(e as Error).message}`);
   }
 
   return trend;

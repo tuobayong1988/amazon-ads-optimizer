@@ -195,8 +195,8 @@ async function calculateRollbackRate(
     log.info(`[RollbackRate] v266: 账户${accountId} 原始调整=${totalOriginal}, 硬回滚=${hardRollback}, 软回滚=${softRollback}, 真正回滚率=${rate.toFixed(1)}%`);
 
     return { totalAdjustments: total, rolledBackCount: rolledBack, rate: Math.round(rate * 10) / 10, status, trend, previousRate: Math.round(previousRate * 10) / 10 };
-  } catch (error: any) {
-    log.warn(`[RollbackRate] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[RollbackRate] 计算异常: ${(error as Error).message}`);
     return { totalAdjustments: 0, rolledBackCount: 0, rate: 0, status: 'healthy', trend: 'stable', previousRate: 0 };
   }
 }
@@ -268,8 +268,8 @@ async function calculateAlgorithmActivation(
       status,
       algorithmRates,
     };
-  } catch (error: any) {
-    log.warn(`[AlgorithmActivation] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[AlgorithmActivation] 计算异常: ${(error as Error).message}`);
     return { totalDecisions: 0, algorithmCounts: {}, advancedRate: 0, status: 'critical', algorithmRates: {} };
   }
 }
@@ -348,8 +348,8 @@ async function calculateAcosTrend(
       changePoints: Math.round(changePoints * 10) / 10,
       deathSpiralDetected,
     };
-  } catch (error: any) {
-    log.warn(`[AcosTrend] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[AcosTrend] 计算异常: ${(error as Error).message}`);
     return { currentAcos: 0, acos7dAgo: 0, acos14dAgo: 0, direction: 'stable', changePoints: 0, deathSpiralDetected: false };
   }
 }
@@ -419,8 +419,8 @@ async function calculateBidIncreaseAnalysis(
       successRate: 0, // 需要后续数据验证才能计算
       byScenario,
     };
-  } catch (error: any) {
-    log.warn(`[BidIncreaseAnalysis] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[BidIncreaseAnalysis] 计算异常: ${(error as Error).message}`);
     return { totalIncreases: 0, avgIncreasePercent: 0, successRate: 0, byScenario: [] };
   }
 }
@@ -485,8 +485,8 @@ async function calculateCircuitBreakerRate(
       rate: Math.round(rate * 10) / 10,
       byReason,
     };
-  } catch (error: any) {
-    log.warn(`[CircuitBreakerRate] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[CircuitBreakerRate] 计算异常: ${(error as Error).message}`);
     return { totalDecisions: 0, trippedCount: 0, rate: 0, byReason: {} };
   }
 }

@@ -88,8 +88,8 @@ export async function syncPerformanceData(service: SyncContext,days: number = 14
         if (batch < batches - 1) {
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
-      } catch (batchError: any) {
-        log.error(`第${batch + 1}批同步失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`第${batch + 1}批同步失败:`, (batchError as Error).message);
         // 继续下一批，不中断整个同步过程
       }
     }
@@ -101,17 +101,17 @@ export async function syncPerformanceData(service: SyncContext,days: number = 14
     try {
       const hourlyGenerated = await service.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
       log.info(`v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
-    } catch (hourlyErr: any) {
-      log.error(`v195: hourly_performance生成失败: ${hourlyErr.message}`);
+    } catch (hourlyErr: unknown) {
+      log.error(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
     }
     
     log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
     return totalSynced;
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('同步绩效数据失败:', error);
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
-    if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
+    if ((error as Error).message?.includes('timeout') || (error as Error).message?.includes('PENDING') || (error as Error).message?.includes('Report generation')) {
       log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
     }
     
@@ -138,14 +138,14 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
         const data = await service.client.waitAndDownloadReport(reportId, 900000);
         log.info(`[${name}] 报告下载完成, 数据条数: ${data?.length || 0}`);
         return data;
-      } catch (err: any) {
-        const isRetryable = !err.message?.includes('401') && !err.message?.includes('403') && !err.message?.includes('not enabled');
+      } catch (err: unknown) {
+        const isRetryable = !(err as Error).message?.includes('401') && !(err as Error).message?.includes('403') && !(err as Error).message?.includes('not enabled');
         if (attempt < maxRetries && isRetryable) {
           const delay = attempt * 5000; // 5s, 10s, 15s
-          log.warn(`[${name}] 尝试${attempt}失败: ${err.message}, ${delay/1000}秒后重试...`);
+          log.warn(`[${name}] 尝试${attempt}失败: ${(err as Error).message}, ${delay/1000}秒后重试...`);
           await new Promise(r => setTimeout(r, delay));
         } else {
-          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${err.message}`);
+          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${(err as Error).message}`);
           return null;
         }
       }
@@ -263,9 +263,9 @@ async function processReportData(service: SyncContext, db: any, reportData: unkn
             }).returning();
             campaign = newCampaign;
             log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
-          } catch (createError: any) {
+          } catch (createError: unknown) {
             // 可能是重复插入，尝试再次查询
-            log.warn(`${adType}创建campaign失败，尝试再次查询:`, createError.message);
+            log.warn(`${adType}创建campaign失败，尝试再次查询:`, (createError as Error).message);
             [campaign] = await db
               .select()
               .from(campaigns)
@@ -419,8 +419,8 @@ async function processReportData(service: SyncContext, db: any, reportData: unkn
     log.debug(`  - 未匹配: ${notMatched} 条`);
     log.info(`  - 总同步: ${synced} 条`);
     return synced;
-  } catch (error: any) {
-    log.error(`${adType}报告数据处理失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`${adType}报告数据处理失败:`, (error as Error).message);
     return 0;
   }
 }
@@ -636,8 +636,8 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
     }
     
     return insertedCount;
-  } catch (error: any) {
-    log.error('v195: generateHourlyFromDaily失败:', error.message);
+  } catch (error: unknown) {
+    log.error('v195: generateHourlyFromDaily失败:', (error as Error).message);
     return 0;
   }
 }
@@ -913,16 +913,16 @@ export async function syncPerformanceOnly(service: SyncContext,days: number = 14
     log.info(`开始同步关键词级别绩效数据（${days}天）...`);
     results.keywordPerf = await service.syncKeywordPerformanceData(days);
     log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
-  } catch (kwPerfError: any) {
-    log.error('关键词绩效数据同步失败:', kwPerfError.message);
+  } catch (kwPerfError: unknown) {
+    log.error('关键词绩效数据同步失败:', (kwPerfError as Error).message);
   }
   // v192: 同步商品定位级别绩效数据
   try {
     log.info(`开始同步商品定位级别绩效数据（${days}天）...`);
     results.targetPerf = await service.syncProductTargetPerformanceData(days);
     log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
-  } catch (ptPerfError: any) {
-    log.error('商品定位绩效数据同步失败:', ptPerfError.message);
+  } catch (ptPerfError: unknown) {
+    log.error('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
   }
   return results;
 }
@@ -1024,8 +1024,8 @@ export async function syncSbPlacementPerformance(service: SyncContext,days: numb
     }
     
     log.info(`SB广告位绩效同步完成: ${synced}条`);
-  } catch (error: any) {
-    log.error('SB广告位绩效同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告位绩效同步失败:', (error as Error).message);
   }
   return synced;
 }

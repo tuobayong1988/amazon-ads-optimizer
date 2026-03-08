@@ -100,33 +100,33 @@ export const systemRouter = router({
         try {
           await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') DEFAULT 'pending'`);
           results.push('Added execution_status column');
-        } catch (e: any) {
-          if (e.message?.includes('Duplicate column')) {
+        } catch (e: unknown) {
+          if ((e as Error).message?.includes('Duplicate column')) {
             results.push('execution_status column already exists');
           } else {
-            results.push(`Error adding execution_status: ${e.message}`);
+            results.push(`Error adding execution_status: ${(e as Error).message}`);
           }
         }
 
         try {
           await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) DEFAULT NULL`);
           results.push('Added api_response_id column');
-        } catch (e: any) {
-          if (e.message?.includes('Duplicate column')) {
+        } catch (e: unknown) {
+          if ((e as Error).message?.includes('Duplicate column')) {
             results.push('api_response_id column already exists');
           } else {
-            results.push(`Error adding api_response_id: ${e.message}`);
+            results.push(`Error adding api_response_id: ${(e as Error).message}`);
           }
         }
 
         try {
           await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN error_message text DEFAULT NULL`);
           results.push('Added error_message column');
-        } catch (e: any) {
-          if (e.message?.includes('Duplicate column')) {
+        } catch (e: unknown) {
+          if ((e as Error).message?.includes('Duplicate column')) {
             results.push('error_message column already exists');
           } else {
-            results.push(`Error adding error_message: ${e.message}`);
+            results.push(`Error adding error_message: ${(e as Error).message}`);
           }
         }
       } else {

@@ -78,8 +78,8 @@ export async function collectSystemMetrics(): Promise<SystemMetricSnapshot[]> {
     }
     
     return snapshots;
-  } catch (err: any) {
-    log.error(`[Observability] v267: 指标收集失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[Observability] v267: 指标收集失败: ${(err as Error).message}`);
     return snapshots;
   }
 }
@@ -554,8 +554,8 @@ export async function evaluateAlertRules(): Promise<{ triggered: string[]; suppr
         
         log.warn(`[Observability] v268: 告警触发 - ${rule.name}: ${message} (自适应冷却=${Math.round(adaptiveCooldown/60000)}分钟)`);
       }
-    } catch (err: any) {
-      log.error(`[Observability] v268: 评估告警规则 ${rule.id} 失败: ${err.message}`);
+    } catch (err: unknown) {
+      log.error(`[Observability] v268: 评估告警规则 ${rule.id} 失败: ${(err as Error).message}`);
     }
   }
   
@@ -700,8 +700,8 @@ export function startObservabilityService(): void {
     try {
       await collectSystemMetrics();
       log.info('[Observability] v267: 初始指标收集完成');
-    } catch (err: any) {
-      log.error(`[Observability] v267: 初始指标收集失败: ${err.message}`);
+    } catch (err: unknown) {
+      log.error(`[Observability] v267: 初始指标收集失败: ${(err as Error).message}`);
     }
   }, 30 * 1000); // 启动30秒后
   
@@ -714,8 +714,8 @@ export function startObservabilityService(): void {
       if (alertResult.triggered.length > 0) {
         log.warn(`[Observability] v267: ${alertResult.triggered.length}个告警被触发: ${alertResult.triggered.join(', ')}`);
       }
-    } catch (err: any) {
-      log.error(`[Observability] v267: 定时指标收集失败: ${err.message}`);
+    } catch (err: unknown) {
+      log.error(`[Observability] v267: 定时指标收集失败: ${(err as Error).message}`);
     }
   }, 5 * 60 * 1000);
   
@@ -736,8 +736,8 @@ export function startObservabilityService(): void {
           message: `系统健康度低于B级标准:\n\n${dimensionDetails}\n\n建议:\n${summary.recommendations.map(r => `• ${r}`).join('\n')}`,
         });
       }
-    } catch (err: any) {
-      log.error(`[Observability] v267: 健康摘要生成失败: ${err.message}`);
+    } catch (err: unknown) {
+      log.error(`[Observability] v267: 健康摘要生成失败: ${(err as Error).message}`);
     }
   }, 60 * 60 * 1000);
   

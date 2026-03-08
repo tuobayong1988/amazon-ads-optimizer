@@ -96,8 +96,8 @@ export async function runAutoBidOptimization(
     
     log.info(`v230: NextGen优化完成 optimized=${results.optimized}, skipped=${results.skipped}`);
     return results;
-  } catch (nextGenError: any) {
-    log.warn(`v230: NextGen算法失败，回退到旧算法: ${nextGenError.message}`);
+  } catch (nextGenError: unknown) {
+    log.warn(`v230: NextGen算法失败，回退到旧算法: ${(nextGenError as Error).message}`);
   }
 
   // v230: 回退到旧算法

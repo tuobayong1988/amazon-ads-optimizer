@@ -153,8 +153,8 @@ async function handleShutdown(signal: string): Promise<void> {
     
     log.info(`[LifecycleManager] 优雅关闭完成 (耗时: ${Date.now() - shutdownState.shutdownStartedAt.getTime()}ms)`);
     
-  } catch (error: any) {
-    log.error(`[LifecycleManager] 关闭过程出错: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[LifecycleManager] 关闭过程出错: ${(error as Error).message}`);
   } finally {
     // 确保进程退出
     process.exit(0);
@@ -176,36 +176,36 @@ async function stopNewTaskAcceptance(): Promise<void> {
     try {
       stopDataSyncScheduler();
       log.info('[LifecycleManager]   ✓ 数据同步调度器已停止');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 停止数据同步调度器失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 停止数据同步调度器失败: ${(e as Error).message}`);
     }
     
     // 停止SQS消费者
     try {
       stopSQSConsumer();
       log.debug('[LifecycleManager]   ✓ SQS消费者已停止');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 停止SQS消费者失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 停止SQS消费者失败: ${(e as Error).message}`);
     }
     
     // 停止报告调度器
     try {
       reportJobScheduler.stop();
       log.debug('[LifecycleManager]   ✓ 报告调度器已停止');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 停止报告调度器失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 停止报告调度器失败: ${(e as Error).message}`);
     }
     
     // 停止优化调度器
     try {
       stopOptimizationScheduler();
       log.debug('[LifecycleManager]   ✓ 优化调度器已停止');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 停止优化调度器失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 停止优化调度器失败: ${(e as Error).message}`);
     }
     
-  } catch (error: any) {
-    log.error(`[LifecycleManager] 停止任务源失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[LifecycleManager] 停止任务源失败: ${(error as Error).message}`);
   }
 }
 
@@ -267,8 +267,8 @@ async function persistShutdownState(): Promise<void> {
       } else {
         log.debug('[LifecycleManager]   ✓ 无processing任务需要重置');
       }
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${(e as Error).message}`);
     }
     
     // 3a-2: v335 重置 data_sync_jobs 中 running 状态的任务
@@ -301,16 +301,16 @@ async function persistShutdownState(): Promise<void> {
       if (syncCancelled > 0) {
         log.info(`[LifecycleManager]   ✓ 已取消 ${syncCancelled} 个pending的数据同步任务（部署后将重新调度）`);
       }
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 重置数据同步任务失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 重置数据同步任务失败: ${(e as Error).message}`);
     }
     
     // 3b: 记录关闭心跳
     try {
       await writeHeartbeat('graceful');
       log.debug('[LifecycleManager]   ✓ 已记录优雅关闭心跳');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 记录关闭心跳失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 记录关闭心跳失败: ${(e as Error).message}`);
     }
     
     // 3c: 记录关闭事件到 optimization_events
@@ -339,12 +339,12 @@ async function persistShutdownState(): Promise<void> {
         apiSyncStatus: 'not_applicable',
       });
       log.debug('[LifecycleManager]   ✓ 已记录关闭事件');
-    } catch (e: any) {
-      log.warn(`[LifecycleManager]   ⚠ 记录关闭事件失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 记录关闭事件失败: ${(e as Error).message}`);
     }
     
-  } catch (error: any) {
-    log.error(`[LifecycleManager] 状态持久化失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[LifecycleManager] 状态持久化失败: ${(error as Error).message}`);
   }
 }
 
@@ -429,8 +429,8 @@ export function startHeartbeat(): void {
   heartbeatTimer = setInterval(async () => {
     try {
       await writeHeartbeat('running');
-    } catch (err: any) {
-      log.warn(`[LifecycleManager] 心跳写入失败: ${err.message}`);
+    } catch (err: unknown) {
+      log.warn(`[LifecycleManager] 心跳写入失败: ${(err as Error).message}`);
     }
   }, 60 * 1000);
   
@@ -568,8 +568,8 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
     // 4. 版本变化检测
     diagnostics.versionChanged = diagnostics.previousVersion !== null && diagnostics.previousVersion < SYSTEM_VERSION;
     
-  } catch (error: any) {
-    log.error(`[LifecycleManager] 启动诊断失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[LifecycleManager] 启动诊断失败: ${(error as Error).message}`);
   }
   
   // 输出诊断结果
@@ -625,8 +625,8 @@ export async function recoverInterruptedTasks(): Promise<number> {
     }
     
     return recovered;
-  } catch (error: any) {
-    log.error(`[LifecycleManager] 恢复中断任务失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[LifecycleManager] 恢复中断任务失败: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -642,8 +642,8 @@ export async function flushPendingTasks(): Promise<void> {
       const result = await processSyncQueue({});
       log.info(`[LifecycleManager] ✓ 同步引擎处理完成: ${JSON.stringify(result)}`);
     }
-  } catch (error: any) {
-    log.warn(`[LifecycleManager] 触发同步引擎失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[LifecycleManager] 触发同步引擎失败: ${(error as Error).message}`);
   }
 }
 
@@ -748,8 +748,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
               try {
                 const { triggerAccountOptimizations } = await import('./optimizationScheduler');
                 await triggerAccountOptimizations(accountResult.accountId, 'deploy_recovery_sync');
-              } catch (optErr: any) {
-                log.warn(`[LifecycleManager] v336: 部署后优化触发失败 (accountId=${accountResult.accountId}): ${optErr.message}`);
+              } catch (optErr: unknown) {
+                log.warn(`[LifecycleManager] v336: 部署后优化触发失败 (accountId=${accountResult.accountId}): ${(optErr as Error).message}`);
               }
             }
           }
@@ -767,13 +767,13 @@ export async function orchestrateStartup(server: any): Promise<void> {
             INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) 
             VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
           `);
-        } catch (syncErr: any) {
-          log.error(`[LifecycleManager] v336: 部署后完整同步失败: ${syncErr.message}`);
+        } catch (syncErr: unknown) {
+          log.error(`[LifecycleManager] v336: 部署后完整同步失败: ${(syncErr as Error).message}`);
         }
       }, 15 * 1000); // 延迟15秒，给系统时间完成初始化
     }
-  } catch (syncRecoveryErr: any) {
-    log.error(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${syncRecoveryErr.message}`);
+  } catch (syncRecoveryErr: unknown) {
+    log.error(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${(syncRecoveryErr as Error).message}`);
   }
   
   // 步骤4: 延迟30秒后执行纠错和重优化
@@ -801,8 +801,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
         } else {
           log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
         }
-      } catch (deployErr: any) {
-        log.error(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${deployErr.message}`);
+      } catch (deployErr: unknown) {
+        log.error(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${(deployErr as Error).message}`);
       }
       
       // 步骤4c: 运行API执行级纠错（独立错误隔离）
@@ -812,8 +812,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
         const { runAutoCorrection } = await import('./optimizationAutoCorrector');
         corrResult = await runAutoCorrection();
         log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
-      } catch (corrErr: any) {
-        log.error(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${corrErr.message}`);
+      } catch (corrErr: unknown) {
+        log.error(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${(corrErr as Error).message}`);
       }
       
       // 步骤4d: v329 部署后效果验证（独立错误隔离 + raw SQL记录）
@@ -848,11 +848,11 @@ export async function orchestrateStartup(server: any): Promise<void> {
               const status = newIssues === 0 ? 'success' : 'pending';
               await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
             }
-          } catch (logErr: any) {
-            log.warn(`[LifecycleManager] v329: 记录验证结果失败（不影响系统运行）: ${logErr.message}`);
+          } catch (logErr: unknown) {
+            log.warn(`[LifecycleManager] v329: 记录验证结果失败（不影响系统运行）: ${(logErr as Error).message}`);
           }
-        } catch (verifyErr: any) {
-          log.warn(`[LifecycleManager] v329: 效果验证失败（不影响系统运行）: ${verifyErr.message}`);
+        } catch (verifyErr: unknown) {
+          log.warn(`[LifecycleManager] v329: 效果验证失败（不影响系统运行）: ${(verifyErr as Error).message}`);
         }
       }
       
@@ -870,8 +870,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
         } else {
           log.info(`[LifecycleManager] v338: 无需冷启动（所有账户已在当前版本执行过）`);
         }
-      } catch (coldStartErr: any) {
-        log.error(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${coldStartErr.message}`);
+      } catch (coldStartErr: unknown) {
+        log.error(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
       }
       
       // 步骤4f: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
@@ -888,8 +888,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
             const algVer = `v${SYSTEM_VERSION}`;
             await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
           }
-        } catch (crashLogErr: any) {
-          log.warn(`[LifecycleManager] v329: 记录crash恢复事件失败（不影响系统运行）: ${crashLogErr.message}`);
+        } catch (crashLogErr: unknown) {
+          log.warn(`[LifecycleManager] v329: 记录crash恢复事件失败（不影响系统运行）: ${(crashLogErr as Error).message}`);
         }
       }
 
@@ -909,17 +909,17 @@ export async function orchestrateStartup(server: any): Promise<void> {
             }
           }
         }
-      } catch (monErr: any) {
-        log.warn(`[LifecycleManager] 监控检查失败（不影响系统运行）: ${monErr.message}`);
+      } catch (monErr: unknown) {
+        log.warn(`[LifecycleManager] 监控检查失败（不影响系统运行）: ${(monErr as Error).message}`);
       }
 
       log.debug(`\n[LifecycleManager] ========================================`);
       log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 启动协调完成，系统进入正常运行`);
       log.debug(`[LifecycleManager] ========================================\n`);
       
-    } catch (err: any) {
-      log.error(`[LifecycleManager] 启动协调任务失败: ${err.message}`);
-      log.error(err.stack);
+    } catch (err: unknown) {
+      log.error(`[LifecycleManager] 启动协调任务失败: ${(err as Error).message}`);
+      log.error((err as Error).stack);
     }
   }, 30 * 1000);
   

@@ -89,9 +89,9 @@ export async function getDb() {
       ]);
       conn.release();
       _lastHealthCheck = now;
-    } catch (error: any) {
+    } catch (error: unknown) {
       _poolStats.healthChecksFailed++;
-      log.warn(`[Database] v350: 连接健康检查失败(#${_poolStats.healthChecksFailed}):`, error.message);
+      log.warn(`[Database] v350: 连接健康检查失败(#${_poolStats.healthChecksFailed}):`, (error as Error).message);
       
       // 冷却期保护：防止频繁重建连接池
       if (now - _lastPoolRebuild > POOL_REBUILD_COOLDOWN) {
@@ -192,8 +192,8 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
     };
     
     return conn;
-  } catch (error: any) {
-    log.error(`[Database] v350: 获取直接连接失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[Database] v350: 获取直接连接失败: ${(error as Error).message}`);
     throw error;
   }
 }
@@ -857,7 +857,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
     adGroupId: (log as any).adGroupId ? Number((log as any).adGroupId) : undefined,
     caller: 'createBiddingLog',
   });
-  log.campaignId = safeCampaignId as any;
+  log.campaignId = safeCampaignId as unknown;
   
   const result = await db.insert(biddingLogs).values(log);
   const logId = result[0].insertId;
@@ -5863,9 +5863,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           totalBiddingLogs += await migrateFromBiddingLogs(account.id);
         }
         migrated.biddingLogs = totalBiddingLogs;
-      } catch (err: any) {
-        log.error('[AutoMigration] bidding_logs migration error:', err.message);
-        skipped.push(`bidding_logs (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] bidding_logs migration error:', (err as Error).message);
+        skipped.push(`bidding_logs (error: ${(err as Error).message})`);
       }
     }
     
@@ -5880,9 +5880,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           totalBidHistory += await migrateFromBidAdjustmentHistory(account.id);
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
-      } catch (err: any) {
-        log.error('[AutoMigration] bid_adjustment_history migration error:', err.message);
-        skipped.push(`bid_adjustment_history (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] bid_adjustment_history migration error:', (err as Error).message);
+        skipped.push(`bid_adjustment_history (error: ${(err as Error).message})`);
       }
     }
     
@@ -5900,9 +5900,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           }
         }
         migrated.optimizationLogs = totalOptLogs;
-      } catch (err: any) {
-        log.error('[AutoMigration] optimization_logs migration error:', err.message);
-        skipped.push(`optimization_logs (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] optimization_logs migration error:', (err as Error).message);
+        skipped.push(`optimization_logs (error: ${(err as Error).message})`);
       }
     }
     
@@ -5910,9 +5910,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, { migrated, skipped });
     
     return { success: true, migrated, skipped };
-  } catch (err: any) {
-    log.error('[AutoMigration] 全局迁移失败:', err.message);
-    return { success: false, migrated, skipped: [...skipped, err.message] };
+  } catch (err: unknown) {
+    log.error('[AutoMigration] 全局迁移失败:', (err as Error).message);
+    return { success: false, migrated, skipped: [...skipped, (err as Error).message] };
   }
 }
 

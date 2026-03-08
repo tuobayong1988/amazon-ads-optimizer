@@ -254,8 +254,8 @@ router.get('/status', async (req: Request, res: Response) => {
       } else {
         dbStatus = 'not_configured';
       }
-    } catch (e: any) {
-      dbStatus = `error: ${e.message}`;
+    } catch (e: unknown) {
+      dbStatus = `error: ${(e as Error).message}`;
     }
     
     // Logger状态
@@ -309,8 +309,8 @@ router.get('/status', async (req: Request, res: Response) => {
       opsLogger: opsSummary,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -325,8 +325,8 @@ router.get('/summary', (req: Request, res: Response) => {
       ...summary,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -344,8 +344,8 @@ router.get('/logs', (req: Request, res: Response) => {
       entries,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -381,8 +381,8 @@ router.get('/logs/:category', (req: Request, res: Response) => {
       entries,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -414,8 +414,8 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
         suspectedLocalIds: extractCount(invalidResult),
         verdict: extractCount(invalidResult) === 0 ? 'PASS' : 'WARN',
       };
-    } catch (e: any) {
-      checks.campaigns = { status: 'error', message: e.message };
+    } catch (e: unknown) {
+      checks.campaigns = { status: 'error', message: (e as Error).message };
     }
     
     // 检查2: 各FK表的campaignId格式
@@ -446,8 +446,8 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
           orphanedRecords: orphans,
           verdict: localIds === 0 && orphans === 0 ? 'PASS' : (localIds > 0 ? 'FAIL' : 'WARN'),
         };
-      } catch (e: any) {
-        checks[table] = { status: 'error', message: e.message };
+      } catch (e: unknown) {
+        checks[table] = { status: 'error', message: (e as Error).message };
       }
     }
     
@@ -471,8 +471,8 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
         verdict: totalAg === joinCount ? 'PASS' : 'WARN',
         note: 'adGroups.campaignId → campaigns.campaignId (Amazon ID对Amazon ID)',
       };
-    } catch (e: any) {
-      checks.joinIntegrity = { status: 'error', message: e.message };
+    } catch (e: unknown) {
+      checks.joinIntegrity = { status: 'error', message: (e as Error).message };
     }
     
     // 总体判定
@@ -487,8 +487,8 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
       checks,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -538,9 +538,9 @@ router.get('/db-logs', async (req: Request, res: Response) => {
       stats: statsRows,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     // system_logs表可能不存在
-    if (e.message?.includes('ER_NO_SUCH_TABLE') || e.message?.includes("doesn't exist")) {
+    if ((e as Error).message?.includes('ER_NO_SUCH_TABLE') || (e as Error).message?.includes("doesn't exist")) {
       res.json({
         query: req.query,
         count: 0,
@@ -550,7 +550,7 @@ router.get('/db-logs', async (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as Error).message });
     }
   }
 });
@@ -624,15 +624,15 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
       apiSyncStats,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    if (e.message?.includes("doesn't exist")) {
+  } catch (e: unknown) {
+    if ((e as Error).message?.includes("doesn't exist")) {
       res.json({
         count: 0, entries: [], stats: [],
         note: 'optimization_events表不存在',
         timestamp: new Date().toISOString(),
       });
     } else {
-      res.status(500).json({ error: e.message });
+      res.status(500).json({ error: (e as Error).message });
     }
   }
 });
@@ -694,8 +694,8 @@ router.get('/id-audit', async (req: Request, res: Response) => {
       },
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -713,8 +713,8 @@ router.get('/logger-stats', (req: Request, res: Response) => {
       status,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -735,8 +735,8 @@ router.get('/logger-query', (req: Request, res: Response) => {
       ...result,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -813,8 +813,8 @@ router.get('/sync-health', async (req: Request, res: Response) => {
       dataFreshness: freshness,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -869,8 +869,8 @@ router.get('/sync-diagnosis', async (req: Request, res: Response) => {
       opsLogs: opsLogs,
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -1101,8 +1101,8 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
       
       timestamp: new Date().toISOString(),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -1169,8 +1169,8 @@ router.get('/rl-diagnostics', opsAuth, async (req: Request, res: Response) => {
       accountDistribution: extractRows(accountDist),
       timeDistribution: extractRows(timeDist),
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 
@@ -1219,8 +1219,8 @@ router.post('/force-sync', async (req: Request, res: Response) => {
       triggeredAt: syncStartTime.toISOString(),
       note: '同步在后台异步执行，可通过 GET /api/ops/sync-health 查看进度',
     });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
   }
 });
 

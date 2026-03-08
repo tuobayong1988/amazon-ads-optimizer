@@ -110,10 +110,10 @@ export async function executeShardSync(
       totalRecordsSynced: result.totalRecordsSynced,
       durationMs,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const durationMs = Date.now() - startTime;
-    log.error(`[v358] ShardWorker: ${tier}层分片同步异常: ${error.message}`);
-    logSyncError('ShardWorker', `${tier}层分片同步异常`, { tier, error: error.message, durationMs });
+    log.error(`[v358] ShardWorker: ${tier}层分片同步异常: ${(error as Error).message}`);
+    logSyncError('ShardWorker', `${tier}层分片同步异常`, { tier, error: (error as Error).message, durationMs });
 
     return {
       taskId: null,
@@ -151,8 +151,8 @@ export function startShardWorker(): void {
         workerStatus.totalShardsRetried += result.retried;
         log.info(`[v358] ShardWorker: 自动重试完成 - 重试=${result.retried}, 成功=${result.succeeded}, 失败=${result.failed}`);
       }
-    } catch (error: any) {
-      log.error(`[v358] ShardWorker: 自动重试异常: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`[v358] ShardWorker: 自动重试异常: ${(error as Error).message}`);
     }
   }, 5 * 60 * 1000); // 5分钟
 
@@ -161,8 +161,8 @@ export function startShardWorker(): void {
     try {
       await cleanupExpiredLocks();
       await cleanupOldTasks();
-    } catch (error: any) {
-      log.error(`[v358] ShardWorker: 清理任务异常: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`[v358] ShardWorker: 清理任务异常: ${(error as Error).message}`);
     }
   }, 10 * 60 * 1000); // 10分钟
 
@@ -202,8 +202,8 @@ async function cleanupExpiredLocks(): Promise<void> {
 
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await database.delete(syncLocks).where(lte(syncLocks.expiresAt, now));
-  } catch (error: any) {
-    log.error(`[v358] 清理过期锁失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 清理过期锁失败: ${(error as Error).message}`);
   }
 }
 
@@ -234,8 +234,8 @@ async function cleanupOldTasks(): Promise<void> {
     `);
 
     log.debug('[v358] 历史任务清理完成');
-  } catch (error: any) {
-    log.error(`[v358] 清理历史任务失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 清理历史任务失败: ${(error as Error).message}`);
   }
 }
 

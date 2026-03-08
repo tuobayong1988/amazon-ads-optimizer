@@ -394,8 +394,8 @@ export const adAutomationRouter = router({
             level: item.level,
           });
           successCount++;
-        } catch (error: any) {
-          errors.push({ keyword: item.keyword, error: error.message });
+        } catch (error: unknown) {
+          errors.push({ keyword: item.keyword, error: (error as Error).message });
         }
       }
       
@@ -438,8 +438,8 @@ export const adAutomationRouter = router({
             reason: item.reason,
           });
           successCount++;
-        } catch (error: any) {
-          errors.push({ targetName: item.targetName, error: error.message });
+        } catch (error: unknown) {
+          errors.push({ targetName: item.targetName, error: (error as Error).message });
         }
       }
       

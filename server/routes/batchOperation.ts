@@ -477,8 +477,8 @@ export const batchOperationRouter = router({
               }
             }
           }
-        } catch (initError: any) {
-          log.error('[applyBidAdjustments] 创建Amazon API客户端失败:', initError.message);
+        } catch (initError: unknown) {
+          log.error('[applyBidAdjustments] 创建Amazon API客户端失败:', (initError as Error).message);
         }
       }
 
@@ -504,8 +504,8 @@ export const batchOperationRouter = router({
                 bid: Number(adj.newBid.toFixed(2)),
               }]);
               apiSuccess = true;
-            } catch (apiError: any) {
-              log.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, apiError.message);
+            } catch (apiError: unknown) {
+              log.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, (apiError as Error).message);
             }
           }
 

@@ -45,8 +45,8 @@ export class M1KeywordService {
         .where(and(...conditions));
 
       return { success: true, data, total: countResult?.count ?? 0, page, pageSize };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [], total: 0 };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [], total: 0 };
     }
   }
 
@@ -60,8 +60,8 @@ export class M1KeywordService {
         .where(eq(prelaunchKeywordClusters.projectId, projectId))
         .orderBy(desc(prelaunchKeywordClusters.avgKvi));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -75,8 +75,8 @@ export class M1KeywordService {
         .where(eq(prelaunchKeywordRelations.projectId, projectId))
         .orderBy(desc(prelaunchKeywordRelations.strength));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -90,8 +90,8 @@ export class M1KeywordService {
         .where(eq(prelaunchCosmoTriples.projectId, projectId))
         .orderBy(desc(prelaunchCosmoTriples.confidence));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -157,8 +157,8 @@ export class M1KeywordService {
           longTailKeywords: insertData.filter(k => k.relevanceLayer === 'long_tail').length,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 

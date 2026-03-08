@@ -469,10 +469,10 @@ export async function executeOptimizationSuggestions(
         aiActionExecutedAt: new Date().toISOString()
       });
       successCount++;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await db.updateAiOptimizationAction(action.id, { 
         aiActionStatus: "failed",
-        // aiActionErrorMessage: error.message,
+        // aiActionErrorMessage: (error as Error).message,
         aiActionExecutedAt: new Date().toISOString()
       });
       failedCount++;

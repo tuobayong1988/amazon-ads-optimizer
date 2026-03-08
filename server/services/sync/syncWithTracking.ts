@@ -252,14 +252,14 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     log.info('[同步WithTracking] 结果:', result);
     logSyncProtectionSummary('syncSpCampaignsWithTracking', protectionStats);
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[同步WithTracking] ❌ SP广告活动同步失败');
     log.error('[同步WithTracking] 错误类型:', error.constructor?.name);
     log.error('[同步WithTracking] 错误消息:', error?.message || error);
     log.error('[同步WithTracking] 错误堆栈:', error?.stack);
     if (error?.response) {
-      log.error('[同步WithTracking] API响应状态:', error.response.status);
-      log.error('[同步WithTracking] API响应数据:', JSON.stringify(error.response.data, null, 2));
+      log.error('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.error('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return result;
   }

@@ -198,7 +198,7 @@ export function detectConflict(
 ): { hasConflict: boolean; conflictFields: string[] } {
   const conflictFields: string[] = [];
   
-  const isEmptyValue = (value: any): boolean => {
+  const isEmptyValue = (value: Record<string, unknown>): boolean => {
     if (value === undefined || value === null) return true;
     const strValue = String(value).trim();
     return strValue === '' || strValue === '0' || strValue === '0.00' || strValue === '0.0';

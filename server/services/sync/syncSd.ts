@@ -469,8 +469,8 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SD定向第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SD定向第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 

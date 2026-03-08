@@ -119,9 +119,9 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<{ succ
     `);
     
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[AuditLog] 创建审计日志失败:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   }
 }
 

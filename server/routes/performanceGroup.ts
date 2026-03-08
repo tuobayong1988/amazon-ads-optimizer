@@ -495,11 +495,11 @@ export const performanceGroupRouter = router({
       if (statusChanges.length > 0 && group.accountId) {
         try {
           apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
-        } catch (syncError: any) {
+        } catch (syncError: unknown) {
           // v161: 捕获API同步过程中的未预期异常，防止500错误
-          log.error(`[batchUpdateCampaignStatus] API同步异常:`, syncError.message);
+          log.error(`[batchUpdateCampaignStatus] API同步异常:`, (syncError as Error).message);
           apiResult.failed = statusChanges.length;
-          apiResult.errors.push(`API同步过程发生异常: ${syncError.message}`);
+          apiResult.errors.push(`API同步过程发生异常: ${(syncError as Error).message}`);
         }
       }
       
@@ -507,10 +507,10 @@ export const performanceGroupRouter = router({
       if (apiResult.success > 0 && group.accountId) {
         try {
           const { confirmationSync } = await import('../unifiedSyncEngine');
-          confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: any) => {
+          confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: Error) => {
             log.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
           });
-        } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
+        } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
       }
 
       return {
@@ -1001,8 +1001,8 @@ export const performanceGroupRouter = router({
         try {
           const result = await db.rollbackOptimizationEvent(id, ctx.user.name || ctx.user.openId);
           results.push({ id, success: true, result });
-        } catch (error: any) {
-          results.push({ id, success: false, error: error.message });
+        } catch (error: unknown) {
+          results.push({ id, success: false, error: (error as Error).message });
         }
       }
       return { results, total: results.length, succeeded: results.filter(r => r.success).length };

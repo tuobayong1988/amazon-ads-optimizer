@@ -367,9 +367,9 @@ export async function executeNegativeKeywords(
         negativeStatus: 'active',
       } as any);
       addedCount++;
-    } catch (error: any) {
-      if (!error.message?.includes('Duplicate')) {
-        errors.push(`添加否定词 "${negative.keyword}" 失败: ${error.message}`);
+    } catch (error: unknown) {
+      if (!(error as Error).message?.includes('Duplicate')) {
+        errors.push(`添加否定词 "${negative.keyword}" 失败: ${(error as Error).message}`);
       }
     }
   }

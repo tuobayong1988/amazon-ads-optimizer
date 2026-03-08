@@ -174,7 +174,7 @@ async function checkBidDirectionConsistency(
     }
     
     return { isOscillating: false, reason: '' };
-  } catch (err: any) {
+  } catch (err: unknown) {
     return { isOscillating: false, reason: '' };
   }
 }
@@ -250,9 +250,9 @@ async function isInCooldownPeriod(
     }
     
     return { inCooldown: false, reason: '', recentAdjustments };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 冷却检查失败不阻塞出价流程
-    log.warn(`[CooldownCheck] 冷却检查异常: ${error.message}`);
+    log.warn(`[CooldownCheck] 冷却检查异常: ${(error as Error).message}`);
     return { inCooldown: false, reason: '', recentAdjustments: 0 };
   }
 }
@@ -397,8 +397,8 @@ async function checkCircuitBreaker(
     }
     
     return { tripped: false, reason: '', guardrailInfo };
-  } catch (error: any) {
-    log.warn(`[CircuitBreaker] 熔断检查异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[CircuitBreaker] 熔断检查异常: ${(error as Error).message}`);
     return { tripped: false, reason: '', guardrailInfo: {} };
   }
 }
@@ -1142,9 +1142,9 @@ export async function calculateNextGenBid(
     // 高级算法不可用（数据不足），自然降级到2层
     // 不记录为错误，这是正常的算法选择流程
     
-  } catch (advancedError: any) {
+  } catch (advancedError: unknown) {
     // 高级算法执行异常，降级到2层2层
-    log.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${advancedError.message}`);
+    log.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${(advancedError as Error).message}`);
   }
   
   // ===== v257: 出价冷却时间检查 =====
@@ -1175,8 +1175,8 @@ export async function calculateNextGenBid(
       return buildResult(target, target.currentBid, 'direction_hold', 0.5,
         `[v267方向保护] ${directionCheck.reason}: 检测到出价振荡模式，强制hold等待数据稳定`, 'guardrail');
     }
-  } catch (dirErr: any) {
-    log.warn(`[NextGenOrchestrator] v267方向检查异常: ${dirErr.message}`);
+  } catch (dirErr: unknown) {
+    log.warn(`[NextGenOrchestrator] v267方向检查异常: ${(dirErr as Error).message}`);
   }
   
   // ===== 第2层：规则引擎 =====
@@ -1305,8 +1305,8 @@ export async function calculateNextGenBid(
     return buildResult(target, safeBid, 'rule_engine', ruleResult.confidence,
       `[规则引擎] ${finalReason}`, 'rule_engine');
     
-  } catch (ruleError: any) {
-    log.error(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${ruleError.message}`);
+  } catch (ruleError: unknown) {
+    log.error(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${(ruleError as Error).message}`);
   }
   
   // ===== 第3层：保守策略（绝对兜底） =====
@@ -1458,9 +1458,9 @@ export async function batchCalculateNextGenBids(
     
     gtoModifiers = batchCalculateGTOModifiers(targets, groupConfig, gtoContext);
     log.info(`[NextGenOrchestrator] GTO修正层已启用: ${gtoModifiers.size}个目标获得修正系数`);
-  } catch (gtoError: any) {
+  } catch (gtoError: unknown) {
     // GTO层失败不影响NextGen核心流程
-    log.warn(`[NextGenOrchestrator] GTO修正层异常(已降级): ${gtoError.message}`);
+    log.warn(`[NextGenOrchestrator] GTO修正层异常(已降级): ${(gtoError as Error).message}`);
   }
   
   // ===== v274: 加载因果推断结果，作为出价修正信号 =====
@@ -1501,8 +1501,8 @@ export async function batchCalculateNextGenBids(
     if (causalMap.size > 0) {
       log.info(`[NextGenOrchestrator] v274 因果推断信号已加载: ${causalMap.size}个关键词/定向`);
     }
-  } catch (causalErr: any) {
-    log.warn(`[NextGenOrchestrator] v274 因果推断加载异常(已降级): ${causalErr.message}`);
+  } catch (causalErr: unknown) {
+    log.warn(`[NextGenOrchestrator] v274 因果推断加载异常(已降级): ${(causalErr as Error).message}`);
   }
   
   // ===== 核心出价计算 =====
@@ -1634,40 +1634,40 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
   try {
     log.info(`[NextGenMaintenance] 开始特征提取: 账户${accountId}`);
     results.featuresCached = await batchExtractAndCacheFeatures(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] 特征提取失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] 特征提取失败: ${(err as Error).message}`);
   }
   
   // 2. 批量拟合Sigmoid曲线
   try {
     log.info(`[NextGenMaintenance] 开始Sigmoid曲线拟合`);
     results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] Sigmoid拟合失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] Sigmoid拟合失败: ${(err as Error).message}`);
   }
   
   // 3. 回填RL Rewards
   try {
     log.info(`[NextGenMaintenance] 开始Reward回填`);
     results.rewardsBackfilled = await backfillRewards(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] Reward回填失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] Reward回填失败: ${(err as Error).message}`);
   }
   
   // 4. 运行因果推断分析
   try {
     log.info(`[NextGenMaintenance] 开始因果推断分析`);
     results.causalAnalysis = await batchCausalAnalysis(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] 因果分析失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] 因果分析失败: ${(err as Error).message}`);
   }
   
   // 5. 回填算法选择结果
   try {
     log.info(`[NextGenMaintenance] 开始算法结果回填`);
     results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] 算法结果回填失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] 算法结果回填失败: ${(err as Error).message}`);
   }
   
   // 6. v256: 自动解决积压的sync_conflicts
@@ -1675,8 +1675,8 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
   try {
     log.info(`[NextGenMaintenance] 开始自动冲突解决`);
     conflictsResult = await autoResolveConflicts(accountId);
-  } catch (err: any) {
-    log.error(`[NextGenMaintenance] 自动冲突解决失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[NextGenMaintenance] 自动冲突解决失败: ${(err as Error).message}`);
   }
   
   log.info(`[NextGenMaintenance] 维护完成(账户${accountId}): ` +
@@ -1696,8 +1696,8 @@ export async function executeModelTraining(accountId: number): Promise<void> {
     log.info(`[NextGenTraining] 开始CQL模型训练: 账户${accountId}`);
     await trainCQL(accountId);
     log.info(`[NextGenTraining] CQL训练完成: 账户${accountId}`);
-  } catch (error: any) {
-    log.error(`[NextGenTraining] CQL训练失败(账户${accountId}): ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[NextGenTraining] CQL训练失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1711,8 +1711,8 @@ export async function executeBudgetOptimization(accountId: number): Promise<void
     if (result) {
       log.info(`[NextGenBudget] 预算优化完成: ${result.allocations.length}个广告活动, 预期利润=$${result.expectedTotalProfit.toFixed(2)}`);
     }
-  } catch (error: any) {
-    log.error(`[NextGenBudget] 预算优化失败(账户${accountId}): ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[NextGenBudget] 预算优化失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1726,8 +1726,8 @@ export async function executeKeywordGraphAnalysis(accountId: number): Promise<vo
     const opportunities = await discoverOpportunities(accountId);
     const negatives = await discoverNegativeCandidates(accountId);
     log.info(`[NextGenKeyword] 图谱分析完成: ${opportunities.length}个扩展机会, ${negatives.length}个否定词候选`);
-  } catch (error: any) {
-    log.error(`[NextGenKeyword] 图谱分析失败(账户${accountId}): ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[NextGenKeyword] 图谱分析失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1742,7 +1742,7 @@ export async function updateLinUCBFromReward(
 ): Promise<void> {
   try {
     await updateArm(accountId, armType, context, reward);
-  } catch (error: any) {
-    log.error(`[NextGenOrchestrator] LinUCB更新失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[NextGenOrchestrator] LinUCB更新失败: ${(error as Error).message}`);
   }
 }

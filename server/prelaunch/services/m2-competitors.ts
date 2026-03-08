@@ -40,8 +40,8 @@ export class M2CompetitorService {
         .where(and(...conditions));
 
       return { success: true, data, total: countResult?.count ?? 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [], total: 0 };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [], total: 0 };
     }
   }
 
@@ -64,8 +64,8 @@ export class M2CompetitorService {
           trsBreakdown: comp.trsBreakdown ? (typeof comp.trsBreakdown === 'string' ? JSON.parse(comp.trsBreakdown) : comp.trsBreakdown) : null,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -78,8 +78,8 @@ export class M2CompetitorService {
         .from(prelaunchCompetitorScenarioMatrix)
         .where(eq(prelaunchCompetitorScenarioMatrix.projectId, projectId));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -96,8 +96,8 @@ export class M2CompetitorService {
         .where(and(...conditions))
         .orderBy(desc(prelaunchCompetitorUserLanguage.frequency));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -188,8 +188,8 @@ Return JSON array.`, { temperature: 0.3 });
           t3Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T3_niche').length,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 

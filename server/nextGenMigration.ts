@@ -267,8 +267,8 @@ export async function ensureNextGenTables(): Promise<{ success: boolean; tablesC
     for (const dropSql of DROP_TABLES) {
       try {
         await db.execute(sql.raw(dropSql));
-      } catch (err: any) {
-        log.error(`[NextGen Migration] Error dropping table:`, err.message);
+      } catch (err: unknown) {
+        log.error(`[NextGen Migration] Error dropping table:`, (err as Error).message);
       }
     }
 
@@ -279,13 +279,13 @@ export async function ensureNextGenTables(): Promise<{ success: boolean; tablesC
         await db.execute(sql.raw(table.ddl));
         tablesCreated++;
         log.info(`[NextGen Migration] Table '${table.name}' ensured successfully`);
-      } catch (err: any) {
-        log.error(`[NextGen Migration] Error creating table '${table.name}':`, err.message);
+      } catch (err: unknown) {
+        log.error(`[NextGen Migration] Error creating table '${table.name}':`, (err as Error).message);
       }
     }
 
     return { success: true, tablesCreated };
-  } catch (err: any) {
-    return { success: false, tablesCreated: 0, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, tablesCreated: 0, error: (err as Error).message };
   }
 }
