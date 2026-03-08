@@ -1258,7 +1258,10 @@ export async function syncAccount(
       log.warn(`[UnifiedSync] 更新账户 ${account.accountId} 同步状态失败: ${e.message}`);
     }
 
-    result.success = result.failedSteps === 0 || result.completedSteps > 0;
+    // v358: 收紧成功判定 - 任何步骤失败都标记为失败
+    // 旧逻辑: result.failedSteps === 0 || result.completedSteps > 0 (只要有一步成功就算成功，导致静默失败)
+    // 新逻辑: 只有所有步骤都成功才算成功
+    result.success = result.failedSteps === 0;
 
     // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警
     if (result.totalSynced === 0 && result.totalSteps > 0) {

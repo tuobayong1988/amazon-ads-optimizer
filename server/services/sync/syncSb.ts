@@ -541,7 +541,8 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
  */
 AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
     // v339: Amazon API单次请求最多31天，需要分批请求
@@ -725,7 +726,8 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     return synced;
   } catch (error) {
     log.error('同步SB搜索词失败:', error);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -735,7 +737,8 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
  */
 AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
     // v339: Amazon API单次请求最多31天，需要分批请求
@@ -847,7 +850,8 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     return synced;
   } catch (error) {
     log.error('同步SB定向失败:', error);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -1106,7 +1110,8 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
  */
 AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
   let synced = 0;
   try {
     // v339: Amazon API单次请求最多31天，需要分批请求

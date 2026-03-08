@@ -69,8 +69,9 @@ declare module '../../amazonSyncService' {
 AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
   if (!db) {
-    log.error('数据库连接失败');
-    return 0;
+    log.error('[v358] 数据库连接失败 - 这是一个真实错误，不是"0条数据"');
+    // v358: 抛出错误而不是返回0，让调用方知道这是失败而非空数据
+    throw new Error('DATABASE_UNAVAILABLE: 数据库连接失败');
   }
 
   try {
@@ -79,6 +80,8 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
     
     let totalSynced = 0;
+    // v358: 追踪失败批次，不再静默吞掉错误
+    const failedBatches: { batch: number; startDate: string; endDate: string; error: string }[] = [];
     
     // 使用站点时区计算历史日期范围（排除今天，只拉取T-1及之前的数据）
     // 快慢双轨架构：API只负责历史数据，今日数据由AMS实时推送
@@ -115,7 +118,14 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (batchError: any) {
-        log.error(`第${batch + 1}批同步失败:`, batchError.message);
+        // v358: 记录失败批次详情，而不是仅打日志就跳过
+        log.error(`[v358] 第${batch + 1}/${batches}批同步失败: ${batchError.message}`);
+        failedBatches.push({
+          batch: batch + 1,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          error: batchError.message,
+        });
         // 继续下一批，不中断整个同步过程
       }
     }
@@ -131,9 +141,20 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       log.error(`v195: hourly_performance生成失败: ${hourlyErr.message}`);
     }
     
+    // v358: 如果有失败批次，抛出错误让调用方知道同步不完整
+    if (failedBatches.length > 0) {
+      const failSummary = failedBatches.map(fb => `批次${fb.batch}(${fb.startDate}~${fb.endDate}): ${fb.error}`).join('; ');
+      log.error(`[v358] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
+      throw new Error(`PARTIAL_SYNC_FAILURE: ${failedBatches.length}/${batches}批失败, 成功${totalSynced}条. ${failSummary}`);
+    }
+    
     log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
     return totalSynced;
   } catch (error: any) {
+    // v358: 如果是我们自己抛出的PARTIAL_SYNC_FAILURE，直接重新抛出
+    if (error.message?.startsWith('PARTIAL_SYNC_FAILURE:')) {
+      throw error;
+    }
     log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: error.message, status: error.status || error.response?.status, code: error.code })}`);
     log.error('[v242] 详细错误:', error.stack?.substring(0, 500));
     
@@ -142,7 +163,8 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
     }
     
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -151,7 +173,8 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
  */
 AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: AmazonSyncService, startDateStr: string, endDateStr: string): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   let totalSynced = 0;
 
@@ -509,8 +532,9 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     log.info(`  - 总同步: ${synced} 条`);
     return synced;
   } catch (error: any) {
-    log.error(`${adType}报告数据处理失败:`, error.message);
-    return 0;
+    log.error(`[v358] ${adType}报告数据处理失败:`, error.message);
+    // v358: 抛出错误而不是返回0，让调用方知道这是处理失败
+    throw new Error(`${adType}_REPORT_PROCESS_FAILED: ${error.message}`);
   }
 };
 
@@ -522,7 +546,8 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
 AmazonSyncService.prototype.generateMockPerformanceData = async function(this: AmazonSyncService, days: number = 7): Promise<number> {
   log.warn('⚠️ generateMockPerformanceData已废弃，不应被调用！请使用syncPerformanceData()代替');
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
     // 获取该账户下所有广告活动
@@ -601,7 +626,8 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     return synced;
   } catch (error) {
     log.error('生成模拟绩效数据失败:', error);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -613,7 +639,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
   const db = await getDb();
   if (!db) {
     log.error('数据库连接失败');
-    return 0;
+    // v358: 数据库不可用是真实错误
+    throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
   }
 
   try {
@@ -858,7 +885,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       responseData: error.response?.data ? JSON.stringify(error.response.data).substring(0, 500) : undefined,
     };
     log.error(`[v242] 关键词绩效同步失败(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -881,7 +909,8 @@ AmazonSyncService.prototype.syncProductTargetPerformanceData = async function(th
  */
 AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: AmazonSyncService, startDate: string, endDate: string): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
   
   // 美国电商典型的小时流量分布
   const HOURLY_TRAFFIC = [
@@ -1019,7 +1048,8 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     return insertedCount;
   } catch (error: any) {
     log.error('v195: generateHourlyFromDaily失败:', error.message);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
@@ -1032,7 +1062,8 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
  */
 AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   let synced = 0;
   try {
@@ -1256,7 +1287,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
  */
 AmazonSyncService.prototype.syncPlacementPerformance = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
     // v339: Amazon API单次请求最多31天，需要分批请求
@@ -1440,7 +1472,8 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     return synced;
   } catch (error) {
     log.error('同步位置绩效失败:', error);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
