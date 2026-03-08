@@ -32,3 +32,11 @@
 
 // 所有导出都来自原始db.ts，保持完全兼容
 export * from '../db';
+
+// v360: 子模块代理re-export（新代码应直接从子模块导入）
+// 示例: import { getDb } from './db/connection';
+// 示例: import { getCampaignById } from './db/campaigns';
+export * from './connection';
+export * from './accounts';
+export * from './campaigns';
+export * from './performance';
