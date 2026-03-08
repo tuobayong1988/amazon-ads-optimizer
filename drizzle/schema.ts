@@ -4302,3 +4302,70 @@ export const featureFlags = mysqlTable("feature_flags", {
 }, (table) => [
   index("idx_ff_key").on(table.flagKey),
 ]);
+
+// ==================== v358: 持久化任务状态机 ====================
+
+export const syncTasksV2 = mysqlTable("sync_tasks_v2", {
+	id: int().autoincrement().notNull(),
+	taskId: varchar("task_id", { length: 64 }).notNull(),
+	tier: mysqlEnum(['high', 'medium', 'full', 'confirmation']).notNull(),
+	status: mysqlEnum(['pending', 'running', 'partial_success', 'completed', 'failed', 'cancelled']).default('pending').notNull(),
+	totalShards: int("total_shards").default(0).notNull(),
+	completedShards: int("completed_shards").default(0).notNull(),
+	failedShards: int("failed_shards").default(0).notNull(),
+	totalRecordsSynced: int("total_records_synced").default(0).notNull(),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	triggerSource: varchar("trigger_source", { length: 50 }),
+	errorSummary: text("error_summary"),
+},
+(table) => [
+	unique("uk_task_id").on(table.taskId),
+	index("idx_sync_tasks_v2_status").on(table.status),
+	index("idx_sync_tasks_v2_tier_status").on(table.tier, table.status),
+	index("idx_sync_tasks_v2_created_at").on(table.createdAt),
+]);
+
+export const syncShards = mysqlTable("sync_shards", {
+	id: int().autoincrement().notNull(),
+	taskId: varchar("task_id", { length: 64 }).notNull(),
+	shardId: varchar("shard_id", { length: 128 }).notNull(),
+	accountId: int("account_id").notNull(),
+	stepId: varchar("step_id", { length: 50 }).notNull(),
+	stepName: varchar("step_name", { length: 100 }).notNull(),
+	tier: mysqlEnum(['high', 'medium', 'full']).notNull(),
+	status: mysqlEnum(['pending', 'running', 'completed', 'failed', 'skipped']).default('pending').notNull(),
+	recordsSynced: int("records_synced").default(0).notNull(),
+	errorMessage: text("error_message"),
+	errorCode: varchar("error_code", { length: 50 }),
+	retryCount: int("retry_count").default(0).notNull(),
+	maxRetries: int("max_retries").default(3).notNull(),
+	nextRetryAt: timestamp("next_retry_at", { mode: 'string' }),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	durationMs: int("duration_ms"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	unique("uk_shard_id").on(table.shardId),
+	index("idx_sync_shards_task_id").on(table.taskId),
+	index("idx_sync_shards_account_step").on(table.accountId, table.stepId),
+	index("idx_sync_shards_status").on(table.status),
+	index("idx_sync_shards_status_retry").on(table.status, table.nextRetryAt),
+	index("idx_sync_shards_task_status").on(table.taskId, table.status),
+]);
+
+export const syncLocks = mysqlTable("sync_locks", {
+	id: int().autoincrement().notNull(),
+	lockKey: varchar("lock_key", { length: 128 }).notNull(),
+	holderId: varchar("holder_id", { length: 64 }).notNull(),
+	acquiredAt: timestamp("acquired_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	expiresAt: timestamp("expires_at", { mode: 'string' }).notNull(),
+},
+(table) => [
+	unique("uk_lock_key").on(table.lockKey),
+	index("idx_sync_locks_expires_at").on(table.expiresAt),
+]);

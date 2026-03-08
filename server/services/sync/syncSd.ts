@@ -440,7 +440,8 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
  */
 AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
+  // v358: 数据库不可用是真实错误，不应返回0
+  if (!db) throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
 
   try {
     // v339: Amazon API单次请求最多31天，需要分批请求
@@ -566,7 +567,8 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     return synced;
   } catch (error) {
     log.error('同步SD定向失败:', error);
-    return 0;
+    // v358: 抛出错误而不是返回0
+    throw error;
   }
 };
 
