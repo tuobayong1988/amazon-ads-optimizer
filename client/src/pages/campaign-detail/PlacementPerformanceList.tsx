@@ -6,7 +6,7 @@
 import React from "react";
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
-import { trpc } from '@/utils/trpc';
+import { trpc } from '@/lib/trpc';
 
 export function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: number | null, campaignType: string }) {
   const { data: placements, isLoading } = trpc.campaign.getPlacementPerformance.useQuery(

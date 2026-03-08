@@ -137,7 +137,7 @@ export function getSchedulerStatus(): SchedulerStatus {
  * 
  * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步，默认60分钟
  */
-export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 1000): void {
+export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 1000): Promise<void> {
   if (schedulerStatus.isRunning) {
     log.info('[DataSyncScheduler] 定时同步调度器已在运行中');
     return;

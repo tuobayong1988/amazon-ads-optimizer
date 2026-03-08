@@ -7,7 +7,7 @@ import React from "react";
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
-import { trpc } from '@/utils/trpc';
+import { trpc } from '@/lib/trpc';
 
 export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
   const { data: negatives, isLoading } = trpc.campaign.getNegativeKeywords.useQuery(

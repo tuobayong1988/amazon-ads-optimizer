@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../_core/trpc';
+import { publicProcedure, protectedProcedure, router } from '../_core/trpc';
 import { BidOptimizer, BudgetAllocator, type HistoricalData, type OptimizationTarget } from '../ml/bidOptimizer';
 import * as db from '../db';
 

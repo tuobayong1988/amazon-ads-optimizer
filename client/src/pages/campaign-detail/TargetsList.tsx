@@ -12,9 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Pause, Play, Target, TrendingUp } from 'lucide-react';
-import { trpc } from '@/utils/trpc';
-import { useToast } from '@/hooks/use-toast';
-import { formatAutoTargetingExpression } from './CampaignDetail';
+import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
+import { formatAutoTargetingExpression } from '../CampaignDetail';
 
 export function TargetsList({ campaignId }: { campaignId: number }) {
   const utils = trpc.useUtils();
