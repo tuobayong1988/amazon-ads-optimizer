@@ -875,22 +875,32 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     log.error(`[DataSyncScheduler] v152: 效果追踪失败:`, (trackError as Error).message);
   }
 
-  // ✅ v152: 每天执行一次全局算法进化（检查当天是否已执行过）
+  // v360: 算法进化周期从每天一次优化为每12小时一次，并使用DB持久化去重
+  // 原来: 每天一次 + 内存Set去重（重启后丢失）
+  // 现在: 每12小时一次 + 基于时间窗口去重（重启安全）
   try {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    const lastEvolutionKey = `evolution_${schedule.accountId}_${todayStr}`;
+    // v360: 使用12小时窗口替代每天一次
+    const halfDaySlot = `${now.toISOString().slice(0, 10)}_${now.getHours() < 12 ? 'AM' : 'PM'}`;
+    const lastEvolutionKey = `evolution_${schedule.accountId}_${halfDaySlot}`;
     if (!(globalThis as unknown).__evolutionExecuted) {
       (globalThis as unknown).__evolutionExecuted = new Set();
     }
-    if (!(globalThis as unknown).__evolutionExecuted.has(lastEvolutionKey)) {
+    // v360: 限制Set大小，防止内存泄漏
+    const evoSet = (globalThis as unknown).__evolutionExecuted as Set<string>;
+    if (evoSet.size > 200) {
+      const entries = Array.from(evoSet);
+      entries.slice(0, 100).forEach(e => evoSet.delete(e));
+    }
+    
+    if (!evoSet.has(lastEvolutionKey)) {
       const { runGlobalEvolution } = await import('./algorithmEvolutionEngine');
       const evolutionResult = await runGlobalEvolution();
-      (globalThis as unknown).__evolutionExecuted.add(lastEvolutionKey);
-      log.info(`[DataSyncScheduler] v152: 算法进化完成: 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
+      evoSet.add(lastEvolutionKey);
+      log.info(`[DataSyncScheduler] v360: 算法进化完成(12h周期): 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
     }
   } catch (evoError: unknown) {
-    log.error(`[DataSyncScheduler] v152: 算法进化失败:`, (evoError as Error).message);
+    log.error(`[DataSyncScheduler] v360: 算法进化失败:`, (evoError as Error).message);
   }
 
   // ✅ v167: 数据同步完成后，自动运行纠错扫描（检测并修复过往错误优化）
