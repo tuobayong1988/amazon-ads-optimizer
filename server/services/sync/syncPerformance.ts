@@ -291,6 +291,53 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 /**
  * 处理报告数据并存储到数据库
  */
+/**
+ * v360: 批量UPSERT daily_performance 数据
+ * 使用 ON DUPLICATE KEY UPDATE 策略，依赖 uk_daily_perf 唯一约束 (accountId, campaignId, date, adType)
+ * 同时通过原生SQL更新货币字段
+ */
+async function flushDailyPerfBatch(
+  db: any,
+  batch: any[],
+  currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[]
+): Promise<void> {
+  if (batch.length === 0) return;
+
+  await db.insert(dailyPerformance).values(batch).onDuplicateKeyUpdate({
+    set: {
+      impressions: sql`VALUES(${dailyPerformance.impressions})`,
+      clicks: sql`VALUES(${dailyPerformance.clicks})`,
+      spend: sql`VALUES(${dailyPerformance.spend})`,
+      sales: sql`VALUES(${dailyPerformance.sales})`,
+      orders: sql`VALUES(${dailyPerformance.orders})`,
+      dailyAcos: sql`VALUES(${dailyPerformance.dailyAcos})`,
+      dailyRoas: sql`VALUES(${dailyPerformance.dailyRoas})`,
+      ctr: sql`VALUES(${dailyPerformance.ctr})`,
+      cvr: sql`VALUES(${dailyPerformance.cvr})`,
+      cpc: sql`VALUES(${dailyPerformance.cpc})`,
+      unitsSold: sql`VALUES(${dailyPerformance.unitsSold})`,
+      dpv: sql`VALUES(${dailyPerformance.dpv})`,
+      addToCart: sql`VALUES(${dailyPerformance.addToCart})`,
+      ntbOrders: sql`VALUES(${dailyPerformance.ntbOrders})`,
+      ntbSales: sql`VALUES(${dailyPerformance.ntbSales})`,
+      viewableImpressions: sql`VALUES(${dailyPerformance.viewableImpressions})`,
+      attributionWindow: sql`VALUES(${dailyPerformance.attributionWindow})`,
+      isFinalized: sql`VALUES(${dailyPerformance.isFinalized})`,
+      dataSource: sql`VALUES(${dailyPerformance.dataSource})`,
+    }
+  });
+
+  // v360: 批量更新货币字段（这些字段不在Drizzle schema中）
+  // 使用复合键匹配更新
+  for (let i = 0; i < batch.length; i++) {
+    const row = batch[i];
+    const cur = currencyBatch[i];
+    if (cur) {
+      await db.execute(sql`UPDATE daily_performance SET currency = ${cur.currency}, exchange_rate = ${cur.exchangeRate}, spend_usd = ${cur.spendUsd}, sales_usd = ${cur.salesUsd} WHERE accountId = ${row.accountId} AND campaignId = ${row.campaignId} AND DATE(date) = ${row.date} AND ad_type = ${row.adType}`);
+    }
+  }
+}
+
 AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
@@ -316,6 +363,10 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     let matchedById = 0;
     let matchedByName = 0;
     let notMatched = 0;
+
+    // v360: 批量UPSERT数组
+    let upsertBatch: any[] = [];
+    let currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[] = [];
     
     for (const row of reportData) {
       // 策略：先用campaignId匹配，失败后用campaignName匹配
@@ -406,18 +457,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
-      // v323: 检查是否已存在当天数据 - 必须包含accountId条件防止跨账户数据混淆
-      const [existing] = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.accountId, this.accountId),
-            eq(dailyPerformance.campaignId, String(campaign.campaignId)),
-            sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
-          )
-        )
-        .limit(1);
+      // v360: 移除逐条SELECT检查，改用批量UPSERT（见下方批量写入）
 
       // 使用 Amazon Ads API v3 的字段名 (2026年1月更新)
       // ⚠️ 重要: 不同广告类型使用不同的字段名
@@ -500,28 +540,27 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         dataSource: 'api' as const,
       };
 
-      if (existing) {
-        await db
-          .update(dailyPerformance)
-          .set(perfData)
-          .where(eq(dailyPerformance.id, existing.id));
-        // v104: Update currency fields via raw SQL (not in Drizzle schema)
-        await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${existing.id}`);
-      } else {
-        const insertResult = await db.insert(dailyPerformance).values({
-          ...perfData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
-        // v104: Update currency fields via raw SQL for newly inserted record
-        const insertId = insertResult?.[0]?.insertId || insertResult?.insertId;
-        if (insertId) {
-          await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
-        } else {
-          // Fallback: update by composite key
-          await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.campaignId} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
-        }
-      }
+      // v360: 收集到批量数组中，后续统一UPSERT
+      upsertBatch.push({
+        ...perfData,
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      });
+      currencyBatch.push({ currency, exchangeRate, spendUsd: spendUsd.toFixed(2), salesUsd: salesUsd.toFixed(2) });
       synced++;
+
+      // v360: 每500条执行一次批量UPSERT
+      if (upsertBatch.length >= 500) {
+        await flushDailyPerfBatch(db, upsertBatch, currencyBatch);
+        upsertBatch = [];
+        currencyBatch = [];
+      }
+    }
+
+    // v360: flush剩余的批量数据
+    if (upsertBatch.length > 0) {
+      await flushDailyPerfBatch(db, upsertBatch, currencyBatch);
+      upsertBatch = [];
+      currencyBatch = [];
     }
 
     // 输出匹配统计

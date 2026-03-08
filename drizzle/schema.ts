@@ -1552,7 +1552,12 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	isAttributed: tinyint("is_attributed").default(1),
 	estimatedIncrementalOrders: decimal("estimated_incremental_orders", { precision: 10, scale: 4 }),
 	estimatedIncrementalSales: decimal("estimated_incremental_sales", { precision: 10, scale: 2 }),
-});
+},
+(table) => [
+	unique('uk_daily_perf').on(table.accountId, table.campaignId, table.date, table.adType),
+	index('idx_daily_perf_account_date').on(table.accountId, table.date),
+	index('idx_daily_perf_campaign_date').on(table.campaignId, table.date),
+]);
 
 export const dataConsistencyChecks = mysqlTable("data_consistency_checks", {
 	id: int().autoincrement().notNull(),
