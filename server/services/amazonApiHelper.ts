@@ -12,6 +12,8 @@
 import { AmazonSyncService } from '../amazonSyncService';
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
+// v359: 分端点限流服务
+import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './apiRateLimitService';
 // v223: getAmazonSyncService 从 syncServiceProvider re-export
 import { getAmazonSyncService as _getAmazonSyncService } from './syncServiceProvider';
 
@@ -37,6 +39,14 @@ async function withRetry<T>(
       const isThrottle = error.response?.status === 429 || (error as Error).message?.includes('请求过于频繁') || (error as Error).message?.includes('Too Many Requests');
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
       const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
+      
+      // v359: 通知分端点限流服务，触发自适应降速
+      if (isThrottle) {
+        try {
+          const endpointType = classifyEndpoint(label);
+          getApiRateLimitService().recordExternalThrottle(0, endpointType);
+        } catch (_) { /* 限流服务异常不影响主流程 */ }
+      }
       
       if (!isRetryable || attempt >= maxRetries) {
         throw error;
