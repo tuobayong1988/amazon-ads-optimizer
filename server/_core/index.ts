@@ -83,9 +83,11 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // v185: 健康检查端点（供EB负载均衡器使用）
-  app.get('/health', (req, res) => {
+  // v362: 增强健康检查端点（供EB负载均衡器使用）
+  // 添加数据库连接检查、内存使用监控、启动状态检测
+  app.get('/health', async (req, res) => {
     const info = getSystemInfo();
+    
     if (info.isShuttingDown) {
       // 关闭中返回503，让LB停止发送新请求
       res.status(503).json({ 
@@ -93,14 +95,42 @@ async function startServer() {
         version: `v${info.version}`,
         activeTasks: info.activeTasks,
       });
-    } else {
-      res.status(200).json({ 
-        status: 'healthy', 
-        version: `v${info.version}`,
-        uptime: Math.round(info.uptime),
-        activeTasks: info.activeTasks,
-      });
+      return;
     }
+    
+    // 数据库连接检查
+    let dbHealthy = false;
+    try {
+      const { getDb } = await import('../db/connection');
+      const db = await getDb();
+      if (db) {
+        const { sql } = await import('drizzle-orm');
+        await db.execute(sql`SELECT 1`);
+        dbHealthy = true;
+      }
+    } catch {
+      dbHealthy = false;
+    }
+    
+    // 内存使用检查
+    const memUsage = process.memoryUsage();
+    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
+    const memoryHealthy = heapUsedMB < 1400; // 1.4GB阈值
+    
+    const overallHealthy = dbHealthy && memoryHealthy;
+    const status = overallHealthy ? 'healthy' : 'degraded';
+    
+    res.status(overallHealthy ? 200 : 200).json({ 
+      status,
+      version: `v${info.version}`,
+      uptime: Math.round(info.uptime),
+      activeTasks: info.activeTasks,
+      checks: {
+        database: dbHealthy ? 'ok' : 'fail',
+        memory: memoryHealthy ? 'ok' : `warning (${heapUsedMB}MB/${heapTotalMB}MB)`,
+      },
+    });
   });
   
   // v185: 详细系统状态端点（供运维监控）

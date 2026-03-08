@@ -1,5 +1,12 @@
 /**
- * v361: 统一审计日志服务
+ * v362: 统一审计日志服务
+ * 
+ * 重构说明：
+ * v361版本的auditLogService使用原生SQL创建独立的audit_logs表，
+ * 与Drizzle schema中已定义的auditLogs表字段不匹配，导致INSERT失败。
+ * 
+ * v362重构：完全基于Drizzle schema的auditLogs表定义，
+ * 使用Drizzle ORM进行数据写入，确保字段完全一致。
  * 
  * 记录所有敏感操作的审计日志，包括：
  * - 账户管理（创建、删除、修改凭证）
@@ -12,16 +19,39 @@
  * 1. 异步写入，不阻塞主业务流程
  * 2. 结构化日志，便于查询和分析
  * 3. 不可篡改，仅追加写入
+ * 4. 与Drizzle schema完全一致
  */
 
 import { createModuleLogger } from '../utils/logger';
 import { getDb } from '../db/connection';
-import { sql } from 'drizzle-orm';
+import { auditLogs } from '../../drizzle/schema';
+import { desc, eq, and, gte, lte, inArray, sql } from 'drizzle-orm';
 
 const log = createModuleLogger('AuditLog');
 
 // ==================== 类型定义 ====================
 
+// 与Drizzle schema中auditLogs.actionType的enum完全一致
+export type DrizzleActionType = 
+  | 'account_create' | 'account_update' | 'account_delete' | 'account_connect' | 'account_disconnect'
+  | 'campaign_create' | 'campaign_update' | 'campaign_delete' | 'campaign_pause' | 'campaign_enable'
+  | 'bid_adjust_single' | 'bid_adjust_batch' | 'bid_rollback'
+  | 'negative_add_single' | 'negative_add_batch' | 'negative_remove'
+  | 'performance_group_create' | 'performance_group_update' | 'performance_group_delete'
+  | 'automation_enable' | 'automation_disable' | 'automation_config_update'
+  | 'scheduler_task_create' | 'scheduler_task_update' | 'scheduler_task_delete' | 'scheduler_task_run'
+  | 'team_member_invite' | 'team_member_update' | 'team_member_remove' | 'team_permission_update'
+  | 'data_import' | 'data_export'
+  | 'settings_update' | 'notification_config_update'
+  | 'other';
+
+// 与Drizzle schema中auditLogs.targetType的enum完全一致
+export type DrizzleTargetType = 
+  | 'account' | 'campaign' | 'ad_group' | 'keyword' | 'product_target'
+  | 'performance_group' | 'negative_keyword' | 'bid' | 'automation'
+  | 'scheduler' | 'team_member' | 'permission' | 'settings' | 'data' | 'other';
+
+// v361兼容类型 -> Drizzle类型的映射
 export type AuditAction = 
   // 账户操作
   | 'account.create' | 'account.delete' | 'account.update' | 'account.credentials_update'
@@ -41,6 +71,74 @@ export type AuditAction =
   | 'user.login' | 'user.logout' | 'user.settings_change'
   // 团队操作
   | 'team.invite' | 'team.remove' | 'team.permission_change';
+
+/**
+ * 将v361风格的action映射到Drizzle schema的actionType enum
+ */
+function mapActionToDrizzle(action: AuditAction): DrizzleActionType {
+  const mapping: Record<AuditAction, DrizzleActionType> = {
+    'account.create': 'account_create',
+    'account.delete': 'account_delete',
+    'account.update': 'account_update',
+    'account.credentials_update': 'account_update',
+    'campaign.pause': 'campaign_pause',
+    'campaign.enable': 'campaign_enable',
+    'campaign.budget_change': 'campaign_update',
+    'keyword.bid_change': 'bid_adjust_single',
+    'keyword.pause': 'campaign_pause',
+    'keyword.enable': 'campaign_enable',
+    'keyword.create': 'other',
+    'keyword.delete': 'other',
+    'negative_keyword.add': 'negative_add_single',
+    'negative_keyword.remove': 'negative_remove',
+    'target.create': 'other',
+    'target.update': 'other',
+    'target.delete': 'other',
+    'placement.adjust': 'other',
+    'sync.manual_trigger': 'scheduler_task_run',
+    'sync.schedule_update': 'scheduler_task_update',
+    'sync.full_sync': 'scheduler_task_run',
+    'optimization.auto_bid': 'bid_adjust_single',
+    'optimization.auto_budget': 'campaign_update',
+    'optimization.strategy_change': 'automation_config_update',
+    'system.config_change': 'settings_update',
+    'system.migration': 'other',
+    'system.deploy': 'other',
+    'user.login': 'other',
+    'user.logout': 'other',
+    'user.settings_change': 'settings_update',
+    'team.invite': 'team_member_invite',
+    'team.remove': 'team_member_remove',
+    'team.permission_change': 'team_permission_update',
+  };
+  return mapping[action] || 'other';
+}
+
+/**
+ * 将v361风格的entityType映射到Drizzle schema的targetType enum
+ */
+function mapEntityTypeToDrizzle(entityType?: string): DrizzleTargetType | undefined {
+  if (!entityType) return undefined;
+  const mapping: Record<string, DrizzleTargetType> = {
+    'account': 'account',
+    'campaign': 'campaign',
+    'ad_group': 'ad_group',
+    'keyword': 'keyword',
+    'product_target': 'product_target',
+    'performance_group': 'performance_group',
+    'negative_keyword': 'negative_keyword',
+    'bid': 'bid',
+    'automation': 'automation',
+    'scheduler': 'scheduler',
+    'team_member': 'team_member',
+    'team': 'team_member',
+    'permission': 'permission',
+    'settings': 'settings',
+    'data': 'data',
+    'system': 'other',
+  };
+  return mapping[entityType] || 'other';
+}
 
 export interface AuditLogEntry {
   /** 操作类型 */
@@ -79,54 +177,8 @@ const BUFFER_SIZE = 100;
 const FLUSH_INTERVAL_MS = 5000; // 5秒刷新一次
 let buffer: Array<AuditLogEntry & { timestamp: string }> = [];
 let flushTimer: ReturnType<typeof setInterval> | null = null;
-let tableCreated = false;
 
 // ==================== 核心函数 ====================
-
-/**
- * 确保审计日志表存在
- */
-async function ensureAuditTable(): Promise<boolean> {
-  if (tableCreated) return true;
-  
-  try {
-    const db = await getDb();
-    if (!db) return false;
-    
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS audit_logs (
-        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-        action VARCHAR(64) NOT NULL,
-        user_id INT,
-        user_name VARCHAR(128),
-        account_id INT,
-        entity_type VARCHAR(64),
-        entity_id VARCHAR(128),
-        entity_name VARCHAR(256),
-        previous_value TEXT,
-        new_value TEXT,
-        source VARCHAR(32) DEFAULT 'system',
-        result VARCHAR(16) DEFAULT 'success',
-        error_message TEXT,
-        metadata JSON,
-        ip_address VARCHAR(64),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_audit_action (action),
-        INDEX idx_audit_user (user_id),
-        INDEX idx_audit_account (account_id),
-        INDEX idx_audit_created (created_at),
-        INDEX idx_audit_entity (entity_type, entity_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    
-    tableCreated = true;
-    log.info('[AuditLog] 审计日志表已就绪');
-    return true;
-  } catch (err) {
-    log.error(`[AuditLog] 创建审计日志表失败: ${(err as Error).message}`);
-    return false;
-  }
-}
 
 /**
  * 记录审计日志（异步，不阻塞主流程）
@@ -160,7 +212,7 @@ export function recordAudit(entry: AuditLogEntry): void {
 }
 
 /**
- * 刷新缓冲区到数据库
+ * 刷新缓冲区到数据库 - 使用Drizzle ORM写入
  */
 async function flushBuffer(): Promise<void> {
   if (buffer.length === 0) return;
@@ -169,51 +221,56 @@ async function flushBuffer(): Promise<void> {
   buffer = [];
   
   try {
-    const ready = await ensureAuditTable();
-    if (!ready) {
+    const db = await getDb();
+    if (!db) {
       log.warn(`[AuditLog] 数据库不可用，${entries.length}条审计日志将丢失`);
       return;
     }
     
-    const db = await getDb();
-    if (!db) return;
-    
-    // 批量插入
-    const values = entries.map(e => ({
-      action: e.action,
-      userId: e.userId || null,
-      userName: e.userName || null,
-      accountId: e.accountId || null,
-      entityType: e.entityType || null,
-      entityId: e.entityId != null ? String(e.entityId) : null,
-      entityName: e.entityName || null,
-      previousValue: e.previousValue ? (typeof e.previousValue === 'string' ? e.previousValue : JSON.stringify(e.previousValue)) : null,
-      newValue: e.newValue ? (typeof e.newValue === 'string' ? e.newValue : JSON.stringify(e.newValue)) : null,
-      source: e.source || 'system',
-      result: e.result || 'success',
-      errorMessage: e.errorMessage || null,
-      metadata: e.metadata ? JSON.stringify(e.metadata) : null,
-      ipAddress: e.ipAddress || null,
-    }));
-    
-    // 使用原生SQL批量插入
-    for (const v of values) {
-      await db.execute(sql`
-        INSERT INTO audit_logs (action, user_id, user_name, account_id, entity_type, entity_id, entity_name, previous_value, new_value, source, result, error_message, metadata, ip_address)
-        VALUES (${v.action}, ${v.userId}, ${v.userName}, ${v.accountId}, ${v.entityType}, ${v.entityId}, ${v.entityName}, ${v.previousValue}, ${v.newValue}, ${v.source}, ${v.result}, ${v.errorMessage}, ${v.metadata}, ${v.ipAddress})
-      `);
+    // 逐条插入，使用Drizzle ORM确保字段匹配
+    for (const e of entries) {
+      try {
+        const drizzleActionType = mapActionToDrizzle(e.action);
+        const drizzleTargetType = mapEntityTypeToDrizzle(e.entityType);
+        const drizzleStatus = e.result === 'failure' ? 'failed' : (e.result === 'partial' ? 'partial' : 'success');
+        
+        // 构建description字段
+        const description = e.metadata?.description 
+          ? String(e.metadata.description) 
+          : `${e.action}: ${e.entityType || ''}${e.entityId ? '#' + e.entityId : ''}`;
+        
+        // @ts-ignore - Drizzle enum类型兼容
+        await db.insert(auditLogs).values({
+          actionType: drizzleActionType,
+          userId: e.userId || null,
+          userName: e.userName || null,
+          accountId: e.accountId || null,
+          targetType: drizzleTargetType || null,
+          targetId: e.entityId != null ? String(e.entityId) : null,
+          targetName: e.entityName || null,
+          description: description,
+          previousValue: e.previousValue ? (typeof e.previousValue === 'string' ? e.previousValue : JSON.stringify(e.previousValue)) : null,
+          newValue: e.newValue ? (typeof e.newValue === 'string' ? e.newValue : JSON.stringify(e.newValue)) : null,
+          metadata: e.metadata ? JSON.stringify(e.metadata) : null,
+          ipAddress: e.ipAddress || null,
+          status: drizzleStatus,
+          errorMessage: e.errorMessage || null,
+        } as Record<string, unknown>);
+      } catch (insertErr) {
+        log.error(`[AuditLog] 单条审计日志写入失败: ${(insertErr as Error).message} | action=${e.action}`);
+      }
     }
     
     log.debug(`[AuditLog] 已写入${entries.length}条审计日志`);
   } catch (err) {
     log.error(`[AuditLog] 写入审计日志失败: ${(err as Error).message}`);
-    // 将失败的条目放回缓冲区（最多保留BUFFER_SIZE条）
+    // 将失败的条目放回缓冲区（最多保留BUFFER_SIZE/2条）
     buffer = [...entries.slice(-Math.floor(BUFFER_SIZE / 2)), ...buffer].slice(0, BUFFER_SIZE);
   }
 }
 
 /**
- * 查询审计日志
+ * 查询审计日志 - 使用Drizzle ORM查询
  */
 export async function queryAuditLogs(params: {
   userId?: number;
@@ -226,35 +283,51 @@ export async function queryAuditLogs(params: {
   limit?: number;
   offset?: number;
 }): Promise<{ logs: Record<string, unknown>[]; total: number }> {
-  const ready = await ensureAuditTable();
-  if (!ready) return { logs: [], total: 0 };
-  
   const db = await getDb();
   if (!db) return { logs: [], total: 0 };
   
-  const conditions: string[] = ['1=1'];
-  if (params.userId) conditions.push(`user_id = ${Number(params.userId)}`);
-  if (params.accountId) conditions.push(`account_id = ${Number(params.accountId)}`);
-  if (params.action) conditions.push(`action = '${params.action.replace(/'/g, "''")}'`);
-  if (params.entityType) conditions.push(`entity_type = '${params.entityType.replace(/'/g, "''")}'`);
-  if (params.startDate) conditions.push(`created_at >= '${params.startDate}'`);
-  if (params.endDate) conditions.push(`created_at <= '${params.endDate}'`);
-  
-  const whereClause = conditions.join(' AND ');
-  const limit = Math.min(params.limit || 50, 500);
-  const offset = params.offset || 0;
-  
-  const [logs, countResult] = await Promise.all([
-    db.execute(sql.raw(`SELECT * FROM audit_logs WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`)),
-    db.execute(sql.raw(`SELECT COUNT(*) as total FROM audit_logs WHERE ${whereClause}`)),
-  ]);
-  
-  const total = Number((countResult as unknown as Array<Record<string, unknown>>)[0]?.total || 0);
-  
-  return {
-    logs: logs as unknown as Record<string, unknown>[],
-    total,
-  };
+  try {
+    const conditions = [];
+    if (params.userId) conditions.push(eq(auditLogs.userId, params.userId));
+    if (params.accountId) conditions.push(eq(auditLogs.accountId, params.accountId));
+    if (params.action) {
+      const drizzleAction = mapActionToDrizzle(params.action);
+      // @ts-ignore
+      conditions.push(eq(auditLogs.actionType, drizzleAction));
+    }
+    if (params.entityType) {
+      const drizzleTarget = mapEntityTypeToDrizzle(params.entityType);
+      if (drizzleTarget) {
+        // @ts-ignore
+        conditions.push(eq(auditLogs.targetType, drizzleTarget));
+      }
+    }
+    if (params.startDate) conditions.push(gte(auditLogs.createdAt, params.startDate));
+    if (params.endDate) conditions.push(lte(auditLogs.createdAt, params.endDate));
+    
+    const limit = Math.min(params.limit || 50, 500);
+    const offset = params.offset || 0;
+    
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    const logs = await db.select().from(auditLogs)
+      .where(whereCondition)
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(limit)
+      .offset(offset);
+    
+    // @ts-ignore
+    const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(whereCondition);
+    const total = Number(countResult?.count || 0);
+    
+    return {
+      logs: logs as unknown as Record<string, unknown>[],
+      total,
+    };
+  } catch (err) {
+    log.error(`[AuditLog] 查询审计日志失败: ${(err as Error).message}`);
+    return { logs: [], total: 0 };
+  }
 }
 
 /**

@@ -385,7 +385,15 @@ export const autoCorrectionRouter = router({
     
     // 7. 获取最近的纠错活动日志（最近20条）
     // @ts-ignore
-    const [recentCorrections] = await dbInstance.execute() as unknown;
+    const [recentCorrections] = await dbInstance.execute(
+      sql`SELECT id, action_type, api_sync_status, action_detail,
+             campaign_name, ad_group_name, keyword_text,
+             created_at, api_synced_at
+          FROM optimization_events
+          WHERE api_sync_status IN ('synced', 'failed', 'permanently_failed')
+          ORDER BY created_at DESC
+          LIMIT 20`
+    ) as unknown;
     
     const result = {
       scanStatus,
