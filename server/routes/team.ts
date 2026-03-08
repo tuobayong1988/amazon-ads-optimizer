@@ -363,7 +363,7 @@ export const emailReportRouter = router({
     }),
 
   // 获取可用的报表类型
-  getReportTypes: publicProcedure.query(() => {
+  getReportTypes: protectedProcedure.query(() => {
     return [
       { id: "cross_account_summary", name: "跨账号汇总报表", description: "所有店铺的整体广告表现汇总" },
       { id: "account_performance", name: "单账号表现报表", description: "单个店铺的详细广告表现" },

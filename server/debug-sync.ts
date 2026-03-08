@@ -5,7 +5,7 @@ const log = createModuleLogger('Debugsync');
  * 用于诊断同步问题,返回详细的同步过程信息
  */
 
-import { publicProcedure, router } from './_core/trpc';
+import { protectedProcedure, router } from './_core/trpc';
 import { z } from 'zod';
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
@@ -14,7 +14,7 @@ export const debugSyncRouter = router({
   /**
    * 测试API连接并返回原始数据
    */
-  testApiConnection: publicProcedure
+  testApiConnection: protectedProcedure
     .input(z.object({
       accountId: z.number(),
     }))
@@ -74,7 +74,7 @@ export const debugSyncRouter = router({
   /**
    * 检查数据库中的campaigns数据
    */
-  checkDatabaseCampaigns: publicProcedure
+  checkDatabaseCampaigns: protectedProcedure
     .input(z.object({
       accountId: z.number(),
     }))
@@ -103,7 +103,7 @@ export const debugSyncRouter = router({
   /**
    * 检查sync_tasks表
    */
-  checkSyncTasks: publicProcedure
+  checkSyncTasks: protectedProcedure
     .input(z.object({
       accountId: z.number(),
       limit: z.number().default(10),
@@ -141,7 +141,7 @@ export const debugSyncRouter = router({
   /**
    * 触发全量同步 - 用于手动触发指定账户的全量数据同步
    */
-  triggerFullSync: publicProcedure
+  triggerFullSync: protectedProcedure
     .input(z.object({
       accountId: z.number(),
     }))
@@ -194,7 +194,7 @@ export const debugSyncRouter = router({
   /**
    * 批量触发所有账户的全量同步
    */
-  triggerFullSyncAll: publicProcedure
+  triggerFullSyncAll: protectedProcedure
     .mutation(async () => {
       try {
         const accounts = await db.getAdAccounts();

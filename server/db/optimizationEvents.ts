@@ -101,8 +101,8 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     }
     
     await db.insert(optimizationEvents).values({
-      // @ts-ignore
-      performanceGroupId: data.performanceGroupId,
+      // @ts-expect-error - performanceGroupId may exist on extended InsertOptimizationLog
+      performanceGroupId: (data as Record<string, unknown>).performanceGroupId as number,
       performanceGroupName: data.performanceGroupName,
       accountId: data.accountId || 0,
       accountName: data.accountName,
@@ -128,21 +128,16 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as unknown,
       apiSyncDetail: finalApiSyncDetail,
       // v333: 传递apiResponseId和apiSyncedAt到optimization_events表
-      // @ts-ignore
-      apiResponseId: extractedApiResponseId || (data as unknown).apiResponseId || null,
-      // @ts-ignore
-      apiSyncedAt: (data as unknown).apiSyncedAt || (finalApiSyncStatus === 'synced' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null),
+      apiResponseId: extractedApiResponseId || (data as Record<string, unknown>).apiResponseId as string || null,
+      apiSyncedAt: (data as Record<string, unknown>).apiSyncedAt as string || (finalApiSyncStatus === 'synced' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null),
       errorMessage: data.errorMessage,
       sourceTable: 'optimization_logs',
       sourceId: logId,
       executedAt: data.executedAt,
       // v258: 写入结构化归因和护栏信息
-      // @ts-ignore
-      reasonDetails: (data as unknown).reasonDetails || undefined,
-      // @ts-ignore
-      guardrailInfo: (data as unknown).guardrailInfo || undefined,
-      // @ts-ignore
-      relatedEventId: (data as unknown).relatedEventId || undefined,
+      reasonDetails: (data as Record<string, unknown>).reasonDetails as string || undefined,
+      guardrailInfo: (data as Record<string, unknown>).guardrailInfo as string || undefined,
+      relatedEventId: (data as Record<string, unknown>).relatedEventId as number || undefined,
       // v274: 写入算法决策元数据（预算分池、因果推断、GTO修正等）
       performanceData: (() => {
         try {
@@ -216,8 +211,8 @@ export async function getOptimizationLogs(params: {
   let conditions = [eq(optimizationLogs.performanceGroupId, performanceGroupId)];
   
   if (category && category !== 'all') {
-    // @ts-ignore
-    conditions.push(eq(optimizationLogs.logCategory, category as unknown));
+    // @ts-expect-error - category is dynamically typed from user input
+    conditions.push(eq(optimizationLogs.logCategory, category));
   }
   
   if (startDate) {
@@ -361,8 +356,7 @@ export async function insertOptimizationEvent(event: InsertOptimizationEvent): P
   // v222: campaignId 安全守卫
   if (event.campaignId != null) {
     const { quickValidateCampaignId } = await import('../utils/campaignIdResolver');
-    // @ts-ignore
-    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as unknown;
+    (event as Record<string, unknown>).campaignId = quickValidateCampaignId(String(event.campaignId), 'insertOptimizationEvent');
   }
   
   const result = await db.insert(optimizationEvents).values(event);
@@ -387,8 +381,7 @@ export async function batchInsertOptimizationEvents(events: InsertOptimizationEv
   const { quickValidateCampaignId } = await import('../utils/campaignIdResolver');
   for (const event of events) {
     if (event.campaignId != null) {
-      // @ts-ignore
-      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as unknown;
+      (event as Record<string, unknown>).campaignId = quickValidateCampaignId(String(event.campaignId), 'batchInsertOptimizationEvents');
     }
   }
   
@@ -604,12 +597,11 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
   
   if (oldLogs.length === 0) return 0;
   
-  // @ts-ignore
-  const events: InsertOptimizationEvent[] = oldLogs.map(log => ({
-    accountId: log.accountId,
+  const events = oldLogs.map((log) => ({
+    accountId: (log as Record<string, unknown>).accountId as number,
     eventCategory: 'bid_adjustment' as const,
-    actionType: log.actionType === 'increase' ? 'bid_increase' as const : 
-                log.actionType === 'decrease' ? 'bid_decrease' as const : 'bid_set' as const,
+    actionType: (log as Record<string, unknown>).actionType === 'increase' ? 'bid_increase' as const : 
+                (log as Record<string, unknown>).actionType === 'decrease' ? 'bid_decrease' as const : 'bid_set' as const,
     campaignId: log.campaignId,
     adGroupId: log.adGroupId,
     keywordId: log.targetId,
@@ -629,6 +621,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     createdAt: log.createdAt,
   } as Record<string, any>));
   
+  // @ts-expect-error - events mapped from legacy biddingLogs schema
   await db.insert(optimizationEvents).values(events);
   return events.length;
 }
@@ -680,8 +673,7 @@ export async function migrateFromBidAdjustmentHistory(accountId: number): Promis
     createdAt: record.appliedAt,
   }));
   
-  // @ts-ignore
-  await db.insert(optimizationEvents).values(events as unknown);
+  await db.insert(optimizationEvents).values(events as InsertOptimizationEvent[]);
   return events.length;
 }
 
@@ -738,10 +730,10 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
     'strategy_change': 'strategy_change',
   };
   
-  // @ts-ignore
-  const events: InsertOptimizationEvent[] = oldLogs.map(log => {
-    const mappedCategory = categoryMap[log.logCategory || ''] || 'settings_change';
-    const mappedAction = actionTypeMap[log.actionType || ''] || 'settings_update';
+  const events = oldLogs.map((log) => {
+    const logData = log as Record<string, unknown>;
+    const mappedCategory = categoryMap[String(logData.logCategory || '')] || 'settings_change';
+    const mappedAction = actionTypeMap[String(logData.actionType || '')] || 'settings_update';
     
     return {
       performanceGroupId: log.performanceGroupId,
@@ -776,6 +768,7 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
   let migrated = 0;
   for (let i = 0; i < events.length; i += batchSize) {
     const batch = events.slice(i, i + batchSize);
+    // @ts-expect-error - events mapped from legacy optimizationLogs schema
     await db.insert(optimizationEvents).values(batch);
     migrated += batch.length;
   }

@@ -1,3 +1,5 @@
+import { createModuleLogger } from "../utils/logger";
+const log = createModuleLogger("Script:populateData");
 /**
  * 数据补全脚本：从daily_performance生成hourly_performance数据
  * 并补全placement_performance中缺失的top_of_search和product_page数据
@@ -137,7 +139,7 @@ export async function populateHourlyPerformance() {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
-  console.log('[DataPopulate] 开始从daily_performance生成hourly_performance数据...');
+  log.info('[DataPopulate] 开始从daily_performance生成hourly_performance数据...');
   
   // 获取所有daily_performance数据
   const dailyData = await db
@@ -149,7 +151,7 @@ export async function populateHourlyPerformance() {
       )
     );
   
-  console.log(`[DataPopulate] 找到 ${dailyData.length} 条daily_performance记录`);
+  log.info(`[DataPopulate] 找到 ${dailyData.length} 条daily_performance记录`);
   
   let insertedCount = 0;
   const batchSize = 500;
@@ -237,7 +239,7 @@ export async function populateHourlyPerformance() {
         insertedCount += batch.length;
         batch = [];
         if (insertedCount % 5000 === 0) {
-          console.log(`[DataPopulate] 已插入 ${insertedCount} 条hourly记录...`);
+          log.info(`[DataPopulate] 已插入 ${insertedCount} 条hourly记录...`);
         }
       }
     }
@@ -249,7 +251,7 @@ export async function populateHourlyPerformance() {
     insertedCount += batch.length;
   }
   
-  console.log(`[DataPopulate] hourly_performance数据生成完成，共插入 ${insertedCount} 条记录`);
+  log.info(`[DataPopulate] hourly_performance数据生成完成，共插入 ${insertedCount} 条记录`);
   return insertedCount;
 }
 
@@ -257,7 +259,7 @@ export async function populatePlacementPerformance() {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
-  console.log('[DataPopulate] 开始补全placement_performance数据...');
+  log.info('[DataPopulate] 开始补全placement_performance数据...');
   
   // 获取所有daily_performance数据
   const dailyData = await db
@@ -269,7 +271,7 @@ export async function populatePlacementPerformance() {
       )
     );
   
-  console.log(`[DataPopulate] 找到 ${dailyData.length} 条daily_performance记录`);
+  log.info(`[DataPopulate] 找到 ${dailyData.length} 条daily_performance记录`);
   
   let insertedCount = 0;
   const batchSize = 500;
@@ -320,7 +322,7 @@ export async function populatePlacementPerformance() {
         insertedCount += batch.length;
         batch = [];
         if (insertedCount % 5000 === 0) {
-          console.log(`[DataPopulate] 已插入 ${insertedCount} 条placement记录...`);
+          log.info(`[DataPopulate] 已插入 ${insertedCount} 条placement记录...`);
         }
       }
     }
@@ -331,7 +333,7 @@ export async function populatePlacementPerformance() {
     insertedCount += batch.length;
   }
   
-  console.log(`[DataPopulate] placement_performance数据补全完成，共插入 ${insertedCount} 条记录`);
+  log.info(`[DataPopulate] placement_performance数据补全完成，共插入 ${insertedCount} 条记录`);
   return insertedCount;
 }
 
@@ -339,12 +341,12 @@ export async function populatePlacementPerformance() {
 async function main() {
   try {
     const hourlyCount = await populateHourlyPerformance();
-    console.log(`\n✅ hourly_performance: ${hourlyCount} 条记录`);
+    log.info(`\n✅ hourly_performance: ${hourlyCount} 条记录`);
     
     const placementCount = await populatePlacementPerformance();
-    console.log(`\n✅ placement_performance: ${placementCount} 条记录`);
+    log.info(`\n✅ placement_performance: ${placementCount} 条记录`);
     
-    console.log('\n🎉 数据补全完成！');
+    log.info('\n🎉 数据补全完成！');
     process.exit(0);
   } catch (error) {
     console.error('❌ 数据补全失败:', error);

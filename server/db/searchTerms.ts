@@ -477,35 +477,26 @@ function calculateAverageMetrics(perfData: unknown[]): CampaignHealthMetrics['cu
     };
   }
   
-  const totals = perfData.reduce((acc: any, p: any) => ({
-    impressions: acc.impressions + (p.impressions || 0),
-    clicks: acc.clicks + (p.clicks || 0),
-    spend: acc.spend + parseFloat(p.spend || '0'),
-    sales: acc.sales + parseFloat(p.sales || '0'),
-    orders: acc.orders + (p.orders || 0),
+  interface PerfTotals { impressions: number; clicks: number; spend: number; sales: number; orders: number; }
+  const totals: PerfTotals = (perfData as Array<Record<string, unknown>>).reduce<PerfTotals>((acc, p) => ({
+    impressions: acc.impressions + (Number(p.impressions) || 0),
+    clicks: acc.clicks + (Number(p.clicks) || 0),
+    spend: acc.spend + parseFloat(String(p.spend || '0')),
+    sales: acc.sales + parseFloat(String(p.sales || '0')),
+    orders: acc.orders + (Number(p.orders) || 0),
   }), { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 });
   
-  // @ts-ignore
   const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
-  // @ts-ignore
   const cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
-  // @ts-ignore
   const acos = totals.sales > 0 ? (totals.spend / totals.sales) * 100 : 0;
-  // @ts-ignore
   const roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
-  // @ts-ignore
   const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
   
   return {
-    // @ts-ignore
     impressions: Math.round(totals.impressions / perfData.length),
-    // @ts-ignore
     clicks: Math.round(totals.clicks / perfData.length),
-    // @ts-ignore
     spend: totals.spend / perfData.length,
-    // @ts-ignore
     sales: totals.sales / perfData.length,
-    // @ts-ignore
     orders: Math.round(totals.orders / perfData.length),
     ctr,
     cvr,

@@ -1,3 +1,5 @@
+import { createModuleLogger } from "../utils/logger";
+const log = createModuleLogger("Migration:v345idx");
 /**
  * v345 性能优化: 为大表添加复合索引
  * 
@@ -78,7 +80,7 @@ export async function runV345PerformanceIndexMigration(): Promise<{
   
   const db = await getDb();
   if (!db) {
-    console.log('[v345-indexes] Database not available, skipping index creation');
+    log.info('[v345-indexes] Database not available, skipping index creation');
     return result;
   }
 
@@ -91,24 +93,24 @@ export async function runV345PerformanceIndexMigration(): Promise<{
       ) as unknown;
       
       if (existingIndexes && existingIndexes.length > 0) {
-        console.log(`[v345-indexes] ${idx.name} 已存在，跳过`);
+        log.info(`[v345-indexes] ${idx.name} 已存在，跳过`);
         result.skipped++;
         continue;
       }
 
       // 创建索引
-      console.log(`[v345-indexes] 创建索引 ${idx.name} ON ${idx.table}(${idx.columns})...`);
+      log.info(`[v345-indexes] 创建索引 ${idx.name} ON ${idx.table}(${idx.columns})...`);
       await db.execute(
         sql.raw(`CREATE INDEX ${idx.name} ON ${idx.table}(${idx.columns})`)
       );
-      console.log(`[v345-indexes] ${idx.name} 创建成功`);
+      log.info(`[v345-indexes] ${idx.name} 创建成功`);
       result.created++;
     } catch (error: unknown) {
       if ((error as Error).message?.includes('Duplicate key name') || (error as any).code === 'ER_DUP_KEYNAME') {
-        console.log(`[v345-indexes] ${idx.name} 已存在（不同检测方式），跳过`);
+        log.info(`[v345-indexes] ${idx.name} 已存在（不同检测方式），跳过`);
         result.skipped++;
       } else if ((error as Error).message?.includes("doesn't exist") || (error as any).code === 'ER_NO_SUCH_TABLE') {
-        console.log(`[v345-indexes] 表 ${idx.table} 不存在，跳过索引 ${idx.name}`);
+        log.info(`[v345-indexes] 表 ${idx.table} 不存在，跳过索引 ${idx.name}`);
         result.skipped++;
       } else {
         console.error(`[v345-indexes] 创建索引 ${idx.name} 失败:`, (error as Error).message);
@@ -117,6 +119,6 @@ export async function runV345PerformanceIndexMigration(): Promise<{
     }
   }
 
-  console.log(`[v345-indexes] 索引迁移完成: 创建=${result.created}, 跳过=${result.skipped}, 失败=${result.failed}`);
+  log.info(`[v345-indexes] 索引迁移完成: 创建=${result.created}, 跳过=${result.skipped}, 失败=${result.failed}`);
   return result;
 }
