@@ -1,8 +1,12 @@
 import { createModuleLogger } from "./utils/logger";
 const log = createModuleLogger("DataSync");
 /**
+ * @deprecated v361: 此模块已废弃，功能已被AmazonSyncService和dataSyncScheduler完全覆盖。
+ * 请使用 server/amazonSyncService.ts 作为统一的同步入口。
+ * 计划在v362中删除此文件。
+ * 
  * Data Sync Service - 广告数据自动同步服务
- * 从Amazon API拉取广告活动、关键词和绩效数据
+ * 今Amazon API拉取广告活动、关键词和绩效数据
  * 包含API调用限流机制
  */
 
