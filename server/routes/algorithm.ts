@@ -125,7 +125,7 @@ export const algorithmEffectRouter = router({
     .query(async ({ ctx, input }) => {
       // v268 性能优化: 算法效果统计缓存（TTL 5分钟）
       const cacheKey = apiCache.generateKey('algorithmEffect.getStats', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       const endDate = new Date();

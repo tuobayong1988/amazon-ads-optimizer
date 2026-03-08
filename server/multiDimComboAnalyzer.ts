@@ -520,7 +520,7 @@ export async function analyzeCampaignCombos(
 
     // v183.1: 追踪分类变化
     if (prevResult) {
-      result.previousCategory = prevResult.category as any;
+      result.previousCategory = prevResult.category as unknown;
       result.categoryChanged = result.comboCategory !== prevResult.category;
       if (result.categoryChanged) {
         categoryChanges.push({
@@ -1012,7 +1012,7 @@ export async function persistAnalysisResults(
         analysisStartDate: startDate.toISOString().split('T')[0],
         analysisEndDate: new Date().toISOString().split('T')[0],
         analyzedAt: now,
-      } as any);
+      } as Record<string, unknown>);
       inserted++;
     } catch (err: unknown) {
       log.error(`[ComboAnalyzer] 写入分析结果失败: ${(err as Error).message}`);
@@ -1113,7 +1113,7 @@ export async function executeMultiDimComboAnalysis(
 export async function getComboAnalysisForAccount(
   db: ReturnType<typeof drizzle>,
   accountId: number
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const results = await db.select()
     .from(multiDimComboAnalysis)
     .where(eq(multiDimComboAnalysis.accountId, accountId));
@@ -1127,7 +1127,7 @@ export async function getComboAnalysisForCampaign(
   db: ReturnType<typeof drizzle>,
   accountId: number,
   campaignId: number
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const results = await db.select()
     .from(multiDimComboAnalysis)
     .where(and(

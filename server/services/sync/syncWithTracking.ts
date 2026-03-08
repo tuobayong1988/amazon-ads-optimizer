@@ -113,7 +113,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       let dailyBudgetValue = 0;
-      const budgetFieldT = (apiCampaign as any).budget;
+      const budgetFieldT = (apiCampaign as Record<string, unknown>).budget;
       if (budgetFieldT !== undefined && budgetFieldT !== null) {
         if (typeof budgetFieldT === 'number') {
           dailyBudgetValue = budgetFieldT;
@@ -173,7 +173,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
           });
         }
@@ -306,20 +306,20 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
-      const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+      const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
       let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc';
       if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
         sbCostType = 'vcpm';
       }
-      if ((apiCampaign as any).costType) {
-        const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+      if ((apiCampaign as Record<string, unknown>).costType) {
+        const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
         if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
           sbCostType = apiCostType as 'vcpm' | 'cpm';
         }
       }
 
       // 获取SB广告格式
-      const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+      const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
       const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
 
@@ -368,7 +368,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
           });
         }
@@ -456,20 +456,20 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       // ✅ 获取SD广告的计费类型
-      const sdCostType = ((apiCampaign as any).costType || 'cpc').toLowerCase();
+      const sdCostType = ((apiCampaign as Record<string, unknown>).costType || 'cpc').toLowerCase();
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
       // ✅ 获取SD广告的Campaign Goal（广告目标）
-      const sdGoal = (apiCampaign as any).goal || 
-                     (apiCampaign as any).optimizationGoal || 
-                     (apiCampaign as any).bidOptimization || '';
+      const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
+                     (apiCampaign as Record<string, unknown>).optimizationGoal || 
+                     (apiCampaign as Record<string, unknown>).bidOptimization || '';
 
       // ✅ 获取SD广告的tactic（定向策略）
-      const sdTactic = (apiCampaign as any).tactic || null;
+      const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
 
       // ✅ 获取SD广告的竞价优化目标
-      const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -519,7 +519,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
             ),
           });
         }
@@ -665,7 +665,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
             previousData: existing,
             newData: adGroupData,
             changedFields: Object.keys(adGroupData).filter(k => 
-              (existing as any)[k] !== (adGroupData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (adGroupData as Record<string, unknown>[])[k]
             ),
           });
         }
@@ -823,7 +823,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
             previousData: existing,
             newData: keywordData,
             changedFields: Object.keys(keywordData).filter(k => 
-              (existing as any)[k] !== (keywordData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (keywordData as Record<string, unknown>[])[k]
             ),
           });
         }
@@ -1007,7 +1007,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
             previousData: existing,
             newData: targetData,
             changedFields: Object.keys(targetData).filter(k => 
-              (existing as any)[k] !== (targetData as Record<string, unknown>[])[k]
+              (existing as Record<string, unknown>)[k] !== (targetData as Record<string, unknown>[])[k]
             ),
           });
         }

@@ -431,7 +431,7 @@ export async function optimizeTrafficAllocation(
   };
   
   // 计算各位置的边际效益
-  const marginalBenefits: Record<PlacementType, MarginalBenefitResult> = {} as any;
+  const marginalBenefits: Record<PlacementType, MarginalBenefitResult> = {} as Record<string, unknown>;
   for (const placement of placements) {
     marginalBenefits[placement] = await calculateMarginalBenefit(
       campaignId,
@@ -712,8 +712,8 @@ function calculateExpectedResults(
   
   let totalExpectedSales = 0;
   let totalExpectedSpend = 0;
-  const salesChangeByPlacement: Record<PlacementType, number> = {} as any;
-  const spendChangeByPlacement: Record<PlacementType, number> = {} as any;
+  const salesChangeByPlacement: Record<PlacementType, number> = {} as Record<string, unknown>;
+  const spendChangeByPlacement: Record<PlacementType, number> = {} as Record<string, unknown>;
   
   for (const placement of placements) {
     const currentAdj = currentAdjustments[placement] || 0;
@@ -832,7 +832,7 @@ export async function batchAnalyzeMarginalBenefits(
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
   
   for (const campaignId of campaignsToAnalyze) {
-    const campaignResults: Record<PlacementType, MarginalBenefitResult> = {} as any;
+    const campaignResults: Record<PlacementType, MarginalBenefitResult> = {} as Record<string, unknown>;
     
     for (const placement of placements) {
       campaignResults[placement] = await calculateMarginalBenefit(
@@ -1135,7 +1135,7 @@ export function batchAnalyzeMarginalBenefitsSimple(
 ): Array<{
   campaignId: string;
   marginalBenefits: Record<string, unknown>;
-  optimizationResult: any;
+  optimizationResult: unknown;
 }> {
   return campaignData.map(campaign => {
     const marginalBenefits: Record<string, unknown> = {};

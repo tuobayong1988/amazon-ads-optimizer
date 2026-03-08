@@ -63,7 +63,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       SELECT id FROM team_members WHERE username = ${input.username}
     `);
     
-    const existingRows = (existingUser as any)[0];
+    const existingRows = (existingUser as unknown)[0];
     if (existingRows && existingRows.length > 0) {
       return { success: false, error: '用户名已存在' };
     }
@@ -183,7 +183,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       WHERE tm.username = ${input.username}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户名或密码错误' };
     }
@@ -295,7 +295,7 @@ export async function verifyToken(token: string): Promise<{
     const secret = process.env.JWT_SECRET;
     if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
-    const decoded = jwt.default.verify(token, secret) as any;
+    const decoded = jwt.default.verify(token, secret) as unknown;
     
     const db = await getDb();
     if (!db) return { valid: false, error: '数据库连接失败' };
@@ -304,7 +304,7 @@ export async function verifyToken(token: string): Promise<{
       SELECT * FROM team_members WHERE id = ${decoded.userId}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '用户不存在' };
     }
@@ -364,7 +364,7 @@ export async function changePassword(userId: number, oldPassword: string, newPas
       SELECT password_hash FROM team_members WHERE id = ${userId}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户不存在' };
     }

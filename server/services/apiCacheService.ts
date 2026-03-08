@@ -16,7 +16,7 @@
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('ApiCache');
 
-interface CacheEntry<T = any> {
+interface CacheEntry<T = unknown> {
   data: T;
   expireAt: number;
   createdAt: number;
@@ -56,7 +56,7 @@ class ApiCacheService {
    * @param userId 用户ID，确保数据隔离
    * @param params 查询参数
    */
-  generateKey(prefix: string, userId: number, params?: any): string {
+  generateKey(prefix: string, userId: number, params?: unknown): string {
     const paramStr = params ? JSON.stringify(params) : '';
     return `${prefix}:${userId}:${paramStr}`;
   }

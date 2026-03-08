@@ -17,7 +17,7 @@ const log = createModuleLogger('dbQueryProvider');
 export interface AdGroupRecord {
   id: number;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // v357: adGroupId和campaignId字段类型修复为string，与数据库实际varchar(64)一致
@@ -25,20 +25,20 @@ export interface KeywordRecord {
   id: number;
   adGroupId: string | null;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ProductTargetRecord {
   id: number;
   adGroupId: string | null;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type GetAdGroupByIdFn = (id: number) => Promise<AdGroupRecord | null | undefined>;
 export type GetKeywordByIdFn = (id: number) => Promise<KeywordRecord | null | undefined>;
 export type GetProductTargetByIdFn = (id: number) => Promise<ProductTargetRecord | null | undefined>;
-export type GetDbFn = () => Promise<any>;
+export type GetDbFn = () => Promise<unknown>;
 
 // ==================== 注册表 ====================
 
@@ -96,7 +96,7 @@ export async function queryProductTargetById(id: number): Promise<ProductTargetR
   return _getProductTargetById!(id);
 }
 
-export async function queryDb(): Promise<any> {
+export async function queryDb(): Promise<unknown> {
   ensureRegistered('queryDb');
   return _getDb!();
 }

@@ -103,7 +103,7 @@ function budgetFromMarginal(lambda: number, maxSales: number, efficiency: number
  * 估计Campaign的利润曲线参数
  */
 async function estimateProfitCurve(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   campaignId: string,
   campaignName: string,
@@ -329,7 +329,7 @@ export async function optimizeBudgetPortfolio(
       algorithmUsed: 'marginal_utility',
       iterationCount: 100,
       convergenceScore: '0.990000',
-    } as any);
+    } as Record<string, unknown>);
     
     log.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
     return result;

@@ -324,7 +324,7 @@ export async function checkEmergencyBrake(
           .where(and(
             eq(optimizationLogs.accountId, accountId),
             sql`created_at >= DATE_SUB(NOW(), INTERVAL ${lookback} DAY)`,
-            eq(optimizationLogs.status, 'applied' as any)
+            eq(optimizationLogs.status, 'applied' as unknown)
           ))
           .limit(1);
         hasRecentOptimization = recentOps.length > 0;

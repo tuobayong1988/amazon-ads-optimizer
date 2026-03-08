@@ -70,7 +70,7 @@ function classifyAction(bidBefore: number, bidAfter: number): 'bid_increase' | '
  * 如果距离上次调整超过7天，开始新Episode
  */
 async function getOrCreateEpisodeId(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   keywordId?: number,
   targetId?: number
@@ -192,7 +192,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
       actionBidAfter: String(action.bidAfter),
       actionBidDelta: String(action.bidAfter - action.bidBefore),
       actionSource: action.actionSource,
-    } as any);
+    } as Record<string, unknown>);
     
   } catch (error) {
     // RL数据记录失败不应阻塞出价调整主流程
@@ -214,7 +214,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
  *   3. 最后回退到账户级别（保持向后兼容）
  */
 async function captureStateSnapshot(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   keywordId?: number,
   targetId?: number,
@@ -792,7 +792,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
 export async function getTrainingDataset(
   accountId: number,
   limit: number = 10000
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const db = await getDbInstance();
   
   const data = await db.select().from(rlTrainingLogs)
@@ -878,7 +878,7 @@ export async function recordBidPerformanceHistory(params: {
       roas: String(roas),
       revenue: String(revenue),
       profit: String(profit),
-    } as any);
+    } as Record<string, unknown>);
     
     rlLog.info(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
   } catch (error) {
@@ -950,7 +950,7 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
     
     for (const record of staleRecords) {
       try {
-        let perfData: any = null;
+        let perfData: unknown = null;
         
         if (record.bidObjectType === 'keyword') {
           const [kw] = await db.select({
@@ -1002,7 +1002,7 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
               roas: String(roas),
               revenue: String(sales),
               profit: String(sales - spend),
-            } as any)
+            } as Record<string, unknown>)
             .where(eq(bidPerformanceHistory.id, record.id));
           
           updated++;

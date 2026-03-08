@@ -152,7 +152,7 @@ export async function generateMonitoringReport(teamId: number): Promise<Monitori
  * v263: 修复字段名 — direction→actionType, teamId→userId, eventType→eventCategory
  */
 async function checkBidRatio(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   since: Date,
   alerts: MonitoringAlert[]
@@ -210,7 +210,7 @@ async function checkBidRatio(
  * v263: 修复字段名 — adAccountId→accountId, actualAcos/targetAcos→通过actionDetail JSON提取
  */
 async function checkAcosOverrun(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   alerts: MonitoringAlert[]
 ): Promise<{ avgOverrun: number; highRiskCount: number }> {
@@ -296,7 +296,7 @@ async function checkAcosOverrun(
  * v263: 修复字段名 — teamId→userId
  */
 async function checkSyncHealth(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   alerts: MonitoringAlert[]
 ): Promise<{ successRate: number }> {
@@ -351,7 +351,7 @@ async function checkSyncHealth(
  * v263: 修复字段名 — teamId→userId, eventType→eventCategory, isPositive→通过bid变化判断
  */
 async function checkAlgorithmHealth(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   since: Date,
   alerts: MonitoringAlert[]
@@ -499,7 +499,7 @@ async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void>
  * 未分配的广告活动不会被任何优化算法管理，导致资源浪费和潜在风险
  */
 async function checkUnassignedCampaigns(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   alerts: MonitoringAlert[]
 ): Promise<void> {
@@ -547,7 +547,7 @@ async function checkUnassignedCampaigns(
  * 核心逻辑：对比最近7天和前14天的ACoS，如果近7天ACoS比前14天恶化超过20%，发出预警
  */
 async function checkProactiveRiskWarning(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   teamId: number,
   alerts: MonitoringAlert[]
 ): Promise<void> {
@@ -570,7 +570,7 @@ async function checkProactiveRiskWarning(
               FROM daily_performance 
               WHERE account_id = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
-        ) as any;
+        ) as unknown;
         
         const [prevResult] = await db.execute(
           sql`SELECT 
@@ -580,7 +580,7 @@ async function checkProactiveRiskWarning(
               WHERE account_id = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
                 AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
-        ) as any;
+        ) as unknown;
 
         const recentData = recentResult?.[0] || recentResult;
         const prevData = prevResult?.[0] || prevResult;

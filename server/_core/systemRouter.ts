@@ -28,28 +28,28 @@ export const systemRouter = router({
         const [r1] = await conn.execute(
           `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as any[];
+        ) as unknown[];
         results.push(`sync_conflicts: 删除${r1.affectedRows}条`);
 
         // 清理sync_change_records
         const [r2] = await conn.execute(
           `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as any[];
+        ) as unknown[];
         results.push(`sync_change_records: 删除${r2.affectedRows}条`);
 
         // 清理system_logs
         const [r3] = await conn.execute(
           `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as any[];
+        ) as unknown[];
         results.push(`system_logs: 删除${r3.affectedRows}条`);
 
         // 清理optimization_tasks已完成的任务
         const [r4] = await conn.execute(
           `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as any[];
+        ) as unknown[];
         results.push(`optimization_tasks: 删除${r4.affectedRows}条`);
 
         return { success: true, results };

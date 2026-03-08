@@ -304,8 +304,8 @@ function generatePredictions(
  * 使用LLM生成摘要
  */
 async function generateSummaryWithLLM(
-  campaign: any,
-  metrics: any,
+  campaign: unknown,
+  metrics: unknown,
   suggestions: OptimizationSuggestion[]
 ): Promise<string> {
   const suggestionsSummary = suggestions.slice(0, 5).map((s, i) => 
@@ -385,7 +385,7 @@ export async function executeOptimizationSuggestions(
   const executionId = await db.createAiOptimizationExecution({
     userId,
     accountId,
-    campaignId: campaignId as any,
+    campaignId: campaignId as string,
     executionName: `AI优化执行 - ${new Date().toLocaleDateString("zh-CN")}`,
     aiExecType: executionType,
     totalActions: suggestions.length,
@@ -411,7 +411,7 @@ export async function executeOptimizationSuggestions(
     changeReason: s.reason
   }));
   
-  await db.createAiOptimizationActions(actions as any);
+  await db.createAiOptimizationActions(actions as unknown);
   
   // 创建预测记录
   const predictionRecords = predictions.map(p => ({
@@ -429,7 +429,7 @@ export async function executeOptimizationSuggestions(
     predictionRationale: p.rationale
   }));
   
-  await db.createAiOptimizationPredictions(predictionRecords as any);
+  await db.createAiOptimizationPredictions(predictionRecords as unknown);
   
   // 创建复盘计划
   const now = new Date();
@@ -515,7 +515,7 @@ function mapActionType(action: string): "bid_increase" | "bid_decrease" | "bid_s
 /**
  * 执行单个操作
  */
-async function executeAction(action: any): Promise<void> {
+async function executeAction(action: unknown): Promise<void> {
   switch (action.actionType) {
     case "bid_increase":
     case "bid_decrease":

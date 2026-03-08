@@ -1200,7 +1200,7 @@ export async function syncAccount(
         // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
         const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
           (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
-            Object.values(stepResult.synced as any).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
+            Object.values(stepResult.synced as unknown).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
         stepResult.synced = safeSynced;
 
         if (stepResult.success) {
@@ -1644,9 +1644,9 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             safeNum(accountResult.stepResults['performance_90d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
-            (total: number, step: any) => total + safeNum(step?.synced), 0
+            (total: number, step: unknown) => total + safeNum(step?.synced), 0
           ),
-        } as any);
+        } as Record<string, unknown>);
       } catch (insertErr: unknown) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${(insertErr as Error).message}`);
       }

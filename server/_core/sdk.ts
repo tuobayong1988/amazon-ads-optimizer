@@ -140,11 +140,11 @@ class SDKServer {
       accessToken,
     } as ExchangeTokenResponse);
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as any),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoResponse;
@@ -251,11 +251,11 @@ class SDKServer {
     );
 
     const loginMethod = this.deriveLoginMethod(
-      (data as any)?.platforms,
-      (data as any)?.platform ?? data.platform ?? null
+      (data as Record<string, unknown>)?.platforms,
+      (data as Record<string, unknown>)?.platform ?? data.platform ?? null
     );
     return {
-      ...(data as any),
+      ...(data as Record<string, unknown>),
       platform: loginMethod,
       loginMethod,
     } as GetUserInfoWithJwtResponse;
@@ -271,7 +271,7 @@ class SDKServer {
         // v345: 移除不安全的默认密钥回退
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
-        const decoded = jwt.default.verify(token, secret) as any;
+        const decoded = jwt.default.verify(token, secret) as unknown;
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
           // v257.1: 添加超时保护，防止数据库查询导致504
@@ -299,7 +299,7 @@ class SDKServer {
           
           try {
             const result = await dbQueryWithTimeout();
-            const rows = (result as any)[0];
+            const rows = (result as Record<string, unknown>[][])[0];
             if (rows && rows.length > 0) {
               const localUser = rows[0];
               return {
@@ -311,7 +311,7 @@ class SDKServer {
                 lastSignedIn: localUser.last_login_at,
                 organizationId: localUser.organization_id,
                 role: localUser.role,
-              } as any;
+              } as Record<string, unknown>;
             }
           } catch (dbError: unknown) {
             log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
@@ -325,7 +325,7 @@ class SDKServer {
               lastSignedIn: new Date().toISOString(),
               organizationId: decoded.organizationId || 1,
               role: 'user',
-            } as any;
+            } as Record<string, unknown>;
           }
         }
       } catch (jwtError: unknown) {

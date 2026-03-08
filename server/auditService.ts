@@ -103,7 +103,7 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as any)[0]?.insertId || 0));
+  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, unknown>[][])[0]?.insertId || 0));
   return log;
 }
 
@@ -119,9 +119,9 @@ export async function logAudit(params: {
   targetId?: string;
   targetName?: string;
   description?: string;
-  previousValue?: any;
-  newValue?: any;
-  metadata?: any;
+  previousValue?: unknown;
+  newValue?: unknown;
+  metadata?: unknown;
   accountId?: number;
   accountName?: string;
   ipAddress?: string;
@@ -174,11 +174,11 @@ export async function getAuditLogs(params: {
   }
 
   if (actionTypes && actionTypes.length > 0) {
-    conditions.push(inArray(auditLogs.actionType, actionTypes as any));
+    conditions.push(inArray(auditLogs.actionType, actionTypes as unknown));
   }
 
   if (targetTypes && targetTypes.length > 0) {
-    conditions.push(inArray(auditLogs.targetType, targetTypes as any));
+    conditions.push(inArray(auditLogs.targetType, targetTypes as unknown));
   }
 
   if (accountId) {
@@ -186,7 +186,7 @@ export async function getAuditLogs(params: {
   }
 
   if (status) {
-    conditions.push(eq(auditLogs.status, status as any));
+    conditions.push(eq(auditLogs.status, status as string));
   }
 
   if (startDate) {
@@ -366,7 +366,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     })
     .from(auditLogs)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
-    .groupBy(auditLogs.userId, auditLogs.userName) as any;
+    .groupBy(auditLogs.userId, auditLogs.userName) as unknown;
 
   const actionsByUser = userStats.map((stat: Record<string, unknown>) => ({
     userId: stat.userId || 0,
@@ -443,5 +443,5 @@ export async function cleanupOldAuditLogs(retentionDays: number = 365): Promise<
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
   const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
-  return (result as any).affectedRows || 0;
+  return (result as Record<string, number>).affectedRows || 0;
 }

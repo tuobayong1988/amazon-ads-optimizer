@@ -573,7 +573,7 @@ export async function ensureDaypartingStrategy(
     targetAcos?: number;
     targetRoas?: number;
   } = {}
-): Promise<any | null> {
+): Promise<Record<string, unknown> | null> {
   // 先检查是否已存在
   const existing = await getDaypartingStrategyByCampaignId(campaignId);
   if (existing) return existing;
@@ -586,10 +586,10 @@ export async function ensureDaypartingStrategy(
     // v157: campaignId在schema中是int类型，但数据库中是varchar(64)
     const strategyId = await createDaypartingStrategy({
       accountId,
-      campaignId: Number(campaignId) || 0 as any,
+      campaignId: Number(campaignId) || 0 as unknown,
       name: `自动分时策略 - ${campaignName}`,
       strategyType: 'both',
-      daypartingOptGoal: (options.optimizationGoal as any) || 'maximize_sales',
+      daypartingOptGoal: (options.optimizationGoal as unknown) || 'maximize_sales',
       daypartingTargetAcos: options.targetAcos?.toString(),
       daypartingTargetRoas: options.targetRoas?.toString(),
       analysisLookbackDays: 30,
@@ -776,7 +776,7 @@ export async function generateOptimalStrategy(
   // 5. 创建策略
   const strategyId = await createDaypartingStrategy({
     accountId,
-    campaignId: campaignId as any,
+    campaignId: campaignId as string,
     name: options.name,
     strategyType: "both",
     daypartingOptGoal: options.optimizationGoal,
@@ -838,7 +838,7 @@ export async function getHourlyRule(
   strategyId: number,
   dayOfWeek: number,
   hour: number
-): Promise<any | null> {
+): Promise<Record<string, unknown> | null> {
   const bidRules = await getBidRules(strategyId);
   const rule = bidRules.find(r => r.dayOfWeek === dayOfWeek && r.hour === hour);
   
@@ -848,6 +848,6 @@ export async function getHourlyRule(
     dayOfWeek: rule.dayOfWeek,
     hour: rule.hour,
     bidMultiplier: parseFloat(rule.bidMultiplier || '1'),
-    isEnabled: (rule as any).ruleEnabled ?? true
+    isEnabled: (rule as unknown).ruleEnabled ?? true
   };
 }

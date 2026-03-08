@@ -143,12 +143,12 @@ export async function getSmartMergedData(
  * 获取API绩效数据
  */
 async function getApiPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   startDate: string,
   endDate: string,
   campaignIds?: string[]
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     let query = sql`
       SELECT 
@@ -171,7 +171,7 @@ async function getApiPerformanceData(
         AND DATE(date) <= ${endDate}
     `;
 
-    const [rows] = await db.execute(query) as any;
+    const [rows] = await db.execute() as unknown;
     return Array.isArray(rows) ? rows : [];
   } catch (error) {
     log.error('[EnhancedDualTrack] 获取API数据失败:', error);
@@ -183,11 +183,11 @@ async function getApiPerformanceData(
  * 获取AMS实时绩效数据
  */
 async function getAmsPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   date: string,
   campaignIds?: string[]
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     const [rows] = await db.execute(sql`
       SELECT 
@@ -205,7 +205,7 @@ async function getAmsPerformanceData(
       WHERE accountId = ${accountId}
         AND DATE(eventTime) = ${date}
       GROUP BY DATE(eventTime), campaignId, adGroupId
-    `) as any;
+    `) as unknown;
 
     return Array.isArray(rows) ? rows : [];
   } catch (error) {
@@ -362,7 +362,7 @@ export async function checkAndBackfillData(
       FROM ams_performance_buffer
       WHERE accountId = ${accountId}
         AND DATE(eventTime) = ${date}
-    `) as any;
+    `) as unknown;
 
     const amsCount = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0]?.count || 0 : 0;
 
@@ -376,7 +376,7 @@ export async function checkAndBackfillData(
       FROM daily_performance
       WHERE accountId = ${accountId}
         AND DATE(date) = ${date}
-    `) as any;
+    `) as unknown;
 
     const apiCount = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.count || 0 : 0;
 
@@ -470,7 +470,7 @@ export async function getTimelineAggregatedData(
         AND DATE(date) <= ${endDate}
       GROUP BY ${sql.raw(dateGrouping)}
       ORDER BY period
-    `) as any;
+    `) as unknown;
 
     const timeline = (Array.isArray(rows) ? rows : []).map((row: Record<string, unknown>) => ({
       period: String(row.period),
@@ -570,7 +570,7 @@ export async function getRealtimeDashboardData(
         FROM ams_performance_buffer
         WHERE accountId = ${accountId}
           AND DATE(eventTime) = ${today}
-      `) as any;
+      `) as unknown;
 
       if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.spend !== null) {
         result = amsRows[0];
@@ -593,7 +593,7 @@ export async function getRealtimeDashboardData(
         FROM daily_performance
         WHERE accountId = ${accountId}
           AND DATE(date) = ${today}
-      `) as any;
+      `) as unknown;
 
       result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
     }

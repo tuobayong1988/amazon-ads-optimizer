@@ -231,7 +231,7 @@ async function calculateAlgorithmActivation(
       GROUP BY change_reason, action_detail
     `;
     const result = await db.execute(query);
-    const rows = (result as any)[0] || result;
+    const rows = (result as Record<string, unknown>[][])[0] || result;
 
     const algorithmCounts: Record<string, number> = {};
     let totalDecisions = 0;
@@ -385,7 +385,7 @@ async function calculateBidIncreaseAnalysis(
       LIMIT 1000
     `;
     const result = await db.execute(query);
-    const rows = (result as any)[0] || result;
+    const rows = (result as Record<string, unknown>[][])[0] || result;
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return { totalIncreases: 0, avgIncreasePercent: 0, successRate: 0, byScenario: [] };

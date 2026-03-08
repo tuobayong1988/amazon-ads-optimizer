@@ -36,7 +36,7 @@ export class M6VideoService {
         .from(prelaunchVisualBriefs)
         .where(eq(prelaunchVisualBriefs.projectId, projectId));
       
-      const banners = (data as any[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
+      const banners = (data as unknown[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
     } catch (error: unknown) {
       return { success: false, error: (error as Error).message, data: [] };
@@ -88,7 +88,7 @@ Generate:
 
 Return JSON with all fields above.`;
 
-        const script = await geminiStructuredOutput<any>('', prompt, { temperature: 0.5 });
+        const script = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.5 });
 
         // 适配prelaunchVideoScripts表的实际字段：videoType, scriptFramework, hook, body, cta, duration, storyboard, generatedFrameUrls
         await db.insert(prelaunchVideoScripts).values({
@@ -129,7 +129,7 @@ Generate:
 
 Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"colorPalette":["#hex1","#hex2"]}`;
 
-        const brief = await geminiStructuredOutput<any>('', prompt, { temperature: 0.4 });
+        const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
           projectId,
@@ -174,7 +174,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
 
       const generatedFrames: string[] = [];
 
-      for (const frame of (storyboard as any[]).slice(0, 8)) {
+      for (const frame of (storyboard as unknown[]).slice(0, 8)) {
         const emotionColorMap: Record<string, string> = {
           tension: 'dramatic lighting, dark tones, high contrast',
           curiosity: 'warm golden light, soft focus background',

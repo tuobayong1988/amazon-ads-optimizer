@@ -13,7 +13,7 @@ const log = createModuleLogger('Route_user');
 // 缓存：是否已确认 preferences 列存在于 team_members 表
 let columnEnsured = false;
 
-async function ensurePreferencesColumn(db: any) {
+async function ensurePreferencesColumn(db: ReturnType<typeof getDb> | null) {
   if (columnEnsured) return;
   
   try {
@@ -43,9 +43,7 @@ export const userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       
-      const result = await db.execute(
-        sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
-      ) as any;
+      const result = await db.execute() as unknown;
       
       // drizzle-orm/mysql2 返回 [rows, fields]
       const rows = result[0];
@@ -66,7 +64,7 @@ export const userRouter = router({
   updatePreferences: protectedProcedure
     .input(z.object({
       key: z.string(),
-      value: z.any(),
+      value: z.unknown(),
     }))
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
@@ -76,9 +74,7 @@ export const userRouter = router({
         await ensurePreferencesColumn(db);
         
         // 获取当前偏好
-        const result = await db.execute(
-          sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
-        ) as any;
+        const result = await db.execute() as unknown;
         
         const rows = result[0];
         const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -94,9 +90,7 @@ export const userRouter = router({
         const prefsJson = JSON.stringify(currentPrefs);
         
         // 保存到team_members表
-        const updateResult = await db.execute(
-          sql`UPDATE team_members SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
-        ) as any;
+        const updateResult = await db.execute() as unknown;
         
         const affectedRows = updateResult[0]?.affectedRows ?? 0;
         

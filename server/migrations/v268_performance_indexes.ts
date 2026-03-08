@@ -19,9 +19,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
 
   try {
     // 检查索引是否已存在
-    const [existingIndexes] = await db.execute(
-      sql`SHOW INDEX FROM daily_performance WHERE Key_name = 'idx_dp_account_date'`
-    ) as any;
+    const [existingIndexes] = await db.execute() as unknown;
 
     if (existingIndexes && existingIndexes.length > 0) {
       console.log('[v268-migration] Index idx_dp_account_date already exists, skipping');
@@ -36,9 +34,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
     console.log('[v268-migration] Index idx_dp_account_date created successfully');
 
     // 检查optimization_events表的索引
-    const [eventsIndexes] = await db.execute(
-      sql`SHOW INDEX FROM optimization_events WHERE Key_name = 'idx_oe_category_type'`
-    ) as any;
+    const [eventsIndexes] = await db.execute() as unknown;
 
     if (!eventsIndexes || eventsIndexes.length === 0) {
       console.log('[v268-migration] Creating index idx_oe_category_type on optimization_events(event_category, action_type)...');

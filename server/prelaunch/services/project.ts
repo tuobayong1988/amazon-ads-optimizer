@@ -29,7 +29,7 @@ export class PrelaunchProjectService {
 
     try {
       const conditions = [];
-      if (status) conditions.push(eq(prelaunchProjects.status, status as any));
+      if (status) conditions.push(eq(prelaunchProjects.status, status as string));
       if (search) {
         conditions.push(
           or(
@@ -129,7 +129,7 @@ export class PrelaunchProjectService {
         status: 'draft',
       });
 
-      const projectId = (result as any).insertId;
+      const projectId = (result as Record<string, number>).insertId;
 
       // 返回创建的完整项目数据
       return {
@@ -209,7 +209,7 @@ export class PrelaunchProjectService {
   /**
    * 获取项目各模块的数据条数统计
    */
-  private async getProjectModuleStats(db: any, projectId: number) {
+  private async getProjectModuleStats(db: ReturnType<typeof getDb> | null, projectId: number) {
     try {
       const [kwCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId));
@@ -243,7 +243,7 @@ export class PrelaunchProjectService {
   /**
    * 安全解析seedKeywords
    */
-  private parseSeedKeywords(raw: any): string[] {
+  private parseSeedKeywords(raw: unknown): string[] {
     if (!raw) return [];
     if (Array.isArray(raw)) return raw;
     if (typeof raw === 'string') {

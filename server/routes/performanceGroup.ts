@@ -18,7 +18,7 @@ const log = createModuleLogger('Route_performanceGroup');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: any, days: number) {
+function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -324,7 +324,7 @@ export const performanceGroupRouter = router({
         accountId: rest.accountId,
         name: rest.name,
         description: rest.description,
-        optimizationGoal: optimizationGoal as any,
+        optimizationGoal: optimizationGoal as unknown,
         targetAcos,
         targetRoas,
         dailySpendLimit,
@@ -471,7 +471,7 @@ export const performanceGroupRouter = router({
       // 1. 更新本地数据库状态
       let localUpdated = 0;
       for (const campaign of targetCampaigns) {
-        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as any);
+        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as Record<string, unknown>);
         localUpdated++;
       }
       
@@ -643,7 +643,7 @@ export const performanceGroupRouter = router({
       autoOptimize: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         optimizationGoal: input.goalType,
       };
       
@@ -891,8 +891,8 @@ export const performanceGroupRouter = router({
         accountName: account?.accountName || '',
         userId: ctx.user.id,
         userName: ctx.user.name || ctx.user.email || '',
-        logCategory: input.logCategory as any,
-        actionType: input.actionType as any,
+        logCategory: input.logCategory as unknown,
+        actionType: input.actionType as unknown,
         campaignId: input.campaignId,
         campaignName: input.campaignName,
         strategyTemplateId: input.strategyTemplateId,
@@ -901,7 +901,7 @@ export const performanceGroupRouter = router({
         previousValue: input.previousValue,
         newValue: input.newValue,
         changeReason: input.changeReason,
-        status: input.status as any,
+        status: input.status as string,
         executedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
       

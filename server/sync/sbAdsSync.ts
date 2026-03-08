@@ -74,7 +74,7 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;
@@ -151,7 +151,7 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
     // 更新数据库
     let updated = 0;
     for (const row of adGroupsNeedingUrls) {
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       let needsUpdate = false;
 
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
@@ -382,8 +382,8 @@ InsertSyncConflict,
  * 这样可以避免首次同步时本地数据为空导致的大量虚假冲突
  */
 function detectConflict(
-existing: any,
-newData: any,
+existing: Record<string, unknown>,
+newData: Record<string, unknown>,
 fieldsToCheck: string[]
 ): { hasConflict: boolean; conflictFields: string[] } {
 const conflictFields: string[] = [];
@@ -498,7 +498,7 @@ try {
     
     // v168: SP API v3的dailyBudget可能嵌套在多种结构中
     let dailyBudgetValue = 0;
-    const budgetFieldT = (apiCampaign as any).budget;
+    const budgetFieldT = (apiCampaign as Record<string, unknown>).budget;
     if (budgetFieldT !== undefined && budgetFieldT !== null) {
       if (typeof budgetFieldT === 'number') {
         dailyBudgetValue = budgetFieldT;
@@ -558,7 +558,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
           ),
         });
       }
@@ -691,20 +691,20 @@ try {
     // 始终使用Amazon API返回的最新数据更新本地记录
 
     // ✅ 根据SB广告的Campaign Goal确定计费方式
-    const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+    const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
     let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc';
     if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
       sbCostType = 'vcpm';
     }
-    if ((apiCampaign as any).costType) {
-      const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+    if ((apiCampaign as Record<string, unknown>).costType) {
+      const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
       if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
         sbCostType = apiCostType as 'vcpm' | 'cpm';
       }
     }
 
     // 获取SB广告格式
-    const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+    const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
     const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
     const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
 
@@ -753,7 +753,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
           ),
         });
       }
@@ -841,20 +841,20 @@ try {
     // 始终使用Amazon API返回的最新数据更新本地记录
 
     // ✅ 获取SD广告的计费类型
-    const sdCostType = ((apiCampaign as any).costType || 'cpc').toLowerCase();
+    const sdCostType = ((apiCampaign as Record<string, unknown>).costType || 'cpc').toLowerCase();
     const validCostTypes = ['cpc', 'vcpm', 'cpm'];
     const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
     // ✅ 获取SD广告的Campaign Goal（广告目标）
-    const sdGoal = (apiCampaign as any).goal || 
-                   (apiCampaign as any).optimizationGoal || 
-                   (apiCampaign as any).bidOptimization || '';
+    const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
+                   (apiCampaign as Record<string, unknown>).optimizationGoal || 
+                   (apiCampaign as Record<string, unknown>).bidOptimization || '';
 
     // ✅ 获取SD广告的tactic（定向策略）
-    const sdTactic = (apiCampaign as any).tactic || null;
+    const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
 
     // ✅ 获取SD广告的竞价优化目标
-    const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+    const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
     const validBidOpts = ['reach', 'pageVisits', 'conversions'];
     const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -904,7 +904,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as any)[k] !== (campaignData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
           ),
         });
       }
@@ -1050,7 +1050,7 @@ try {
           previousData: existing,
           newData: adGroupData,
           changedFields: Object.keys(adGroupData).filter(k => 
-            (existing as any)[k] !== (adGroupData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (adGroupData as Record<string, unknown>[])[k]
           ),
         });
       }
@@ -1208,7 +1208,7 @@ try {
           previousData: existing,
           newData: keywordData,
           changedFields: Object.keys(keywordData).filter(k => 
-            (existing as any)[k] !== (keywordData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (keywordData as Record<string, unknown>[])[k]
           ),
         });
       }
@@ -1392,7 +1392,7 @@ try {
           previousData: existing,
           newData: targetData,
           changedFields: Object.keys(targetData).filter(k => 
-            (existing as any)[k] !== (targetData as Record<string, unknown>[])[k]
+            (existing as Record<string, unknown>)[k] !== (targetData as Record<string, unknown>[])[k]
           ),
         });
       }

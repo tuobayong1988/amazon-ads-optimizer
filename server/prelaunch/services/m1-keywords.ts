@@ -26,7 +26,7 @@ export class M1KeywordService {
 
     try {
       const conditions = [eq(prelaunchKeywords.projectId, input.projectId)];
-      if (input.relevanceLayer) conditions.push(eq(prelaunchKeywords.relevanceLayer, input.relevanceLayer as any));
+      if (input.relevanceLayer) conditions.push(eq(prelaunchKeywords.relevanceLayer, input.relevanceLayer as unknown));
       if (input.scenarioCode) conditions.push(eq(prelaunchKeywords.scenarioCode, input.scenarioCode));
       if (input.clusterId) conditions.push(eq(prelaunchKeywords.clusterId, input.clusterId));
 
@@ -118,7 +118,7 @@ export class M1KeywordService {
         projectId,
         keyword: kw.keyword,
         searchVolume: kw.searchVolume || 0,
-        relevanceLayer: kw.relevanceLayer as any,
+        relevanceLayer: kw.relevanceLayer as unknown,
         dimensionType: kw.dimensionType,
         scenarioCode: kw.scenarioCode,
         intentTag: kw.intentTag,
@@ -163,7 +163,7 @@ export class M1KeywordService {
   }
 
   /** 使用Gemini扩展种子词 */
-  private async expandKeywords(seedKeywords: string[], marketplace: string): Promise<any[]> {
+  private async expandKeywords(seedKeywords: string[], marketplace: string): Promise<Record<string, unknown>[]> {
     const prompt = `You are an Amazon keyword research expert. Given these seed keywords for the ${marketplace} marketplace:
 ${seedKeywords.join(', ')}
 
@@ -177,11 +177,11 @@ Include: core product keywords, long-tail variations, problem/pain-point keyword
 
 Return as JSON array: [{"keyword":"...","searchVolume":...,"competitorDensity":...,"avgPrice":...}]`;
 
-    return geminiStructuredOutput<any[]>('', prompt, { temperature: 0.4 });
+    return geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
   }
 
   /** 四维分类 */
-  private async classifyKeywords(keywords: unknown[], seedKeywords: string[]): Promise<any[]> {
+  private async classifyKeywords(keywords: unknown[], seedKeywords: string[]): Promise<Record<string, unknown>[]> {
     const batchSize = 30;
     const results: unknown[] = [];
 
@@ -200,7 +200,7 @@ ${batch.map((k: Record<string, unknown>) => k.keyword).join('\n')}
 
 Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...","scenarioCode":"...","intentTag":"..."}]`;
 
-      const classified = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.1 });
+      const classified = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.1 });
 
       // 合并分类结果与原始数据
       for (const cls of classified) {
@@ -215,7 +215,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
   }
 
   /** 计算KVI评分 */
-  private calculateKVI(kw: any): number {
+  private calculateKVI(kw: unknown): number {
     const volumeScore = Math.min(1, Math.log10(Math.max(1, kw.searchVolume || 1)) / 5);
     const relevanceScore = kw.relevanceLayer === 'core' ? 1.0
       : kw.relevanceLayer === 'extended' ? 0.7
@@ -230,7 +230,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
   }
 
   /** 聚类分析 */
-  private async runClustering(db: any, projectId: number) {
+  private async runClustering(db: ReturnType<typeof getDb> | null, projectId: number) {
     const allKeywords = await db.select()
       .from(prelaunchKeywords)
       .where(eq(prelaunchKeywords.projectId, projectId));
@@ -246,7 +246,7 @@ ${kwList}
 Return JSON: [{"clusterLabel":"descriptive label","intentSummary":"what users in this cluster want","members":["keyword1","keyword2",...]}]
 Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
 
-    const clusters = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.2 });
+    const clusters = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.2 });
 
     for (const cluster of clusters) {
       const [result] = await db.insert(prelaunchKeywordClusters).values({
@@ -258,7 +258,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
         topScenario: 'S01',
       });
 
-      const clusterId = (result as any).insertId;
+      const clusterId = (result as Record<string, number>).insertId;
 
       // 更新关键词的clusterId
       if (cluster.members && clusterId) {
@@ -275,7 +275,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
   }
 
   /** 生成COSMO因果链三元组 */
-  private async generateCosmoTriples(db: any, projectId: number, keywords: unknown[]) {
+  private async generateCosmoTriples(db: ReturnType<typeof getDb> | null, projectId: number, keywords: unknown[]) {
     const coreKeywords = keywords
       .filter(k => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended')
       .slice(0, 50);
@@ -296,7 +296,7 @@ For each triple:
 Generate 10-30 high-quality triples. Return JSON array:
 [{"causeNode":"...","effectNode":"...","outcomeNode":"...","relationLabel":"...","confidence":0.85}]`;
 
-    const triples = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.3 });
+    const triples = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.3 });
 
     for (const triple of triples) {
       await db.insert(prelaunchCosmoTriples).values({

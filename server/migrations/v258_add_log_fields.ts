@@ -23,7 +23,7 @@ export async function runV258Migration(): Promise<void> {
     log.info('v258迁移: 开始添加优化日志增强字段...');
 
     // 检查字段是否已存在
-    const [columns] = await (db as any).execute(`
+    const [columns] = await (db as Record<string, Function>).execute(`
       SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = 'optimization_events' 
       AND COLUMN_NAME IN ('reason_details', 'guardrail_info', 'related_event_id')
@@ -34,7 +34,7 @@ export async function runV258Migration(): Promise<void> {
     );
 
     if (!existingColumns.has('reason_details')) {
-      await (db as any).execute(`
+      await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN reason_details JSON DEFAULT NULL 
         COMMENT 'v258: 结构化调整归因详情(触发规则/核心数据/算法选择)'
@@ -43,7 +43,7 @@ export async function runV258Migration(): Promise<void> {
     }
 
     if (!existingColumns.has('guardrail_info')) {
-      await (db as any).execute(`
+      await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN guardrail_info JSON DEFAULT NULL 
         COMMENT 'v258: 护栏机制介入信息(冷却/熔断/仲裁状态)'
@@ -52,13 +52,13 @@ export async function runV258Migration(): Promise<void> {
     }
 
     if (!existingColumns.has('related_event_id')) {
-      await (db as any).execute(`
+      await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD COLUMN related_event_id INT DEFAULT NULL 
         COMMENT 'v258: 关联的原始优化事件ID'
       `);
       // 添加索引以加速关联查询
-      await (db as any).execute(`
+      await (db as Record<string, Function>).execute(`
         ALTER TABLE optimization_events 
         ADD INDEX idx_oe_related_event (related_event_id)
       `).catch(() => {

@@ -474,7 +474,7 @@ export class SQSConsumerService {
   /**
    * 处理单条消息
    */
-  private async processMessage(queue: SQSQueueConfig, message: any): Promise<void> {
+  private async processMessage(queue: SQSQueueConfig, message: unknown): Promise<void> {
     if (!message.Body) {
       log.warn('[SQS Consumer] 消息体为空');
       return;
@@ -973,7 +973,7 @@ export class SQSConsumerService {
 
     if (existing.length > 0) {
       // 更新已有记录（覆盖写入）
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (params.dataType === 'traffic') {
         updateData.impressions = params.impressions;
         updateData.clicks = params.clicks;
@@ -1020,7 +1020,7 @@ export class SQSConsumerService {
         sales: String(params.sales),
         orders: params.orders,
         dataSource: 'ams',
-      } as any);
+      } as Record<string, unknown>);
     }
   }
 }

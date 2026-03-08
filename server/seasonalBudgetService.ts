@@ -275,7 +275,7 @@ export async function getRecommendations(userId: number, options: { accountId?: 
   if (!db) return { recommendations: [], total: 0 };
   const conditions = [eq(seasonalBudgetRecommendations.userId, userId)];
   if (options.accountId) conditions.push(eq(seasonalBudgetRecommendations.accountId, options.accountId));
-  if (options.status) conditions.push(eq(seasonalBudgetRecommendations.status, options.status as any));
+  if (options.status) conditions.push(eq(seasonalBudgetRecommendations.status, options.status as string));
   const recs = await db.select().from(seasonalBudgetRecommendations).where(and(...conditions)).orderBy(desc(seasonalBudgetRecommendations.createdAt)).limit(options.limit || 50).offset(options.offset || 0);
   const countResult = await db.select({ count: sql<number>`count(*)` }).from(seasonalBudgetRecommendations).where(and(...conditions));
   return { recommendations: recs, total: countResult[0]?.count || 0 };

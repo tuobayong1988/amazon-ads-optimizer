@@ -547,7 +547,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
           avgLoss: String(model.avgLoss),
           lastTrainedAt: model.lastTrainedAt,
           modelVersion: (existing[0].modelVersion || 1) + 1,
-        } as any)
+        } as Record<string, unknown>)
         .where(eq(cqlModels.id, existing[0].id));
     } else {
       // 插入新模型
@@ -559,7 +559,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
         avgLoss: String(model.avgLoss),
         lastTrainedAt: model.lastTrainedAt,
         modelVersion: 1,
-      } as any);
+      } as Record<string, unknown>);
     }
     
     log.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);

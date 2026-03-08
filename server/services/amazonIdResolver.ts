@@ -57,7 +57,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
 
   log.info(`========== 开始Pre-Sync ID Resolution: accountId=${accountId} ==========`);
 
-  let directConn: any = null;
+  let directConn: unknown = null;
   try {
     // v350: 使用连接池获取直接连接，替代独立createConnection
     directConn = await db.getDirectConnection(60_000); // 60秒超时，ID解析可能较长
@@ -114,7 +114,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
  */
 async function resolveKeywordIds(
   accountId: number,
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   result: IdResolutionResult
 ): Promise<void> {
   // 查询该账号下所有缺少keywordId的关键词
@@ -136,7 +136,7 @@ async function resolveKeywordIds(
   log.info(`Keywords: 发现${missingKws.length}个关键词缺少Amazon keywordId`);
 
   // 按adGroupId分组
-  const groupedByAdGroup = new Map<number, any[]>();
+  const groupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const kw of missingKws) {
     const group = groupedByAdGroup.get(kw.adGroupId) || [];
     group.push(kw);
@@ -195,8 +195,8 @@ async function resolveKeywordIds(
       // 构建匹配索引: "keywordText|matchType" -> keywordId
       const amazonKwMap = new Map<string, string>();
       for (const ak of amazonKeywords) {
-        const key = `${(ak as any).keywordText?.toLowerCase()}|${(ak as any).matchType?.toLowerCase()}`;
-        amazonKwMap.set(key, String((ak as any).keywordId));
+        const key = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
+        amazonKwMap.set(key, String((ak as unknown).keywordId));
       }
 
       // v194: 检查广告组是否已有product targets
@@ -395,7 +395,7 @@ async function resolveKeywordIds(
                   
                   if (!resolved) {
                     result.keywordsFailed++;
-                    const errDetail = (created as any).details || created.code || 'Unknown';
+                    const errDetail = (created as unknown).details || created.code || 'Unknown';
                     log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
@@ -433,7 +433,7 @@ async function resolveKeywordIds(
  */
 async function resolveProductTargetIds(
   accountId: number,
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   result: IdResolutionResult
 ): Promise<void> {
   // 查询该账号下所有缺少targetId的product_targets
@@ -455,7 +455,7 @@ async function resolveProductTargetIds(
   log.info(`ProductTargets: 发现${missingPts.length}个product_targets缺少Amazon targetId`);
 
   // 按adGroupId分组
-  const ptGroupedByAdGroup = new Map<number, any[]>();
+  const ptGroupedByAdGroup = new Map<number, Record<string, unknown>[]>();
   for (const pt of missingPts) {
     const group = ptGroupedByAdGroup.get(pt.adGroupId) || [];
     group.push(pt);
@@ -566,7 +566,7 @@ export async function resolveKeywordIdOnDemand(
   accountId: number,
   keywordLocalId: number
 ): Promise<string | null> {
-  let conn: any = null;
+  let conn: ReturnType<typeof getDb> | null = null;
   try {
     // v350: 使用连接池获取直接连接
     conn = await db.getDirectConnection();
@@ -629,9 +629,9 @@ export async function resolveKeywordIdOnDemand(
     // 按 keywordText + matchType 匹配
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
-      const akKey = `${(ak as any).keywordText?.toLowerCase()}|${(ak as any).matchType?.toLowerCase()}`;
+      const akKey = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
       if (akKey === key) {
-        const amazonKeywordId = String((ak as any).keywordId);
+        const amazonKeywordId = String((ak as unknown).keywordId);
         try {
           await conn.execute(
             'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
@@ -726,7 +726,7 @@ export async function resolveProductTargetIdOnDemand(
   accountId: number,
   ptLocalId: number
 ): Promise<string | null> {
-  let conn: any = null;
+  let conn: ReturnType<typeof getDb> | null = null;
   try {
     // v350: 使用连接池获取直接连接
     conn = await db.getDirectConnection();

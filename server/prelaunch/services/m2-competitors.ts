@@ -23,7 +23,7 @@ export class M2CompetitorService {
 
     try {
       const conditions = [eq(prelaunchCompetitors.projectId, input.projectId)];
-      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as any));
+      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as unknown));
 
       const page = input.page ?? 1;
       const pageSize = input.pageSize ?? 30;
@@ -121,7 +121,7 @@ export class M2CompetitorService {
 
         if (keywords.length > 0) {
           const kwList = keywords.map((k: Record<string, unknown>) => k.keyword).join(', ');
-          const discovered = await geminiStructuredOutput<any[]>('',
+          const discovered = await geminiStructuredOutput<Record<string, unknown>[]>('',
             `Given these Amazon search keywords: ${kwList}
             
 Identify 15-25 competitor ASINs that would appear in search results. For each, provide:
@@ -194,7 +194,7 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /** TRS评分计算（白盒化） */
-  private calculateTRS(comp: any) {
+  private calculateTRS(comp: unknown) {
     const rating = parseFloat(comp.rating) || 0;
     const reviewCount = comp.reviewCount || 0;
     const bsr = comp.bsr || 999999;
@@ -223,7 +223,7 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /** 竞品评论分析 */
-  private async analyzeCompetitorReviews(db: any, projectId: number, competitors: unknown[]) {
+  private async analyzeCompetitorReviews(db: ReturnType<typeof getDb> | null, projectId: number, competitors: unknown[]) {
     const topCompetitors = competitors.slice(0, 10);
 
     for (const comp of topCompetitors) {
@@ -241,7 +241,7 @@ Generate realistic user language phrases that customers would use in reviews. Fo
 Generate 10-20 diverse phrases. Return JSON array:
 [{"phraseType":"...","phrase":"...","sentiment":"..."}]`;
 
-      const phrases = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.4 });
+      const phrases = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
 
       for (const p of phrases) {
         await db.insert(prelaunchCompetitorUserLanguage).values({
@@ -258,7 +258,7 @@ Generate 10-20 diverse phrases. Return JSON array:
   }
 
   /** 竞品场景矩阵 */
-  private async buildScenarioMatrix(db: any, projectId: number, competitors: unknown[]) {
+  private async buildScenarioMatrix(db: ReturnType<typeof getDb> | null, projectId: number, competitors: unknown[]) {
     const scenarios = [
       'S01', 'S02', 'S03', 'S04', 'S05', 'S06',
       'S07', 'S08', 'S09', 'S10', 'S11', 'S12',
@@ -279,7 +279,7 @@ For each scenario, estimate:
 
 Return JSON array: [{"scenarioCode":"S01","trafficShare":0.25,"attackFeasibility":0.6,"suggestedStrategy":"..."}]`;
 
-      const matrix = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.2 });
+      const matrix = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.2 });
 
       for (const entry of matrix) {
         if (scenarios.includes(entry.scenarioCode)) {

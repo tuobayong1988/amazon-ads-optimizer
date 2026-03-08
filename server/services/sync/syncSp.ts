@@ -39,12 +39,12 @@ const log = createModuleLogger('syncSp');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSpCampaigns(...args: unknown[]): any;
-    syncSpAdGroups(...args: unknown[]): any;
-    syncSpKeywords(...args: unknown[]): any;
-    syncSpProductTargets(...args: unknown[]): any;
-    syncSpNegativeKeywords(...args: unknown[]): any;
-    syncSpNegativeProductTargets(...args: unknown[]): any;
+    syncSpCampaigns(...args: unknown[]): unknown;
+    syncSpAdGroups(...args: unknown[]): unknown;
+    syncSpKeywords(...args: unknown[]): unknown;
+    syncSpProductTargets(...args: unknown[]): unknown;
+    syncSpNegativeKeywords(...args: unknown[]): unknown;
+    syncSpNegativeProductTargets(...args: unknown[]): unknown;
   }
 }
 
@@ -123,7 +123,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       // 常见结构: { budget: { budget: 30 } }, { budget: { dailyBudget: 30 } }, { dailyBudget: 30 }, { budget: 30 }
       let dailyBudgetValue = 0;
-      const budgetField = (apiCampaign as any).budget;
+      const budgetField = (apiCampaign as Record<string, unknown>).budget;
       if (budgetField !== undefined && budgetField !== null) {
         if (typeof budgetField === 'number') {
           dailyBudgetValue = budgetField;
@@ -172,12 +172,12 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取竞价策略
-      const biddingStrategy = (apiCampaign as any).dynamicBidding?.strategy || 
-                             (apiCampaign as any).bidding?.strategy || 
+      const biddingStrategy = (apiCampaign as Record<string, unknown>).dynamicBidding?.strategy || 
+                             (apiCampaign as Record<string, unknown>).bidding?.strategy || 
                              'legacyForSales';
 
       // 获取组合信息
-      const portfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const portfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       const campaignData = {
         accountId: this.accountId,
@@ -404,7 +404,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
-      const keywordData: any = {
+      const keywordData: Record<string, unknown> = {
         adGroupId: String(adGroup.id),  // v357
         accountId: this.accountId,
         campaignId: adGroup.campaignId || '',  // v357
@@ -569,8 +569,8 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       }
       
       // 如果没有从expression中提取到值，尝试从resolvedExpression获取
-      if (!targetValue && (apiTarget as any).resolvedExpression) {
-        const resolved = (apiTarget as any).resolvedExpression;
+      if (!targetValue && (apiTarget as Record<string, unknown>).resolvedExpression) {
+        const resolved = (apiTarget as Record<string, unknown>).resolvedExpression;
         if (Array.isArray(resolved)) {
           for (const re of resolved) {
             const ret = (re.type || '').toLowerCase();

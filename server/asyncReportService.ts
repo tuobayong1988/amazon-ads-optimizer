@@ -65,7 +65,7 @@ export async function createReportRequest(
     VALUES (${accountId}, ${profileId}, ${marketplace}, ${reportType}, ${startDate}, ${endDate}, 'pending')
   `);
 
-  const insertId = (result as any).insertId || (result as any)[0]?.insertId;
+  const insertId = (result as Record<string, number>).insertId || (result as Record<string, unknown>[][])[0]?.insertId;
   log.info(`[AsyncReportService] 创建报告请求: ${insertId}`);
   return insertId;
 }
@@ -84,7 +84,7 @@ export async function submitReportRequest(requestId: number): Promise<void> {
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (requestResult as any[])[0] || requestResult;
+  const requests = (requestResult as unknown[])[0] || requestResult;
   if (!requests || requests.length === 0) {
     throw new Error(`Report request ${requestId} not found`);
   }
@@ -162,7 +162,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (requestResult as any[])[0] || requestResult;
+  const requests = (requestResult as unknown[])[0] || requestResult;
   if (!requests || requests.length === 0) {
     return false;
   }
@@ -307,7 +307,7 @@ async function processCampaignReportData(accountId: number, data: unknown[], adT
       SELECT id, adType FROM campaigns WHERE amazonCampaignId = ${campaignId} AND accountId = ${accountId}
     `);
 
-    const campaigns = (campaignResult as any[])[0] || campaignResult;
+    const campaigns = (campaignResult as unknown[])[0] || campaignResult;
     if (!campaigns || campaigns.length === 0) continue;
 
     const localCampaignId = campaigns[0].id;
@@ -469,7 +469,7 @@ async function pollPendingReports(): Promise<void> {
       SELECT id, status FROM report_requests WHERE status IN ('pending', 'submitted', 'processing') ORDER BY createdAt ASC LIMIT 10
     `);
 
-    const pendingRequests = (pendingResult as any[])[0] || pendingResult;
+    const pendingRequests = (pendingResult as unknown[])[0] || pendingResult;
     if (!pendingRequests || pendingRequests.length === 0) {
       return;
     }
@@ -568,7 +568,7 @@ export async function getReportRequestStatus(requestId: number): Promise<ReportR
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (result as any[])[0] || result;
+  const requests = (result as unknown[])[0] || result;
   if (!requests || requests.length === 0) {
     return null;
   }
@@ -589,7 +589,7 @@ export async function getAccountReportRequests(accountId: number, limit: number 
     SELECT * FROM report_requests WHERE accountId = ${accountId} ORDER BY createdAt DESC LIMIT ${limit}
   `);
 
-  const requests = (result as any[])[0] || result;
+  const requests = (result as unknown[])[0] || result;
   return requests as ReportRequest[];
 }
 

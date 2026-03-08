@@ -199,8 +199,8 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 221,
     description: 'v221: 全面系统优化 — 修复分层同步锁Bug(层级感知锁防止medium层被跳过), 修复日志拼接[object Object]Bug, 前端路由自动账户选择, 审计日志记录优化操作, optimizationTargetEngine确认同步全覆盖, 数据新鲜度检查机制(防止基于旧数据优化), 前端乐观UI更新, 内存保护与僵尸条目清理',
-    affectedModules: ['sync', 'bidOptimization', 'budgetOptimization', 'placementOptimization', 'negativeKeywords', 'searchTermHarvesting'] as any,
-    correctionActions: ['reoptimize_all'] as any,
+    affectedModules: ['sync', 'bidOptimization', 'budgetOptimization', 'placementOptimization', 'negativeKeywords', 'searchTermHarvesting'] as unknown,
+    correctionActions: ['reoptimize_all'] as unknown,
   },
   {
     version: 222,
@@ -601,7 +601,7 @@ async function getLastDeployedVersion(): Promise<number | null> {
         LIMIT 1
       `);
       
-      const rows = (result as any)[0] || [];
+      const rows = (result as Record<string, unknown>[][])[0] || [];
       if (rows.length > 0 && rows[0].action_detail) {
         try {
           const detail = typeof rows[0].action_detail === 'string' 
@@ -730,7 +730,7 @@ async function getTargetLastOptimizedVersion(targetId: number): Promise<number |
       LIMIT 1
     `);
     
-    const rows = (result as any)[0] || [];
+    const rows = (result as Record<string, unknown>[][])[0] || [];
     if (rows.length > 0 && rows[0].action_detail) {
       try {
         const detail = typeof rows[0].action_detail === 'string'

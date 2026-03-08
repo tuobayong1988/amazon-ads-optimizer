@@ -181,7 +181,7 @@ export async function collectCampaignPerformanceData(
   endDate: Date = new Date()
 ): Promise<CampaignPerformanceData[]> {
   const dbInstance = await getDb();
-  if (!dbInstance) return [] as any;
+  if (!dbInstance) return [] as unknown[];
   
   // v163: 计算时间窗口 - 保留原有7/14/30天窗口，同时扩展到90天用于时间衰减加权
   const date7dAgo = new Date(endDate);
@@ -230,7 +230,7 @@ export async function collectCampaignPerformanceData(
       ));
       
       const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
-        date: typeof d.date === 'string' ? d.date : new Date(d.date as any).toISOString(),
+        date: typeof d.date === 'string' ? d.date : new Date(d.date as unknown).toISOString(),
         impressions: d.impressions || 0,
         clicks: d.clicks || 0,
         spend: parseFloat(String(d.spend || '0')),
@@ -862,7 +862,7 @@ export async function applyBudgetAllocationSuggestions(
   errors: string[];
 }> {
   const dbInstance = await getDb();
-  if (!dbInstance) return [] as any;
+  if (!dbInstance) return [] as unknown[];
   const errors: string[] = [];
   let appliedCount = 0;
   let failedCount = 0;
@@ -910,7 +910,7 @@ export async function applyBudgetAllocationSuggestions(
         newBudget: suggestion.suggestedBudget?.toString(),
         changeReason: suggestion.reason || 'auto',
         appliedBy: userId
-      } as any);
+      } as Record<string, unknown>);
       
       // 更新建议状态
       await dbInstance.update(budgetAllocationSuggestions)
@@ -944,7 +944,7 @@ export async function getBudgetAllocationConfig(
   performanceGroupId: number
 ): Promise<AllocationConfig> {
   const dbInstance = await getDb();
-  if (!dbInstance) return [] as any;
+  if (!dbInstance) return [] as unknown[];
   
   const [config] = await dbInstance.select()
     .from(budgetAllocationConfigs)
@@ -978,7 +978,7 @@ export async function updateBudgetAllocationConfig(
   updates: Partial<AllocationConfig>
 ): Promise<void> {
   const dbInstance = await getDb();
-  if (!dbInstance) return [] as any;
+  if (!dbInstance) return [] as unknown[];
   
   const [existing] = await dbInstance.select()
     .from(budgetAllocationConfigs)

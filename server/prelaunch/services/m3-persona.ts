@@ -78,7 +78,7 @@ For each persona, provide:
 
 Return JSON array of personas.`;
 
-      const personas = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.4 });
+      const personas = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
 
       // Step 4: 为每个画像生成叙事描述
       for (const persona of personas) {

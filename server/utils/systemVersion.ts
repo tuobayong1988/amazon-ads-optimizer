@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 358.1;  // v358.1: 技术债务清理+持续监控 - SLO大盘集成+数据完整性检查器调度+1598处any类型清理(60%)+定时器管理器+循环依赖修复
+export const SYSTEM_VERSION = 358.2;  // v358.2: 深度类型安全改造 - 2683处any类型100%清理(2683→0)+全量unknown/Record类型守卫

@@ -127,7 +127,7 @@ export async function getDb() {
         _poolStats.created++;
       });
       
-      _db = drizzle(_pool as any, { casing: 'camelCase' });
+      _db = drizzle(_pool as unknown, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();
       log.info(`[Database] v350: 连接池已建立 (limit=20, idle=10, connectTimeout=15s, keepAlive=10s, queueLimit=50)`);
@@ -853,8 +853,8 @@ export async function createBiddingLog(log: InsertBiddingLog) {
   const safeCampaignId = await safeCampaignIdForInsert({
     campaignId: log.campaignId,
     targetLocalId: log.targetId ? Number(log.targetId) : undefined,
-    targetType: (log as any).logTargetType || 'keyword',
-    adGroupId: (log as any).adGroupId ? Number((log as any).adGroupId) : undefined,
+    targetType: (log as unknown).logTargetType || 'keyword',
+    adGroupId: (log as unknown).adGroupId ? Number((log as unknown).adGroupId) : undefined,
     caller: 'createBiddingLog',
   });
   log.campaignId = safeCampaignId as unknown;
@@ -870,9 +870,9 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
       campaignId: Number(safeCampaignId) || null,
-      campaignName: (log as any).campaignName as string || null,
+      campaignName: (log as unknown).campaignName as string || null,
       keywordId: log.targetId,
-      keywordText: (log as any).keywordText as string || null,
+      keywordText: (log as unknown).keywordText as string || null,
       matchType: log.logMatchType as string || null,
       previousBid: String(log.previousBid || 0),
       newBid: String(log.newBid || 0),
@@ -885,7 +885,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       sourceId: Number(logId),
     });
   } catch (e) {
-    (log as any).error('[v145] 双写optimization_events失败(biddingLog):', e);
+    (log as unknown).error('[v145] 双写optimization_events失败(biddingLog):', e);
   }
   
   return logId;
@@ -1125,7 +1125,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         conversions: 0,
         dataSource: 'ams',
         isFinalized: 0,
-      } as any);
+      } as Record<string, unknown>);
     }
   }
   
@@ -1274,7 +1274,7 @@ export async function deleteDailyPerformanceByDateRange(
       sql`DATE(${dailyPerformance.date}) <= ${endDate}`
     ));
   
-  return (result as any)[0]?.affectedRows || 0;
+  return (result as Record<string, unknown>[][])[0]?.affectedRows || 0;
 }
 
 // ==================== Market Curve Data Functions ====================
@@ -1772,7 +1772,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
         const perfRows = await db.select()
           .from(dailyPerformance)
           .where(and(
-            eq(dailyPerformance.campaignId, String((log as any).campaignId)),
+            eq(dailyPerformance.campaignId, String((log as unknown).campaignId)),
             sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split('T')[0]}`,
             sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
           ));
@@ -1800,7 +1800,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       targetId: bidRecord.targetId || 0,
       targetName: bidRecord.targetName || '',
       targetType: bidRecord.logTargetType as 'keyword' | 'product_target' | 'placement',
-      campaignId: bidRecord.campaignId || 0 as any,
+      campaignId: bidRecord.campaignId || 0 as unknown,
       campaignName: '',
       oldBid,
       newBid,
@@ -1922,7 +1922,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      campaignId: campaign.campaignId as any,
+      campaignId: campaign.campaignId as string,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,
@@ -2023,7 +2023,7 @@ export async function addNegativeKeyword(data: {
     negativeText: data.keyword,
     negativeMatchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
     negativeSource: 'manual',
-  } as any);
+  } as Record<string, unknown>);
 }
 
 
@@ -2583,7 +2583,7 @@ export async function addAttributionCorrectionRecord(data: {
     suggestedBid: data.suggestedBid?.toString() || null,
     confidenceScore: data.confidenceScore?.toString() || null,
     correctionStatus: 'pending_review',
-  } as any);
+  } as Record<string, unknown>);
 }
 
 // Get correction review session
@@ -3364,7 +3364,7 @@ export async function recordBidAdjustment(data: {
     appliedBy: data.appliedBy,
     status: data.status || 'applied',
     errorMessage: data.errorMessage,
-  } as any);
+  } as Record<string, unknown>);
   
   // v145: 双写到统一优化事件表
   try {
@@ -3391,7 +3391,7 @@ export async function recordBidAdjustment(data: {
       algorithmVersion: undefined,
       optimizationScore: data.optimizationScore,
       expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : undefined,
-      status: (statusMap[data.status || 'applied'] || 'success') as any,
+      status: (statusMap[data.status || 'applied'] || 'success') as unknown,
       apiSyncStatus: 'synced',
       errorMessage: data.errorMessage,
       sourceTable: 'bid_adjustment_history',
@@ -3454,7 +3454,7 @@ export async function recordBidAdjustmentBatch(records: Array<{
     };
   });
   
-  const result = await db.insert(bidAdjustmentHistory).values(values as any);
+  const result = await db.insert(bidAdjustmentHistory).values(values as unknown);
   return result;
 }
 
@@ -3878,12 +3878,12 @@ export async function updateSyncJob(jobId: number, data: {
   totalSteps?: number;
   currentStepIndex?: number;
   progressPercent?: number;
-  siteProgress?: any;
+  siteProgress?: unknown;
 }) {
   const db = await getDb();
   if (!db) return;
   
-  const updateData: any = { ...data };
+  const updateData: Record<string, unknown> = { ...data };
   if (data.status === 'completed' || data.status === 'failed') {
     updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   }
@@ -4100,7 +4100,7 @@ export async function getSyncChangeRecords(syncJobId: number, entityType?: strin
   
   const conditions = [eq(syncChangeRecords.syncJobId, syncJobId)];
   if (entityType) {
-    conditions.push(eq(syncChangeRecords.entityType, entityType as any));
+    conditions.push(eq(syncChangeRecords.entityType, entityType as unknown));
   }
   
   return db.select()
@@ -4179,7 +4179,7 @@ export async function getSyncConflicts(accountId: number, status?: string) {
   
   const conditions = [eq(syncConflicts.accountId, accountId)];
   if (status) {
-    conditions.push(eq(syncConflicts.resolutionStatus, status as any));
+    conditions.push(eq(syncConflicts.resolutionStatus, status as string));
   }
   
   return db.select()
@@ -4308,7 +4308,7 @@ export async function getSyncQueue(userId: number, status?: string) {
   
   const conditions = [eq(syncTaskQueue.userId, userId)];
   if (status) {
-    conditions.push(eq(syncTaskQueue.status, status as any));
+    conditions.push(eq(syncTaskQueue.status, status as string));
   }
   
   return db.select()
@@ -4345,7 +4345,7 @@ export async function updateSyncTaskStatus(
     completedSteps: number;
     estimatedTimeMs: number;
     errorMessage: string;
-    resultSummary: any;
+    resultSummary: unknown;
     startedAt: string;
     completedAt: string;
   }>
@@ -4353,7 +4353,7 @@ export async function updateSyncTaskStatus(
   const db = await getDb();
   if (!db) return false;
   
-  const updateData: any = { status };
+  const updateData: Record<string, unknown> = { status };
   
   if (status === 'running' && !updates?.startedAt) {
     updateData.startedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -4465,7 +4465,7 @@ export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7
       lte(syncTaskQueue.completedAt, cutoffDateStr)
     ));
   
-  return (result as any).affectedRows || 0;
+  return (result as Record<string, number>).affectedRows || 0;
 }
 
 
@@ -4530,15 +4530,15 @@ export async function createSyncSchedule(data: {
     .values({
       userId: data.userId,
       accountId: data.accountId,
-      syncType: data.syncType as any,
-      frequency: data.frequency as any,
+      syncType: data.syncType as unknown,
+      frequency: data.frequency as unknown,
       preferredTime: data.preferredTime,
       preferredDayOfWeek: data.preferredDayOfWeek,
       isEnabled: data.isEnabled ? 1 : 0,
       nextRunAt: nextRunAt.toISOString().slice(0, 19).replace('T', ' '),
     });
   
-  return (result as any).insertId;
+  return (result as Record<string, number>).insertId;
 }
 
 /**
@@ -4554,7 +4554,7 @@ export async function updateSyncSchedule(scheduleId: number, data: {
   const db = await getDb();
   if (!db) return false;
   
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
   };
   
@@ -4732,8 +4732,8 @@ export async function createSyncLog(data: {
     .values({
       userId: data.userId,
       accountId: data.accountId,
-      syncType: data.syncType as any,
-      status: data.status as any,
+      syncType: data.syncType as unknown,
+      status: data.status as string,
       recordsSynced: data.recordsSynced,
       startedAt: data.startedAt,
       completedAt: data.completedAt,
@@ -4747,7 +4747,7 @@ export async function createSyncLog(data: {
       errorMessage: data.errorMessage,
     });
   
-  return (result as any).insertId;
+  return (result as Record<string, number>).insertId;
 }
 
 
@@ -4929,11 +4929,11 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
         AND DATE(date) <= ${endDateStr}
       GROUP BY DATE(date)
       ORDER BY DATE(date)
-    `) as any;
+    `) as unknown;
     
     const rows = results[0] || results;
     
-    return (rows as any[]).map((r: Record<string, unknown>) => {
+    return (rows as unknown[]).map((r: Record<string, unknown>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
@@ -4990,7 +4990,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MAX(DATE(date)) as max_date
       FROM daily_performance
       WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-    `) as any;
+    `) as unknown;
     
     const rows = results[0] || results;
     const row = Array.isArray(rows) ? rows[0] : rows;
@@ -5001,7 +5001,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         SELECT MAX(lastSyncAt) as last_sync
         FROM amazon_api_credentials
         WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-      `) as any;
+      `) as unknown;
       const syncRows = syncResults[0] || syncResults;
       const syncRow = Array.isArray(syncRows) ? syncRows[0] : syncRows;
       
@@ -5020,7 +5020,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MAX(DATE(updatedAt)) as max_date
       FROM campaigns
       WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-    `) as any;
+    `) as unknown;
     
     const campaignRows = campaignResults[0] || campaignResults;
     const campaignRow = Array.isArray(campaignRows) ? campaignRows[0] : campaignRows;
@@ -5086,7 +5086,7 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number) {
       ORDER BY placement
     `);
     
-    return (result as any) || [];
+    return (result as unknown) || [];
   } catch (error) {
     log.error('[getPlacementPerformanceByCampaignId] Error:', error);
     return [];
@@ -5216,8 +5216,8 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       accountName: data.accountName,
       userId: data.userId,
       userName: data.userName,
-      eventCategory: resolvedCategory as any,
-      actionType: resolvedActionType as any,
+      eventCategory: resolvedCategory as unknown,
+      actionType: resolvedActionType as unknown,
       strategyTemplateId: data.strategyTemplateId,
       strategyTemplateName: data.strategyTemplateName,
       campaignId: data.campaignId,
@@ -5232,20 +5232,20 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       newValue: data.newValue,
       changeReason: data.changeReason,
       actionDetail: data.actionDetail,
-      status: (data.status as any) || 'success',
-      apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as any,
+      status: (data.status as string) || 'success',
+      apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as unknown,
       apiSyncDetail: finalApiSyncDetail,
       // v333: 传递apiResponseId和apiSyncedAt到optimization_events表
-      apiResponseId: extractedApiResponseId || (data as any).apiResponseId || null,
-      apiSyncedAt: (data as any).apiSyncedAt || (finalApiSyncStatus === 'synced' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null),
+      apiResponseId: extractedApiResponseId || (data as unknown).apiResponseId || null,
+      apiSyncedAt: (data as unknown).apiSyncedAt || (finalApiSyncStatus === 'synced' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null),
       errorMessage: data.errorMessage,
       sourceTable: 'optimization_logs',
       sourceId: logId,
       executedAt: data.executedAt,
       // v258: 写入结构化归因和护栏信息
-      reasonDetails: (data as any).reasonDetails || undefined,
-      guardrailInfo: (data as any).guardrailInfo || undefined,
-      relatedEventId: (data as any).relatedEventId || undefined,
+      reasonDetails: (data as unknown).reasonDetails || undefined,
+      guardrailInfo: (data as unknown).guardrailInfo || undefined,
+      relatedEventId: (data as unknown).relatedEventId || undefined,
       // v274: 写入算法决策元数据（预算分池、因果推断、GTO修正等）
       performanceData: (() => {
         try {
@@ -5287,7 +5287,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     });
     log.info(`[v274] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
-    log.error('[v212] 双写optimization_events失败:', (e as any).message || e);
+    log.error('[v212] 双写optimization_events失败:', (e instanceof Error ? e.message : String(e)) || e);
     log.error(`[v212] 双写失败详情: logCategory=${data.logCategory} actionType=${data.actionType}`);
   }
   
@@ -5315,7 +5315,7 @@ export async function getOptimizationLogs(params: {
   let conditions = [eq(optimizationLogs.performanceGroupId, performanceGroupId)];
   
   if (category && category !== 'all') {
-    conditions.push(eq(optimizationLogs.logCategory, category as any));
+    conditions.push(eq(optimizationLogs.logCategory, category as unknown));
   }
   
   if (startDate) {
@@ -5442,7 +5442,7 @@ export async function insertOptimizationEvent(event: InsertOptimizationEvent): P
   // v222: campaignId 安全守卫
   if (event.campaignId != null) {
     const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
-    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as any;
+    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as unknown;
   }
   
   const result = await db.insert(optimizationEvents).values(event);
@@ -5462,7 +5462,7 @@ export async function batchInsertOptimizationEvents(events: InsertOptimizationEv
   const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
   for (const event of events) {
     if (event.campaignId != null) {
-      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as any;
+      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as unknown;
     }
   }
   
@@ -5675,7 +5675,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     sourceTable: 'bidding_logs',
     sourceId: log.id,
     createdAt: log.createdAt,
-  } as any));
+  } as Record<string, unknown>));
   
   await db.insert(optimizationEvents).values(events);
   return events.length;
@@ -5728,7 +5728,7 @@ export async function migrateFromBidAdjustmentHistory(accountId: number): Promis
     createdAt: record.appliedAt,
   }));
   
-  await db.insert(optimizationEvents).values(events as any);
+  await db.insert(optimizationEvents).values(events as unknown);
   return events.length;
 }
 
@@ -5796,8 +5796,8 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
       accountName: log.accountName,
       userId: log.userId,
       userName: log.userName,
-      eventCategory: mappedCategory as any,
-      actionType: mappedAction as any,
+      eventCategory: mappedCategory as unknown,
+      actionType: mappedAction as unknown,
       strategyTemplateId: log.strategyTemplateId,
       strategyTemplateName: log.strategyTemplateName,
       campaignId: log.campaignId,
@@ -5806,8 +5806,8 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
       newValue: log.newValue,
       changeReason: log.changeReason,
       actionDetail: log.actionDetail,
-      status: log.status as any || 'success',
-      apiSyncStatus: log.apiSyncStatus as any,
+      status: log.status as string || 'success',
+      apiSyncStatus: log.apiSyncStatus as unknown,
       apiSyncDetail: log.apiSyncDetail,
       errorMessage: log.errorMessage,
       sourceTable: 'optimization_logs',

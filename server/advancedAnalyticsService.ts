@@ -216,7 +216,7 @@ export async function getAttributionAnalysis(params: {
 /**
  * 计算单个事件的归因效果
  */
-async function computeEventAttribution(db: any, event: OptimizationEvent): Promise<AttributionResult | null> {
+async function computeEventAttribution(db: ReturnType<typeof getDb> | null, event: OptimizationEvent): Promise<AttributionResult | null> {
   const eventDate = new Date(event.createdAt);
   
   // 基线窗口：事件前7天
@@ -293,7 +293,7 @@ async function computeEventAttribution(db: any, event: OptimizationEvent): Promi
  * 获取指定时间窗口内的广告效果数据
  */
 async function getPerformanceWindow(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   event: OptimizationEvent,
   startDate: Date,
   endDate: Date
@@ -470,7 +470,7 @@ export async function getTrendAnalysis(params: {
   for (const metric of metricsToAnalyze) {
     const dataPoints = enrichedData.map(d => ({
       date: d.date,
-      value: Math.round((d as any)[metric] * 100) / 100,
+      value: Math.round((d as unknown)[metric] * 100) / 100,
     }));
     
     // 计算移动平均（7日窗口）
@@ -621,7 +621,7 @@ export async function detectAnomalies(params: {
   };
   
   for (const metric of metricsToCheck) {
-    const values = enrichedData.map(d => (d as any)[metric] as number);
+    const values = enrichedData.map(d => (d as unknown)[metric] as number);
     
     // 计算均值和标准差
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -634,7 +634,7 @@ export async function detectAnomalies(params: {
     const threshold = sensitivity; // 1σ, 2σ, 或 3σ
     
     for (let i = 0; i < enrichedData.length; i++) {
-      const value = (enrichedData[i] as any)[metric] as number;
+      const value = (enrichedData[i] as unknown)[metric] as number;
       const zScore = Math.abs((value - mean) / stdDev);
       
       if (zScore >= threshold) {
@@ -681,7 +681,7 @@ export async function detectAnomalies(params: {
  * 查找可能导致异常的优化事件
  */
 async function findPossibleCauses(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   anomalyDate: string,
   performanceGroupId?: number
@@ -1061,7 +1061,7 @@ export async function updateEventTrackingData(
   const db = await getDb();
   if (!db) return;
   
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
   };
   

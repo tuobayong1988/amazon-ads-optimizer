@@ -189,7 +189,7 @@ export const adAccountRouter = router({
     .query(async ({ ctx, input }) => {
     // v268 性能优化: API响应缓存（TTL 2分钟）
     const cacheKey = apiCache.generateKey('listWithPerformance', ctx.user.id, input);
-    const cached = apiCache.get<any>(cacheKey);
+    const cached = apiCache.get<unknown>(cacheKey);
     if (cached) return cached;
 
     const timeRange = input?.timeRange || '7days';
@@ -393,7 +393,7 @@ export const adAccountRouter = router({
     .query(async ({ ctx, input }) => {
       // v268 性能优化: API响应缓存（TTL 2分钟）
       const cacheKey = apiCache.generateKey('getDailyTrend', ctx.user.id, input);
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       // 管理员可以访问所有账户

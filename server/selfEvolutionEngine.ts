@@ -298,7 +298,7 @@ export async function evaluateRecentOptimizations(
  * 获取时间衰减加权的campaign级别指标
  */
 async function getTimeWeightedCampaignMetrics(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   campaignIds: (string | number)[],
   startDate: string,
   endDate: string
@@ -374,7 +374,7 @@ async function getTimeWeightedCampaignMetrics(
 function calculateEffectScore(
   pre: { acos: number; roas: number; dailySpend: number; dailyOrders: number },
   post: { acos: number; roas: number; dailySpend: number; dailyOrders: number },
-  logEntry: any
+  logEntry: unknown
 ): number {
   let score = 0;
   
@@ -590,7 +590,7 @@ export async function generateAutoCorrections(
       try {
         const detail = JSON.parse(log.actionDetail || '{}');
         
-        if (log.actionType === ('bid_adjustment' as any)) {
+        if (log.actionType === ('bid_adjustment' as unknown)) {
           originalValue = parseFloat(detail.previousBid || detail.oldBid || '0');
           currentValue = parseFloat(detail.newBid || '0');
           correctionType = 'rollback_bid';
@@ -607,7 +607,7 @@ export async function generateAutoCorrections(
           currentValue = parseFloat(detail.newBudget || '0');
           correctionType = 'rollback_budget';
           correctedValue = assessment.correctionType === 'rollback' ? originalValue : Math.round((originalValue + currentValue) / 2 * 100) / 100;
-        } else if (log.actionType === ('placement_adjustment' as any)) {
+        } else if (log.actionType === ('placement_adjustment' as unknown)) {
           originalValue = parseFloat(detail.previousMultiplier || '0');
           currentValue = parseFloat(detail.newMultiplier || '0');
           correctionType = 'rollback_placement';
@@ -732,7 +732,7 @@ export async function executeAutoCorrections(
         reason: `[自动纠错] ${correction.reason}`,
         apiSyncStatus: 'pending',
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      } as any);
+      } as Record<string, unknown>);
       
       // 标记原始日志为已纠正
       await db.update(optimizationLogs)

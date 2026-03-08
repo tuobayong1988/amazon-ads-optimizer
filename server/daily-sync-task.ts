@@ -75,7 +75,7 @@ export async function syncCampaignDailyData(
     
     // 使用db封装函数存储到数据库
     const record = buildPerformanceRecord(campaignData, campaignId, date);
-    await db.createDailyPerformance(record as any);
+    await db.createDailyPerformance(record as Record<string, unknown>);
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
   } catch (error: unknown) {
@@ -116,7 +116,7 @@ export async function syncAllCampaignsDailyData(
     for (const row of spData) {
       try {
         const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
-        await db.createDailyPerformance(record as any);
+        await db.createDailyPerformance(record as Record<string, unknown>);
         successCount++;
       } catch (error: unknown) {
         log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);

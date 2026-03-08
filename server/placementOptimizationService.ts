@@ -387,7 +387,7 @@ export function calculateEfficiencyScore(
   },
   weights: PlacementWeightConfig = DEFAULT_WEIGHTS,
   benchmarks: NormalizationBenchmarks = DEFAULT_BENCHMARKS
-): { score: number; confidence: ConfidenceResult; normalizedMetrics: any } {
+): { score: number; confidence: ConfidenceResult; normalizedMetrics: unknown } {
   // 计算派生指标
   const ctr = metrics.clicks > 0 ? (metrics.clicks / metrics.impressions) * 100 : 0;
   const cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
@@ -572,7 +572,7 @@ export async function calculateOptimalAdjustment(
     // 生成调整原因
     let reason = '';
     if (cooldownStatus.inCooldown) {
-      reason = (cooldownStatus as any).reason || '在冷却期内，暂不调整';
+      reason = (cooldownStatus as unknown).reason || '在冷却期内，暂不调整';
     } else if (!score.isReliable) {
       reason = `${score.confidenceReason}，暂不调整`;
     } else if (adjustmentResult.delta > 5) {
@@ -669,7 +669,7 @@ export async function getCampaignPlacementPerformance(
       placementDailyData[placement] = [];
     }
     placementDailyData[placement].push({
-      date: typeof row.date === 'string' ? row.date : new Date(row.date as any).toISOString(),
+      date: typeof row.date === 'string' ? row.date : new Date(row.date as unknown).toISOString(),
       impressions: row.impressions || 0,
       clicks: row.clicks || 0,
       spend: Number(row.spend) || 0,
@@ -694,8 +694,8 @@ export async function getCampaignPlacementPerformance(
         // v163: 使用时间衰减加权后的指标计算效率得分
         const totalDays = dailyData.length;
         weightedMetrics = {
-          impressions: Math.round((twMetrics as any).weightedDailyImpressions * totalDays),
-          clicks: Math.round((twMetrics as any).weightedDailyClicks * totalDays),
+          impressions: Math.round((twMetrics as unknown).weightedDailyImpressions * totalDays),
+          clicks: Math.round((twMetrics as unknown).weightedDailyClicks * totalDays),
           spend: twMetrics.weightedDailySpend * totalDays,
           sales: twMetrics.weightedDailySales * totalDays,
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
@@ -749,7 +749,7 @@ export async function getCampaignPlacementSettings(
         eq(placementSettings.campaignId, String(campaignId)),
         eq(placementSettings.accountId, accountId)
       )
-    ) as any[];
+    ) as unknown[];
 
   const result: { [key in PlacementType]?: number } = {};
   
@@ -823,7 +823,7 @@ export async function updatePlacementSettings(
     )
     .limit(1);
 
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     lastAdjustedAt: new Date()
   };
   
@@ -853,7 +853,7 @@ export async function updatePlacementSettings(
   
   // v165: 同步更新campaigns表的位置倾斜字段，确保前端展示与实际优化值一致
   try {
-    const campaignUpdateData: any = {};
+    const campaignUpdateData: Record<string, unknown> = {};
     for (const adj of validAdjustments) {
       if (adj.placementType === 'top_of_search') {
         campaignUpdateData.placementTopSearchBidAdjustment = adj.suggestedAdjustment;
@@ -1021,7 +1021,7 @@ export async function batchExecutePlacementOptimization(
           eq(campaigns.accountId, accountId),
           eq(campaigns.campaignStatus, 'enabled')
         )
-      ) as any[];
+      ) as unknown[];
     campaignsToOptimize = allCampaigns
       .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
       .map((c: Record<string, unknown>) => ({ amazonCampaignId: String(c.campaignId) }));
@@ -1082,7 +1082,7 @@ export async function batchExecutePlacementOptimization(
 export async function analyzePlacementPerformance(
   campaignId: string,
   accountId: number
-): Promise<any> {
+): Promise<unknown> {
   const performance = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance || performance.length === 0) return null;
   
@@ -1090,9 +1090,9 @@ export async function analyzePlacementPerformance(
     campaignId,
     placements: performance,
     analysis: {
-      bestPerforming: performance.reduce((best: any, p: Record<string, unknown>) => 
+      bestPerforming: performance.reduce((best: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || 0) > (best?.metrics?.roas || 0) ? p : best, performance[0]),
-      worstPerforming: performance.reduce((worst: any, p: Record<string, unknown>) => 
+      worstPerforming: performance.reduce((worst: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || Infinity) < (worst?.metrics?.roas || Infinity) ? p : worst, performance[0]),
       reliableDataCount: performance.filter(p => p.isReliable).length,
       totalPlacements: performance.length
@@ -1106,7 +1106,7 @@ export async function analyzePlacementPerformance(
 export async function generatePlacementSuggestions(
   campaignId: string,
   accountId: number
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   const performance = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance || performance.length === 0) return [];
   
@@ -1149,7 +1149,7 @@ export async function generatePlacementSuggestions(
 export async function applyPlacementAdjustment(
   campaignId: string,
   accountId: number,
-  adjustment: any
+  adjustment: unknown
 ): Promise<boolean> {
   try {
     await updatePlacementSettings(campaignId, accountId, [{
@@ -1177,7 +1177,7 @@ export async function getPlacementAdjustmentEffectAnalysis(
   accountId: number,
   adjustmentId?: number
 ): Promise<{
-  adjustmentRecord: any;
+  adjustmentRecord: unknown;
   effectAnalysis: {
     roasChange: number;
     acosChange: number;
@@ -1191,7 +1191,7 @@ export async function getPlacementAdjustmentEffectAnalysis(
   if (!db) throw new Error('Database connection failed');
   
   // 获取调整记录
-  let adjustmentRecord: any = null;
+  let adjustmentRecord: unknown = null;
   
   if (adjustmentId) {
     const records = await db.select()

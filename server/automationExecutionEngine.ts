@@ -570,7 +570,7 @@ export async function executeOptimization(
               );
               await budgetSvc.client.updateSpCampaign(
                 String(budgetCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
-                { dailyBudget: newValue } as any
+                { dailyBudget: newValue } as Record<string, unknown>
               );
               budgetApiSuccess = true;
             }
@@ -707,7 +707,7 @@ export async function executeOptimization(
                       },
                     ],
                   },
-                } as any
+                } as Record<string, unknown>
               );
               placementApiSuccess = true;
             }
@@ -762,7 +762,7 @@ export async function executeOptimization(
               // 分时策略通过调整日预算实现（newValue为调整后的日预算）
               await dpSvc.client.updateSpCampaign(
                 String(dpCampaign.campaignId),  // v356: 使用String()替代parseInt()，避免Amazon ID精度丢失
-                { dailyBudget: newValue } as any
+                { dailyBudget: newValue } as Record<string, unknown>
               );
               daypartingApiSuccess = true;
             }
@@ -878,7 +878,7 @@ export async function executeOptimization(
         let harvestAdGroupId: number = 0;
         let harvestAmazonAdGroupId: string = '';
         let harvestAmazonCampaignId: string = '';
-        let harvestSyncResult: any = null;  // v357: 提升作用域以便在try块外访问
+        let harvestSyncResult: unknown = null;  // v357: 提升作用域以便在try块外访问
         
         // 从Reason中解析目标campaign和adGroup信息
         // reason格式通常包含: "源Campaign=X → 目标Campaign=Y"
@@ -1122,7 +1122,7 @@ export async function runFullAutomationCycle(accountId: number): Promise<{
     {
       optimizationTypes: config.enabledTypes.filter(t => 
         ['bid_adjustment', 'placement_tilt', 'dayparting', 'negative_keyword'].includes(t)
-      ) as any[],
+      ) as unknown[],
     }
   );
   
@@ -1131,7 +1131,7 @@ export async function runFullAutomationCycle(accountId: number): Promise<{
     .filter(r => r.confidence >= config.safetyBoundary.supervisedConfidence)
     .map(r => ({
       type: r.type as ExecutionType,
-      targetType: r.targetType as any,
+      targetType: r.targetType as unknown,
       targetId: r.targetId,
       targetName: r.targetName,
       currentValue: typeof r.currentValue === 'number' ? r.currentValue : parseFloat(r.currentValue as string) || 0,

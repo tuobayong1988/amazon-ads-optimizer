@@ -43,7 +43,7 @@ interface InitialOptimizationResult {
     avgRoas: number;
     dataQuality: 'sufficient' | 'moderate' | 'sparse';
   };
-  executionResult?: any;
+  executionResult?: unknown;
   schedulingResult?: {
     frequency: string;
     nextExecutionTime: Date;

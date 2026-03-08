@@ -62,7 +62,7 @@ async function checkDatabase() {
       SELECT COUNT(*) as count, MAX(createdAt) as lastReceived 
       FROM ams_performance_data 
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
-    `) as any;
+    `) as unknown;
     results.amsData = amsResult[0];
   } catch (e: unknown) { results.amsData = { error: e.message }; }
 
@@ -73,7 +73,7 @@ async function checkDatabase() {
       FROM report_jobs
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
       GROUP BY status
-    `) as any;
+    `) as unknown;
     results.reportJobs = reportResult;
   } catch (e: unknown) { results.reportJobs = { error: e.message }; }
 
@@ -84,7 +84,7 @@ async function checkDatabase() {
       FROM daily_performance
       WHERE date >= CURRENT_DATE - INTERVAL '3 days'
       GROUP BY dataSource
-    `) as any;
+    `) as unknown;
     results.dataFusion = fusionResult;
   } catch (e: unknown) { results.dataFusion = { error: e.message }; }
 

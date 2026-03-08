@@ -634,7 +634,7 @@ export function executeDecisionTree(
  * 评估决策条件
  */
 function evaluateCondition(performance: SearchAdPerformance, condition: DecisionCondition): boolean {
-  const fieldValue = (performance as any)[condition.field];
+  const fieldValue = (performance as unknown)[condition.field];
   
   if (fieldValue === undefined || fieldValue === null) {
     return false;

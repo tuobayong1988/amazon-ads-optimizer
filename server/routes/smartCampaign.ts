@@ -281,11 +281,11 @@ export const smartCampaignRouter = router({
         maxConcurrent: z.number().default(5),
       })
     )
-    .mutation(async ({ input }): Promise<{ summary: any; results: Record<string, unknown>[] }> => {
+    .mutation(async ({ input }): Promise<{ summary: unknown; results: Record<string, unknown>[] }> => {
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
 
       // 先获取优化建议
-      const report = await smartCampaignRouter.createCaller({} as any).getBatchOptimizationRecommendations({
+      const report = await smartCampaignRouter.createCaller({} as Record<string, unknown>).getBatchOptimizationRecommendations({
         performanceGroupId,
         goal,
         daysOfHistory,

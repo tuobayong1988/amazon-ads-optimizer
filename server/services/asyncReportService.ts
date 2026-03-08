@@ -103,7 +103,7 @@ export class AsyncReportService {
       refreshToken: safeDecrypt(credentials.refreshToken as string),
     };
 
-    return new AmazonAdsApiClient(decryptedCreds as any);
+    return new AmazonAdsApiClient(decryptedCreds as unknown);
   }
 
   /**
@@ -312,7 +312,7 @@ export class AsyncReportService {
         }
         
         // 如果payload中没有adType，尝试使用adProduct字段
-        const adType = payload.adType || (job as any).adProduct;
+        const adType = payload.adType || (job as unknown).adProduct;
 
         switch (adType) {
           case 'SP':
@@ -733,7 +733,7 @@ export class AsyncReportService {
         )
       );
 
-    return (result as any).rowsAffected || 0;
+    return (result as unknown).rowsAffected || 0;
   }
 }
 

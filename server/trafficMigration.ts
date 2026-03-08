@@ -141,7 +141,7 @@ export async function analyzeSearchTermPerformance(
   query += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.ad_group_id, st.search_term_match_type`;
   
   const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const rows = (result as unknown[])[0] || [];
   
   // 计算指标
   return rows.map((t: Record<string, unknown>) => {
@@ -376,7 +376,7 @@ export async function executeTrafficIsolation(
         negativeMatchType: 'negative_exact',
         negativeSource: 'traffic_conflict',
         negativeStatus: 'active',
-      } as any);
+      } as Record<string, unknown>);
       addedCount++;
     } catch (error: unknown) {
       if (!(error as Error).message?.includes('Duplicate')) {
@@ -477,7 +477,7 @@ export async function getTierArchitectureStatus(
   `;
   
   const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const rows = (result as unknown[])[0] || [];
   
   const countMap = new Map<string, number>();
   for (const row of rows) {

@@ -220,7 +220,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
         const effectScore = calculateEffectScore(event, perfData, period);
         
         // 更新追踪数据
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           trackingUpdatedAt: now.toISOString().slice(0, 19).replace('T', ' '),
         };
         
@@ -258,7 +258,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
  * 获取优化事件后续的效果数据
  */
 async function getEventPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   event: Record<string, unknown>,
   startDate: Date,
   endDate: Date
@@ -443,7 +443,7 @@ export async function evaluateTargetPerformance(
       totalEffectScore += effectScore;
       
       // 按算法分类统计
-      const algo = (event.performanceData as any)?.algorithmUsed || 'unknown';
+      const algo = (event.performanceData as Record<string, unknown>)?.algorithmUsed || 'unknown';
       const algoStats = algorithmMap.get(algo) || { count: 0, totalScore: 0, successCount: 0 };
       algoStats.count++;
       algoStats.totalScore += effectScore;
@@ -520,7 +520,7 @@ export async function getTargetAlgorithmConfig(targetId: number): Promise<Target
       const group = groups[0];
       // 尝试从performanceData JSON字段读取（如果有的话）
       // 目前使用默认配置，后续可以扩展到数据库持久化
-      const storedConfig = (group as any).algorithmConfig;
+      const storedConfig = (group as unknown).algorithmConfig;
       if (storedConfig && typeof storedConfig === 'object') {
         return { ...DEFAULT_TARGET_ALGORITHM_CONFIG, ...storedConfig };
       }
@@ -663,7 +663,7 @@ export function calculateParameterAdjustments(
         });
         
         // 存储实际的新权重值（通过特殊编码）
-        (adjustments[adjustments.length - 1] as any)._newWeights = newWeights;
+        (adjustments[adjustments.length - 1] as unknown)._newWeights = newWeights;
       }
     }
   }
@@ -779,8 +779,8 @@ export function applyAdjustments(
         newConfig.confidenceThreshold = adj.newValue;
         break;
       case 'algorithmWeights':
-        if ((adj as any)._newWeights) {
-          newConfig.algorithmWeights = (adj as any)._newWeights;
+        if ((adj as unknown)._newWeights) {
+          newConfig.algorithmWeights = (adj as unknown)._newWeights;
         }
         break;
     }

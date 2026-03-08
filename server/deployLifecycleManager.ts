@@ -88,7 +88,7 @@ const activeTasks = new Map<string, {
 }>();
 
 let heartbeatTimer: NodeJS.Timeout | null = null;
-let httpServer: any = null;
+let httpServer: unknown = null;
 
 // ==================== 优雅关闭 ====================
 
@@ -96,7 +96,7 @@ let httpServer: any = null;
  * 注册优雅关闭处理器
  * 应在服务器启动后立即调用
  */
-export function registerGracefulShutdown(server: any): void {
+export function registerGracefulShutdown(server: unknown): void {
   httpServer = server;
   
   // 注册信号处理器
@@ -106,7 +106,7 @@ export function registerGracefulShutdown(server: any): void {
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
     log.error(`[LifecycleManager] 未捕获异常: ${error.message}`);
-    log.error(error.stack as any);
+    log.error(error.stack as unknown);
     await handleShutdown('uncaughtException');
   });
   
@@ -636,7 +636,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
  */
 export async function flushPendingTasks(): Promise<void> {
   try {
-    const { processSyncQueue } = await import('./optimizationSyncEngine') as any;
+    const { processSyncQueue } = await import('./optimizationSyncEngine') as unknown;
     if (typeof processSyncQueue === 'function') {
       log.info('[LifecycleManager] 触发同步引擎处理pending任务...');
       const result = await processSyncQueue({});
@@ -653,7 +653,7 @@ export async function flushPendingTasks(): Promise<void> {
  * 系统启动协调器 — 在HTTP服务器启动后调用
  * 按正确顺序执行所有启动任务
  */
-export async function orchestrateStartup(server: any): Promise<void> {
+export async function orchestrateStartup(server: unknown): Promise<void> {
   log.debug(`\n[LifecycleManager] ========================================`);
   log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 系统启动协调开始`);
   log.debug(`[LifecycleManager] ========================================\n`);
@@ -791,7 +791,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       // 理由: 先用新算法重优化所有目标，再用纠错器确保API同步一致性，最后验证效果
       
       // 步骤4b: 运行部署后重优化（独立错误隔离）
-      let deployResult: any = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
+      let deployResult: Record<string, unknown> = { triggered: false, reason: 'not_executed', targetsProcessed: 0, targetsSucceeded: 0, targetsFailed: 0, totalOptimizationActions: 0 };
       try {
         log.info('[LifecycleManager] v329: 运行部署后重优化（新算法优先）...');
         const { runPostDeployOptimization } = await import('./postDeployOptimizer');
@@ -806,7 +806,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       }
       
       // 步骤4c: 运行API执行级纠错（独立错误隔离）
-      let corrResult: any = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
+      let corrResult: Record<string, unknown> = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
       try {
         log.info('[LifecycleManager] v329: 运行API执行级纠错（确保同步一致性）...');
         const { runAutoCorrection } = await import('./optimizationAutoCorrector');

@@ -164,7 +164,7 @@ export async function executeBatchSync(options?: {
   // v350: 使用连接池获取直接连接，替代独立createConnection
   const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
-  const accountGroups = new Map<number, any[]>();
+  const accountGroups = new Map<number, Record<string, unknown>[]>();
   try {
     // 1. 读取待处理任务
     let query = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
@@ -186,7 +186,7 @@ export async function executeBatchSync(options?: {
       query += ` LIMIT ${Number(options.maxTasks)}`;
     }
     
-    const [rows] = await conn.execute(query, params) as any[];
+    const [rows] = await conn.execute(query, params) as unknown[];
     result.totalTasks = rows.length;
     
     if (rows.length === 0) {
@@ -217,7 +217,7 @@ export async function executeBatchSync(options?: {
       log.info(`[SyncEngine] [v352] --- 处理账号 [${accountIndex}/${totalAccountGroups}] ${accountId}: ${accountTasks.length} 条任务 ---`);
       
       // 按任务类型分组
-      const typeGroups = new Map<string, any[]>();
+      const typeGroups = new Map<string, Record<string, unknown>[]>();
       for (const task of accountTasks) {
         const type = task.task_type;
         if (!typeGroups.has(type)) typeGroups.set(type, []);
@@ -347,7 +347,7 @@ export async function executeBatchSync(options?: {
       
       // 异步触发确认同步（不阻塞当前流程）
       for (const [accountId, entities] of affectedAccounts) {
-        confirmationSync(accountId, Array.from(entities) as any[], 'optimizationSyncEngine').then(syncResult => {
+        confirmationSync(accountId, Array.from(entities) as unknown[], 'optimizationSyncEngine').then(syncResult => {
           if (syncResult) {
             log.info(`[SyncEngine] v219: 确认同步完成 - 账户 ${accountId}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
           }
@@ -367,7 +367,7 @@ export async function executeBatchSync(options?: {
  * 按任务类型批量同步到Amazon
  */
 async function syncTasksByType(
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   accountId: number,
   taskType: string,
   tasks: unknown[],
@@ -431,8 +431,8 @@ async function syncTasksByType(
  * 执行单个批次的Amazon API同步
  */
 async function executeBatchByType(
-  conn: any,
-  syncService: any,
+  conn: ReturnType<typeof getDb> | null,
+  syncService: Record<string, unknown>,
   taskType: string,
   batch: unknown[]
 ): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
@@ -449,7 +449,7 @@ async function executeBatchByType(
               const [kwRows] = await conn.execute(
                 'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (kwRows[0]?.keywordId) {
                 t.amazon_entity_id = kwRows[0].keywordId;
                 await conn.execute(
@@ -462,7 +462,7 @@ async function executeBatchByType(
               const [ptRows] = await conn.execute(
                 'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (ptRows[0]?.targetId) {
                 t.amazon_entity_id = ptRows[0].targetId;
                 await conn.execute(
@@ -538,7 +538,7 @@ async function executeBatchByType(
               const [campRows] = await conn.execute(
                 'SELECT campaignType FROM campaigns WHERE id = ? OR campaignId = ? LIMIT 1',
                 [t.campaign_id, String(t.campaign_id)]
-              ) as any[];
+              ) as unknown[];
               if (campRows.length > 0 && campRows[0].campaignType) {
                 campaignType = campRows[0].campaignType;
               }
@@ -550,7 +550,7 @@ async function executeBatchByType(
                  INNER JOIN campaigns c ON ag.campaignId = c.campaignId
                  WHERE k.id = ? LIMIT 1`,
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (kwCampRows.length > 0 && kwCampRows[0].campaignType) {
                 campaignType = kwCampRows[0].campaignType;
               }
@@ -687,7 +687,7 @@ async function executeBatchByType(
             const [kwRows] = await conn.execute(
               'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
               [t.target_entity_id]
-            ) as any[];
+            ) as unknown[];
             if (kwRows[0]?.keywordId) {
               t.amazon_entity_id = kwRows[0].keywordId;
               await conn.execute(
@@ -840,7 +840,7 @@ async function executeBatchByType(
             const [rows] = await conn.execute(
               'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
               [t.target_entity_id]
-            ) as any[];
+            ) as unknown[];
             if (rows.length > 0 && rows[0].campaignId) {
               t.campaign_id = rows[0].campaignId;
               t.amazon_entity_id = rows[0].campaignId;
@@ -966,7 +966,7 @@ async function executeBatchByType(
               const [rows] = await conn.execute(
                 'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (rows.length > 0 && rows[0].campaignId) {
                 amazonCampaignId = rows[0].campaignId;
                 await conn.execute(
@@ -1023,7 +1023,7 @@ async function executeBatchByType(
               const [rows] = await conn.execute(
                 'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
                 [t.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (rows.length > 0 && rows[0].campaignId) {
                 amazonCampaignId = rows[0].campaignId;
                 campaignType = rows[0].campaignType || 'sp_manual';
@@ -1042,7 +1042,7 @@ async function executeBatchByType(
               const [campRows] = await conn.execute(
                 'SELECT campaignType FROM campaigns WHERE campaignId = ? OR id = ? LIMIT 1',
                 [String(amazonCampaignId), t.target_entity_id || 0]
-              ) as any[];
+              ) as unknown[];
               if (campRows.length > 0 && campRows[0].campaignType) {
                 campaignType = campRows[0].campaignType;
               }
@@ -1095,7 +1095,7 @@ async function executeBatchByType(
 // 辅助函数：任务状态管理
 // ============================================================
 
-async function markTaskSynced(conn: any, taskId: number) {
+async function markTaskSynced(conn: ReturnType<typeof getDb> | null, taskId: number) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
     `UPDATE optimization_tasks SET status = 'synced', completed_at = ? WHERE id = ?`,
@@ -1103,7 +1103,7 @@ async function markTaskSynced(conn: any, taskId: number) {
   );
 }
 
-async function markTaskFailed(conn: any, taskId: number, errorMessage: string) {
+async function markTaskFailed(conn: ReturnType<typeof getDb> | null, taskId: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
     `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
@@ -1111,7 +1111,7 @@ async function markTaskFailed(conn: any, taskId: number, errorMessage: string) {
   );
 }
 
-async function markTasksFailed(conn: any, taskIds: number[], errorMessage: string) {
+async function markTasksFailed(conn: ReturnType<typeof getDb> | null, taskIds: number[], errorMessage: string) {
   if (taskIds.length === 0) return;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
@@ -1120,7 +1120,7 @@ async function markTasksFailed(conn: any, taskIds: number[], errorMessage: strin
   );
 }
 
-async function markTaskForRetry(conn: any, taskId: number, currentRetryCount: number, errorMessage: string) {
+async function markTaskForRetry(conn: ReturnType<typeof getDb> | null, taskId: number, currentRetryCount: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const newRetryCount = (currentRetryCount || 0) + 1;
   
@@ -1148,7 +1148,7 @@ async function markTaskForRetry(conn: any, taskId: number, currentRetryCount: nu
   }
 }
 
-async function updateLocalBid(conn: any, entityType: string, entityId: number, newBid: string) {
+async function updateLocalBid(conn: ReturnType<typeof getDb> | null, entityType: string, entityId: number, newBid: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   if (entityType === 'keyword') {
     await conn.execute('UPDATE keywords SET bid = ?, updatedAt = ? WHERE id = ?', [newBid, now, entityId]);
@@ -1157,7 +1157,7 @@ async function updateLocalBid(conn: any, entityType: string, entityId: number, n
   }
 }
 
-async function updateLocalStatus(conn: any, tableName: string, entityId: number, newStatus: string) {
+async function updateLocalStatus(conn: ReturnType<typeof getDb> | null, tableName: string, entityId: number, newStatus: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
   await conn.execute(`UPDATE ${tableName} SET status = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
@@ -1170,13 +1170,13 @@ async function updateLocalStatus(conn: any, tableName: string, entityId: number,
 /**
  * 根据batch的同步结果，更新optimization_logs的api_sync_status
  */
-async function updateLogsSyncStatus(conn: any, batchId: string) {
+async function updateLogsSyncStatus(conn: ReturnType<typeof getDb> | null, batchId: string) {
   try {
     // 统计该批次的同步结果
     const [stats] = await conn.execute(
       `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
       [batchId]
-    ) as any[];
+    ) as unknown[];
     
     let totalSynced = 0, totalFailed = 0, totalPending = 0, totalRetry = 0;
     for (const s of stats) {
@@ -1260,7 +1260,7 @@ async function resetRecoverableFailedTasks(): Promise<number> {
          AND (ot.amazon_entity_id IS NULL OR ot.amazon_entity_id = '')
          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
        LIMIT 200`
-    ) as any[];
+    ) as unknown[];
     
     if (failedTasks.length === 0) return 0;
     
@@ -1272,19 +1272,19 @@ async function resetRecoverableFailedTasks(): Promise<number> {
         const [rows] = await conn.execute(
           'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL AND keywordId NOT LIKE "SKIP_%" LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.keywordId) amazonId = rows[0].keywordId;
       } else if (task.target_entity_type === 'product_target') {
         const [rows] = await conn.execute(
           'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.targetId) amazonId = rows[0].targetId;
       } else if (task.target_entity_type === 'campaign') {
         const [rows] = await conn.execute(
           'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
           [task.target_entity_id]
-        ) as any[];
+        ) as unknown[];
         if (rows[0]?.campaignId) amazonId = rows[0].campaignId;
       }
       
@@ -1330,7 +1330,7 @@ export async function getBatchStatus(batchId: string): Promise<{
     );
     
     const result = { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
-    for (const r of (rows as any[])) {
+    for (const r of (rows as unknown[])) {
       result.total += r.cnt;
       if (r.status === 'synced') result.synced = r.cnt;
       else if (r.status === 'failed') result.failed = r.cnt;

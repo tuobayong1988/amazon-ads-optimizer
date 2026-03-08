@@ -103,7 +103,7 @@ export const monitoringRouter = router({
     .query(async ({ input }) => {
       // v268 性能优化: 健康指标缓存（TTL 5分钟）
       const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       try {
@@ -133,7 +133,7 @@ export const monitoringRouter = router({
     .query(async () => {
       // v268 性能优化: 部署纠错报告缓存（TTL 10分钟）
       const cacheKey = 'monitoring.deployCorrectionReport:global';
-      const cached = apiCache.get<any>(cacheKey);
+      const cached = apiCache.get<unknown>(cacheKey);
       if (cached) return cached;
 
       try {
@@ -183,7 +183,7 @@ export const monitoringRouter = router({
           .limit(5);
 
         const deployHistory = deployEvents.map(e => {
-          let detail: any = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,
@@ -199,7 +199,7 @@ export const monitoringRouter = router({
         });
 
         const verifyHistory = verifyEvents.map(e => {
-          let detail: any = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,

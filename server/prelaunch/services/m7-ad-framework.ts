@@ -53,7 +53,7 @@ export class M7AdFrameworkService {
       const results: unknown[] = [];
 
       for (const fwType of input.frameworkTypes) {
-        let compiledPayload: any;
+        let compiledPayload: unknown;
 
         switch (fwType) {
           case 'SP_KW_MANUAL':
@@ -87,7 +87,7 @@ export class M7AdFrameworkService {
           status: 'draft',
         });
 
-        results.push({ frameworkType: fwType, frameworkId: (result as any).insertId, payload: compiledPayload });
+        results.push({ frameworkType: fwType, frameworkId: (result as Record<string, number>).insertId, payload: compiledPayload });
       }
 
       return { success: true, frameworks: results };
@@ -211,7 +211,7 @@ export class M7AdFrameworkService {
 
   /** SP搜索词手动广告 */
   private compileSPKeywordManual(keywords: unknown[], defaultBid: number, dailyBudget: number) {
-    const scenarioGroups = new Map<string, any[]>();
+    const scenarioGroups = new Map<string, Record<string, unknown>[]>();
     const relevantKws = keywords.filter((k: Record<string, unknown>) => 
       k.relevanceLayer === 'core' || k.relevanceLayer === 'extended'
     );
@@ -324,7 +324,7 @@ export class M7AdFrameworkService {
   /** SB视频搜索词广告 */
   private compileSBVKeyword(keywords: unknown[], defaultBid: number, dailyBudget: number) {
     const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core');
-    const scenarioGroups = new Map<string, any[]>();
+    const scenarioGroups = new Map<string, Record<string, unknown>[]>();
 
     for (const kw of coreKws) {
       const scenario = kw.scenarioCode || 'S01';
@@ -405,7 +405,7 @@ export class M7AdFrameworkService {
   // ==================== 辅助方法 ====================
 
   /** 根据关键词属性计算出价 */
-  private calculateBid(kw: any, matchType: string, defaultBid: number): number {
+  private calculateBid(kw: unknown, matchType: string, defaultBid: number): number {
     let multiplier = 1.0;
 
     if (kw.relevanceLayer === 'core') multiplier *= 1.2;
@@ -423,7 +423,7 @@ export class M7AdFrameworkService {
   }
 
   /** 根据竞品属性计算出价 */
-  private calculateCompetitorBid(comp: any, tier: string, defaultBid: number): number {
+  private calculateCompetitorBid(comp: unknown, tier: string, defaultBid: number): number {
     let multiplier = 1.0;
 
     if (tier === 'T1_head') multiplier = 0.8;
@@ -434,7 +434,7 @@ export class M7AdFrameworkService {
   }
 
   /** 估算API调用次数 */
-  private estimateApiCalls(structure: any): number {
+  private estimateApiCalls(structure: unknown): number {
     let calls = 0;
     for (const campaign of (structure?.campaigns || [])) {
       calls += 1;
@@ -447,7 +447,7 @@ export class M7AdFrameworkService {
   }
 
   /** 执行实际部署（调用Amazon Ads API） */
-  private async executeDeployment(structure: any, profileId: string) {
+  private async executeDeployment(structure: unknown, profileId: string) {
     // TODO: 集成Amazon Ads API v3
     return {
       success: true,

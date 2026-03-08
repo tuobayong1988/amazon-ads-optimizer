@@ -135,7 +135,7 @@ async function hasRecentSyncedOptimization(
     return (result[0]?.count || 0) > 0;
   } catch (error) {
     // 查询失败时不阻塞同步，默认不保护（以API为准）
-    log.warn('v150: 查询优化事件失败，默认以API为准:', (error as any).message);
+    log.warn('v150: 查询优化事件失败，默认以API为准:', (error instanceof Error ? error.message : String(error)));
     return false;
   }
 }
@@ -189,7 +189,7 @@ async function getRecentlyOptimizedKeywordIds(
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
         );
-        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
           const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
@@ -198,15 +198,15 @@ async function getRecentlyOptimizedKeywordIds(
           }
         }
       } catch (fallbackErr) {
-        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr as any).message);
+        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)));
       }
     }
     
     log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error as any).message);
-    log.error('v212: 错误详情:', (error as any).stack?.substring(0, 300));
+    log.error('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? error.message : String(error)));
+    log.error('v212: 错误详情:', (error as unknown).stack?.substring(0, 300));
     // v212: 即使查询失败，仍返回空Set以不阻塞同步
     // 但通过error级别日志确保问题被发现
     return new Set();
@@ -246,7 +246,7 @@ async function getRecentlyOptimizedCampaignIds(
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: ❌ 批量查询优化广告活动失败:', (error as any).message);
+    log.error('v212: ❌ 批量查询优化广告活动失败:', (error instanceof Error ? error.message : String(error)));
     return new Set();
   }
 }
@@ -336,7 +336,7 @@ export class AmazonSyncService {
           const durationMs = Date.now() - stepStart;
           let synced = 0;
           if (typeof result === 'number') synced = result;
-          else if (result && typeof result === 'object' && 'synced' in (result as any)) synced = (result as any).synced;
+          else if (result && typeof result === 'object' && 'synced' in (result as unknown)) synced = (result as unknown).synced;
           results._syncDiagnostics!.push({ stepName, synced, durationMs, ...(attempt > 0 ? { retried: true } : {}) });
           log.info(`[syncAll] ✅ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 完成: ${synced}条, 耗时${durationMs}ms${attempt > 0 ? ` (第${attempt}次重试成功)` : ''}`);
           // v352: 步骤间延迟，降低API调用密度
@@ -680,7 +680,7 @@ export class AmazonSyncService {
       const allAdGroups = await db
         .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
         .from(adGroups)
-        .where(eq((adGroups as any).accountId, this.accountId));
+        .where(eq((adGroups as unknown).accountId, this.accountId));
       const adGroupMap = new Map<string, { id: number }>();
       for (const ag of allAdGroups) {
         adGroupMap.set(String(ag.adGroupId), { id: ag.id });
@@ -690,7 +690,7 @@ export class AmazonSyncService {
       const allKeywords = await db
         .select({ id: keywords.id, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
         .from(keywords)
-        .where(eq((keywords as any).accountId, this.accountId));
+        .where(eq((keywords as unknown).accountId, this.accountId));
       const keywordMap = new Map<string, { id: number; matchType: string | null }>();
       for (const kw of allKeywords) {
         const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
@@ -701,7 +701,7 @@ export class AmazonSyncService {
       const allTargets = await db
         .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
         .from(productTargets)
-        .where(eq((productTargets as any).accountId, this.accountId));
+        .where(eq((productTargets as unknown).accountId, this.accountId));
       const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
       for (const t of allTargets) {
         const key = `${t.adGroupId}:${(t.targetValue || '').toLowerCase()}`;
@@ -772,7 +772,7 @@ export class AmazonSyncService {
 
         const searchTermData = {
           accountId: this.accountId,
-          campaignId: (campaign as any).campaignId,
+          campaignId: (campaign as Record<string, unknown>).campaignId,
           adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
@@ -800,7 +800,7 @@ export class AmazonSyncService {
 
         // 检查是否已存在（从Map查找，O(1)）
         // v353修复: 使用Amazon campaignId构建key (与existingMap中存储的campaignId一致)
-        const existingKey = `${(campaign as any).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
+        const existingKey = `${(campaign as Record<string, unknown>).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
         const existingId = existingMap.get(existingKey);
 
         if (existingId) {
@@ -1161,7 +1161,7 @@ export class AmazonSyncService {
       // 更新数据库
       let updated = 0;
       for (const row of adGroupsNeedingUrls) {
-        const updates: any = {};
+        const updates: Record<string, unknown> = {};
         let needsUpdate = false;
 
         if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {

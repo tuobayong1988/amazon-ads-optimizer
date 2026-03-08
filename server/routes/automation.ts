@@ -50,7 +50,7 @@ export const automationRouter = router({
         enabled: input.enabled,
         mode: input.mode,
         enabledTypes: input.enabledTypes,
-        safetyBoundary: input.safetyBoundary as any,
+        safetyBoundary: input.safetyBoundary as unknown,
       });
     }),
 

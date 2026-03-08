@@ -41,16 +41,16 @@ const log = createModuleLogger('syncPerformance');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncPerformanceData(...args: unknown[]): any;
-    syncPerformanceDataBatch(...args: unknown[]): any;
-    processReportData(...args: unknown[]): any;
-    generateMockPerformanceData(...args: unknown[]): any;
-    syncKeywordPerformanceData(...args: unknown[]): any;
-    syncProductTargetPerformanceData(...args: unknown[]): any;
-    generateHourlyFromDaily(...args: unknown[]): any;
-    syncAdGroupPerformanceData(...args: unknown[]): any;
-    syncPlacementPerformance(...args: unknown[]): any;
-    updateCampaignPerformanceSummary(...args: unknown[]): any;
+    syncPerformanceData(...args: unknown[]): unknown;
+    syncPerformanceDataBatch(...args: unknown[]): unknown;
+    processReportData(...args: unknown[]): unknown;
+    generateMockPerformanceData(...args: unknown[]): unknown;
+    syncKeywordPerformanceData(...args: unknown[]): unknown;
+    syncProductTargetPerformanceData(...args: unknown[]): unknown;
+    generateHourlyFromDaily(...args: unknown[]): unknown;
+    syncAdGroupPerformanceData(...args: unknown[]): unknown;
+    syncPlacementPerformance(...args: unknown[]): unknown;
+    updateCampaignPerformanceSummary(...args: unknown[]): unknown;
   }
 }
 
@@ -207,7 +207,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
   // v351增强: 支持动态startDate和data retention错误自动重试
-  const retryReport = async (name: string, adType: string, requestFn: (start: string, end: string) => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+  const retryReport = async (name: string, adType: string, requestFn: (start: string, end: string) => Promise<string>, maxRetries = 3): Promise<Record<string, unknown>[] | null> => {
     let effectiveStartDate = clampStartDateForRetention(adType, startDateStr);
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -291,7 +291,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 /**
  * 处理报告数据并存储到数据库
  */
-AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: any, reportData: unknown[], adType: string): Promise<number> {
+AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     
@@ -1086,7 +1086,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
     // v339: 通用分批报告请求函数
-    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string): Promise<any[]> => {
+    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string): Promise<Record<string, unknown>[]> => {
       const reportTotalDays = Math.min(reportDays, 90);
       const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
       const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);

@@ -179,7 +179,7 @@ export function aggregateTrackingStats(records: Array<{
 /**
  * 获取需要追踪的记录
  */
-export async function getPendingTrackingRecords(): Promise<any[]> {
+export async function getPendingTrackingRecords(): Promise<Record<string, unknown>[]> {
   const currentDate = new Date();
   const sevenDaysAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
   
@@ -197,7 +197,7 @@ export async function getPendingTrackingRecords(): Promise<any[]> {
       .where(
         and(
           eq(bidAdjustmentHistory.status, 'applied'),
-          lte(bidAdjustmentHistory.appliedAt, sevenDaysAgo as any)
+          lte(bidAdjustmentHistory.appliedAt, sevenDaysAgo as unknown)
         )
       );
     
@@ -263,7 +263,7 @@ export async function updateTrackingData(
   data: EffectTrackingData
 ): Promise<boolean> {
   try {
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     
     if (period === 7) {
       updateData.actualProfit7D = data.profit;

@@ -152,7 +152,7 @@ export async function saveMarginalBenefitHistory(
     AND analysis_date = ${today}
   `);
 
-  if ((existing as any)[0] && ((existing as any)[0] as any[]).length > 0) {
+  if ((existing as Record<string, unknown>)[0] && ((existing as Record<string, unknown>)[0] as unknown[]).length > 0) {
     // 更新现有记录
     await db.execute(sql`
       UPDATE marginal_benefit_history SET
@@ -177,7 +177,7 @@ export async function saveMarginalBenefitHistory(
       AND placement_type = ${placementType}
       AND analysis_date = ${today}
     `);
-    return ((existing as any)[0] as any[])[0].id;
+    return ((existing as Record<string, unknown>)[0] as unknown[])[0].id;
   }
 
   // 插入新记录
@@ -199,7 +199,7 @@ export async function saveMarginalBenefitHistory(
     )
   `);
 
-  return (result[0] as any).insertId;
+  return (result[0] as unknown).insertId;
 }
 
 /**
@@ -228,10 +228,10 @@ export async function getHistoryTrend(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as any)[0] as any[]) || [];
+  const data = ((records as unknown[][])[0] as unknown[]) || [];
   
   // 按日期分组
-  const dateMap = new Map<string, any[]>();
+  const dateMap = new Map<string, Record<string, unknown>[]>();
   for (const record of data) {
     const date = record.analysis_date;
     if (!dateMap.has(date)) {
@@ -289,7 +289,7 @@ export async function analyzeSeasonalPatterns(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as any)[0] as any[]) || [];
+  const data = ((records as unknown[][])[0] as unknown[]) || [];
   
   if (data.length < 14) {
     return { 
@@ -304,7 +304,7 @@ export async function analyzeSeasonalPatterns(
 
   if (period === 'weekly') {
     // 按星期几分组
-    const weekdayGroups: Map<number, any[]> = new Map();
+    const weekdayGroups: Map<number, Record<string, unknown>[]> = new Map();
     const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     
     for (const record of data) {
@@ -346,7 +346,7 @@ export async function analyzeSeasonalPatterns(
     }
   } else if (period === 'monthly') {
     // 按月份周期分组（月初、月中、月末）
-    const periodGroups: Map<string, any[]> = new Map([
+    const periodGroups: Map<string, Record<string, unknown>[]> = new Map([
       ['月初(1-10日)', []],
       ['月中(11-20日)', []],
       ['月末(21-31日)', []]
@@ -427,8 +427,8 @@ export async function comparePeriods(
     `)
   ]);
 
-  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
-  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
+  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
+  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
 
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
   const comparison = placements.map(placementType => {

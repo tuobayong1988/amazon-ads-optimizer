@@ -382,7 +382,7 @@ async function executeAlgorithm(
       if (keywordId || targetId) {
         const entityType = keywordId ? 'keyword' : 'target';
         const entityId = keywordId || targetId || 0;
-        const params = await fitAndCacheSigmoidForEntity(accountId, entityType as any, entityId, campaignId || '');
+        const params = await fitAndCacheSigmoidForEntity(accountId, entityType as unknown, entityId, campaignId || '');
         if (params && params.r2 > 0.3) {
           sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
           bid = sigmoid.optimalBid; conf = sigmoid.confidence;
@@ -411,7 +411,7 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as any;
+            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, unknown>;
           }
         }
       } catch { /* Sigmoid不可用时静默跳过 */ }
@@ -629,11 +629,11 @@ export async function selectBestAlgorithm(
     keywordId: keywordId || null,
     targetId: targetId || null,
     campaignId: campaignId || null,
-    selectedAlgorithm: selectedAlgorithmName as any,
+    selectedAlgorithm: selectedAlgorithmName as unknown,
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),
-  } as any);
+  } as Record<string, unknown>);
   
   return decision;
 }

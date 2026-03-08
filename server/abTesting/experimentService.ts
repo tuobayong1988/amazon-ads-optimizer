@@ -46,7 +46,7 @@ export interface ExperimentGroup {
   experimentId: string;
   name: string;
   type: GroupType;
-  strategyConfig: any;        // 策略配置
+  strategyConfig: unknown;        // 策略配置
   campaignIds: number[];      // 分配的广告活动ID
   allocation: number;         // 流量分配比例(0-1)
 }
@@ -95,8 +95,8 @@ export async function createExperiment(
     description: string;
     startDate: Date;
     duration: number; // 天数
-    controlStrategy: any;
-    treatmentStrategy: any;
+    controlStrategy: unknown;
+    treatmentStrategy: unknown;
     campaignIds: number[];
     primaryMetric: string;
     confidenceLevel?: number;
@@ -176,7 +176,7 @@ export async function completeExperiment(experimentId: string): Promise<void> {
  */
 export async function getExperimentResult(experimentId: string): Promise<ExperimentResult> {
   // TODO: 从数据库获取实验配置
-  const experiment: Experiment = {} as any; // 临时
+  const experiment: Experiment = {} as Record<string, unknown>; // 临时
 
   const db = await getDb();
   if (!db) throw new Error('Database not available');

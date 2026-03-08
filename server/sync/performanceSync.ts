@@ -129,7 +129,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
   let totalSynced = 0;
 
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
-  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<Record<string, unknown>[] | null> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
@@ -178,7 +178,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 /**
  * 处理报告数据并存储到数据库
  */
-async function processReportData(service: SyncContext, db: any, reportData: unknown[], adType: string): Promise<number> {
+async function processReportData(service: SyncContext, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     

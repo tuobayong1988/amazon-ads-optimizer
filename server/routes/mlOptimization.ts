@@ -229,7 +229,7 @@ export const mlOptimizationRouter = router({
 
       const campaignsWithData = await Promise.all(
         groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; dailyBudget: string | null }) => {
-          const campaignIdStr = String((campaign as any).campaignId);
+          const campaignIdStr = String((campaign as Record<string, unknown>).campaignId);
           const historicalRecords = await db.getDailyPerformanceByDateRange(
             campaign.accountId,
             cutoffDate,
@@ -260,11 +260,11 @@ export const mlOptimizationRouter = router({
 
       // 计算总预期
       const totalExpectedSales = allocations.reduce(
-        (sum: number, a: any) => sum + a.expectedSales,
+        (sum: number, a: unknown) => sum + a.expectedSales,
         0
       );
       const totalAllocated = allocations.reduce(
-        (sum: number, a: any) => sum + a.allocatedBudget,
+        (sum: number, a: unknown) => sum + a.allocatedBudget,
         0
       );
       const overallROAS = totalAllocated === 0 ? 0 : totalExpectedSales / totalAllocated;

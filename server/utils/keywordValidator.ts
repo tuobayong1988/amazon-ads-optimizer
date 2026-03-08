@@ -229,7 +229,7 @@ export function isProductTargetingCampaign(campaignName: string): boolean {
  */
 export async function adGroupHasProductTargets(
   adGroupId: number,
-  conn?: any
+  conn?: unknown
 ): Promise<boolean> {
   let ownConn = false;
   try {
@@ -258,7 +258,7 @@ export async function adGroupHasProductTargets(
  * 过滤掉无效关键词，返回有效关键词和被拒绝的关键词
  */
 export function batchValidateKeywords(
-  keywords: Array<{ text: string; [key: string]: any }>,
+  keywords: Array<{ text: string; [key: string]: unknown }>,
   mode: 'positive' | 'negative_exact' | 'negative_phrase' = 'positive'
 ): {
   valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, unknown> }>;

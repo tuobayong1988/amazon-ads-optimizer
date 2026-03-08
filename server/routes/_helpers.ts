@@ -7,7 +7,7 @@
 /**
  * 生成模拟的趋势数据（当没有真实历史数据时使用）
  */
-export function generateSimulatedTrendData(target: any, days: number) {
+export function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   

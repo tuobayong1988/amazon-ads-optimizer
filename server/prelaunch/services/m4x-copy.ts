@@ -82,7 +82,7 @@ export class M4XCopyService {
           praisePhrases: praisePhrases.map((p: Record<string, unknown>) => p.phrase),
         });
 
-        const result = await geminiStructuredOutput<any>('', prompt, { temperature: 0.5 });
+        const result = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.5 });
 
         await db.insert(prelaunchCopyVersions).values({
           projectId,
@@ -171,7 +171,7 @@ Return the evolved copy as JSON with the same structure as the parent, plus:
 
 Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKeywords":"...","aPlus":null,"mutationStrategy":"...","mutationReason":"...","expectedImprovement":"..."}`;
 
-        const evolved = await geminiStructuredOutput<any>('', prompt, { temperature: 0.6 });
+        const evolved = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.6 });
 
         await db.insert(prelaunchCopyVersions).values({
           projectId,
@@ -200,7 +200,7 @@ Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKey
   }
 
   /** 生成Rufus Q&A种子 */
-  private async generateQnaSeeds(db: any, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
+  private async generateQnaSeeds(db: ReturnType<typeof getDb> | null, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
     const prompt = `Generate Amazon Rufus-optimized Q&A pairs based on these COSMO cause-effect-outcome triples and keywords.
 
 COSMO TRIPLES:
@@ -217,7 +217,7 @@ Generate 10-20 Q&A pairs that:
 
 Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keyword_faq|competitor_gap"}]`;
 
-    const qnas = await geminiStructuredOutput<any[]>('', prompt, { temperature: 0.4 });
+    const qnas = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
 
     for (const qna of qnas) {
       await db.insert(prelaunchQnaSeeds).values({
@@ -230,7 +230,7 @@ Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keywor
   }
 
   /** 构建文案生成Prompt */
-  private buildCopyPrompt(copyType: string, context: any): string {
+  private buildCopyPrompt(copyType: string, context: unknown): string {
     const base = `You are an expert Amazon listing copywriter. Use the following data to create optimized copy.
 
 CORE KEYWORDS (must include): ${context.coreKeywords.join(', ')}

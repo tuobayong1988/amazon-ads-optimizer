@@ -171,7 +171,7 @@ export const collaborationRouter = router({
         notifyOnCritical: input.notifyOnCritical !== undefined ? (input.notifyOnCritical ? 1 : 0) : undefined,
         quietHoursEnabled: input.quietHoursEnabled !== undefined ? (input.quietHoursEnabled ? 1 : 0) : undefined,
       };
-      return updateUserNotificationPreferences(ctx.user.id, convertedInput as any);
+      return updateUserNotificationPreferences(ctx.user.id, convertedInput as unknown);
     }),
 
   // 获取重要操作类型列表

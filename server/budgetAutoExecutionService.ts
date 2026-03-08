@@ -378,11 +378,11 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetChange: String(budgetAfter - budgetBefore),
         adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
         adjustmentReason: suggestion.reasons.join('; '),
-        compositeScore: String((suggestion as any).compositeScore || 0),
+        compositeScore: String((suggestion as unknown).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
-        status: details[details.length - 1].status as any,
+        status: details[details.length - 1].status as string,
         errorMessage: details[details.length - 1].reason,
-      } as any);
+      } as Record<string, unknown>);
     }
 
     // 确定最终状态
@@ -401,7 +401,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     await db.update(budgetAutoExecutionHistory)
       .set({
         executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        status: finalStatus as any,
+        status: finalStatus as unknown,
         totalCampaigns: summary.totalCampaigns,
         campaignsAdjusted: summary.adjustedCampaigns,
         skippedCampaigns: summary.skippedCampaigns,
@@ -521,7 +521,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
       riskLevel: d.riskLevel,
       status: d.status as string,
       errorMessage: d.errorMessage,
-    } as any)),
+    } as Record<string, unknown>)),
   };
 }
 
@@ -555,14 +555,14 @@ export async function approveExecution(
     // 更新执行状态
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'completed' as any,
+        status: 'completed' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   } else {
     // 拒绝执行
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'cancelled' as any,
+        status: 'cancelled' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   }

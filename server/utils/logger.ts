@@ -221,7 +221,7 @@ class DbWriter {
   private buffer: DbLogEntry[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
   private isWriting: boolean = false;
-  private getDb: (() => Promise<any>) | null = null;
+  private getDb: (() => Promise<unknown>) | null = null;
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
   private readonly retentionDays: number;
@@ -233,7 +233,7 @@ class DbWriter {
     this.retentionDays = retentionDays;
   }
 
-  setDbProvider(getDb: () => Promise<any>): void {
+  setDbProvider(getDb: () => Promise<unknown>): void {
     this.getDb = getDb;
   }
 
@@ -353,7 +353,7 @@ class Logger {
   }
 
   /** 设置数据库提供者（延迟初始化，避免循环依赖） */
-  setDbProvider(getDb: () => Promise<any>): void {
+  setDbProvider(getDb: () => Promise<unknown>): void {
     this.dbWriter.setDbProvider(getDb);
     this.dbWriter.startPeriodicFlush();
   }
@@ -607,11 +607,11 @@ export const logger = new Logger({
 /** 创建模块专用的日志快捷方法 */
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, metadata?: any) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    info: (message: string, metadata?: any) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    warn: (message: string, metadata?: any) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    error: (message: string, metadata?: any) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    fatal: (message: string, metadata?: any) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    debug: (message: string, metadata?: unknown) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    info: (message: string, metadata?: unknown) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    warn: (message: string, metadata?: unknown) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    error: (message: string, metadata?: unknown) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    fatal: (message: string, metadata?: unknown) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
   };
 }
 

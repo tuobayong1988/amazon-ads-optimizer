@@ -209,7 +209,7 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
 /**
  * 判断单个广告活动的生命周期阶段
  */
-export function determineCampaignLifecycle(campaign: any): CampaignLifecycleInfo {
+export function determineCampaignLifecycle(campaign: Record<string, unknown>): CampaignLifecycleInfo {
   const now = new Date();
   const createdAt = campaign.createdAt ? new Date(campaign.createdAt) : now;
   const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));

@@ -437,7 +437,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       });
       
       if (insertValues.length > 0) {
-        await db.insert(contextualFeatures).values(insertValues as any);
+        await db.insert(contextualFeatures).values(insertValues as unknown);
         processedCount += insertValues.length;
       }
     }
@@ -525,7 +525,7 @@ export async function getCachedFeatureVector(
 }
 
 /** v264: 解析缓存特征向量的辅助函数 */
-function parseCachedFeature(c: any): ContextFeatureVector {
+function parseCachedFeature(c: unknown): ContextFeatureVector {
   return {
     accountId: c.accountId,
     keywordId: c.keywordId ?? undefined,

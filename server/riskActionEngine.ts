@@ -214,7 +214,7 @@ async function persistEmergencyTask(
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
       LIMIT 1
-    `) as any;
+    `) as unknown;
     
     if (existing && existing.length > 0) {
       log.info(`[RiskActionEngine] 账户${accountId}已有未处理的${actionType}任务，跳过重复入队`);
@@ -363,7 +363,7 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
     const { sql } = await import('drizzle-orm');
     const [statusStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
-    ) as any;
+    ) as unknown;
     
     const dist = statusStats || [];
     const synced = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'synced')?.count || 0);
@@ -622,7 +622,7 @@ export async function isAccountInEmergencyQueue(accountId: number): Promise<{ in
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
       ORDER BY createdAt DESC LIMIT 1
-    `) as any;
+    `) as unknown;
     
     if (rows && rows.length > 0) {
       return { inQueue: true, type: rows[0].actionType };
@@ -669,7 +669,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
       ORDER BY 
         CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 END,
         createdAt ASC
-    `) as any;
+    `) as unknown;
     
     if (!rows) return [];
     return rows.map((r: Record<string, unknown>) => ({ accountId: r.accountId, type: r.actionType }));
@@ -705,7 +705,7 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
     log.warn(`[RiskActionEngine] v270: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
     
     // v270: 按账户+广告类型分组
-    const groupMap = new Map<string, any[]>();
+    const groupMap = new Map<string, Record<string, unknown>[]>();
     for (const c of activeCampaigns) {
       const key = `${c.accountId}_${c.campaignType || 'SP'}`;
       if (!groupMap.has(key)) groupMap.set(key, []);
@@ -818,7 +818,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
       FROM daily_performance
       WHERE account_id = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    `) as any;
+    `) as unknown;
     
     const [prevRows] = await dbInstance.execute(sql`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
@@ -827,7 +827,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
       WHERE account_id = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-    `) as any;
+    `) as unknown;
     
     const recent = recentRows?.[0] || recentRows;
     const prev = prevRows?.[0] || prevRows;
@@ -917,9 +917,9 @@ export async function cleanupProcessedEntries(): Promise<void> {
     const [result] = await dbInstance.execute(sql`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
-    `) as any;
+    `) as unknown;
     
-    const deleted = (result as any)?.affectedRows || 0;
+    const deleted = (result as unknown)?.affectedRows || 0;
     if (deleted > 0) {
       log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);
     }

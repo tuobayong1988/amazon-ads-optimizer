@@ -139,8 +139,8 @@ interface OptimizationRecommendation {
   title: string;
   description: string;
   expectedImpact: string;
-  currentValue: any;
-  recommendedValue: any;
+  currentValue: unknown;
+  recommendedValue: unknown;
   expectedProfitChange: number;
 }
 

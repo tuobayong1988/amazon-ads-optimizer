@@ -801,7 +801,7 @@ export async function getColdStartStatus(accountId: number): Promise<{
 /**
  * 获取冷启动执行日志
  */
-export async function getColdStartLogs(accountId?: number, limit: number = 20): Promise<any[]> {
+export async function getColdStartLogs(accountId?: number, limit: number = 20): Promise<Record<string, unknown>[]> {
   try {
     const database = await getDb();
     if (!database) return [];

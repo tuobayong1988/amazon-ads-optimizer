@@ -145,7 +145,7 @@ async function checkBidDirectionConsistency(
         AND created_at > DATE_SUB(NOW(), INTERVAL 72 HOUR)
       ORDER BY created_at DESC
       LIMIT 4
-    `) as any;
+    `) as unknown;
     
     if (!rows || rows.length < 3) return { isOscillating: false, reason: '' };
     
@@ -593,12 +593,12 @@ function ruleEngineDecision(
   // v259: 最低曝光保护机制
   // 核心逻辑：当曝光量大幅下降时，说明出价可能已经降得太低，应暂停所有降价并尝试提价恢复
   // 使用dailyData对比近期曝光与历史基线
-  const dailyDataForImpression = (target as any).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
+  const dailyDataForImpression = (target as Record<string, unknown>).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
   if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
     const recent3d = dailyDataForImpression.slice(-3);
     const earlier4d = dailyDataForImpression.slice(-7, -3);
-    const recentAvgImpressions = recent3d.reduce((sum, d) => sum + ((d as any).impressions || 0), 0) / Math.max(recent3d.length, 1);
-    const earlierAvgImpressions = earlier4d.reduce((sum, d) => sum + ((d as any).impressions || 0), 0) / Math.max(earlier4d.length, 1);
+    const recentAvgImpressions = recent3d.reduce((sum, d) => sum + ((d as unknown).impressions || 0), 0) / Math.max(recent3d.length, 1);
+    const earlierAvgImpressions = earlier4d.reduce((sum, d) => sum + ((d as unknown).impressions || 0), 0) / Math.max(earlier4d.length, 1);
     
     if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
       // v268 P0-1: 增强曝光保护 — 引入渐进恢复机制
@@ -618,7 +618,7 @@ function ruleEngineDecision(
     // 针对因长期低价而失去曝光的关键词，将出价提升至建议竞价的80%
     // 触发条件：曝光持续低迷（近期均值<20）且当前出价较低（<$0.50）
     // 安全保护：仅对有历史表现的关键词触发，且受maxBid限制
-    const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as any).impressions || 0) > 100);
+    const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as unknown).impressions || 0) > 100);
     if (recentAvgImpressions < 20 && currentBid < 0.50 && hasHistoricalPerformance) {
       const suggestedBid = (groupConfig.maxBid || 10) * 0.15; // 使用maxBid的15%作为建议竞价估算
       const competitiveRecoveryBid = Math.max(currentBid * 1.5, suggestedBid * 0.80);
@@ -636,16 +636,16 @@ function ruleEngineDecision(
     let h = ((id * 2654435761 + seed) >>> 0) % 10000;
     return h / 10000; // 返回0~1之间的确定性值
   };
-  const entityId = Number((target as any).keywordId || (target as any).targetId || 0);
+  const entityId = Number((target as Record<string, unknown>).keywordId || (target as Record<string, unknown>).targetId || 0);
   
   // 场景1: 零曝光 — 需要提升可见性
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
   // v330: R-01优化 — 引入亚马逊建议出价作为锚点
   if (impressions === 0) {
     // v330 R-01: 从上层传入的建议出价数据
-    const suggestedBid = (groupConfig as any)._suggestedBid as number | undefined;
-    const suggestedBidRangeStart = (groupConfig as any)._suggestedBidRangeStart as number | undefined;
-    const suggestedBidRangeEnd = (groupConfig as any)._suggestedBidRangeEnd as number | undefined;
+    const suggestedBid = (groupConfig as unknown)._suggestedBid as number | undefined;
+    const suggestedBidRangeStart = (groupConfig as unknown)._suggestedBidRangeStart as number | undefined;
+    const suggestedBidRangeEnd = (groupConfig as unknown)._suggestedBidRangeEnd as number | undefined;
     
     // v330 R-01: 如果有建议出价，使用建议出价作为探索目标
     if (suggestedBid && suggestedBid > 0) {
@@ -758,7 +758,7 @@ function ruleEngineDecision(
     // v258: 趋势感知（保留v254逻辑）
     let zeroConvTrendDir: 'improving' | 'stable' | 'declining' = 'stable';
     let zeroConvTrendStr = 0;
-    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -854,7 +854,7 @@ function ruleEngineDecision(
     // stable: 不做额外调整
     let trendDirection: 'improving' | 'stable' | 'declining' = 'stable';
     let trendStrength = 0;
-    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -1026,9 +1026,9 @@ export async function calculateNextGenBid(
   // v267 P1-3: 自我进化引擎集成 — 读取进化引擎注入的自适应参数
   // 进化引擎通过 _evolvedMaxChangePercent/_evolvedMaxDecreasePercent/_confidenceMultiplier 注入参数
   // 这些参数基于历史优化效果动态调整，使系统能够自我学习和进化
-  const evolvedMaxIncrease = (groupConfig as any)._evolvedMaxChangePercent;
-  const evolvedMaxDecrease = (groupConfig as any)._evolvedMaxDecreasePercent;
-  const evolvedConfidenceMultiplier = (groupConfig as any)._confidenceMultiplier || 1.0;
+  const evolvedMaxIncrease = (groupConfig as unknown)._evolvedMaxChangePercent;
+  const evolvedMaxDecrease = (groupConfig as unknown)._evolvedMaxDecreasePercent;
+  const evolvedConfidenceMultiplier = (groupConfig as unknown)._confidenceMultiplier || 1.0;
   
   // 使用进化参数覆盖默认安全配置（如果可用）
   const effectiveMaxChange = evolvedMaxIncrease 
@@ -1062,8 +1062,8 @@ export async function calculateNextGenBid(
       accountId,
       target.type === 'keyword' ? 'keyword' : 'product_target',
       target.id,
-      (target as any).amazonCampaignId,
-      (normalizedConfig as any).strategyTemplate
+      (target as Record<string, unknown>).amazonCampaignId,
+      (normalizedConfig as unknown).strategyTemplate
     );
     
     // v271 P1-2: 传递策略模板以支持策略级别的算法配置
@@ -1103,8 +1103,8 @@ export async function calculateNextGenBid(
         accountId,
         keywordId,
         targetId,
-        campaignId: (target as any).amazonCampaignId || undefined,
-        adGroupId: (target as any).adGroupId || undefined,
+        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+        adGroupId: (target as Record<string, unknown>).adGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -1117,8 +1117,8 @@ export async function calculateNextGenBid(
           accountId,
           entityType: target.type === 'keyword' ? 'keyword' : 'product_target',
           entityId: target.id,
-          campaignId: (target as any).amazonCampaignId,
-          strategyTemplateId: (normalizedConfig as any).strategyTemplate,
+          campaignId: (target as Record<string, unknown>).amazonCampaignId,
+          strategyTemplateId: (normalizedConfig as unknown).strategyTemplate,
           metaSelection: {
             algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, unknown>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
             selectedAlgorithm: metaDecision.selectedAlgorithm,
@@ -1295,8 +1295,8 @@ export async function calculateNextGenBid(
       accountId,
       keywordId,
       targetId,
-      campaignId: (target as any).amazonCampaignId || undefined,
-      adGroupId: (target as any).adGroupId || undefined,
+      campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+      adGroupId: (target as Record<string, unknown>).adGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',
@@ -1343,11 +1343,11 @@ function buildResult(
                  tier === 'guardrail' ? `护栏保护:${algorithmUsed}` :
                  `规则引擎:${reason.split(':')[0]?.replace('[\u89c4\u5219\u5f15\u64ce] ', '') || algorithmUsed}`,
     coreMetrics: {
-      clicks: (target as any).clicks,
-      impressions: (target as any).impressions,
-      spend: (target as any).spend,
-      sales: (target as any).sales,
-      orders: (target as any).orders,
+      clicks: (target as Record<string, unknown>).clicks,
+      impressions: (target as Record<string, unknown>).impressions,
+      spend: (target as Record<string, unknown>).spend,
+      sales: (target as Record<string, unknown>).sales,
+      orders: (target as Record<string, unknown>).orders,
     },
     algorithmChoice: `${tier}/${algorithmUsed}`,
     dataConfidence: confidence,

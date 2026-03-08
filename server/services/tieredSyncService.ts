@@ -332,7 +332,7 @@ export class TieredSyncService {
     const progress = await this.getTaskProgress(taskId);
     if (!progress) return;
 
-    const metadata: any = {
+    const metadata: Record<string, unknown> = {
       tier: progress.tier,
       reportType: progress.reportType,
       processedRanges: progress.processedRanges,
@@ -348,7 +348,7 @@ export class TieredSyncService {
     // 添加失败范围
     if (update.failedRange) {
       const existingFailed = metadata.failedRanges.find(
-        (r: any) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
+        (r: Record<string, unknown>) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
       );
       if (existingFailed) {
         existingFailed.retryCount = (existingFailed.retryCount || 0) + 1;
@@ -370,7 +370,7 @@ export class TieredSyncService {
     const newStatus = update.status || progress.status;
     // 确保状态是有效的枚举值
     const validStatuses = ['pending', 'submitted', 'processing', 'completed', 'failed', 'expired'] as const;
-    const finalStatus = validStatuses.includes(newStatus as any) ? newStatus as typeof validStatuses[number] : 'pending';
+    const finalStatus = validStatuses.includes(newStatus as unknown) ? newStatus as typeof validStatuses[number] : 'pending';
     
     await db
       .update(reportJobs)

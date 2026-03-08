@@ -492,7 +492,7 @@ export async function detectTrafficConflicts(
         normalizedVolume * dataVolumeWeight;
       
       conflictingCampaigns.push({
-        campaignId: campaignId as any,
+        campaignId: campaignId as string,
         campaignName: campaign.campaignName,
         matchType: stats.matchType,
         clicks: stats.clicks,
@@ -614,7 +614,7 @@ export async function identifyFunnelTiers(
   const tierConfigs: FunnelTierConfig[] = [];
   
   for (const campaign of campaignData) {
-    const matchTypes = campaignMatchTypes.get(campaign.id as any);
+    const matchTypes = campaignMatchTypes.get(campaign.id as unknown);
     if (!matchTypes) continue;
     
     // 计算主要匹配类型
@@ -742,7 +742,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        targetCampaignId: campaignId as any,
+        targetCampaignId: campaignId as string,
         targetTier: config?.tierLevel || 'tier2_longtail',
         negatives,
       });
@@ -765,7 +765,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        targetCampaignId: campaignId as any,
+        targetCampaignId: campaignId as string,
         targetTier: config?.tierLevel || 'tier3_explore',
         negatives,
       });
@@ -1021,7 +1021,7 @@ export async function applyNegativeKeywords(
         negativeSource: neg.source,
         sourceReason: neg.reason,
         negativeStatus: 'active',
-      } as any);
+      } as Record<string, unknown>);
       
       applied++;
     } catch (error) {

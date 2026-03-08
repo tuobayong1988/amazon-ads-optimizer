@@ -433,7 +433,7 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
       WHERE dp1.account_id = ${accountId}
     `);
 
-    const deletedCount = (result as any)?.affectedRows || 0;
+    const deletedCount = (result as unknown)?.affectedRows || 0;
     log.info(`[v358] 账户${accountId}去重完成: 删除${deletedCount}条重复记录`);
     return deletedCount;
   } catch (error: unknown) {

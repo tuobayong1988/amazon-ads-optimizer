@@ -286,7 +286,7 @@ export async function applyBatchBidAdjustments(service: SyncContext,
 /**
  * 获取展示位置调整系数
  */
-export function getPlacementMultiplier(campaign: any, placement: string): number {
+export function getPlacementMultiplier(campaign: Record<string, unknown>, placement: string): number {
   const adjustment = campaign.bidding?.adjustments?.find(
     a => a.predicate === placement
   );

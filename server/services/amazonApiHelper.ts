@@ -28,7 +28,7 @@ async function withRetry<T>(
   options: { maxRetries?: number; baseDelayMs?: number; label?: string } = {}
 ): Promise<T> {
   const { maxRetries = 4, baseDelayMs = 3000, label = 'API' } = options;  // v248: 增强429限流重试（2→4次，2s→3s基础延迟）
-  let lastError: any;
+  let lastError: Error | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
@@ -374,7 +374,7 @@ export async function syncNewKeywordsToAmazon(
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
-          (batch as any[]).map((k: Record<string, unknown>) => ({
+          (batch as unknown[]).map((k: Record<string, unknown>) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
@@ -423,7 +423,7 @@ export async function syncNewKeywordsToAmazon(
         } else {
           result.failed++;
           const errorCode = created.code || 'UNKNOWN';
-          const errorDetail = (created as any).details || (created as any).description || '';
+          const errorDetail = (created as unknown).details || (created as unknown).description || '';
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
           log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           
@@ -539,7 +539,7 @@ export async function syncNewProductTargetsToAmazon(
       });
       
       // v350: 修复API调用路径 - 应通过syncService.client调用而非syncService
-      const apiResult = await (syncService.client as any).createSpProductTargets(apiTargets);
+      const apiResult = await (syncService.client as unknown).createSpProductTargets(apiTargets);
       
       for (let j = 0; j < apiResult.createdTargets.length; j++) {
         const created = apiResult.createdTargets[j];
@@ -636,7 +636,7 @@ export async function syncPlacementAdjustmentToAmazon(
             { predicate: 'placementProductPage', percentage: Math.round(productPagePercent) },
           ],
         },
-      } as any);
+      } as Record<string, unknown>);
     }, { label: `位置倾斜同步 Campaign ${campaignId}` });
     log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
@@ -736,7 +736,7 @@ export async function syncNegativeKeywordsToAmazon(
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
         for (let ri = 0; ri < results.length; ri++) {
-          const r = results[ri] as any;
+          const r = results[ri] as Record<string, unknown>;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
             // v195: 记录成功创建的否定词ID，用于回写amazon_negative_keyword_id
@@ -774,7 +774,7 @@ export async function syncNegativeKeywordsToAmazon(
       const existingNegatives = new Set<string>();
       for (const agId of uniqueAdGroupIds) {
         try {
-          const existing = await syncService.client.listSpNegativeKeywords(agId as any);
+          const existing = await syncService.client.listSpNegativeKeywords(agId as unknown);
           for (const e of existing) {
             const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
@@ -799,7 +799,7 @@ export async function syncNegativeKeywordsToAmazon(
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
         const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
-          (newAdGroupNegatives as any[]).map((n: Record<string, unknown>) => ({
+          (newAdGroupNegatives as unknown[]).map((n: Record<string, unknown>) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,
@@ -808,7 +808,7 @@ export async function syncNegativeKeywordsToAmazon(
         ), { label: 'AdGroup否定词创建' });
         
         for (let ri = 0; ri < results.length; ri++) {
-          const r = results[ri] as any;
+          const r = results[ri] as Record<string, unknown>;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
             // v195: 记录adGroup级否定词的keywordId
@@ -885,11 +885,11 @@ export async function syncNegativeProductTargetsToAmazon(
       ), { label: 'SP Campaign否定产品定向' });
       
       for (const r of apiResults) {
-        if ((r as any).code === 'SUCCESS' || (r as any).targetId) {
+        if ((r as Record<string, unknown>).code === 'SUCCESS' || (r as Record<string, unknown>).targetId) {
           result.success++;
         } else {
           result.failed++;
-          result.errors.push(`SP Campaign否定产品失败: ${(r as any).details || 'unknown'}`);
+          result.errors.push(`SP Campaign否定产品失败: ${(r as Record<string, unknown>).details || 'unknown'}`);
         }
       }
     } catch (err: unknown) {
@@ -911,11 +911,11 @@ export async function syncNegativeProductTargetsToAmazon(
       ), { label: 'SP AdGroup否定产品定向' });
       
       for (const r of apiResults) {
-        if ((r as any).code === 'SUCCESS' || (r as any).targetId) {
+        if ((r as Record<string, unknown>).code === 'SUCCESS' || (r as Record<string, unknown>).targetId) {
           result.success++;
         } else {
           result.failed++;
-          result.errors.push(`SP AdGroup否定产品失败: ${(r as any).details || 'unknown'}`);
+          result.errors.push(`SP AdGroup否定产品失败: ${(r as Record<string, unknown>).details || 'unknown'}`);
         }
       }
     } catch (err: unknown) {
@@ -1197,7 +1197,7 @@ export async function syncCampaignStatusToAmazon(
       
       // v159: 带重试的API调用 - 最多重试2次
       const maxRetries = 2;
-      let lastError: any = null;
+      let lastError: Error | null = null;
       let success = false;
       
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -1220,7 +1220,7 @@ export async function syncCampaignStatusToAmazon(
           } else {
             await syncService.client.updateSpCampaign(change.amazonCampaignId, {
               state: change.newStatus.toUpperCase(),
-            } as any);
+            } as Record<string, unknown>);
           }
           
           success = true;
@@ -1257,7 +1257,7 @@ export async function syncCampaignStatusToAmazon(
           }
         } catch (logError) {
           // 记录失败不影响主流程
-          log.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as any).message);
+          log.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as unknown).message);
         }
       }
     } catch (error: unknown) {

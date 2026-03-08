@@ -97,7 +97,7 @@ export async function geminiGenerateImage(
       return null;
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as unknown;
     const parts = data?.candidates?.[0]?.content?.parts;
     if (!parts) return null;
 

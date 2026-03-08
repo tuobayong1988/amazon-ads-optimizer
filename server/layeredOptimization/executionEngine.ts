@@ -23,8 +23,8 @@ export interface OptimizationAction {
   type: OptimizationType;
   targetId: number; // campaignId, keywordId等
   targetName: string;
-  currentValue: any;
-  suggestedValue: any;
+  currentValue: unknown;
+  suggestedValue: unknown;
   expectedImpact: {
     acosChange: number; // 预期ACoS变化(百分点)
     salesChange: number; // 预期销售额变化(美元)

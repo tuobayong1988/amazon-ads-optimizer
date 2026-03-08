@@ -381,7 +381,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
 
   try {
     const { syncAllAccounts } = await import('./unifiedSyncEngine');
-    const batchResult = await syncAllAccounts(tier as any);
+    const batchResult = await syncAllAccounts(tier as unknown);
 
     schedulerStatus.tierLastRun[tier] = new Date();
     schedulerStatus.lastRunTime = new Date();
@@ -624,13 +624,13 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         status: 'completed',
         startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
         completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
-        spCampaigns: (result as any)?.spCampaigns || (result as any)?.campaigns || 0,
-        sbCampaigns: (result as any)?.sbCampaigns || 0,
-        sdCampaigns: (result as any)?.sdCampaigns || 0,
-        adGroupsSynced: (result as any)?.adGroups || 0,
-        keywordsSynced: (result as any)?.keywords || 0,
-        targetsSynced: (result as any)?.targets || 0,
-        performanceSynced: (result as any)?.performance || 0,
+        spCampaigns: (result as unknown)?.spCampaigns || (result as unknown)?.campaigns || 0,
+        sbCampaigns: (result as unknown)?.sbCampaigns || 0,
+        sdCampaigns: (result as unknown)?.sdCampaigns || 0,
+        adGroupsSynced: (result as unknown)?.adGroups || 0,
+        keywordsSynced: (result as unknown)?.keywords || 0,
+        targetsSynced: (result as unknown)?.targets || 0,
+        performanceSynced: (result as unknown)?.performance || 0,
       });
     }
   } catch (logErr: unknown) {
@@ -829,13 +829,13 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const accountPGs = await db.getPerformanceGroupsByAccountId(schedule.accountId);
     for (const pg of accountPGs) {
       // 只检查当前已暂停的优化目标
-      if ((pg as any).autoOptimize === 0 || (pg as any).autoOptimize === false) {
+      if ((pg as Record<string, unknown>).autoOptimize === 0 || (pg as Record<string, unknown>).autoOptimize === false) {
         const pgCampaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
         const enabledCount = pgCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled').length;
         if (enabledCount > 0) {
           // 有广告活动恢复了enabled状态，自动恢复优化目标
           await db.updatePerformanceGroup(pg.id, { autoOptimize: 1 });
-          log.debug(`[DataSyncScheduler] v168: 优化目标"${(pg as any).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
+          log.debug(`[DataSyncScheduler] v168: 优化目标"${(pg as Record<string, unknown>).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
         }
       }
     }
@@ -871,13 +871,13 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const now = new Date();
     const todayStr = now.toISOString().slice(0, 10);
     const lastEvolutionKey = `evolution_${schedule.accountId}_${todayStr}`;
-    if (!(globalThis as any).__evolutionExecuted) {
-      (globalThis as any).__evolutionExecuted = new Set();
+    if (!(globalThis as unknown).__evolutionExecuted) {
+      (globalThis as unknown).__evolutionExecuted = new Set();
     }
-    if (!(globalThis as any).__evolutionExecuted.has(lastEvolutionKey)) {
+    if (!(globalThis as unknown).__evolutionExecuted.has(lastEvolutionKey)) {
       const { runGlobalEvolution } = await import('./algorithmEvolutionEngine');
       const evolutionResult = await runGlobalEvolution();
-      (globalThis as any).__evolutionExecuted.add(lastEvolutionKey);
+      (globalThis as unknown).__evolutionExecuted.add(lastEvolutionKey);
       log.info(`[DataSyncScheduler] v152: 算法进化完成: 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
     }
   } catch (evoError: unknown) {
@@ -911,7 +911,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 export async function triggerManualSync(userId: number, accountId: number): Promise<{
   success: boolean;
   message: string;
-  result?: any;
+  result?: unknown;
 }> {
   try {
     const { triggerManualFullSync } = await import('./unifiedSyncEngine');
@@ -1365,11 +1365,11 @@ export async function recordModuleExecution(targetId: number, moduleName: string
       // 先读取当前的模块执行时间JSON，然后更新对应模块
       const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
       let executionTimes: Record<string, string> = {};
-      const rowData = Array.isArray(rows) ? rows[0] : (rows as any)?.rows?.[0];
+      const rowData = Array.isArray(rows) ? rows[0] : (rows as unknown)?.rows?.[0];
       if (rowData) {
         const rawArr = Array.isArray(rowData) ? rowData : [rowData];
         for (const r of rawArr) {
-          const met = (r as any).module_execution_times;
+          const met = (r as unknown).module_execution_times;
           if (met) {
             try {
               executionTimes = JSON.parse(met);
@@ -1454,7 +1454,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           const resultRows = Array.isArray(rows) ? rows[0] : rows;
           const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
           for (const row of dataArr) {
-            const met = (row as any)?.module_execution_times;
+            const met = (row as unknown)?.module_execution_times;
             if (met) {
               const executionTimes = JSON.parse(met);
               const modules = Object.keys(executionTimes);
@@ -1697,19 +1697,19 @@ export async function startOptimizationScheduler(): Promise<void> {
           // 清理sync_conflicts
           const [r1] = await conn.execute(
             `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理sync_change_records
           const [r2] = await conn.execute(
             `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理system_logs
           const [r3] = await conn.execute(
             `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理已完成的optimization_tasks
           const [r4] = await conn.execute(
             `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
         } finally {
           conn.release();
