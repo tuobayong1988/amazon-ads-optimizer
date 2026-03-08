@@ -241,6 +241,66 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     }
   }, 10 * 60 * 1000);
   log.info('[DataSyncScheduler] v334: 卡死任务定期清理已启动，间隔: 10分钟');
+
+  // v358.1: SLO监控 - 每10分钟采集一次SLO指标并记录
+  setInterval(async () => {
+    try {
+      const { getSLOMetrics } = await import('./services/sync/sloMonitor');
+      const metrics = await getSLOMetrics();
+      if (metrics.overallStatus === 'unhealthy') {
+        log.error(`[DataSyncScheduler] v358.1: SLO健康度异常! score=${metrics.overallScore}, ` +
+          `syncRate=${metrics.syncSuccessRate.actual}%, coverage=${metrics.dataCoverage.actual}%, ` +
+          `freshness=${metrics.dataFreshness.actual}`);
+      } else if (metrics.overallStatus === 'degraded') {
+        log.warn(`[DataSyncScheduler] v358.1: SLO健康度降级 score=${metrics.overallScore}, ` +
+          `syncRate=${metrics.syncSuccessRate.actual}%, coverage=${metrics.dataCoverage.actual}%`);
+      } else {
+        log.debug(`[DataSyncScheduler] v358.1: SLO正常 score=${metrics.overallScore}`);
+      }
+    } catch (err: any) {
+      log.error(`[DataSyncScheduler] v358.1: SLO监控采集失败: ${err.message}`);
+    }
+  }, 10 * 60 * 1000);
+  log.info('[DataSyncScheduler] v358.1: SLO监控已启动，间隔: 10分钟');
+
+  // v358.1: 数据完整性检查器 - 每4小时运行一次全量检查
+  setInterval(async () => {
+    try {
+      const { checkAllAccountsIntegrity, executeAutoRepair } = await import('./services/sync/dataIntegrityChecker');
+      log.info('[DataSyncScheduler] v358.1: 开始数据完整性定期检查...');
+      const checkResult = await checkAllAccountsIntegrity(14);
+      log.info(`[DataSyncScheduler] v358.1: 完整性检查完成 - 总计=${checkResult.totalAccounts}, ` +
+        `健康=${checkResult.healthyAccounts}, 需修复=${checkResult.unhealthyAccounts}`);
+      
+      // 自动修复需要修复的账户
+      const unhealthyResults = checkResult.results.filter(r => r.needsRepair);
+      for (const result of unhealthyResults) {
+        try {
+          const repairResult = await executeAutoRepair(result);
+          log.info(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复: ` +
+            `成功=${repairResult.repaired}, 动作=${repairResult.actionsExecuted}, 错误=${repairResult.errors.length}`);
+        } catch (repairErr: any) {
+          log.error(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复失败: ${repairErr.message}`);
+        }
+      }
+    } catch (err: any) {
+      log.error(`[DataSyncScheduler] v358.1: 数据完整性检查失败: ${err.message}`);
+    }
+  }, 4 * 60 * 60 * 1000);
+  log.info('[DataSyncScheduler] v358.1: 数据完整性检查器已启动，间隔: 4小时');
+
+  // v358.1: 启动后延迟5分钟执行一次完整性检查（确保部署后立即检查）
+  setTimeout(async () => {
+    try {
+      const { checkAllAccountsIntegrity } = await import('./services/sync/dataIntegrityChecker');
+      log.info('[DataSyncScheduler] v358.1: 部署后首次完整性检查...');
+      const checkResult = await checkAllAccountsIntegrity(14);
+      log.info(`[DataSyncScheduler] v358.1: 部署后首次检查完成 - 总计=${checkResult.totalAccounts}, ` +
+        `健康=${checkResult.healthyAccounts}, 需修复=${checkResult.unhealthyAccounts}`);
+    } catch (err: any) {
+      log.error(`[DataSyncScheduler] v358.1: 部署后首次完整性检查失败: ${err.message}`);
+    }
+  }, 5 * 60 * 1000);
   
   log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
