@@ -1126,7 +1126,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
             const detail = typeof row.action_detail === 'string' ? JSON.parse(row.action_detail) : row.action_detail;
             expectedTop = detail.newTopOfSearch ?? detail.suggestedTopMultiplier ?? null;
             expectedProduct = detail.newProductPage ?? detail.suggestedProductMultiplier ?? null;
-          } catch {}
+          } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         if (expectedTop === null && expectedProduct === null) continue;
@@ -1489,7 +1489,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         // 从 action_detail 中提取关键信息
         let detail: Record<string, any> = {};
         if (event.actionDetail) {
-          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         const localKeywordId = event.keywordId || detail.localKeywordId;
@@ -1652,7 +1652,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
       try {
         let detail: Record<string, any> = {};
         if (event.actionDetail) {
-          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         const searchTerm = detail.searchTerm || event.keywordText;
@@ -1692,7 +1692,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           try {
             const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
             retryCount = syncDetail.retryCount || 0;
-          } catch {}
+          } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         const nkEntry: Record<string, any> = {
@@ -2576,7 +2576,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
       try {
         const raw = event.action_detail || event.actionDetail;
         if (raw) detail = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      } catch {}
+      } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
       
       const searchTerm = detail.searchTerm || event.keyword_text || event.keywordText;
       const matchType = detail.matchType || 'phrase';
@@ -3691,7 +3691,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
       try {
         let detail: Record<string, any> = {};
         if (event.actionDetail) {
-          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         // 从action_detail中提取本地keywordId
@@ -3715,7 +3715,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
           try {
             const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
             retryCount = syncDetail.retryCount || 0;
-          } catch {}
+          } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         if (retryCount >= AUTO_CORRECTION_CONFIG.maxRetryAttempts) {
@@ -3806,7 +3806,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
           } else {
             retryCount = 1;
           }
-        } catch {}
+        } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         
         await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
@@ -3892,7 +3892,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
       try {
         let expression: any[] = [];
         if (pt.targetExpression) {
-          try { expression = typeof pt.targetExpression === 'string' ? JSON.parse(pt.targetExpression) : pt.targetExpression; } catch {}
+          try { expression = typeof pt.targetExpression === 'string' ? JSON.parse(pt.targetExpression) : pt.targetExpression; } catch (e) { log.debug(`[AutoCorrector] 非关键操作失败: ${(e as Error)?.message}`); }
         }
         
         // 从expression中提取ASIN

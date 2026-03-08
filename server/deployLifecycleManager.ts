@@ -467,7 +467,7 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
   try {
     const { getSyncHealthStatus } = await import('./dataSyncScheduler');
     syncHealth = getSyncHealthStatus();
-  } catch (e) { /* 调度器可能未启动 */ }
+  } catch (e) { log.debug(`[LifecycleManager] 调度器可能未启动: ${(e as Error).message}`); }
   
   // 使用 REPLACE INTO 确保只有一条心跳记录（通过 accountId=0 + type=system_heartbeat 唯一标识）
   await database.execute(sql`
