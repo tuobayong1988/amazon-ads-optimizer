@@ -93,6 +93,9 @@ let schedulerIntervals: Record<SyncTier, NodeJS.Timeout | null> = {
   full: null,
 };
 
+// v361: 监控和辅助定时器的引用，确保可以在停止时清理
+const monitoringIntervals: NodeJS.Timeout[] = [];
+
 // API请求队列，用于控制请求速率
 interface QueuedRequest {
   accountId: number;
@@ -203,19 +206,19 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     }
   }, 60 * 1000);
 
-  // v220: 系统健康监控 - 每15分钟输出健康快照（内存/API速率/同步率/确认同步统计）
-  setInterval(async () => {
+  // v361: 系统健康监控 - 每15分钟输出健康快照
+  monitoringIntervals.push(setInterval(async () => {
     try {
       const { logHealthSnapshot } = await import('./unifiedSyncEngine');
       logHealthSnapshot();
     } catch (err: unknown) {
       log.warn(`[DataSyncScheduler] v220: 健康监控快照失败: ${(err as Error).message}`);
     }
-  }, 15 * 60 * 1000);
+  }, 15 * 60 * 1000));
   log.info('[DataSyncScheduler] v220: 系统健康监控已启动，间隔: 15分钟');
   
-  // v137: 启动优化任务重试同步引擎（每5分钟检查并重试失败的同步任务）
-  setInterval(async () => {
+  // v361: 启动优化任务重试同步引擎（每5分钟）
+  monitoringIntervals.push(setInterval(async () => {
     try {
       const { processRetryTasks } = await import('./optimizationSyncEngine');
       const retryResult = await processRetryTasks();
@@ -225,11 +228,11 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     } catch (err: unknown) {
       log.error(`[DataSyncScheduler] 重试同步异常: ${(err as Error).message}`);
     }
-  }, 5 * 60 * 1000);
+  }, 5 * 60 * 1000));
   log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
 
-  // v334: 定期清理卡死任务（每10分钟检查一次）
-  setInterval(async () => {
+  // v361: 定期清理卡死任务（每10分钟）
+  monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
       const result = await cleanupStaleJobs(30); // v335: 缩短到30分钟
@@ -239,11 +242,11 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     } catch (err: unknown) {
       log.error(`[DataSyncScheduler] v334: 定期卡死任务清理异常: ${(err as Error).message}`);
     }
-  }, 10 * 60 * 1000);
+  }, 10 * 60 * 1000));
   log.info('[DataSyncScheduler] v334: 卡死任务定期清理已启动，间隔: 10分钟');
 
-  // v358.1: SLO监控 - 每10分钟采集一次SLO指标并记录
-  setInterval(async () => {
+  // v361: SLO监控 - 每10分钟采集一次SLO指标
+  monitoringIntervals.push(setInterval(async () => {
     try {
       const { getSLOMetrics } = await import('./services/sync/sloMonitor');
       const metrics = await getSLOMetrics();
@@ -260,11 +263,11 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     } catch (err: unknown) {
       log.error(`[DataSyncScheduler] v358.1: SLO监控采集失败: ${(err as Error).message}`);
     }
-  }, 10 * 60 * 1000);
+  }, 10 * 60 * 1000));
   log.info('[DataSyncScheduler] v358.1: SLO监控已启动，间隔: 10分钟');
 
-  // v358.1: 数据完整性检查器 - 每4小时运行一次全量检查
-  setInterval(async () => {
+  // v361: 数据完整性检查器 - 每4小时全量检查
+  monitoringIntervals.push(setInterval(async () => {
     try {
       const { checkAllAccountsIntegrity, executeAutoRepair } = await import('./services/sync/dataIntegrityChecker');
       log.info('[DataSyncScheduler] v358.1: 开始数据完整性定期检查...');
@@ -332,6 +335,13 @@ export function stopDataSyncScheduler(): void {
       schedulerIntervals[tier as SyncTier] = null;
     }
   });
+
+  // v361: 清理所有监控和辅助定时器
+  for (const timer of monitoringIntervals) {
+    clearInterval(timer);
+  }
+  monitoringIntervals.length = 0;
+  log.info(`[DataSyncScheduler] v361: 已清理 ${monitoringIntervals.length} 个监控定时器`);
 
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
@@ -1720,8 +1730,8 @@ export async function startOptimizationScheduler(): Promise<void> {
     }
   }, 60 * 60 * 1000);  log.info(`[OptimizationScheduler] v267: A/B测试指标收集已启动，执行时间: 每日凌昨昨3:00`);
 
-  // v350: 自动数据清理 - 每天凌晨4:00执行，防止历史数据无限增长拖慢数据库
-  setInterval(async () => {
+  // v361: 自动数据清理 - 每天凌晨4:00执行
+  monitoringIntervals.push(setInterval(async () => {
     const now = new Date();
     const localHour = getLocalHour(now, 'US');
     if (localHour === 4 && shouldExecuteThisHour('data_cleanup')) {
@@ -1755,8 +1765,8 @@ export async function startOptimizationScheduler(): Promise<void> {
         log.error(`[DataCleanup] v350: 自动数据清理失败: ${(err as Error).message}`);
       }
     }
-  }, 60 * 60 * 1000);
-  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌晨4:00 (EST)`);
+  }, 60 * 60 * 1000));
+  log.info(`[OptimizationScheduler] v350: 自动数据清理已启动，执行时间: 每日凌昨4:00 (EST)`);
 }
 
 /**

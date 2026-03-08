@@ -232,8 +232,8 @@ function cleanupStaleMemoryData() {
   }
 }
 
-// v230: 每小时执行一次内存清理
-setInterval(cleanupStaleMemoryData, 60 * 60 * 1000);
+// v361: 每小时执行一次内存清理（保存引用以便清理）
+const _memoryCleanupTimer = setInterval(cleanupStaleMemoryData, 60 * 60 * 1000);
 
 // ==================== 核心函数 ====================
 
