@@ -833,9 +833,16 @@ function ruleEngineDecision(
   // 场景4: 有订单 — 基于ACOS进行精确调整
   // v253: 引入数据置信度因子和CTR相关性感知，实现个性化调整
   // v254: 引入趋势感知 — 近期表现趋势影响调整方向和力度
+  // v360: 增强ACoS偏差因子透明度 - 明确偏差方向、幅度和决策区间
   if (orders > 0 && sales > 0) {
     const actualAcos = spend / sales;
     const acosRatio = actualAcos / targetAcos;
+    
+    // v360: ACoS偏差因子诊断标签
+    const acosDeviationPct = ((acosRatio - 1) * 100).toFixed(1);
+    const acosDirection = acosRatio < 1 ? 'below_target' : acosRatio <= 1.5 ? 'slightly_above' : acosRatio <= 2.0 ? 'moderately_above' : acosRatio <= 3.0 ? 'severely_above' : 'extremely_above';
+    const acosZone = acosRatio < 0.5 ? 'boost_zone' : acosRatio < 0.7 ? 'growth_zone' : acosRatio <= 1.0 ? 'target_zone' : acosRatio <= 1.5 ? 'caution_zone' : acosRatio <= 2.0 ? 'reduce_zone' : acosRatio <= 3.0 ? 'danger_zone' : 'emergency_zone';
+    log.debug(`[v360-BidDecision] ACoS偏差分析: actual=${(actualAcos * 100).toFixed(1)}%, target=${(targetAcos * 100).toFixed(1)}%, ratio=${acosRatio.toFixed(2)}, deviation=${acosDeviationPct}%, direction=${acosDirection}, zone=${acosZone}`);
     
     // v253: 数据置信度因子 — 数据量越大，调整幅度越接近理论值；数据量小时保守调整
     // clicks < 5: 保守因子 0.5 | clicks 5-20: 中等因子 0.5-0.85 | clicks > 20: 充分因子 0.85-1.0
