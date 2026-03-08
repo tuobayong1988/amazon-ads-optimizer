@@ -22,6 +22,7 @@ import * as placementOptimizationService from "./placementOptimizationService";
 import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from './optimizationSafetyGuardrails';
 import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
+import { optimizeBudgetPortfolio } from "./budgetPortfolioOptimizer";
 import * as bidCoordinator from "./services/bidCoordinator";
 import * as nextGenOrchestrator from "./nextGenBidOrchestrator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
@@ -3649,8 +3650,24 @@ async function executeBudgetAllocation(
   let adjustmentsCount = 0;
   
   try {
-    // 获取预算分配建议
-    // v360: 将优化目标的日预算约束传递给预算分配算法
+    // v360: 统一预算分配机制
+    // 优先使用budgetPortfolioOptimizer（基于边际效用的凸优化算法）
+    // 回退到intelligentBudgetAllocationService（多维度评分算法）
+    let portfolioResult: Awaited<ReturnType<typeof optimizeBudgetPortfolio>> = null;
+    try {
+      portfolioResult = await optimizeBudgetPortfolio(
+        config.accountId,
+        config.id,
+        config.dailyBudget || undefined
+      );
+      if (portfolioResult) {
+        log.info(`[BudgetAllocation] v360: budgetPortfolioOptimizer成功, ${portfolioResult.allocations.length}条分配, 总预算=$${portfolioResult.totalBudget}`);
+      }
+    } catch (portfolioErr: unknown) {
+      log.warn(`[BudgetAllocation] v360: budgetPortfolioOptimizer失败，回退到intelligentBudgetAllocationService: ${(portfolioErr as Error).message}`);
+    }
+    
+    // 获取预算分配建议（回退路径）
     const budgetConfig = config.dailyBudget 
       ? { targetTotalBudget: config.dailyBudget } 
       : undefined;

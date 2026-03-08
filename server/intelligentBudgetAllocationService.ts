@@ -3,6 +3,9 @@ const log = createModuleLogger('IntelligentBudgetAllocationService');
 /**
  * 智能预算分配服务 - 超越智能优化的创新算法
  * 
+ * @deprecated v360: 本服务将逐步废弃，核心算法已迁移到budgetPortfolioOptimizer
+ * 当前保留以保持向后兼容，新代码应使用optimizeBudgetPortfolio()
+ * 
  * 核心创新点：
  * 1. 多时间窗口分析（7天趋势+14天稳定性+30天基准）
  * 2. 边际效益分析模型（找到最优预算点）
@@ -173,7 +176,10 @@ const DEFAULT_CONFIG: AllocationConfig = {
   minDataDays: 7
 };
 
-/** v360: 导出默认配置以便外部模块可以基于默认配置进行扩展 */
+/**
+ * v360: 导出默认配置以便外部模块可以基于默认配置进行扩展
+ * @deprecated v360: 未来应统一使用budgetPortfolioOptimizer.optimizeBudgetPortfolio()
+ */
 export function getDefaultAllocationConfig(): AllocationConfig {
   return { ...DEFAULT_CONFIG };
 }

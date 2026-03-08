@@ -1,6 +1,9 @@
 /**
  * Budget Allocation Service - 预算智能分配服务
  * 基于历史表现和销售目标，为广告活动推荐最佳预算分配
+ * 
+ * @deprecated v360: 本服务将逐步废弃，核心算法已统一到budgetPortfolioOptimizer
+ * 当前保留以支持前端预算管理路由，新代码应使用optimizeBudgetPortfolio()
  */
 
 import { getDb } from "./db";
