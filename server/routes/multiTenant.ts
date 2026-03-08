@@ -13,9 +13,7 @@ export const multiTenantRouter = router({
   /**
    * 获取当前组织信息
    */
-  // @ts-ignore
   getOrganization: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -31,9 +29,7 @@ export const multiTenantRouter = router({
   /**
    * 获取使用统计
    */
-  // @ts-ignore
   getUsageStats: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -44,7 +40,6 @@ export const multiTenantRouter = router({
         endDate: z.string().optional(),
       })
     )
-    // @ts-ignore
     .query(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, organization } = tenantCtx;
@@ -84,9 +79,7 @@ export const multiTenantRouter = router({
   /**
    * 获取组织成员列表
    */
-  // @ts-ignore
   getMembers: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -102,9 +95,7 @@ export const multiTenantRouter = router({
   /**
    * 邀请新成员
    */
-  // @ts-ignore
   inviteMember: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -115,7 +106,6 @@ export const multiTenantRouter = router({
         role: z.enum(['admin', 'member', 'viewer']),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, organization, userRole } = tenantCtx;
@@ -153,9 +143,7 @@ export const multiTenantRouter = router({
   /**
    * 更新成员角色
    */
-  // @ts-ignore
   updateMemberRole: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -166,7 +154,6 @@ export const multiTenantRouter = router({
         role: z.enum(['admin', 'member', 'viewer']),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
@@ -184,9 +171,7 @@ export const multiTenantRouter = router({
   /**
    * 移除成员
    */
-  // @ts-ignore
   removeMember: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -196,7 +181,6 @@ export const multiTenantRouter = router({
         memberId: z.number(),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
@@ -222,9 +206,7 @@ export const multiTenantRouter = router({
   /**
    * 更新订阅计划
    */
-  // @ts-ignore
   updateSubscription: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -235,7 +217,6 @@ export const multiTenantRouter = router({
         billingCycle: z.enum(['monthly', 'yearly']),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
@@ -266,9 +247,7 @@ export const multiTenantRouter = router({
   /**
    * 获取计费历史
    */
-  // @ts-ignore
   getBillingHistory: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -289,9 +268,7 @@ export const multiTenantRouter = router({
   /**
    * 获取API密钥
    */
-  // @ts-ignore
   getApiKeys: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -307,9 +284,7 @@ export const multiTenantRouter = router({
   /**
    * 创建API密钥
    */
-  // @ts-ignore
   createApiKey: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -320,7 +295,6 @@ export const multiTenantRouter = router({
         permissions: z.array(z.string()).optional(),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole, organization } = tenantCtx;
@@ -351,9 +325,7 @@ export const multiTenantRouter = router({
   /**
    * 撤销API密钥
    */
-  // @ts-ignore
   revokeApiKey: protectedProcedure
-    // @ts-ignore
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -363,7 +335,6 @@ export const multiTenantRouter = router({
         keyId: z.number(),
       })
     )
-    // @ts-ignore
     .mutation(async ({ ctx, input }) => {
       const tenantCtx = ctx as TenantContext;
       const { organizationId, userRole } = tenantCtx;
