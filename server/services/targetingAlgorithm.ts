@@ -431,9 +431,21 @@ function decideAsinTargetingV2(
   const { searchTerm, targetAcos, spend, sales } = data;
   const aov = orders > 0 ? sales / orders : 0;
   
-  // v251: ASIN否定引入花费/客单价比率
-  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * 1.5 : spend;
+  // v360: ASIN否定动态门槛 - 基于品类AOV和竞争度动态调整
+  // 原来: 固定1.5倍 AOV*targetAcos
+  // 现在: 根据点击数和花费比例动态调整容忍度
+  const clickToSpendRatio = clicks > 0 ? spend / clicks : 0; // CPC估算
+  // 高CPC场景(如电子产品)需要更大容忍度，低CPC场景(如小配件)可以更严格
+  const toleranceMultiplier = clickToSpendRatio > 2.0 ? 2.0 :  // 高CPC: 2x容忍
+                              clickToSpendRatio > 1.0 ? 1.5 :  // 中CPC: 1.5x容忍
+                              1.2;                              // 低CPC: 1.2x容忍
+  const spendThreshold = aov > 0 ? aov * (targetAcos / 100) * toleranceMultiplier : spend;
   const spendExceeded = spend >= spendThreshold;
+  
+  // v360: 动态点击门槛 - 高AOV产品需要更多点击才能判定
+  const dynamicClickThreshold = aov > 100 ? 20 :  // 高客单价: 20次点击
+                                 aov > 30 ? 15 :   // 中客单价: 15次点击
+                                 10;                // 低客单价: 10次点击
   
   // v2: 根据广告类型确定否定层级
   // SP: 支持Campaign和Ad Group级，默认用Campaign级（影响范围更广）
@@ -441,8 +453,9 @@ function decideAsinTargetingV2(
   // SD: 仅支持Ad Group级（且仅限上下文定向）
   const negativeScope: 'campaign' | 'ad_group' = normalizedCampaignType === 'sp' ? 'campaign' : 'ad_group';
   
+  // v360: 使用动态点击门槛替代固定15次
   // 高点击无转化ASIN + 花费超标 → 否定产品定向
-  if (clicks >= 15 && orders === 0 && spendExceeded) {
+  if (clicks >= dynamicClickThreshold && orders === 0 && spendExceeded) {
     return {
       action: 'CREATE_NEGATIVE_PRODUCT_TARGET',  // v2: 修正！ASIN应用否定产品定向
       targetValue: searchTerm.trim(),
@@ -456,8 +469,9 @@ function decideAsinTargetingV2(
     };
   }
   
+  // v360: 使用动态点击门槛
   // 高点击无转化ASIN但花费未超标 → 观察
-  if (clicks >= 15 && orders === 0 && !spendExceeded) {
+  if (clicks >= dynamicClickThreshold && orders === 0 && !spendExceeded) {
     return {
       action: 'MONITOR',
       targetValue: searchTerm.trim(),
