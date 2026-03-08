@@ -2340,5 +2340,10 @@ export function getSyncHealthStatus(): { consecutiveFailures: number; lastSyncTi
   };
 }
 
+/** v360: 检查主同步是否正在进行，供自愈调度器协调使用 */
+export function isSyncRunning(): boolean {
+  return schedulerStatus.isRunning || Object.values(executionLocks).some(v => v);
+}
+
 // 导出同步层级配置和优化调度配置供外部使用
 export { SYNC_TIER_CONFIG, frequencyToMs, OPTIMIZATION_SCHEDULE };

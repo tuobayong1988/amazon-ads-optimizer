@@ -288,6 +288,17 @@ export class SelfHealingScheduler {
       // 修复级别的任务需要获取互斥锁
       let release: (() => void) | null = null;
       if (task.level === 'repair' || task.level === 'emergency') {
+        // v360: 检查主同步是否正在进行，避免自愈修复与主同步冲突
+        try {
+          const { isSyncRunning } = await import('../dataSyncScheduler');
+          if (typeof isSyncRunning === 'function' && isSyncRunning()) {
+            log.info(`[SelfHealingScheduler] v360: 主同步正在进行，延迟任务${task.id}执行`);
+            return { success: true, issuesFound: 0, issuesFixed: 0, details: 'v360: 主同步进行中，延迟执行' };
+          }
+        } catch {
+          // isSyncRunning不可用时不影响正常流程
+        }
+        
         release = await this.repairMutex.tryAcquire(task.timeoutMs);
         if (!release) {
           log.warn(`[SelfHealingScheduler] 任务${task.id}无法获取修复锁，跳过本次执行`);
