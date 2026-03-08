@@ -480,7 +480,7 @@ export class SQSConsumerService {
       return;
     }
 
-    let body: any;
+    let body: Record<string, unknown>;
     try {
       body = JSON.parse(message.Body);
     } catch (e) {
@@ -528,7 +528,7 @@ export class SQSConsumerService {
   /**
    * 处理SNS订阅确认消息
    */
-  private async handleSubscriptionConfirmation(body: any): Promise<void> {
+  private async handleSubscriptionConfirmation(body: Record<string, unknown>): Promise<void> {
     const subscribeUrl = body.SubscribeURL;
     const topicArn = body.TopicArn;
     

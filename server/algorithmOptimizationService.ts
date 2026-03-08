@@ -195,7 +195,7 @@ export async function calculateAlgorithmPerformance(
 /**
  * 计算准确率
  */
-function calculateAccuracy(records: any[], actualField: string): number | null {
+function calculateAccuracy(records: unknown[], actualField: string): number | null {
   if (records.length === 0) return null;
   
   let totalEstimated = 0;
@@ -217,7 +217,7 @@ function calculateAccuracy(records: any[], actualField: string): number | null {
 /**
  * 计算平均绝对误差 (MAE)
  */
-function calculateMAE(records: any[], actualField: string): number | null {
+function calculateMAE(records: unknown[], actualField: string): number | null {
   if (records.length === 0) return null;
   
   let totalError = 0;
@@ -233,7 +233,7 @@ function calculateMAE(records: any[], actualField: string): number | null {
 /**
  * 计算均方根误差 (RMSE)
  */
-function calculateRMSE(records: any[], actualField: string): number | null {
+function calculateRMSE(records: unknown[], actualField: string): number | null {
   if (records.length === 0) return null;
   
   let totalSquaredError = 0;
@@ -249,7 +249,7 @@ function calculateRMSE(records: any[], actualField: string): number | null {
 /**
  * 计算方向准确率
  */
-function calculateDirectionAccuracy(records: any[], actualField: string): number | null {
+function calculateDirectionAccuracy(records: unknown[], actualField: string): number | null {
   if (records.length === 0) return null;
   
   let correctCount = 0;

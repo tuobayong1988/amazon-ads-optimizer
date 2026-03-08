@@ -692,7 +692,7 @@ export class AmazonAdsApiClient {
     let lastError: any = null;
     
     do {
-      const body: any = { 
+      const body: Record<string, unknown> = { 
         maxResults: 100,
         // 请求扩展字段，包括startDate和endDate
         includeExtendedDataFields: true
@@ -810,7 +810,7 @@ export class AmazonAdsApiClient {
     let lastError: any = null;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -876,7 +876,7 @@ export class AmazonAdsApiClient {
     let lastError: any = null;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         // v129: Amazon SP API v3要求adGroupId为字符串类型
         body.adGroupIdFilter = { include: [String(adGroupId)] };
@@ -941,12 +941,12 @@ export class AmazonAdsApiClient {
       bid: number;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
+  ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: unknown[] }> {
     // v199: 添加分批处理，Amazon SP API v3单次最多接受1000个关键词
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
     const allCreatedKeywords: Array<{ keywordId: any; keywordText: string; code: string }> = [];
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(keywords.length / BATCH_SIZE);
     log.info(`[SP API] v199: createSpKeywords 分批处理: 总计${keywords.length}个, 分${totalBatches}批`);
@@ -1027,12 +1027,12 @@ export class AmazonAdsApiClient {
   /**
    * 更新关键词出价
    */
-  async updateKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
+  async updateKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<{ success: boolean; errors: unknown[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理，Amazon SP API v3单次最多接受1000条
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
@@ -1105,11 +1105,11 @@ export class AmazonAdsApiClient {
    * 通过 PUT /sp/keywords API 更新关键词的 state 字段
    * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
    */
-  async updateKeywordStatus(updates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
+  async updateKeywordStatus(updates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: unknown[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理，确保大批量状态更新不会被截断
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1164,11 +1164,11 @@ export class AmazonAdsApiClient {
    * v134: 更新商品定向状态（enabled/paused/archived）
    * 通过 PUT /sp/targets API 更新商品定向的 state 字段
    */
-  async updateProductTargetStatus(updates: Array<{ targetId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
+  async updateProductTargetStatus(updates: Array<{ targetId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: unknown[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1222,11 +1222,11 @@ export class AmazonAdsApiClient {
    * v135: 更新SP广告组状态
    * 通过 PUT /sp/adGroups 更新广告组的state字段
    */
-  async updateSpAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
+  async updateSpAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: unknown[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     const formattedAll = updates.map(u => ({
@@ -1293,7 +1293,7 @@ export class AmazonAdsApiClient {
     let lastError: any = null;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -1344,12 +1344,12 @@ export class AmazonAdsApiClient {
   /**
    * 更新商品定位出价
    */
-  async updateProductTargetBids(updates: Array<{ targetId: string; bid: number }>): Promise<{ success: boolean; errors: any[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
+  async updateProductTargetBids(updates: Array<{ targetId: string; bid: number }>): Promise<{ success: boolean; errors: unknown[]; requestIds: string[] }> {  // v356: 统一ID参数类型为string
     // v199: 添加分批处理
     // v333: 增强日志记录 - 提取并返回Amazon API的requestId用于端到端追踪
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     const allRequestIds: string[] = [];
     let totalSuccess = 0;
     
@@ -1428,11 +1428,11 @@ export class AmazonAdsApiClient {
       bid: number;
       state?: 'enabled' | 'paused';
     }>
-  ): Promise<{ success: boolean; createdTargets: Array<{ targetId: number | null; expression: any; code: string }>; errors: any[] }> {
+  ): Promise<{ success: boolean; createdTargets: Array<{ targetId: number | null; expression: any; code: string }>; errors: unknown[] }> {
     const BATCH_SIZE = 100; // Amazon SP API v3 targeting clauses 单次最多100个
     const BATCH_DELAY_MS = 500;
     const allCreatedTargets: Array<{ targetId: number | null; expression: any; code: string }> = [];
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     
     const totalBatches = Math.ceil(targets.length / BATCH_SIZE);
     log.info(`[SP API] v310: createSpProductTargets 分批处理: 总计${targets.length}个, 分${totalBatches}批`);
@@ -3378,12 +3378,12 @@ export class AmazonAdsApiClient {
    */
   async listSbCampaigns(): Promise<any[]> {
     // SB API maxResults最大为100，需要分页获取
-    const allCampaigns: any[] = [];
+    const allCampaigns: unknown[] = [];
     let nextToken: string | undefined;
     let pageCount = 0;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (nextToken) {
         body.nextToken = nextToken;
       }
@@ -3429,11 +3429,11 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSbAdGroups(campaignId?: string): Promise<any[]> {
-    const allAdGroups: any[] = [];
+    const allAdGroups: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -3466,11 +3466,11 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSbKeywords(adGroupId?: string): Promise<any[]> {
-    const allKeywords: any[] = [];
+    const allKeywords: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -3512,11 +3512,11 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSbTargets(adGroupId?: string): Promise<any[]> {
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -3609,7 +3609,7 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSdCampaigns(): Promise<any[]> {
-    const allCampaigns: any[] = [];
+    const allCampaigns: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
@@ -3656,12 +3656,12 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSdAdGroups(campaignId?: number): Promise<any[]> {
-    const allAdGroups: any[] = [];
+    const allAdGroups: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
-      const params: any = { startIndex, count };
+      const params: Record<string, unknown> = { startIndex, count };
       if (campaignId) {
         params.campaignIdFilter = campaignId;
       }
@@ -3686,12 +3686,12 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSdTargets(adGroupId?: number): Promise<any[]> {
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
-      const params: any = { startIndex, count };
+      const params: Record<string, unknown> = { startIndex, count };
       if (adGroupId) {
         params.adGroupIdFilter = adGroupId;
       }
@@ -3745,12 +3745,12 @@ export class AmazonAdsApiClient {
    * v310-fix: 更新SD广告组状态
    * SD广告组必须使用 /sd/adGroups 端点，不能使用 /sp/adGroups
    */
-  async updateSdAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {  // v356: 统一ID参数类型为string
+  async updateSdAdGroupStatus(updates: Array<{ adGroupId: string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: unknown[] }> {  // v356: 统一ID参数类型为string
     // v328: 修复SD adGroup状态更新 — 之前使用Number(adGroupId)导致大数字精度丢失，
     // 且缺少Content-Type header，导致所有18次adgroup_pause全部失败返回"Unknown error"
     const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 300;
-    const allErrors: any[] = [];
+    const allErrors: unknown[] = [];
     let totalSuccess = 0;
     
     // v328-fix: 使用String类型adGroupId避免大数字精度丢失（如517951489093036是15位数字）
@@ -3778,8 +3778,8 @@ export class AmazonAdsApiClient {
         log.info(`[SD API] v328: 第${batchIdx + 1}批响应: status=${response.status}, data=${JSON.stringify(response.data).substring(0, 500)}`);
         
         if (Array.isArray(response.data)) {
-          const errors = response.data.filter((r: any) => r.code && r.code !== 'SUCCESS');
-          const successes = response.data.filter((r: any) => !r.code || r.code === 'SUCCESS');
+          const errors = response.data.filter((r: Record<string, unknown>) => r.code && r.code !== 'SUCCESS');
+          const successes = response.data.filter((r: Record<string, unknown>) => !r.code || r.code === 'SUCCESS');
           totalSuccess += successes.length;
           for (const err of errors) {
             allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description || JSON.stringify(err) });
@@ -3822,11 +3822,11 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSpCampaignNegativeKeywords(campaignId?: string): Promise<any[]> {  // v356: 统一ID参数类型为string
-    const allNegatives: any[] = [];
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -3914,7 +3914,7 @@ export class AmazonAdsApiClient {
           });
         }
         for (const e of errorItems) {
-          const errorMsg = e.errors?.map((err: any) => {
+          const errorMsg = e.errors?.map((err: Record<string, unknown>) => {
             const val = err.errorValue || {};
             const detail = val.malformedValueError || val.duplicateValueError || val;
             return detail.message || err.errorType || 'Unknown error';
@@ -3990,11 +3990,11 @@ export class AmazonAdsApiClient {
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSpNegativeKeywords(adGroupId?: number): Promise<any[]> {
-    const allNegatives: any[] = [];
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -4051,7 +4051,7 @@ export class AmazonAdsApiClient {
     // v199: 添加分批处理，确保大批量广告组级否定词创建不会被截断
     const BATCH_SIZE = 1000;
     const BATCH_DELAY_MS = 300;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
     log.info(`[SP API] v199: createSpNegativeKeywords 分批处理: 总计${formattedNegatives.length}个, 分${totalBatches}批`);
     
@@ -4116,11 +4116,11 @@ export class AmazonAdsApiClient {
    */
   async listSpCampaignNegativeTargets(campaignId?: number): Promise<any[]> {
     // v199: 添加分页循环，确保获取所有否定商品定位
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4173,11 +4173,11 @@ export class AmazonAdsApiClient {
    */
   async listSpNegativeTargets(adGroupId?: number): Promise<any[]> {
     // v199: 添加分页循环，确保获取所有广告组级否定商品定位
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (adGroupId) {
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
@@ -4549,7 +4549,7 @@ export class AmazonAdsApiClient {
    * 获取完整的SB广告活动报告（结合V2和V3）
    */
   async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<any[]> {
-    const allData: any[] = [];
+    const allData: unknown[] = [];
     const seenCampaignIds = new Set<string>();
     
     // 1. 先尝试V3 API
@@ -4620,11 +4620,11 @@ export class AmazonAdsApiClient {
    * 包含headline, brandLogo, customImage, video等素材信息
    */
   async listSbAds(campaignId?: string): Promise<any[]> {
-    const allAds: any[] = [];
+    const allAds: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4661,11 +4661,11 @@ export class AmazonAdsApiClient {
    * 获取SB否定关键词列表
    */
   async listSbNegativeKeywords(campaignId?: string): Promise<any[]> {
-    const allNegatives: any[] = [];
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4706,11 +4706,11 @@ export class AmazonAdsApiClient {
    * 获取SB否定商品定向列表
    */
   async listSbNegativeTargets(campaignId?: string): Promise<any[]> {
-    const allNegatives: any[] = [];
+    const allNegatives: unknown[] = [];
     let nextToken: string | undefined;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: Record<string, unknown> = { maxResults: 100 };
       if (campaignId) {
         body.campaignIdFilter = { include: [String(campaignId)] };
       }
@@ -4768,7 +4768,7 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<any[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SB API] v2: createSbNegativeKeywords 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -4830,7 +4830,7 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<any[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SB API] v2: createSbNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -4884,13 +4884,13 @@ export class AmazonAdsApiClient {
    * 使用 POST /sd/negativeTargets/list 端点
    */
   async listSdNegativeTargets(adGroupId?: number): Promise<any[]> {
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     let startIndex = 0;
     const count = 100;
     
     while (true) {
       try {
-        const params: any = { startIndex, count };
+        const params: Record<string, unknown> = { startIndex, count };
         if (adGroupId) {
           params.adGroupIdFilter = adGroupId;
         }
@@ -4937,7 +4937,7 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<any[]> {
     const BATCH_SIZE = 100;
-    const allResults: any[] = [];
+    const allResults: unknown[] = [];
     const totalBatches = Math.ceil(negatives.length / BATCH_SIZE);
     log.info(`[SD API] v2: createSdNegativeTargets 分批处理: 总计${negatives.length}个, 分${totalBatches}批`);
     
@@ -5152,7 +5152,7 @@ export interface AmsMessage {
   subscriptionId: string;
   dataSetId: AmsDatasetType;
   timestamp: string;
-  data: any;  // 具体数据结构根据dataSetId不同而不同
+  data: Record<string, unknown>;  // 具体数据结构根据dataSetId不同而不同
 }
 
 /**

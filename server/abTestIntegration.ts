@@ -166,8 +166,8 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       const variants = await db.select().from(abTestVariants)
         .where(eq(abTestVariants.testId, test.id));
       
-      const controlVariant = variants.find((v: any) => v.variantType === 'control');
-      const treatmentVariant = variants.find((v: any) => v.variantType === 'treatment');
+      const controlVariant = variants.find((v: Record<string, unknown>) => v.variantType === 'control');
+      const treatmentVariant = variants.find((v: Record<string, unknown>) => v.variantType === 'treatment');
       
       if (!controlVariant || !treatmentVariant) continue;
       

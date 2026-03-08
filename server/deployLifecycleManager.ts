@@ -261,7 +261,7 @@ async function persistShutdownState(): Promise<void> {
             error_message = CONCAT(COALESCE(error_message, ''), ${shutdownNote})
         WHERE status = 'processing'
       `);
-      const affectedRows = (resetResult as any)?.[0]?.affectedRows || 0;
+      const affectedRows = (resetResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (affectedRows > 0) {
         log.debug(`[LifecycleManager]   ✓ 已将 ${affectedRows} 个processing任务重置为pending`);
       } else {
@@ -282,7 +282,7 @@ async function persistShutdownState(): Promise<void> {
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
         WHERE status = 'running'
       `);
-      const syncAffected = (syncResetResult as any)?.[0]?.affectedRows || 0;
+      const syncAffected = (syncResetResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (syncAffected > 0) {
         log.info(`[LifecycleManager]   ✓ 已将 ${syncAffected} 个running的数据同步任务标记为failed（部署中断）`);
       } else {
@@ -297,7 +297,7 @@ async function persistShutdownState(): Promise<void> {
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
         WHERE status = 'pending'
       `);
-      const syncCancelled = (syncCancelResult as any)?.[0]?.affectedRows || 0;
+      const syncCancelled = (syncCancelResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (syncCancelled > 0) {
         log.info(`[LifecycleManager]   ✓ 已取消 ${syncCancelled} 个pending的数据同步任务（部署后将重新调度）`);
       }
@@ -550,7 +550,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
       const interruptedResult = await database.execute(sql`
         SELECT COUNT(*) as cnt FROM optimization_tasks WHERE status = 'processing'
       `);
-      diagnostics.interruptedTasks = (interruptedResult as any)?.[0]?.[0]?.cnt || 0;
+      diagnostics.interruptedTasks = (interruptedResult as Record<string, unknown>[])?.[0]?.[0]?.cnt || 0;
     } catch {
       // optimization_tasks表可能不存在
     }
@@ -560,7 +560,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
       const pendingResult = await database.execute(sql`
         SELECT COUNT(*) as cnt FROM optimization_tasks WHERE status IN ('pending', 'retry')
       `);
-      diagnostics.pendingTasks = (pendingResult as any)?.[0]?.[0]?.cnt || 0;
+      diagnostics.pendingTasks = (pendingResult as Record<string, unknown>[])?.[0]?.[0]?.cnt || 0;
     } catch {
       // optimization_tasks表可能不存在
     }
@@ -601,7 +601,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
       WHERE status = 'processing'
     `);
     
-    const recovered = (result as any)?.[0]?.affectedRows || 0;
+    const recovered = (result as Record<string, unknown>[])?.[0]?.affectedRows || 0;
     
     if (recovered > 0) {
       log.debug(`[LifecycleManager] ✓ 已恢复 ${recovered} 个被中断的任务 (processing → pending)`);
@@ -687,7 +687,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${staleCleanNote}, ']')
         WHERE status = 'running'
       `);
-      const staleCleaned = (staleResult as any)?.[0]?.affectedRows || 0;
+      const staleCleaned = (staleResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
       if (staleCleaned > 0) {
         log.info(`[LifecycleManager] v335:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务`);
       }
@@ -699,7 +699,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
         WHERE status = 'completed' 
         GROUP BY accountId
       `);
-      const lastSyncs = (lastSyncResult as any)?.[0] || [];
+      const lastSyncs = (lastSyncResult as Record<string, unknown>[])?.[0] || [];
       const now = Date.now();
       const staleAccounts: number[] = [];
       for (const row of lastSyncs) {

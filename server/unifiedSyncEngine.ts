@@ -401,7 +401,7 @@ export interface StepResult {
   success: boolean;
   synced: number;
   errors: string[];
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /** 同步上下文（用于检查点和进度追踪） */
@@ -415,7 +415,7 @@ export interface SyncContext {
   currentStep: string | null;
   totalSynced: number;
   totalErrors: number;
-  checkpoint: Record<string, any>;
+  checkpoint: Record<string, unknown>;
 }
 
 /** 账户同步结果 */
@@ -1200,7 +1200,7 @@ export async function syncAccount(
         // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
         const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
           (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
-            Object.values(stepResult.synced as any).reduce((s: number, v: any) => s + (typeof v === 'number' ? v : 0), 0) : 0);
+            Object.values(stepResult.synced as any).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
         stepResult.synced = safeSynced;
 
         if (stepResult.success) {
@@ -1595,7 +1595,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
     if (typeof val === 'number' && !isNaN(val)) return val;
     if (typeof val === 'object' && val !== null) {
       // 尝试从对象中提取数字值并求和
-      return Object.values(val).reduce((s: number, v: any) => s + (typeof v === 'number' ? v : 0), 0) as number;
+      return Object.values(val).reduce((s: number, v: Record<string, unknown>) => s + (typeof v === 'number' ? v : 0), 0) as number;
     }
     return 0;
   };

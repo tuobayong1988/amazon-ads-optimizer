@@ -181,9 +181,9 @@ Return as JSON array: [{"keyword":"...","searchVolume":...,"competitorDensity":.
   }
 
   /** 四维分类 */
-  private async classifyKeywords(keywords: any[], seedKeywords: string[]): Promise<any[]> {
+  private async classifyKeywords(keywords: unknown[], seedKeywords: string[]): Promise<any[]> {
     const batchSize = 30;
-    const results: any[] = [];
+    const results: unknown[] = [];
 
     for (let i = 0; i < keywords.length; i += batchSize) {
       const batch = keywords.slice(i, i + batchSize);
@@ -196,7 +196,7 @@ For each keyword, determine:
 4. intentTag: "informational", "navigational", "commercial", "transactional"
 
 Keywords to classify:
-${batch.map((k: any) => k.keyword).join('\n')}
+${batch.map((k: Record<string, unknown>) => k.keyword).join('\n')}
 
 Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...","scenarioCode":"...","intentTag":"..."}]`;
 
@@ -204,7 +204,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
 
       // 合并分类结果与原始数据
       for (const cls of classified) {
-        const original = batch.find((k: any) => k.keyword === cls.keyword);
+        const original = batch.find((k: Record<string, unknown>) => k.keyword === cls.keyword);
         if (original) {
           results.push({ ...original, ...cls });
         }
@@ -237,7 +237,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
 
     if (allKeywords.length === 0) return;
 
-    const kwList = allKeywords.map((k: any) => k.keyword).join('\n');
+    const kwList = allKeywords.map((k: Record<string, unknown>) => k.keyword).join('\n');
     const prompt = `Group these Amazon keywords into semantic clusters based on user intent. Each cluster should represent a distinct search intent or product need.
 
 Keywords:
@@ -275,7 +275,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
   }
 
   /** 生成COSMO因果链三元组 */
-  private async generateCosmoTriples(db: any, projectId: number, keywords: any[]) {
+  private async generateCosmoTriples(db: any, projectId: number, keywords: unknown[]) {
     const coreKeywords = keywords
       .filter(k => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended')
       .slice(0, 50);

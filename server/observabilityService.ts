@@ -35,7 +35,7 @@ export interface OperationTrace {
   endTime?: Date;
   durationMs?: number;
   status: 'started' | 'completed' | 'failed';
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   parentTraceId?: string;
 }
 
@@ -255,7 +255,7 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
 /**
  * 开始一个操作追踪
  */
-export function startTrace(operationType: string, metadata: Record<string, any> = {}, parentTraceId?: string): string {
+export function startTrace(operationType: string, metadata: Record<string, unknown> = {}, parentTraceId?: string): string {
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   
   const trace: OperationTrace = {
@@ -283,7 +283,7 @@ export function startTrace(operationType: string, metadata: Record<string, any> 
 /**
  * 完成一个操作追踪
  */
-export function endTrace(traceId: string, status: 'completed' | 'failed' = 'completed', additionalMetadata?: Record<string, any>): void {
+export function endTrace(traceId: string, status: 'completed' | 'failed' = 'completed', additionalMetadata?: Record<string, unknown>): void {
   const trace = activeTraces.get(traceId);
   if (!trace) return;
   

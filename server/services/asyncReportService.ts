@@ -69,7 +69,7 @@ interface ExtendedReportJobInput {
   startDate: string;
   endDate: string;
   priority?: 'high' | 'low';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -564,7 +564,7 @@ export class AsyncReportService {
   private async processReportData(
     accountId: number,
     adType: 'SP' | 'SB' | 'SD',
-    data: any[]
+    data: unknown[]
   ): Promise<number> {
     const db = await getDb();
     if (!db) throw new Error('Database not available');

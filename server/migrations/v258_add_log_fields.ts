@@ -30,7 +30,7 @@ export async function runV258Migration(): Promise<void> {
     `);
 
     const existingColumns = new Set(
-      (Array.isArray(columns) ? columns : []).map((c: any) => c.COLUMN_NAME)
+      (Array.isArray(columns) ? columns : []).map((c: Record<string, unknown>) => c.COLUMN_NAME)
     );
 
     if (!existingColumns.has('reason_details')) {

@@ -211,7 +211,7 @@ async function resolveKeywordIds(
       }
 
       // 需要创建的关键词列表
-      const toCreate: any[] = [];
+      const toCreate: unknown[] = [];
 
       for (const kw of kwsInGroup) {
         // v194: ASIN格式的搜索词不应该作为keyword，清理
@@ -291,7 +291,7 @@ async function resolveKeywordIds(
           }
         } else if (amazonCampaignId) {
           // v192: 批量校验关键词数据质量
-          const validatedBatch: any[] = [];
+          const validatedBatch: unknown[] = [];
           for (const kw of toCreate) {
             const validation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
             if (validation.isValid) {
@@ -314,7 +314,7 @@ async function resolveKeywordIds(
             const batch = validatedBatch.slice(i, i + batchSize);
             try {
               const createResults = await syncService.client.createSpKeywords(
-                batch.map((kw: any) => ({
+                batch.map((kw: Record<string, unknown>) => ({
                   campaignId: amazonCampaignId,
                   adGroupId: amazonAdGroupId,
                   keywordText: kw.keywordText,
@@ -371,7 +371,7 @@ async function resolveKeywordIds(
                       const amazonKeywords = isAdGroupSb
                         ? await syncService.client.listSbKeywords(String(amazonAdGroupId))
                         : await syncService.client.listSpKeywords(Number(amazonAdGroupId));
-                      const matchedKw = amazonKeywords.find((ak: any) => 
+                      const matchedKw = amazonKeywords.find((ak: Record<string, unknown>) => 
                         ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
                       );

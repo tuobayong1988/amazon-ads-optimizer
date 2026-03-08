@@ -445,7 +445,7 @@ async function verifyBidAdjustments(
     try {
       // 查询该adGroup下的所有关键词
       const isProductTarget = groupItems[0]?.context?.fieldName === 'product_target_bid';
-      let amazonItems: any[];
+      let amazonItems: unknown[];
       
       if (isProductTarget) {
         amazonItems = await syncService.client.listSpProductTargets(adGroupId || undefined);
@@ -638,7 +638,7 @@ async function verifyNegativeKeywords(
       const amazonNegatives = await syncService.client.listSpCampaignNegativeKeywords(campaignId || undefined);
       
       // 构建keywordText到记录的映射
-      const amazonNegMap = new Map<string, any>();
+      const amazonNegMap = new Map<string, unknown>();
       for (const neg of amazonNegatives) {
         const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
         amazonNegMap.set(key, neg);

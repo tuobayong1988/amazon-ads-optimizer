@@ -209,7 +209,7 @@ export async function getOperationLogs(params: {
   endDate?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ logs: any[]; total: number }> {
+}): Promise<{ logs: unknown[]; total: number }> {
   const db = await getDb();
   if (!db) return { logs: [], total: 0 };
 

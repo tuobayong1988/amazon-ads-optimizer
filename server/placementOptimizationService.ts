@@ -1023,8 +1023,8 @@ export async function batchExecutePlacementOptimization(
         )
       ) as any[];
     campaignsToOptimize = allCampaigns
-      .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
-      .map((c: any) => ({ amazonCampaignId: String(c.campaignId) }));
+      .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+      .map((c: Record<string, unknown>) => ({ amazonCampaignId: String(c.campaignId) }));
   }
 
   const results: Array<{
@@ -1090,9 +1090,9 @@ export async function analyzePlacementPerformance(
     campaignId,
     placements: performance,
     analysis: {
-      bestPerforming: performance.reduce((best: any, p: any) => 
+      bestPerforming: performance.reduce((best: any, p: Record<string, unknown>) => 
         (p.metrics?.roas || 0) > (best?.metrics?.roas || 0) ? p : best, performance[0]),
-      worstPerforming: performance.reduce((worst: any, p: any) => 
+      worstPerforming: performance.reduce((worst: any, p: Record<string, unknown>) => 
         (p.metrics?.roas || Infinity) < (worst?.metrics?.roas || Infinity) ? p : worst, performance[0]),
       reliableDataCount: performance.filter(p => p.isReliable).length,
       totalPlacements: performance.length
@@ -1118,7 +1118,7 @@ export async function generatePlacementSuggestions(
     accountId
   );
   
-  const suggestions: any[] = [];
+  const suggestions: unknown[] = [];
   
   for (const suggestion of adjustmentSuggestions) {
     const adjustmentDelta = Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment);

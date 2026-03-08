@@ -1092,7 +1092,7 @@ export async function batchExecuteOptimizations(
  * 运行完整的自动优化流程
  */
 export async function runFullAutomationCycle(accountId: number): Promise<{
-  analysisResults: any[];
+  analysisResults: unknown[];
   executionBatch: ExecutionBatch | null;
   summary: {
     totalAnalyzed: number;

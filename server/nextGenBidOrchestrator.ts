@@ -150,14 +150,14 @@ async function checkBidDirectionConsistency(
     if (!rows || rows.length < 3) return { isOscillating: false, reason: '' };
     
     // 检测方向序列: 如果最近3次中方向交替变化，则为振荡
-    const directions = rows.slice(0, 3).map((r: any) => r.action_type === 'bid_increase' ? 'up' : 'down');
+    const directions = rows.slice(0, 3).map((r: Record<string, unknown>) => r.action_type === 'bid_increase' ? 'up' : 'down');
     
     // 振荡模式: 升-降-升 或 降-升-降
     const isOscillating = (
       (directions[0] !== directions[1] && directions[1] !== directions[2]) ||
       // 或者4次调整中方向变化超过2次
       (rows.length >= 4 && (() => {
-        const dirs4 = rows.slice(0, 4).map((r: any) => r.action_type === 'bid_increase' ? 'up' : 'down');
+        const dirs4 = rows.slice(0, 4).map((r: Record<string, unknown>) => r.action_type === 'bid_increase' ? 'up' : 'down');
         let changes = 0;
         for (let i = 1; i < dirs4.length; i++) {
           if (dirs4[i] !== dirs4[i-1]) changes++;
@@ -285,7 +285,7 @@ async function checkCircuitBreaker(
   targetId?: number,
   currentBid?: number,
   proposedBid?: number
-): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, any> }> {
+): Promise<{ tripped: boolean; reason: string; guardrailInfo: Record<string, unknown> }> {
   if (!keywordId && !targetId) return { tripped: false, reason: '', guardrailInfo: {} };
   if (!proposedBid || !currentBid || proposedBid >= currentBid) {
     // 只对降价操作进行熔断检查
@@ -325,7 +325,7 @@ async function checkCircuitBreaker(
       .orderBy(sqlOp`created_at DESC`)
       .limit(20);
     
-    const guardrailInfo: Record<string, any> = {
+    const guardrailInfo: Record<string, unknown> = {
       recentEventsCount: recentEvents.length,
       circuitBreakerConfig: BID_CIRCUIT_BREAKER_CONFIG,
     };
@@ -1120,7 +1120,7 @@ export async function calculateNextGenBid(
           campaignId: (target as any).amazonCampaignId,
           strategyTemplateId: (normalizedConfig as any).strategyTemplate,
           metaSelection: {
-            algorithmScores: metaDecision.algorithmScores?.map((s: any) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
+            algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, unknown>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
             selectedAlgorithm: metaDecision.selectedAlgorithm,
             fusionMode: metaDecision.fusionMode || 'single',
             fusionThreshold: 0.15,

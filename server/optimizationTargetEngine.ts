@@ -78,7 +78,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     const { getEngineStatus } = await import('./unifiedSyncEngine');
     const status = getEngineStatus();
     if ((status as any).lastSyncResults) {
-      const accountResult = ((status as any).lastSyncResults as any[])?.find((r: any) => r.accountId === accountId);
+      const accountResult = ((status as any).lastSyncResults as any[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
       }
@@ -101,46 +101,46 @@ export interface OptimizationExecutionResult {
   bidOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   placementOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   daypartingOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v179: 分时预算优化
   daypartingBudgetOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   searchTermAnalysis: {
     executed: boolean;
     negativeKeywordsAdded: number;
     newKeywordsAdded: number;
-    details: any[];
+    details: unknown[];
   };
   
   budgetAllocation: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   keywordStatusChanges: {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v135: 广告活动状态变更
@@ -148,7 +148,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v135: 广告组状态变更
@@ -156,7 +156,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // 多维度智能优化结果
@@ -164,7 +164,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsAnalyzed: number;
     rulesGenerated: number;
-    details: any[];
+    details: unknown[];
   };
   
   // 中央竞价协调器执行结果
@@ -172,7 +172,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsCoordinated: number;
     circuitBreakerTriggered: number;
-    details: any[];
+    details: unknown[];
   };
   
   errors: string[];
@@ -776,7 +776,7 @@ export async function executeOptimizationTarget(
     try {
       const { enqueueTasks } = await import('./optimizationSyncEngine');
       const { randomUUID } = await import('crypto');
-      const failedTasks: any[] = [];
+      const failedTasks: unknown[] = [];
       const batchId = randomUUID();
       
       // 收集出价调整中失败的任务
@@ -885,7 +885,7 @@ export async function executeOptimizationTarget(
             if (detail.action === 'add_negative') {
               // v201: 否定关键词创建失败 → 入队 negative_keyword 类型
               // 修复: detail.campaignId是本地ID，需要查找Amazon campaignId
-              const negCampaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+              const negCampaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
               const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
@@ -935,7 +935,7 @@ export async function executeOptimizationTarget(
       if (result.budgetAllocation?.details) {
         for (const detail of result.budgetAllocation.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -961,7 +961,7 @@ export async function executeOptimizationTarget(
       if (result.placementOptimization?.details) {
         for (const detail of result.placementOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -987,7 +987,7 @@ export async function executeOptimizationTarget(
       if (result.daypartingBudgetOptimization?.details) {
         for (const detail of result.daypartingBudgetOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -1088,10 +1088,10 @@ export async function executeOptimizationTarget(
  */
 async function executeBidOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   let safetyPausedCampaignCount = 0; // v244: 记录安全检查触发暂停的campaign数量
   
@@ -1488,7 +1488,7 @@ async function executeBidOptimization(
     // v122h: 商品定向也使用UCB增强版算法
     const adGroupsList = await db.getAdGroupsByCampaignId(campaignAmazonId);
     const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     
     // v345: 优化N+1查询 — 批量获取所有广告组的商品定向
     const adGroupIds = adGroupsList.map(ag => ag.id);
@@ -1767,10 +1767,10 @@ async function executeBidOptimization(
  */
 async function executePlacementOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // v183: 预加载多维度组合分析结果，用于智能位置倾斜
@@ -1816,12 +1816,12 @@ async function executePlacementOptimization(
           placements: analysis?.placements?.length || 0,
         })}`);
       } else {
-        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: any) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
+        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: Record<string, unknown>) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
       }
       
       // v183: 基于多维度组合分析智能调整位置倾斜
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
-      const goldenCombos = campaignCombos.filter((c: any) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
+      const goldenCombos = campaignCombos.filter((c: Record<string, unknown>) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
       
       // 统计黄金组合中各位置的表现
       let topOfSearchGoldenCount = 0;
@@ -1884,8 +1884,8 @@ async function executePlacementOptimization(
         try {
           // v186: Amazon API调用必须使用Amazon Campaign ID
           const amazonCampaignId = campaignAmazonId;
-          const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
-          const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
+          const topSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+          const productSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'product_page');
           
           if (topSuggestion || productSuggestion) {
             const syncResult = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
@@ -1913,8 +1913,8 @@ async function executePlacementOptimization(
           try {
             // v186: 验证任务中也使用正确的Amazon Campaign ID
             const amazonCampaignIdForVerify = campaignAmazonId;
-            const topSuggestion = suggestions?.find((s: any) => s.placement === 'top_of_search');
-            const productSuggestion = suggestions?.find((s: any) => s.placement === 'product_page');
+            const topSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+            const productSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'product_page');
             postOptVerifier.schedulePlacementVerification(
               config.accountId,
               [{
@@ -1947,10 +1947,10 @@ async function executePlacementOptimization(
  */
 async function executeDaypartingOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // v122h: 使用站点本地时间而非UTC时间
@@ -2006,7 +2006,7 @@ async function executeDaypartingOptimization(
         let retried = 0, superseded = 0, timedOut = 0;
         
         // 按keywordId分组，只保留每个keyword的最新pending记录
-        const latestByKeyword = new Map<string, any>();
+        const latestByKeyword = new Map<string, unknown>();
         const olderIds: number[] = [];
         
         for (const row of pendingRows) {
@@ -2256,13 +2256,13 @@ async function executeDaypartingOptimization(
             comboTimeMultiplier = parseFloat(comboAnalysis.suggestedTimeMultiplier || '1.000');
             
             // v183: 检查当前时段是否在该投放词的最佳/最差时间窗口内
-            const bestWindows: any[] = comboAnalysis.bestTimeWindows || [];
-            const worstWindows: any[] = comboAnalysis.worstTimeWindows || [];
+            const bestWindows: unknown[] = comboAnalysis.bestTimeWindows || [];
+            const worstWindows: unknown[] = comboAnalysis.worstTimeWindows || [];
             
-            const isInBestWindow = bestWindows.some((w: any) => 
+            const isInBestWindow = bestWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
-            const isInWorstWindow = worstWindows.some((w: any) => 
+            const isInWorstWindow = worstWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             
@@ -2406,10 +2406,10 @@ async function executeDaypartingOptimization(
  */
 async function executeDaypartingBudgetOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // 获取当前星期几（站点本地时间）
@@ -2427,7 +2427,7 @@ async function executeDaypartingBudgetOptimization(
       
       // 获取今天的预算规则
       const budgetRules = await daypartingService.getBudgetRules(strategy.id);
-      const todayRule = budgetRules.find((r: any) => r.dayOfWeek === currentDayOfWeek);
+      const todayRule = budgetRules.find((r: Record<string, unknown>) => r.dayOfWeek === currentDayOfWeek);
       
       if (!todayRule) continue;
       
@@ -2566,10 +2566,10 @@ async function executeDaypartingBudgetOptimization(
  */
 async function executeSearchTermAnalysis(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
@@ -2828,7 +2828,7 @@ async function executeSearchTermAnalysis(
           AND api_sync_status = 'pending'
           AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
       `);
-      const timeoutCount = (timeoutResult as any)[0]?.affectedRows || 0;
+      const timeoutCount = (timeoutResult as Record<string, unknown>[])[0]?.affectedRows || 0;
       if (timeoutCount > 0) {
         log.warn(`[SearchTermAnalysis] v310: 标记${timeoutCount}条超过72小时的pending记录为timeout_failed`);
       }
@@ -2884,7 +2884,7 @@ async function executeSearchTermAnalysis(
         return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       })() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
       
-      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: any) => ({
+      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: Record<string, unknown>) => ({
         searchTerm: st.searchTerm,
         clicks: Number(st.searchTermClicks || 0),
         impressions: Number(st.searchTermImpressions || 0),
@@ -2953,7 +2953,7 @@ async function executeSearchTermAnalysis(
           
           // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
           const matchingKeywords = await db.getKeywordsByCampaignId(campaignAmazonId);
-          const matchingKw = matchingKeywords.find((kw: any) => 
+          const matchingKw = matchingKeywords.find((kw: Record<string, unknown>) => 
             kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
           if (matchingKw?.createdAt) {
@@ -3325,7 +3325,7 @@ async function executeSearchTermAnalysis(
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                   });
-                  const localKeywordId = (insertResult as any)[0]?.insertId;
+                  const localKeywordId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                   
                   if (Number(amazonAdGroupId) > 0 && Number(amazonCampaignId) > 0) {
                     try {
@@ -3427,7 +3427,7 @@ async function executeSearchTermAnalysis(
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
                     });
-                    const localTargetId = (insertResult as any)[0]?.insertId;
+                    const localTargetId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                     
                     // 同步到Amazon
                     try {
@@ -3643,10 +3643,10 @@ async function executeSearchTermAnalysis(
  */
 async function executeBudgetAllocation(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   try {
@@ -3777,10 +3777,10 @@ async function executeBudgetAllocation(
  */
 async function executeKeywordStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -4106,10 +4106,10 @@ async function executeKeywordStatusChanges(
  */
 async function executeCampaignStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -4323,10 +4323,10 @@ async function executeCampaignStatusChanges(
  */
 async function executeAdGroupStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -4516,13 +4516,13 @@ async function executeAdGroupStatusChanges(
  */
 async function executeBidCoordination(
   config: OptimizationTargetConfig,
-  campaigns: any[],
-  bidDetails: any[],
-  placementDetails: any[],
-  daypartingDetails: any[],
+  campaigns: unknown[],
+  bidDetails: unknown[],
+  placementDetails: unknown[],
+  daypartingDetails: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let campaignsCoordinated = 0;
   let circuitBreakerTriggered = 0;
   
@@ -5165,18 +5165,18 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
  * 只自动执行高优先级的否定建议，中/低优先级留给用户手动审核。
  */
 async function executeAutoNgramNegation(
-  config: any,
-  campaigns: any[],
+  config: Record<string, unknown>,
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let negativeKeywordsAdded = 0;
   
   if (!config.accountId || campaigns.length === 0) {
     return { executed: false, negativeKeywordsAdded: 0, details: [{ reason: '无账号或无广告活动' }] };
   }
   
-  const campaignIds = campaigns.map((c: any) => c.id);
+  const campaignIds = campaigns.map((c: Record<string, unknown>) => c.id);
   
   // 1. 获取全局Ngram否定建议（跨所有campaign）
   const globalSuggestions = await generateNegativeKeywordSuggestions(

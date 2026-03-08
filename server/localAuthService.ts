@@ -78,7 +78,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
         INSERT INTO organizations (name, type, status, max_users, max_accounts, created_at)
         VALUES (${orgName}, 'external', 'active', 10, 5, NOW())
       `);
-      organizationId = (orgResult as any)[0]?.insertId;
+      organizationId = (orgResult as Record<string, unknown>[])[0]?.insertId;
     }
     
     if (!organizationId) {
@@ -110,7 +110,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       )
     `);
     
-    const userId = (userResult as any)[0]?.insertId;
+    const userId = (userResult as Record<string, unknown>[])[0]?.insertId;
     
     // 6. 如果是新组织的所有者，更新组织的owner_id
     if (inviteCode.inviteType === 'external_user' && organizationId !== 1) {

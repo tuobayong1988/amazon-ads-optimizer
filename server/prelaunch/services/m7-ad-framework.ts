@@ -50,7 +50,7 @@ export class M7AdFrameworkService {
       const competitors = await db.select().from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, input.projectId));
 
-      const results: any[] = [];
+      const results: unknown[] = [];
 
       for (const fwType of input.frameworkTypes) {
         let compiledPayload: any;
@@ -80,7 +80,7 @@ export class M7AdFrameworkService {
           frameworkName: `${fwType}_${new Date().toISOString().slice(0, 10)}`,
           campaignStructure: compiledPayload,
           totalCampaigns: compiledPayload.campaigns?.length || 0,
-          totalAdGroups: compiledPayload.campaigns?.reduce((sum: number, c: any) => sum + (c.adGroups?.length || 0), 0) || 0,
+          totalAdGroups: compiledPayload.campaigns?.reduce((sum: number, c: Record<string, unknown>) => sum + (c.adGroups?.length || 0), 0) || 0,
           totalKeywords: compiledPayload.totalKeywords || 0,
           totalTargets: compiledPayload.totalTargets || 0,
           estimatedDailyBudget: String(input.dailyBudget),
@@ -159,7 +159,7 @@ export class M7AdFrameworkService {
           dryRun: true,
           validation: {
             campaignCount: structure?.campaigns?.length || 0,
-            adGroupCount: structure?.campaigns?.reduce((sum: number, c: any) => sum + (c.adGroups?.length || 0), 0) || 0,
+            adGroupCount: structure?.campaigns?.reduce((sum: number, c: Record<string, unknown>) => sum + (c.adGroups?.length || 0), 0) || 0,
             estimatedApiCalls: this.estimateApiCalls(structure),
           },
         };
@@ -210,9 +210,9 @@ export class M7AdFrameworkService {
   // ==================== 广告框架编译器 ====================
 
   /** SP搜索词手动广告 */
-  private compileSPKeywordManual(keywords: any[], defaultBid: number, dailyBudget: number) {
+  private compileSPKeywordManual(keywords: unknown[], defaultBid: number, dailyBudget: number) {
     const scenarioGroups = new Map<string, any[]>();
-    const relevantKws = keywords.filter((k: any) => 
+    const relevantKws = keywords.filter((k: Record<string, unknown>) => 
       k.relevanceLayer === 'core' || k.relevanceLayer === 'extended'
     );
 
@@ -222,7 +222,7 @@ export class M7AdFrameworkService {
       scenarioGroups.get(scenario)!.push(kw);
     }
 
-    const campaigns: any[] = [];
+    const campaigns: unknown[] = [];
     let totalKeywords = 0;
 
     for (const [scenario, kws] of scenarioGroups) {
@@ -230,7 +230,7 @@ export class M7AdFrameworkService {
 
       const matchTypes = ['EXACT', 'PHRASE', 'BROAD'];
       const adGroups = matchTypes.map(matchType => {
-        const targets = kws.map((kw: any) => ({
+        const targets = kws.map((kw: Record<string, unknown>) => ({
           keyword: kw.keyword,
           matchType,
           bid: this.calculateBid(kw, matchType, defaultBid),
@@ -259,19 +259,19 @@ export class M7AdFrameworkService {
   }
 
   /** SP产品定位广告 */
-  private compileSPProductTargeting(competitors: any[], defaultBid: number, dailyBudget: number) {
+  private compileSPProductTargeting(competitors: unknown[], defaultBid: number, dailyBudget: number) {
     const tiers = ['T1_head', 'T2_waist', 'T3_niche'];
-    const campaigns: any[] = [];
+    const campaigns: unknown[] = [];
     let totalTargets = 0;
 
     for (const tier of tiers) {
-      const tierComps = competitors.filter((c: any) => c.tier === tier);
+      const tierComps = competitors.filter((c: Record<string, unknown>) => c.tier === tier);
       if (tierComps.length === 0) continue;
 
       const adGroups = [{
         adGroupName: `SP-PT-${tier}-ASIN`,
         defaultBid,
-        targets: tierComps.map((c: any) => {
+        targets: tierComps.map((c: Record<string, unknown>) => {
           totalTargets++;
           return {
             expressionType: 'ASIN_SAME_AS',
@@ -322,8 +322,8 @@ export class M7AdFrameworkService {
   }
 
   /** SB视频搜索词广告 */
-  private compileSBVKeyword(keywords: any[], defaultBid: number, dailyBudget: number) {
-    const coreKws = keywords.filter((k: any) => k.relevanceLayer === 'core');
+  private compileSBVKeyword(keywords: unknown[], defaultBid: number, dailyBudget: number) {
+    const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core');
     const scenarioGroups = new Map<string, any[]>();
 
     for (const kw of coreKws) {
@@ -332,13 +332,13 @@ export class M7AdFrameworkService {
       scenarioGroups.get(scenario)!.push(kw);
     }
 
-    const campaigns: any[] = [];
+    const campaigns: unknown[] = [];
     let totalKeywords = 0;
 
     for (const [scenario, kws] of scenarioGroups) {
       if (kws.length === 0) continue;
 
-      const targets = kws.map((kw: any) => {
+      const targets = kws.map((kw: Record<string, unknown>) => {
         totalKeywords++;
         return {
           keyword: kw.keyword,
@@ -366,16 +366,16 @@ export class M7AdFrameworkService {
   }
 
   /** SB视频产品定位广告 */
-  private compileSBVProductTargeting(competitors: any[], defaultBid: number, dailyBudget: number) {
+  private compileSBVProductTargeting(competitors: unknown[], defaultBid: number, dailyBudget: number) {
     const tiers = ['T1_head', 'T2_waist', 'T3_niche'];
-    const campaigns: any[] = [];
+    const campaigns: unknown[] = [];
     let totalTargets = 0;
 
     for (const tier of tiers) {
-      const tierComps = competitors.filter((c: any) => c.tier === tier);
+      const tierComps = competitors.filter((c: Record<string, unknown>) => c.tier === tier);
       if (tierComps.length === 0) continue;
 
-      const targets = tierComps.map((c: any) => {
+      const targets = tierComps.map((c: Record<string, unknown>) => {
         totalTargets++;
         return {
           expressionType: 'ASIN_SAME_AS',

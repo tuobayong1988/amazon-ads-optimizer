@@ -261,11 +261,11 @@ export function batchValidateKeywords(
   keywords: Array<{ text: string; [key: string]: any }>,
   mode: 'positive' | 'negative_exact' | 'negative_phrase' = 'positive'
 ): {
-  valid: Array<{ originalText: string; sanitizedText: string; data: any }>;
-  rejected: Array<{ originalText: string; reason: string; data: any }>;
+  valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, unknown> }>;
+  rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }>;
 } {
-  const valid: Array<{ originalText: string; sanitizedText: string; data: any }> = [];
-  const rejected: Array<{ originalText: string; reason: string; data: any }> = [];
+  const valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, unknown> }> = [];
+  const rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }> = [];
   
   for (const kw of keywords) {
     const result = sanitizeAndValidateKeyword(kw.text, mode);

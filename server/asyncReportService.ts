@@ -246,7 +246,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
 /**
  * 处理报告数据
  */
-async function processReportData(request: ReportRequest, data: any[]): Promise<void> {
+async function processReportData(request: ReportRequest, data: unknown[]): Promise<void> {
   if (!data || data.length === 0) {
     return;
   }
@@ -290,7 +290,7 @@ async function processReportData(request: ReportRequest, data: any[]): Promise<v
  * - SB (Sponsored Brands): 使用 cost, salesClicks, purchasesClicks
  * - SD (Sponsored Display): 使用 cost, salesClicks, purchasesClicks
  */
-async function processCampaignReportData(accountId: number, data: any[], adType?: string): Promise<void> {
+async function processCampaignReportData(accountId: number, data: unknown[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;
@@ -367,7 +367,7 @@ async function processCampaignReportData(accountId: number, data: any[], adType?
  * - SP: 使用 sales7d, purchases7d, acosClicks7d, roasClicks7d
  * - SB/SD: 使用 salesClicks, purchasesClicks
  */
-async function processKeywordReportData(accountId: number, data: any[], adType?: string): Promise<void> {
+async function processKeywordReportData(accountId: number, data: unknown[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;

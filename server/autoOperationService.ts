@@ -42,7 +42,7 @@ export interface AutoOperationLog {
   startedAt: Date;
   completedAt: Date | null;
   duration: number | null;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   errorMessage: string | null;
 }
 
@@ -51,7 +51,7 @@ interface StepResult {
   step: string;
   status: 'success' | 'failed' | 'skipped';
   duration: number;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   error?: string;
 }
 

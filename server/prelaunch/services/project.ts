@@ -158,7 +158,7 @@ export class PrelaunchProjectService {
   /**
    * 更新项目
    */
-  async updateProject(projectId: number, updates: Record<string, any>) {
+  async updateProject(projectId: number, updates: Record<string, unknown>) {
     const db = await getDb();
     if (!db) return { success: false, error: 'Database not available' };
 

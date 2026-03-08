@@ -60,7 +60,7 @@ export async function getSmartMergedData(
     campaignIds?: string[];
   }
 ): Promise<{
-  data: any[];
+  data: unknown[];
   dataSource: DataSource;
   freshness: 'fresh' | 'stale' | 'mixed';
   warnings: string[];
@@ -113,7 +113,7 @@ export async function getSmartMergedData(
     const apiData = await getApiPerformanceData(db, accountId, startDate, effectiveEndDate, options.campaignIds);
     
     // 获取AMS数据（仅当需要实时数据时）
-    let amsData: any[] = [];
+    let amsData: unknown[] = [];
     if (strategy === 'ams_priority' && options.includeToday !== false) {
       amsData = await getAmsPerformanceData(db, accountId, today, options.campaignIds);
     }
@@ -218,11 +218,11 @@ async function getAmsPerformanceData(
  * 根据策略融合数据
  */
 function mergeDataByStrategy(
-  apiData: any[],
-  amsData: any[],
+  apiData: unknown[],
+  amsData: unknown[],
   strategy: MergeStrategy,
   today: string
-): any[] {
+): unknown[] {
   switch (strategy) {
     case 'ams_priority':
       return mergeAmsFirst(apiData, amsData, today);
@@ -241,7 +241,7 @@ function mergeDataByStrategy(
  * AMS优先合并（用于实时展示）
  * 今天的数据用AMS，历史数据用API
  */
-function mergeAmsFirst(apiData: any[], amsData: any[], today: string): any[] {
+function mergeAmsFirst(apiData: unknown[], amsData: unknown[], today: string): unknown[] {
   // 过滤掉API中今天的数据
   const historicalApiData = apiData.filter(d => d.reportDate !== today);
   
@@ -252,7 +252,7 @@ function mergeAmsFirst(apiData: any[], amsData: any[], today: string): any[] {
 /**
  * API优先合并（用于历史分析）
  */
-function mergeApiFirst(apiData: any[], amsData: any[]): any[] {
+function mergeApiFirst(apiData: unknown[], amsData: unknown[]): unknown[] {
   // API数据为主，AMS数据仅用于填补空白
   const apiDates = new Set(apiData.map(d => `${d.reportDate}-${d.campaignId}`));
   const missingAmsData = amsData.filter(d => !apiDates.has(`${d.reportDate}-${d.campaignId}`));
@@ -264,8 +264,8 @@ function mergeApiFirst(apiData: any[], amsData: any[]): any[] {
  * 加权合并（用于报表导出）
  * API数据权重更高（准确性），AMS数据用于补充
  */
-function weightedMerge(apiData: any[], amsData: any[]): any[] {
-  const mergedMap = new Map<string, any>();
+function weightedMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
+  const mergedMap = new Map<string, unknown>();
   
   // 先添加API数据（权重1.0）
   for (const item of apiData) {
@@ -287,8 +287,8 @@ function weightedMerge(apiData: any[], amsData: any[]): any[] {
 /**
  * 最新数据优先合并
  */
-function latestWinsMerge(apiData: any[], amsData: any[]): any[] {
-  const mergedMap = new Map<string, any>();
+function latestWinsMerge(apiData: unknown[], amsData: unknown[]): unknown[] {
+  const mergedMap = new Map<string, unknown>();
   
   // 合并所有数据，按更新时间排序
   const allData = [...apiData, ...amsData].sort((a, b) => {
@@ -312,8 +312,8 @@ function latestWinsMerge(apiData: any[], amsData: any[]): any[] {
  * 判断数据新鲜度
  */
 function determineFreshness(
-  apiData: any[],
-  amsData: any[],
+  apiData: unknown[],
+  amsData: unknown[],
   strategy: MergeStrategy
 ): 'fresh' | 'stale' | 'mixed' {
   const now = Date.now();
@@ -472,7 +472,7 @@ export async function getTimelineAggregatedData(
       ORDER BY period
     `) as any;
 
-    const timeline = (Array.isArray(rows) ? rows : []).map((row: any) => ({
+    const timeline = (Array.isArray(rows) ? rows : []).map((row: Record<string, unknown>) => ({
       period: String(row.period),
       impressions: Number(row.impressions) || 0,
       clicks: Number(row.clicks) || 0,
@@ -556,7 +556,7 @@ export async function getRealtimeDashboardData(
   try {
     // 尝试获取AMS实时数据
     let dataSource: 'ams' | 'api' = 'api';
-    let result: any = null;
+    let result: Record<string, unknown> = null;
 
     try {
       const [amsRows] = await db.execute(sql`

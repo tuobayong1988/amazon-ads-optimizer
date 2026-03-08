@@ -833,7 +833,7 @@ async function reoptimizeTarget(
               const database = await getDb();
               if (!database) break;
               const campaignsList = await db.getCampaignsByAccountId(config.accountId);
-              const enabledCampaigns = campaignsList.filter((c: any) => c.campaignStatus === 'enabled');
+              const enabledCampaigns = campaignsList.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
               
               for (const campaign of enabledCampaigns) {
                 try {
@@ -901,7 +901,7 @@ async function reoptimizeTarget(
                         AND api_sync_status = 'pending'
                         AND previous_value = new_value`
                 );
-                const cleaned = (cleanupResult as any)?.[0]?.affectedRows || 0;
+                const cleaned = (cleanupResult as Record<string, unknown>[])?.[0]?.affectedRows || 0;
                 log.info(`[PostDeployOptimizer] [${config.name}] 清理了 ${cleaned} 条无效pending日志`);
                 correctionsApplied += cleaned;
                 modulesExecuted.push('cleanup_stale_pending');
@@ -935,7 +935,7 @@ async function reoptimizeTarget(
                       AND ol.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`
               );
               
-              const rows = (pendingLogs as any)?.[0] || pendingLogs;
+              const rows = (pendingLogs as Record<string, unknown>[])?.[0] || pendingLogs;
               if (!Array.isArray(rows) || rows.length === 0) {
                 log.info(`[PostDeployOptimizer] [${config.name}] v310: 无pending出价/状态指令需要重评估`);
                 break;
@@ -1032,7 +1032,7 @@ async function reoptimizeTarget(
                     LIMIT 200`
               );
               
-              const rows = (syncedLogs as any)?.[0] || syncedLogs;
+              const rows = (syncedLogs as Record<string, unknown>[])?.[0] || syncedLogs;
               if (!Array.isArray(rows) || rows.length === 0) {
                 log.info(`[PostDeployOptimizer] [${config.name}] v310: 无近期synced出价指令需要审计`);
                 break;
@@ -1128,7 +1128,7 @@ async function reoptimizeTarget(
                       AND ol.created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)`
               );
               
-              const rows = (pendingPtLogs as any)?.[0] || pendingPtLogs;
+              const rows = (pendingPtLogs as Record<string, unknown>[])?.[0] || pendingPtLogs;
               if (!Array.isArray(rows) || rows.length === 0) {
                 log.info(`[PostDeployOptimizer] [${config.name}] v310: 无pending商品定向创建需要重试`);
                 break;
@@ -1410,7 +1410,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
               OR change_reason LIKE '%策略%更新%'
             )
         `);
-        const settingsFixed = (settingsResult as any)[0]?.affectedRows || 0;
+        const settingsFixed = (settingsResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         log.info(`[PostDeployOptimizer] v266: 修复${settingsFixed}个内部settings_update事件状态为not_applicable(保留需要API同步的设置变更)`);
         
         // v266: 将之前被错误标记为not_applicable的预算/出价相关settings_update事件恢复为pending，以便重试同步
@@ -1430,7 +1430,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             )
             AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
-        const restored = (restoreResult as any)[0]?.affectedRows || 0;
+        const restored = (restoreResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         if (restored > 0) {
           log.warn(`[PostDeployOptimizer] v266: 恢复${restored}个被错误标记的预算/出价settings_update事件为pending`);
         }
@@ -1455,7 +1455,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
             AND action_type NOT IN ('bid_increase', 'bid_decrease')
         `);
-        const legacyFixed = (legacyResult as any)[0]?.affectedRows || 0;
+        const legacyFixed = (legacyResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         log.warn(`[PostDeployOptimizer] v203: 标记${legacyFixed}个超过30天的旧失败事件为invalid_legacy`);
         
         // 修复4: 将所有target_enable/target_pause中超过7天的失败事件标记为invalid_legacy
@@ -1467,7 +1467,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND api_sync_status = 'failed'
             AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
-        const targetFixed = (targetResult as any)[0]?.affectedRows || 0;
+        const targetFixed = (targetResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         log.warn(`[PostDeployOptimizer] v203: 标记${targetFixed}个超过7天的target状态变更失败事件为invalid_legacy`);
         
         // 修复5: 将所有placement_adjust/bid_auto_adjust中的失败事件标记为invalid_legacy
@@ -1478,7 +1478,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
           WHERE action_type IN ('placement_adjust', 'bid_auto_adjust')
             AND api_sync_status = 'failed'
         `);
-        const miscFixed = (miscResult as any)[0]?.affectedRows || 0;
+        const miscFixed = (miscResult as Record<string, unknown>[])[0]?.affectedRows || 0;
         log.warn(`[PostDeployOptimizer] v203: 标记${miscFixed}个无重试机制的失败事件为invalid_legacy`);
       }
     } catch (migrationErr: any) {
@@ -1517,7 +1517,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         for (const group of allGroups) {
           // 检查该优化目标下是否有enabled状态的广告活动（v168的合理暂停不应被恢复）
           const pgCampaigns = await db.getCampaignsByPerformanceGroupId(group.id);
-          const enabledCount = pgCampaigns.filter((c: any) => c.campaignStatus === 'enabled').length;
+          const enabledCount = pgCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled').length;
           if (enabledCount > 0) {
             await db.updatePerformanceGroup(group.id, { autoOptimize: 1 });
             log.info(`[PostDeployOptimizer] v244: 已恢复优化目标 "${group.name}" (ID:${group.id}) 的自动优化 - 有${enabledCount}个enabled广告活动`);

@@ -220,7 +220,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
     }
     
     const rows = (result as any)[0] || [];
-    return rows.map((row: any) => ({
+    return rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       code: row.code,
       createdBy: row.created_by,

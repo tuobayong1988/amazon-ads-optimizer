@@ -385,7 +385,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
         WHERE api_sync_status IS NULL
         LIMIT ${BATCH_SIZE}
       `);
-      batchAffected = (updateResult as any)?.[0]?.affectedRows || (updateResult as any)?.affectedRows || 0;
+      batchAffected = (updateResult as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult as Record<string, unknown>[])?.affectedRows || 0;
       totalAffected += batchAffected;
       if (batchAffected > 0) {
         log.info(`v199: 本批修复 ${batchAffected} 条 optimization_logs NULL 记录, 累计: ${totalAffected}`);
@@ -401,7 +401,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
         WHERE api_sync_status IS NULL
         LIMIT ${BATCH_SIZE}
       `);
-      batchAffected2 = (updateResult2 as any)?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
+      batchAffected2 = (updateResult2 as Record<string, unknown>[])?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
       totalAffected += batchAffected2;
       if (batchAffected2 > 0) {
         log.info(`v199: 本批修复 ${batchAffected2} 条 optimization_events NULL 记录, 累计: ${totalAffected}`);
@@ -617,7 +617,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     // 如果rule_engine已经做出了新的决策（包括冷却保持、熔断保持等），
     // 则以最新决策为准，不再将出价纠正回旧值
     // 这解决了：rule_engine降价 → 数据同步更新bid → AutoCorrector误判为“不一致”拉回 的恶性循环
-    const arbitratedRows: any[] = [];
+    const arbitratedRows: unknown[] = [];
     let arbitrationSkipped = 0;
     
     for (const row of rows) {
@@ -633,7 +633,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         LIMIT 1
       `;
       const newerResult = await database.execute(newerDecisionQuery);
-      const newerRows = (newerResult as any)[0] || newerResult;
+      const newerRows = (newerResult as Record<string, unknown>[])[0] || newerResult;
       
       if (Array.isArray(newerRows) && newerRows.length > 0) {
         const newerDecision = newerRows[0];
@@ -656,7 +656,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         LIMIT 1
       `;
       const holdResult = await database.execute(recentHoldQuery);
-      const holdRows = (holdResult as any)[0] || holdResult;
+      const holdRows = (holdResult as Record<string, unknown>[])[0] || holdResult;
       
       if (Array.isArray(holdRows) && holdRows.length > 0) {
         log.info(`v258仲裁: 跳过keyword=${row.keyword_id}的纠正, 当前处于冷却/熔断保护期`);
@@ -675,7 +675,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         LIMIT 1
       `;
       const recentCorrResult = await database.execute(recentCorrectionQuery);
-      const recentCorrRows = (recentCorrResult as any)[0] || recentCorrResult;
+      const recentCorrRows = (recentCorrResult as Record<string, unknown>[])[0] || recentCorrResult;
       
       if (Array.isArray(recentCorrRows) && recentCorrRows.length > 0) {
         log.info(`v328冷却: 跳过keyword=${row.keyword_id}的纠正, 8小时内已纠正过(event#${recentCorrRows[0].id})`);
@@ -691,7 +691,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     if (arbitratedRows.length === 0) return results;
     
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
-    const correctionItems = arbitratedRows.map((row: any) => {
+    const correctionItems = arbitratedRows.map((row: Record<string, unknown>) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
       
@@ -714,7 +714,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         campaignId: row.amazon_campaign_id || row.campaign_id || 0,
         reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
       };
-    }).filter((item: any): item is NonNullable<typeof item> => item !== null);
+    }).filter((item: Record<string, unknown>): item is NonNullable<typeof item> => item !== null);
     
     if (correctionItems.length === 0) {
       log.info(`v178: 所有出价纠正项在max_bid限制后已无需纠正`);
@@ -728,7 +728,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       );
       
       // v172: 使用correctionItems中的实际纠正值（已受max_bid限制）
-      const correctionMap = new Map(correctionItems.map((item: any) => [item.keywordId, item.newBid]));
+      const correctionMap = new Map(correctionItems.map((item: Record<string, unknown>) => [item.keywordId, item.newBid]));
       
       for (const row of arbitratedRows) {
         const actualTargetBid = correctionMap.get(row.keyword_id);
@@ -1866,7 +1866,7 @@ async function getActiveAccountIds(database: any): Promise<number[]> {
         AND account_id IS NOT NULL
     `);
     const rows = (result as any)[0] || result;
-    return Array.isArray(rows) ? rows.map((r: any) => r.account_id).filter(Boolean) : [];
+    return Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => r.account_id).filter(Boolean) : [];
   } catch {
     return [];
   }
@@ -2087,7 +2087,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
     
     const typeStatsArray = Array.isArray(typeStats) ? typeStats : [];
     const getTypeSyncRate = (actionType: string): number => {
-      const typeStat = typeStatsArray.find((t: any) => t.action_type === actionType);
+      const typeStat = typeStatsArray.find((t: Record<string, unknown>) => t.action_type === actionType);
       if (!typeStat || parseInt(String(typeStat.total)) === 0) return 100;
       return (parseInt(String(typeStat.synced)) / parseInt(String(typeStat.total))) * 100;
     };
@@ -2290,7 +2290,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     log.info(`v178: 账户${accountId} 发现${rows.length}个关键词出价超出max_bid`);
     
     // 批量修正：将出价回退到max_bid
-    const correctionItems: any[] = [];
+    const correctionItems: unknown[] = [];
     for (const row of rows) {
       const maxBid = parseFloat(String(row.max_bid));
       if (row.amazon_keyword_id) {
@@ -2618,7 +2618,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
           .from(keywords)
           .where(eq(keywords.adGroupId, localAdGroupId));
         
-        const existingSet = new Set(existingKws.map((k: any) => k.keywordText?.toLowerCase()));
+        const existingSet = new Set(existingKws.map((k: Record<string, unknown>) => k.keywordText?.toLowerCase()));
         
         // 过滤已存在的关键词
         const toCreate: typeof kwEvents = [];
@@ -2678,7 +2678,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
               INSERT INTO keywords (adGroupId, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
               VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
-            const localKeywordId = (insertResult as any)[0]?.insertId || (insertResult as any)?.insertId;
+            const localKeywordId = (insertResult as Record<string, unknown>[])[0]?.insertId || (insertResult as Record<string, unknown>[])?.insertId;
             
             keywordsToSync.push({
               eventId: kw.eventId,
@@ -2719,7 +2719,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
         // 根据结果更新每个事件的状态
         // syncResult.createdKeywords 包含成功创建的关键词
         const successKeywords = new Set(
-          syncResult.createdKeywords.map((k: any) => k.keywordText?.toLowerCase())
+          syncResult.createdKeywords.map((k: Record<string, unknown>) => k.keywordText?.toLowerCase())
         );
         
         // 从错误信息中提取失败的关键词
@@ -2891,7 +2891,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
       }
       
       // 重置为retry状态，给予完整的重试机会
-      const taskIds = rows.map((r: any) => r.id);
+      const taskIds = rows.map((r: Record<string, unknown>) => r.id);
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       
       await conn.execute(
@@ -2962,7 +2962,7 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
     }
     
     // 收集所有涉及的campaignId，并建立本地ID到Amazon ID的映射
-    const localCampaignIds = [...new Set(missingIdRows.map((r: any) => r.campaignId).filter(Boolean))];
+    const localCampaignIds = [...new Set(missingIdRows.map((r: Record<string, unknown>) => r.campaignId).filter(Boolean))];
     const localToAmazonCampaignIdMap = new Map<number, string>(); // localId -> amazonCampaignId
     for (const rawId of localCampaignIds) {
       const localId = Number(rawId);
@@ -3138,7 +3138,7 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
       `);
     }
     
-    const rows = (recentBidLogs as any)?.[0] || recentBidLogs;
+    const rows = (recentBidLogs as Record<string, unknown>[])?.[0] || recentBidLogs;
     if (!Array.isArray(rows) || rows.length === 0) {
       log.info(`v196: 账户${accountId} 最近24小时无成功的出价调整日志`);
       return results;
@@ -3340,7 +3340,7 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
       LIMIT ${QUALITY_AUDIT_CONFIG.maxAuditsPerRun}
     `);
     
-    const rows = (auditCandidates as any)?.[0] || auditCandidates;
+    const rows = (auditCandidates as Record<string, unknown>[])?.[0] || auditCandidates;
     if (!Array.isArray(rows) || rows.length === 0) {
       log.debug(`v198: 账户${accountId} 无需NextGen质量审计（所有活跃关键词已由NextGen优化）`);
       return results;
@@ -3739,7 +3739,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
         // 记录重试次数
         let retryCount = 0;
         try {
-          const event = failedEvents.find((e: any) => e.id === sc.eventId);
+          const event = failedEvents.find((e: Record<string, unknown>) => e.id === sc.eventId);
           if (event?.apiSyncDetail) {
             const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
             retryCount = (syncDetail.retryCount || 0) + 1;
@@ -3830,7 +3830,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
     
     for (const pt of missingTargets) {
       try {
-        let expression: any[] = [];
+        let expression: unknown[] = [];
         if (pt.targetExpression) {
           try { expression = typeof pt.targetExpression === 'string' ? JSON.parse(pt.targetExpression) : pt.targetExpression; } catch {}
         }

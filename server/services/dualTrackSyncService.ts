@@ -551,7 +551,7 @@ export async function getDataForAlgorithm(
   algorithmType: AlgorithmType,
   lookbackDays: number = 30
 ): Promise<{
-  data: any[];
+  data: unknown[];
   safeEndDate: Date;
   excludedDays: number;
   warning?: string;
@@ -666,7 +666,7 @@ export async function getRealtimeSpendForGuard(
   try {
     // 优先从AMS缓冲表获取实时数据
     let dataSource: 'ams' | 'api' = 'api';
-    let result: any = null;
+    let result: Record<string, unknown> = null;
 
     // 尝试从AMS缓冲表获取
     try {

@@ -504,7 +504,7 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${optimizationEvents.createdAt})`)
       .orderBy(sql`DATE(${optimizationEvents.createdAt})`);
     
-    return results.map((row: any) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) / 100 : 0,
       avgROASChange: 0,
@@ -537,7 +537,7 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`)
       .orderBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`);
 
-    return results.map((row: any) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: Number(row.avgEffectScore) || 0,
       avgROASChange: Number(row.avgROASChange) || 0,

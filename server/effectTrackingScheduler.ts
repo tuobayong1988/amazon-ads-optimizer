@@ -107,7 +107,7 @@ export async function collectKeywordPerformance(
   // 注意：dailyPerformance表是按账号/活动级别存储的，没有keywordId字段
   // 这里我们模拟返回空数据，实际实现需要从关键词表或其他数据源获取
   // 在实际生产环境中，应该从Amazon API获取关键词级别的历史数据
-  const metrics: any[] = [];
+  const metrics: unknown[] = [];
   
   // 汇总数据
   const totalClicks = metrics.reduce((sum, m) => sum + (m.clicks || 0), 0);

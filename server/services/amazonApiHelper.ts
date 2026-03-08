@@ -140,7 +140,7 @@ export async function syncBidAdjustmentsToAmazon(
           consecutiveThrottles = 0;
           success = true;
           // v333: 从rapplyBidAdjustment的返回值中提取apiResponseId
-          const responseId = (typeof apiResult === 'object' && apiResult !== null && 'apiResponseId' in apiResult) ? (apiResult as any).apiResponseId : undefined;
+          const responseId = (typeof apiResult === 'object' && apiResult !== null && 'apiResponseId' in apiResult) ? (apiResult as Record<string, unknown>[]).apiResponseId : undefined;
           result.itemResults.set(adj.keywordId, { status: 'synced', apiResponseId: responseId });
         } else {
           result.failed++;
@@ -374,7 +374,7 @@ export async function syncNewKeywordsToAmazon(
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
-          (batch as any[]).map((k: any) => ({
+          (batch as any[]).map((k: Record<string, unknown>) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
@@ -799,7 +799,7 @@ export async function syncNegativeKeywordsToAmazon(
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
         const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
-          (newAdGroupNegatives as any[]).map((n: any) => ({
+          (newAdGroupNegatives as any[]).map((n: Record<string, unknown>) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,

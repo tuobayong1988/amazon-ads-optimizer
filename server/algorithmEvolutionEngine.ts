@@ -259,7 +259,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
  */
 async function getEventPerformanceData(
   db: any,
-  event: any,
+  event: Record<string, unknown>,
   startDate: Date,
   endDate: Date
 ): Promise<{ spend: number; sales: number; impressions: number; clicks: number; orders: number } | null> {
@@ -268,7 +268,7 @@ async function getEventPerformanceData(
     const endStr = endDate.toISOString().slice(0, 10);
     
     // 根据事件类型获取对应的效果数据
-    let result: any;
+    let result: Record<string, unknown>;
     
     if (event.keywordId) {
       // 关键词级别：从keywords表获取聚合数据
@@ -319,7 +319,7 @@ async function getEventPerformanceData(
  * 计算优化效果分数 (-100 到 100)
  */
 function calculateEffectScore(
-  event: any,
+  event: Record<string, unknown>,
   perfData: { spend: number; sales: number; impressions: number; clicks: number; orders: number },
   period: number
 ): number {

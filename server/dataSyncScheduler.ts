@@ -831,7 +831,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       // 只检查当前已暂停的优化目标
       if ((pg as any).autoOptimize === 0 || (pg as any).autoOptimize === false) {
         const pgCampaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
-        const enabledCount = pgCampaigns.filter((c: any) => c.campaignStatus === 'enabled').length;
+        const enabledCount = pgCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled').length;
         if (enabledCount > 0) {
           // 有广告活动恢复了enabled状态，自动恢复优化目标
           await db.updatePerformanceGroup(pg.id, { autoOptimize: 1 });
@@ -1652,7 +1652,7 @@ export async function startOptimizationScheduler(): Promise<void> {
         const accounts = await db.getAdAccounts();
         for (const account of accounts) {
           const tests = await abTestService.getABTests(account.id);
-          const activeTests = tests.filter((t: any) => t.status === 'running');
+          const activeTests = tests.filter((t: Record<string, unknown>) => t.status === 'running');
           for (const test of activeTests) {
             try {
               // 收集每日指标
@@ -1847,7 +1847,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             try {
               const riskCampaigns = await db.getCampaignsByAccountId(target.accountId);
-              const enabledCampaigns = riskCampaigns.filter((c: any) => c.campaignStatus === 'enabled');
+              const enabledCampaigns = riskCampaigns.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
               let totalRisks = 0;
               for (const campaign of enabledCampaigns) {
                 const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
@@ -2231,9 +2231,9 @@ async function verifySyncHealth(): Promise<void> {
       LIMIT 20
     `);
     
-    const jobs = (recentJobs as any)?.[0] || [];
-    const successCount = jobs.filter((j: any) => j.status === 'completed').length;
-    const failCount = jobs.filter((j: any) => j.status === 'failed').length;
+    const jobs = (recentJobs as Record<string, unknown>[])?.[0] || [];
+    const successCount = jobs.filter((j: Record<string, unknown>) => j.status === 'completed').length;
+    const failCount = jobs.filter((j: Record<string, unknown>) => j.status === 'failed').length;
     
     if (jobs.length === 0) {
       // 最近2小时没有任何同步记录，记录告警
@@ -2258,7 +2258,7 @@ async function verifySyncHealth(): Promise<void> {
         type: 'sync_health_alert',
         systemVersion: SYSTEM_VERSION,
         consecutiveFailures,
-        recentJobs: jobs.slice(0, 5).map((j: any) => ({
+        recentJobs: jobs.slice(0, 5).map((j: Record<string, unknown>) => ({
           accountId: j.account_id,
           status: j.status,
           syncType: j.sync_type,

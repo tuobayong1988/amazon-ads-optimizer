@@ -187,7 +187,7 @@ export function safeParseApiResponse<T>(
   } catch (error) {
     if (error instanceof z.ZodError) {
       log.warn(`API数据校验失败 [${context}]:`, {
-        errors: (error.issues as any[]).map((e: any) => ({
+        errors: (error.issues as any[]).map((e: Record<string, unknown>) => ({
           path: e.path?.join('.') || '',
           message: e.message || '',
           received: e.received,

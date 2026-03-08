@@ -151,7 +151,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     }
     
     const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`);
-    const total = (countResult as any)[0]?.[0]?.total || 0;
+    const total = (countResult as Record<string, unknown>[])[0]?.[0]?.total || 0;
     
     const result = await db.execute(sql`
       SELECT * FROM audit_logs ${whereClause}
@@ -159,7 +159,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     `);
     
     const rows = (result as any)[0] || [];
-    const logs: AuditLog[] = rows.map((row: any) => ({
+    const logs: AuditLog[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       organizationId: row.organization_id,
       userId: row.user_id,

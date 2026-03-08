@@ -113,7 +113,7 @@ async function hasRecentSyncedOptimization(
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
-    const conditions: any[] = [
+    const conditions: unknown[] = [
       eq(optimizationEvents.eventCategory, category),
       eq(optimizationEvents.apiSyncStatus, 'synced'),
       gte(optimizationEvents.createdAt, cutoff),
@@ -191,7 +191,7 @@ async function getRecentlyOptimizedKeywordIds(
         );
         const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
-          const fallbackKeywordIds = new Set(fallbackRows.map((r: any) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
+          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
             log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
             for (const id of fallbackKeywordIds) protectedSet.add(id);
@@ -368,56 +368,56 @@ export class AmazonSyncService {
     // 同步SP广告活动
     const spResult = await runStep('SP广告活动', () => this.syncSpCampaigns());
     if (spResult !== null) {
-      results.spCampaigns = typeof spResult === 'number' ? spResult : (spResult as any)?.synced || 0;
+      results.spCampaigns = typeof spResult === 'number' ? spResult : (spResult as Record<string, unknown>[])?.synced || 0;
       results.campaigns += results.spCampaigns;
     }
     
     // 同步SB广告活动
     const sbResult = await runStep('SB广告活动', () => this.syncSbCampaigns());
     if (sbResult !== null) {
-      results.sbCampaigns = typeof sbResult === 'number' ? sbResult : (sbResult as any)?.synced || 0;
+      results.sbCampaigns = typeof sbResult === 'number' ? sbResult : (sbResult as Record<string, unknown>[])?.synced || 0;
       results.campaigns += results.sbCampaigns;
     }
     
     // 同步SD广告活动
     const sdResult = await runStep('SD广告活动', () => this.syncSdCampaigns());
     if (sdResult !== null) {
-      results.sdCampaigns = typeof sdResult === 'number' ? sdResult : (sdResult as any)?.synced || 0;
+      results.sdCampaigns = typeof sdResult === 'number' ? sdResult : (sdResult as Record<string, unknown>[])?.synced || 0;
       results.campaigns += results.sdCampaigns;
     }
     
     // ==================== 同步广告组（SP + SB + SD） ====================
     const spAdGroupResult = await runStep('SP广告组', () => this.syncSpAdGroups());
     if (spAdGroupResult !== null) {
-      results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : (spAdGroupResult as any)?.synced || 0;
+      results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : (spAdGroupResult as Record<string, unknown>[])?.synced || 0;
     }
 
     const sbAdGroupResult = await runStep('SB广告组', () => this.syncSbAdGroups());
-    if (sbAdGroupResult !== null) results.adGroups += (sbAdGroupResult as any)?.synced || 0;
+    if (sbAdGroupResult !== null) results.adGroups += (sbAdGroupResult as Record<string, unknown>[])?.synced || 0;
 
     const sdAdGroupResult = await runStep('SD广告组', () => this.syncSdAdGroups());
-    if (sdAdGroupResult !== null) results.adGroups += (sdAdGroupResult as any)?.synced || 0;
+    if (sdAdGroupResult !== null) results.adGroups += (sdAdGroupResult as Record<string, unknown>[])?.synced || 0;
     
     // ==================== 同步关键词投放（SP + SB） ====================
     const spKeywordResult = await runStep('SP关键词', () => this.syncSpKeywords());
     if (spKeywordResult !== null) {
-      results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : (spKeywordResult as any)?.synced || 0;
+      results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : (spKeywordResult as Record<string, unknown>[])?.synced || 0;
     }
 
     const sbKeywordResult = await runStep('SB关键词', () => this.syncSbKeywords());
-    if (sbKeywordResult !== null) results.keywords += (sbKeywordResult as any)?.synced || 0;
+    if (sbKeywordResult !== null) results.keywords += (sbKeywordResult as Record<string, unknown>[])?.synced || 0;
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
     const spTargetResult = await runStep('SP商品定位', () => this.syncSpProductTargets());
     if (spTargetResult !== null) {
-      results.targets += typeof spTargetResult === 'number' ? spTargetResult : (spTargetResult as any)?.synced || 0;
+      results.targets += typeof spTargetResult === 'number' ? spTargetResult : (spTargetResult as Record<string, unknown>[])?.synced || 0;
     }
 
     const sbTargetResult = await runStep('SB商品定位', () => this.syncSbProductTargets());
-    if (sbTargetResult !== null) results.targets += (sbTargetResult as any)?.synced || 0;
+    if (sbTargetResult !== null) results.targets += (sbTargetResult as Record<string, unknown>[])?.synced || 0;
 
     const sdTargetResult = await runStep('SD商品定位', () => this.syncSdProductTargets());
-    if (sdTargetResult !== null) results.targets += (sdTargetResult as any)?.synced || 0;
+    if (sdTargetResult !== null) results.targets += (sdTargetResult as Record<string, unknown>[])?.synced || 0;
 
     // ==================== 同步否定关键词 ====================
     await runStep('SP否定关键词', () => this.syncSpNegativeKeywords());
@@ -450,7 +450,7 @@ export class AmazonSyncService {
     // v339: performanceDays支持外部传入，默认14天归因回溯
     const performanceDays = options?.performanceDays || 14;
     const perfResult = await runStep(`广告活动绩效(${performanceDays}天)`, () => this.syncPerformanceData(performanceDays));
-    if (perfResult !== null) results.performance += typeof perfResult === 'number' ? perfResult : (perfResult as any)?.synced || 0;
+    if (perfResult !== null) results.performance += typeof perfResult === 'number' ? perfResult : (perfResult as Record<string, unknown>[])?.synced || 0;
 
     await runStep(`关键词绩效(${performanceDays}天)`, () => this.syncKeywordPerformanceData(performanceDays));
     await runStep(`商品定位绩效(${performanceDays}天)`, () => this.syncProductTargetPerformanceData(performanceDays));
@@ -625,7 +625,7 @@ export class AmazonSyncService {
       log.info(`v339: 总范围: ${rangeStartDate} - ${rangeEndDate}`);
 
       // v339: 分批请求报告，合并所有批次的数据
-      let allReportData: any[] = [];
+      let allReportData: unknown[] = [];
       for (let batch = 0; batch < batches; batch++) {
         const endDateObj = new Date(rangeEndDate);
         endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -840,7 +840,7 @@ export class AmazonSyncService {
       const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
       log.info(`v339: 开始同步SP自动定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-      let allReportData: any[] = [];
+      let allReportData: unknown[] = [];
       for (let batch = 0; batch < batches; batch++) {
         const endDateObj = new Date(rangeEndDate);
         endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));

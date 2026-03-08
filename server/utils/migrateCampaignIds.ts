@@ -50,7 +50,7 @@ interface MigrationResult {
 /**
  * 安全提取COUNT结果
  */
-function extractCount(result: any): number {
+function extractCount(result: Record<string, unknown>): number {
   if (!result) return 0;
   const row = Array.isArray(result[0]) ? result[0][0] : result[0];
   return Number(row?.cnt || row?.count || 0);

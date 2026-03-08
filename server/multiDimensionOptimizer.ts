@@ -787,7 +787,7 @@ export async function applyDailyBudgetRulesToStrategy(
     }
     
     // 渐进式更新：与现有规则混合
-    const existing = existingRules.find((e: any) => e.dayOfWeek === dayOfWeek);
+    const existing = existingRules.find((e: Record<string, unknown>) => e.dayOfWeek === dayOfWeek);
     if (existing) {
       const existingMultiplier = parseFloat(existing.budgetMultiplier || '1.00');
       // 新值 = 旧值 * 0.3 + 新值 * 0.7
@@ -831,7 +831,7 @@ export async function applyDailyBudgetRulesToStrategy(
 export async function executeMultiDimensionOptimization(
   targetId: number,
   accountId: number,
-  campaigns: any[],
+  campaigns: unknown[],
   config: {
     targetAcos?: number;
     targetRoas?: number;
@@ -845,9 +845,9 @@ export async function executeMultiDimensionOptimization(
   executed: boolean;
   campaignsAnalyzed: number;
   rulesGenerated: number;
-  details: any[];
+  details: unknown[];
 }> {
-  const details: any[] = [];
+  const details: unknown[] = [];
   let totalRulesGenerated = 0;
   let campaignsAnalyzed = 0;
   

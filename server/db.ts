@@ -1390,7 +1390,7 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
   const { safeEncrypt } = await import('./utils/cryptoService');
   
   // v342: 保护性更新 - 不用空值覆盖已有的有效值
-  const updateSet: Record<string, any> = {
+  const updateSet: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),
   };
   // 只在新值非空时才更新对应字段
@@ -1451,7 +1451,7 @@ export async function updateAmazonApiCredentials(accountId: number, data: Partia
   
   // v345: 加密敏感字段
   const { safeEncrypt } = await import('./utils/cryptoService');
-  const encryptedData: Record<string, any> = { ...data, updatedAt: new Date().toISOString() };
+  const encryptedData: Record<string, unknown> = { ...data, updatedAt: new Date().toISOString() };
   if (encryptedData.clientSecret) {
     encryptedData.clientSecret = safeEncrypt(encryptedData.clientSecret);
   }
@@ -1934,7 +1934,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
   return results;
 }
 
-function calculateAverageMetrics(perfData: any[]): CampaignHealthMetrics['currentMetrics'] {
+function calculateAverageMetrics(perfData: unknown[]): CampaignHealthMetrics['currentMetrics'] {
   if (perfData.length === 0) {
     return {
       impressions: 0,
@@ -3730,7 +3730,7 @@ export async function importBidAdjustmentHistory(records: Array<{
   if (!db || records.length === 0) return { success: false, imported: 0, errors: [] };
   
   const errors: Array<{ row: number; error: string }> = [];
-  const validRecords: any[] = [];
+  const validRecords: unknown[] = [];
   
   records.forEach((record, index) => {
     // 验证必填字段
@@ -4933,7 +4933,7 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
     
     const rows = results[0] || results;
     
-    return (rows as any[]).map((r: any) => {
+    return (rows as any[]).map((r: Record<string, unknown>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
@@ -5251,7 +5251,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
         try {
           if (!data.actionDetail) return undefined;
           const detail = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
-          const meta: Record<string, any> = {};
+          const meta: Record<string, unknown> = {};
           if (detail.gtoModifier) {
             meta.gto = {
               composite: detail.gtoModifier.compositeModifier,

@@ -366,11 +366,11 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
     ) as any;
     
     const dist = statusStats || [];
-    const synced = Number(dist.find((d: any) => d.api_sync_status === 'synced')?.count || 0);
-    const pending = Number(dist.find((d: any) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
-    const failed = Number(dist.find((d: any) => d.api_sync_status === 'failed')?.count || 0);
-    const notApplicable = Number(dist.find((d: any) => d.api_sync_status === 'not_applicable')?.count || 0)
-      + Number(dist.find((d: any) => d.api_sync_status === 'invalid_legacy')?.count || 0);
+    const synced = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'synced')?.count || 0);
+    const pending = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
+    const failed = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'failed')?.count || 0);
+    const notApplicable = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'not_applicable')?.count || 0)
+      + Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'invalid_legacy')?.count || 0);
     
     // v235: 同步成功率只计算需要同步的事件
     const syncableTotal = synced + pending + failed;
@@ -672,7 +672,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
     `) as any;
     
     if (!rows) return [];
-    return rows.map((r: any) => ({ accountId: r.accountId, type: r.actionType }));
+    return rows.map((r: Record<string, unknown>) => ({ accountId: r.accountId, type: r.actionType }));
   } catch (err: any) {
     log.error(`[getPendingEmergencyAccounts] 查询失败: ${err.message}`);
     return [];
@@ -695,13 +695,13 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
 async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: number; totalDailyBudget: number; autoAssigned: number }> {
   try {
     const unassigned = await db.getUnassignedCampaigns();
-    const activeCampaigns = unassigned.filter((c: any) => c.campaignStatus === 'enabled');
+    const activeCampaigns = unassigned.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
     
     if (activeCampaigns.length === 0) {
       return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
     }
     
-    const totalBudget = activeCampaigns.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
+    const totalBudget = activeCampaigns.reduce((sum: number, c: Record<string, unknown>) => sum + (Number(c.dailyBudget) || 0), 0);
     log.warn(`[RiskActionEngine] v270: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
     
     // v270: 按账户+广告类型分组
@@ -719,8 +719,8 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
       const accountId = parseInt(accountIdStr);
       
       // 计算该组广告的平均ACoS
-      const totalSpend = campaigns.reduce((s: number, c: any) => s + (Number(c.spend) || 0), 0);
-      const totalSales = campaigns.reduce((s: number, c: any) => s + (Number(c.sales) || 0), 0);
+      const totalSpend = campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.spend) || 0), 0);
+      const totalSales = campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.sales) || 0), 0);
       const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 999;
       
       // v270: 根据ACoS水平匹配策略模板
@@ -742,10 +742,10 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
           goalName,
           strategyTemplateId,
           strategyName,
-          campaignIds: campaigns.map((c: any) => c.id),
+          campaignIds: campaigns.map((c: Record<string, unknown>) => c.id),
           campaignCount: campaigns.length,
           avgAcos: avgAcos.toFixed(1),
-          totalDailyBudget: campaigns.reduce((s: number, c: any) => s + (Number(c.dailyBudget) || 0), 0).toFixed(2),
+          totalDailyBudget: campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.dailyBudget) || 0), 0).toFixed(2),
           campaignType,
         })
       );

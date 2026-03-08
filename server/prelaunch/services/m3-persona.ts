@@ -48,9 +48,9 @@ export class M3PersonaService {
         .where(eq(prelaunchCompetitorUserLanguage.projectId, projectId));
 
       // Step 3: 使用Gemini生成用户画像
-      const kwSummary = keywords.slice(0, 50).map((k: any) => `${k.keyword} (${k.dimensionType}, ${k.scenarioCode})`).join('\n');
-      const painPoints = userLanguage.filter((u: any) => u.phraseType === 'pain_point').map((u: any) => u.phrase).slice(0, 20).join('\n');
-      const praises = userLanguage.filter((u: any) => u.phraseType === 'praise').map((u: any) => u.phrase).slice(0, 20).join('\n');
+      const kwSummary = keywords.slice(0, 50).map((k: Record<string, unknown>) => `${k.keyword} (${k.dimensionType}, ${k.scenarioCode})`).join('\n');
+      const painPoints = userLanguage.filter((u: Record<string, unknown>) => u.phraseType === 'pain_point').map((u: Record<string, unknown>) => u.phrase).slice(0, 20).join('\n');
+      const praises = userLanguage.filter((u: Record<string, unknown>) => u.phraseType === 'praise').map((u: Record<string, unknown>) => u.phrase).slice(0, 20).join('\n');
 
       const prompt = `Based on Amazon product keyword data and customer review analysis, create 3-5 distinct buyer personas.
 
@@ -64,7 +64,7 @@ CUSTOMER PRAISES:
 ${praises || 'No data available'}
 
 COMPETITOR LANDSCAPE:
-${competitors.slice(0, 10).map((c: any) => `${c.brand}: ${c.title} ($${c.price}, ${c.rating}★, ${c.reviewCount} reviews)`).join('\n')}
+${competitors.slice(0, 10).map((c: Record<string, unknown>) => `${c.brand}: ${c.title} ($${c.price}, ${c.rating}★, ${c.reviewCount} reviews)`).join('\n')}
 
 For each persona, provide:
 - personaName: descriptive name (e.g., "Budget-Conscious Mom")

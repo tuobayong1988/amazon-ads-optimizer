@@ -35,7 +35,7 @@ export interface LogEntry {
   levelName: string;
   module: string;
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   // 采样信息
   suppressedCount?: number;  // 被抑制的重复日志数
 }
@@ -365,27 +365,27 @@ class Logger {
 
   // ==================== 日志写入方法 ====================
 
-  debug(module: string, message: string, metadata?: Record<string, any>): void {
+  debug(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.DEBUG, module, message, metadata);
   }
 
-  info(module: string, message: string, metadata?: Record<string, any>): void {
+  info(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.INFO, module, message, metadata);
   }
 
-  warn(module: string, message: string, metadata?: Record<string, any>): void {
+  warn(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.WARN, module, message, metadata);
   }
 
-  error(module: string, message: string, metadata?: Record<string, any>): void {
+  error(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.ERROR, module, message, metadata);
   }
 
-  fatal(module: string, message: string, metadata?: Record<string, any>): void {
+  fatal(module: string, message: string, metadata?: Record<string, unknown>): void {
     this.log(LogLevel.FATAL, module, message, metadata);
   }
 
-  private log(level: LogLevel, module: string, message: string, metadata?: Record<string, any>): void {
+  private log(level: LogLevel, module: string, message: string, metadata?: Record<string, unknown>): void {
     const now = Date.now();
     const timestamp = new Date(now).toISOString();
 

@@ -256,7 +256,7 @@ async function synthesizeFromExistingData(
  * 如果没有placementPerformance数据，使用行业默认值
  */
 function calculatePlacementRatios(
-  placementData: any[]
+  placementData: unknown[]
 ): Record<'top_of_search' | 'product_page' | 'rest_of_search', number> {
   if (placementData.length === 0) {
     // 行业默认分布（基于Amazon SP广告的典型分布）

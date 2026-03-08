@@ -26,7 +26,7 @@ export interface SyncTaskConfig {
 /**
  * 将API返回的行数据转换为DailyPerformance插入格式
  */
-function buildPerformanceRecord(row: any, campaignId: string, date: string) {
+function buildPerformanceRecord(row: Record<string, unknown>, campaignId: string, date: string) {
   const impressions = parseInt(row.impressions || '0');
   const clicks = parseInt(row.clicks || '0');
   const spend = parseFloat(row.cost || '0');
@@ -58,14 +58,14 @@ function buildPerformanceRecord(row: any, campaignId: string, date: string) {
  * 同步单个广告活动的每日数据
  */
 export async function syncCampaignDailyData(
-  apiData: any[],
+  apiData: unknown[],
   campaignId: string,
   date: string
 ): Promise<void> {
   try {
     // 查找该广告活动的数据
     const campaignData = apiData.find(
-      (row: any) => row.campaignId?.toString() === campaignId
+      (row: Record<string, unknown>) => row.campaignId?.toString() === campaignId
     );
     
     if (!campaignData) {
