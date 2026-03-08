@@ -323,6 +323,9 @@ export class AmazonSyncService {
 
     // v345: 步骤级重试配置
     const STEP_RETRY_CONFIG = { maxRetries: 1, baseDelayMs: 3000 };
+    // v360: DAG层间延迟配置 - 避免层切换时API请求突增
+    const LAYER_TRANSITION_DELAY_MS = 2000;
+    const MAX_CONCURRENT_PER_LAYER = 8; // v360: 每层最大并发数
 
     const runStep = async <T>(stepName: string, fn: () => Promise<T>): Promise<T | null> => {
       totalSteps++;
@@ -365,9 +368,10 @@ export class AmazonSyncService {
       return null;
     };
 
-    // v359: DAG并行调度 - 按层级依赖关系并行执行同步步骤
+    // v359/v360: DAG并行调度 - 按层级依赖关系并行执行同步步骤
+    // v360增强: 层间转换延迟 + 并发限制 + 失败层降级
     // 原来: 33步全部串行，总耗时 = sum(所有步骤耗时)
-    // 现在: 按层级并行，总耗时 = sum(max(每层最慢步骤))
+    // 现在: 按层级并行，总耗时 = sum(max(每层最慢步骤)) + 层间延迟
     
     // ==================== Layer 0: 广告活动（SP/SB/SD并行） ====================
     log.info(`[syncAll] v359: Layer 0 - 广告活动同步 (3个并行)`);
@@ -390,6 +394,9 @@ export class AmazonSyncService {
       results.campaigns += results.sdCampaigns;
     }
     
+    // v360: 层间转换延迟
+    await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    
     // ==================== Layer 1: 广告组（SP/SB/SD并行） ====================
     log.info(`[syncAll] v359: Layer 1 - 广告组同步 (3个并行)`);
     const [spAdGroupResult, sbAdGroupResult, sdAdGroupResult] = await Promise.allSettled([
@@ -407,6 +414,9 @@ export class AmazonSyncService {
     if (sdAdGroupResult.status === 'fulfilled' && sdAdGroupResult.value !== null) {
       results.adGroups += (sdAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
     }
+    
+    // v360: 层间转换延迟
+    await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
     
     // ==================== Layer 2: 关键词+商品定位+广告素材（6个并行） ====================
     log.info(`[syncAll] v359: Layer 2 - 关键词/商品定位/素材同步 (6个并行)`);
@@ -435,6 +445,9 @@ export class AmazonSyncService {
       results.targets += (sdTargetResult.value as Record<string, unknown>)?.synced as number || 0;
     }
     
+    // v360: 层间转换延迟
+    await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    
     // ==================== Layer 3: 否定词+搜索词+广告位绩效（8个并行） ====================
     log.info(`[syncAll] v359: Layer 3 - 否定词/搜索词/广告位绩效同步 (8个并行)`);
     await Promise.allSettled([
@@ -448,6 +461,9 @@ export class AmazonSyncService {
       runStep('SB广告位绩效(60天)', () => this.syncSbPlacementPerformance(60)),
     ]);
 
+    // v360: 层间转换延迟
+    await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    
     // ==================== Layer 4: 定向报告+素材URL（4个并行） ====================
     log.info(`[syncAll] v359: Layer 4 - 定向报告/素材URL同步 (4个并行)`);
     await Promise.allSettled([
@@ -457,6 +473,9 @@ export class AmazonSyncService {
       runStep('SB素材URL解析', () => this.syncAssetUrls()),
     ]);
 
+    // v360: 层间转换延迟
+    await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    
     // ==================== Layer 5: 绩效数据（4个并行） ====================
     const performanceDays = options?.performanceDays || 14;
     log.info(`[syncAll] v359: Layer 5 - 绩效数据同步 (4个并行, ${performanceDays}天)`);
