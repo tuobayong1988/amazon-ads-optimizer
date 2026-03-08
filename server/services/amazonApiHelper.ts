@@ -31,8 +31,14 @@ async function withRetry<T>(
 ): Promise<T> {
   const { maxRetries = 4, baseDelayMs = 3000, label = 'API' } = options;  // v248: 增强429限流重试（2→4次，2s→3s基础延迟）
   let lastError: Error | null = null;
+  // v360: 真正集成限流服务 - 在每次API调用前获取令牌
+  const endpointType = classifyEndpoint(label);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
+      // v360: 调用前获取限流许可，如果令牌不足会自动等待
+      try {
+        await acquireApiPermit(0, endpointType);
+      } catch (_) { /* 限流服务异常不影响主流程 */ }
       return await fn();
     } catch (error: unknown) {
       lastError = error;
@@ -40,10 +46,9 @@ async function withRetry<T>(
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
       const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
       
-      // v359: 通知分端点限流服务，触发自适应降速
+      // v360: 通知分端点限流服务，触发自适应降速
       if (isThrottle) {
         try {
-          const endpointType = classifyEndpoint(label);
           getApiRateLimitService().recordExternalThrottle(0, endpointType);
         } catch (_) { /* 限流服务异常不影响主流程 */ }
       }

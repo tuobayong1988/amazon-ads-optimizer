@@ -11,6 +11,8 @@
 import axios, { AxiosInstance } from 'axios';
 import JSONBig from 'json-bigint';
 import { createModuleLogger } from './utils/logger';
+// v360: 集成统一限流服务
+import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './services/apiRateLimitService';
 
 const log = createModuleLogger('AmazonAPI');
 
@@ -191,10 +193,15 @@ export class AmazonAdsApiClient {
       }],
     });
 
-    // 添加请求拦截器自动添加认证头
+    // 添加请求拦截器自动添加认证头 + v360: 集成限流服务
     this.axiosInstance.interceptors.request.use(async (config) => {
       const token = await this.getAccessToken();
       config.headers.Authorization = `Bearer ${token}`;
+      // v360: 在每次API请求发出前获取限流许可
+      try {
+        const endpointType = classifyEndpoint(config.url || 'default');
+        await acquireApiPermit(0, endpointType);
+      } catch (_) { /* 限流服务异常不影响主流程 */ }
       return config;
     });
 
@@ -266,6 +273,14 @@ export class AmazonAdsApiClient {
         // v148: 可重试的状态码: 429(限流), 500, 502, 503, 504(服务器错误)
         const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
         const MAX_RETRIES = 3;
+        
+        // v360: 429时通知统一限流服务，触发自适应降速
+        if (status === 429) {
+          try {
+            const endpointType = classifyEndpoint(config.url || 'default');
+            getApiRateLimitService().recordExternalThrottle(0, endpointType);
+          } catch (_) { /* 限流服务异常不影响主流程 */ }
+        }
         
         if (isRetryable && config._retryCount < MAX_RETRIES) {
           config._retryCount++;

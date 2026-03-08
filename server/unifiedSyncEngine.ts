@@ -43,6 +43,7 @@ const log = createModuleLogger('UnifiedSync');
  * - 遇到429后指数退避并降低基线速率
  * - 一段时间无429后逐步恢复速率
  */
+/** @deprecated v360: 已废弃，统一使用 apiRateLimitService.ts 中的 ApiRateLimitService。保留代码仅为向后兼容，实际限流已由统一服务处理 */
 class ApiRateController {
   // 滑动窗口配置
   private windowMs = 60_000; // 1分钟窗口

@@ -44,6 +44,7 @@ interface QueuedRequest {
   addedAt: number;
 }
 
+/** @deprecated v360: 已废弃，统一使用 apiRateLimitService.ts 中的 ApiRateLimitService。保留代码仅为向后兼容，实际限流已由统一服务处理 */
 class RateLimiter {
   private queue: QueuedRequest[] = [];
   private requestCounts = { second: 0, minute: 0, hour: 0 };
