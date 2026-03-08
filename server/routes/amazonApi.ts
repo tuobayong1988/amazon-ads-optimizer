@@ -246,13 +246,16 @@ export const amazonApiRouter = router({
           log.error(`[v336] 事件驱动同步触发失败:`, (syncErr as Error).message);
         }
         
-        // v338: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
+        // v338/v360: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
+        // v360修复: skipSync改为false，确保凭证刷新后重新拉取最新数据
+        // 原因: 凭证刷新意味着旧token可能已失效，之前的同步可能部分失败
+        // 需要用新token重新同步以恢复数据完整性
         if (isCredentialRefresh) {
           try {
             const { triggerColdStart } = await import('../coldStartService');
             const coldStartResult = await triggerColdStart(input.accountId, {
               reason: 'credential_refresh',
-              skipSync: true, // 刚完成初始化同步，跳过同步阶段
+              skipSync: false, // v360: 凭证刷新后必须重新同步数据
               historicalDays: 90,
               recentDays: 14,
             });
