@@ -10,6 +10,7 @@
 
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
+import { safeStringInClause } from './utils/safeSql';
 import { 
   calculateMarginalBenefitSimple, 
   optimizeTrafficAllocationSimple,
@@ -168,7 +169,7 @@ export async function executeBatchAnalysis(
     SELECT id, campaign_id, campaign_name, spend, sales
     FROM campaigns
     WHERE account_id = ${request.accountId}
-    AND campaign_id IN (${sql.raw(request.campaignIds.map(id => `'${id.replace(/'/g, "''")}'`).join(','))})
+    AND campaign_id IN (${safeStringInClause(request.campaignIds)})
   `);
 
   const campaignMap = new Map(

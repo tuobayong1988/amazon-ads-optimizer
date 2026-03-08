@@ -16,6 +16,7 @@ import * as db from "./db";
 import { getDb } from "./db";
 import { keywords as keywordsTable, productTargets as productTargetsTable, campaigns as campaignsTable } from "../drizzle/schema";
 import { eq, sql } from "drizzle-orm";
+import { safeInClause } from './utils/safeSql';
 import * as bidOptimizer from "./bidOptimizer";
 import * as daypartingService from "./daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
@@ -2037,7 +2038,7 @@ async function executeDaypartingOptimization(
           await dbConn2.execute(sql`
             UPDATE optimization_logs SET api_sync_status = 'superseded',
               api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.superseded_reason', 'v310: 同一keyword已有更新的分时竞价指令')
-            WHERE id IN (${sql.raw(olderIds.join(','))})
+            WHERE id IN (${safeInClause(olderIds)})
           `);
           superseded = olderIds.length;
         }
@@ -5284,7 +5285,7 @@ async function executeAutoNgramNegation(
         WHERE account_id = ${config.accountId}
         AND report_start_date >= ${startDateStr}
         AND search_term LIKE ${`%${suggestion.ngram}%`}
-        AND campaign_id IN (${sql.raw(campaignIds.join(','))})
+        AND campaign_id IN (${safeInClause(campaignIds)})
         GROUP BY campaign_id
       `);
       

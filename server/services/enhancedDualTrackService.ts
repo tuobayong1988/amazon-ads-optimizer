@@ -457,23 +457,17 @@ export async function getTimelineAggregatedData(
   }
 
   try {
-    // 根据粒度确定分组方式
-    let dateGrouping: string;
-    switch (granularity) {
-      case 'weekly':
-        dateGrouping = 'YEARWEEK(date, 1)';
-        break;
-      case 'monthly':
-        dateGrouping = "DATE_FORMAT(date, '%Y-%m')";
-        break;
-      default:
-        dateGrouping = 'DATE(date)';
-    }
-
+     // v361: 使用白名单映射替代sql.raw动态列名
+    const dateGroupingMap: Record<string, ReturnType<typeof sql>> = {
+      'weekly': sql`YEARWEEK(date, 1)`,
+      'monthly': sql`DATE_FORMAT(date, '%Y-%m')`,
+      'daily': sql`DATE(date)`,
+    };
+    const dateGroupingSql = dateGroupingMap[granularity] || dateGroupingMap['daily'];
     // @ts-ignore
     const [rows] = await db.execute(sql`
       SELECT 
-        ${sql.raw(dateGrouping)} as period,
+        ${dateGroupingSql} as period,
         SUM(impressions) as impressions,
         SUM(clicks) as clicks,
         SUM(spend) as spend,
@@ -483,7 +477,7 @@ export async function getTimelineAggregatedData(
       WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
-      GROUP BY ${sql.raw(dateGrouping)}
+      GROUP BY ${dateGroupingSql}
       ORDER BY period
     `) as unknown;
 

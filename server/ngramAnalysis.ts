@@ -105,24 +105,19 @@ export async function getCoreKeywordRoots(
   const db = await getDb();
   if (!db) return new Set();
   
-  let query = `
-    SELECT DISTINCT keyword_text 
-    FROM keywords 
-    WHERE account_id = ?
-  `;
-  const params: unknown[] = [accountId];
-  
+  // v361: 重构为Drizzle参数化查询
+  const conditions: any[] = [eq(keywords.accountId, accountId)];
   if (campaignIds && campaignIds.length > 0) {
-    query += ` AND campaign_id IN (${campaignIds.map(() => '?').join(',')})`;
-    params.push(...campaignIds);
+    conditions.push(inArray(keywords.campaignId, campaignIds.map(String)));
   }
-  
-  const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const result = await db.selectDistinct({ keywordText: keywords.keywordText })
+    .from(keywords)
+    .where(and(...conditions));
+  const rows = result || [];
   
   const coreRoots = new Set<string>();
-  for (const row of (rows as any[])) {
-    const tokens = tokenize(row.keyword_text || '');
+  for (const row of rows) {
+    const tokens = tokenize(row.keywordText || '');
     tokens.forEach(token => coreRoots.add(token));
   }
   
@@ -148,29 +143,25 @@ export async function analyzeSearchTermNgrams(
   const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
   
   // 查询搜索词数据
-  let query = `
-    SELECT 
-      search_term,
-      SUM(search_term_impressions) as impressions,
-      SUM(search_term_clicks) as clicks,
-      SUM(search_term_spend) as spend,
-      SUM(search_term_sales) as sales,
-      SUM(search_term_orders) as orders
-    FROM search_terms
-    WHERE account_id = ?
-    AND report_start_date >= ?
-  `;
-  const params: unknown[] = [accountId, startDateStr];
-  
+  // v361: 重构为Drizzle参数化查询
+  const stConditions: any[] = [
+    eq(searchTerms.accountId, accountId),
+    gte(searchTerms.reportStartDate, startDateStr),
+  ];
   if (campaignIds && campaignIds.length > 0) {
-    query += ` AND campaign_id IN (${campaignIds.map(() => '?').join(',')})`;
-    params.push(...campaignIds);
+    stConditions.push(inArray(searchTerms.campaignId, campaignIds.map(String)));
   }
-  
-  query += ` GROUP BY search_term`;
-  
-  const result = await db.execute(sql.raw(query));
-  const searchTermData = (result as any[])[0] || [];
+  const searchTermResult = await db.select({
+    searchTerm: searchTerms.searchTerm,
+    impressions: sql<number>`SUM(${searchTerms.searchTermImpressions})`,
+    clicks: sql<number>`SUM(${searchTerms.searchTermClicks})`,
+    spend: sql<string>`SUM(${searchTerms.searchTermSpend})`,
+    sales: sql<string>`SUM(${searchTerms.searchTermSales})`,
+    orders: sql<number>`SUM(${searchTerms.searchTermOrders})`,
+  }).from(searchTerms)
+    .where(and(...stConditions))
+    .groupBy(searchTerms.searchTerm);
+  const searchTermData = searchTermResult || [];
   
   // 统计N-Gram
   const ngramStats = new Map<string, {
@@ -184,7 +175,7 @@ export async function analyzeSearchTermNgrams(
   }>();
   
   for (const row of (searchTermData as any[])) {
-    const tokens = tokenize(row.search_term || '');
+    const tokens = tokenize(row.searchTerm || row.search_term || '');
     
     // 生成1-gram, 2-gram, 3-gram
     for (let n = 1; n <= NGRAM_CONFIG.MAX_NGRAM_LENGTH; n++) {
@@ -213,7 +204,7 @@ export async function analyzeSearchTermNgrams(
         existing.totalOrders += Number(row.orders) || 0;
         existing.totalSales += Number(row.sales) || 0;
         existing.totalImpressions += Number(row.impressions) || 0;
-        existing.searchTerms.add(row.search_term);
+        existing.searchTerms.add(row.searchTerm || row.search_term);
         
         ngramStats.set(ngram, existing);
       }

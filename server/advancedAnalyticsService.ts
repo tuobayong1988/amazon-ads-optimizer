@@ -1048,7 +1048,10 @@ export async function getEventsToTrack(period: number): Promise<OptimizationEven
       sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
       gte(optimizationEvents.createdAt, startStr),
       lte(optimizationEvents.createdAt, endStr),
-      sql`${sql.raw(trackingField)} IS NULL`,
+      // v361: 使用白名单验证动态列名，防止SQL注入
+      trackingField === 'actual_profit_7d' ? sql`actual_profit_7d IS NULL` :
+      trackingField === 'actual_profit_14d' ? sql`actual_profit_14d IS NULL` :
+      sql`actual_profit_30d IS NULL`,
     ));
   
   return events;

@@ -62,23 +62,20 @@ export async function getAverageSpend(
   const startDateStr = startDate.toISOString().split('T')[0];
   const endDateStr = endDate.toISOString().split('T')[0];
   
-  let query = `
-    SELECT AVG(spend) as avgSpend
-    FROM daily_performance
-    WHERE account_id = ?
-    AND date >= ?
-    AND date <= ?
-  `;
-  const params: unknown[] = [accountId, startDateStr, endDateStr];
-  
+  // v361: 重构为Drizzle参数化查询
+  const conditions: any[] = [
+    eq(dailyPerformance.accountId, accountId),
+    gte(dailyPerformance.date, startDateStr),
+    lte(dailyPerformance.date, endDateStr),
+  ];
   if (campaignId) {
-    query += ` AND campaign_id = ?`;
-    params.push(campaignId);
+    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   }
-  
-  const result = await db.execute(sql.raw(query));
-  const rows = result as any[];
-  return rows[0]?.avgSpend || 0;
+  // @ts-ignore
+  const [result] = await db.select({
+    avgSpend: sql<string>`AVG(${dailyPerformance.spend})`,
+  }).from(dailyPerformance).where(and(...conditions));
+  return Number(result?.avgSpend) || 0;
 }
 
 /**
@@ -96,24 +93,20 @@ export async function getAverageCPC(
   const startDateStr = startDate.toISOString().split('T')[0];
   const endDateStr = endDate.toISOString().split('T')[0];
   
-  let query = `
-    SELECT 
-      CASE WHEN SUM(clicks) > 0 THEN SUM(spend) / SUM(clicks) ELSE 0 END as avgCpc
-    FROM daily_performance
-    WHERE account_id = ?
-    AND date >= ?
-    AND date <= ?
-  `;
-  const params: unknown[] = [accountId, startDateStr, endDateStr];
-  
+  // v361: 重构为Drizzle参数化查询
+  const cpcConditions: any[] = [
+    eq(dailyPerformance.accountId, accountId),
+    gte(dailyPerformance.date, startDateStr),
+    lte(dailyPerformance.date, endDateStr),
+  ];
   if (campaignId) {
-    query += ` AND campaign_id = ?`;
-    params.push(campaignId);
+    cpcConditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   }
-  
-  const result = await db.execute(sql.raw(query));
-  const rows = result as any[];
-  return rows[0]?.avgCpc || 0;
+  // @ts-ignore
+  const [cpcResult] = await db.select({
+    avgCpc: sql<string>`CASE WHEN SUM(${dailyPerformance.clicks}) > 0 THEN SUM(${dailyPerformance.spend}) / SUM(${dailyPerformance.clicks}) ELSE 0 END`,
+  }).from(dailyPerformance).where(and(...cpcConditions));
+  return Number(cpcResult?.avgCpc) || 0;
 }
 
 /**

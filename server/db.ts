@@ -1,4 +1,5 @@
 import { eq, and, desc, gte, lte, sql, isNull, inArray } from "drizzle-orm";
+import { safeInClause } from './utils/safeSql';
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from 'mysql2/promise';
 import { 
@@ -5045,7 +5046,7 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
         COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), 0) as sales,
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
-      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
+      WHERE accountId IN (${safeInClause(accountIds)})
         AND DATE(date) >= ${startDateStr}
         AND DATE(date) <= ${endDateStr}
       GROUP BY DATE(date)
@@ -5111,7 +5112,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MIN(DATE(date)) as min_date,
         MAX(DATE(date)) as max_date
       FROM daily_performance
-      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
+      WHERE accountId IN (${safeInClause(accountIds)})
     `) as unknown;
     
     // @ts-ignore
@@ -5123,7 +5124,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
       const syncResults = await db.execute(sql`
         SELECT MAX(lastSyncAt) as last_sync
         FROM amazon_api_credentials
-        WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
+        WHERE accountId IN (${safeInClause(accountIds)})
       `) as unknown;
       // @ts-ignore
       const syncRows = syncResults[0] || syncResults;
@@ -5143,7 +5144,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MIN(DATE(createdAt)) as min_date,
         MAX(DATE(updatedAt)) as max_date
       FROM campaigns
-      WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
+      WHERE accountId IN (${safeInClause(accountIds)})
     `) as unknown;
     
     // @ts-ignore
