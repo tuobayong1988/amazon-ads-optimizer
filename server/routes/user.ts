@@ -13,7 +13,7 @@ const log = createModuleLogger('Route_user');
 // 缓存：是否已确认 preferences 列存在于 team_members 表
 let columnEnsured = false;
 
-async function ensurePreferencesColumn(db: any) {
+async function ensurePreferencesColumn(db: ReturnType<typeof getDb> | null) {
   if (columnEnsured) return;
   
   try {

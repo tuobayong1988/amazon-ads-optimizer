@@ -314,7 +314,7 @@ export async function runUnifiedOptimizationAnalysis(
 /**
  * 分析竞价调整
  */
-async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
+async function analyzeBidAdjustments(campaign: Record<string, unknown>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   const isVcpm = costType === 'vcpm';
@@ -555,7 +555,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
 /**
  * 分析位置倾斜
  */
-async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision[]> {
+async function analyzePlacementTilt(campaign: Record<string, unknown>): Promise<OptimizationDecision[]> {
   const decisions: OptimizationDecision[] = [];
   
   // 获取当前位置调整设置
@@ -618,7 +618,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
 /**
  * 分析分时策略
  */
-async function analyzeDayparting(campaign: any): Promise<OptimizationDecision[]> {
+async function analyzeDayparting(campaign: Record<string, unknown>): Promise<OptimizationDecision[]> {
   const decisions: OptimizationDecision[] = [];
   
   // 分时策略分析需要历史时段数据
@@ -653,7 +653,7 @@ async function analyzeDayparting(campaign: any): Promise<OptimizationDecision[]>
 /**
  * 分析否定词
  */
-async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
+async function analyzeNegativeKeywords(campaign: Record<string, unknown>, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   const isVcpm = costType === 'vcpm';

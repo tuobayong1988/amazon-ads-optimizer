@@ -64,7 +64,7 @@ export interface CreateAuditLogInput {
   resourceName?: string;
   description?: string;
   oldValue?: any;
-  newValue?: any;
+  newValue?: unknown;
   ipAddress?: string;
   userAgent?: string;
   requestId?: string;

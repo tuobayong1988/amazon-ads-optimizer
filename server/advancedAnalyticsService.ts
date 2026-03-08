@@ -216,7 +216,7 @@ export async function getAttributionAnalysis(params: {
 /**
  * 计算单个事件的归因效果
  */
-async function computeEventAttribution(db: any, event: OptimizationEvent): Promise<AttributionResult | null> {
+async function computeEventAttribution(db: ReturnType<typeof getDb> | null, event: OptimizationEvent): Promise<AttributionResult | null> {
   const eventDate = new Date(event.createdAt);
   
   // 基线窗口：事件前7天
@@ -293,7 +293,7 @@ async function computeEventAttribution(db: any, event: OptimizationEvent): Promi
  * 获取指定时间窗口内的广告效果数据
  */
 async function getPerformanceWindow(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   event: OptimizationEvent,
   startDate: Date,
   endDate: Date
@@ -681,7 +681,7 @@ export async function detectAnomalies(params: {
  * 查找可能导致异常的优化事件
  */
 async function findPossibleCauses(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   anomalyDate: string,
   performanceGroupId?: number
@@ -1061,7 +1061,7 @@ export async function updateEventTrackingData(
   const db = await getDb();
   if (!db) return;
   
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
   };
   

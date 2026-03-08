@@ -581,7 +581,7 @@ export class AmazonAdsApiClient {
   private async doRefreshToken(): Promise<string> {
     // v190: Token刷新添加重试机制 - 网络错误和服务器错误自动重试，认证错误不重试
     const MAX_TOKEN_RETRIES = 3;
-    let lastError: any = null;
+    let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= MAX_TOKEN_RETRIES; attempt++) {
       try {
@@ -688,8 +688,8 @@ export class AmazonAdsApiClient {
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     ];
     
-    let workingHeaders: any = null;
-    let lastError: any = null;
+    let workingHeaders: Record<string, string> | null = null;
+    let lastError: Error | null = null;
     
     do {
       const body: Record<string, unknown> = { 
@@ -806,8 +806,8 @@ export class AmazonAdsApiClient {
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     ];
     
-    let workingHeaders: any = null;
-    let lastError: any = null;
+    let workingHeaders: Record<string, string> | null = null;
+    let lastError: Error | null = null;
     
     do {
       const body: Record<string, unknown> = { maxResults: 100 };
@@ -872,8 +872,8 @@ export class AmazonAdsApiClient {
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     ];
     
-    let workingHeaders: any = null;
-    let lastError: any = null;
+    let workingHeaders: Record<string, string> | null = null;
+    let lastError: Error | null = null;
     
     do {
       const body: Record<string, unknown> = { maxResults: 100 };
@@ -1289,8 +1289,8 @@ export class AmazonAdsApiClient {
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
     ];
     
-    let workingHeaders: any = null;
-    let lastError: any = null;
+    let workingHeaders: Record<string, string> | null = null;
+    let lastError: Error | null = null;
     
     do {
       const body: Record<string, unknown> = { maxResults: 100 };
@@ -1538,7 +1538,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales7d', 'attributedConversions7d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: any = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
       
@@ -1707,7 +1707,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: any = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
@@ -1836,7 +1836,7 @@ export class AmazonAdsApiClient {
     metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d', 'viewAttributedSales14d']
   ): Promise<string> {
     // v356: 将requestBody声明提升到try块外部，使catch块中的错误诊断日志可以正确引用
-    let requestBody: any = null;
+    let requestBody: Record<string, unknown> | null = null;
     try {
       log.debug(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       

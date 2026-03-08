@@ -230,7 +230,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
   }
 
   /** 聚类分析 */
-  private async runClustering(db: any, projectId: number) {
+  private async runClustering(db: ReturnType<typeof getDb> | null, projectId: number) {
     const allKeywords = await db.select()
       .from(prelaunchKeywords)
       .where(eq(prelaunchKeywords.projectId, projectId));
@@ -275,7 +275,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
   }
 
   /** 生成COSMO因果链三元组 */
-  private async generateCosmoTriples(db: any, projectId: number, keywords: unknown[]) {
+  private async generateCosmoTriples(db: ReturnType<typeof getDb> | null, projectId: number, keywords: unknown[]) {
     const coreKeywords = keywords
       .filter(k => k.relevanceLayer === 'core' || k.relevanceLayer === 'extended')
       .slice(0, 50);

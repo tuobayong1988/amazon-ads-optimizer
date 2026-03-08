@@ -367,7 +367,7 @@ export async function executeBatchSync(options?: {
  * 按任务类型批量同步到Amazon
  */
 async function syncTasksByType(
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   accountId: number,
   taskType: string,
   tasks: unknown[],
@@ -431,8 +431,8 @@ async function syncTasksByType(
  * 执行单个批次的Amazon API同步
  */
 async function executeBatchByType(
-  conn: any,
-  syncService: any,
+  conn: ReturnType<typeof getDb> | null,
+  syncService: Record<string, unknown>,
   taskType: string,
   batch: unknown[]
 ): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
@@ -1095,7 +1095,7 @@ async function executeBatchByType(
 // 辅助函数：任务状态管理
 // ============================================================
 
-async function markTaskSynced(conn: any, taskId: number) {
+async function markTaskSynced(conn: ReturnType<typeof getDb> | null, taskId: number) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
     `UPDATE optimization_tasks SET status = 'synced', completed_at = ? WHERE id = ?`,
@@ -1103,7 +1103,7 @@ async function markTaskSynced(conn: any, taskId: number) {
   );
 }
 
-async function markTaskFailed(conn: any, taskId: number, errorMessage: string) {
+async function markTaskFailed(conn: ReturnType<typeof getDb> | null, taskId: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
     `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
@@ -1111,7 +1111,7 @@ async function markTaskFailed(conn: any, taskId: number, errorMessage: string) {
   );
 }
 
-async function markTasksFailed(conn: any, taskIds: number[], errorMessage: string) {
+async function markTasksFailed(conn: ReturnType<typeof getDb> | null, taskIds: number[], errorMessage: string) {
   if (taskIds.length === 0) return;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
@@ -1120,7 +1120,7 @@ async function markTasksFailed(conn: any, taskIds: number[], errorMessage: strin
   );
 }
 
-async function markTaskForRetry(conn: any, taskId: number, currentRetryCount: number, errorMessage: string) {
+async function markTaskForRetry(conn: ReturnType<typeof getDb> | null, taskId: number, currentRetryCount: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const newRetryCount = (currentRetryCount || 0) + 1;
   
@@ -1148,7 +1148,7 @@ async function markTaskForRetry(conn: any, taskId: number, currentRetryCount: nu
   }
 }
 
-async function updateLocalBid(conn: any, entityType: string, entityId: number, newBid: string) {
+async function updateLocalBid(conn: ReturnType<typeof getDb> | null, entityType: string, entityId: number, newBid: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   if (entityType === 'keyword') {
     await conn.execute('UPDATE keywords SET bid = ?, updatedAt = ? WHERE id = ?', [newBid, now, entityId]);
@@ -1157,7 +1157,7 @@ async function updateLocalBid(conn: any, entityType: string, entityId: number, n
   }
 }
 
-async function updateLocalStatus(conn: any, tableName: string, entityId: number, newStatus: string) {
+async function updateLocalStatus(conn: ReturnType<typeof getDb> | null, tableName: string, entityId: number, newStatus: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
   await conn.execute(`UPDATE ${tableName} SET status = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
@@ -1170,7 +1170,7 @@ async function updateLocalStatus(conn: any, tableName: string, entityId: number,
 /**
  * 根据batch的同步结果，更新optimization_logs的api_sync_status
  */
-async function updateLogsSyncStatus(conn: any, batchId: string) {
+async function updateLogsSyncStatus(conn: ReturnType<typeof getDb> | null, batchId: string) {
   try {
     // 统计该批次的同步结果
     const [stats] = await conn.execute(

@@ -899,7 +899,7 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;

@@ -60,7 +60,7 @@ function extractCount(result: Record<string, unknown>): number {
  * 快速检查某个表是否有需要迁移的记录
  * 使用 LIMIT 1 快速返回，避免全表扫描
  */
-async function hasRecordsToMigrate(db: any, tableName: string): Promise<boolean> {
+async function hasRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableName: string): Promise<boolean> {
   try {
     const result = await db.execute(sql.raw(`
       SELECT 1 as found FROM \`${tableName}\` 
@@ -85,7 +85,7 @@ async function hasRecordsToMigrate(db: any, tableName: string): Promise<boolean>
  * 
  * 返回 { id, correctCampaignId } 数组
  */
-async function findRecordsToMigrate(db: any, tableName: string): Promise<Array<{ id: number; correctCampaignId: string }>> {
+async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableName: string): Promise<Array<{ id: number; correctCampaignId: string }>> {
   const records: Array<{ id: number; correctCampaignId: string }> = [];
   
   try {
@@ -141,7 +141,7 @@ async function findRecordsToMigrate(db: any, tableName: string): Promise<Array<{
  * 逐条修复记录的 campaignId
  * 每条 UPDATE 使用 WHERE id = ? 精确定位（主键索引，毫秒级）
  */
-async function migrateTable(db: any, tableName: string): Promise<MigrationResult> {
+async function migrateTable(db: ReturnType<typeof getDb> | null, tableName: string): Promise<MigrationResult> {
   const errors: string[] = [];
   
   // 快速检查是否有需要迁移的记录

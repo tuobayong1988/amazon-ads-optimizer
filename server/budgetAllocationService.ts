@@ -813,7 +813,7 @@ export async function updateBudgetGoal(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
   if (data.targetValue !== undefined) {
     updateData.targetValue = data.targetValue.toString();
   }

@@ -146,7 +146,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
       if (Array.isArray(coverageRows) && coverageRows.length > 0) {
         metrics.dataCoverage.accountCount = coverageRows.length;
         metrics.dataCoverage.healthyAccounts = coverageRows.filter(
-          (r: any) => Number(r.data_days) >= 10
+          (r: Record<string, unknown>) => Number(r.data_days) >= 10
         ).length;
         const avgCoverage = coverageRows.reduce(
           (sum: number, r: any) => sum + Math.min(100, (Number(r.data_days) / 14) * 100), 0

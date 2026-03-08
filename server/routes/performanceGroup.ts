@@ -18,7 +18,7 @@ const log = createModuleLogger('Route_performanceGroup');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: any, days: number) {
+function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -643,7 +643,7 @@ export const performanceGroupRouter = router({
       autoOptimize: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         optimizationGoal: input.goalType,
       };
       

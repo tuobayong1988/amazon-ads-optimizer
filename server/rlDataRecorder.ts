@@ -70,7 +70,7 @@ function classifyAction(bidBefore: number, bidAfter: number): 'bid_increase' | '
  * 如果距离上次调整超过7天，开始新Episode
  */
 async function getOrCreateEpisodeId(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   keywordId?: number,
   targetId?: number
@@ -214,7 +214,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
  *   3. 最后回退到账户级别（保持向后兼容）
  */
 async function captureStateSnapshot(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   keywordId?: number,
   targetId?: number,

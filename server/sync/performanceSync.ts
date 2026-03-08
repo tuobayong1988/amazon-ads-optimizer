@@ -178,7 +178,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 /**
  * 处理报告数据并存储到数据库
  */
-async function processReportData(service: SyncContext, db: any, reportData: unknown[], adType: string): Promise<number> {
+async function processReportData(service: SyncContext, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     

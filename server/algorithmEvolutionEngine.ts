@@ -220,7 +220,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
         const effectScore = calculateEffectScore(event, perfData, period);
         
         // 更新追踪数据
-        const updateData: any = {
+        const updateData: Record<string, unknown> = {
           trackingUpdatedAt: now.toISOString().slice(0, 19).replace('T', ' '),
         };
         
@@ -258,7 +258,7 @@ async function trackEffectsForPeriod(period: number): Promise<number> {
  * 获取优化事件后续的效果数据
  */
 async function getEventPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   event: Record<string, unknown>,
   startDate: Date,
   endDate: Date

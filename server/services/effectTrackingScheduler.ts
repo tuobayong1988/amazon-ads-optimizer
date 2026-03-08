@@ -263,7 +263,7 @@ export async function updateTrackingData(
   data: EffectTrackingData
 ): Promise<boolean> {
   try {
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     
     if (period === 7) {
       updateData.actualProfit7D = data.profit;

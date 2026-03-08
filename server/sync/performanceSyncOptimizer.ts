@@ -20,7 +20,7 @@ const log = createModuleLogger('perfSyncOptimizer');
  * 替代循环内逐条查询
  */
 export async function preloadAccountCampaigns(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number
 ): Promise<{
   byId: Map<string, unknown>;
@@ -59,7 +59,7 @@ export async function preloadAccountCampaigns(
  * 返回Map: key = `${campaignId}:${dateStr}`, value = existing record
  */
 export async function preloadExistingPerformance(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   startDate: string,
   endDate: string
@@ -103,7 +103,7 @@ export async function preloadExistingPerformance(
  * v358: 批量预加载existing placement_performance记录
  */
 export async function preloadExistingPlacementPerformance(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   startDate: string,
   endDate: string
@@ -206,7 +206,7 @@ export function findExistingPlacementPerformance(
  * 这个约束将在阶段C-4中添加
  */
 export async function batchUpsertPerformance(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   records: Array<{
     accountId: number;
     campaignId: string;

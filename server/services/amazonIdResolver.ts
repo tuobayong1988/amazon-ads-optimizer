@@ -114,7 +114,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
  */
 async function resolveKeywordIds(
   accountId: number,
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   result: IdResolutionResult
 ): Promise<void> {
   // 查询该账号下所有缺少keywordId的关键词
@@ -433,7 +433,7 @@ async function resolveKeywordIds(
  */
 async function resolveProductTargetIds(
   accountId: number,
-  conn: any,
+  conn: ReturnType<typeof getDb> | null,
   result: IdResolutionResult
 ): Promise<void> {
   // 查询该账号下所有缺少targetId的product_targets
@@ -566,7 +566,7 @@ export async function resolveKeywordIdOnDemand(
   accountId: number,
   keywordLocalId: number
 ): Promise<string | null> {
-  let conn: any = null;
+  let conn: ReturnType<typeof getDb> | null = null;
   try {
     // v350: 使用连接池获取直接连接
     conn = await db.getDirectConnection();
@@ -726,7 +726,7 @@ export async function resolveProductTargetIdOnDemand(
   accountId: number,
   ptLocalId: number
 ): Promise<string | null> {
-  let conn: any = null;
+  let conn: ReturnType<typeof getDb> | null = null;
   try {
     // v350: 使用连接池获取直接连接
     conn = await db.getDirectConnection();

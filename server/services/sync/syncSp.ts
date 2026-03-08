@@ -404,7 +404,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
-      const keywordData: any = {
+      const keywordData: Record<string, unknown> = {
         adGroupId: String(adGroup.id),  // v357
         accountId: this.accountId,
         campaignId: adGroup.campaignId || '',  // v357

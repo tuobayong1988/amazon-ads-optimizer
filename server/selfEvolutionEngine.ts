@@ -298,7 +298,7 @@ export async function evaluateRecentOptimizations(
  * 获取时间衰减加权的campaign级别指标
  */
 async function getTimeWeightedCampaignMetrics(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   campaignIds: (string | number)[],
   startDate: string,
   endDate: string

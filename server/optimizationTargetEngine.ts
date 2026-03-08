@@ -3970,7 +3970,7 @@ async function executeKeywordStatusChanges(
         }
         
         if (shouldPause) {
-          const action: any = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -4028,7 +4028,7 @@ async function executeKeywordStatusChanges(
             }
           }
         } else if (shouldEnable) {
-          const action: any = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -4201,7 +4201,7 @@ async function executeCampaignStatusChanges(
       }
       
       if (shouldPause) {
-        const action: any = {
+        const action: Record<string, unknown> = {
           accountId: config.accountId,
           entityType: 'campaign',
           localCampaignId: campaignLocalId,
@@ -4252,7 +4252,7 @@ async function executeCampaignStatusChanges(
           }
         }
       } else if (shouldEnable) {
-        const action: any = {
+        const action: Record<string, unknown> = {
           accountId: config.accountId,
           entityType: 'campaign',
           localCampaignId: campaignLocalId,
@@ -4394,7 +4394,7 @@ async function executeAdGroupStatusChanges(
             log.warn(`[AdGroupStatus] v328: 失败历史检查异常: ${(failCheckErr as Error).message}`);
           }
           
-          const action: any = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             entityType: 'adGroup',
             localCampaignId: campaignLocalId,
@@ -4444,7 +4444,7 @@ async function executeAdGroupStatusChanges(
             }
           }
         } else if (shouldEnable) {
-          const action: any = {
+          const action: Record<string, unknown> = {
             accountId: config.accountId,
             entityType: 'adGroup',
             localCampaignId: campaignLocalId,

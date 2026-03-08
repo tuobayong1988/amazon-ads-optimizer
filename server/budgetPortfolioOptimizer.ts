@@ -103,7 +103,7 @@ function budgetFromMarginal(lambda: number, maxSales: number, efficiency: number
  * 估计Campaign的利润曲线参数
  */
 async function estimateProfitCurve(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   campaignId: string,
   campaignName: string,

@@ -28,7 +28,7 @@ async function withRetry<T>(
   options: { maxRetries?: number; baseDelayMs?: number; label?: string } = {}
 ): Promise<T> {
   const { maxRetries = 4, baseDelayMs = 3000, label = 'API' } = options;  // v248: 增强429限流重试（2→4次，2s→3s基础延迟）
-  let lastError: any;
+  let lastError: Error | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
@@ -1197,7 +1197,7 @@ export async function syncCampaignStatusToAmazon(
       
       // v159: 带重试的API调用 - 最多重试2次
       const maxRetries = 2;
-      let lastError: any = null;
+      let lastError: Error | null = null;
       let success = false;
       
       for (let attempt = 0; attempt <= maxRetries; attempt++) {

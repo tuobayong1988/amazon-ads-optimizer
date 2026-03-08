@@ -11,7 +11,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: any, days: number) {
+function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
   const data = [];
   const now = new Date();
   

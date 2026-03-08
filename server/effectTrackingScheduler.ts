@@ -147,7 +147,7 @@ export async function updateTrackingData(
   const db = await getDb();
   if (!db) return;
   
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
   
   if (period === TRACKING_PERIODS.DAY_7) {
     updateData.actualProfit7D = trackingData.profit.toString();

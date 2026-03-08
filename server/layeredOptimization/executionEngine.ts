@@ -23,7 +23,7 @@ export interface OptimizationAction {
   type: OptimizationType;
   targetId: number; // campaignId, keywordId等
   targetName: string;
-  currentValue: any;
+  currentValue: unknown;
   suggestedValue: any;
   expectedImpact: {
     acosChange: number; // 预期ACoS变化(百分点)

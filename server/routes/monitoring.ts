@@ -183,7 +183,7 @@ export const monitoringRouter = router({
           .limit(5);
 
         const deployHistory = deployEvents.map(e => {
-          let detail: any = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,
@@ -199,7 +199,7 @@ export const monitoringRouter = router({
         });
 
         const verifyHistory = verifyEvents.map(e => {
-          let detail: any = {};
+          let detail: Record<string, unknown> = {};
           try { detail = JSON.parse(e.actionDetail || '{}'); } catch {}
           return {
             id: e.id,

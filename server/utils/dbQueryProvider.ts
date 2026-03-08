@@ -17,7 +17,7 @@ const log = createModuleLogger('dbQueryProvider');
 export interface AdGroupRecord {
   id: number;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // v357: adGroupId和campaignId字段类型修复为string，与数据库实际varchar(64)一致
@@ -25,14 +25,14 @@ export interface KeywordRecord {
   id: number;
   adGroupId: string | null;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ProductTargetRecord {
   id: number;
   adGroupId: string | null;
   campaignId: string | null;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type GetAdGroupByIdFn = (id: number) => Promise<AdGroupRecord | null | undefined>;

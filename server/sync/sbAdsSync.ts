@@ -74,7 +74,7 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;
@@ -151,7 +151,7 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
     // 更新数据库
     let updated = 0;
     for (const row of adGroupsNeedingUrls) {
-      const updates: any = {};
+      const updates: Record<string, unknown> = {};
       let needsUpdate = false;
 
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
@@ -382,8 +382,8 @@ InsertSyncConflict,
  * 这样可以避免首次同步时本地数据为空导致的大量虚假冲突
  */
 function detectConflict(
-existing: any,
-newData: any,
+existing: Record<string, unknown>,
+newData: Record<string, unknown>,
 fieldsToCheck: string[]
 ): { hasConflict: boolean; conflictFields: string[] } {
 const conflictFields: string[] = [];

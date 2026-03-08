@@ -209,7 +209,7 @@ export class PrelaunchProjectService {
   /**
    * 获取项目各模块的数据条数统计
    */
-  private async getProjectModuleStats(db: any, projectId: number) {
+  private async getProjectModuleStats(db: ReturnType<typeof getDb> | null, projectId: number) {
     try {
       const [kwCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId));

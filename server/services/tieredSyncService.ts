@@ -348,7 +348,7 @@ export class TieredSyncService {
     // 添加失败范围
     if (update.failedRange) {
       const existingFailed = metadata.failedRanges.find(
-        (r: any) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
+        (r: Record<string, unknown>) => r.start === update.failedRange!.start && r.end === update.failedRange!.end
       );
       if (existingFailed) {
         existingFailed.retryCount = (existingFailed.retryCount || 0) + 1;

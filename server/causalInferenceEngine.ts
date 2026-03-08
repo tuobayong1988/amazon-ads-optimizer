@@ -312,7 +312,7 @@ export async function estimateCausalEffect(
  * 获取聚合绩效数据
  */
 async function getAggregatedPerf(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   campaignId: string | undefined,
   startDate: string,
@@ -357,7 +357,7 @@ async function getAggregatedPerf(
  * 获取账号平均绩效（作为对照组代理）
  */
 async function getAccountAveragePerf(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number
 ): Promise<{ before: PerformanceSnapshot; after: PerformanceSnapshot }> {
   const now = new Date();
@@ -384,7 +384,7 @@ async function getAccountAveragePerf(
 /**
  * 保存因果推断结果
  */
-async function saveCausalResult(db: any, accountId: number, result: CausalEffect): Promise<void> {
+async function saveCausalResult(db: ReturnType<typeof getDb> | null, accountId: number, result: CausalEffect): Promise<void> {
   const today = new Date().toISOString().split('T')[0];
   
   await db.insert(causalInferenceResults).values({

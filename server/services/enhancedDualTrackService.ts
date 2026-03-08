@@ -143,7 +143,7 @@ export async function getSmartMergedData(
  * 获取API绩效数据
  */
 async function getApiPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   startDate: string,
   endDate: string,
@@ -183,7 +183,7 @@ async function getApiPerformanceData(
  * 获取AMS实时绩效数据
  */
 async function getAmsPerformanceData(
-  db: any,
+  db: ReturnType<typeof getDb> | null,
   accountId: number,
   date: string,
   campaignIds?: string[]

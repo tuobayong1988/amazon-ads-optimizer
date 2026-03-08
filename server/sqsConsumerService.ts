@@ -973,7 +973,7 @@ export class SQSConsumerService {
 
     if (existing.length > 0) {
       // 更新已有记录（覆盖写入）
-      const updateData: any = {};
+      const updateData: Record<string, unknown> = {};
       if (params.dataType === 'traffic') {
         updateData.impressions = params.impressions;
         updateData.clicks = params.clicks;

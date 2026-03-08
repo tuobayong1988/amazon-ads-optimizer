@@ -67,7 +67,7 @@ async function withRetry<T>(
   maxRetries: number = 2,
   baseDelayMs: number = 3000
 ): Promise<T> {
-  let lastError: any;
+  let lastError: Error | null = null;
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       return await operation();
@@ -228,7 +228,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
-      const keywordData: any = {
+      const keywordData: Record<string, unknown> = {
         adGroupId: adGroup.id,
         accountId: service.accountId,
         campaignId: adGroup.campaignId,

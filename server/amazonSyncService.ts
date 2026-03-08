@@ -1161,7 +1161,7 @@ export class AmazonSyncService {
       // 更新数据库
       let updated = 0;
       for (const row of adGroupsNeedingUrls) {
-        const updates: any = {};
+        const updates: Record<string, unknown> = {};
         let needsUpdate = false;
 
         if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {

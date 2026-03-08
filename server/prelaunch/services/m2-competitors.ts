@@ -223,7 +223,7 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /** 竞品评论分析 */
-  private async analyzeCompetitorReviews(db: any, projectId: number, competitors: unknown[]) {
+  private async analyzeCompetitorReviews(db: ReturnType<typeof getDb> | null, projectId: number, competitors: unknown[]) {
     const topCompetitors = competitors.slice(0, 10);
 
     for (const comp of topCompetitors) {
@@ -258,7 +258,7 @@ Generate 10-20 diverse phrases. Return JSON array:
   }
 
   /** 竞品场景矩阵 */
-  private async buildScenarioMatrix(db: any, projectId: number, competitors: unknown[]) {
+  private async buildScenarioMatrix(db: ReturnType<typeof getDb> | null, projectId: number, competitors: unknown[]) {
     const scenarios = [
       'S01', 'S02', 'S03', 'S04', 'S05', 'S06',
       'S07', 'S08', 'S09', 'S10', 'S11', 'S12',

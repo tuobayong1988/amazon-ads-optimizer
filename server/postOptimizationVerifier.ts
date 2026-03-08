@@ -399,7 +399,7 @@ function groupItemsByType(items: VerificationItem[]): Map<VerificationType, Veri
  * 根据类型执行验证
  */
 async function verifyByType(
-  syncService: any,
+  syncService: Record<string, unknown>,
   type: VerificationType,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
@@ -427,7 +427,7 @@ async function verifyByType(
  * 通过Amazon API查询关键词当前出价，与期望值对比
  */
 async function verifyBidAdjustments(
-  syncService: any,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -499,7 +499,7 @@ async function verifyBidAdjustments(
  * 通过Amazon API查询广告活动当前预算，与期望值对比
  */
 async function verifyBudgetAdjustments(
-  syncService: any,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -551,7 +551,7 @@ async function verifyBudgetAdjustments(
  * 通过Amazon API查询广告活动的bidding.adjustments，与期望值对比
  */
 async function verifyPlacementAdjustments(
-  syncService: any,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -618,7 +618,7 @@ async function verifyPlacementAdjustments(
  * 通过Amazon API查询否定关键词列表，确认新添加的否词是否存在
  */
 async function verifyNegativeKeywords(
-  syncService: any,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -689,7 +689,7 @@ async function verifyNegativeKeywords(
  * 验证关键词状态变更
  */
 async function verifyKeywordStatus(
-  syncService: any,
+  syncService: Record<string, unknown>,
   items: VerificationItem[]
 ): Promise<VerificationResult[]> {
   const results: VerificationResult[] = [];
@@ -796,7 +796,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
           }
           
           case 'placement_adjustment': {
-            const updateData: any = {
+            const updateData: Record<string, unknown> = {
               placementSyncStatus: 'synced',
               pendingPlacementTop: null,
               pendingPlacementProduct: null,
@@ -883,7 +883,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
           }
           
           case 'placement_adjustment': {
-            const updateData: any = {
+            const updateData: Record<string, unknown> = {
               placementSyncStatus: 'conflict',
               pendingPlacementTop: null,
               pendingPlacementProduct: null,

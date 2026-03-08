@@ -823,7 +823,7 @@ export async function updatePlacementSettings(
     )
     .limit(1);
 
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     lastAdjustedAt: new Date()
   };
   
@@ -853,7 +853,7 @@ export async function updatePlacementSettings(
   
   // v165: 同步更新campaigns表的位置倾斜字段，确保前端展示与实际优化值一致
   try {
-    const campaignUpdateData: any = {};
+    const campaignUpdateData: Record<string, unknown> = {};
     for (const adj of validAdjustments) {
       if (adj.placementType === 'top_of_search') {
         campaignUpdateData.placementTopSearchBidAdjustment = adj.suggestedAdjustment;

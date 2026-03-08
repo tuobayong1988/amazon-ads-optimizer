@@ -135,7 +135,7 @@ export async function getDualTrackStatus(accountId: number): Promise<{
  * 获取API同步状态
  * 改进版：如果data_sync_jobs表中没有记录，则从daily_performance表中获取API数据的状态
  */
-async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus> {
+async function getApiSyncStatus(db: ReturnType<typeof getDb> | null, accountId: number): Promise<SyncStatus> {
   try {
     // 1. 先查询data_sync_jobs表
     const [result] = await db.execute(sql`
@@ -211,7 +211,7 @@ async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus>
  * 获取AMS同步状态
  * 改进版：检查SQS消费者实际运行状态和daily_performance表中的AMS数据
  */
-async function getAmsSyncStatus(db: any, accountId: number): Promise<SyncStatus> {
+async function getAmsSyncStatus(db: ReturnType<typeof getDb> | null, accountId: number): Promise<SyncStatus> {
   try {
     // 1. 检查SQS消费者服务状态
     const sqsConsumer = getSQSConsumer();
@@ -307,7 +307,7 @@ async function getAmsSyncStatus(db: any, accountId: number): Promise<SyncStatus>
 /**
  * 获取最后一致性检查时间
  */
-async function getLastConsistencyCheck(db: any, accountId: number): Promise<Date | null> {
+async function getLastConsistencyCheck(db: ReturnType<typeof getDb> | null, accountId: number): Promise<Date | null> {
   try {
     const [result] = await db.execute(sql`
       SELECT MAX(checkTime) as lastCheck

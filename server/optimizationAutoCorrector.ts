@@ -1126,7 +1126,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
         
         if (success) {
           // 更新campaigns表
-          const updateData: any = {};
+          const updateData: Record<string, unknown> = {};
           if (expectedTop !== null) updateData.placementTopSearchBidAdjustment = String(expectedTop);
           if (expectedProduct !== null) updateData.placementProductPageBidAdjustment = String(expectedProduct);
           
@@ -1451,7 +1451,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
     for (const event of failedEvents) {
       try {
         // 从 action_detail 中提取关键信息
-        let detail: any = {};
+        let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
         }
@@ -1611,7 +1611,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     
     for (const event of failedEvents) {
       try {
-        let detail: any = {};
+        let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
         }
@@ -2521,7 +2521,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
     const byCampaign = new Map<number, Array<{ eventId: number; searchTerm: string; matchType: string; campaignName: string }>>();
     
     for (const event of events) {
-      let detail: any = {};
+      let detail: Record<string, unknown> = {};
       try {
         const raw = event.action_detail || event.actionDetail;
         if (raw) detail = typeof raw === 'string' ? JSON.parse(raw) : raw;
@@ -3629,7 +3629,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
     
     for (const event of failedEvents) {
       try {
-        let detail: any = {};
+        let detail: Record<string, unknown> = {};
         if (event.actionDetail) {
           try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
         }

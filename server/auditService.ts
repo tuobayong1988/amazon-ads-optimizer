@@ -120,7 +120,7 @@ export async function logAudit(params: {
   targetName?: string;
   description?: string;
   previousValue?: any;
-  newValue?: any;
+  newValue?: unknown;
   metadata?: any;
   accountId?: number;
   accountName?: string;

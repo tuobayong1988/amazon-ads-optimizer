@@ -192,8 +192,8 @@ export function logSyncProtectionSummary(functionName: string, stats: SyncProtec
  * 注意：空值（空字符串、"0"、null、undefined）被视为"无数据"，不与远程数据产生冲突
  */
 export function detectConflict(
-  existing: any,
-  newData: any,
+  existing: Record<string, unknown>,
+  newData: Record<string, unknown>,
   fieldsToCheck: string[]
 ): { hasConflict: boolean; conflictFields: string[] } {
   const conflictFields: string[] = [];

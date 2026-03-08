@@ -200,7 +200,7 @@ Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKey
   }
 
   /** 生成Rufus Q&A种子 */
-  private async generateQnaSeeds(db: any, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
+  private async generateQnaSeeds(db: ReturnType<typeof getDb> | null, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
     const prompt = `Generate Amazon Rufus-optimized Q&A pairs based on these COSMO cause-effect-outcome triples and keywords.
 
 COSMO TRIPLES:

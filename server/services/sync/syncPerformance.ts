@@ -291,7 +291,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 /**
  * 处理报告数据并存储到数据库
  */
-AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: any, reportData: unknown[], adType: string): Promise<number> {
+AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     
