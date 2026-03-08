@@ -77,6 +77,18 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 360,
+    description: 'v360.0: [业务优化全面升级] — (1)P0-daily_performance唯一约束+批量UPSERT重构,消除数据重复累积 (2)P0-API限流服务统一集成,所有API调用经过限流许可检查 (3)P0-新授权24h数据采集周期 (4)P0-优化目标日预算约束修复 (5)P1-统一预算分配机制 (6)P1-84时段分时优化重构 (7)P1-跨广告活动智能倾斜 (8)P2-全局否定功能 (9)P2-优化日志透明度增强',
+    affectedModules: ['all'],
+    correctionActions: ['resync_data', 'recalculate_budgets', 'reset_dayparting_rules', 'rerun_optimization'],
+  },
+  {
+    version: 359,
+    description: 'v359.0: [效率·智能·韧性全面升级] — (1)32个未认证端点修复 (2)批量API调用重构(90%减少) (3)DAG并行调度(5.5x提升) (4)分布式API限流服务 (5)独立自愈任务调度器 (6)指令确认机制 (7)A/B测试框架 (8)测试覆盖率增强',
+    affectedModules: ['sync', 'all'],
+    correctionActions: ['resync_data', 'rerun_optimization'],
+  },
+  {
     version: 182,
     description: 'v182: 时区修复 - 所有模块改用站点本地时间',
     affectedModules: ['dayparting', 'dayparting_budget', 'bid'],

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 358.2;  // v358.2: 深度类型安全改造 - 2683处any类型100%清理(2683→0)+全量unknown/Record类型守卫
+export const SYSTEM_VERSION = 360.0;  // v360.0: 业务优化全面升级 - 数据去重/限流统一/24h数据采集/预算约束/分时优化/跨广告智能
