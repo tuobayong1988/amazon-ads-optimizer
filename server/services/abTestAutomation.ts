@@ -238,7 +238,7 @@ export class ABTestAutomationScheduler {
   private async evaluateExperiment(planId: string, execution: ExperimentExecution): Promise<void> {
     try {
       const { analyzeABTestResults } = await import('../abTestService');
-      const analysis = await analyzeABTestResults(execution.testId);
+      const analysis = await analyzeABTestResults(execution.testId) as any;
       
       if (!analysis) return;
       
@@ -395,12 +395,12 @@ export class ABTestAutomationScheduler {
           accountId: plan.accountId,
           experimentType: plan.experimentType,
           controlConfig: {
-            algorithmMode: 'current',
-            parameters: plan.controlParams,
+            algorithmMode: 'single' as const,
+            customParams: plan.controlParams as Record<string, unknown>,
           },
           treatmentConfig: {
-            algorithmMode: 'experimental',
-            parameters: plan.treatmentParams,
+            algorithmMode: 'cascade_ensemble' as const,
+            customParams: plan.treatmentParams as Record<string, unknown>,
           },
           targetMetric: plan.targetMetric,
           durationDays: plan.maxDurationDays,
@@ -485,7 +485,7 @@ export class ABTestAutomationScheduler {
         }),
         changeReason: `v359 A/B测试自动应用: 实验${execution.testId}胜出策略`,
         algorithmVersion: 'v359',
-        status: 'applied',
+        status: 'success',
         apiSyncStatus: 'not_applicable',
       });
       

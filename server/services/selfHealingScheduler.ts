@@ -374,7 +374,7 @@ export class SelfHealingScheduler {
    * 处理任务升级请求
    * 当低级别任务发现严重问题时，触发更高级别的修复
    */
-  private async handleEscalation(sourceTask: HealingTask, result: HealingTaskResult): void {
+  private async handleEscalation(sourceTask: HealingTask, result: HealingTaskResult): Promise<void> {
     // 查找比当前任务级别更高的修复任务
     const levelOrder = ['probe', 'check', 'repair', 'emergency'];
     const currentLevelIndex = levelOrder.indexOf(sourceTask.level);

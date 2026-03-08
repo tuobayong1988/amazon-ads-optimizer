@@ -292,10 +292,10 @@ export default function DataHealthDashboard() {
                         <div className="flex items-center gap-4">
                           <div className="text-right">
                             <div className="text-sm">
-                              {job.completedSteps ?? 0}/{job.totalSteps ?? 0} 步骤
+                              {job.currentStepIndex ?? 0}/{job.totalSteps ?? 0} 步骤
                             </div>
                             <Progress
-                              value={job.totalSteps ? (job.completedSteps / job.totalSteps) * 100 : 0}
+                              value={job.totalSteps ? ((job.currentStepIndex ?? 0) / job.totalSteps) * 100 : 0}
                               className="h-1 w-20"
                             />
                           </div>

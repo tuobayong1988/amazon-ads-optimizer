@@ -76,22 +76,22 @@ export const dataHealthRouter = router({
           const { getDb } = await import('../db');
           const db = await getDb();
           if (db) {
-            const { syncJobs } = await import('../../db/schema');
+            const { dataSyncJobs } = await import('../../drizzle/schema');
             const { desc, eq, sql } = await import('drizzle-orm');
             
             // 最近的同步任务
             const recentJobs = await db.select({
-              id: syncJobs.id,
-              accountId: syncJobs.accountId,
-              status: syncJobs.status,
-              startedAt: syncJobs.startedAt,
-              completedAt: syncJobs.completedAt,
-              totalSteps: syncJobs.totalSteps,
-              completedSteps: syncJobs.completedSteps,
-              errorMessage: syncJobs.errorMessage,
+              id: dataSyncJobs.id,
+              accountId: dataSyncJobs.accountId,
+              status: dataSyncJobs.status,
+              startedAt: dataSyncJobs.startedAt,
+              completedAt: dataSyncJobs.completedAt,
+              totalSteps: dataSyncJobs.totalSteps,
+              currentStepIndex: dataSyncJobs.currentStepIndex,
+              errorMessage: dataSyncJobs.errorMessage,
             })
-            .from(syncJobs)
-            .orderBy(desc(syncJobs.startedAt))
+            .from(dataSyncJobs)
+            .orderBy(desc(dataSyncJobs.startedAt))
             .limit(10);
             
             // 同步成功率统计（最近24小时）
@@ -101,8 +101,8 @@ export const dataHealthRouter = router({
               failed: sql<number>`SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)`,
               running: sql<number>`SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END)`,
             })
-            .from(syncJobs)
-            .where(sql`${syncJobs.startedAt} >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+            .from(dataSyncJobs)
+            .where(sql`${dataSyncJobs.startedAt} >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
             
             results.syncJobs = {
               status: 'active',

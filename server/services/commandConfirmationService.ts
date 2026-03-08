@@ -299,7 +299,7 @@ export class CommandConfirmationService {
       const { confirmationSync } = await import('../unifiedSyncEngine');
       const syncResult = await confirmationSync(
         request.accountId,
-        request.affectedEntities as unknown[],
+        request.affectedEntities as ('campaigns' | 'keywords' | 'targets' | 'budgets' | 'ad_groups')[],
         `v359_reliable_${request.triggerSource}`
       );
       
