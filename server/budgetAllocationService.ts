@@ -553,7 +553,7 @@ export async function saveBudgetAllocation(
       reasonDetail: rec.reasonDetail,
       priorityScore: rec.priorityScore.toString(),
       status: "pending",
-    } as any);
+    } as Record<string, unknown>);
   }
 
   return Number(allocationId);
@@ -633,7 +633,7 @@ export async function applyBudgetAllocation(
         snapshotAcos: item.historicalAcos,
         snapshotSpend: item.historicalSpend,
         snapshotSales: item.historicalSales,
-      } as any);
+      } as Record<string, unknown>);
 
       // 更新明细状态
       await db

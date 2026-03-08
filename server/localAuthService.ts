@@ -183,7 +183,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       WHERE tm.username = ${input.username}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户名或密码错误' };
     }
@@ -304,7 +304,7 @@ export async function verifyToken(token: string): Promise<{
       SELECT * FROM team_members WHERE id = ${decoded.userId}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '用户不存在' };
     }
@@ -364,7 +364,7 @@ export async function changePassword(userId: number, oldPassword: string, newPas
       SELECT password_hash FROM team_members WHERE id = ${userId}
     `);
     
-    const rows = (result as any)[0];
+    const rows = (result as Record<string, unknown>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户不存在' };
     }

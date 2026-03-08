@@ -134,7 +134,7 @@ export async function calculateAlgorithmPerformance(
   days: number = 30
 ): Promise<AlgorithmPerformanceMetrics> {
   const db = await getDb();
-  if (!db) return null as any;
+  if (!db) return null as unknown;
   
   // 查询历史记录
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);

@@ -411,7 +411,7 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as any;
+            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, unknown>;
           }
         }
       } catch { /* Sigmoid不可用时静默跳过 */ }
@@ -633,7 +633,7 @@ export async function selectBestAlgorithm(
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),
-  } as any);
+  } as Record<string, unknown>);
   
   return decision;
 }

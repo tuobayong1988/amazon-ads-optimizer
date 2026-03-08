@@ -192,7 +192,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
       actionBidAfter: String(action.bidAfter),
       actionBidDelta: String(action.bidAfter - action.bidBefore),
       actionSource: action.actionSource,
-    } as any);
+    } as Record<string, unknown>);
     
   } catch (error) {
     // RL数据记录失败不应阻塞出价调整主流程
@@ -878,7 +878,7 @@ export async function recordBidPerformanceHistory(params: {
       roas: String(roas),
       revenue: String(revenue),
       profit: String(profit),
-    } as any);
+    } as Record<string, unknown>);
     
     rlLog.info(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
   } catch (error) {
@@ -1002,7 +1002,7 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
               roas: String(roas),
               revenue: String(sales),
               profit: String(sales - spend),
-            } as any)
+            } as Record<string, unknown>)
             .where(eq(bidPerformanceHistory.id, record.id));
           
           updated++;

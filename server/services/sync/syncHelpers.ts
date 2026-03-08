@@ -104,7 +104,7 @@ export async function getRecentlyOptimizedKeywordIds(
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
         );
-        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
           const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {

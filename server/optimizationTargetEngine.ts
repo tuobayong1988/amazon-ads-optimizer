@@ -77,8 +77,8 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('./unifiedSyncEngine');
     const status = getEngineStatus();
-    if ((status as any).lastSyncResults) {
-      const accountResult = ((status as any).lastSyncResults as any[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
+    if ((status as string).lastSyncResults) {
+      const accountResult = ((status as string).lastSyncResults as unknown[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
       }
@@ -1061,7 +1061,7 @@ export async function executeOptimizationTarget(
       const uniqueEntities = [...new Set(affectedEntities)];
       const { confirmationSync } = await import('./unifiedSyncEngine');
       // 异步触发，不阻塞优化流程返回
-      confirmationSync(config.accountId, uniqueEntities as any[], `optimizationTarget_${config.id}`).then(syncResult => {
+      confirmationSync(config.accountId, uniqueEntities as unknown[], `optimizationTarget_${config.id}`).then(syncResult => {
         if (syncResult) {
           log.info(`[OptimizationTarget] v221: 确认同步完成 - 账户 ${config.accountId}, 目标 ${config.id}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
         }
@@ -1392,7 +1392,7 @@ async function executeBidOptimization(
     }
     
     // v165: 根据campaign的costType动态设置maxBidLimit（CPC vs VCPM）
-    const isVcpmCampaign = (campaign as any).costType === 'vcpm';
+    const isVcpmCampaign = (campaign as Record<string, unknown>).costType === 'vcpm';
     const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
     if (isVcpmCampaign) {
       log.info(`[BidOptimization] v165: Campaign ${campaignLocalId} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
@@ -1409,12 +1409,12 @@ async function executeBidOptimization(
       
       // v166: 关键词级别冷却期检查 - 避免重复优化
       // 如果该keyword在过去24小时内已被优化，且出价同步状态仍为pending_confirmation，则跳过
-      const kwLastOptimized = (keyword as any).lastOptimizedAt ? new Date((keyword as any).lastOptimizedAt) : null;
-      const kwBidSyncStatus = (keyword as any).bidSyncStatus || 'synced';
+      const kwLastOptimized = (keyword as Record<string, unknown>).lastOptimizedAt ? new Date((keyword as Record<string, unknown>).lastOptimizedAt) : null;
+      const kwBidSyncStatus = (keyword as Record<string, unknown>).bidSyncStatus || 'synced';
       if (kwLastOptimized && kwBidSyncStatus === 'pending_confirmation') {
         const hoursSinceOptimized = (Date.now() - kwLastOptimized.getTime()) / (1000 * 60 * 60);
         if (hoursSinceOptimized < 24) {
-          log.info(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as any).pendingBid}`);
+          log.info(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as Record<string, unknown>).pendingBid}`);
           continue;
         }
       }
@@ -1647,7 +1647,7 @@ async function executeBidOptimization(
                       lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
                       pendingBid: (typeof detail.newBid === 'number' ? detail.newBid : 0).toFixed(2),
                       bidSyncStatus: 'pending_confirmation',
-                    } as any)
+                    } as Record<string, unknown>)
                     .where(eq(keywordsTable.id, detail.keywordId));
                 }
               }
@@ -1656,7 +1656,7 @@ async function executeBidOptimization(
               const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
               for (const cid of affectedCampaignIds) {
                 await tx.update(campaignsTable)
-                  .set({ lastOptimizedAt: nowStr } as any)
+                  .set({ lastOptimizedAt: nowStr } as Record<string, unknown>)
                   .where(eq(campaignsTable.id, cid));
               }
             });
@@ -2460,7 +2460,7 @@ async function executeDaypartingBudgetOptimization(
       
       // 计算基础预算（如果之前已经调整过，需要还原到基础值）
       // 策略：使用campaign的原始预算作为基础，乘以今天的倍数
-      const baseBudget = parseFloat((campaign as any).originalDailyBudget || campaign.dailyBudget || '0');
+      const baseBudget = parseFloat((campaign as Record<string, unknown>).originalDailyBudget || campaign.dailyBudget || '0');
       const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
       
       const adjustment: any = {
@@ -2498,7 +2498,7 @@ async function executeDaypartingBudgetOptimization(
             await db.updateCampaign(campaignLocalId, {
               dailyBudget: adjustedBudget.toFixed(2),
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            } as any);
+            } as Record<string, unknown>);
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
             
@@ -2843,7 +2843,7 @@ async function executeSearchTermAnalysis(
     try {
       // v311+v2: Campaign级别的Product Targeting检查
       // v2修改: PT campaigns不再完全跳过，而是标记为PT类型，允许否定产品定向操作
-      const campaignNameStr = (campaign as any).campaignName || '';
+      const campaignNameStr = (campaign as Record<string, unknown>).campaignName || '';
       const isProductTargetingCamp = isProductTargetingCampaign(campaignNameStr);
       
       // v353: 在campaign循环开头预加载广告组PT状态，避免在每个搜索词处理中重复查询
@@ -2867,13 +2867,13 @@ async function executeSearchTermAnalysis(
       
       // v191: 使用智能投放决策引擎替代旧的classifySearchTerms
       // 获取campaign的定向类型（auto/manual）
-      const campaignTargetingType = (campaign as any).targetingType || 
-        ((campaign as any).campaignType === 'sp_auto' ? 'auto' : 'manual');
+      const campaignTargetingType = (campaign as Record<string, unknown>).targetingType || 
+        ((campaign as Record<string, unknown>).campaignType === 'sp_auto' ? 'auto' : 'manual');
       const targetAcos = config.targetAcos || 30; // 默认30%
       
       // v191: 将搜索词数据转换为智能决策引擎所需的格式
       // v2: 新增campaignType字段，用于否定策略分发
-      const rawCampaignType = (campaign as any).campaignType || 'sp_auto';
+      const rawCampaignType = (campaign as Record<string, unknown>).campaignType || 'sp_auto';
       const v2CampaignType = (() => {
         if (rawCampaignType === 'sponsoredProducts' || rawCampaignType === 'sp') {
           return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
@@ -3319,7 +3319,7 @@ async function executeSearchTermAnalysis(
                   const insertResult = await dbInstance.insert(keywords).values({
                     adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
                     keywordText: decision.targetValue,
-                    matchType: matchType as any,
+                    matchType: matchType as string,
                     bid: String(bid),
                     keywordStatus: 'enabled',
                     createdAt: new Date().toISOString(),
@@ -3729,7 +3729,7 @@ async function executeBudgetAllocation(
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               pendingBudget: finalBudget.toFixed(2),
               budgetSyncStatus: 'pending_confirmation',
-            } as any);
+            } as Record<string, unknown>);
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
             
@@ -4431,7 +4431,7 @@ async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: pauseReason,
-                  campaignType: (campaign as any).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
+                  campaignType: (campaign as Record<string, unknown>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
@@ -4481,7 +4481,7 @@ async function executeAdGroupStatusChanges(
                   adGroupName: adGroup.adGroupName || '',
                   campaignName: campaign.campaignName || '',
                   reason: enableReason,
-                  campaignType: (campaign as any).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
+                  campaignType: (campaign as Record<string, unknown>).campaignType || '', // v310-fix: 传递广告类型以选择正确的API端点
                 }]
               );
               action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
@@ -4683,7 +4683,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
               apiSyncStatus: 'not_applicable',
               createdAt: now,
               executedAt: now,
-            } as any);
+            } as Record<string, unknown>);
           } catch (safetyLogErr: unknown) {
             log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${(safetyLogErr as Error).message}`);
           }
@@ -4732,7 +4732,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             // v258: 传递结构化归因和护栏信息
             reasonDetails: detail.reasonDetails ? JSON.stringify(detail.reasonDetails) : undefined,
             guardrailInfo: detail.guardrailInfo ? JSON.stringify(detail.guardrailInfo) : undefined,
-          } as any);
+          } as Record<string, unknown>);
         } catch (insertError: unknown) {
           log.error(`[recordExecutionLog] 出价日志写入失败: ${(insertError as Error).message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
@@ -4973,7 +4973,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       const { performanceGroups } = await import('../drizzle/schema');
       const { eq: eqOp } = await import('drizzle-orm');
       await dbInstance!.update(performanceGroups)
-        .set({ lastOptimizationAt: new Date() } as any)
+        .set({ lastOptimizationAt: new Date() } as Record<string, unknown>)
         .where(eqOp(performanceGroups.id, result.targetId));
       log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr: unknown) {
@@ -5223,7 +5223,7 @@ async function executeAutoNgramNegation(
         GROUP BY campaign_id
       `);
       
-      const perfRows = (campaignPerformance as any[])[0] || [];
+      const perfRows = (campaignPerformance as unknown[])[0] || [];
       
       // 判断全局 vs 局部
       let badCampaigns: number[] = [];

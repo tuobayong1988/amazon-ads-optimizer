@@ -36,7 +36,7 @@ export class M6VideoService {
         .from(prelaunchVisualBriefs)
         .where(eq(prelaunchVisualBriefs.projectId, projectId));
       
-      const banners = (data as any[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
+      const banners = (data as unknown[]).filter((d: Record<string, unknown>) => d.slotRole?.startsWith('SB_Banner'));
       return { success: true, data: banners };
     } catch (error: unknown) {
       return { success: false, error: (error as Error).message, data: [] };
@@ -174,7 +174,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
 
       const generatedFrames: string[] = [];
 
-      for (const frame of (storyboard as any[]).slice(0, 8)) {
+      for (const frame of (storyboard as unknown[]).slice(0, 8)) {
         const emotionColorMap: Record<string, string> = {
           tension: 'dramatic lighting, dark tones, high contrast',
           curiosity: 'warm golden light, soft focus background',

@@ -226,7 +226,7 @@ export async function getOperationLogs(params: {
       conditions.push(eq(apiOperationLogs.operationType, params.operationType));
     }
     if (params.status) {
-      conditions.push(eq(apiOperationLogs.status, params.status as any));
+      conditions.push(eq(apiOperationLogs.status, params.status as string));
     }
     if (params.riskLevel) {
       conditions.push(eq(apiOperationLogs.riskLevel, params.riskLevel));

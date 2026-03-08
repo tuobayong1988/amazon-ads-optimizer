@@ -775,7 +775,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                   bid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'synced',
-                } as any)
+                } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
               log.debug(`v166: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue}`);
             }
@@ -789,7 +789,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                 pendingBudget: null,
                 budgetSyncStatus: 'synced',
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              } as any)
+              } as Record<string, unknown>)
               .where(eq(campaigns.id, item.localId));
             log.debug(`v166: ✅ 广告活动 ${item.localId} 预算已确认: $${result.actualValue}`);
             break;
@@ -862,7 +862,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                   bid: String(result.actualValue),
                   pendingBid: null,
                   bidSyncStatus: 'conflict',
-                } as any)
+                } as Record<string, unknown>)
                 .where(eq(keywords.id, item.localId));
             }
             log.warn(`v166: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}`);
@@ -876,7 +876,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                 pendingBudget: null,
                 budgetSyncStatus: 'conflict',
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              } as any)
+              } as Record<string, unknown>)
               .where(eq(campaigns.id, item.localId));
             log.warn(`v166: ⚠️ 预算冲突 campaign=${item.localId}: ${result.message}`);
             break;
@@ -1046,7 +1046,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
             resolutionStatus: 'resolved',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             resolutionNotes: 'v257: 自动解决 - 以亚马逊实际数据为准 (use_remote)',
-          } as any)
+          } as Record<string, unknown>)
           .where(inArray(syncConflicts.id, batch));
       }
       resolved = autoResolveIds.length;
@@ -1061,7 +1061,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
             resolutionStatus: 'ignored',
             resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             resolutionNotes: 'v257: 自动忽略 - 远程实体不存在',
-          } as any)
+          } as Record<string, unknown>)
           .where(inArray(syncConflicts.id, batch));
       }
       ignored = autoIgnoreIds.length;

@@ -92,7 +92,7 @@ export const daypartingRouter = router({
     .mutation(async ({ input }) => {
       const strategyId = await daypartingService.createDaypartingStrategy({
         accountId: input.accountId,
-        campaignId: input.campaignId as any,
+        campaignId: input.campaignId as string,
         name: input.name,
         description: input.description,
         strategyType: input.strategyType,

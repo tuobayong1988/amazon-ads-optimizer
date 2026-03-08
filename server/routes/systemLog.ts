@@ -86,9 +86,7 @@ export const systemLogRouter = router({
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        const [rows] = await dbInstance.execute(
-          `SELECT * FROM system_logs ${whereClause} ORDER BY timestamp DESC LIMIT ${input.limit} OFFSET ${input.offset}`
-        ) as any;
+        const [rows] = await dbInstance.execute() as unknown;
 
         const [countResult] = await dbInstance.execute(
           `SELECT COUNT(*) as total FROM system_logs ${whereClause}`

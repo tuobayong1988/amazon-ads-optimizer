@@ -139,7 +139,7 @@ export async function createBatchAnalysis(
     )
   `);
 
-  return (result as any)[0].insertId;
+  return (result as Record<string, unknown>[][])[0].insertId;
 }
 
 /**
@@ -171,7 +171,7 @@ export async function executeBatchAnalysis(
   `);
 
   const campaignMap = new Map(
-    ((campaigns as any)[0] as any[]).map(c => [c.campaign_id, c])
+    ((campaigns as any)[0] as unknown[]).map(c => [c.campaign_id, c])
   );
 
   // 逐个分析广告活动
@@ -408,7 +408,7 @@ export async function applyOptimization(
     AND account_id = ${request.accountId}
   `);
 
-  const current = ((currentSettings as any)[0] as any[])[0] || {
+  const current = ((currentSettings as any)[0] as unknown[])[0] || {
     top_of_search_adjustment: 0,
     product_page_adjustment: 0
   };
@@ -575,7 +575,7 @@ export async function rollbackApplication(
     WHERE id = ${applicationId}
   `);
 
-  const record = ((records as any)[0] as any[])[0];
+  const record = ((records as any)[0] as unknown[])[0];
   if (!record) {
     return { success: false, error: "找不到应用记录" };
   }
@@ -665,7 +665,7 @@ export async function getApplicationHistory(
   }
 
   const result = await db.execute(query);
-  return ((result as any)[0] as any[]) || [];
+  return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];
 }
 
 /**
@@ -687,7 +687,7 @@ export async function getBatchAnalysisHistory(
     LIMIT ${limit}
   `);
 
-  return ((result as any)[0] as any[]) || [];
+  return ((result as Record<string, unknown>[][])[0] as unknown[]) || [];
 }
 
 /**
@@ -706,7 +706,7 @@ export async function getBatchAnalysisDetail(
     WHERE id = ${analysisId}
   `);
 
-  const record = ((result as any)[0] as any[])[0];
+  const record = ((result as Record<string, unknown>[][])[0] as unknown[])[0];
   if (!record) {
     return null;
   }

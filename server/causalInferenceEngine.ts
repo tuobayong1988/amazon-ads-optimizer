@@ -407,7 +407,7 @@ async function saveCausalResult(db: ReturnType<typeof getDb> | null, accountId: 
     optimalBidUpper: String(result.optimalBidUpper),
     modelVersion: 'did_v1',
     sampleSize: result.sampleSize,
-  } as any);
+  } as Record<string, unknown>);
 }
 
 /**

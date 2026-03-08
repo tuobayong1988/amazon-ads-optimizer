@@ -187,7 +187,7 @@ export async function checkAllCampaignsPacing(
       WHERE accountId = ${accountId}
         AND state = 'enabled'
         AND dailyBudget > 0
-    `) as any;
+    `) as unknown;
     
     const campaigns = Array.isArray(rows) ? rows : [];
     const results: IntradayAdjustment[] = [];
@@ -277,7 +277,7 @@ async function getCampaignBudget(
       WHERE accountId = ${accountId}
         AND campaignId = ${campaignId}
       LIMIT 1
-    `) as any;
+    `) as unknown;
     
     const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
     return campaign?.dailyBudget || 0;

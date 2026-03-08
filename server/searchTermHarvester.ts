@@ -155,7 +155,7 @@ export async function identifyHarvestCandidates(
     for (const sourceCampaign of sourceCampaigns) {
       // v355: P1修复 — getSearchTermsByCampaignId期望Amazon ID，不是本地自增ID
       // sourceCampaign.id是本地ID，sourceCampaign.campaignId是Amazon ID
-      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.campaignId as any);
+      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.campaignId as string);
       
       for (const st of searchTermsList) {
         const clicks = Number(st.searchTermClicks) || 0;

@@ -123,7 +123,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       // 常见结构: { budget: { budget: 30 } }, { budget: { dailyBudget: 30 } }, { dailyBudget: 30 }, { budget: 30 }
       let dailyBudgetValue = 0;
-      const budgetField = (apiCampaign as any).budget;
+      const budgetField = (apiCampaign as Record<string, unknown>).budget;
       if (budgetField !== undefined && budgetField !== null) {
         if (typeof budgetField === 'number') {
           dailyBudgetValue = budgetField;
@@ -172,12 +172,12 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取竞价策略
-      const biddingStrategy = (apiCampaign as any).dynamicBidding?.strategy || 
-                             (apiCampaign as any).bidding?.strategy || 
+      const biddingStrategy = (apiCampaign as Record<string, unknown>).dynamicBidding?.strategy || 
+                             (apiCampaign as Record<string, unknown>).bidding?.strategy || 
                              'legacyForSales';
 
       // 获取组合信息
-      const portfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const portfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       const campaignData = {
         accountId: this.accountId,

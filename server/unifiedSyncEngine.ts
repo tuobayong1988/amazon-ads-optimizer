@@ -1646,7 +1646,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           recordsSynced: Object.values(accountResult.stepResults).reduce(
             (total: number, step: any) => total + safeNum(step?.synced), 0
           ),
-        } as any);
+        } as Record<string, unknown>);
       } catch (insertErr: unknown) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${(insertErr as Error).message}`);
       }

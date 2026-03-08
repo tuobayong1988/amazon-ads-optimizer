@@ -145,7 +145,7 @@ async function checkBidDirectionConsistency(
         AND created_at > DATE_SUB(NOW(), INTERVAL 72 HOUR)
       ORDER BY created_at DESC
       LIMIT 4
-    `) as any;
+    `) as unknown;
     
     if (!rows || rows.length < 3) return { isOscillating: false, reason: '' };
     
@@ -593,7 +593,7 @@ function ruleEngineDecision(
   // v259: 最低曝光保护机制
   // 核心逻辑：当曝光量大幅下降时，说明出价可能已经降得太低，应暂停所有降价并尝试提价恢复
   // 使用dailyData对比近期曝光与历史基线
-  const dailyDataForImpression = (target as any).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
+  const dailyDataForImpression = (target as Record<string, unknown>).dailyData as Array<{ date: Date; impressions?: number; clicks: number; spend: number; sales: number; orders: number }> | undefined;
   if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
     const recent3d = dailyDataForImpression.slice(-3);
     const earlier4d = dailyDataForImpression.slice(-7, -3);
@@ -636,7 +636,7 @@ function ruleEngineDecision(
     let h = ((id * 2654435761 + seed) >>> 0) % 10000;
     return h / 10000; // 返回0~1之间的确定性值
   };
-  const entityId = Number((target as any).keywordId || (target as any).targetId || 0);
+  const entityId = Number((target as Record<string, unknown>).keywordId || (target as Record<string, unknown>).targetId || 0);
   
   // 场景1: 零曝光 — 需要提升可见性
   // v238: 增加出价累积保护，防止零曝光关键词被无限提价
@@ -758,7 +758,7 @@ function ruleEngineDecision(
     // v258: 趋势感知（保留v254逻辑）
     let zeroConvTrendDir: 'improving' | 'stable' | 'declining' = 'stable';
     let zeroConvTrendStr = 0;
-    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -854,7 +854,7 @@ function ruleEngineDecision(
     // stable: 不做额外调整
     let trendDirection: 'improving' | 'stable' | 'declining' = 'stable';
     let trendStrength = 0;
-    const dailyData = (target as any).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
+    const dailyData = (target as Record<string, unknown>).dailyData as Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> | undefined;
     if (dailyData && dailyData.length >= 7) {
       try {
         const rawData: timeDecayService.DailyRawData[] = dailyData.map(d => ({
@@ -1062,7 +1062,7 @@ export async function calculateNextGenBid(
       accountId,
       target.type === 'keyword' ? 'keyword' : 'product_target',
       target.id,
-      (target as any).amazonCampaignId,
+      (target as Record<string, unknown>).amazonCampaignId,
       (normalizedConfig as any).strategyTemplate
     );
     
@@ -1103,8 +1103,8 @@ export async function calculateNextGenBid(
         accountId,
         keywordId,
         targetId,
-        campaignId: (target as any).amazonCampaignId || undefined,
-        adGroupId: (target as any).adGroupId || undefined,
+        campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+        adGroupId: (target as Record<string, unknown>).adGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -1117,7 +1117,7 @@ export async function calculateNextGenBid(
           accountId,
           entityType: target.type === 'keyword' ? 'keyword' : 'product_target',
           entityId: target.id,
-          campaignId: (target as any).amazonCampaignId,
+          campaignId: (target as Record<string, unknown>).amazonCampaignId,
           strategyTemplateId: (normalizedConfig as any).strategyTemplate,
           metaSelection: {
             algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, unknown>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],
@@ -1295,8 +1295,8 @@ export async function calculateNextGenBid(
       accountId,
       keywordId,
       targetId,
-      campaignId: (target as any).amazonCampaignId || undefined,
-      adGroupId: (target as any).adGroupId || undefined,
+      campaignId: (target as Record<string, unknown>).amazonCampaignId || undefined,
+      adGroupId: (target as Record<string, unknown>).adGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',
@@ -1343,11 +1343,11 @@ function buildResult(
                  tier === 'guardrail' ? `护栏保护:${algorithmUsed}` :
                  `规则引擎:${reason.split(':')[0]?.replace('[\u89c4\u5219\u5f15\u64ce] ', '') || algorithmUsed}`,
     coreMetrics: {
-      clicks: (target as any).clicks,
-      impressions: (target as any).impressions,
-      spend: (target as any).spend,
-      sales: (target as any).sales,
-      orders: (target as any).orders,
+      clicks: (target as Record<string, unknown>).clicks,
+      impressions: (target as Record<string, unknown>).impressions,
+      spend: (target as Record<string, unknown>).spend,
+      sales: (target as Record<string, unknown>).sales,
+      orders: (target as Record<string, unknown>).orders,
     },
     algorithmChoice: `${tier}/${algorithmUsed}`,
     dataConfidence: confidence,

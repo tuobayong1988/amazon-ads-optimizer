@@ -288,7 +288,7 @@ export async function getUserNotifications(params: {
   
   const conditions = [eq(collaborationNotifications.recipientUserId, userId)];
   if (status) {
-    conditions.push(eq(collaborationNotifications.status, status as any));
+    conditions.push(eq(collaborationNotifications.status, status as string));
   }
   
   const whereClause = and(...conditions);

@@ -299,7 +299,7 @@ class SDKServer {
           
           try {
             const result = await dbQueryWithTimeout();
-            const rows = (result as any)[0];
+            const rows = (result as Record<string, unknown>[][])[0];
             if (rows && rows.length > 0) {
               const localUser = rows[0];
               return {
@@ -311,7 +311,7 @@ class SDKServer {
                 lastSignedIn: localUser.last_login_at,
                 organizationId: localUser.organization_id,
                 role: localUser.role,
-              } as any;
+              } as Record<string, unknown>;
             }
           } catch (dbError: unknown) {
             log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
@@ -325,7 +325,7 @@ class SDKServer {
               lastSignedIn: new Date().toISOString(),
               organizationId: decoded.organizationId || 1,
               role: 'user',
-            } as any;
+            } as Record<string, unknown>;
           }
         }
       } catch (jwtError: unknown) {

@@ -385,7 +385,7 @@ export async function executeOptimizationSuggestions(
   const executionId = await db.createAiOptimizationExecution({
     userId,
     accountId,
-    campaignId: campaignId as any,
+    campaignId: campaignId as string,
     executionName: `AI优化执行 - ${new Date().toLocaleDateString("zh-CN")}`,
     aiExecType: executionType,
     totalActions: suggestions.length,

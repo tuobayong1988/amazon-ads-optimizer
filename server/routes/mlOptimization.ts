@@ -229,7 +229,7 @@ export const mlOptimizationRouter = router({
 
       const campaignsWithData = await Promise.all(
         groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; dailyBudget: string | null }) => {
-          const campaignIdStr = String((campaign as any).campaignId);
+          const campaignIdStr = String((campaign as Record<string, unknown>).campaignId);
           const historicalRecords = await db.getDailyPerformanceByDateRange(
             campaign.accountId,
             cutoffDate,

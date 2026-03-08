@@ -380,9 +380,9 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         adjustmentReason: suggestion.reasons.join('; '),
         compositeScore: String((suggestion as any).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
-        status: details[details.length - 1].status as any,
+        status: details[details.length - 1].status as string,
         errorMessage: details[details.length - 1].reason,
-      } as any);
+      } as Record<string, unknown>);
     }
 
     // 确定最终状态
@@ -521,7 +521,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
       riskLevel: d.riskLevel,
       status: d.status as string,
       errorMessage: d.errorMessage,
-    } as any)),
+    } as Record<string, unknown>)),
   };
 }
 

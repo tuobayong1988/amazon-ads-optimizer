@@ -176,7 +176,7 @@ export async function completeExperiment(experimentId: string): Promise<void> {
  */
 export async function getExperimentResult(experimentId: string): Promise<ExperimentResult> {
   // TODO: 从数据库获取实验配置
-  const experiment: Experiment = {} as any; // 临时
+  const experiment: Experiment = {} as Record<string, unknown>; // 临时
 
   const db = await getDb();
   if (!db) throw new Error('Database not available');

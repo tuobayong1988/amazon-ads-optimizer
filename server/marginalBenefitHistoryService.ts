@@ -152,7 +152,7 @@ export async function saveMarginalBenefitHistory(
     AND analysis_date = ${today}
   `);
 
-  if ((existing as any)[0] && ((existing as any)[0] as any[]).length > 0) {
+  if ((existing as Record<string, unknown>)[0] && ((existing as Record<string, unknown>)[0] as unknown[]).length > 0) {
     // 更新现有记录
     await db.execute(sql`
       UPDATE marginal_benefit_history SET
@@ -177,7 +177,7 @@ export async function saveMarginalBenefitHistory(
       AND placement_type = ${placementType}
       AND analysis_date = ${today}
     `);
-    return ((existing as any)[0] as any[])[0].id;
+    return ((existing as Record<string, unknown>)[0] as unknown[])[0].id;
   }
 
   // 插入新记录
@@ -228,7 +228,7 @@ export async function getHistoryTrend(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as any)[0] as any[]) || [];
+  const data = ((records as any)[0] as unknown[]) || [];
   
   // 按日期分组
   const dateMap = new Map<string, any[]>();
@@ -289,7 +289,7 @@ export async function analyzeSeasonalPatterns(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as any)[0] as any[]) || [];
+  const data = ((records as any)[0] as unknown[]) || [];
   
   if (data.length < 14) {
     return { 
@@ -427,8 +427,8 @@ export async function comparePeriods(
     `)
   ]);
 
-  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
-  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
+  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
+  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
 
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
   const comparison = placements.map(placementType => {

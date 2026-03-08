@@ -471,7 +471,7 @@ export const performanceGroupRouter = router({
       // 1. 更新本地数据库状态
       let localUpdated = 0;
       for (const campaign of targetCampaigns) {
-        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as any);
+        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as Record<string, unknown>);
         localUpdated++;
       }
       
@@ -901,7 +901,7 @@ export const performanceGroupRouter = router({
         previousValue: input.previousValue,
         newValue: input.newValue,
         changeReason: input.changeReason,
-        status: input.status as any,
+        status: input.status as string,
         executedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
       

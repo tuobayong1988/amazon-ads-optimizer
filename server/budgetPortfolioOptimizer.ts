@@ -329,7 +329,7 @@ export async function optimizeBudgetPortfolio(
       algorithmUsed: 'marginal_utility',
       iterationCount: 100,
       convergenceScore: '0.990000',
-    } as any);
+    } as Record<string, unknown>);
     
     log.info(`[BudgetPortfolio] Optimized ${allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
     return result;

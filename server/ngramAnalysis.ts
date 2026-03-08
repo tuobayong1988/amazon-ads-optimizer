@@ -118,7 +118,7 @@ export async function getCoreKeywordRoots(
   }
   
   const result = await db.execute(sql.raw(query));
-  const rows = (result as any[])[0] || [];
+  const rows = (result as unknown[])[0] || [];
   
   const coreRoots = new Set<string>();
   for (const row of rows) {
@@ -170,7 +170,7 @@ export async function analyzeSearchTermNgrams(
   query += ` GROUP BY search_term`;
   
   const result = await db.execute(sql.raw(query));
-  const searchTermData = (result as any[])[0] || [];
+  const searchTermData = (result as unknown[])[0] || [];
   
   // 统计N-Gram
   const ngramStats = new Map<string, {
@@ -365,7 +365,7 @@ export async function executeNegativeKeywords(
         negativeMatchType: negative.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
         negativeSource: 'ngram_analysis',
         negativeStatus: 'active',
-      } as any);
+      } as Record<string, unknown>);
       addedCount++;
     } catch (error: unknown) {
       if (!(error as Error).message?.includes('Duplicate')) {

@@ -136,11 +136,11 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SB广告的组合ID
-      const sbPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const sbPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // 获取SB广告的竞价策略
-      const sbBiddingStrategy = (apiCampaign as any).bidding?.strategy || 
-                                (apiCampaign as any).biddingStrategy || 
+      const sbBiddingStrategy = (apiCampaign as Record<string, unknown>).bidding?.strategy || 
+                                (apiCampaign as Record<string, unknown>).biddingStrategy || 
                                 'legacyForSales';
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
@@ -150,33 +150,33 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
       //   - PROMOTE_PRODUCTS → CPC计费（推广产品）
       // 注意：同一种SB广告格式（Video/Product Collection/Store Spotlight）
       //       既可以是CPC也可以是vCPM，完全取决于创建时选择的Goal
-      const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+      const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
       let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc'; // 默认CPC
       if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
         sbCostType = 'vcpm';
       }
       // 也检查API是否直接返回了costType字段（某些API版本可能直接返回）
-      if ((apiCampaign as any).costType) {
-        const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+      if ((apiCampaign as Record<string, unknown>).costType) {
+        const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
         if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
           sbCostType = apiCostType as 'vcpm' | 'cpm';
         }
       }
 
       // 获取SB广告格式
-      const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+      const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
       const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
 
       // 获取SB广告的竞价优化目标
-      const sbBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const sbBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sbBidOptimization) ? sbBidOptimization : null;
 
       // 获取SB广告的landing page信息
-      const sbLandingPageType = (apiCampaign as any).landingPage?.pageType || (apiCampaign as any).landingPageType || null;
-      const sbLandingPageUrl = (apiCampaign as any).landingPage?.url || (apiCampaign as any).landingPageUrl || null;
-      const sbBrandEntityId = (apiCampaign as any).brandEntityId || null;
+      const sbLandingPageType = (apiCampaign as Record<string, unknown>).landingPage?.pageType || (apiCampaign as Record<string, unknown>).landingPageType || null;
+      const sbLandingPageUrl = (apiCampaign as Record<string, unknown>).landingPage?.url || (apiCampaign as Record<string, unknown>).landingPageUrl || null;
+      const sbBrandEntityId = (apiCampaign as Record<string, unknown>).brandEntityId || null;
 
       log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
 

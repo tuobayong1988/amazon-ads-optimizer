@@ -406,9 +406,9 @@ export const placementRouter = router({
         if (marketCurve) {
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            marketCurve.impressionCurve as any,
-            marketCurve.ctrCurve as any,
-            marketCurve.conversion as any
+            marketCurve.impressionCurve as unknown,
+            marketCurve.ctrCurve as unknown,
+            marketCurve.conversion as unknown
           );
           
           results.push({
@@ -491,9 +491,9 @@ export const placementRouter = router({
           
           if (marketCurve) {
             const optimalBid = marketCurveService.calculateOptimalBid(
-              marketCurve.impressionCurve as any,
-              marketCurve.ctrCurve as any,
-              marketCurve.conversion as any
+              marketCurve.impressionCurve as unknown,
+              marketCurve.ctrCurve as unknown,
+              marketCurve.conversion as unknown
             );
             
             campaignOptimalBidSum += optimalBid.optimalBid;
@@ -611,9 +611,9 @@ export const placementRouter = router({
           
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            marketCurve.impressionCurve as any,
-            marketCurve.ctrCurve as any,
-            marketCurve.conversion as any
+            marketCurve.impressionCurve as unknown,
+            marketCurve.ctrCurve as unknown,
+            marketCurve.conversion as unknown
           );
           
           const currentBid = Number(keyword.bid) || 0;
@@ -765,9 +765,9 @@ export const placementRouter = router({
             }
             
             const optimalBid = marketCurveService.calculateOptimalBid(
-              marketCurve.impressionCurve as any,
-              marketCurve.ctrCurve as any,
-              marketCurve.conversion as any
+              marketCurve.impressionCurve as unknown,
+              marketCurve.ctrCurve as unknown,
+              marketCurve.conversion as unknown
             );
             
             const currentBid = Number(keyword.bid) || 0;
@@ -915,9 +915,9 @@ export const placementRouter = router({
       
       if (marketCurve) {
         const optimalBid = marketCurveService.calculateOptimalBid(
-          marketCurve.impressionCurve as any,
-          marketCurve.ctrCurve as any,
-          marketCurve.conversion as any
+          marketCurve.impressionCurve as unknown,
+          marketCurve.ctrCurve as unknown,
+          marketCurve.conversion as unknown
         );
         return {
           hasModel: true,

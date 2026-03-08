@@ -377,7 +377,7 @@ export async function getCampaignBidConfig(
       WHERE accountId = ${accountId}
         AND campaignId = ${campaignId}
       LIMIT 1
-    `) as any;
+    `) as unknown;
     
     const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
     if (!campaign) return null;

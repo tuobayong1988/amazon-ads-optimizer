@@ -327,7 +327,7 @@ export async function getTrackingList(
 
   const conditions = [eq(budgetAllocationTracking.userId, userId)];
   if (options.accountId) conditions.push(eq(budgetAllocationTracking.accountId, options.accountId));
-  if (options.status) conditions.push(eq(budgetAllocationTracking.status, options.status as any));
+  if (options.status) conditions.push(eq(budgetAllocationTracking.status, options.status as string));
 
   const trackings = await db
     .select()

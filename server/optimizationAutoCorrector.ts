@@ -1865,7 +1865,7 @@ async function getActiveAccountIds(database: any): Promise<number[]> {
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
         AND account_id IS NOT NULL
     `);
-    const rows = (result as any)[0] || result;
+    const rows = (result as Record<string, unknown>[][])[0] || result;
     return Array.isArray(rows) ? rows.map((r: Record<string, unknown>) => r.account_id).filter(Boolean) : [];
   } catch {
     return [];
@@ -2062,7 +2062,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
       FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
-    `) as any;
+    `) as unknown;
     
     // 2. v230: 按操作类型统计同步率，排除not_applicable
     const [typeStats] = await database.execute(sql`
@@ -2074,7 +2074,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
         AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
       GROUP BY action_type
-    `) as any;
+    `) as unknown;
     
     const stats = Array.isArray(syncStats) ? syncStats[0] : syncStats;
     const total = parseInt(String(stats?.total || '0'));
@@ -2196,7 +2196,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
           GROUP BY action_type, SUBSTRING(error_message, 1, 100)
           ORDER BY count DESC
           LIMIT 5
-        `) as any;
+        `) as unknown;
         
         if (Array.isArray(recentErrors) && recentErrors.length > 0) {
           log.error(`[SyncHealth] v204: 最近24小时失败模式:`);
@@ -2834,7 +2834,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
          ORDER BY completed_at DESC
          LIMIT 50`,
         [accountId]
-      ) as any[];
+      ) as unknown[];
       
       if (rows.length === 0) return results;
       
@@ -2848,7 +2848,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
               const [kwRows] = await conn.execute(
                 'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (kwRows[0]?.keywordId) {
                 task.amazon_entity_id = kwRows[0].keywordId;
                 await conn.execute(
@@ -2861,7 +2861,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
               const [ptRows] = await conn.execute(
                 'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (ptRows[0]?.targetId) {
                 task.amazon_entity_id = ptRows[0].targetId;
                 await conn.execute(
@@ -2874,7 +2874,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
               const [cRows] = await conn.execute(
                 'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
                 [task.target_entity_id]
-              ) as any[];
+              ) as unknown[];
               if (cRows[0]?.campaignId) {
                 task.amazon_entity_id = cRows[0].campaignId;
                 await conn.execute(

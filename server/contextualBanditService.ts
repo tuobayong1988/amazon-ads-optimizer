@@ -249,7 +249,7 @@ export async function loadOrInitLinUCBModel(accountId: number): Promise<LinUCBAr
       totalPulls: 0,
       totalReward: '0',
       avgReward: '0',
-    } as any);
+    } as Record<string, unknown>);
   }
   
   return arms;

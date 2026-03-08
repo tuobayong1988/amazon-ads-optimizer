@@ -189,7 +189,7 @@ async function getRecentlyOptimizedKeywordIds(
                 AND created_at >= ${cutoff}
                 AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
         );
-        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        const fallbackRows = (fallbackResults as unknown as unknown[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
           const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
@@ -772,7 +772,7 @@ export class AmazonSyncService {
 
         const searchTermData = {
           accountId: this.accountId,
-          campaignId: (campaign as any).campaignId,
+          campaignId: (campaign as Record<string, unknown>).campaignId,
           adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
@@ -800,7 +800,7 @@ export class AmazonSyncService {
 
         // 检查是否已存在（从Map查找，O(1)）
         // v353修复: 使用Amazon campaignId构建key (与existingMap中存储的campaignId一致)
-        const existingKey = `${(campaign as any).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
+        const existingKey = `${(campaign as Record<string, unknown>).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
         const existingId = existingMap.get(existingKey);
 
         if (existingId) {

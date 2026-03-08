@@ -776,7 +776,7 @@ export async function generateOptimalStrategy(
   // 5. 创建策略
   const strategyId = await createDaypartingStrategy({
     accountId,
-    campaignId: campaignId as any,
+    campaignId: campaignId as string,
     name: options.name,
     strategyType: "both",
     daypartingOptGoal: options.optimizationGoal,

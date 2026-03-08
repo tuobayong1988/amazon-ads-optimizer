@@ -611,7 +611,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
            AND event_category = 'bid_adjustment'
          GROUP BY event_category, api_sync_status`
       ));
-      apiSyncStats = Array.isArray(syncRows) ? syncRows as any[] : [];
+      apiSyncStats = Array.isArray(syncRows) ? syncRows as unknown[] : [];
     } catch (syncErr) {
       // api_sync_status字段可能不存在，忽略
     }
@@ -1020,9 +1020,9 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
     const features = extractCount(Array.isArray(featureCount) ? featureCount[0] : featureCount);
     
     // 计算关键指标
-    const totalBidEvents = Number((bid as any)?.total_events) || 0;
-    const actualAdjustments = Number((bid as any)?.actual_adjustments) || 0;
-    const holdCount = Number((bid as any)?.hold_count) || 0;
+    const totalBidEvents = Number((bid as number)?.total_events) || 0;
+    const actualAdjustments = Number((bid as number)?.actual_adjustments) || 0;
+    const holdCount = Number((bid as number)?.hold_count) || 0;
     const effectiveRate = totalBidEvents > 0 ? (actualAdjustments / totalBidEvents * 100).toFixed(1) : '0.0';
     
     const totalRLLogs = Number((rl as any)?.total_logs) || 0;
@@ -1063,9 +1063,9 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
         actualAdjustments,
         holdCount,
         effectiveRate: `${effectiveRate}%`,
-        apiSynced: Number((bid as any)?.api_synced) || 0,
-        apiFailed: Number((bid as any)?.api_failed) || 0,
-        apiPending: Number((bid as any)?.api_pending) || 0,
+        apiSynced: Number((bid as number)?.api_synced) || 0,
+        apiFailed: Number((bid as number)?.api_failed) || 0,
+        apiPending: Number((bid as number)?.api_pending) || 0,
       },
       
       algorithmDistribution: Array.isArray(algorithmStats) 

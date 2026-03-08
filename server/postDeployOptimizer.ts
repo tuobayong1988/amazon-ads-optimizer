@@ -601,7 +601,7 @@ async function getLastDeployedVersion(): Promise<number | null> {
         LIMIT 1
       `);
       
-      const rows = (result as any)[0] || [];
+      const rows = (result as Record<string, unknown>[][])[0] || [];
       if (rows.length > 0 && rows[0].action_detail) {
         try {
           const detail = typeof rows[0].action_detail === 'string' 
@@ -730,7 +730,7 @@ async function getTargetLastOptimizedVersion(targetId: number): Promise<number |
       LIMIT 1
     `);
     
-    const rows = (result as any)[0] || [];
+    const rows = (result as Record<string, unknown>[][])[0] || [];
     if (rows.length > 0 && rows[0].action_detail) {
       try {
         const detail = typeof rows[0].action_detail === 'string'

@@ -158,7 +158,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
       ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}
     `);
     
-    const rows = (result as any)[0] || [];
+    const rows = (result as Record<string, unknown>[][])[0] || [];
     const logs: AuditLog[] = rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       organizationId: row.organization_id,

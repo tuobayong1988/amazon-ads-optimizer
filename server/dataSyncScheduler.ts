@@ -1697,19 +1697,19 @@ export async function startOptimizationScheduler(): Promise<void> {
           // 清理sync_conflicts
           const [r1] = await conn.execute(
             `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理sync_change_records
           const [r2] = await conn.execute(
             `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理system_logs
           const [r3] = await conn.execute(
             `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           // 清理已完成的optimization_tasks
           const [r4] = await conn.execute(
             `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ${RETENTION_DAYS} DAY)`
-          ) as any[];
+          ) as unknown[];
           log.warn(`[DataCleanup] v350: 自动清理完成 - sync_conflicts:${r1.affectedRows}, sync_change_records:${r2.affectedRows}, system_logs:${r3.affectedRows}, optimization_tasks:${r4.affectedRows}`);
         } finally {
           conn.release();

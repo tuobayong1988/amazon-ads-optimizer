@@ -270,7 +270,7 @@ export const optimizationRouter = router({
               const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
               if (adGroup) {
                 adGroupId = adGroup.id;
-                campaignId = adGroup.campaignId as any;
+                campaignId = adGroup.campaignId as string;
               }
               targetName = keyword.keywordText;
               matchType = keyword.matchType;
@@ -282,7 +282,7 @@ export const optimizationRouter = router({
               const adGroup = await db.getAdGroupById(Number(target.adGroupId));  // v357: adGroupId现在是string类型
               if (adGroup) {
                 adGroupId = adGroup.id;
-                campaignId = adGroup.campaignId as any;
+                campaignId = adGroup.campaignId as string;
               }
               targetName = `ASIN: ${target.targetValue}`;
               amazonId = target.targetId || '';
@@ -323,7 +323,7 @@ export const optimizationRouter = router({
           // Create bidding log with API status
           await db.createBiddingLog({
             accountId: group.accountId,
-            campaignId: campaignId as any,
+            campaignId: campaignId as string,
             adGroupId,
             logTargetType: result.targetType,
             targetId: result.targetId,

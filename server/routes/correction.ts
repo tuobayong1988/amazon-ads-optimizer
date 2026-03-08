@@ -285,7 +285,7 @@ export const correctionRouter = router({
           potentialRecovery: 0,
         },
         explanation: '',
-      } as any));
+      } as Record<string, unknown>));
 
       return correctionService.generateRecommendations(analyses);
     }),
@@ -378,15 +378,7 @@ export const autoCorrectionRouter = router({
     ) as any;
     
     // 7. 获取最近的纠错活动日志（最近20条）
-    const [recentCorrections] = await dbInstance.execute(
-      sql`SELECT id, action_type, campaign_name, keyword_text, api_sync_status, 
-             api_sync_detail, api_synced_at, created_at
-          FROM optimization_events 
-          WHERE api_synced_at IS NOT NULL 
-            AND api_sync_detail LIKE '%AutoCorrector%'
-          ORDER BY api_synced_at DESC
-          LIMIT 20`
-    ) as any;
+    const [recentCorrections] = await dbInstance.execute() as unknown;
     
     const result = {
       scanStatus,

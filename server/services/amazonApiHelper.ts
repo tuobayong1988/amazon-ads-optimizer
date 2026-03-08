@@ -374,7 +374,7 @@ export async function syncNewKeywordsToAmazon(
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
-          (batch as any[]).map((k: Record<string, unknown>) => ({
+          (batch as unknown[]).map((k: Record<string, unknown>) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
@@ -636,7 +636,7 @@ export async function syncPlacementAdjustmentToAmazon(
             { predicate: 'placementProductPage', percentage: Math.round(productPagePercent) },
           ],
         },
-      } as any);
+      } as Record<string, unknown>);
     }, { label: `位置倾斜同步 Campaign ${campaignId}` });
     log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
@@ -799,7 +799,7 @@ export async function syncNegativeKeywordsToAmazon(
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
         const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
-          (newAdGroupNegatives as any[]).map((n: Record<string, unknown>) => ({
+          (newAdGroupNegatives as unknown[]).map((n: Record<string, unknown>) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,
@@ -1220,7 +1220,7 @@ export async function syncCampaignStatusToAmazon(
           } else {
             await syncService.client.updateSpCampaign(change.amazonCampaignId, {
               state: change.newStatus.toUpperCase(),
-            } as any);
+            } as Record<string, unknown>);
           }
           
           success = true;

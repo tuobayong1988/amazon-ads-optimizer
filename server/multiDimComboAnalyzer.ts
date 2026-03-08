@@ -1012,7 +1012,7 @@ export async function persistAnalysisResults(
         analysisStartDate: startDate.toISOString().split('T')[0],
         analysisEndDate: new Date().toISOString().split('T')[0],
         analyzedAt: now,
-      } as any);
+      } as Record<string, unknown>);
       inserted++;
     } catch (err: unknown) {
       log.error(`[ComboAnalyzer] 写入分析结果失败: ${(err as Error).message}`);

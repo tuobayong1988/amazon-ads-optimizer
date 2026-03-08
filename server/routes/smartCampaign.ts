@@ -285,7 +285,7 @@ export const smartCampaignRouter = router({
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
 
       // 先获取优化建议
-      const report = await smartCampaignRouter.createCaller({} as any).getBatchOptimizationRecommendations({
+      const report = await smartCampaignRouter.createCaller({} as Record<string, unknown>).getBatchOptimizationRecommendations({
         performanceGroupId,
         goal,
         daysOfHistory,

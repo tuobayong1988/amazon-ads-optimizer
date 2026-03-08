@@ -749,7 +749,7 @@ export async function getCampaignPlacementSettings(
         eq(placementSettings.campaignId, String(campaignId)),
         eq(placementSettings.accountId, accountId)
       )
-    ) as any[];
+    ) as unknown[];
 
   const result: { [key in PlacementType]?: number } = {};
   
@@ -1021,7 +1021,7 @@ export async function batchExecutePlacementOptimization(
           eq(campaigns.accountId, accountId),
           eq(campaigns.campaignStatus, 'enabled')
         )
-      ) as any[];
+      ) as unknown[];
     campaignsToOptimize = allCampaigns
       .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
       .map((c: Record<string, unknown>) => ({ amazonCampaignId: String(c.campaignId) }));

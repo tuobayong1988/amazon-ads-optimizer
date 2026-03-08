@@ -732,7 +732,7 @@ export async function executeAutoCorrections(
         reason: `[自动纠错] ${correction.reason}`,
         apiSyncStatus: 'pending',
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      } as any);
+      } as Record<string, unknown>);
       
       // 标记原始日志为已纠正
       await db.update(optimizationLogs)

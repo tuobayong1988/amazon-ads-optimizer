@@ -79,7 +79,7 @@ export async function migrateEncryptCredentials(): Promise<{
     const rows = await db.execute(sql`
       SELECT id, accountId, clientSecret, refreshToken 
       FROM amazon_api_credentials
-    `) as any;
+    `) as unknown;
     
     const records = rows[0] || rows;
     result.totalRecords = records.length;

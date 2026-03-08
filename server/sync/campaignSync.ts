@@ -112,11 +112,11 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
       }
 
       // 获取SB广告的组合ID
-      const sbPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const sbPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // 获取SB广告的竞价策略
-      const sbBiddingStrategy = (apiCampaign as any).bidding?.strategy || 
-                                (apiCampaign as any).biddingStrategy || 
+      const sbBiddingStrategy = (apiCampaign as Record<string, unknown>).bidding?.strategy || 
+                                (apiCampaign as Record<string, unknown>).biddingStrategy || 
                                 'legacyForSales';
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
@@ -126,33 +126,33 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
       //   - PROMOTE_PRODUCTS → CPC计费（推广产品）
       // 注意：同一种SB广告格式（Video/Product Collection/Store Spotlight）
       //       既可以是CPC也可以是vCPM，完全取决于创建时选择的Goal
-      const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+      const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
       let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc'; // 默认CPC
       if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
         sbCostType = 'vcpm';
       }
       // 也检查API是否直接返回了costType字段（某些API版本可能直接返回）
-      if ((apiCampaign as any).costType) {
-        const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+      if ((apiCampaign as Record<string, unknown>).costType) {
+        const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
         if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
           sbCostType = apiCostType as 'vcpm' | 'cpm';
         }
       }
 
       // 获取SB广告格式
-      const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+      const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
       const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
 
       // 获取SB广告的竞价优化目标
-      const sbBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const sbBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sbBidOptimization) ? sbBidOptimization : null;
 
       // 获取SB广告的landing page信息
-      const sbLandingPageType = (apiCampaign as any).landingPage?.pageType || (apiCampaign as any).landingPageType || null;
-      const sbLandingPageUrl = (apiCampaign as any).landingPage?.url || (apiCampaign as any).landingPageUrl || null;
-      const sbBrandEntityId = (apiCampaign as any).brandEntityId || null;
+      const sbLandingPageType = (apiCampaign as Record<string, unknown>).landingPage?.pageType || (apiCampaign as Record<string, unknown>).landingPageType || null;
+      const sbLandingPageUrl = (apiCampaign as Record<string, unknown>).landingPage?.url || (apiCampaign as Record<string, unknown>).landingPageUrl || null;
+      const sbBrandEntityId = (apiCampaign as Record<string, unknown>).brandEntityId || null;
 
       log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
 
@@ -291,12 +291,12 @@ export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string
       }
 
       // 获取SD广告的计费类型
-      const sdCostType = (apiCampaign as any).costType?.toLowerCase() || 'cpc';
+      const sdCostType = (apiCampaign as Record<string, unknown>).costType?.toLowerCase() || 'cpc';
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
       // 获取组合ID
-      const sdPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const sdPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // ✅ 获取SD广告的Campaign Goal（广告目标）
       // SD API返回的goal/optimizationGoal字段决定广告目标:
@@ -304,14 +304,14 @@ export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string
       //   - page_visits / pageVisits → 驱动页面访问（通常配合CPC计费）
       //   - conversions → 促进转化（通常配合CPC计费）
       // 注意：SD的costType由API直接返回，不goal共同决定广告的计费和优化方式
-      const sdGoal = (apiCampaign as any).goal || 
-                     (apiCampaign as any).optimizationGoal || 
-                     (apiCampaign as any).bidOptimization || '';
+      const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
+                     (apiCampaign as Record<string, unknown>).optimizationGoal || 
+                     (apiCampaign as Record<string, unknown>).bidOptimization || '';
       
       // 获取SD广告的tactic（定向策略）
       // T00020 = 受众定向(Audiences), T00030 = 商品定向(Contextual)
       // remarketing = 再营销, contextual = 上下文定向
-      const sdTactic = (apiCampaign as any).tactic || null;
+      const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
       
       // 根据goal和costType的组合确定实际计费方式
       // SD的costType由API直接返回，但也可以通过goal推断
@@ -322,7 +322,7 @@ export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string
       }
 
       // 获取SD广告的竞价优化目标
-      const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -443,7 +443,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
       // v168: SP API v3的dailyBudget可能嵌套在多种结构中
       // 常见结构: { budget: { budget: 30 } }, { budget: { dailyBudget: 30 } }, { dailyBudget: 30 }, { budget: 30 }
       let dailyBudgetValue = 0;
-      const budgetField = (apiCampaign as any).budget;
+      const budgetField = (apiCampaign as Record<string, unknown>).budget;
       if (budgetField !== undefined && budgetField !== null) {
         if (typeof budgetField === 'number') {
           dailyBudgetValue = budgetField;
@@ -493,12 +493,12 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
       }
 
       // 获取竞价策略
-      const biddingStrategy = (apiCampaign as any).dynamicBidding?.strategy || 
-                             (apiCampaign as any).bidding?.strategy || 
+      const biddingStrategy = (apiCampaign as Record<string, unknown>).dynamicBidding?.strategy || 
+                             (apiCampaign as Record<string, unknown>).bidding?.strategy || 
                              'legacyForSales';
 
       // 获取组合信息
-      const portfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const portfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       const campaignData = {
         accountId: service.accountId,

@@ -29,7 +29,7 @@ export class PrelaunchProjectService {
 
     try {
       const conditions = [];
-      if (status) conditions.push(eq(prelaunchProjects.status, status as any));
+      if (status) conditions.push(eq(prelaunchProjects.status, status as string));
       if (search) {
         conditions.push(
           or(

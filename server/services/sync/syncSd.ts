@@ -131,12 +131,12 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的计费类型
-      const sdCostType = (apiCampaign as any).costType?.toLowerCase() || 'cpc';
+      const sdCostType = (apiCampaign as Record<string, unknown>).costType?.toLowerCase() || 'cpc';
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
       // 获取组合ID
-      const sdPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+      const sdPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
 
       // ✅ 获取SD广告的Campaign Goal（广告目标）
       // SD API返回的goal/optimizationGoal字段决定广告目标:
@@ -144,14 +144,14 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       //   - page_visits / pageVisits → 驱动页面访问（通常配合CPC计费）
       //   - conversions → 促进转化（通常配合CPC计费）
       // 注意：SD的costType由API直接返回，不goal共同决定广告的计费和优化方式
-      const sdGoal = (apiCampaign as any).goal || 
-                     (apiCampaign as any).optimizationGoal || 
-                     (apiCampaign as any).bidOptimization || '';
+      const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
+                     (apiCampaign as Record<string, unknown>).optimizationGoal || 
+                     (apiCampaign as Record<string, unknown>).bidOptimization || '';
       
       // 获取SD广告的tactic（定向策略）
       // T00020 = 受众定向(Audiences), T00030 = 商品定向(Contextual)
       // remarketing = 再营销, contextual = 上下文定向
-      const sdTactic = (apiCampaign as any).tactic || null;
+      const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
       
       // 根据goal和costType的组合确定实际计费方式
       // SD的costType由API直接返回，但也可以通过goal推断
@@ -162,7 +162,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的竞价优化目标
-      const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 

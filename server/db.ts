@@ -1125,7 +1125,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         conversions: 0,
         dataSource: 'ams',
         isFinalized: 0,
-      } as any);
+      } as Record<string, unknown>);
     }
   }
   
@@ -1274,7 +1274,7 @@ export async function deleteDailyPerformanceByDateRange(
       sql`DATE(${dailyPerformance.date}) <= ${endDate}`
     ));
   
-  return (result as any)[0]?.affectedRows || 0;
+  return (result as Record<string, unknown>[][])[0]?.affectedRows || 0;
 }
 
 // ==================== Market Curve Data Functions ====================
@@ -1922,7 +1922,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      campaignId: campaign.campaignId as any,
+      campaignId: campaign.campaignId as string,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,
@@ -2023,7 +2023,7 @@ export async function addNegativeKeyword(data: {
     negativeText: data.keyword,
     negativeMatchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
     negativeSource: 'manual',
-  } as any);
+  } as Record<string, unknown>);
 }
 
 
@@ -2583,7 +2583,7 @@ export async function addAttributionCorrectionRecord(data: {
     suggestedBid: data.suggestedBid?.toString() || null,
     confidenceScore: data.confidenceScore?.toString() || null,
     correctionStatus: 'pending_review',
-  } as any);
+  } as Record<string, unknown>);
 }
 
 // Get correction review session
@@ -3364,7 +3364,7 @@ export async function recordBidAdjustment(data: {
     appliedBy: data.appliedBy,
     status: data.status || 'applied',
     errorMessage: data.errorMessage,
-  } as any);
+  } as Record<string, unknown>);
   
   // v145: 双写到统一优化事件表
   try {
@@ -4179,7 +4179,7 @@ export async function getSyncConflicts(accountId: number, status?: string) {
   
   const conditions = [eq(syncConflicts.accountId, accountId)];
   if (status) {
-    conditions.push(eq(syncConflicts.resolutionStatus, status as any));
+    conditions.push(eq(syncConflicts.resolutionStatus, status as string));
   }
   
   return db.select()
@@ -4308,7 +4308,7 @@ export async function getSyncQueue(userId: number, status?: string) {
   
   const conditions = [eq(syncTaskQueue.userId, userId)];
   if (status) {
-    conditions.push(eq(syncTaskQueue.status, status as any));
+    conditions.push(eq(syncTaskQueue.status, status as string));
   }
   
   return db.select()
@@ -4733,7 +4733,7 @@ export async function createSyncLog(data: {
       userId: data.userId,
       accountId: data.accountId,
       syncType: data.syncType as any,
-      status: data.status as any,
+      status: data.status as string,
       recordsSynced: data.recordsSynced,
       startedAt: data.startedAt,
       completedAt: data.completedAt,
@@ -4929,11 +4929,11 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
         AND DATE(date) <= ${endDateStr}
       GROUP BY DATE(date)
       ORDER BY DATE(date)
-    `) as any;
+    `) as unknown;
     
     const rows = results[0] || results;
     
-    return (rows as any[]).map((r: Record<string, unknown>) => {
+    return (rows as unknown[]).map((r: Record<string, unknown>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
@@ -4990,7 +4990,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MAX(DATE(date)) as max_date
       FROM daily_performance
       WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-    `) as any;
+    `) as unknown;
     
     const rows = results[0] || results;
     const row = Array.isArray(rows) ? rows[0] : rows;
@@ -5001,7 +5001,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         SELECT MAX(lastSyncAt) as last_sync
         FROM amazon_api_credentials
         WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-      `) as any;
+      `) as unknown;
       const syncRows = syncResults[0] || syncResults;
       const syncRow = Array.isArray(syncRows) ? syncRows[0] : syncRows;
       
@@ -5020,7 +5020,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         MAX(DATE(updatedAt)) as max_date
       FROM campaigns
       WHERE accountId IN (${sql.raw(accountIds.map(Number).filter(n => !isNaN(n)).join(","))})
-    `) as any;
+    `) as unknown;
     
     const campaignRows = campaignResults[0] || campaignResults;
     const campaignRow = Array.isArray(campaignRows) ? campaignRows[0] : campaignRows;
@@ -5232,7 +5232,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       newValue: data.newValue,
       changeReason: data.changeReason,
       actionDetail: data.actionDetail,
-      status: (data.status as any) || 'success',
+      status: (data.status as string) || 'success',
       apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as any,
       apiSyncDetail: finalApiSyncDetail,
       // v333: 传递apiResponseId和apiSyncedAt到optimization_events表
@@ -5675,7 +5675,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     sourceTable: 'bidding_logs',
     sourceId: log.id,
     createdAt: log.createdAt,
-  } as any));
+  } as Record<string, unknown>));
   
   await db.insert(optimizationEvents).values(events);
   return events.length;
@@ -5806,7 +5806,7 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
       newValue: log.newValue,
       changeReason: log.changeReason,
       actionDetail: log.actionDetail,
-      status: log.status as any || 'success',
+      status: log.status as string || 'success',
       apiSyncStatus: log.apiSyncStatus as any,
       apiSyncDetail: log.apiSyncDetail,
       errorMessage: log.errorMessage,

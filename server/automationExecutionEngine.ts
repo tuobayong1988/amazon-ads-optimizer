@@ -1122,7 +1122,7 @@ export async function runFullAutomationCycle(accountId: number): Promise<{
     {
       optimizationTypes: config.enabledTypes.filter(t => 
         ['bid_adjustment', 'placement_tilt', 'dayparting', 'negative_keyword'].includes(t)
-      ) as any[],
+      ) as unknown[],
     }
   );
   

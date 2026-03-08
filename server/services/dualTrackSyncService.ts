@@ -149,7 +149,7 @@ async function getApiSyncStatus(db: ReturnType<typeof getDb> | null, accountId: 
         AND syncType IN ('all', 'performance')
       ORDER BY createdAt DESC
       LIMIT 1
-    `) as any;
+    `) as unknown;
 
     const lastSync = Array.isArray(result) && result.length > 0 ? result[0] : null;
 
@@ -173,7 +173,7 @@ async function getApiSyncStatus(db: ReturnType<typeof getDb> | null, accountId: 
       FROM daily_performance
       WHERE accountId = ${accountId}
         AND (dataSource = 'api' OR dataSource IS NULL)
-    `) as any;
+    `) as unknown;
 
     const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
     const recordCount = parseInt(perfData?.recordCount || '0', 10);
@@ -233,7 +233,7 @@ async function getAmsSyncStatus(db: ReturnType<typeof getDb> | null, accountId: 
       WHERE accountId = ${accountId}
         AND dataSource = 'ams'
         AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-    `) as any;
+    `) as unknown;
 
     const amsData = Array.isArray(amsDataResult) && amsDataResult.length > 0 ? amsDataResult[0] : null;
     const hasRecentAmsData = (amsData?.totalRecords || 0) > 0;
@@ -313,7 +313,7 @@ async function getLastConsistencyCheck(db: ReturnType<typeof getDb> | null, acco
       SELECT MAX(checkTime) as lastCheck
       FROM data_consistency_checks
       WHERE accountId = ${accountId}
-    `) as any;
+    `) as unknown;
     const row = Array.isArray(result) && result.length > 0 ? result[0] : null;
     return row?.lastCheck ? new Date(row.lastCheck) : null;
   } catch {
@@ -372,7 +372,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
       FROM daily_performance
       WHERE accountId = ${accountId}
         AND (dataSource = 'api' OR dataSource IS NULL)
-    `) as any;
+    `) as unknown;
 
     const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
     const apiRecords = parseInt(apiData?.recordCount || '0', 10);
@@ -386,7 +386,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
       FROM daily_performance
       WHERE accountId = ${accountId}
         AND dataSource = 'ams'
-    `) as any;
+    `) as unknown;
 
     const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
     const amsRecords = parseInt(amsData?.recordCount || '0', 10);
@@ -399,7 +399,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
         MAX(createdAt) as lastUpdate
       FROM daily_performance
       WHERE accountId = ${accountId}
-    `) as any;
+    `) as unknown;
 
     const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
     const totalRecords = parseInt(totalData?.recordCount || '0', 10);
@@ -461,7 +461,7 @@ export async function runConsistencyCheck(
       WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
-    `) as any;
+    `) as unknown;
 
     const apiRecords = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.recordCount || 0 : 0;
 
@@ -509,7 +509,7 @@ export async function getMergedPerformanceData(
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
       ORDER BY DATE(date), campaignId
-    `) as any;
+    `) as unknown;
 
     return Array.isArray(rows) ? rows : [];
   } catch (error: unknown) {
@@ -612,7 +612,7 @@ export async function getDataForAlgorithm(
         AND DATE(date) >= ${startDate.toISOString().split('T')[0]}
         AND DATE(date) <= ${safeEndDate.toISOString().split('T')[0]}
       ORDER BY DATE(date) DESC, campaignId
-    `) as any;
+    `) as unknown;
 
     const data = Array.isArray(rows) ? rows : [];
 
@@ -680,7 +680,7 @@ export async function getRealtimeSpendForGuard(
         WHERE accountId = ${accountId}
           AND DATE(eventTime) = ${today}
           ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
-      `) as any;
+      `) as unknown;
 
       if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.todaySpend !== null) {
         result = amsRows[0];
@@ -702,7 +702,7 @@ export async function getRealtimeSpendForGuard(
         WHERE accountId = ${accountId}
           AND DATE(date) = ${today}
           ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
-      `) as any;
+      `) as unknown;
 
       result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
     }

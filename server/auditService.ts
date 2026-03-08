@@ -103,7 +103,7 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as any)[0]?.insertId || 0));
+  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, unknown>[][])[0]?.insertId || 0));
   return log;
 }
 
@@ -186,7 +186,7 @@ export async function getAuditLogs(params: {
   }
 
   if (status) {
-    conditions.push(eq(auditLogs.status, status as any));
+    conditions.push(eq(auditLogs.status, status as string));
   }
 
   if (startDate) {

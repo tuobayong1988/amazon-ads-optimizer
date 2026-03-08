@@ -49,7 +49,7 @@ async function setupMockData() {
         campaignType: "sp_manual",
         campaignStatus: "enabled",
         dailyBudget: "50.00",
-    } as any);
+    } as Record<string, unknown>);
 
     // Create mock ad group
     await db.insert(adGroups).values({
@@ -58,7 +58,7 @@ async function setupMockData() {
         adGroupId: "test_adgroup_999901",
         adGroupName: "Test AdGroup",
         adGroupStatus: "enabled",
-    } as any);
+    } as Record<string, unknown>);
 
     // Create mock keyword
     await db.insert(keywords).values({
@@ -69,7 +69,7 @@ async function setupMockData() {
         matchType: "broad",
         bid: "1.23",
         keywordStatus: "enabled",
-    } as any);
+    } as Record<string, unknown>);
 
     // Create some mock RL logs to make algorithms eligible
     await db.insert(rlTrainingLogs).values(Array.from({ length: 60 }, (_, i) => ({

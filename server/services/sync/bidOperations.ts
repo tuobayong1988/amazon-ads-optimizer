@@ -235,7 +235,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         // v333: 记录Amazon API的requestId用于端到端追踪
         apiResponseId: _apiResponseId || null,
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      } as any);
+      } as Record<string, unknown>);
     } catch (logError: unknown) {
       log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${(logError as Error).message}`);
       try {
