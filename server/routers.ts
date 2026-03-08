@@ -77,6 +77,7 @@ import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
 import { systemConfigRouter } from './routes/systemConfig'; // v272 P0-1
 import { dataHealthRouter } from './routes/dataHealth'; // v359 P3-2
+import { guardrailConfigRouter } from './routes/guardrailConfig'; // v359 P3-3
 
 // 预发布引擎路由 v328 (仅admin可见)
 import { prelaunchRouter } from './prelaunch/router';
@@ -229,6 +230,8 @@ export const appRouter = router({
 
   // v359: 数据健康仪表盘
   dataHealth: dataHealthRouter,
+  // v359: 安全护栏动态配置
+  guardrailConfig: guardrailConfigRouter,
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,

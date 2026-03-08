@@ -19,6 +19,7 @@ const log = createModuleLogger('OptimizationSafetyGuardrails');
 
 import * as db from './db';
 import { and, eq, sql } from 'drizzle-orm';
+import { getGuardrailConfigService, type AdType } from './services/guardrailConfigService';
 
 // ==================== 配置常量 ====================
 
@@ -67,16 +68,28 @@ export function applyBidGuardrail(
   currentBid: number,
   proposedBid: number,
   userMaxBid?: number | null,
-  consecutiveSameDirection?: number
+  consecutiveSameDirection?: number,
+  /** v359: 可选的动态配置上下文 */
+  context?: { accountId?: number; adType?: AdType }
 ): BidGuardrailResult {
   let safeBid = proposedBid;
   let wasLimited = false;
   let limitReason: string | null = null;
   
+  // v359: 获取动态配置（如果可用），否则使用默认SAFETY_LIMITS
+  let bidLimits = SAFETY_LIMITS.bid;
+  try {
+    const configService = getGuardrailConfigService();
+    const effectiveConfig = configService.getEffectiveConfig(context?.accountId, context?.adType);
+    bidLimits = effectiveConfig.bid;
+  } catch {
+    // 动态配置不可用时使用默认值
+  }
+  
   // 1. 绝对范围限制
   const effectiveMaxBid = Math.min(
-    userMaxBid || SAFETY_LIMITS.bid.maxBid,
-    SAFETY_LIMITS.bid.maxBid
+    userMaxBid || bidLimits.maxBid,
+    bidLimits.maxBid
   );
   
   if (safeBid > effectiveMaxBid) {
@@ -85,18 +98,18 @@ export function applyBidGuardrail(
     limitReason = `超过最高出价限制$${effectiveMaxBid.toFixed(2)}`;
   }
   
-  if (safeBid < SAFETY_LIMITS.bid.minBid) {
-    safeBid = SAFETY_LIMITS.bid.minBid;
+  if (safeBid < bidLimits.minBid) {
+    safeBid = bidLimits.minBid;
     wasLimited = true;
-    limitReason = `低于最低出价$${SAFETY_LIMITS.bid.minBid}`;
+    limitReason = `低于最低出价$${bidLimits.minBid}`;
   }
   
   // 2. 单次调整幅度限制
-  let maxChangePercent = SAFETY_LIMITS.bid.maxSingleChangePercent;
+  let maxChangePercent = bidLimits.maxSingleChangePercent;
   
   // 连续同方向调整时降速
-  if (consecutiveSameDirection && consecutiveSameDirection >= SAFETY_LIMITS.bid.consecutiveSameDirectionSlowdown) {
-    maxChangePercent *= SAFETY_LIMITS.bid.slowdownFactor;
+  if (consecutiveSameDirection && consecutiveSameDirection >= bidLimits.consecutiveSameDirectionSlowdown) {
+    maxChangePercent *= bidLimits.slowdownFactor;
   }
   
   const maxIncrease = currentBid * (1 + maxChangePercent);
@@ -108,7 +121,7 @@ export function applyBidGuardrail(
     limitReason = `单次提价幅度限制为${(maxChangePercent * 100).toFixed(0)}%`;
   }
   
-  if (safeBid < maxDecrease && currentBid > SAFETY_LIMITS.bid.minBid) {
+  if (safeBid < maxDecrease && currentBid > bidLimits.minBid) {
     safeBid = maxDecrease;
     wasLimited = true;
     limitReason = `单次降价幅度限制为${(maxChangePercent * 100).toFixed(0)}%`;
@@ -140,22 +153,34 @@ export interface BudgetGuardrailResult {
 export function applyBudgetGuardrail(
   currentBudget: number,
   proposedBudget: number,
-  userDailyBudgetLimit?: number | null
+  userDailyBudgetLimit?: number | null,
+  /** v359: 可选的动态配置上下文 */
+  context?: { accountId?: number; adType?: AdType }
 ): BudgetGuardrailResult {
   let safeBudget = proposedBudget;
   let wasLimited = false;
   let limitReason: string | null = null;
   
+  // v359: 获取动态配置
+  let budgetLimits = SAFETY_LIMITS.budget;
+  try {
+    const configService = getGuardrailConfigService();
+    const effectiveConfig = configService.getEffectiveConfig(context?.accountId, context?.adType);
+    budgetLimits = effectiveConfig.budget;
+  } catch {
+    // 动态配置不可用时使用默认值
+  }
+  
   // 1. 绝对范围限制
-  if (safeBudget < SAFETY_LIMITS.budget.minDailyBudget) {
-    safeBudget = SAFETY_LIMITS.budget.minDailyBudget;
+  if (safeBudget < budgetLimits.minDailyBudget) {
+    safeBudget = budgetLimits.minDailyBudget;
     wasLimited = true;
-    limitReason = `低于最低日预算$${SAFETY_LIMITS.budget.minDailyBudget}`;
+    limitReason = `低于最低日预算$${budgetLimits.minDailyBudget}`;
   }
   
   const effectiveMax = Math.min(
-    userDailyBudgetLimit || SAFETY_LIMITS.budget.maxDailyBudget,
-    SAFETY_LIMITS.budget.maxDailyBudget
+    userDailyBudgetLimit || budgetLimits.maxDailyBudget,
+    budgetLimits.maxDailyBudget
   );
   
   if (safeBudget > effectiveMax) {
@@ -168,16 +193,16 @@ export function applyBudgetGuardrail(
   if (currentBudget > 0) {
     const changePercent = (safeBudget - currentBudget) / currentBudget;
     
-    if (changePercent > SAFETY_LIMITS.budget.maxSingleChangePercent) {
-      safeBudget = currentBudget * (1 + SAFETY_LIMITS.budget.maxSingleChangePercent);
+    if (changePercent > budgetLimits.maxSingleChangePercent) {
+      safeBudget = currentBudget * (1 + budgetLimits.maxSingleChangePercent);
       wasLimited = true;
-      limitReason = `单次预算增加幅度限制为${(SAFETY_LIMITS.budget.maxSingleChangePercent * 100).toFixed(0)}%`;
+      limitReason = `单次预算增加幅度限制为${(budgetLimits.maxSingleChangePercent * 100).toFixed(0)}%`;
     }
     
-    if (changePercent < -SAFETY_LIMITS.budget.maxSingleChangePercent) {
-      safeBudget = currentBudget * (1 - SAFETY_LIMITS.budget.maxSingleChangePercent);
+    if (changePercent < -budgetLimits.maxSingleChangePercent) {
+      safeBudget = currentBudget * (1 - budgetLimits.maxSingleChangePercent);
       wasLimited = true;
-      limitReason = `单次预算减少幅度限制为${(SAFETY_LIMITS.budget.maxSingleChangePercent * 100).toFixed(0)}%`;
+      limitReason = `单次预算减少幅度限制为${(budgetLimits.maxSingleChangePercent * 100).toFixed(0)}%`;
     }
   }
   
@@ -208,32 +233,44 @@ export interface PlacementGuardrailResult {
  */
 export function applyPlacementGuardrail(
   currentAdjustment: number,
-  proposedAdjustment: number
+  proposedAdjustment: number,
+  /** v359: 可选的动态配置上下文 */
+  context?: { accountId?: number; adType?: AdType }
 ): PlacementGuardrailResult {
   let safeAdjustment = proposedAdjustment;
   let wasLimited = false;
   let limitReason: string | null = null;
   
-  // 1. 绝对范围限制
-  if (safeAdjustment > SAFETY_LIMITS.placement.maxTotalAdjustment) {
-    safeAdjustment = SAFETY_LIMITS.placement.maxTotalAdjustment;
-    wasLimited = true;
-    limitReason = `位置倾斜不超过${SAFETY_LIMITS.placement.maxTotalAdjustment}%`;
+  // v359: 获取动态配置
+  let placementLimits = SAFETY_LIMITS.placement;
+  try {
+    const configService = getGuardrailConfigService();
+    const effectiveConfig = configService.getEffectiveConfig(context?.accountId, context?.adType);
+    placementLimits = effectiveConfig.placement;
+  } catch {
+    // 动态配置不可用时使用默认值
   }
   
-  if (safeAdjustment < SAFETY_LIMITS.placement.minTotalAdjustment) {
-    safeAdjustment = SAFETY_LIMITS.placement.minTotalAdjustment;
+  // 1. 绝对范围限制
+  if (safeAdjustment > placementLimits.maxTotalAdjustment) {
+    safeAdjustment = placementLimits.maxTotalAdjustment;
     wasLimited = true;
-    limitReason = `位置倾斜不低于${SAFETY_LIMITS.placement.minTotalAdjustment}%`;
+    limitReason = `位置倾斜不超过${placementLimits.maxTotalAdjustment}%`;
+  }
+  
+  if (safeAdjustment < placementLimits.minTotalAdjustment) {
+    safeAdjustment = placementLimits.minTotalAdjustment;
+    wasLimited = true;
+    limitReason = `位置倾斜不低于${placementLimits.minTotalAdjustment}%`;
   }
   
   // 2. 单次变动幅度限制
   const delta = Math.abs(safeAdjustment - currentAdjustment);
-  if (delta > SAFETY_LIMITS.placement.maxSingleChangePct) {
+  if (delta > placementLimits.maxSingleChangePct) {
     const direction = safeAdjustment > currentAdjustment ? 1 : -1;
-    safeAdjustment = currentAdjustment + direction * SAFETY_LIMITS.placement.maxSingleChangePct;
+    safeAdjustment = currentAdjustment + direction * placementLimits.maxSingleChangePct;
     wasLimited = true;
-    limitReason = `单次位置调整幅度限制为${SAFETY_LIMITS.placement.maxSingleChangePct}个百分点`;
+    limitReason = `单次位置调整幅度限制为${placementLimits.maxSingleChangePct}个百分点`;
   }
   
   // 3. 四舍五入
@@ -264,7 +301,16 @@ export async function checkEmergencyBrake(
   performanceGroupId: number
 ): Promise<EmergencyBrakeResult> {
   try {
-    const lookback = SAFETY_LIMITS.emergency.lookbackDays;
+    // v359: 获取动态配置
+    let emergencyLimits = SAFETY_LIMITS.emergency;
+    try {
+      const configService = getGuardrailConfigService();
+      const effectiveConfig = configService.getEffectiveConfig(accountId);
+      emergencyLimits = effectiveConfig.emergency;
+    } catch {
+      // 动态配置不可用时使用默认值
+    }
+    const lookback = emergencyLimits.lookbackDays;
     const now = new Date();
     
     // 最近N天
@@ -336,7 +382,7 @@ export async function checkEmergencyBrake(
     // v230: 检测销售额骤降 - 增加因果归因
     if (previousSales > 30) {  // v230: 提高最低销售额阈值
       const salesDropRate = (previousSales - recentSales) / previousSales;
-      if (salesDropRate >= SAFETY_LIMITS.emergency.salesDropThreshold) {
+      if (salesDropRate >= emergencyLimits.salesDropThreshold) {
         // v230: 只有当最近有优化操作时才触发紧急制动
         // 如果没有优化操作，下降可能是自然波动，只记录警告而不触发制动
         if (hasRecentOptimization) {
@@ -354,7 +400,7 @@ export async function checkEmergencyBrake(
     // v230: 检测花费激增 - 增加因果归因
     if (previousSpend > 20) {  // v230: 提高最低花费阈值
       const spendSurgeRate = recentSpend / previousSpend;
-      if (spendSurgeRate >= SAFETY_LIMITS.emergency.spendSurgeThreshold && recentSales < previousSales * 1.2) {
+      if (spendSurgeRate >= emergencyLimits.spendSurgeThreshold && recentSales < previousSales * 1.2) {
         if (hasRecentOptimization) {
           return {
             triggered: true,
@@ -369,7 +415,7 @@ export async function checkEmergencyBrake(
     // v230: 检测订单骤降 - 增加因果归因
     if (previousOrders > 10) {  // v230: 提高最低订单阈值
       const ordersDropRate = (previousOrders - recentOrders) / previousOrders;
-      if (ordersDropRate >= SAFETY_LIMITS.emergency.ordersDropThreshold) {
+      if (ordersDropRate >= emergencyLimits.ordersDropThreshold) {
         if (hasRecentOptimization) {
           return {
             triggered: true,
