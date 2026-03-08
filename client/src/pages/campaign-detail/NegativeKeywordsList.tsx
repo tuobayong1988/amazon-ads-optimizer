@@ -3,6 +3,7 @@
  * v361: 从CampaignDetail.tsx拆分的NegativeKeywordsList子组件
  */
 
+import React from "react";
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2 } from 'lucide-react';
@@ -125,3 +126,6 @@ export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
   );
 }
 
+
+// v361 P3-1: React.memo优化，避免不必要的重渲染
+export const MemoizedNegativeKeywordsList = React.memo(NegativeKeywordsList);

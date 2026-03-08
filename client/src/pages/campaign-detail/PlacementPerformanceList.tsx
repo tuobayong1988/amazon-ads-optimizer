@@ -3,6 +3,7 @@
  * v361: 从CampaignDetail.tsx拆分的PlacementPerformanceList子组件
  */
 
+import React from "react";
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { trpc } from '@/utils/trpc';
@@ -161,3 +162,6 @@ export function PlacementPerformanceList({ campaignId, campaignType }: { campaig
     </div>
   );
 }
+
+// v361 P3-1: React.memo优化，避免不必要的重渲染
+export const MemoizedPlacementPerformanceList = React.memo(PlacementPerformanceList);

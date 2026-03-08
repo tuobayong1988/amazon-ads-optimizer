@@ -3,6 +3,7 @@
  * v361: 从CampaignDetail.tsx拆分的KeywordsList子组件
  */
 
+import React from "react";
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -106,3 +107,6 @@ export function KeywordsList({ adGroups }: { adGroups: any[] }) {
 
 
 // 投放词列表子组件
+
+// v361 P3-1: React.memo优化，避免不必要的重渲染
+export const MemoizedKeywordsList = React.memo(KeywordsList);
