@@ -75,9 +75,54 @@ export const GRADUAL_PLACEMENT_CONFIG = {
   // 总范围
   minMultiplier: -50,
   maxMultiplier: 200,
-  // 冷却期（天）
-  cooldownDays: 5,
+  // v360: 位置倾斜冷却期（48小时）
+  cooldownDays: 2,
 };
+
+/** v360: 预算调整冷却期配置 */
+export const BUDGET_COOLDOWN_CONFIG = {
+  // 预算调整冷却期（24小时）
+  cooldownHours: 24,
+};
+
+/** v360: 动态归因周期配置 - 根据广告类型自动调整 */
+export const ATTRIBUTION_WINDOW_CONFIG: Record<string, number> = {
+  sp: 7,    // SP广告: 7天点击归因
+  sb: 14,   // SB广告: 14天点击归因
+  sd: 14,   // SD广告: 14天点击归因
+  default: 7,
+};
+
+/**
+ * v360: 根据广告类型获取归因窗口天数
+ */
+export function getAttributionWindowDays(adType?: string): number {
+  if (!adType) return ATTRIBUTION_WINDOW_CONFIG.default;
+  const key = adType.toLowerCase().replace('sponsored_', '').replace('sponsored', '');
+  return ATTRIBUTION_WINDOW_CONFIG[key] || ATTRIBUTION_WINDOW_CONFIG.default;
+}
+
+/**
+ * v360: 检查预算调整冷却期
+ * 返回true表示仍在冷却期内，不应进行调整
+ */
+export function isBudgetInCooldown(lastAdjustedAt?: string | null): boolean {
+  if (!lastAdjustedAt) return false;
+  const lastTime = new Date(lastAdjustedAt).getTime();
+  const cooldownMs = BUDGET_COOLDOWN_CONFIG.cooldownHours * 3600 * 1000;
+  return Date.now() - lastTime < cooldownMs;
+}
+
+/**
+ * v360: 检查位置倾斜调整冷却期
+ * 返回true表示仍在冷却期内，不应进行调整
+ */
+export function isPlacementInCooldown(lastAdjustedAt?: string | null): boolean {
+  if (!lastAdjustedAt) return false;
+  const lastTime = new Date(lastAdjustedAt).getTime();
+  const cooldownMs = GRADUAL_PLACEMENT_CONFIG.cooldownDays * 24 * 3600 * 1000;
+  return Date.now() - lastTime < cooldownMs;
+}
 
 // ==================== 渐进式竞价优化 ====================
 
@@ -397,7 +442,8 @@ export function applyGradualPlacementAdjustment(
   placement: string,
   currentMultiplier: number,
   targetMultiplier: number,
-  campaignMetrics: TimeWeightedMetrics
+  campaignMetrics: TimeWeightedMetrics,
+  placementRoiData?: { acos?: number; cvr?: number; roas?: number } // v360: 位置ROI数据
 ): GradualPlacementResult {
   const confidence = campaignMetrics.dataQuality.confidenceLevel;
   
@@ -407,6 +453,25 @@ export function applyGradualPlacementAdjustment(
     maxPoints = 8;
   } else if (confidence === 'medium') {
     maxPoints = 12;
+  }
+  
+  // v360: 根据位置ROI数据调整调整幅度
+  // ROI高的位置倾斜更积极，ROI低的位置倾斜更保守
+  if (placementRoiData) {
+    const placementAcos = placementRoiData.acos || 0;
+    const placementRoas = placementRoiData.roas || 0;
+    
+    if (placementRoas > 3.0 || placementAcos < 25) {
+      // 高ROI位置: 允许更大幅度的正向调整
+      if (targetMultiplier > currentMultiplier) {
+        maxPoints = Math.round(maxPoints * 1.3);
+      }
+    } else if (placementRoas < 1.5 || placementAcos > 50) {
+      // 低ROI位置: 限制正向调整幅度
+      if (targetMultiplier > currentMultiplier) {
+        maxPoints = Math.round(maxPoints * 0.6);
+      }
+    }
   }
   
   const diff = targetMultiplier - currentMultiplier;
@@ -425,13 +490,19 @@ export function applyGradualPlacementAdjustment(
   
   const changePoints = gradualMultiplier - currentMultiplier;
   
+  // v360: 增强日志信息
+  let reason = `渐进位置调整: ${placement} ${currentMultiplier}%→${gradualMultiplier}% (目标${targetMultiplier}%，置信度=${confidence})`;
+  if (placementRoiData) {
+    reason += ` [ROI: ACoS=${placementRoiData.acos?.toFixed(1) || 'N/A'}%, ROAS=${placementRoiData.roas?.toFixed(2) || 'N/A'}]`;
+  }
+  
   return {
     placement,
     currentMultiplier,
     targetMultiplier,
     gradualMultiplier,
     changePoints,
-    reason: `渐进位置调整: ${placement} ${currentMultiplier}%→${gradualMultiplier}% (目标${targetMultiplier}%，置信度=${confidence})`,
+    reason,
   };
 }
 
