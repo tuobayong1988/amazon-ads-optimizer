@@ -1548,6 +1548,11 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	attributionWindow: int("attribution_window"),
 	dataSource: mysqlEnum("data_source", ['api','ams']).default('api'),
 	isFinalized: tinyint("is_finalized").default(0),
+	// v360: P3-7 货币转换Schema统一 - 将原来的raw SQL字段纳入Drizzle schema
+	currency: varchar({ length: 10 }),
+	exchangeRate: decimal("exchange_rate", { precision: 10, scale: 6 }),
+	spendUsd: decimal("spend_usd", { precision: 10, scale: 2 }),
+	salesUsd: decimal("sales_usd", { precision: 10, scale: 2 }),
 	treatmentType: mysqlEnum("treatment_type", ['treatment', 'control', 'organic']).default('treatment'),
 	isAttributed: tinyint("is_attributed").default(1),
 	estimatedIncrementalOrders: decimal("estimated_incremental_orders", { precision: 10, scale: 4 }),

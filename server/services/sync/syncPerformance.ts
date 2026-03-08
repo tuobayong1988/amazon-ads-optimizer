@@ -327,8 +327,8 @@ async function flushDailyPerfBatch(
     }
   });
 
-  // v360: 批量更新货币字段（这些字段不在Drizzle schema中）
-  // 使用复合键匹配更新
+  // v360: P3-7 货币字段已纳入Drizzle schema，但仍使用独立UPDATE以避免影响主插入逻辑
+  // TODO: 后续版本可将货币字段合并到主插入的onDuplicateKeyUpdate中
   for (let i = 0; i < batch.length; i++) {
     const row = batch[i];
     const cur = currencyBatch[i];
