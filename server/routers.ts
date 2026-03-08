@@ -76,6 +76,7 @@ import { devRouter } from './routes/dev';
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
 import { systemConfigRouter } from './routes/systemConfig'; // v272 P0-1
+import { dataHealthRouter } from './routes/dataHealth'; // v359 P3-2
 
 // 预发布引擎路由 v328 (仅admin可见)
 import { prelaunchRouter } from './prelaunch/router';
@@ -225,6 +226,9 @@ export const appRouter = router({
   intelligentRecommendation: intelligentRecommendationRouter,
   // v272 P0-1: 系统配置、算法可观测性、权重自学习
   systemConfig: systemConfigRouter,
+
+  // v359: 数据健康仪表盘
+  dataHealth: dataHealthRouter,
 
   // v328: 亚马逊智能预发布引擎 v4.0 (仅admin可访问)
   prelaunch: prelaunchRouter,
