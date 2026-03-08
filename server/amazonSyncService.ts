@@ -32,7 +32,7 @@ import {
   AmazonApiCredentials,
   SpCampaign,
 } from './amazonAdsApi';
-import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from './bidOptimizer';
+import { OptimizationTarget, PerformanceGroupConfig } from './bidOptimizer';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from './utils/timezone';
 import { getExchangeRateByMarketplace } from './services/exchangeRateService';
 import { registerSyncServiceFactory } from './services/syncServiceProvider';
