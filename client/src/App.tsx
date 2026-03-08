@@ -142,7 +142,7 @@ function Router() {
       <Route path="/sync-logs">{() => <LazyRoute component={SyncLogs} />}</Route>
       <Route path="/data-validation">{() => <LazyRoute component={DataValidation} />}</Route>
       <Route path="/automation">{() => <LazyRoute component={AdAutomation} />}</Route>
-      <Route path="/health">{() => <LazyRoute component={HealthMonitor} />}</Route>
+      <Route path="/system-health">{() => <LazyRoute component={HealthMonitor} />}</Route>
       <Route path="/data-health">{() => <LazyRoute component={DataHealthDashboard} />}</Route>
       <Route path="/notifications">{() => <LazyRoute component={NotificationSettings} />}</Route>
       {/* /scheduler已重定向到/dashboard */}

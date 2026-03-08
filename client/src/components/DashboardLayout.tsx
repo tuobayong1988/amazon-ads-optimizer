@@ -110,7 +110,7 @@ const baseMenuGroups = [
     description: "系统运行状态监控",
     items: [
       { icon: Activity, label: "纠错监控", path: "/auto-correction" },
-      { icon: Activity, label: "系统健康", path: "/health" },
+      { icon: Activity, label: "系统健康", path: "/system-health" },
       { icon: Activity, label: "数据健康", path: "/data-health" },
       { icon: Activity, label: "同步日志", path: "/sync-logs" },
     ]
@@ -153,7 +153,7 @@ const routeTitleMap: Record<string, string> = {
   '/auto-correction': '纠错监控',
   '/prelaunch': '预发布引擎',
   '/optimization-targets': '优化目标',
-  '/health': '系统健康',
+  '/system-health': '系统健康',
   '/automation': '自动化',
   '/batch-operations': '批量操作',
   '/correction-review': '纠错审查',
@@ -196,7 +196,7 @@ const breadcrumbConfig: Record<string, { label: string; parent?: string }> = {
   '/auto-correction': { label: '纠错监控', parent: '/' },
   '/prelaunch': { label: '预发布引擎', parent: '/' },
   '/optimization-targets': { label: '优化目标', parent: '/strategy-center' },
-  '/health': { label: '系统健康', parent: '/' },
+  '/system-health': { label: '系统健康', parent: '/' },
   '/automation': { label: '自动化', parent: '/settings' },
   '/batch-operations': { label: '批量操作', parent: '/campaigns' },
   '/correction-review': { label: '纠错审查', parent: '/auto-correction' },
