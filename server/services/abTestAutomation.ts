@@ -346,15 +346,46 @@ export class ABTestAutomationScheduler {
         );
         
         if (!hasPending && !hasActive) {
-          // 生成默认的融合阈值实验计划
+          // v360: P3-4 扩展自动发现实验类型
+          // 根据账户特征选择最合适的实验类型
+          const experimentTypes = [
+            {
+              type: 'fusion_threshold',
+              name: '融合阈值优化',
+              description: '对比不同融合阈值对ROAS的影响',
+              controlParams: { fusionThreshold: 0.15 },
+              treatmentParams: { fusionThreshold: 0.10 },
+              targetMetric: 'roas' as const,
+            },
+            {
+              type: 'bid_strategy',
+              name: '竞价策略对比',
+              description: '对比保守型与激进型竞价策略对ACoS的影响',
+              controlParams: { bidAggressiveness: 0.8 },
+              treatmentParams: { bidAggressiveness: 1.2 },
+              targetMetric: 'acos' as const,
+            },
+            {
+              type: 'exploration_rate',
+              name: '探索率优化',
+              description: '对比不同探索率对新关键词发现和ROAS的影响',
+              controlParams: { explorationRate: 0.1 },
+              treatmentParams: { explorationRate: 0.2 },
+              targetMetric: 'roas' as const,
+            },
+          ];
+          
+          // 轮流选择实验类型（基于账户ID确定性分配）
+          const selectedType = experimentTypes[accountId % experimentTypes.length];
+          
           this.submitPlan({
-            experimentType: 'fusion_threshold',
+            experimentType: selectedType.type,
             accountId,
-            name: `v359自动实验: 融合阈值优化 (账户${accountId})`,
-            description: '自动发现的实验机会: 对比不同融合阈值对ROAS的影响',
-            controlParams: { fusionThreshold: 0.15 },
-            treatmentParams: { fusionThreshold: 0.10 },
-            targetMetric: 'roas',
+            name: `v360自动实验: ${selectedType.name} (账户${accountId})`,
+            description: `自动发现的实验机会: ${selectedType.description}`,
+            controlParams: selectedType.controlParams,
+            treatmentParams: selectedType.treatmentParams,
+            targetMetric: selectedType.targetMetric,
             minSampleDays: 7,
             maxDurationDays: 21,
             minSignificance: 0.95,
