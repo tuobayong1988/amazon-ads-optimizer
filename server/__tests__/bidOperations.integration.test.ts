@@ -177,7 +177,11 @@ describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () 
         'keyword', 10, 1.50, 'Performance optimization', 1
       );
 
-      expect(typeof result).toBe('boolean');
+      // v358: applyBidAdjustment返回对象{success: boolean, apiResponseId?}而非纯boolean
+      expect(result).toBeTruthy();
+      if (typeof result === 'object') {
+        expect(result.success).toBe(true);
+      }
     });
 
     it('应成功调整商品定位出价', async () => {
@@ -195,7 +199,11 @@ describe('bidOperations 集成测试（纯 Mock，不触及真实数据）', () 
         'product_target', 20, 1.20, 'ACOS improvement', 1
       );
 
-      expect(typeof result).toBe('boolean');
+      // v358: applyBidAdjustment返回对象{success: boolean, apiResponseId?}而非纯boolean
+      expect(result).toBeTruthy();
+      if (typeof result === 'object') {
+        expect(result.success).toBe(true);
+      }
     });
 
     it('应在数据库连接失败时返回 false', async () => {

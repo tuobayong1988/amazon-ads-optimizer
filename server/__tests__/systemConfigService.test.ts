@@ -23,7 +23,7 @@ describe('SystemConfigService', () => {
   describe('getConfig', () => {
     it('应返回默认配置值', () => {
       const cooldownHours = getConfig<number>('safety.cooldown_hours');
-      expect(cooldownHours).toBe(6);
+      expect(cooldownHours).toBe(4); // v358: 默认值已在v273中从6改为4
     });
 
     it('应返回算法参数默认值', () => {
@@ -68,7 +68,7 @@ describe('SystemConfigService', () => {
     it('超出范围的值应被拒绝', () => {
       const result = updateConfig('safety.cooldown_hours', 100, 'test', '超出范围');
       expect(result).toBe(false);
-      expect(getConfig<number>('safety.cooldown_hours')).toBe(6); // 保持默认值
+      expect(getConfig<number>('safety.cooldown_hours')).toBe(4); // v358: 默认值已在v273中从6改为4
     });
 
     it('低于范围下限的值应被拒绝', () => {
@@ -86,7 +86,7 @@ describe('SystemConfigService', () => {
       const logs = getChangeLog();
       const lastLog = logs[logs.length - 1];
       expect(lastLog.key).toBe('safety.cooldown_hours');
-      expect(lastLog.previousValue).toBe(6);
+      expect(lastLog.previousValue).toBe(4); // v358: 默认值已在v273中从6改为4
       expect(lastLog.newValue).toBe(8);
       expect(lastLog.changedBy).toBe('admin');
       expect(lastLog.reason).toBe('调整冷却时间');
@@ -126,7 +126,7 @@ describe('SystemConfigService', () => {
       expect(getConfig<number>('safety.cooldown_hours')).toBe(12);
 
       resetConfig('safety.cooldown_hours', 'test');
-      expect(getConfig<number>('safety.cooldown_hours')).toBe(6);
+      expect(getConfig<number>('safety.cooldown_hours')).toBe(4); // v358: 默认值已在v273中从6改为4
     });
 
     it('未知参数应返回false', () => {
@@ -174,7 +174,7 @@ describe('SystemConfigService', () => {
 
       // 重置后导入
       resetAllConfig('test');
-      expect(getConfig<number>('safety.cooldown_hours')).toBe(6);
+      expect(getConfig<number>('safety.cooldown_hours')).toBe(4); // v358: 默认值已在v273中从6改为4
 
       const importResult = importConfig(exported, 'import_test');
       expect(importResult.success).toBeGreaterThan(0);
