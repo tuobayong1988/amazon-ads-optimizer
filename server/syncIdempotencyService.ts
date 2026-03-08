@@ -137,7 +137,7 @@ export async function acquireSyncLock(accountId: number, syncType: string = 'all
       log.warn(`[v358] 分布式锁获取失败(${(error as Error).message})，降级到内存锁`);
       return acquireMemoryLock(accountId, syncType);
     }
-    log.error(`[v358] 分布式锁获取失败: ${error.message}`);
+    log.error(`[v358] 分布式锁获取失败: ${(error as Error).message}`);
     return null;
   }
 }

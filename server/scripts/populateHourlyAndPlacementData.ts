@@ -106,19 +106,19 @@ function addNoise(value: number, noiseLevel: number = 0.15): number {
 
 // 按概率分布分配整数值
 function distributeInteger(total: number, weights: number[]): number[] {
-  const sum = weights.reduce((a, b) => a + b, 0);
+  const sum = weights.reduce((a: any, b: any) => a + b, 0);
   const normalized = weights.map(w => w / sum);
   
   // 先按比例分配
   const result = normalized.map(w => Math.floor(total * w));
   
   // 分配剩余
-  let remaining = total - result.reduce((a, b) => a + b, 0);
-  const fractions = normalized.map((w, i) => ({
+  let remaining = total - result.reduce((a: any, b: any) => a + b, 0);
+  const fractions = normalized.map((w: any, i: any) => ({
     index: i,
     fraction: (total * w) - result[i]
   }));
-  fractions.sort((a, b) => b.fraction - a.fraction);
+  fractions.sort((a: any, b: any) => b.fraction - a.fraction);
   
   for (let i = 0; i < remaining && i < fractions.length; i++) {
     result[fractions[i].index]++;
@@ -129,7 +129,7 @@ function distributeInteger(total: number, weights: number[]): number[] {
 
 // 按概率分布分配小数值
 function distributeDecimal(total: number, weights: number[]): number[] {
-  const sum = weights.reduce((a, b) => a + b, 0);
+  const sum = weights.reduce((a: any, b: any) => a + b, 0);
   return weights.map(w => Math.round((total * w / sum) * 100) / 100);
 }
 
@@ -153,7 +153,7 @@ export async function populateHourlyPerformance() {
   
   let insertedCount = 0;
   const batchSize = 500;
-  let batch: unknown[] = [];
+  let batch: any[] = [];
   
   for (const daily of dailyData) {
     const dateObj = new Date(daily.date);
@@ -170,7 +170,7 @@ export async function populateHourlyPerformance() {
     // 为每天的流量分布添加基于星期的调整
     // 周末流量分布更均匀，工作日有明显的上班/下班高峰
     const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.3 : 0;
-    const adjustedDistribution = US_HOURLY_TRAFFIC_DISTRIBUTION.map((base, hour) => {
+    const adjustedDistribution = US_HOURLY_TRAFFIC_DISTRIBUTION.map((base: any, hour: any) => {
       // 周末：减少工作时间高峰，增加全天均匀分布
       if (weekendFactor > 0) {
         const avg = 1 / 24;
@@ -184,11 +184,11 @@ export async function populateHourlyPerformance() {
     
     // 分配各指标到24小时
     const hourlyImpressions = distributeInteger(totalImpressions, noisyDistribution);
-    const hourlyClicks = distributeInteger(totalClicks, noisyDistribution.map((w, h) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
-    const hourlySpend = distributeDecimal(totalSpend, noisyDistribution.map((w, h) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
+    const hourlyClicks = distributeInteger(totalClicks, noisyDistribution.map((w: any, h: any) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
+    const hourlySpend = distributeDecimal(totalSpend, noisyDistribution.map((w: any, h: any) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.1)));
     
     // 销售和订单按转化率因子分配（高转化时段获得更多销售）
-    const salesWeights = noisyDistribution.map((w, h) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.15));
+    const salesWeights = noisyDistribution.map((w: any, h: any) => w * addNoise(HOURLY_CVR_FACTOR[h], 0.15));
     const hourlySales = distributeDecimal(totalSales, salesWeights);
     const hourlyOrders = distributeInteger(totalOrders, salesWeights);
     
@@ -273,7 +273,7 @@ export async function populatePlacementPerformance() {
   
   let insertedCount = 0;
   const batchSize = 500;
-  let batch: unknown[] = [];
+  let batch: any[] = [];
   
   const placements: Array<'top_of_search' | 'product_page' | 'rest_of_search'> = ['top_of_search', 'product_page', 'rest_of_search'];
   

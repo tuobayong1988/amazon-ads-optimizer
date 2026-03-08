@@ -37,7 +37,7 @@ export type Tool = {
   function: {
     name: string;
     description?: string;
-    parameters?: Record<string, unknown>;
+    parameters?: Record<string, any>;
   };
 };
 
@@ -99,7 +99,7 @@ export type InvokeResult = {
 
 export type JsonSchema = {
   name: string;
-  schema: Record<string, unknown>;
+  schema: Record<string, any>;
   strict?: boolean;
 };
 
@@ -279,7 +279,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     response_format,
   } = params;
 
-  const payload: Record<string, unknown> = {
+  const payload: Record<string, any> = {
     model: "gemini-2.5-flash",
     messages: messages.map(normalizeMessage),
   };

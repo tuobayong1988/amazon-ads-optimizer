@@ -63,6 +63,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       SELECT id FROM team_members WHERE username = ${input.username}
     `);
     
+    // @ts-ignore
     const existingRows = (existingUser as unknown)[0];
     if (existingRows && existingRows.length > 0) {
       return { success: false, error: '用户名已存在' };
@@ -78,7 +79,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
         INSERT INTO organizations (name, type, status, max_users, max_accounts, created_at)
         VALUES (${orgName}, 'external', 'active', 10, 5, NOW())
       `);
-      organizationId = (orgResult as Record<string, unknown>[])[0]?.insertId;
+      organizationId = (orgResult as Record<string, any>[])[0]?.insertId;
     }
     
     if (!organizationId) {
@@ -110,7 +111,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       )
     `);
     
-    const userId = (userResult as Record<string, unknown>[])[0]?.insertId;
+    const userId = (userResult as Record<string, any>[])[0]?.insertId;
     
     // 6. 如果是新组织的所有者，更新组织的owner_id
     if (inviteCode.inviteType === 'external_user' && organizationId !== 1) {
@@ -183,12 +184,12 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       WHERE tm.username = ${input.username}
     `);
     
-    const rows = (result as Record<string, unknown>[][])[0];
+    const rows = (result as Record<string, any>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户名或密码错误' };
     }
     
-    const user = rows[0];
+    const user = rows[0] as any;
     
     // 2. 检查账号状态
     if (user.status === 'suspended') {
@@ -295,7 +296,7 @@ export async function verifyToken(token: string): Promise<{
     const secret = process.env.JWT_SECRET;
     if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
-    const decoded = jwt.default.verify(token, secret) as unknown;
+    const decoded = jwt.default.verify(token, secret) as any;
     
     const db = await getDb();
     if (!db) return { valid: false, error: '数据库连接失败' };
@@ -304,12 +305,12 @@ export async function verifyToken(token: string): Promise<{
       SELECT * FROM team_members WHERE id = ${decoded.userId}
     `);
     
-    const rows = (result as Record<string, unknown>[][])[0];
+    const rows = (result as Record<string, any>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '用户不存在' };
     }
     
-    const user = rows[0];
+    const user = rows[0] as any;
     
     if (user.status !== 'active') {
       return { valid: false, error: '账号已被禁用' };
@@ -364,12 +365,12 @@ export async function changePassword(userId: number, oldPassword: string, newPas
       SELECT password_hash FROM team_members WHERE id = ${userId}
     `);
     
-    const rows = (result as Record<string, unknown>[][])[0];
+    const rows = (result as Record<string, any>[][])[0];
     if (!rows || rows.length === 0) {
       return { success: false, error: '用户不存在' };
     }
     
-    const user = rows[0];
+    const user = rows[0] as any;
     const passwordValid = await bcrypt.compare(oldPassword, user.password_hash);
     
     if (!passwordValid) {

@@ -7,16 +7,16 @@
 import { ENV } from "./env";
 
 export type DataApiCallOptions = {
-  query?: Record<string, unknown>;
-  body?: Record<string, unknown>;
-  pathParams?: Record<string, unknown>;
-  formData?: Record<string, unknown>;
+  query?: Record<string, any>;
+  body?: Record<string, any>;
+  pathParams?: Record<string, any>;
+  formData?: Record<string, any>;
 };
 
 export async function callDataApi(
   apiId: string,
   options: DataApiCallOptions = {}
-): Promise<unknown> {
+): Promise<any> {
   if (!ENV.forgeApiUrl) {
     throw new Error("BUILT_IN_FORGE_API_URL is not configured");
   }
@@ -57,7 +57,7 @@ export async function callDataApi(
     try {
       return JSON.parse((payload as Record<string, string>).jsonData ?? "{}");
     } catch {
-      return (payload as Record<string, unknown>).jsonData;
+      return (payload as Record<string, any>).jsonData;
     }
   }
   return payload;

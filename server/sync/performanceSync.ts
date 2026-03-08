@@ -3,7 +3,7 @@
  * 从 amazonSyncService.ts 拆分的独立模块
  */
 import { eq, and, sql, gte, inArray } from 'drizzle-orm';
-import { getDb } from '../db';
+import { DbInstance, getDb } from '../db';
 import {
   campaigns,
   adGroups,
@@ -129,7 +129,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
   let totalSynced = 0;
 
   // v215优化: 并行请求SP/SB/SD报告 + 智能重试
-  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<Record<string, unknown>[] | null> => {
+  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<Record<string, any>[] | null> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
@@ -178,7 +178,7 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 /**
  * 处理报告数据并存储到数据库
  */
-async function processReportData(service: SyncContext, db: ReturnType<typeof getDb> | null, reportData: unknown[], adType: string): Promise<number> {
+async function processReportData(service: SyncContext, db: DbInstance, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     
@@ -204,7 +204,7 @@ async function processReportData(service: SyncContext, db: ReturnType<typeof get
     let matchedByName = 0;
     let notMatched = 0;
     
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 策略：先用campaignId匹配，失败后用campaignName匹配
       // 这是因为SB/SD的报告ID可能与List API返回的ID不一致
       
@@ -451,7 +451,7 @@ export async function generateMockPerformanceData(service: SyncContext,days: num
     const marketplaceToday = getMarketplaceCurrentDate(service.marketplace);
     log.debug(`站点${service.marketplace}当前日期: ${marketplaceToday}`);
     
-    for (const campaign of accountCampaigns) {
+    for (const campaign of (accountCampaigns as any[])) {
       // 为每个广告活动生成最近N天的模拟数据
       for (let i = 0; i < days; i++) {
         // 基于站点当前日期计算
@@ -556,7 +556,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
         AND hp.dt IS NULL
     `);
     
-    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
+    const rows = (dailyData as Record<string, any>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
       return 0;
@@ -565,7 +565,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
     log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
     
     let insertedCount = 0;
-    let batch: unknown[] = [];
+    let batch: any[] = [];
     
     for (const daily of rows) {
       const dateObj = new Date(daily.date);
@@ -584,7 +584,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
         if (isWeekend) return base * 0.7 + (1/24) * 0.3;
         return base;
       });
-      const distSum = dist.reduce((a, b) => a + b, 0);
+      const distSum = dist.reduce((a: any, b: any) => a + b, 0);
       
       const dateStr = typeof daily.date === 'string' 
         ? daily.date.split('T')[0].split(' ')[0]
@@ -667,7 +667,7 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
     log.debug(`获取到 ${reportData.length} 条位置绩效数据`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的campaign
       const [campaign] = await db
         .select()
@@ -790,7 +790,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
     // 使用站点时区计算最近30天的日期范围
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(service.marketplace, 30);
 
-    for (const campaign of accountCampaigns) {
+    for (const campaign of (accountCampaigns as any[])) {
       // 首先尝试仍ailyPerformance表汇总
       // v323: 添加accountId条件防止跨账户数据混淆
       const [dailySummary] = await db
@@ -947,7 +947,7 @@ export async function syncSbPlacementPerformance(service: SyncContext,days: numb
     const reportData = await service.client.waitAndDownloadReport(reportId);
     log.debug(`SB广告位报告获取到 ${reportData.length} 条记录`);
     
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       const campaignIdStr = String(row.campaignId);
       const [campaign] = await db
         .select()

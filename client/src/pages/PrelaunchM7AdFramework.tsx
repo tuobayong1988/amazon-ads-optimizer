@@ -22,7 +22,7 @@ export default function PrelaunchM7AdFramework() {
   const [activeTab, setActiveTab] = useState("frameworks");
   const [selectedFramework, setSelectedFramework] = useState<number | null>(null);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
   const projects = (() => { const d = projectsQuery.data; return (d && 'data' in (d as any) ? (d as any).data : d) || []; })();
   if (!projectId && projects.length > 0) setProjectId(projects[0].id);
 

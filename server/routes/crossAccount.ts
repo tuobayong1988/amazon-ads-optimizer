@@ -55,7 +55,7 @@ export const crossAccountRouter = router({
           for (const pg of performanceGroups) {
             // 获取绩效组下的所有广告活动
             const campaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
-            for (const campaign of campaigns) {
+            for (const campaign of (campaigns as any[])) {
               totalSpend += parseFloat(campaign.spend || '0');
               totalSales += parseFloat(campaign.sales || '0');
               totalImpressions += campaign.impressions || 0;
@@ -90,11 +90,11 @@ export const crossAccountRouter = router({
       );
 
       // 计算汇总
-      const totalSpend = accountsData.reduce((sum, a) => sum + a.spend, 0);
-      const totalSales = accountsData.reduce((sum, a) => sum + a.sales, 0);
-      const totalImpressions = accountsData.reduce((sum, a) => sum + a.impressions, 0);
-      const totalClicks = accountsData.reduce((sum, a) => sum + a.clicks, 0);
-      const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
+      const totalSpend = accountsData.reduce((sum: any, a: any) => sum + a.spend, 0);
+      const totalSales = accountsData.reduce((sum: any, a: any) => sum + a.sales, 0);
+      const totalImpressions = accountsData.reduce((sum: any, a: any) => sum + a.impressions, 0);
+      const totalClicks = accountsData.reduce((sum: any, a: any) => sum + a.clicks, 0);
+      const totalOrders = accountsData.reduce((sum: any, a: any) => sum + a.orders, 0);
 
       const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
       const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
@@ -103,7 +103,7 @@ export const crossAccountRouter = router({
 
       // 市场分布
       const marketplaceDistribution: Record<string, { count: number; spend: number; sales: number }> = {};
-      for (const account of accountsData) {
+      for (const account of (accountsData as any[])) {
         if (!marketplaceDistribution[account.marketplace]) {
           marketplaceDistribution[account.marketplace] = { count: 0, spend: 0, sales: 0 };
         }
@@ -152,7 +152,7 @@ export const crossAccountRouter = router({
 
           for (const pg of performanceGroups) {
             const campaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
-            for (const campaign of campaigns) {
+            for (const campaign of (campaigns as any[])) {
               totalSpend += parseFloat(campaign.spend || '0');
               totalSales += parseFloat(campaign.sales || '0');
               totalImpressions += campaign.impressions || 0;
@@ -282,7 +282,7 @@ export const crossAccountRouter = router({
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
           const row: Record<string, string> = {};
-          headers.forEach((h, idx) => {
+          headers.forEach((h: any, idx: any) => {
             row[h] = values[idx] || '';
           });
           
@@ -315,7 +315,7 @@ export const crossAccountRouter = router({
       let skipped = 0;
       let updated = 0;
 
-      for (const account of accountsToImport) {
+      for (const account of (accountsToImport as any[])) {
         if (existingAccountIds.has(account.accountId)) {
           if (input.overwrite) {
             // 更新现有账号
@@ -386,7 +386,7 @@ export const crossAccountRouter = router({
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
           const row: Record<string, string> = {};
-          headers.forEach((h, idx) => {
+          headers.forEach((h: any, idx: any) => {
             row[h] = values[idx] || '';
           });
           

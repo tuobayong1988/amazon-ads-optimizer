@@ -273,7 +273,7 @@ export default function ProfitObservabilityPanel() {
                   
                   {/* 各维度评分 */}
                   <div className="space-y-2">
-                    {efficiencyData.dimensions.map((dim, idx) => (
+                    {efficiencyData.dimensions.map((dim: any, idx: any) => (
                       <div key={idx} className="flex items-center gap-2 text-sm">
                         <span className="w-24 text-muted-foreground">{dim.name}</span>
                         <div className="flex-1">
@@ -411,7 +411,7 @@ export default function ProfitObservabilityPanel() {
             <CardContent>
               {decisions.length > 0 ? (
                 <div className="space-y-2">
-                  {decisions.slice(0, 10).map((d, idx) => (
+                  {decisions.slice(0, 10).map((d: any, idx: any) => (
                     <div key={idx} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 text-sm">
                       <div className="flex-shrink-0">
                         {d.fusionMode === 'cascade_ensemble' ? (
@@ -495,7 +495,7 @@ export default function ProfitObservabilityPanel() {
                   {weightStatus.tuningHistory.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-sm font-medium">最近调整记录</p>
-                      {weightStatus.tuningHistory.slice(0, 5).map((h, idx) => (
+                      {weightStatus.tuningHistory.slice(0, 5).map((h: any, idx: any) => (
                         <div key={idx} className="text-xs p-2 bg-muted/50 rounded">
                           <span className="text-muted-foreground">{new Date(h.timestamp).toLocaleString()}</span>
                           <span className="ml-2">{h.dimension}: {(h.oldWeight * 100).toFixed(1)}% → {(h.newWeight * 100).toFixed(1)}%</span>

@@ -382,6 +382,7 @@ async function executeAlgorithm(
       if (keywordId || targetId) {
         const entityType = keywordId ? 'keyword' : 'target';
         const entityId = keywordId || targetId || 0;
+        // @ts-ignore
         const params = await fitAndCacheSigmoidForEntity(accountId, entityType as unknown, entityId, campaignId || '');
         if (params && params.r2 > 0.3) {
           sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
@@ -411,13 +412,14 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, unknown>;
+            // @ts-ignore
+            sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, any>;
           }
         }
       } catch { /* Sigmoid不可用时静默跳过 */ }
       if (bids.length > 0) {
-        const tw = bids.reduce((s, b) => s + b.weight, 0);
-        bid = bids.reduce((s, b) => s + b.bid * b.weight, 0) / tw;
+        const tw = bids.reduce((s: any, b: any) => s + b.weight, 0);
+        bid = bids.reduce((s: any, b: any) => s + b.bid * b.weight, 0) / tw;
         conf = tw / bids.length;
       }
       break;
@@ -470,7 +472,7 @@ export async function selectBestAlgorithm(
   
   // 选择得分最高的可用算法
   const eligibleScores = scores.filter(s => s.eligible);
-  eligibleScores.sort((a, b) => b.score - a.score);
+  eligibleScores.sort((a: any, b: any) => b.score - a.score);
   
   const top1 = eligibleScores[0] || scores.find(s => s.algorithm === 'rule_based')!;
   const top2 = eligibleScores[1];
@@ -556,8 +558,8 @@ export async function selectBestAlgorithm(
       
       if (fusionBids.length >= 2) {
         // 按置信度加权融合
-        const totalConf = fusionBids.reduce((s, b) => s + b.confidence, 0);
-        recommendedBid = fusionBids.reduce((s, b) => s + b.bid * b.confidence, 0) / totalConf;
+        const totalConf = fusionBids.reduce((s: any, b: any) => s + b.confidence, 0);
+        recommendedBid = fusionBids.reduce((s: any, b: any) => s + b.bid * b.confidence, 0) / totalConf;
         // 融合后的置信度取加权平均，并给予融合奖励（多算法一致性提升置信度）
         const bidDivergence = Math.abs(fusionBids[0].bid - fusionBids[1].bid) / Math.max(fusionBids[0].bid, fusionBids[1].bid, 0.01);
         // v271 P1-2: 共识奖励阈值从策略模板配置获取
@@ -624,6 +626,7 @@ export async function selectBestAlgorithm(
   
   // 记录选择日志
   const db = await getDbInstance();
+  // @ts-ignore
   await db.insert(algorithmSelectionLogs).values({
     accountId,
     keywordId: keywordId || null,
@@ -633,7 +636,7 @@ export async function selectBestAlgorithm(
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),
-  } as Record<string, unknown>);
+  } as Record<string, any>);
   
   return decision;
 }

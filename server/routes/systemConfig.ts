@@ -22,7 +22,7 @@ export const systemConfigRouter = router({
    */
   getConfigByCategory: protectedProcedure
     .input(z.object({ category: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { getAllConfig } = await import('../systemConfigService');
       return { success: true, config: getAllConfig(input.category) };
     }),
@@ -52,7 +52,7 @@ export const systemConfigRouter = router({
    */
   getChangeHistory: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { getChangeLog } = await import('../systemConfigService');
       return { success: true, history: getChangeLog(input.limit || 50) };
     }),
@@ -62,7 +62,7 @@ export const systemConfigRouter = router({
    */
   getAlgorithmDashboard: protectedProcedure
     .input(z.object({ period: z.enum(['1h', '24h', '7d']).optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { generateDashboardMetrics } = await import('../algorithmObservabilityService');
       return { success: true, metrics: generateDashboardMetrics(input.period || '24h') };
     }),
@@ -76,7 +76,7 @@ export const systemConfigRouter = router({
       algorithm: z.string().optional(),
       limit: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { getRecentDecisionTraces } = await import('../algorithmObservabilityService');
       return {
         success: true,
@@ -92,7 +92,7 @@ export const systemConfigRouter = router({
       type: z.string().optional(),
       limit: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { getMetrics } = await import('../algorithmObservabilityService');
       return { success: true, metrics: getMetrics(input.type, input.limit || 100) };
     }),
@@ -102,7 +102,7 @@ export const systemConfigRouter = router({
    */
   getWeightTuningStatus: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { getTuningHistory, getEffectiveWeights } = await import('../weightAutoTuningService');
       const history = getTuningHistory(input.strategyTemplateId);
       const defaultWeights = {
@@ -120,7 +120,7 @@ export const systemConfigRouter = router({
    */
   rollbackWeights: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { rollbackWeights } = await import('../weightAutoTuningService');
       const success = rollbackWeights(input.strategyTemplateId);
       return { success };

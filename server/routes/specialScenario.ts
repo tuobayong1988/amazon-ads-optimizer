@@ -13,7 +13,7 @@ export const specialScenarioRouter = router({
   // 预算耗尽风险分析
   analyzeBudgetDepletionRisk: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.analyzeBudgetDepletionRisk(input.accountId);
     }),
 
@@ -25,7 +25,7 @@ export const specialScenarioRouter = router({
       dailyBudget: z.number(),
       currentHour: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.predictBudgetDepletion(
         input.campaignId,
         input.currentSpend,
@@ -40,7 +40,7 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       days: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.adjustRecentPerformanceData(
         input.accountId,
         input.days || 7
@@ -50,7 +50,7 @@ export const specialScenarioRouter = router({
   // 获取归因模型
   getAttributionModel: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.getAttributionModel(input.accountId);
     }),
 
@@ -62,7 +62,7 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.analyzeBidEfficiency(
         input.accountId,
         input.targetAcos,
@@ -77,7 +77,7 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       targetDate: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const date = input.targetDate ? new Date(input.targetDate) : new Date();
       return specialScenarioOptimizationService.generateSeasonalStrategy(
         input.accountId,
@@ -91,7 +91,7 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       metric: z.enum(['sales', 'roas', 'spend']).optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.learnSeasonalPatterns(
         input.accountId,
         input.metric
@@ -106,7 +106,7 @@ export const specialScenarioRouter = router({
       baseBudget: z.number(),
       baseBid: z.number(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.generateEventTransitionPlan(
         input.eventName,
         new Date(input.eventDate),
@@ -118,7 +118,7 @@ export const specialScenarioRouter = router({
   // 获取即将到来的大促事件
   getUpcomingEvents: protectedProcedure
     .input(z.object({ daysAhead: z.number().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.getUpcomingPromotionalEvents(
         input.daysAhead || 30
       );
@@ -132,7 +132,7 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return specialScenarioOptimizationService.runSpecialScenarioAnalysis(
         input.accountId,
         {

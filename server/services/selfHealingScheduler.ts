@@ -505,7 +505,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
           WHERE createdAt > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
         `);
         
-        const row = (recentJobs as unknown[][])?.[0]?.[0] as Record<string, number> || {};
+        const row = (recentJobs as any[][])?.[0]?.[0] as Record<string, number> || {};
         const total = Number(row.total || 0);
         const failCount = Number(row.fail_count || 0);
         
@@ -564,7 +564,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
               : table === 'keywords' ? sql`SELECT MAX(updatedAt) as latest FROM keywords LIMIT 1`
               : sql`SELECT MAX(updatedAt) as latest FROM daily_performance LIMIT 1`;
             const result = await database.execute(safeQuery);
-            const latest = (result as unknown[][])?.[0]?.[0] as Record<string, unknown>;
+            const latest = (result as any[][])?.[0]?.[0] as Record<string, any>;
             const latestTime = latest?.latest as string;
             
             if (latestTime) {

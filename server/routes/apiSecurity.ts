@@ -98,7 +98,7 @@ export const apiSecurityRouter = router({
 
   // 初始化默认规则
   initializeDefaultRules: protectedProcedure
-    .mutation(async ({ ctx }) => {
+    .mutation(async ({ ctx }: any) => {
       await apiSecurityService.initializeDefaultRules(ctx.user.id);
       return { success: true };
     }),

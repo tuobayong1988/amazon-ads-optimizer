@@ -144,10 +144,10 @@ export function estimateTrafficCeiling(
   if (historicalData && historicalData.length >= 3) {
     // Use logarithmic model: impressions = a * ln(bid) + b
     const n = historicalData.length;
-    const sumLnBid = historicalData.reduce((s, d) => s + Math.log(d.bid), 0);
-    const sumImpressions = historicalData.reduce((s, d) => s + d.impressions, 0);
-    const sumLnBidImpressions = historicalData.reduce((s, d) => s + Math.log(d.bid) * d.impressions, 0);
-    const sumLnBidSq = historicalData.reduce((s, d) => s + Math.log(d.bid) ** 2, 0);
+    const sumLnBid = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid), 0);
+    const sumImpressions = historicalData.reduce((s: any, d: any) => s + d.impressions, 0);
+    const sumLnBidImpressions = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid) * d.impressions, 0);
+    const sumLnBidSq = historicalData.reduce((s: any, d: any) => s + Math.log(d.bid) ** 2, 0);
     
     const denominator = n * sumLnBidSq - sumLnBid ** 2;
     if (denominator === 0 || n === 0) {
@@ -1069,7 +1069,7 @@ export function calculateIntradayAdjustment(
   currentHour: number
 ): number {
   // Find average performance
-  const totalSales = hourlyPerformance.reduce((s, h) => s + h.sales, 0);
+  const totalSales = hourlyPerformance.reduce((s: any, h: any) => s + h.sales, 0);
   const avgHourlySales = totalSales / hourlyPerformance.length;
   
   // Find current hour's performance
@@ -1824,7 +1824,7 @@ export function calculateAlgorithmEffectStats(
     positiveCount: number;
   }> = {};
   
-  for (const record of records) {
+  for (const record of (records as any[])) {
     if (record.effectScore === undefined) continue;
     
     if (!stats[record.algorithmUsed]) {

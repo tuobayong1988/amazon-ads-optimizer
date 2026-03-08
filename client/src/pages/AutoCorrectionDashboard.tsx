@@ -32,7 +32,7 @@ export default function AutoCorrectionDashboard() {
   });
   
   // 获取扫描历史
-  const historyQuery = trpc.autoCorrection.getScanHistory.useQuery();
+  const historyQuery = trpc.autoCorrection.getScanHistory.useQuery() as any;
   
   // 手动触发扫描
   const runScanMutation = trpc.autoCorrection.runScan.useMutation({
@@ -56,7 +56,7 @@ export default function AutoCorrectionDashboard() {
       statusMap.set(s.api_sync_status, Number(s.count));
     }
   }
-  const totalEvents = Array.from(statusMap.values()).reduce((a, b) => a + b, 0);
+  const totalEvents = Array.from(statusMap.values()).reduce((a: any, b: any) => a + b, 0);
   const syncedCount = statusMap.get('synced') || 0;
   const failedCount = statusMap.get('failed') || 0;
   const notApplicableCount = (statusMap.get('not_applicable') || 0) + (statusMap.get('invalid_legacy') || 0);
@@ -461,7 +461,7 @@ export default function AutoCorrectionDashboard() {
                     </thead>
                     <tbody>
                       {Array.from(actionBreakdown.entries())
-                        .sort((a, b) => b[1].total - a[1].total)
+                        .sort((a: any, b: any) => b[1].total - a[1].total)
                         .map(([type, stats]) => {
                           const applicableTotal = stats.total - stats.notApplicable;
                           const rate = applicableTotal > 0 ? (stats.synced / applicableTotal * 100) : (stats.notApplicable > 0 ? 100 : 0);

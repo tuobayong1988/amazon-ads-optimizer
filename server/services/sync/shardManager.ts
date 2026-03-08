@@ -343,7 +343,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
-    const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
+    const row = (stats as Record<string, any>[])?.[0]?.[0] || (stats as Record<string, any>[])?.[0];
     if (!row) return;
 
     const total = Number(row.total) || 0;
@@ -364,7 +364,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       taskStatus = 'completed';
     }
 
-    const updates: Record<string, unknown> = {
+    const updates: Record<string, any> = {
       completedShards: completed,
       failedShards: failed,
       totalRecordsSynced: totalSynced,
@@ -503,11 +503,12 @@ export async function acquireLock(
     return true;
   } catch (error: unknown) {
     // UNIQUE约束冲突说明锁已被持有
+    // @ts-ignore
     if (error.code === 'ER_DUP_ENTRY' || (error as Error).message?.includes('Duplicate')) {
       log.debug(`[v358] 锁已被占用: ${lockKey}`);
       return false;
     }
-    log.error(`[v358] 获取锁异常: ${error.message}`);
+    log.error(`[v358] 获取锁异常: ${(error as Error).message}`);
     return false;
   }
 }

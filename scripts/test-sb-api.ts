@@ -63,7 +63,7 @@ async function main() {
       console.log(JSON.stringify(sbCampaigns[0], null, 2));
       
       console.log('\n--- 预算字段分析 ---');
-      const first = sbCampaigns[0];
+      const first = sbCampaigns[0] as any;
       console.log('budget:', first.budget);
       console.log('dailyBudget:', first.dailyBudget);
       console.log('typeof budget:', typeof first.budget);

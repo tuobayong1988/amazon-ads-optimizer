@@ -52,7 +52,7 @@ async function main() {
       continue;
     }
     
-    const cred = creds[0];
+    const cred = creds[0] as any;
     
     try {
       // 创建API客户端

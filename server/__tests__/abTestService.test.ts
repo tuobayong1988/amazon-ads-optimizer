@@ -159,8 +159,8 @@ describe('ABTestService - splitCampaignsIntoGroups', () => {
       { id: 4, spend: 50 },
     ];
     const result = splitCampaignsIntoGroups(campaigns, 0.5, 'stratified');
-    const controlSpend = result.control.reduce((s, c) => s + c.spend, 0);
-    const treatmentSpend = result.treatment.reduce((s, c) => s + c.spend, 0);
+    const controlSpend = result.control.reduce((s: any, c: any) => s + c.spend, 0);
+    const treatmentSpend = result.treatment.reduce((s: any, c: any) => s + c.spend, 0);
     const totalSpend = controlSpend + treatmentSpend;
     expect(Math.abs(controlSpend - treatmentSpend)).toBeLessThanOrEqual(totalSpend * 0.6);
   });

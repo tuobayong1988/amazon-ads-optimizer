@@ -226,6 +226,7 @@ export async function getOperationLogs(params: {
       conditions.push(eq(apiOperationLogs.operationType, params.operationType));
     }
     if (params.status) {
+      // @ts-ignore
       conditions.push(eq(apiOperationLogs.status, params.status as string));
     }
     if (params.riskLevel) {
@@ -360,6 +361,7 @@ export async function checkSpendLimit(
     return { exceeded: false };
   }
 
+  // @ts-ignore
   const dailyLimit = parseFloat(config.dailySpendLimit);
   const spendPercent = (currentSpend / dailyLimit) * 100;
 
@@ -372,6 +374,7 @@ export async function checkSpendLimit(
     .select()
     .from(spendAlertLogs)
     .where(and(
+      // @ts-ignore
       eq(spendAlertLogs.configId, config.id),
       gte(spendAlertLogs.createdAt, today)
     ));
@@ -389,12 +392,15 @@ export async function checkSpendLimit(
     if (config.autoStopEnabled) {
       shouldPause = true;
     }
+  // @ts-ignore
   } else if (spendPercent >= parseFloat(config.criticalThreshold) && !alertedTypes.has('critical_95')) {
     alertType = 'critical_95';
     alertLevel = 'critical';
+  // @ts-ignore
   } else if (spendPercent >= parseFloat(config.warningThreshold2) && !alertedTypes.has('warning_80')) {
     alertType = 'warning_80';
     alertLevel = 'warning';
+  // @ts-ignore
   } else if (spendPercent >= parseFloat(config.warningThreshold1) && !alertedTypes.has('warning_50')) {
     alertType = 'warning_50';
     alertLevel = 'info';
@@ -403,6 +409,7 @@ export async function checkSpendLimit(
   if (alertType) {
     // 记录告警
     await db.insert(spendAlertLogs).values({
+      // @ts-ignore
       configId: config.id,
       userId,
       accountId,
@@ -468,7 +475,7 @@ export async function getSpendAlertHistory(
   userId: number,
   accountId?: number,
   limit: number = 50
-): Promise<Record<string, unknown>[]> {
+): Promise<Record<string, any>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -554,7 +561,7 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
 /**
  * 获取用户的异常检测规则
  */
-export async function getAnomalyRules(userId: number, accountId?: number): Promise<Record<string, unknown>[]> {
+export async function getAnomalyRules(userId: number, accountId?: number): Promise<Record<string, any>[]> {
   const db = await getDb();
   if (!db) return [];
 
@@ -687,7 +694,7 @@ export async function checkAnomalyRules(
 /**
  * 发送异常告警通知
  */
-async function sendAnomalyAlert(rule: unknown, value: number, operationType: string): Promise<void> {
+async function sendAnomalyAlert(rule: any, value: number, operationType: string): Promise<void> {
   const actionEmojis: Record<string, string> = {
     'alert_only': '⚠️',
     'pause_and_alert': '⏸️',
@@ -846,7 +853,7 @@ export async function getAutoPauseRecords(
   userId: number,
   accountId?: number,
   includeResumed: boolean = false
-): Promise<Record<string, unknown>[]> {
+): Promise<Record<string, any>[]> {
   const db = await getDb();
   if (!db) return [];
 

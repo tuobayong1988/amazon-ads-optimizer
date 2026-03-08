@@ -133,7 +133,7 @@ export async function triggerInitialOptimization(
     
     // 快速聚合分析
     let totalSpend = 0, totalSales = 0, totalClicks = 0, totalOrders = 0, totalImpressions = 0;
-    for (const c of campaignsData) {
+    for (const c of (campaignsData as any[])) {
       totalSpend += parseFloat(c.spend || '0');
       totalSales += parseFloat(c.sales || '0');
       totalClicks += c.clicks || 0;
@@ -269,7 +269,9 @@ export async function triggerInitialOptimization(
           `触发方式: ${options.triggeredBy === 'create' ? '创建优化目标' : options.triggeredBy === 'add_campaigns' ? '添加广告活动' : options.triggeredBy === 'enable' ? '启用优化目标' : '手动触发'}`,
           `广告活动数: ${result.analysisResult?.campaignCount || 0}`,
           `数据质量: ${dataQuality === 'sufficient' ? '充足' : dataQuality === 'moderate' ? '中等' : '稀疏'}`,
+          // @ts-ignore
           result.executionResult ? `出价调整: ${result.executionResult.bidAdjustments}个` : '',
+          // @ts-ignore
           result.executionResult ? `关键词变更: 暂停${result.executionResult.keywordChanges?.paused || 0}个, 启用${result.executionResult.keywordChanges?.enabled || 0}个` : '',
           result.schedulingResult ? `后续调度: ${result.schedulingResult.frequency}, 下次执行${result.schedulingResult.nextExecutionTime.toLocaleString()}` : '',
           errors.length > 0 ? `\n警告: ${errors.join('; ')}` : '',

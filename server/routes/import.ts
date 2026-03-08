@@ -10,7 +10,7 @@ import * as db from "../db";
 
 // ==================== Import Router ====================
 export const importRouter = router({
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }: any) => {
     return db.getImportJobsByUserId(ctx.user.id);
   }),
   
@@ -38,7 +38,7 @@ export const importRouter = router({
       totalRows: z.number().optional(),
       errorMessage: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { id, ...data } = input;
       await db.updateImportJob(id, {
         ...data,

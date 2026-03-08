@@ -39,7 +39,7 @@ export function MobileBottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
     >
       <div className="flex items-center justify-around h-16">
-        {navItems.map((item) => {
+        {navItems.map((item: any) => {
           const isActive = location === item.path || 
             (item.path !== "/" && location.startsWith(item.path));
           

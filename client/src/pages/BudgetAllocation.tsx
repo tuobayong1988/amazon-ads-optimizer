@@ -100,7 +100,7 @@ export default function BudgetAllocation() {
   });
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // 获取分配历史
   const { data: allocationHistory, refetch: refetchHistory } = trpc.budgetAllocation.getAllocationHistory.useQuery({
@@ -307,7 +307,7 @@ export default function BudgetAllocation() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账号</SelectItem>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.storeName || account.accountName}
                   </SelectItem>

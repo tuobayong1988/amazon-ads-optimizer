@@ -69,14 +69,14 @@ function calculatePlacementRatios(placementData: any[]): Record<string, number> 
     const spend = parseFloat(row.spend || '0');
     if (spendByPlacement[p] !== undefined) spendByPlacement[p] += spend;
   }
-  const totalSpend = Object.values(spendByPlacement).reduce((a, b) => a + b, 0);
+  const totalSpend = Object.values(spendByPlacement).reduce((a: any, b: any) => a + b, 0);
   if (totalSpend <= 0) {
     const clicksByPlacement: Record<string, number> = { top_of_search: 0, product_page: 0, rest_of_search: 0 };
     for (const row of placementData) {
       const p = row.placement as string;
       if (clicksByPlacement[p] !== undefined) clicksByPlacement[p] += (row.clicks || 0);
     }
-    const totalClicks = Object.values(clicksByPlacement).reduce((a, b) => a + b, 0);
+    const totalClicks = Object.values(clicksByPlacement).reduce((a: any, b: any) => a + b, 0);
     if (totalClicks <= 0) return { top_of_search: 0.35, product_page: 0.30, rest_of_search: 0.35 };
     return {
       top_of_search: clicksByPlacement.top_of_search / totalClicks,

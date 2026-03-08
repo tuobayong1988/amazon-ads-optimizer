@@ -48,7 +48,7 @@ export default function AnalyticsInsights() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取特殊场景分析
@@ -169,7 +169,7 @@ export default function AnalyticsInsights() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -203,7 +203,7 @@ export default function AnalyticsInsights() {
               </div>
               {insightsSummary.critical.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.critical.map((item, idx) => (
+                  {insightsSummary.critical.map((item: any, idx: any) => (
                     <p key={idx} className="text-sm text-red-300">{item}</p>
                   ))}
                 </div>
@@ -224,7 +224,7 @@ export default function AnalyticsInsights() {
               </div>
               {insightsSummary.warnings.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.warnings.map((item, idx) => (
+                  {insightsSummary.warnings.map((item: any, idx: any) => (
                     <p key={idx} className="text-sm text-yellow-300">{item}</p>
                   ))}
                 </div>
@@ -245,7 +245,7 @@ export default function AnalyticsInsights() {
               </div>
               {insightsSummary.suggestions.length > 0 && (
                 <div className="mt-3 space-y-1">
-                  {insightsSummary.suggestions.map((item, idx) => (
+                  {insightsSummary.suggestions.map((item: any, idx: any) => (
                     <p key={idx} className="text-sm text-blue-300">{item}</p>
                   ))}
                 </div>

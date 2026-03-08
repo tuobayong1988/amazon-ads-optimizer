@@ -86,7 +86,7 @@ function CreateOptimizationTargetDialog({
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<number[]>([]);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // 获取广告活动列表
   const { data: campaignsData, isLoading: campaignsLoading } = trpc.campaign.list.useQuery(
@@ -362,7 +362,7 @@ function CreateOptimizationTargetDialog({
 
         {/* 步骤指示器 */}
         <div className="flex items-center justify-center gap-2 py-4">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3].map((s: any) => (
             <div key={s} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                 s === step ? "bg-primary text-primary-foreground" : 
@@ -395,7 +395,7 @@ function CreateOptimizationTargetDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">所有账号</SelectItem>
-                    {accounts?.map(account => (
+                    {accounts?.map((account: any) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.accountName}
                       </SelectItem>
@@ -649,7 +649,7 @@ function CreateOptimizationTargetDialog({
                         position: 'relative',
                       }}
                     >
-                      {campaignVirtualizer.getVirtualItems().map((virtualRow) => {
+                      {campaignVirtualizer.getVirtualItems().map((virtualRow: any) => {
                         const campaign = filteredCampaigns[virtualRow.index];
                         if (!campaign) return null;
                         const isSelected = selectedCampaignIdSet.has(campaign.id);
@@ -1130,7 +1130,7 @@ export default function OptimizationTargets() {
   }, []);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
   

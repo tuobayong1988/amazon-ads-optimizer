@@ -221,8 +221,8 @@ export function batchCalculateGTOModifiers(
   const portfolioAnalysis = analyzePortfolio(targets, groupConfig);
   
   // ===== 竞争环境分析（基于组级别数据，同步内联版本） =====
-  const groupCpc = targets.reduce((sum, t) => sum + (t.clicks > 0 ? t.spend / t.clicks : 0), 0) / Math.max(1, targets.length);
-  const groupImpressions = targets.reduce((sum, t) => sum + t.impressions, 0);
+  const groupCpc = targets.reduce((sum: any, t: any) => sum + (t.clicks > 0 ? t.spend / t.clicks : 0), 0) / Math.max(1, targets.length);
+  const groupImpressions = targets.reduce((sum: any, t: any) => sum + t.impressions, 0);
   const competitionProfile = buildSyncCompetitionProfile(groupCpc, groupImpressions, context.currentHour);
   
   // ===== 逐个计算修正系数 =====
@@ -241,7 +241,7 @@ export function batchCalculateGTOModifiers(
   
   // 统计日志
   const modifiers = Array.from(results.values());
-  const avgModifier = modifiers.reduce((s, m) => s + m.compositeModifier, 0) / Math.max(1, modifiers.length);
+  const avgModifier = modifiers.reduce((s: any, m: any) => s + m.compositeModifier, 0) / Math.max(1, modifiers.length);
   const raises = modifiers.filter(m => m.compositeModifier > 1.05).length;
   const folds = modifiers.filter(m => m.compositeModifier < 0.95).length;
   const holds = modifiers.length - raises - folds;

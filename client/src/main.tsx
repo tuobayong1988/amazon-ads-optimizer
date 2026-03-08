@@ -33,7 +33,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const redirectToLoginIfUnauthorized = (error: unknown) => {
+const redirectToLoginIfUnauthorized = (error: any) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 

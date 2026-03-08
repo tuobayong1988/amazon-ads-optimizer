@@ -151,7 +151,7 @@ export default function MonitoringCenter() {
           <div className="flex items-center gap-3">
             {/* 时间范围选择 */}
             <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1">
-              {(['today', '7days', '30days'] as const).map((range) => (
+              {(['today', '7days', '30days'] as const).map((range: any) => (
                 <Button
                   key={range}
                   variant={timeRange === range ? 'secondary' : 'ghost'}

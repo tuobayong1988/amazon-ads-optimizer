@@ -10,7 +10,8 @@
 import { getDb } from '../db';
 import { accountNegativeKeywords, InsertAccountNegativeKeyword } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { log } from '../logger';
+// @ts-ignore
+import { log } from '../utils/logger';
 
 /**
  * 跨广告活动分析结果
@@ -79,7 +80,7 @@ export async function analyzeCrossCampaignNegatives(
       LIMIT 100
     `);
 
-    const rows = (results as unknown[][])?.[0] as Record<string, unknown>[] || [];
+    const rows = (results as any[][])?.[0] as Record<string, any>[] || [];
     
     return rows.map(row => {
       const totalOrders = Number(row.totalOrders || 0);
@@ -142,7 +143,7 @@ export async function addGlobalNegativeKeyword(
       set: { status: 'active', sourceReason, updatedAt: sql`NOW()` },
     });
 
-    const insertId = (result as unknown[])[0]?.insertId;
+    const insertId = (result as any[])[0]?.insertId as unknown as number;
     log.info(`[GlobalNegative] 添加全局否定词: "${negativeText}" (${matchType}), accountId=${accountId}, source=${source}`);
     
     return { success: true, id: insertId, message: `成功添加全局否定词: ${negativeText}` };

@@ -3,11 +3,10 @@
  * 从db.ts中拆分的广告活动相关CRUD操作
  */
 export {
-  getCampaigns,
+  getAllCampaigns,
   getCampaignById,
   getCampaignByAmazonId,
   createCampaign,
   updateCampaign,
-  deleteCampaign,
   getCampaignsByAccountId,
 } from '../db';

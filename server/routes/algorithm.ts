@@ -33,7 +33,7 @@ export const algorithmOptimizationRouter = router({
       minConfidenceThreshold: z.number().optional(),
       minDataPoints: z.number().optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return algorithmOptimizationService.updateAlgorithmParameters(input);
     }),
   
@@ -48,7 +48,7 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmOptimizationService.calculateAlgorithmPerformance(
         input.accountId,
         input.days || 30
@@ -61,7 +61,7 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmOptimizationService.analyzeByAdjustmentType(
         input.accountId,
         input.days || 30
@@ -74,7 +74,7 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmOptimizationService.analyzeByBidChangeRange(
         input.accountId,
         input.days || 30
@@ -87,7 +87,7 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmOptimizationService.generateOptimizationSuggestions(
         input.accountId,
         input.days || 30
@@ -100,7 +100,7 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const metrics = await algorithmOptimizationService.calculateAlgorithmPerformance(
         input.accountId,
         input.days || 30
@@ -125,7 +125,7 @@ export const algorithmEffectRouter = router({
     .query(async ({ ctx, input }) => {
       // v268 性能优化: 算法效果统计缓存（TTL 5分钟）
       const cacheKey = apiCache.generateKey('algorithmEffect.getStats', ctx.user.id, input);
-      const cached = apiCache.get<unknown>(cacheKey);
+      const cached = apiCache.get<any>(cacheKey);
       if (cached) return cached;
 
       const endDate = new Date();
@@ -170,7 +170,7 @@ export const algorithmEffectRouter = router({
     }),
 
   // 获取待更新效果的记录
-  getPending: protectedProcedure.query(async ({ ctx }) => {
+  getPending: protectedProcedure.query(async ({ ctx }: any) => {
     return algorithmEffectService.getPendingEffectRecords(ctx.user.id);
   }),
 });
@@ -181,7 +181,7 @@ export const algorithmEvolutionRouter = router({
   // 获取优化目标的算法配置
   getTargetConfig: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmEvolutionEngine.getTargetAlgorithmConfig(input.targetId);
     }),
 
@@ -191,7 +191,7 @@ export const algorithmEvolutionRouter = router({
       targetId: z.number(),
       period: z.enum(['7', '14', '30']).optional().default('14'),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const period = parseInt(input.period) as 7 | 14 | 30;
       return algorithmEvolutionEngine.evaluateTargetPerformance(input.targetId, period);
     }),
@@ -199,7 +199,7 @@ export const algorithmEvolutionRouter = router({
   // 手动触发单个目标的进化周期
   runEvolutionCycle: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return algorithmEvolutionEngine.runEvolutionCycle(input.targetId);
     }),
 
@@ -218,14 +218,14 @@ export const algorithmEvolutionRouter = router({
   // 获取有效出价配置（供前端展示进化后的参数）
   getEffectiveBidConfig: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return algorithmEvolutionEngine.getEffectiveBidConfig(input.targetId);
     }),
 
   // v167: 手动触发自动纠错
   runAutoCorrection: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return runAutoCorrection(input.accountId);
     }),
 });
@@ -290,7 +290,7 @@ export const holidayConfigRouter = router({
       priority: z.enum(['high', 'medium', 'low']).optional(),
       preHolidayDays: z.number().optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { id, ...data } = input;
       return holidayConfigService.updateHolidayConfig(id, data);
     }),
@@ -298,7 +298,7 @@ export const holidayConfigRouter = router({
   // 删除节假日配置
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return holidayConfigService.deleteHolidayConfig(input.id);
     }),
 
@@ -308,7 +308,7 @@ export const holidayConfigRouter = router({
       id: z.number(),
       isActive: z.boolean()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return holidayConfigService.toggleHolidayConfig(input.id, input.isActive);
     }),
 

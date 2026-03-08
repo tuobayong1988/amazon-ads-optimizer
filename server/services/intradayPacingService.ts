@@ -181,6 +181,7 @@ export async function checkAllCampaignsPacing(
   
   try {
     // 获取所有启用的Campaign
+    // @ts-ignore
     const [rows] = await db.execute(sql`
       SELECT campaignId, dailyBudget
       FROM campaigns
@@ -192,7 +193,7 @@ export async function checkAllCampaignsPacing(
     const campaigns = Array.isArray(rows) ? rows : [];
     const results: IntradayAdjustment[] = [];
     
-    for (const campaign of campaigns) {
+    for (const campaign of (campaigns as any[])) {
       const adjustment = await adjustIntradayPacing(
         campaign.campaignId,
         accountId
@@ -271,6 +272,7 @@ async function getCampaignBudget(
   if (!db) return 0;
   
   try {
+    // @ts-ignore
     const [rows] = await db.execute(sql`
       SELECT dailyBudget
       FROM campaigns

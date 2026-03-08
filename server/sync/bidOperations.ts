@@ -229,7 +229,7 @@ export async function applyBidAdjustment(service: SyncContext,
 
     return true;
   } catch (error: unknown) {
-    const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
+    const errorDetail = (error as any).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
     log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
@@ -286,7 +286,7 @@ export async function applyBatchBidAdjustments(service: SyncContext,
 /**
  * 获取展示位置调整系数
  */
-export function getPlacementMultiplier(campaign: Record<string, unknown>, placement: string): number {
+export function getPlacementMultiplier(campaign: Record<string, any>, placement: string): number {
   const adjustment = campaign.bidding?.adjustments?.find(
     a => a.predicate === placement
   );

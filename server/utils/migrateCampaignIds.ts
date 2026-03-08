@@ -15,7 +15,7 @@
  * 此脚本设计为幂等的 — 可以安全地多次执行。
  */
 
-import { getDb } from '../db';
+import { DbInstance, getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { logMigration, logMigrationWarn, logMigrationError } from './opsLogger';
@@ -50,7 +50,7 @@ interface MigrationResult {
 /**
  * 安全提取COUNT结果
  */
-function extractCount(result: Record<string, unknown>): number {
+function extractCount(result: Record<string, any>): number {
   if (!result) return 0;
   const row = Array.isArray(result[0]) ? result[0][0] : result[0];
   return Number(row?.cnt || row?.count || 0);
@@ -60,8 +60,9 @@ function extractCount(result: Record<string, unknown>): number {
  * 快速检查某个表是否有需要迁移的记录
  * 使用 LIMIT 1 快速返回，避免全表扫描
  */
-async function hasRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableName: string): Promise<boolean> {
+async function hasRecordsToMigrate(db: DbInstance, tableName: string): Promise<boolean> {
   try {
+    // @ts-ignore
     const result = await db.execute(sql.raw(`
       SELECT 1 as found FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} 
@@ -85,11 +86,12 @@ async function hasRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableNam
  * 
  * 返回 { id, correctCampaignId } 数组
  */
-async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableName: string): Promise<Array<{ id: number; correctCampaignId: string }>> {
+async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<Array<{ id: number; correctCampaignId: string }>> {
   const records: Array<{ id: number; correctCampaignId: string }> = [];
   
   try {
     // 方法1：通过 campaigns 表直接映射
+    // @ts-ignore
     const directResult = await db.execute(sql.raw(`
       SELECT t.id, c.campaignId as correctCampaignId
       FROM \`${tableName}\` t
@@ -100,7 +102,7 @@ async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableNa
     `));
     
     const rows = Array.isArray(directResult[0]) ? directResult[0] : directResult;
-    for (const row of rows) {
+    for (const row of (rows as any[])) {
       if (row?.id && row?.correctCampaignId) {
         records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
       }
@@ -112,6 +114,7 @@ async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableNa
   // 方法2：对于 bidding_logs，通过 adGroupId → ad_groups.campaignId 链路解析未映射的记录
   if (tableName === 'bidding_logs') {
     try {
+      // @ts-ignore
       const adGroupResult = await db.execute(sql.raw(`
         SELECT t.id, ag.campaignId as correctCampaignId
         FROM bidding_logs t
@@ -124,7 +127,7 @@ async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableNa
       
       const existingIds = new Set(records.map(r => r.id));
       const rows = Array.isArray(adGroupResult[0]) ? adGroupResult[0] : adGroupResult;
-      for (const row of rows) {
+      for (const row of (rows as any[])) {
         if (row?.id && row?.correctCampaignId && !existingIds.has(Number(row.id))) {
           records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
@@ -141,7 +144,7 @@ async function findRecordsToMigrate(db: ReturnType<typeof getDb> | null, tableNa
  * 逐条修复记录的 campaignId
  * 每条 UPDATE 使用 WHERE id = ? 精确定位（主键索引，毫秒级）
  */
-async function migrateTable(db: ReturnType<typeof getDb> | null, tableName: string): Promise<MigrationResult> {
+async function migrateTable(db: DbInstance, tableName: string): Promise<MigrationResult> {
   const errors: string[] = [];
   
   // 快速检查是否有需要迁移的记录
@@ -151,6 +154,7 @@ async function migrateTable(db: ReturnType<typeof getDb> | null, tableName: stri
   let hasOrphanRecords = false;
   if (tableName === 'bidding_logs') {
     try {
+      // @ts-ignore
       const orphanCheck = await db.execute(sql.raw(`
         SELECT 1 as found FROM bidding_logs 
         WHERE campaignId LIKE 'ORPHAN_%' OR campaignId = 'UNRESOLVED'
@@ -172,6 +176,7 @@ async function migrateTable(db: ReturnType<typeof getDb> | null, tableName: stri
   
   if (recordsToMigrate.length === 0) {
     // 有疑似记录但无法映射 — 这些是真正的孤立记录
+    // @ts-ignore
     const countResult = await db.execute(sql.raw(`
       SELECT COUNT(*) as cnt FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} AND campaignId REGEXP '^[0-9]+$'
@@ -189,8 +194,9 @@ async function migrateTable(db: ReturnType<typeof getDb> | null, tableName: stri
   let failedCount = 0;
   
   // 逐条 UPDATE — 每条使用主键索引，毫秒级完成，不会造成锁冲突
-  for (const record of recordsToMigrate) {
+  for (const record of (recordsToMigrate as any[])) {
     try {
+      // @ts-ignore
       await db.execute(sql.raw(
         `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
       ));

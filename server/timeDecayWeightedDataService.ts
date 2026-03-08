@@ -184,11 +184,11 @@ function aggregateByTimeWindows(
     const daysCount = windowData.length;
     
     // 原始汇总
-    const rawImpressions = windowData.reduce((sum, d) => sum + d.impressions, 0);
-    const rawClicks = windowData.reduce((sum, d) => sum + d.clicks, 0);
-    const rawSpend = windowData.reduce((sum, d) => sum + d.spend, 0);
-    const rawSales = windowData.reduce((sum, d) => sum + d.sales, 0);
-    const rawOrders = windowData.reduce((sum, d) => sum + d.orders, 0);
+    const rawImpressions = windowData.reduce((sum: any, d: any) => sum + d.impressions, 0);
+    const rawClicks = windowData.reduce((sum: any, d: any) => sum + d.clicks, 0);
+    const rawSpend = windowData.reduce((sum: any, d: any) => sum + d.spend, 0);
+    const rawSales = windowData.reduce((sum: any, d: any) => sum + d.sales, 0);
+    const rawOrders = windowData.reduce((sum: any, d: any) => sum + d.orders, 0);
     
     // 归因修正：对于归因不完整的窗口，按归因完整度反向修正
     // 例如：归因完整度35%意味着实际订单可能是报告值的 1/0.35 ≈ 2.86倍
@@ -290,7 +290,7 @@ export function calculateTimeWeightedMetrics(
   }
   
   // 数据质量评估
-  const totalDaysWithData = windowDetails.reduce((sum, d) => sum + d.daysCount, 0);
+  const totalDaysWithData = windowDetails.reduce((sum: any, d: any) => sum + d.daysCount, 0);
   const totalPossibleDays = 90;
   const coveragePercent = (totalDaysWithData / totalPossibleDays) * 100;
   const recentDataAvailable = windowDetails[0].daysCount > 0 || windowDetails[1].daysCount > 0;
@@ -322,8 +322,8 @@ export function calculateTimeWeightedMetrics(
   
   if (recentWindows.length > 0 && olderWindows.length > 0) {
     // 计算近期和远期的平均ROAS
-    const recentAvgRoas = recentWindows.reduce((sum, aw) => sum + aw.detail.roas, 0) / recentWindows.length;
-    const olderAvgRoas = olderWindows.reduce((sum, aw) => sum + aw.detail.roas, 0) / olderWindows.length;
+    const recentAvgRoas = recentWindows.reduce((sum: any, aw: any) => sum + aw.detail.roas, 0) / recentWindows.length;
+    const olderAvgRoas = olderWindows.reduce((sum: any, aw: any) => sum + aw.detail.roas, 0) / olderWindows.length;
     
     if (olderAvgRoas > 0) {
       const roasChange = (recentAvgRoas - olderAvgRoas) / olderAvgRoas;
@@ -419,12 +419,12 @@ export async function getPerformanceGroupTimeWeightedMetrics(
   
   const allDailyData: DailyRawData[] = [];
   
-  for (const campaign of campaigns) {
+  for (const campaign of (campaigns as any[])) {
     try {
       // v206: getDailyPerformanceByDateRange需要Amazon campaignId
       const rawData = await db.getDailyPerformanceByDateRange(accountId, startDate, endDate, campaign.campaignId);
       
-      for (const d of rawData) {
+      for (const d of (rawData as any[])) {
         allDailyData.push({
           date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
           impressions: d.impressions || 0,
@@ -441,7 +441,7 @@ export async function getPerformanceGroupTimeWeightedMetrics(
   
   // 按日期汇总（同一天多个campaign的数据合并）
   const dailyMap = new Map<string, DailyRawData>();
-  for (const d of allDailyData) {
+  for (const d of (allDailyData as any[])) {
     const dateKey = d.date.split('T')[0];
     const existing = dailyMap.get(dateKey);
     if (existing) {
@@ -500,7 +500,7 @@ export function calculateKeywordAdjustmentFactor(
   // 归因修正：keyword的汇总数据可能包含近期未完全归因的数据
   // 使用campaign级别的归因修正比例
   const recentWindow = campaignTimeWeighted.windowDetails.find(w => w.windowName === 'attribution_incomplete');
-  const totalWindow = campaignTimeWeighted.windowDetails.reduce((sum, w) => sum + w.rawSpend, 0);
+  const totalWindow = campaignTimeWeighted.windowDetails.reduce((sum: any, w: any) => sum + w.rawSpend, 0);
   
   let attributionAdjustment = 1.0;
   if (recentWindow && totalWindow > 0) {

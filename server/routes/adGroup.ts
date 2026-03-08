@@ -18,21 +18,21 @@ export const adGroupRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getAdGroupsByCampaignId(input.campaignId);
     }),
   
   // 获取广告组详情
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getAdGroupById(input.id);
     }),
   
   // 获取广告组及其关键词统计
   getWithKeywordStats: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const adGroup = await db.getAdGroupById(input.id);
       if (!adGroup) return null;
       

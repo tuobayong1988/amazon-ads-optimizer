@@ -69,11 +69,11 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
       )
     `);
     
-    const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`);
-    const rows = (result as Record<string, unknown>[][])[0];
+    const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`) as any;
+    const rows = (result as Record<string, any>[][])[0];
     
     if (rows && rows.length > 0) {
-      const row = rows[0];
+      const row = rows[0] as any;
       return {
         success: true,
         inviteCode: {
@@ -127,12 +127,12 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       WHERE ic.code = ${code}
     `);
     
-    const rows = (result as Record<string, unknown>[][])[0];
+    const rows = (result as Record<string, any>[][])[0];
     if (!rows || rows.length === 0) {
       return { valid: false, error: '邀请码不存在' };
     }
     
-    const row = rows[0];
+    const row = rows[0] as any;
     
     if (!row.is_active) {
       return { valid: false, error: '邀请码已被禁用' };
@@ -187,7 +187,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
       VALUES (${inviteCode.id}, ${userId}, ${organizationId || null}, ${now}, ${ipAddress || null}, ${userAgent || null})
     `);
     
-    await db.execute(sql`UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ${inviteCode.id}`);
+    await db.execute(sql`UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ${inviteCode.id}`) as any;
     
     return { success: true };
   } catch (error: unknown) {
@@ -219,8 +219,8 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       `);
     }
     
-    const rows = (result as Record<string, unknown>[][])[0] || [];
-    return rows.map((row: Record<string, unknown>) => ({
+    const rows = (result as Record<string, any>[][])[0] || [];
+    return rows.map((row: Record<string, any>) => ({
       id: row.id,
       code: row.code,
       createdBy: row.created_by,
@@ -245,7 +245,7 @@ export async function disableInviteCode(id: number): Promise<{ success: boolean;
   if (!db) return { success: false, error: '数据库连接失败' };
   
   try {
-    await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`);
+    await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`) as any;
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -257,7 +257,7 @@ export async function enableInviteCode(id: number): Promise<{ success: boolean; 
   if (!db) return { success: false, error: '数据库连接失败' };
   
   try {
-    await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`);
+    await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`) as any;
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -269,7 +269,7 @@ export async function deleteInviteCode(id: number): Promise<{ success: boolean; 
   if (!db) return { success: false, error: '数据库连接失败' };
   
   try {
-    await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`);
+    await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`) as any;
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -301,9 +301,9 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
       FROM invite_codes ${whereClause}
     `);
     
-    const rows = (result as Record<string, unknown>[][])[0];
+    const rows = (result as Record<string, any>[][])[0];
     if (rows && rows.length > 0) {
-      const row = rows[0];
+      const row = rows[0] as any;
       return {
         total: row.total || 0,
         active: row.active || 0,

@@ -3,8 +3,7 @@
  * 从db.ts中拆分的绩效数据查询和汇总操作
  */
 export {
-  getDailyPerformance,
-  upsertDailyPerformance,
-  getPerformanceTrend,
-  getAccountPerformanceSummary,
+  createDailyPerformance,
+  upsertDailyPerformanceFromAms,
+    getAccountPerformanceSummary,
 } from '../db';

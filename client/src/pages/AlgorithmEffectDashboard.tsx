@@ -60,7 +60,7 @@ export default function AlgorithmEffectDashboard() {
   const [budgetPoolTimeRange, setBudgetPoolTimeRange] = useState("30");
 
   // 获取账户列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
 
   // 获取出价调整历史统计
   const { data: bidStats } = trpc.placement.getBidAdjustmentStats.useQuery(
@@ -200,7 +200,7 @@ export default function AlgorithmEffectDashboard() {
       positiveRate: Math.round(data.positiveRate),
       algorithms: data.algorithms,
       fill: (TIER_COLORS as any)[tier]?.fill || '#6B7280',
-    })).sort((a, b) => b.count - a.count);
+    })).sort((a: any, b: any) => b.count - a.count);
   }, [algorithmEffectStats]);
 
   // 算法详细统计
@@ -275,7 +275,7 @@ export default function AlgorithmEffectDashboard() {
   }, [algorithmPerformance]);
 
   // v135: 计算总调整中各层级占比（用于核心指标卡片迷你图）
-  const totalAlgoCount = algorithmDistribution.reduce((sum, d) => sum + d.count, 0);
+  const totalAlgoCount = algorithmDistribution.reduce((sum: any, d: any) => sum + d.count, 0);
 
   return (
     <DashboardLayout>
@@ -298,7 +298,7 @@ export default function AlgorithmEffectDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部账户</SelectItem>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -392,7 +392,7 @@ export default function AlgorithmEffectDashboard() {
                   <p className="text-sm text-orange-300">算法层级分布</p>
                   {totalAlgoCount > 0 ? (
                     <div className="mt-2 space-y-1.5">
-                      {algorithmDistribution.slice(0, 3).map((d) => {
+                      {algorithmDistribution.slice(0, 3).map((d: any) => {
                         const pct = totalAlgoCount > 0 ? Math.round(d.count / totalAlgoCount * 100) : 0;
                         return (
                           <div key={d.tier} className="flex items-center gap-2">
@@ -536,7 +536,7 @@ export default function AlgorithmEffectDashboard() {
                               label={(props: any) => `${props.name || ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`}
                               labelLine={{ stroke: '#9CA3AF' }}
                             >
-                              {algorithmDistribution.map((entry, index) => (
+                              {algorithmDistribution.map((entry: any, index: any) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -548,7 +548,7 @@ export default function AlgorithmEffectDashboard() {
                         </ResponsiveContainer>
                       </div>
                       <div className="mt-4 space-y-2">
-                        {algorithmDistribution.map((d) => {
+                        {algorithmDistribution.map((d: any) => {
                           const pct = totalAlgoCount > 0 ? (d.count / totalAlgoCount * 100).toFixed(1) : '0';
                           return (
                             <div key={d.tier} className="flex items-center justify-between p-2 rounded bg-gray-700/30">
@@ -656,7 +656,7 @@ export default function AlgorithmEffectDashboard() {
                 {/* v135: 使用真实数据计算对比指标 */}
                 <div className="mt-4 grid grid-cols-4 gap-4">
                   {effectComparisonData.length > 0 ? (
-                    effectComparisonData.map((item) => {
+                    effectComparisonData.map((item: any) => {
                       const change = item.before > 0 ? ((item.after - item.before) / item.before * 100) : 0;
                       const isPositive = item.metric.includes('ACoS') || item.metric.includes('成本') ? change < 0 : change > 0;
                       return (

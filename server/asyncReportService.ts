@@ -65,7 +65,8 @@ export async function createReportRequest(
     VALUES (${accountId}, ${profileId}, ${marketplace}, ${reportType}, ${startDate}, ${endDate}, 'pending')
   `);
 
-  const insertId = (result as Record<string, number>).insertId || (result as Record<string, unknown>[][])[0]?.insertId;
+  // @ts-ignore
+  const insertId = (result as Record<string, number>).insertId || (result as Record<string, any>[][])[0]?.insertId;
   log.info(`[AsyncReportService] 创建报告请求: ${insertId}`);
   return insertId;
 }
@@ -84,7 +85,7 @@ export async function submitReportRequest(requestId: number): Promise<void> {
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (requestResult as unknown[])[0] || requestResult;
+  const requests = (requestResult as any[])[0] || requestResult;
   if (!requests || requests.length === 0) {
     throw new Error(`Report request ${requestId} not found`);
   }
@@ -162,7 +163,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (requestResult as unknown[])[0] || requestResult;
+  const requests = (requestResult as any[])[0] || requestResult;
   if (!requests || requests.length === 0) {
     return false;
   }
@@ -246,7 +247,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
 /**
  * 处理报告数据
  */
-async function processReportData(request: ReportRequest, data: unknown[]): Promise<void> {
+async function processReportData(request: ReportRequest, data: any[]): Promise<void> {
   if (!data || data.length === 0) {
     return;
   }
@@ -290,7 +291,7 @@ async function processReportData(request: ReportRequest, data: unknown[]): Promi
  * - SB (Sponsored Brands): 使用 cost, salesClicks, purchasesClicks
  * - SD (Sponsored Display): 使用 cost, salesClicks, purchasesClicks
  */
-async function processCampaignReportData(accountId: number, data: unknown[], adType?: string): Promise<void> {
+async function processCampaignReportData(accountId: number, data: any[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;
@@ -298,7 +299,7 @@ async function processCampaignReportData(accountId: number, data: unknown[], adT
 
   let updatedCount = 0;
 
-  for (const row of data) {
+  for (const row of (data as any[])) {
     const campaignId = row.campaignId;
     if (!campaignId) continue;
 
@@ -307,7 +308,7 @@ async function processCampaignReportData(accountId: number, data: unknown[], adT
       SELECT id, adType FROM campaigns WHERE amazonCampaignId = ${campaignId} AND accountId = ${accountId}
     `);
 
-    const campaigns = (campaignResult as unknown[])[0] || campaignResult;
+    const campaigns = (campaignResult as any[])[0] || campaignResult;
     if (!campaigns || campaigns.length === 0) continue;
 
     const localCampaignId = campaigns[0].id;
@@ -367,7 +368,7 @@ async function processCampaignReportData(accountId: number, data: unknown[], adT
  * - SP: 使用 sales7d, purchases7d, acosClicks7d, roasClicks7d
  * - SB/SD: 使用 salesClicks, purchasesClicks
  */
-async function processKeywordReportData(accountId: number, data: unknown[], adType?: string): Promise<void> {
+async function processKeywordReportData(accountId: number, data: any[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;
@@ -376,7 +377,7 @@ async function processKeywordReportData(accountId: number, data: unknown[], adTy
   let updatedCount = 0;
   const detectedAdType = adType || 'SP';
 
-  for (const row of data) {
+  for (const row of (data as any[])) {
     // 支持多种ID字段: keywordId, targetId
     const keywordId = row.keywordId || row.targetId;
     if (!keywordId) continue;
@@ -469,7 +470,7 @@ async function pollPendingReports(): Promise<void> {
       SELECT id, status FROM report_requests WHERE status IN ('pending', 'submitted', 'processing') ORDER BY createdAt ASC LIMIT 10
     `);
 
-    const pendingRequests = (pendingResult as unknown[])[0] || pendingResult;
+    const pendingRequests = (pendingResult as any[])[0] || pendingResult;
     if (!pendingRequests || pendingRequests.length === 0) {
       return;
     }
@@ -568,7 +569,7 @@ export async function getReportRequestStatus(requestId: number): Promise<ReportR
     SELECT * FROM report_requests WHERE id = ${requestId}
   `);
 
-  const requests = (result as unknown[])[0] || result;
+  const requests = (result as any[])[0] || result;
   if (!requests || requests.length === 0) {
     return null;
   }
@@ -589,7 +590,7 @@ export async function getAccountReportRequests(accountId: number, limit: number 
     SELECT * FROM report_requests WHERE accountId = ${accountId} ORDER BY createdAt DESC LIMIT ${limit}
   `);
 
-  const requests = (result as unknown[])[0] || result;
+  const requests = (result as any[])[0] || result;
   return requests as ReportRequest[];
 }
 

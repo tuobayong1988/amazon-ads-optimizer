@@ -248,11 +248,11 @@ describe('A/B测试框架测试', () => {
     expect(experiment.groups[1].type).toBe('treatment');
     
     // 验证流量分配
-    const totalAllocation = experiment.groups.reduce((sum, g) => sum + g.allocation, 0);
+    const totalAllocation = experiment.groups.reduce((sum: any, g: any) => sum + g.allocation, 0);
     expect(totalAllocation).toBeCloseTo(1.0, 2);
     
     // 验证广告活动分配
-    const totalCampaigns = experiment.groups.reduce((sum, g) => sum + g.campaignIds.length, 0);
+    const totalCampaigns = experiment.groups.reduce((sum: any, g: any) => sum + g.campaignIds.length, 0);
     expect(totalCampaigns).toBe(6);
   });
 });

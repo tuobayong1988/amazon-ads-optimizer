@@ -40,7 +40,7 @@ export function InitializationProgress({ accountId, accountName }: Initializatio
   );
 
   // 获取任务数量对比
-  const { data: taskComparison } = trpc.reportJobs.getTaskComparison.useQuery();
+  const { data: taskComparison } = trpc.reportJobs.getTaskComparison.useQuery() as any;
 
   // 开始初始化
   const startMutation = trpc.reportJobs.startInitialization.useMutation({
@@ -221,7 +221,7 @@ export function InitializationProgress({ accountId, accountName }: Initializatio
             <div className="space-y-4">
               <h4 className="font-medium">初始化阶段</h4>
               <div className="space-y-3">
-                {progress.phases.map((phase) => (
+                {progress.phases.map((phase: any) => (
                   <div key={phase.phase} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2">

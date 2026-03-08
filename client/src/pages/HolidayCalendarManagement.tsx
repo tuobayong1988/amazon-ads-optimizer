@@ -74,7 +74,7 @@ export default function HolidayCalendarManagement() {
   });
 
   // 获取支持的站点列表
-  const { data: marketplaces } = trpc.holidayConfig.getMarketplaces.useQuery();
+  const { data: marketplaces } = trpc.holidayConfig.getMarketplaces.useQuery() as any;
 
   // 初始化系统默认节假日
   const initializeMutation = trpc.holidayConfig.initializeDefaults.useMutation({

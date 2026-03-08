@@ -44,7 +44,7 @@ export interface TrackingResult {
  * 获取需要追踪的历史记录
  * @param period 追踪周期（7/14/30天）
  */
-export async function getRecordsToTrack(period: number): Promise<Record<string, unknown>[]> {
+export async function getRecordsToTrack(period: number): Promise<Record<string, any>[]> {
   const db = await getDb();
   if (!db) return [];
   
@@ -107,14 +107,14 @@ export async function collectKeywordPerformance(
   // 注意：dailyPerformance表是按账号/活动级别存储的，没有keywordId字段
   // 这里我们模拟返回空数据，实际实现需要从关键词表或其他数据源获取
   // 在实际生产环境中，应该从Amazon API获取关键词级别的历史数据
-  const metrics: unknown[] = [];
+  const metrics: any[] = [];
   
   // 汇总数据
-  const totalClicks = metrics.reduce((sum, m) => sum + (m.clicks || 0), 0);
-  const totalImpressions = metrics.reduce((sum, m) => sum + (m.impressions || 0), 0);
-  const totalSpend = metrics.reduce((sum, m) => sum + parseFloat(String(m.spend || 0)), 0);
-  const totalSales = metrics.reduce((sum, m) => sum + parseFloat(String(m.sales || 0)), 0);
-  const totalOrders = metrics.reduce((sum, m) => sum + (m.orders || 0), 0);
+  const totalClicks = metrics.reduce((sum: any, m: any) => sum + (m.clicks || 0), 0);
+  const totalImpressions = metrics.reduce((sum: any, m: any) => sum + (m.impressions || 0), 0);
+  const totalSpend = metrics.reduce((sum: any, m: any) => sum + parseFloat(String(m.spend || 0)), 0);
+  const totalSales = metrics.reduce((sum: any, m: any) => sum + parseFloat(String(m.sales || 0)), 0);
+  const totalOrders = metrics.reduce((sum: any, m: any) => sum + (m.orders || 0), 0);
   
   // 计算衍生指标
   const acos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
@@ -147,7 +147,7 @@ export async function updateTrackingData(
   const db = await getDb();
   if (!db) return;
   
-  const updateData: Record<string, unknown> = {};
+  const updateData: Record<string, any> = {};
   
   if (period === TRACKING_PERIODS.DAY_7) {
     updateData.actualProfit7D = trackingData.profit.toString();
@@ -182,7 +182,7 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
   // 获取需要追踪的记录
   const records = await getRecordsToTrack(period);
   
-  for (const record of records) {
+  for (const record of (records as any[])) {
     try {
       // 计算追踪时间范围
       const adjustedAt = new Date(record.adjustedAt);
@@ -269,8 +269,8 @@ export async function getTrackingStatsSummary(): Promise<{
   let totalEstimated = 0;
   let totalActual = 0;
   
-  for (const record of records) {
-    const estimated = parseFloat((record as Record<string, unknown>).estimatedProfitChange || '0');
+  for (const record of (records as any[])) {
+    const estimated = parseFloat((record as Record<string, any>).estimatedProfitChange || '0');
     totalEstimated += estimated;
     
     if (record.actualProfit7D !== null) {

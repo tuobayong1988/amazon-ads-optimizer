@@ -187,7 +187,7 @@ function ModuleProgressBar({ moduleStats }: { moduleStats?: Record<string, numbe
   return (
     <div className="flex items-center gap-1.5">
       <div className="flex gap-0.5">
-        {modules.map((m) => (
+        {modules.map((m: any) => (
           <div
             key={m}
             className={`w-3 h-1.5 rounded-full ${(moduleStats[m] || 0) > 0 ? 'bg-green-400' : 'bg-muted/50'}`}
@@ -211,7 +211,7 @@ function PipelineFlowVisualization({ pipelineStatus, modules, onModuleClick }: {
   return (
     <div className="w-full overflow-x-auto pb-4">
       <div className="flex items-center gap-0 min-w-[900px] px-4 py-6">
-        {MODULE_CONFIG.map((mod, idx) => {
+        {MODULE_CONFIG.map((mod: any, idx: any) => {
           const moduleStatus = psData?.data?.modules?.[mod.key]?.status || 'pending';
           const isActive = psData?.data?.currentModule === mod.key;
           const count = modules?.[mod.key]?.count ?? 0;
@@ -557,7 +557,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
                 模块数据统计
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {MODULE_CONFIG.map((mod) => {
+                {MODULE_CONFIG.map((mod: any) => {
                   const count = moduleStats[mod.key] || 0;
                   return (
                     <div key={mod.key} className={`flex items-center gap-2 p-2 rounded-lg border ${count > 0 ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'}`}>
@@ -625,7 +625,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
             创建预发布项目
           </CardTitle>
           <div className="flex items-center gap-2">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2, 3, 4].map((s: any) => (
               <div key={s} className={`flex items-center gap-1 ${s <= step ? 'text-blue-400' : 'text-muted-foreground'}`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border ${
                   s === step ? 'bg-blue-500/20 border-blue-500' :
@@ -680,7 +680,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">选择需要执行的模块（建议全选以获得最佳效果）</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {MODULE_CONFIG.map((mod) => (
+              {MODULE_CONFIG.map((mod: any) => (
                 <div
                   key={mod.key}
                   className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -734,7 +734,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
               <div>
                 <p className="text-xs text-muted-foreground mb-2">执行模块:</p>
                 <div className="flex flex-wrap gap-1">
-                  {selectedModules.map((key) => {
+                  {selectedModules.map((key: any) => {
                     const mod = MODULE_CONFIG.find(m => m.key === key);
                     return mod ? (
                       <Badge key={key} variant="secondary" className="text-xs">{mod.key}: {mod.name}</Badge>
@@ -746,7 +746,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">种子关键词:</p>
                 <div className="flex flex-wrap gap-1">
-                  {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw, i) => (
+                  {seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean).map((kw: any, i: any) => (
                     <Badge key={i} variant="outline" className="text-xs">{kw}</Badge>
                   ))}
                 </div>
@@ -940,7 +940,7 @@ export default function PrelaunchDashboard() {
                   { key: 'running', label: '运行中', count: projectStats.running },
                   { key: 'completed', label: '已完成', count: projectStats.completed },
                   { key: 'archived', label: '已归档', count: projectStats.archived },
-                ].map((f) => (
+                ].map((f: any) => (
                   <Button
                     key={f.key}
                     variant={projectStatusFilter === f.key ? "default" : "ghost"}
@@ -1055,7 +1055,7 @@ export default function PrelaunchDashboard() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {MODULE_CONFIG.map((mod) => {
+                {MODULE_CONFIG.map((mod: any) => {
                   const moduleData = modules[mod.key];
                   const count = moduleData?.count ?? 0;
                   const psData = pipelineStatus as any;
@@ -1150,7 +1150,7 @@ export default function PrelaunchDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {MODULE_CONFIG.map((mod) => {
+                    {MODULE_CONFIG.map((mod: any) => {
                       const psData = pipelineStatus as any;
                       const moduleStatus = psData?.data?.modules?.[mod.key];
                       const status = moduleStatus?.status || 'pending';
@@ -1241,7 +1241,7 @@ export default function PrelaunchDashboard() {
 
 // ==================== 广告框架预览子组件 ====================
 function AdFrameworkPreview({ projectId }: { projectId: number }) {
-  const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery({ projectId });
+  const frameworksQuery = trpc.prelaunch.getAdFrameworks.useQuery({ projectId }) as any;
   const deployMutation = trpc.prelaunch.deployAdFramework.useMutation({
     onSuccess: (data: any) => {
       if (data.dryRun) {

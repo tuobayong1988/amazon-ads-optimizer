@@ -57,7 +57,7 @@ class LinearRegressionModel {
     // 梯度下降
     for (let iter = 0; iter < this.iterations; iter++) {
       // 计算预测值
-      const predictions = X.map((x) => this.predict(x));
+      const predictions = X.map((x: any) => this.predict(x));
 
       // 计算梯度
       const dWeights = Array(nFeatures).fill(0);
@@ -94,14 +94,14 @@ class LinearRegressionModel {
    * 计算R²分数
    */
   score(X: number[][], y: number[]): number {
-    const predictions = X.map((x) => this.predict(x));
-    const mean = y.reduce((sum, val) => sum + val, 0) / y.length;
+    const predictions = X.map((x: any) => this.predict(x));
+    const mean = y.reduce((sum: any, val: any) => sum + val, 0) / y.length;
 
     const ssRes = y.reduce(
       (sum, val, i) => sum + Math.pow(val - predictions[i], 2),
       0
     );
-    const ssTot = y.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0);
+    const ssTot = y.reduce((sum: any, val: any) => sum + Math.pow(val - mean, 2), 0);
 
     return ssTot === 0 ? 0 : 1 - ssRes / ssTot;
   }
@@ -132,17 +132,17 @@ export class BidOptimizer {
     }
 
     // 准备特征和目标
-    const features = historicalData.map((d) => [
+    const features = historicalData.map((d: any) => [
       d.bid,
       d.impressions,
       d.clicks,
       Math.log(d.bid + 1), // 对数变换
     ]);
 
-    const salesTargets = historicalData.map((d) => d.sales);
-    const spendTargets = historicalData.map((d) => d.spend);
-    const clicksTargets = historicalData.map((d) => d.clicks);
-    const conversionsTargets = historicalData.map((d) => d.conversions);
+    const salesTargets = historicalData.map((d: any) => d.sales);
+    const spendTargets = historicalData.map((d: any) => d.spend);
+    const clicksTargets = historicalData.map((d: any) => d.clicks);
+    const conversionsTargets = historicalData.map((d: any) => d.conversions);
 
     // 训练各个模型
     this.salesModel.train(features, salesTargets);
@@ -337,7 +337,7 @@ export class BidOptimizer {
     conversionsR2: number;
     averageR2: number;
   } {
-    const features = testData.map((d) => [
+    const features = testData.map((d: any) => [
       d.bid,
       d.impressions,
       d.clicks,
@@ -346,19 +346,19 @@ export class BidOptimizer {
 
     const salesR2 = this.salesModel.score(
       features,
-      testData.map((d) => d.sales)
+      testData.map((d: any) => d.sales)
     );
     const spendR2 = this.spendModel.score(
       features,
-      testData.map((d) => d.spend)
+      testData.map((d: any) => d.spend)
     );
     const clicksR2 = this.clicksModel.score(
       features,
-      testData.map((d) => d.clicks)
+      testData.map((d: any) => d.clicks)
     );
     const conversionsR2 = this.conversionsModel.score(
       features,
-      testData.map((d) => d.conversions)
+      testData.map((d: any) => d.conversions)
     );
 
     return {
@@ -396,7 +396,7 @@ export class BudgetAllocator {
     expectedROAS: number;
   }> {
     // 计算每个活动的边际效益
-    const marginalReturns = campaigns.map((campaign) => {
+    const marginalReturns = campaigns.map((campaign: any) => {
       const optimizer = new BidOptimizer();
       
       try {
@@ -420,7 +420,7 @@ export class BudgetAllocator {
           (testBudget - campaign.currentBudget);
 
         return {
-          campaignId: (campaign as Record<string, unknown>).campaignId,
+          campaignId: (campaign as Record<string, any>).campaignId,
           marginalReturn: marginalReturn > 0 ? marginalReturn : 0,
           currentBudget: campaign.currentBudget,
           optimizer,
@@ -429,7 +429,7 @@ export class BudgetAllocator {
       } catch (error) {
         // 数据不足,使用当前ROAS作为边际回报
         return {
-          campaignId: (campaign as Record<string, unknown>).campaignId,
+          campaignId: (campaign as Record<string, any>).campaignId,
           marginalReturn: campaign.currentROAS,
           currentBudget: campaign.currentBudget,
           optimizer: null,
@@ -439,7 +439,7 @@ export class BudgetAllocator {
     });
 
     // 按边际效益排序
-    marginalReturns.sort((a, b) => b.marginalReturn - a.marginalReturn);
+    marginalReturns.sort((a: any, b: any) => b.marginalReturn - a.marginalReturn);
 
     // 分配预算
     const allocations: Array<{
@@ -512,10 +512,10 @@ export class BudgetAllocator {
   } {
     const n = data.length;
     return {
-      avgBid: data.reduce((sum, d) => sum + d.bid, 0) / n,
-      avgImpressions: data.reduce((sum, d) => sum + d.impressions, 0) / n,
-      avgClicks: data.reduce((sum, d) => sum + d.clicks, 0) / n,
-      avgSales: data.reduce((sum, d) => sum + d.sales, 0) / n,
+      avgBid: data.reduce((sum: any, d: any) => sum + d.bid, 0) / n,
+      avgImpressions: data.reduce((sum: any, d: any) => sum + d.impressions, 0) / n,
+      avgClicks: data.reduce((sum: any, d: any) => sum + d.clicks, 0) / n,
+      avgSales: data.reduce((sum: any, d: any) => sum + d.sales, 0) / n,
     };
   }
 }

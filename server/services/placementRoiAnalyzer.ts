@@ -102,7 +102,7 @@ export async function analyzePlacementRoi(
     // 查询带位置信息的绩效数据
     // 注意: daily_performance表中placement字段存储位置信息
     const placementData = await db.select({
-      placement: sql<string>`COALESCE(${dailyPerformance.placement}, 'unknown')`,
+      placement: sql<string>`COALESCE(daily_performance.placement, 'unknown')`,
       impressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
       clicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
       spend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
@@ -114,13 +114,13 @@ export async function analyzePlacementRoi(
       inArray(dailyPerformance.campaignId, campaignIds),
       gte(dailyPerformance.date, cutoffStr),
     ))
-    .groupBy(sql`COALESCE(${dailyPerformance.placement}, 'unknown')`);
+    .groupBy(sql`COALESCE(daily_performance.placement, 'unknown')`);
     
     if (placementData.length === 0) return emptyReport;
     
     // 计算总体指标
-    const totalSpend = placementData.reduce((sum, p) => sum + Number(p.spend), 0);
-    const totalSales = placementData.reduce((sum, p) => sum + Number(p.sales), 0);
+    const totalSpend = placementData.reduce((sum: any, p: any) => sum + Number(p.spend), 0);
+    const totalSales = placementData.reduce((sum: any, p: any) => sum + Number(p.sales), 0);
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     
     // 计算每个位置的ROI指标
@@ -173,7 +173,7 @@ export async function analyzePlacementRoi(
     if (placements.length === 0) return emptyReport;
     
     // 找出最佳和最差位置
-    const sortedByRoas = [...placements].sort((a, b) => b.roas - a.roas);
+    const sortedByRoas = [...placements].sort((a: any, b: any) => b.roas - a.roas);
     const bestPlacement = sortedByRoas[0]?.placement || null;
     const worstPlacement = sortedByRoas[sortedByRoas.length - 1]?.placement || null;
     

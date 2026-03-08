@@ -20,14 +20,14 @@ const log = createModuleLogger('perfSyncOptimizer');
  * 替代循环内逐条查询
  */
 export async function preloadAccountCampaigns(
-  db: ReturnType<typeof getDb> | null,
+  db: DbInstance,
   accountId: number
 ): Promise<{
-  byId: Map<string, unknown>;
-  byName: Map<string, unknown>;
+  byId: Map<string, any>;
+  byName: Map<string, any>;
 }> {
-  const byId = new Map<string, unknown>();
-  const byName = new Map<string, unknown>();
+  const byId = new Map<string, any>();
+  const byName = new Map<string, any>();
 
   try {
     const allCampaigns = await db
@@ -35,7 +35,7 @@ export async function preloadAccountCampaigns(
       .from(campaigns)
       .where(eq(campaigns.accountId, accountId));
 
-    for (const c of allCampaigns) {
+    for (const c of (allCampaigns as any[])) {
       if (c.campaignId) {
         byId.set(String(c.campaignId), c);
       }
@@ -59,12 +59,12 @@ export async function preloadAccountCampaigns(
  * 返回Map: key = `${campaignId}:${dateStr}`, value = existing record
  */
 export async function preloadExistingPerformance(
-  db: ReturnType<typeof getDb> | null,
+  db: DbInstance,
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, unknown>> {
-  const existingMap = new Map<string, unknown>();
+): Promise<Map<string, any>> {
+  const existingMap = new Map<string, any>();
 
   try {
     const existingRecords = await db
@@ -83,7 +83,7 @@ export async function preloadExistingPerformance(
         )
       );
 
-    for (const record of existingRecords) {
+    for (const record of (existingRecords as any[])) {
       const dateStr = typeof record.date === 'string' 
         ? record.date.split('T')[0].split(' ')[0]
         : new Date(record.date).toISOString().split('T')[0];
@@ -103,12 +103,12 @@ export async function preloadExistingPerformance(
  * v358: 批量预加载existing placement_performance记录
  */
 export async function preloadExistingPlacementPerformance(
-  db: ReturnType<typeof getDb> | null,
+  db: DbInstance,
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, unknown>> {
-  const existingMap = new Map<string, unknown>();
+): Promise<Map<string, any>> {
+  const existingMap = new Map<string, any>();
 
   try {
     const existingRecords = await db
@@ -128,7 +128,7 @@ export async function preloadExistingPlacementPerformance(
         )
       );
 
-    for (const record of existingRecords) {
+    for (const record of (existingRecords as any[])) {
       const dateStr = typeof record.date === 'string'
         ? record.date.split('T')[0].split(' ')[0]
         : new Date(record.date).toISOString().split('T')[0];
@@ -149,7 +149,7 @@ export async function preloadExistingPlacementPerformance(
  * 替代原来的2次数据库查询
  */
 export function matchCampaign(
-  campaignMaps: { byId: Map<string, unknown>; byName: Map<string, unknown> },
+  campaignMaps: { byId: Map<string, any>; byName: Map<string, any> },
   campaignId: string | number | null,
   campaignName: string | null
 ): { campaign: unknown | null; matchType: 'id' | 'name' | 'none' } {
@@ -177,7 +177,7 @@ export function matchCampaign(
  * 替代原来的数据库查询
  */
 export function findExistingPerformance(
-  existingMap: Map<string, unknown>,
+  existingMap: Map<string, any>,
   campaignId: string,
   dateStr: string
 ): unknown | null {
@@ -189,7 +189,7 @@ export function findExistingPerformance(
  * v358: 快速检查existing placement记录（内存查找，O(1)）
  */
 export function findExistingPlacementPerformance(
-  existingMap: Map<string, unknown>,
+  existingMap: Map<string, any>,
   campaignId: string,
   dateStr: string,
   placement: string
@@ -206,12 +206,12 @@ export function findExistingPlacementPerformance(
  * 这个约束将在阶段C-4中添加
  */
 export async function batchUpsertPerformance(
-  db: ReturnType<typeof getDb> | null,
+  db: DbInstance,
   records: Array<{
     accountId: number;
     campaignId: string;
     date: string;
-    data: Record<string, unknown>;
+    data: Record<string, any>;
   }>
 ): Promise<number> {
   if (records.length === 0) return 0;
@@ -225,7 +225,7 @@ export async function batchUpsertPerformance(
     try {
       // 使用原生SQL的INSERT ... ON DUPLICATE KEY UPDATE
       // 这需要表有合适的唯一索引
-      for (const record of batch) {
+      for (const record of (batch as any[])) {
         try {
           await db.insert(dailyPerformance).values({
             ...record.data,

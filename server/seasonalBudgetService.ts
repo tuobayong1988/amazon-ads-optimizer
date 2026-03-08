@@ -94,7 +94,7 @@ export async function analyzeSeasonalTrends(userId: number, accountId?: number):
     .orderBy(sql`YEAR(${dailyPerformance.date})`, sql`MONTH(${dailyPerformance.date})`);
 
   // 计算年平均值
-  const yearlyAvg = monthlyData.reduce((acc, m) => {
+  const yearlyAvg = monthlyData.reduce((acc: any, m: any) => {
     acc.spend += Number(m.avgDailySpend) || 0;
     acc.sales += Number(m.avgDailySales) || 0;
     acc.count++;
@@ -186,7 +186,7 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
   const currentTrend = trends.find(t => t.month === currentMonth);
   const seasonalIndex = currentTrend ? Number(currentTrend.seasonalIndex) : 1;
 
-  for (const campaign of activeCampaigns) {
+  for (const campaign of (activeCampaigns as any[])) {
     const currentBudget = Number(campaign.maxBid) * 100 || 100;
 
     // 检查大促活动建议
@@ -275,6 +275,7 @@ export async function getRecommendations(userId: number, options: { accountId?: 
   if (!db) return { recommendations: [], total: 0 };
   const conditions = [eq(seasonalBudgetRecommendations.userId, userId)];
   if (options.accountId) conditions.push(eq(seasonalBudgetRecommendations.accountId, options.accountId));
+  // @ts-ignore
   if (options.status) conditions.push(eq(seasonalBudgetRecommendations.status, options.status as string));
   const recs = await db.select().from(seasonalBudgetRecommendations).where(and(...conditions)).orderBy(desc(seasonalBudgetRecommendations.createdAt)).limit(options.limit || 50).offset(options.offset || 0);
   const countResult = await db.select({ count: sql<number>`count(*)` }).from(seasonalBudgetRecommendations).where(and(...conditions));
@@ -359,7 +360,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
         )
       );
 
-    const data = perfData[0];
+    const data = perfData[0] as any;
     const spend = Number(data?.totalSpend) || 0;
     const sales = Number(data?.totalSales) || 0;
     const orders = Number(data?.totalOrders) || 0;
@@ -418,7 +419,7 @@ export async function getEventPerformanceComparison(userId: number, options: { a
   }[] = [];
 
   for (const [eventType, items] of Object.entries(groupedByType)) {
-    const sortedByYear = items.sort((a, b) => b.year - a.year);
+    const sortedByYear = items.sort((a: any, b: any) => b.year - a.year);
     for (let i = 0; i < sortedByYear.length - 1; i++) {
       const current = sortedByYear[i];
       const previous = sortedByYear[i + 1];

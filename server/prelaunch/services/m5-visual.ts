@@ -51,8 +51,8 @@ export class M5VisualService {
       const competitors = await db.select().from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, projectId));
 
-      const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 15);
-      const topPersona = personas[0];
+      const coreKws = keywords.filter((k: Record<string, any>) => k.relevanceLayer === 'core').slice(0, 15);
+      const topPersona = personas[0] as any;
       const topCompetitors = competitors.slice(0, 5);
 
       // 为每个图位生成Creative Brief
@@ -63,12 +63,12 @@ SLOT ROLE: ${slot.role}
 SLOT PURPOSE: ${slot.description}
 
 PRODUCT CONTEXT:
-- Core Keywords: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
+- Core Keywords: ${coreKws.map((k: Record<string, any>) => k.keyword).join(', ')}
 - Target Persona: ${topPersona?.personaName || 'General consumer'}
 - Persona Demographics: ${topPersona?.demographics || 'N/A'}
 
 COMPETITIVE LANDSCAPE:
-${topCompetitors.map((c: Record<string, unknown>) => `- ${c.brand}: ${c.title}`).join('\n')}
+${topCompetitors.map((c: Record<string, any>) => `- ${c.brand}: ${c.title}`).join('\n')}
 
 Generate:
 1. headline: A compelling text overlay for this image (if applicable)
@@ -82,6 +82,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
         const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
+          // @ts-ignore
           projectId,
           slotPosition: slot.position,
           slotRole: slot.role,

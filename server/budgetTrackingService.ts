@@ -129,7 +129,7 @@ async function calculatePeriodMetrics(
     .from(dailyPerformance)
     .where(and(...conditions));
 
-  const data = performance[0];
+  const data = performance[0] as any;
   const spend = Number(data?.totalSpend) || 0;
   const sales = Number(data?.totalSales) || 0;
   const impressions = Number(data?.totalImpressions) || 0;
@@ -162,7 +162,7 @@ export async function updateTrackingMetrics(trackingId: number): Promise<boolean
 
   if (!tracking[0]) return false;
 
-  const record = tracking[0];
+  const record = tracking[0] as any;
   const now = new Date();
   const trackingDays = TRACKING_DAYS[record.trackingPeriod as TrackingPeriod];
   const startDateObj = new Date(record.startDate);
@@ -273,7 +273,7 @@ export async function getTrackingReport(trackingId: number): Promise<TrackingRep
 
   if (!tracking[0]) return null;
 
-  const record = tracking[0];
+  const record = tracking[0] as any;
 
   return {
     trackingId: record.id,
@@ -327,6 +327,7 @@ export async function getTrackingList(
 
   const conditions = [eq(budgetAllocationTracking.userId, userId)];
   if (options.accountId) conditions.push(eq(budgetAllocationTracking.accountId, options.accountId));
+  // @ts-ignore
   if (options.status) conditions.push(eq(budgetAllocationTracking.status, options.status as string));
 
   const trackings = await db

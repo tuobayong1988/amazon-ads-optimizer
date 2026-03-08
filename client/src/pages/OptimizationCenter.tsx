@@ -95,7 +95,7 @@ export default function OptimizationCenter() {
   const [selectedDecisions, setSelectedDecisions] = useState<string[]>([]);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取优化摘要
@@ -174,7 +174,7 @@ export default function OptimizationCenter() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -270,7 +270,7 @@ export default function OptimizationCenter() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {optimizationTypes.map((type) => {
+                  {optimizationTypes.map((type: any) => {
                     const stats = summary?.byType?.[type.key as keyof typeof summary.byType];
                     const Icon = type.icon;
                     return (
@@ -323,7 +323,7 @@ export default function OptimizationCenter() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {summary.recentDecisions.map((decision) => (
+                      {summary.recentDecisions.map((decision: any) => (
                         <TableRow key={decision.id}>
                           <TableCell>
                             <Badge variant="outline">{decision.type}</Badge>
@@ -430,7 +430,7 @@ export default function OptimizationCenter() {
                 <div>
                   <h4 className="font-medium mb-3">全局执行模式</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {executionModes.map((mode) => (
+                    {executionModes.map((mode: any) => (
                       <div
                         key={mode.value}
                         className={`p-4 rounded-lg border cursor-pointer transition-colors ${
@@ -450,7 +450,7 @@ export default function OptimizationCenter() {
                 <div>
                   <h4 className="font-medium mb-3">优化类型开关</h4>
                   <div className="space-y-3">
-                    {optimizationTypes.map((type) => {
+                    {optimizationTypes.map((type: any) => {
                       const Icon = type.icon;
                       return (
                         <div key={type.key} className="flex items-center justify-between p-3 rounded-lg border">

@@ -30,7 +30,7 @@ export const batchOperationRouter = router({
   // Get batch operation details
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
@@ -207,7 +207,7 @@ export const batchOperationRouter = router({
           });
           successCount++;
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const errorMessage = error instanceof Error ? (error as Error).message : 'Unknown error';
           await db.updateBatchOperationItemStatus(item.id, {
             status: 'failed',
             errorMessage,
@@ -288,7 +288,7 @@ export const batchOperationRouter = router({
   // Cancel pending batch operation
   cancel: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
@@ -304,7 +304,7 @@ export const batchOperationRouter = router({
   // Get batch operation summary
   getSummary: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
@@ -329,7 +329,7 @@ export const batchOperationRouter = router({
       operationType: z.enum(['negative_keyword', 'bid_adjustment', 'keyword_migration', 'campaign_status']),
       itemCount: z.number(),
     }))
-    .query(({ input }) => {
+    .query(({ input }: any) => {
       const seconds = batchOperationService.estimateExecutionTime(input.itemCount, input.operationType);
       return { estimatedSeconds: seconds };
     }),
@@ -372,9 +372,9 @@ export const batchOperationRouter = router({
         failed: filteredOps.filter(op => op.batchStatus === 'failed').length,
         pending: filteredOps.filter(op => op.batchStatus === 'pending' || op.batchStatus === 'approved').length,
         rolledBack: filteredOps.filter(op => op.batchStatus === 'rolled_back').length,
-        totalItemsProcessed: filteredOps.reduce((sum, op) => sum + (op.processedItems || 0), 0),
-        totalSuccessItems: filteredOps.reduce((sum, op) => sum + (op.successItems || 0), 0),
-        totalFailedItems: filteredOps.reduce((sum, op) => sum + (op.failedItems || 0), 0),
+        totalItemsProcessed: filteredOps.reduce((sum: any, op: any) => sum + (op.processedItems || 0), 0),
+        totalSuccessItems: filteredOps.reduce((sum: any, op: any) => sum + (op.successItems || 0), 0),
+        totalFailedItems: filteredOps.reduce((sum: any, op: any) => sum + (op.failedItems || 0), 0),
       };
 
       return {
@@ -392,7 +392,7 @@ export const batchOperationRouter = router({
   // Get detailed operation record with all items
   getDetailedRecord: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
@@ -499,7 +499,7 @@ export const batchOperationRouter = router({
           let apiSuccess = false;
           if (syncService && keyword.keywordId) {
             try {
-              await syncService.client.updateKeywordBids([{
+              await (syncService as any).client.updateKeywordBids([{
                 keywordId: String(keyword.keywordId),  // v356: 统一使用String类型传递Amazon ID
                 bid: Number(adj.newBid.toFixed(2)),
               }]);
@@ -528,7 +528,7 @@ export const batchOperationRouter = router({
 
           successCount++;
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          const errorMessage = error instanceof Error ? (error as Error).message : 'Unknown error';
           errors.push({ keywordId: adj.keywordId, error: errorMessage });
           failedCount++;
         }

@@ -144,11 +144,11 @@ export function analyzePortfolio(
   }
 
   // ===== 第2步：计算花费和销售占比 =====
-  const totalSpend = Object.values(roleSpend).reduce((a, b) => a + b, 0);
-  const totalSales = Object.values(roleSales).reduce((a, b) => a + b, 0);
+  const totalSpend = Object.values(roleSpend).reduce((a: any, b: any) => a + b, 0);
+  const totalSales = Object.values(roleSales).reduce((a: any, b: any) => a + b, 0);
   
-  const spendDistribution: Record<KeywordRole, number> = {} as Record<string, unknown>;
-  const salesDistribution: Record<KeywordRole, number> = {} as Record<string, unknown>;
+  const spendDistribution: Record<KeywordRole, number> = {} as Record<string, any>;
+  const salesDistribution: Record<KeywordRole, number> = {} as Record<string, any>;
   for (const role of Object.keys(roleDistribution) as KeywordRole[]) {
     spendDistribution[role] = totalSpend > 0 ? roleSpend[role] / totalSpend : 0;
     salesDistribution[role] = totalSales > 0 ? roleSales[role] / totalSales : 0;
@@ -179,7 +179,7 @@ export function analyzePortfolio(
   healthScore = Math.max(0, Math.min(100, healthScore));
 
   // ===== 第4步：计算角色修正系数 =====
-  const roleModifiers: Record<KeywordRole, number> = {} as Record<string, unknown>;
+  const roleModifiers: Record<KeywordRole, number> = {} as Record<string, any>;
   for (const [role, ideal] of Object.entries(IDEAL_SPEND_DISTRIBUTION) as [KeywordRole, { min: number; max: number; target: number }][]) {
     const actual = spendDistribution[role] || 0;
     

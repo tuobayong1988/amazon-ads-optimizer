@@ -461,7 +461,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0 overflow-y-auto">
             {/* 基础菜单分组（所有角色可见） */}
-            {baseMenuGroups.map((group, groupIndex) => (
+            {baseMenuGroups.map((group: any, groupIndex: any) => (
               <MenuGroup 
                 key={group.title} 
                 group={group} 
@@ -533,7 +533,7 @@ function DashboardLayoutContent({
             {/* 面包屑导航（PC端显示） */}
             {!isMobile && breadcrumbs.length > 1 && (
               <nav className="flex items-center gap-1 text-sm">
-                {breadcrumbs.map((crumb, idx) => (
+                {breadcrumbs.map((crumb: any, idx: any) => (
                   <span key={crumb.path} className="flex items-center gap-1">
                     {idx > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
                     {idx === breadcrumbs.length - 1 ? (
@@ -593,7 +593,7 @@ function DashboardLayoutContent({
                     <button className="text-xs text-muted-foreground hover:text-foreground">全部已读</button>
                   </div>
                   <div className="max-h-[320px] overflow-y-auto">
-                    {notifications.map((n) => {
+                    {notifications.map((n: any) => {
                       const typeColors = {
                         warning: 'bg-red-500',
                         info: 'bg-blue-500',
@@ -601,7 +601,7 @@ function DashboardLayoutContent({
                       };
                       return (
                         <div key={n.id} className={`flex items-start gap-3 px-4 py-3 border-b border-border/50 hover:bg-muted/30 transition-colors ${!n.read ? 'bg-muted/10' : ''}`}>
-                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${typeColors[n.type]}`} />
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${(typeColors as Record<string, string>)[n.type]}`} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium">{n.title}</span>
@@ -645,7 +645,7 @@ function DashboardLayoutContent({
               </div>
               {searchResults.length > 0 && (
                 <div className="max-h-[300px] overflow-y-auto p-2">
-                  {searchResults.map((result) => {
+                  {searchResults.map((result: any) => {
                     const Icon = result.icon;
                     return (
                       <button

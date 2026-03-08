@@ -152,7 +152,7 @@ export async function saveMarginalBenefitHistory(
     AND analysis_date = ${today}
   `);
 
-  if ((existing as Record<string, unknown>)[0] && ((existing as Record<string, unknown>)[0] as unknown[]).length > 0) {
+  if ((existing as Record<string, any>)[0] && ((existing as Record<string, any>)[0] as any[]).length > 0) {
     // 更新现有记录
     await db.execute(sql`
       UPDATE marginal_benefit_history SET
@@ -177,7 +177,7 @@ export async function saveMarginalBenefitHistory(
       AND placement_type = ${placementType}
       AND analysis_date = ${today}
     `);
-    return ((existing as Record<string, unknown>)[0] as unknown[])[0].id;
+    return ((existing as Record<string, any>)[0] as any[])[0].id;
   }
 
   // 插入新记录
@@ -199,6 +199,7 @@ export async function saveMarginalBenefitHistory(
     )
   `);
 
+  // @ts-ignore
   return (result[0] as unknown).insertId;
 }
 
@@ -228,11 +229,11 @@ export async function getHistoryTrend(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as unknown[][])[0] as unknown[]) || [];
+  const data = ((records as any[][])[0] as any[]) || [];
   
   // 按日期分组
-  const dateMap = new Map<string, Record<string, unknown>[]>();
-  for (const record of data) {
+  const dateMap = new Map<string, Record<string, any>[]>();
+  for (const record of (data as any[])) {
     const date = record.analysis_date;
     if (!dateMap.has(date)) {
       dateMap.set(date, []);
@@ -245,9 +246,9 @@ export async function getHistoryTrend(
   const productPage: TrendMetrics = createEmptyTrendMetrics(dates.length);
   const restOfSearch: TrendMetrics = createEmptyTrendMetrics(dates.length);
 
-  dates.forEach((date, index) => {
+  dates.forEach((date: any, index: any) => {
     const dayRecords = dateMap.get(date) || [];
-    for (const record of dayRecords) {
+    for (const record of (dayRecords as any[])) {
       const metrics = record.placement_type === 'top_of_search' ? topOfSearch :
                      record.placement_type === 'product_page' ? productPage : restOfSearch;
       
@@ -289,7 +290,7 @@ export async function analyzeSeasonalPatterns(
     ORDER BY analysis_date ASC
   `);
 
-  const data = ((records as unknown[][])[0] as unknown[]) || [];
+  const data = ((records as any[][])[0] as any[]) || [];
   
   if (data.length < 14) {
     return { 
@@ -304,10 +305,10 @@ export async function analyzeSeasonalPatterns(
 
   if (period === 'weekly') {
     // 按星期几分组
-    const weekdayGroups: Map<number, Record<string, unknown>[]> = new Map();
+    const weekdayGroups: Map<number, Record<string, any>[]> = new Map();
     const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     
-    for (const record of data) {
+    for (const record of (data as any[])) {
       const date = new Date(record.analysis_date);
       const weekday = date.getDay();
       if (!weekdayGroups.has(weekday)) {
@@ -319,9 +320,9 @@ export async function analyzeSeasonalPatterns(
     for (let i = 0; i < 7; i++) {
       const records = weekdayGroups.get(i) || [];
       if (records.length > 0) {
-        const avgMarginalROAS = records.reduce((sum, r) => sum + Number(r.marginal_roas || 0), 0) / records.length;
-        const avgMarginalSales = records.reduce((sum, r) => sum + Number(r.marginal_sales || 0), 0) / records.length;
-        const avgElasticity = records.reduce((sum, r) => sum + Number(r.elasticity || 0), 0) / records.length;
+        const avgMarginalROAS = records.reduce((sum: any, r: any) => sum + Number(r.marginal_roas || 0), 0) / records.length;
+        const avgMarginalSales = records.reduce((sum: any, r: any) => sum + Number(r.marginal_sales || 0), 0) / records.length;
+        const avgElasticity = records.reduce((sum: any, r: any) => sum + Number(r.elasticity || 0), 0) / records.length;
         
         patterns.push({
           label: weekdayNames[i],
@@ -335,8 +336,8 @@ export async function analyzeSeasonalPatterns(
 
     // 生成洞察
     if (patterns.length >= 5) {
-      const sortedByROAS = [...patterns].sort((a, b) => b.avgMarginalROAS - a.avgMarginalROAS);
-      const bestDay = sortedByROAS[0];
+      const sortedByROAS = [...patterns].sort((a: any, b: any) => b.avgMarginalROAS - a.avgMarginalROAS);
+      const bestDay = sortedByROAS[0] as any;
       const worstDay = sortedByROAS[sortedByROAS.length - 1];
       
       if (bestDay.avgMarginalROAS > worstDay.avgMarginalROAS * 1.2) {
@@ -346,13 +347,13 @@ export async function analyzeSeasonalPatterns(
     }
   } else if (period === 'monthly') {
     // 按月份周期分组（月初、月中、月末）
-    const periodGroups: Map<string, Record<string, unknown>[]> = new Map([
+    const periodGroups: Map<string, Record<string, any>[]> = new Map([
       ['月初(1-10日)', []],
       ['月中(11-20日)', []],
       ['月末(21-31日)', []]
     ]);
 
-    for (const record of data) {
+    for (const record of (data as any[])) {
       const date = new Date(record.analysis_date);
       const day = date.getDate();
       const periodKey = day <= 10 ? '月初(1-10日)' : day <= 20 ? '月中(11-20日)' : '月末(21-31日)';
@@ -363,9 +364,9 @@ export async function analyzeSeasonalPatterns(
       if (records.length > 0) {
         patterns.push({
           label,
-          avgMarginalROAS: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_roas || 0), 0) / records.length,
-          avgMarginalSales: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_sales || 0), 0) / records.length,
-          avgElasticity: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.elasticity || 0), 0) / records.length,
+          avgMarginalROAS: records.reduce((sum: number, r: Record<string, any>) => sum + Number(r.marginal_roas || 0), 0) / records.length,
+          avgMarginalSales: records.reduce((sum: number, r: Record<string, any>) => sum + Number(r.marginal_sales || 0), 0) / records.length,
+          avgElasticity: records.reduce((sum: number, r: Record<string, any>) => sum + Number(r.elasticity || 0), 0) / records.length,
           dataPoints: records.length
         });
       }
@@ -427,8 +428,8 @@ export async function comparePeriods(
     `)
   ]);
 
-  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
-  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as unknown[] || []).map(r => [r.placement_type, r]));
+  const p1Map = new Map(((period1Data as Record<string, any>[])[0] as any[] || []).map(r => [r.placement_type, r]));
+  const p2Map = new Map(((period2Data as Record<string, any>[])[0] as any[] || []).map(r => [r.placement_type, r]));
 
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
   const comparison = placements.map(placementType => {

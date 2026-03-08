@@ -77,7 +77,7 @@ export async function getAverageSpend(
   }
   
   const result = await db.execute(sql.raw(query));
-  const rows = result as unknown[];
+  const rows = result as any[];
   return rows[0]?.avgSpend || 0;
 }
 
@@ -112,7 +112,7 @@ export async function getAverageCPC(
   }
   
   const result = await db.execute(sql.raw(query));
-  const rows = result as unknown[];
+  const rows = result as any[];
   return rows[0]?.avgCpc || 0;
 }
 

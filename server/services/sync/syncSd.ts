@@ -131,12 +131,12 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的计费类型
-      const sdCostType = (apiCampaign as Record<string, unknown>).costType?.toLowerCase() || 'cpc';
+      const sdCostType = (apiCampaign as Record<string, any>).costType?.toLowerCase() || 'cpc';
       const validCostTypes = ['cpc', 'vcpm', 'cpm'];
       const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
       // 获取组合ID
-      const sdPortfolioId = (apiCampaign as Record<string, unknown>).portfolioId ? String((apiCampaign as Record<string, unknown>).portfolioId) : null;
+      const sdPortfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
 
       // ✅ 获取SD广告的Campaign Goal（广告目标）
       // SD API返回的goal/optimizationGoal字段决定广告目标:
@@ -144,14 +144,14 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       //   - page_visits / pageVisits → 驱动页面访问（通常配合CPC计费）
       //   - conversions → 促进转化（通常配合CPC计费）
       // 注意：SD的costType由API直接返回，不goal共同决定广告的计费和优化方式
-      const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
-                     (apiCampaign as Record<string, unknown>).optimizationGoal || 
-                     (apiCampaign as Record<string, unknown>).bidOptimization || '';
+      const sdGoal = (apiCampaign as Record<string, any>).goal || 
+                     (apiCampaign as Record<string, any>).optimizationGoal || 
+                     (apiCampaign as Record<string, any>).bidOptimization || '';
       
       // 获取SD广告的tactic（定向策略）
       // T00020 = 受众定向(Audiences), T00030 = 商品定向(Contextual)
       // remarketing = 再营销, contextual = 上下文定向
-      const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
+      const sdTactic = (apiCampaign as Record<string, any>).tactic || null;
       
       // 根据goal和costType的组合确定实际计费方式
       // SD的costType由API直接返回，但也可以通过goal推断
@@ -162,7 +162,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
       }
 
       // 获取SD广告的竞价优化目标
-      const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
+      const sdBidOptimization = (apiCampaign as Record<string, any>).bidOptimization || null;
       const validBidOpts = ['reach', 'pageVisits', 'conversions'];
       const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -321,7 +321,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, unknown> = {};
+      const refinements: Record<string, any> = {};
 
       const exprArray = apiTarget.expression || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -451,7 +451,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SD定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: unknown[] = [];
+    let allReportData: any[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -482,7 +482,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     log.info(`v339: 共获取到 ${reportData.length} 条SD定向数据（${batches}批合并）`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
         .select()

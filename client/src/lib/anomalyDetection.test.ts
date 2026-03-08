@@ -14,7 +14,7 @@ import {
 
 // 辅助函数：生成带日期的数据点
 function makeData(values: number[]): DataPoint[] {
-  return values.map((v, i) => ({
+  return values.map((v: any, i: any) => ({
     date: `2024-01-${String(i + 1).padStart(2, '0')}`,
     value: v,
   }));

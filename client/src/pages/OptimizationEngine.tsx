@@ -46,7 +46,7 @@ export default function OptimizationEngine() {
   const [isExecuting, setIsExecuting] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取优化建议 - 使用mutation作为查询
@@ -216,7 +216,7 @@ export default function OptimizationEngine() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>

@@ -180,7 +180,7 @@ export default function AmazonApiAuthStatus() {
         <CardContent>
           <div className="space-y-4">
             {summary?.accounts && summary.accounts.length > 0 ? (
-              summary.accounts.map((account) => (
+              summary.accounts.map((account: any) => (
                 <div
                   key={account.accountId}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"

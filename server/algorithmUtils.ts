@@ -116,7 +116,7 @@ export function calculateDynamicElasticity(
   const now = new Date();
   const regressionData: Array<{ x: number; y: number; weight: number }> = [];
   
-  for (const record of validRecords) {
+  for (const record of (validRecords as any[])) {
     const bidChangePercent = (record.newBid - record.oldBid) / record.oldBid;
     const clickChangePercent = (record.newClicks - record.oldClicks) / record.oldClicks;
     
@@ -167,7 +167,7 @@ export function calculateDynamicElasticity(
   // 2. 拟合优度（R²）：计算加权残差
   let ssRes = 0;
   let ssTot = 0;
-  const weightedMeanY = regressionData.reduce((sum, p) => sum + p.weight * p.y, 0) / totalWeight;
+  const weightedMeanY = regressionData.reduce((sum: any, p: any) => sum + p.weight * p.y, 0) / totalWeight;
   for (const point of regressionData) {
     const predicted = clampedElasticity * point.x;
     ssRes += point.weight * Math.pow(point.y - predicted, 2);
@@ -261,12 +261,12 @@ export function estimateCPC(
     return { estimatedCpc: currentBid * ratio, cpcBidRatio: ratio, confidence: 0.3, placement: placement || 'overall' };
   }
   
-  const totalClicks = validData.reduce((sum, d) => sum + d.clicks, 0);
-  const weightedRatio = validData.reduce((sum, d) => sum + (d.cpc / d.bid) * (d.clicks / totalClicks), 0);
+  const totalClicks = validData.reduce((sum: any, d: any) => sum + d.clicks, 0);
+  const weightedRatio = validData.reduce((sum: any, d: any) => sum + (d.cpc / d.bid) * (d.clicks / totalClicks), 0);
   const sampleConfidence = Math.min(1, validData.length / 10);
   const ratios = validData.map(d => d.cpc / d.bid);
-  const mean = ratios.reduce((a, b) => a + b, 0) / ratios.length;
-  const variance = ratios.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / ratios.length;
+  const mean = ratios.reduce((a: any, b: any) => a + b, 0) / ratios.length;
+  const variance = ratios.reduce((sum: any, r: any) => sum + Math.pow(r - mean, 2), 0) / ratios.length;
   const consistencyConfidence = Math.max(0, 1 - Math.sqrt(variance) / mean);
   const confidence = sampleConfidence * 0.5 + consistencyConfidence * 0.5;
   
@@ -378,7 +378,7 @@ export function calculateTimeDecayWeights(
   referenceDate: Date = new Date()
 ): number[] {
   const weights = dates.map(date => calculateTimeDecayWeight(date, halfLifeDays, referenceDate));
-  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  const totalWeight = weights.reduce((sum: any, w: any) => sum + w, 0);
   if (totalWeight === 0) return weights.map(() => 1 / weights.length);
   return weights.map(w => w / totalWeight);
 }
@@ -728,7 +728,7 @@ setInterval(() => {
   // 如果超过最大容量，清除最早的条目
   if (marketplaceCache.size > MARKETPLACE_CACHE_MAX_SIZE) {
     const entries = Array.from(marketplaceCache.entries())
-      .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+      .sort((a: any, b: any) => a[1].expiresAt - b[1].expiresAt);
     const toRemove = entries.slice(0, marketplaceCache.size - MARKETPLACE_CACHE_MAX_SIZE);
     for (const [key] of toRemove) {
       marketplaceCache.delete(key);

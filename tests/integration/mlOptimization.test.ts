@@ -139,8 +139,8 @@ describe('ML优化集成测试', () => {
       expect(Math.abs(totalAllocated - 500)).toBeLessThan(1);
 
       // 验证高效活动获得更多预算
-      const campaign1Budget = result.allocations.find((a) => a.campaignId === 1)?.allocatedBudget || 0;
-      const campaign2Budget = result.allocations.find((a) => a.campaignId === 2)?.allocatedBudget || 0;
+      const campaign1Budget = result.allocations.find((a: any) => a.campaignId === 1)?.allocatedBudget || 0;
+      const campaign2Budget = result.allocations.find((a: any) => a.campaignId === 2)?.allocatedBudget || 0;
       expect(campaign1Budget).toBeGreaterThan(campaign2Budget);
     });
 
@@ -189,7 +189,7 @@ describe('ML优化集成测试', () => {
         },
       ];
 
-      const recommendations = campaigns.map((campaign) => {
+      const recommendations = campaigns.map((campaign: any) => {
         const optimizer = new BidOptimizer();
         optimizer.train(campaign.historicalData);
         return optimizer.recommend({
@@ -199,7 +199,7 @@ describe('ML优化集成测试', () => {
       });
 
       expect(recommendations).toHaveLength(2);
-      recommendations.forEach((rec) => {
+      recommendations.forEach((rec: any) => {
         expect(rec.recommendedBid).toBeGreaterThan(0);
         expect(rec.confidence).toBeGreaterThan(0);
       });

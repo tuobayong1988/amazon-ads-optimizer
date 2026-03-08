@@ -237,7 +237,7 @@ export default function AutoOptimizationDashboard() {
         <CardContent>
           <div className="space-y-4">
             {recentActions && recentActions.length > 0 ? (
-              recentActions.map((action) => (
+              recentActions.map((action: any) => (
                 <div
                   key={action.id}
                   className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50 transition"

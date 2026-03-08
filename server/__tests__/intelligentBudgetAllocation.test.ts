@@ -66,8 +66,8 @@ describe('智能预算分配服务', () => {
       
       // 计算变异系数
       const roasValues = [stableCampaign.roas7d, stableCampaign.roas14d, stableCampaign.roas30d];
-      const mean = roasValues.reduce((a, b) => a + b, 0) / roasValues.length;
-      const variance = roasValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / roasValues.length;
+      const mean = roasValues.reduce((a: any, b: any) => a + b, 0) / roasValues.length;
+      const variance = roasValues.reduce((sum: any, val: any) => sum + Math.pow(val - mean, 2), 0) / roasValues.length;
       const stdDev = Math.sqrt(variance);
       const cv = stdDev / mean;
       

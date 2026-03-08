@@ -75,7 +75,7 @@ describe("Data Sync Service", () => {
       ];
 
       // 按优先级排序（高优先级先处理）
-      const sorted = [...queue].sort((a, b) => b.priority - a.priority);
+      const sorted = [...queue].sort((a: any, b: any) => b.priority - a.priority);
       
       expect(sorted[0].id).toBe(2); // 优先级3
       expect(sorted[1].id).toBe(3); // 优先级2
@@ -90,7 +90,7 @@ describe("Data Sync Service", () => {
       ];
 
       // 相同优先级按时间排序
-      const sorted = [...queue].sort((a, b) => {
+      const sorted = [...queue].sort((a: any, b: any) => {
         if (b.priority !== a.priority) return b.priority - a.priority;
         return a.timestamp - b.timestamp;
       });

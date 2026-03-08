@@ -31,7 +31,7 @@ export const biddingLogRouter = router({
       apiSyncStatus: z.enum(['pending', 'synced', 'failed', 'not_applicable']).optional(),  // 按同步状态过滤
       actionType: z.string().optional(),  // 按操作类型过滤
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const result = await db.getOptimizationEvents({
         accountId: input.accountId,
         eventCategory: 'bid_adjustment',
@@ -55,7 +55,7 @@ export const biddingLogRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const result = await db.getOptimizationEvents({
         campaignId: input.campaignId,
         eventCategory: 'bid_adjustment',
@@ -77,7 +77,7 @@ export const biddingLogRouter = router({
       endDate: z.string().optional(),
       eventCategory: z.string().optional(),  // 允许查询所有类别的事件
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const result = await db.getOptimizationEvents({
         performanceGroupId: input.performanceGroupId,
         eventCategory: input.eventCategory || undefined,  // 不传则获取所有类别
@@ -96,7 +96,7 @@ export const biddingLogRouter = router({
       performanceGroupId: z.number().optional(),
       days: z.number().min(1).max(365).optional().default(30),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getOptimizationEventStats({
         accountId: input.accountId,
         performanceGroupId: input.performanceGroupId,

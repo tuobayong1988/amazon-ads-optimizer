@@ -46,7 +46,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
 // 复制纯函数逻辑进行测试
 function getVersionsToApply(lastVersion: number | null): VersionChange[] {
   const fromVersion = lastVersion || 0;
-  return VERSION_CHANGELOG.filter(v => v.version > fromVersion).sort((a, b) => a.version - b.version);
+  return VERSION_CHANGELOG.filter(v => v.version > fromVersion).sort((a: any, b: any) => a.version - b.version);
 }
 
 function mergeAffectedModules(versions: VersionChange[]): string[] {
@@ -328,7 +328,7 @@ console.log('\n=== 9. 模块优先级排序验证 ===');
     { id: 3, name: 'Target C', lastExecutionTime: new Date('2025-02-22T10:00:00Z') },
   ];
   
-  const sorted = targets.sort((a, b) => {
+  const sorted = targets.sort((a: any, b: any) => {
     const aTime = a.lastExecutionTime ? a.lastExecutionTime.getTime() : 0;
     const bTime = b.lastExecutionTime ? b.lastExecutionTime.getTime() : 0;
     return aTime - bTime;
@@ -395,7 +395,7 @@ console.log('\n=== 12. 错误隔离验证 ===');
   
   const succeeded = targetResults.filter(r => r.status === 'success').length;
   const failedCount = targetResults.filter(r => r.status === 'failed').length;
-  const totalActions = targetResults.reduce((sum, r) => sum + r.optimizationActions, 0);
+  const totalActions = targetResults.reduce((sum: any, r: any) => sum + r.optimizationActions, 0);
   
   assert(succeeded === 2, '应有2个成功');
   assert(failedCount === 1, '应有1个失败');

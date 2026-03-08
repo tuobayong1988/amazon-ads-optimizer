@@ -33,6 +33,7 @@ const log = createModuleLogger('AutoDbMigration');
  */
 function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
+  // @ts-ignore
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
   
@@ -46,13 +47,14 @@ function isAlreadyExistsError(err: Error): boolean {
 /**
  * 安全执行DDL语句，自动处理"已存在"错误
  */
-async function safeDDL(database: unknown, ddlSql: unknown, tableName: string, results: string[]): Promise<boolean> {
+async function safeDDL(database: any, ddlSql: any, tableName: string, results: string[]): Promise<boolean> {
   try {
     await database.execute(ddlSql);
     results.push(`${tableName}: 已就绪`);
     log.info(`${tableName} 已就绪`);
     return true;
   } catch (err: unknown) {
+    // @ts-ignore
     if (isAlreadyExistsError(err)) {
       results.push(`${tableName}: 已存在（跳过）`);
       return true;

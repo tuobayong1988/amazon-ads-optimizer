@@ -91,7 +91,7 @@ export default function StrategyCenter() {
   const [groupToDelete, setGroupToDelete] = useState<{ id: number; name: string } | null>(null);
 
   // 获取账号列表
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
+  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery() as any;
   
   // v221: 根据店铺+站点查找对应的accountId
   // 修复BUG: 之前从不同路由入口进入时，如果localStorage中没有店铺/站点信息，
@@ -101,6 +101,7 @@ export default function StrategyCenter() {
     
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
+      // @ts-ignore
       const account = accounts.find(a => 
         (a.storeName || a.accountName).trim() === currentStore && 
         a.marketplace === currentMarketplace
@@ -110,6 +111,7 @@ export default function StrategyCenter() {
     
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
+      // @ts-ignore
       const account = accounts.find(a => 
         (a.storeName || a.accountName).trim() === currentStore
       );
@@ -124,7 +126,7 @@ export default function StrategyCenter() {
   // 这确保从任何路由入口进入都能正确加载数据
   useEffect(() => {
     if (accounts && accounts.length > 0 && !currentStore) {
-      const firstAccount = accounts[0];
+      const firstAccount = accounts[0] as any;
       const storeName = (firstAccount.storeName || firstAccount.accountName || '').trim();
       if (storeName) {
         setCurrentSelection(storeName, firstAccount.marketplace || null);

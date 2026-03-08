@@ -43,17 +43,17 @@ export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualT
 
   
   const { data: dualTrackStatus, isLoading: isLoadingStatus, refetch: refetchStatus } = 
-    trpc.amazonApi.getDualTrackStatus.useQuery({ accountId });
+    trpc.amazonApi.getDualTrackStatus.useQuery({ accountId }) as any;
   
   const { data: dataSourceStats, isLoading: isLoadingStats, refetch: refetchStats } = 
-    trpc.amazonApi.getDataSourceStats.useQuery({ accountId });
+    trpc.amazonApi.getDataSourceStats.useQuery({ accountId }) as any;
   
   // AMS订阅查询
   const { data: amsSubscriptions, isLoading: isLoadingSubscriptions, refetch: refetchSubscriptions } = 
-    trpc.amazonApi.listAmsSubscriptions.useQuery({ accountId });
+    trpc.amazonApi.listAmsSubscriptions.useQuery({ accountId }) as any;
   
   // SQS配置查询
-  const { data: sqsConfig } = trpc.amazonApi.getSqsConfig.useQuery();
+  const { data: sqsConfig } = trpc.amazonApi.getSqsConfig.useQuery() as any;
   
   // 批量创建AMS订阅
   const createAllSubscriptionsMutation = trpc.amazonApi.createAllTrafficSubscriptions.useMutation({

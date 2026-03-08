@@ -167,7 +167,7 @@ export function BidResponseCurve({
     
     // 如果没找到，选择利润最大的点
     if (minDiff > 10) {
-      optimal = curveData.reduce((max, p) => p.profit > max.profit ? p : max, curveData[0]);
+      optimal = curveData.reduce((max: any, p: any) => p.profit > max.profit ? p : max, curveData[0]);
     }
     
     return optimal;

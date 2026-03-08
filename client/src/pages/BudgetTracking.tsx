@@ -22,7 +22,7 @@ export default function BudgetTracking() {
   const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取追踪列表
@@ -159,7 +159,7 @@ export default function BudgetTracking() {
                   {(() => {
                     const completed = trackingsData?.trackings.filter(t => t.status === "completed") || [];
                     if (completed.length === 0) return "N/A";
-                    const avg = completed.reduce((sum, t) => sum + Number(t.roasChange || 0), 0) / completed.length;
+                    const avg = completed.reduce((sum: any, t: any) => sum + Number(t.roasChange || 0), 0) / completed.length;
                     return formatPercent(avg);
                   })()}
                 </p>
@@ -179,7 +179,7 @@ export default function BudgetTracking() {
                   {(() => {
                     const completed = trackingsData?.trackings.filter(t => t.status === "completed") || [];
                     if (completed.length === 0) return "N/A";
-                    const avg = completed.reduce((sum, t) => sum + Number(t.acosChange || 0), 0) / completed.length;
+                    const avg = completed.reduce((sum: any, t: any) => sum + Number(t.acosChange || 0), 0) / completed.length;
                     return formatPercent(avg);
                   })()}
                 </p>
@@ -206,7 +206,7 @@ export default function BudgetTracking() {
             </div>
           ) : (
             <div className="space-y-4">
-              {trackingsData?.trackings.map((tracking) => (
+              {trackingsData?.trackings.map((tracking: any) => (
                 <div
                   key={tracking.id}
                   className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"

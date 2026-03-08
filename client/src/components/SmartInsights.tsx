@@ -109,7 +109,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
   const visibleInsights = insights
     .filter(insight => !dismissedIds.has(insight.id))
-    .sort((a, b) => b.priority - a.priority);
+    .sort((a: any, b: any) => b.priority - a.priority);
 
   const handleDismiss = (id: string) => {
     setDismissedIds(prev => new Set(prev).add(id));
@@ -147,7 +147,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
 
   if (compact) {
     // 紧凑模式: 只显示最高优先级的一个洞察
-    const topInsight = visibleInsights[0];
+    const topInsight = visibleInsights[0] as any;
     if (!topInsight) return null;
 
     return (

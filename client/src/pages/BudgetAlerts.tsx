@@ -25,7 +25,7 @@ export default function BudgetAlerts() {
   const [activeTab, setActiveTab] = useState("alerts");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
   const [alertTypeFilter, setAlertTypeFilter] = useState<AlertType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<AlertStatus | "all">("all");
@@ -299,7 +299,7 @@ export default function BudgetAlerts() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {alertsData?.alerts.map((alert) => (
+                  {alertsData?.alerts.map((alert: any) => (
                     <div
                       key={alert.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"

@@ -120,7 +120,7 @@ export function TargetTrendChart({
         {/* 时间范围选择 */}
         <div className="flex items-center gap-2 mb-4">
           <span className="text-sm text-muted-foreground">时间范围：</span>
-          {[7, 14, 30, 60].map((d) => (
+          {[7, 14, 30, 60].map((d: any) => (
             <Button
               key={d}
               variant={days === d ? "default" : "outline"}
@@ -135,7 +135,7 @@ export function TargetTrendChart({
         {isLoading ? (
           <div className="space-y-4">
             <div className="grid grid-cols-5 gap-4">
-              {[1, 2, 3, 4, 5].map((i) => (
+              {[1, 2, 3, 4, 5].map((i: any) => (
                 <Skeleton key={i} className="h-24" />
               ))}
             </div>

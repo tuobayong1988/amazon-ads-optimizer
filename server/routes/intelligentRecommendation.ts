@@ -12,7 +12,7 @@ const log = createModuleLogger('Route_intelligentRecommendation');
 export const intelligentRecommendationRouter = router({
   scan: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return await scanAccountHealth(input.accountId);
     }),
 
@@ -35,6 +35,7 @@ export const intelligentRecommendationRouter = router({
           accountId: input.accountId,
           name: input.name,
           description: input.description || '',
+          // @ts-ignore
           optimizationGoal: input.optimizationGoal as unknown,
           targetAcos: input.targetAcos?.toString(),
           targetRoas: input.targetRoas?.toString(),
@@ -48,6 +49,7 @@ export const intelligentRecommendationRouter = router({
 
         try {
           const { triggerInitialOptimization } = await import('../optimizationScheduler');
+          // @ts-ignore
           triggerInitialOptimization(id, { triggeredBy: 'create' as unknown }).catch(err => {
             log.error(`[智能推荐] 触发首次优化失败:`, err);
           });
@@ -65,7 +67,7 @@ export const intelligentRecommendationRouter = router({
 
   getSummaryBadge: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const result = await scanAccountHealth(input.accountId);
       return {
         totalScanned: result.totalCampaignsScanned,

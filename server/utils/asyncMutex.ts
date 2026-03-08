@@ -211,7 +211,7 @@ export async function withMutex<T>(
  * 获取所有活跃锁的状态（用于监控/调试）
  */
 export function getAllLockStatus(): Record<string, { holder: string; acquiredAt: Date; elapsed: number; waitQueueSize: number }> {
-  const status: Record<string, unknown> = {};
+  const status: Record<string, any> = {};
   for (const [name, entry] of locks.entries()) {
     if (!isLockExpired(entry)) {
       const queue = waitQueues.get(name);

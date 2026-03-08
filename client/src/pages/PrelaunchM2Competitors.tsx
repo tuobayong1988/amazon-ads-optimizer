@@ -23,7 +23,7 @@ export default function PrelaunchM2Competitors() {
   const [tierFilter, setTierFilter] = useState<string>("");
   const [page, setPage] = useState(1);
 
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
   const projects = (() => {
     const d = projectsQuery.data;
     return (d && 'data' in (d as any) ? (d as any).data : d) || [];
@@ -124,7 +124,7 @@ export default function PrelaunchM2Competitors() {
 
           <TabsContent value="competitors" className="space-y-4">
             <div className="flex items-center gap-2">
-              {tiers.map((t) => (
+              {tiers.map((t: any) => (
                 <Button key={t.key} variant={tierFilter === t.key ? "default" : "outline"} size="sm" className="h-7 text-xs"
                   onClick={() => { setTierFilter(t.key); setPage(1); }}>
                   {t.label}

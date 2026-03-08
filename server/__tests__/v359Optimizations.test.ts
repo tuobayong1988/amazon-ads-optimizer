@@ -92,7 +92,7 @@ describe('v359 Core Optimizations', () => {
       expect(batches[2].length).toBe(250);
       
       // 验证所有元素都在批次中
-      const totalItems = batches.reduce((sum, batch) => sum + batch.length, 0);
+      const totalItems = batches.reduce((sum: any, batch: any) => sum + batch.length, 0);
       expect(totalItems).toBe(1250);
     });
     

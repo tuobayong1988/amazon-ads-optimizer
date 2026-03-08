@@ -130,7 +130,7 @@ export function generateBatchSummary(result: BatchOperationResult): string {
   
   if (result.errors.length > 0) {
     summary += `\n错误详情:\n`;
-    result.errors.slice(0, 5).forEach((err, i) => {
+    result.errors.slice(0, 5).forEach((err: any, i: any) => {
       summary += `${i + 1}. 项目 #${err.itemId}: ${err.error}\n`;
     });
     if (result.errors.length > 5) {
@@ -148,7 +148,7 @@ export function prepareRollbackData(
   operationType: OperationType,
   item: NegativeKeywordItem | BidAdjustmentItem
 ): string {
-  const rollbackData: Record<string, unknown> = {
+  const rollbackData: Record<string, any> = {
     operationType,
     timestamp: new Date().toISOString(),
   };

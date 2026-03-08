@@ -153,7 +153,7 @@ export default function IntelligentBudgetAllocation() {
                 <SelectValue placeholder="选择绩效组" />
               </SelectTrigger>
               <SelectContent>
-                {performanceGroups?.map((group) => (
+                {performanceGroups?.map((group: any) => (
                   <SelectItem key={group.id} value={group.id.toString()}>
                     {group.name}
                   </SelectItem>
@@ -266,7 +266,7 @@ export default function IntelligentBudgetAllocation() {
                 <AlertTitle>数据异常警告</AlertTitle>
                 <AlertDescription>
                   <ul className="list-disc list-inside mt-2">
-                    {suggestionsData.warnings.map((warning, index) => (
+                    {suggestionsData.warnings.map((warning: any, index: any) => (
                       <li key={index}>{warning}</li>
                     ))}
                   </ul>
@@ -313,7 +313,7 @@ export default function IntelligentBudgetAllocation() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {suggestionsData?.suggestions.map((suggestion) => (
+                      {suggestionsData?.suggestions.map((suggestion: any) => (
                         <div
                           key={suggestion.campaignId}
                           className={`p-4 border rounded-lg transition-colors ${
@@ -460,7 +460,7 @@ export default function IntelligentBudgetAllocation() {
                           </tr>
                         </thead>
                         <tbody>
-                          {campaignPerformance?.map((campaign) => {
+                          {campaignPerformance?.map((campaign: any) => {
                             const trend = campaign.roas7d > campaign.roas30d * 1.05 
                               ? 'up' 
                               : campaign.roas7d < campaign.roas30d * 0.95 
@@ -505,7 +505,7 @@ export default function IntelligentBudgetAllocation() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      {suggestionsData?.suggestions.map((suggestion) => (
+                      {suggestionsData?.suggestions.map((suggestion: any) => (
                         <div key={suggestion.campaignId} className="p-4 border rounded-lg">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-medium">{suggestion.campaignName}</h4>
@@ -1023,7 +1023,7 @@ function ScenarioSimulation({
               </defs>
               
               {/* Y轴网格线 */}
-              {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio: any, i: any) => (
                 <g key={i}>
                   <line 
                     x1="60" y1={220 - ratio * 200} 
@@ -1043,7 +1043,7 @@ function ScenarioSimulation({
               
               {/* 销售额曲线填充 */}
               <path
-                d={`M ${curveData.map((d, i) => {
+                d={`M ${curveData.map((d: any, i: any) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const y = 220 - (d.sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1053,7 +1053,7 @@ function ScenarioSimulation({
               
               {/* 销售额曲线 */}
               <path
-                d={curveData.map((d, i) => {
+                d={curveData.map((d: any, i: any) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const y = 220 - (d.sales / maxSales) * 200;
                   return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1065,7 +1065,7 @@ function ScenarioSimulation({
               
               {/* ROAS曲线 */}
               <path
-                d={curveData.map((d, i) => {
+                d={curveData.map((d: any, i: any) => {
                   const x = 60 + (i / (curveData.length - 1)) * 720;
                   const maxROAS = Math.max(...curveData.map(c => c.roas));
                   const y = 220 - (d.roas / maxROAS) * 200;
@@ -1096,7 +1096,7 @@ function ScenarioSimulation({
               })()}
               
               {/* X轴标签 */}
-              {curveData.filter((_, i) => i % 2 === 0).map((d, i) => {
+              {curveData.filter((_: any, i: any) => i % 2 === 0).map((d: any, i: any) => {
                 const x = 60 + ((i * 2) / (curveData.length - 1)) * 720;
                 return (
                   <text 

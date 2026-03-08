@@ -61,14 +61,14 @@ describe('多租户系统集成测试', () => {
       ];
 
       // 租户1的数据
-      const org1Campaigns = allCampaigns.filter((c) => c.organizationId === 1);
+      const org1Campaigns = allCampaigns.filter((c: any) => c.organizationId === 1);
       expect(org1Campaigns).toHaveLength(2);
-      expect(org1Campaigns.every((c) => c.organizationId === 1)).toBe(true);
+      expect(org1Campaigns.every((c: any) => c.organizationId === 1)).toBe(true);
 
       // 租户2的数据
-      const org2Campaigns = allCampaigns.filter((c) => c.organizationId === 2);
+      const org2Campaigns = allCampaigns.filter((c: any) => c.organizationId === 2);
       expect(org2Campaigns).toHaveLength(2);
-      expect(org2Campaigns.every((c) => c.organizationId === 2)).toBe(true);
+      expect(org2Campaigns.every((c: any) => c.organizationId === 2)).toBe(true);
     });
 
     it('应该防止跨租户数据访问', () => {
@@ -150,8 +150,8 @@ describe('多租户系统集成测试', () => {
     ];
 
     it('应该能够比较订阅计划', () => {
-      const freePlan = plans.find((p) => p.slug === 'free')!;
-      const proPlan = plans.find((p) => p.slug === 'professional')!;
+      const freePlan = plans.find((p: any) => p.slug === 'free')!;
+      const proPlan = plans.find((p: any) => p.slug === 'professional')!;
 
       expect(proPlan.maxUsers).toBeGreaterThan(freePlan.maxUsers);
       expect(proPlan.maxCampaigns).toBeGreaterThan(freePlan.maxCampaigns);
@@ -159,15 +159,15 @@ describe('多租户系统集成测试', () => {
     });
 
     it('应该能够检查功能可用性', () => {
-      const freePlan = plans.find((p) => p.slug === 'free')!;
-      const proPlan = plans.find((p) => p.slug === 'professional')!;
+      const freePlan = plans.find((p: any) => p.slug === 'free')!;
+      const proPlan = plans.find((p: any) => p.slug === 'professional')!;
 
       expect(freePlan.features.ml_optimization).toBeUndefined();
       expect(proPlan.features.ml_optimization).toBe(true);
     });
 
     it('应该能够验证资源限制', () => {
-      const starterPlan = plans.find((p) => p.slug === 'starter')!;
+      const starterPlan = plans.find((p: any) => p.slug === 'starter')!;
 
       const currentUsage = {
         users: 2,
@@ -219,10 +219,10 @@ describe('多租户系统集成测试', () => {
         { id: 3, userId: 3, role: 'member' },
       ];
 
-      const filteredMembers = members.filter((m) => m.id !== 2);
+      const filteredMembers = members.filter((m: any) => m.id !== 2);
 
       expect(filteredMembers).toHaveLength(2);
-      expect(filteredMembers.find((m) => m.id === 2)).toBeUndefined();
+      expect(filteredMembers.find((m: any) => m.id === 2)).toBeUndefined();
     });
 
     it('应该防止移除最后一个Owner', () => {
@@ -231,7 +231,7 @@ describe('多租户系统集成测试', () => {
         { id: 2, userId: 2, role: 'member' },
       ];
 
-      const owners = members.filter((m) => m.role === 'owner');
+      const owners = members.filter((m: any) => m.role === 'owner');
       const canRemoveOwner = owners.length > 1;
 
       expect(canRemoveOwner).toBe(false);
@@ -293,8 +293,8 @@ describe('多租户系统集成测试', () => {
         { date: '2024-02-03', apiCalls: 200, spend: 100 },
       ];
 
-      const totalApiCalls = dailyStats.reduce((sum, s) => sum + s.apiCalls, 0);
-      const totalSpend = dailyStats.reduce((sum, s) => sum + s.spend, 0);
+      const totalApiCalls = dailyStats.reduce((sum: any, s: any) => sum + s.apiCalls, 0);
+      const totalSpend = dailyStats.reduce((sum: any, s: any) => sum + s.spend, 0);
 
       expect(totalApiCalls).toBe(450);
       expect(totalSpend).toBe(225);

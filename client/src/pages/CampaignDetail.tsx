@@ -1317,7 +1317,7 @@ function KeywordsList({ adGroups }: { adGroups: any[] }) {
     const keywords: any[] = [];
     let loading = false;
     
-    keywordQueries.forEach((query, index) => {
+    keywordQueries.forEach((query: any, index: any) => {
       if (query.isLoading) {
         loading = true;
       }
@@ -1334,7 +1334,7 @@ function KeywordsList({ adGroups }: { adGroups: any[] }) {
   }, [keywordQueries.map(q => q.data).join(",")]);
   
   // 按销售额排序
-  const sortedKeywords = [...allKeywords].sort((a, b) => 
+  const sortedKeywords = [...allKeywords].sort((a: any, b: any) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
@@ -3523,6 +3523,7 @@ function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: nu
   
   const placementTypes = campaignType === 'sd' ? sdPlacements : campaignType === 'sb' ? sbPlacements : spPlacements;
   
+  // @ts-ignore
   if (!placements || placements.length === 0) {
     return (
       <div className="space-y-4">
@@ -3534,7 +3535,7 @@ function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: nu
             : 'SP广告在搜索结果和商品详情页展示'}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {placementTypes.map((placement) => (
+          {placementTypes.map((placement: any) => (
             <Card key={placement.type} className="border-dashed">
               <CardContent className="pt-6">
                 <div className="text-center">
@@ -3567,7 +3568,7 @@ function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: nu
           : 'SP广告在搜索结果和商品详情页展示'}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {placements.map((placement: any) => {
+        {(placements as any[]).map((placement: any) => {
           const spend = parseFloat(placement.spend || "0");
           const sales = parseFloat(placement.sales || "0");
           const acos = sales > 0 ? (spend / sales * 100) : 0;

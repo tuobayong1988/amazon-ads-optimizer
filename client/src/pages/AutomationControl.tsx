@@ -85,7 +85,7 @@ export default function AutomationControl() {
   const [isRunningCycle, setIsRunningCycle] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取自动化配置
@@ -221,7 +221,7 @@ export default function AutomationControl() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -330,7 +330,7 @@ export default function AutomationControl() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {executionTypes.map((type) => {
+                  {executionTypes.map((type: any) => {
                     const Icon = type.icon;
                     const isEnabled = config?.enabledTypes?.includes(type.key as any) || false;
                     return (
@@ -370,7 +370,7 @@ export default function AutomationControl() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {automationModes.map((mode) => (
+                  {automationModes.map((mode: any) => (
                     <div
                       key={mode.value}
                       onClick={() => handleModeChange(mode.value)}
@@ -569,7 +569,7 @@ export default function AutomationControl() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {executionHistory.map((batch) => (
+                      {executionHistory.map((batch: any) => (
                         <TableRow key={batch.id}>
                           <TableCell className="font-mono text-xs">{batch.id.slice(0, 12)}...</TableCell>
                           <TableCell>{safeToLocaleString(batch.startedAt)}</TableCell>

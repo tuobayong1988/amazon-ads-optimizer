@@ -11,7 +11,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
+function generateSimulatedTrendData(target: Record<string, any>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -61,7 +61,7 @@ function generateSimulatedTrendData(target: Record<string, unknown>, days: numbe
 }
 
 // 计算趋势摘要数据
-function calculateTrendSummary(data: unknown[]) {
+function calculateTrendSummary(data: any[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,
@@ -85,11 +85,11 @@ function calculateTrendSummary(data: unknown[]) {
     };
   }
   
-  const totalImpressions = data.reduce((sum, d) => sum + d.impressions, 0);
-  const totalClicks = data.reduce((sum, d) => sum + d.clicks, 0);
-  const totalSpend = data.reduce((sum, d) => sum + d.spend, 0);
-  const totalSales = data.reduce((sum, d) => sum + d.sales, 0);
-  const totalOrders = data.reduce((sum, d) => sum + d.orders, 0);
+  const totalImpressions = data.reduce((sum: any, d: any) => sum + d.impressions, 0);
+  const totalClicks = data.reduce((sum: any, d: any) => sum + d.clicks, 0);
+  const totalSpend = data.reduce((sum: any, d: any) => sum + d.spend, 0);
+  const totalSales = data.reduce((sum: any, d: any) => sum + d.sales, 0);
+  const totalOrders = data.reduce((sum: any, d: any) => sum + d.orders, 0);
   
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
   const avgCvr = totalClicks > 0 ? (totalOrders / totalClicks * 100) : 0;
@@ -103,8 +103,8 @@ function calculateTrendSummary(data: unknown[]) {
   const secondHalf = data.slice(midPoint);
   
   const calcTrend = (metric: string) => {
-    const firstAvg = firstHalf.reduce((sum, d) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
-    const secondAvg = secondHalf.reduce((sum, d) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
+    const firstAvg = firstHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
+    const secondAvg = secondHalf.reduce((sum: any, d: any) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
     const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
     
     if (change > 10) return 'up';
@@ -145,7 +145,7 @@ export const analyticsRouter = router({
       endDate: z.string(),
       campaignId: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getDailyPerformanceByDateRange(
         input.accountId,
         new Date(input.startDate),
@@ -160,7 +160,7 @@ export const analyticsRouter = router({
       startDate: z.string(),
       endDate: z.string(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getPerformanceSummary(
         input.accountId,
         new Date(input.startDate),
@@ -176,7 +176,7 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       // ✅ 支持自定义日期范围，默认近N天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : (() => {
@@ -224,7 +224,7 @@ export const analyticsRouter = router({
   // 获取周对比数据（真实数据）
   getWeeklyComparison: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ...
       
@@ -250,7 +250,7 @@ export const analyticsRouter = router({
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
       
       // 按周几分组数据
-      const result = weekDays.map((name, index) => {
+      const result = weekDays.map((name: any, index: any) => {
         const thisWeekDay = thisWeekData?.find(d => {
           const date = new Date(d.date);
           const dow = date.getDay();
@@ -279,7 +279,7 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       // ✅ 支持前端传入日期范围，默认近30天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -386,7 +386,7 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       // 定义区域映射
       const REGIONS: Record<string, { name: string; flag: string; marketplaces: string[] }> = {
         NA: { name: '北美区域', flag: '🇺🇸', marketplaces: ['US', 'CA', 'MX', 'BR'] },
@@ -440,7 +440,7 @@ export const analyticsRouter = router({
       }
       
       // 汇总每个账号的数据到对应区域
-      for (const account of accounts) {
+      for (const account of (accounts as any[])) {
         // 确定账号所属区域
         let accountRegion = 'NA'; // 默认北美
         for (const [regionId, regionInfo] of Object.entries(REGIONS)) {
@@ -498,7 +498,7 @@ export const advancedAnalyticsRouter = router({
       performanceGroupId: z.number().optional(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return advancedAnalyticsService.getAdvancedAnalyticsSummary(input);
     }),
   
@@ -512,7 +512,7 @@ export const advancedAnalyticsRouter = router({
       offset: z.number().optional().default(0),
       eventCategory: z.string().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return advancedAnalyticsService.getAttributionAnalysis(input);
     }),
   
@@ -524,7 +524,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       metrics: z.array(z.string()).optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return advancedAnalyticsService.getTrendAnalysis(input);
     }),
   
@@ -536,7 +536,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       sensitivity: z.number().optional().default(2),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return advancedAnalyticsService.detectAnomalies(input);
     }),
   
@@ -548,7 +548,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       groupBy: z.enum(['strategy', 'actionType', 'eventCategory']).optional().default('strategy'),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return advancedAnalyticsService.getStrategyROIComparison(input);
     }),
   

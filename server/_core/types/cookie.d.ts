@@ -1,6 +1,6 @@
 declare module "cookie" {
   export function parse(
     str: string,
-    options?: Record<string, unknown>
+    options?: Record<string, any>
   ): Record<string, string>;
 }

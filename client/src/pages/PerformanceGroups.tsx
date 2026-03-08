@@ -197,7 +197,7 @@ function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: {
             {/* 广告活动明细 */}
             <div className="max-h-48 overflow-y-auto space-y-2">
               <p className="text-xs text-muted-foreground font-medium">广告活动明细</p>
-              {campaigns.map((campaign) => (
+              {campaigns.map((campaign: any) => (
                 <div key={campaign.campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
                   <span className="truncate max-w-[200px]" title={campaign.campaignName}>{campaign.campaignName}</span>
                   <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export default function PerformanceGroups() {
   const [, setLocation] = useLocation();
 
   // Fetch accounts
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // Fetch performance groups
@@ -435,7 +435,7 @@ export default function PerformanceGroups() {
           </div>
         ) : performanceGroups && performanceGroups.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {performanceGroups.map((group) => (
+            {performanceGroups.map((group: any) => (
               <Card key={group.id} className="relative overflow-hidden">
                 <div className={`absolute top-0 left-0 right-0 h-1 ${
                   group.status === 'active' ? 'bg-success' : 

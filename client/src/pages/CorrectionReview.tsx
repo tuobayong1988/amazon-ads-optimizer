@@ -54,7 +54,7 @@ export default function CorrectionReview() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [periodDays, setPeriodDays] = useState("14");
 
-  const { data: adAccounts } = trpc.adAccount.list.useQuery();
+  const { data: adAccounts } = trpc.adAccount.list.useQuery() as any;
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
   const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
@@ -228,7 +228,7 @@ export default function CorrectionReview() {
                       <SelectValue placeholder="选择广告账户" />
                     </SelectTrigger>
                     <SelectContent>
-                      {adAccounts?.map((account) => (
+                      {adAccounts?.map((account: any) => (
                         <SelectItem key={account.id} value={account.id.toString()}>
                           {account.accountName}
                         </SelectItem>
@@ -296,7 +296,7 @@ export default function CorrectionReview() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {sessions.map((session) => (
+                    {sessions.map((session: any) => (
                       <div
                         key={session.id}
                         className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -439,7 +439,7 @@ export default function CorrectionReview() {
                     </CardHeader>
                     <CardContent>
                       <ul className="space-y-2">
-                        {recommendations.map((rec, index) => (
+                        {recommendations.map((rec: any, index: any) => (
                           <li key={index} className="flex items-start gap-2 text-sm">
                             <ArrowRight className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
                             <span>{rec}</span>
@@ -511,7 +511,7 @@ export default function CorrectionReview() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {corrections.map((correction) => (
+                          {corrections.map((correction: any) => (
                             <TableRow key={correction.id}>
                               <TableCell>
                                 {correction.wasIncorrect && (

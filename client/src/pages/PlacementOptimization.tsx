@@ -95,7 +95,7 @@ export default function PlacementOptimization() {
   const [adjustmentStep, setAdjustmentStep] = useState(10);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // 获取广告活动列表
   const { data: campaigns } = trpc.campaign.list.useQuery(
@@ -230,12 +230,12 @@ export default function PlacementOptimization() {
       };
     }
 
-    const totalSpend = performanceData.reduce((sum, p) => sum + (p.metrics?.spend || 0), 0);
-    const totalSales = performanceData.reduce((sum, p) => sum + (p.metrics?.sales || 0), 0);
+    const totalSpend = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.spend || 0), 0);
+    const totalSales = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.sales || 0), 0);
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     
-    const bestPlacement = performanceData.reduce((best, current) => {
+    const bestPlacement = performanceData.reduce((best: any, current: any) => {
       if (!best || (current.metrics?.roas || 0) > (best.metrics?.roas || 0)) {
         return current;
       }
@@ -290,7 +290,7 @@ export default function PlacementOptimization() {
                     <SelectValue placeholder="选择账号" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts?.map((account) => (
+                    {accounts?.map((account: any) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -309,7 +309,7 @@ export default function PlacementOptimization() {
                     <SelectValue placeholder="选择广告活动" />
                   </SelectTrigger>
                   <SelectContent>
-                    {campaigns?.map((campaign) => (
+                    {campaigns?.map((campaign: any) => (
                       <SelectItem key={campaign.campaignId} value={campaign.campaignId}>
                         {campaign.campaignName}
                       </SelectItem>
@@ -482,7 +482,7 @@ export default function PlacementOptimization() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {performanceData.map((placement) => {
+                  {performanceData.map((placement: any) => {
                     const metrics = placement.metrics;
                     const placementInfo = PLACEMENT_LABELS[placement.placementType];
                     const currentAdjustment = currentSettings?.[placement.placementType as keyof typeof currentSettings] || 0;
@@ -611,7 +611,7 @@ export default function PlacementOptimization() {
             </DialogHeader>
             
             <div className="space-y-4">
-              {pendingSuggestions.map((suggestion, index) => {
+              {pendingSuggestions.map((suggestion: any, index: any) => {
                 const placementInfo = PLACEMENT_LABELS[suggestion.placementType];
                 const confidenceInfo = getConfidenceLevel(suggestion.confidence);
                 const isIncrease = suggestion.adjustmentDelta > 0;
@@ -691,7 +691,7 @@ export default function PlacementOptimization() {
               <AlertTitle>调整说明</AlertTitle>
               <AlertDescription>
                 <ul className="list-disc list-inside text-sm mt-2 space-y-1">
-                  {pendingSuggestions.map((s, i) => (
+                  {pendingSuggestions.map((s: any, i: any) => (
                     <li key={i}>
                       {PLACEMENT_LABELS[s.placementType]?.name}: {formatPercent(s.currentAdjustment)} → {formatPercent(s.suggestedAdjustment)}
                     </li>

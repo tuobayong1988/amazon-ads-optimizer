@@ -82,7 +82,7 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
   const marketplace = accountId ? await getAccountMarketplace(accountId) : 'US';
   const hoursElapsed = Math.max(getLocalHour(new Date(), marketplace), 1);
   const results: ConsumptionAnalysis[] = [];
-  for (const campaign of activeCampaigns) {
+  for (const campaign of (activeCampaigns as any[])) {
     const todayStr = today.toISOString().split('T')[0];
     const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
@@ -199,5 +199,5 @@ export async function getAlertStats(userId: number, accountId?: number) {
     db.select({ count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...todayConditions)),
     db.select({ alertType: budgetConsumptionAlerts.alertType, count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...conditions)).groupBy(budgetConsumptionAlerts.alertType),
   ]);
-  return { activeAlerts: activeCount[0]?.count || 0, todayAlerts: todayCount[0]?.count || 0, byType: byType.reduce((acc, item) => { acc[item.alertType] = item.count; return acc; }, {} as Record<string, number>) };
+  return { activeAlerts: activeCount[0]?.count || 0, todayAlerts: todayCount[0]?.count || 0, byType: byType.reduce((acc: any, item: any) => { acc[item.alertType] = item.count; return acc; }, {} as Record<string, number>) };
 }

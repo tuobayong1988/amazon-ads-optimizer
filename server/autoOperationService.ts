@@ -42,7 +42,7 @@ export interface AutoOperationLog {
   startedAt: Date;
   completedAt: Date | null;
   duration: number | null;
-  details: Record<string, unknown>;
+  details: Record<string, any>;
   errorMessage: string | null;
 }
 
@@ -51,7 +51,7 @@ interface StepResult {
   step: string;
   status: 'success' | 'failed' | 'skipped';
   duration: number;
-  details: Record<string, unknown>;
+  details: Record<string, any>;
   error?: string;
 }
 
@@ -233,7 +233,7 @@ export const autoOperationService = {
       log.status = 'failed';
       log.completedAt = completedAt;
       log.duration = totalDuration;
-      log.errorMessage = error instanceof Error ? error.message : String(error);
+      log.errorMessage = error instanceof Error ? (error as Error).message : String(error);
       log.details = { config, steps, error: String(error) };
       
       throw error;
@@ -281,7 +281,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -340,7 +340,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -375,7 +375,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -409,7 +409,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -444,7 +444,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -500,7 +500,7 @@ export const autoOperationService = {
         status: 'failed',
         duration: Date.now() - startTime,
         details: {},
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? (error as Error).message : String(error),
       };
     }
   },
@@ -511,7 +511,7 @@ export const autoOperationService = {
   async getLogs(accountId: number, limit: number = 50): Promise<AutoOperationLog[]> {
     return logStore
       .filter(log => log.accountId === accountId)
-      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .sort((a: any, b: any) => b.startedAt.getTime() - a.startedAt.getTime())
       .slice(0, limit);
   },
 
@@ -522,7 +522,7 @@ export const autoOperationService = {
     const now = new Date();
     const dueAccounts: number[] = [];
     
-    configStore.forEach((config, accountId) => {
+    configStore.forEach((config: any, accountId: any) => {
       if (config.enabled && config.nextRunAt && config.nextRunAt <= now) {
         dueAccounts.push(accountId);
       }

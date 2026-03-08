@@ -69,7 +69,7 @@ export default function SpecialScenarioAnalysis() {
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取综合分析结果
@@ -211,7 +211,7 @@ export default function SpecialScenarioAnalysis() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -245,7 +245,7 @@ export default function SpecialScenarioAnalysis() {
                   <h4 className="font-medium mb-2 text-sm text-muted-foreground">发现的问题</h4>
                   {analysisResult.summary.criticalIssues.length > 0 ? (
                     <ul className="space-y-2">
-                      {analysisResult.summary.criticalIssues.map((issue, idx) => (
+                      {analysisResult.summary.criticalIssues.map((issue: any, idx: any) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
                           <span>{issue}</span>
@@ -265,7 +265,7 @@ export default function SpecialScenarioAnalysis() {
                   <h4 className="font-medium mb-2 text-sm text-muted-foreground">优化建议</h4>
                   {analysisResult.summary.recommendations.length > 0 ? (
                     <ul className="space-y-2">
-                      {analysisResult.summary.recommendations.slice(0, 4).map((rec, idx) => (
+                      {analysisResult.summary.recommendations.slice(0, 4).map((rec: any, idx: any) => (
                         <li key={idx} className="flex items-start gap-2 text-sm">
                           <ChevronRight className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
                           <span>{rec}</span>
@@ -412,7 +412,7 @@ export default function SpecialScenarioAnalysis() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {upcomingEvents.slice(0, 3).map((event, idx) => (
+                    {upcomingEvents.slice(0, 3).map((event: any, idx: any) => (
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-semibold">{event.event.name}</span>
@@ -458,7 +458,7 @@ export default function SpecialScenarioAnalysis() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {budgetRisks.map((risk) => (
+                      {budgetRisks.map((risk: any) => (
                         <TableRow key={risk.campaignId}>
                           <TableCell className="font-medium">{risk.campaignName}</TableCell>
                           <TableCell>${risk.dailyBudget.toFixed(2)}</TableCell>
@@ -537,7 +537,7 @@ export default function SpecialScenarioAnalysis() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {attributionData.map((day) => (
+                      {attributionData.map((day: any) => (
                         <TableRow key={day.date}>
                           <TableCell className="font-medium">{day.date}</TableCell>
                           <TableCell>{day.adjusted.dataAge}天</TableCell>
@@ -692,7 +692,7 @@ export default function SpecialScenarioAnalysis() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bidEfficiency.topOverbidding.map((item) => (
+                      {bidEfficiency.topOverbidding.map((item: any) => (
                         <TableRow key={item.targetId}>
                           <TableCell>
                             <Checkbox
@@ -735,7 +735,7 @@ export default function SpecialScenarioAnalysis() {
                           <TableCell className="max-w-xs">
                             {item.overbiddingReasons.length > 0 ? (
                               <ul className="text-xs text-muted-foreground">
-                                {item.overbiddingReasons.slice(0, 2).map((reason, idx) => (
+                                {item.overbiddingReasons.slice(0, 2).map((reason: any, idx: any) => (
                                   <li key={idx}>• {reason}</li>
                                 ))}
                               </ul>
@@ -810,7 +810,7 @@ export default function SpecialScenarioAnalysis() {
               <CardContent>
                 {upcomingEvents && upcomingEvents.length > 0 ? (
                   <div className="space-y-4">
-                    {upcomingEvents.map((event, idx) => (
+                    {upcomingEvents.map((event: any, idx: any) => (
                       <div key={idx} className="p-4 rounded-lg border bg-card">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
@@ -881,7 +881,7 @@ export default function SpecialScenarioAnalysis() {
                   <span className="font-bold text-green-500">
                     ${bidEfficiency?.topOverbidding
                       .filter(k => selectedKeywords.includes(k.targetId))
-                      .reduce((sum, k) => sum + k.expectedSavings, 0)
+                      .reduce((sum: any, k: any) => sum + k.expectedSavings, 0)
                       .toFixed(2) || '0.00'}
                   </span>
                 </div>

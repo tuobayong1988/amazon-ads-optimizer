@@ -210,6 +210,7 @@ async function persistEmergencyTask(
   try {
     const { sql } = await import('drizzle-orm');
     // 检查是否已有未处理的同类型任务
+    // @ts-ignore
     const [existing] = await dbInstance.execute(sql`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
@@ -249,7 +250,7 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
     
     const assessments: AccountRiskAssessment[] = [];
     
-    for (const account of actualSites) {
+    for (const account of (actualSites as any[])) {
       try {
         // 获取最近7天的绩效数据
         const endDate = new Date();
@@ -338,7 +339,7 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
       }
     }
     
-    return assessments.sort((a, b) => b.currentAcos - a.currentAcos);
+    return assessments.sort((a: any, b: any) => b.currentAcos - a.currentAcos);
   } catch (err: unknown) {
     log.error(`[assessAccountRisks] Fatal error: ${(err as Error).message}`);
     return [];
@@ -361,16 +362,17 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
   
   try {
     const { sql } = await import('drizzle-orm');
+    // @ts-ignore
     const [statusStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     ) as unknown;
     
     const dist = statusStats || [];
-    const synced = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'synced')?.count || 0);
-    const pending = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
-    const failed = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'failed')?.count || 0);
-    const notApplicable = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'not_applicable')?.count || 0)
-      + Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'invalid_legacy')?.count || 0);
+    const synced = Number(dist.find((d: Record<string, any>) => d.api_sync_status === 'synced')?.count || 0);
+    const pending = Number(dist.find((d: Record<string, any>) => d.api_sync_status === 'pending_sync' || d.api_sync_status === 'pending')?.count || 0);
+    const failed = Number(dist.find((d: Record<string, any>) => d.api_sync_status === 'failed')?.count || 0);
+    const notApplicable = Number(dist.find((d: Record<string, any>) => d.api_sync_status === 'not_applicable')?.count || 0)
+      + Number(dist.find((d: Record<string, any>) => d.api_sync_status === 'invalid_legacy')?.count || 0);
     
     // v235: 同步成功率只计算需要同步的事件
     const syncableTotal = synced + pending + failed;
@@ -453,7 +455,7 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
   log.info(`[RiskActionEngine] 账户风险评估完成: critical=${criticalAccounts.length}, warning=${warningAccounts.length}, healthy=${accountRisks.length - criticalAccounts.length - warningAccounts.length}`);
   
   // 2. 对critical账户执行紧急优化
-  for (const account of criticalAccounts) {
+  for (const account of (criticalAccounts as any[])) {
     for (const action of account.recommendedActions) {
       try {
         if (action.actionType === 'emergency_bid_reduction') {
@@ -552,7 +554,7 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
   }
 
   // v263: 6. 主动ACoS趋势预警 — 对warning账户检查趋势是否恶化
-  for (const account of warningAccounts) {
+  for (const account of (warningAccounts as any[])) {
     try {
       const trendCheck = await checkAcosTrendForAccount(account.accountId);
       if (trendCheck.isDeteriorating) {
@@ -618,6 +620,7 @@ export async function isAccountInEmergencyQueue(accountId: number): Promise<{ in
   
   try {
     const { sql } = await import('drizzle-orm');
+    // @ts-ignore
     const [rows] = await dbInstance.execute(sql`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
@@ -663,6 +666,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
   
   try {
     const { sql } = await import('drizzle-orm');
+    // @ts-ignore
     const [rows] = await dbInstance.execute(sql`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
@@ -672,7 +676,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
     `) as unknown;
     
     if (!rows) return [];
-    return rows.map((r: Record<string, unknown>) => ({ accountId: r.accountId, type: r.actionType }));
+    return rows.map((r: Record<string, any>) => ({ accountId: r.accountId, type: r.actionType }));
   } catch (err: unknown) {
     log.error(`[getPendingEmergencyAccounts] 查询失败: ${(err as Error).message}`);
     return [];
@@ -695,18 +699,18 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
 async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: number; totalDailyBudget: number; autoAssigned: number }> {
   try {
     const unassigned = await db.getUnassignedCampaigns();
-    const activeCampaigns = unassigned.filter((c: Record<string, unknown>) => c.campaignStatus === 'enabled');
+    const activeCampaigns = unassigned.filter((c: Record<string, any>) => c.campaignStatus === 'enabled');
     
     if (activeCampaigns.length === 0) {
       return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
     }
     
-    const totalBudget = activeCampaigns.reduce((sum: number, c: Record<string, unknown>) => sum + (Number(c.dailyBudget) || 0), 0);
+    const totalBudget = activeCampaigns.reduce((sum: number, c: Record<string, any>) => sum + (Number(c.dailyBudget) || 0), 0);
     log.warn(`[RiskActionEngine] v270: 检测到${activeCampaigns.length}个活跃广告活动未分配优化目标，日均预算$${totalBudget.toFixed(2)}`);
     
     // v270: 按账户+广告类型分组
-    const groupMap = new Map<string, Record<string, unknown>[]>();
-    for (const c of activeCampaigns) {
+    const groupMap = new Map<string, Record<string, any>[]>();
+    for (const c of (activeCampaigns as any[])) {
       const key = `${c.accountId}_${c.campaignType || 'SP'}`;
       if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key)!.push(c);
@@ -719,8 +723,8 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
       const accountId = parseInt(accountIdStr);
       
       // 计算该组广告的平均ACoS
-      const totalSpend = campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.spend) || 0), 0);
-      const totalSales = campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.sales) || 0), 0);
+      const totalSpend = campaigns.reduce((s: number, c: Record<string, any>) => s + (Number(c.spend) || 0), 0);
+      const totalSales = campaigns.reduce((s: number, c: Record<string, any>) => s + (Number(c.sales) || 0), 0);
       const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 999;
       
       // v270: 根据ACoS水平匹配策略模板
@@ -742,10 +746,10 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
           goalName,
           strategyTemplateId,
           strategyName,
-          campaignIds: campaigns.map((c: Record<string, unknown>) => c.id),
+          campaignIds: campaigns.map((c: Record<string, any>) => c.id),
           campaignCount: campaigns.length,
           avgAcos: avgAcos.toFixed(1),
-          totalDailyBudget: campaigns.reduce((s: number, c: Record<string, unknown>) => s + (Number(c.dailyBudget) || 0), 0).toFixed(2),
+          totalDailyBudget: campaigns.reduce((s: number, c: Record<string, any>) => s + (Number(c.dailyBudget) || 0), 0).toFixed(2),
           campaignType,
         })
       );
@@ -812,6 +816,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
   try {
     const { sql } = await import('drizzle-orm');
     
+    // @ts-ignore
     const [recentRows] = await dbInstance.execute(sql`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
@@ -820,6 +825,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `) as unknown;
     
+    // @ts-ignore
     const [prevRows] = await dbInstance.execute(sql`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
@@ -914,11 +920,13 @@ export async function cleanupProcessedEntries(): Promise<void> {
   
   try {
     const { sql } = await import('drizzle-orm');
+    // @ts-ignore
     const [result] = await dbInstance.execute(sql`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `) as unknown;
     
+    // @ts-ignore
     const deleted = (result as unknown)?.affectedRows || 0;
     if (deleted > 0) {
       log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);

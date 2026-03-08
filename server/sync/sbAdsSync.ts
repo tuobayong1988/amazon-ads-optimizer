@@ -74,7 +74,7 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
       const creativeType = ad.creativeType || creative.type || null;
       
       // 更新广告组的素材字段
-      const updateData: Record<string, unknown> = {
+      const updateData: Record<string, any> = {
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (headline) updateData.headline = headline;
@@ -130,7 +130,7 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     // 收集所有需要解析的assetId
     const assetIdsToResolve = new Set<string>();
-    for (const row of adGroupsNeedingUrls) {
+    for (const row of (adGroupsNeedingUrls as any[])) {
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
         assetIdsToResolve.add(row.ad_groups.videoAssetId);
       }
@@ -150,8 +150,8 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     // 更新数据库
     let updated = 0;
-    for (const row of adGroupsNeedingUrls) {
-      const updates: Record<string, unknown> = {};
+    for (const row of (adGroupsNeedingUrls as any[])) {
+      const updates: Record<string, any> = {};
       let needsUpdate = false;
 
       if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
@@ -296,7 +296,7 @@ try {
 }
 
 // v230: 回退到旧算法
-for (const kw of keywordsToOptimize) {
+for (const kw of (keywordsToOptimize as any[])) {
   const target: OptimizationTarget = {
     id: kw.id,
     type: 'keyword',
@@ -382,14 +382,14 @@ InsertSyncConflict,
  * 这样可以避免首次同步时本地数据为空导致的大量虚假冲突
  */
 function detectConflict(
-existing: Record<string, unknown>,
-newData: Record<string, unknown>,
+existing: Record<string, any>,
+newData: Record<string, any>,
 fieldsToCheck: string[]
 ): { hasConflict: boolean; conflictFields: string[] } {
 const conflictFields: string[] = [];
 
 // 判断值是否为"无数据"（空值）
-const isEmptyValue = (value: Record<string, unknown>): boolean => {
+const isEmptyValue = (value: Record<string, any>): boolean => {
   if (value === undefined || value === null) return true;
   const strValue = String(value).trim();
   // 空字符串、"0"、"0.00" 都视为空值（默认值）
@@ -498,7 +498,7 @@ try {
     
     // v168: SP API v3的dailyBudget可能嵌套在多种结构中
     let dailyBudgetValue = 0;
-    const budgetFieldT = (apiCampaign as Record<string, unknown>).budget;
+    const budgetFieldT = (apiCampaign as Record<string, any>).budget;
     if (budgetFieldT !== undefined && budgetFieldT !== null) {
       if (typeof budgetFieldT === 'number') {
         dailyBudgetValue = budgetFieldT;
@@ -558,7 +558,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
+            (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
           ),
         });
       }
@@ -568,14 +568,14 @@ try {
       const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
       if (apiBudget === 0 && localBudget > 0) {
         log.warn(`v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-        delete (campaignData as Record<string, unknown>[]).dailyBudget;
+        delete (campaignData as Record<string, any>[]).dailyBudget;
       }
       // v150.1: 预算保护逻辑
       if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
         const hasRecentOpt = protectedCampaignIds.has(existing.id);
         if (hasRecentOpt) {
           log.debug(`v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-          delete (campaignData as Record<string, unknown>[]).dailyBudget;
+          delete (campaignData as Record<string, any>[]).dailyBudget;
           protectionStats.budgetProtected++;
           protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
         } else {
@@ -585,14 +585,14 @@ try {
       
       // v165: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
       const localTopPlacement = existing.placementTopSearchBidAdjustment || 0;
-      const apiTopPlacement = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
+      const apiTopPlacement = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
       const localProductPlacement = existing.placementProductPageBidAdjustment || 0;
-      const apiProductPlacement = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
+      const apiProductPlacement = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
       const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement;
       if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
         log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%`);
-        delete (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment;
-        delete (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment;
+        delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
+        delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
         protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
       }
 
@@ -691,20 +691,20 @@ try {
     // 始终使用Amazon API返回的最新数据更新本地记录
 
     // ✅ 根据SB广告的Campaign Goal确定计费方式
-    const sbGoal = (apiCampaign as Record<string, unknown>).goal || (apiCampaign as Record<string, unknown>).campaignGoal || '';
+    const sbGoal = (apiCampaign as Record<string, any>).goal || (apiCampaign as Record<string, any>).campaignGoal || '';
     let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc';
     if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
       sbCostType = 'vcpm';
     }
-    if ((apiCampaign as Record<string, unknown>).costType) {
-      const apiCostType = String((apiCampaign as Record<string, unknown>).costType).toLowerCase();
+    if ((apiCampaign as Record<string, any>).costType) {
+      const apiCostType = String((apiCampaign as Record<string, any>).costType).toLowerCase();
       if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
         sbCostType = apiCostType as 'vcpm' | 'cpm';
       }
     }
 
     // 获取SB广告格式
-    const sbAdFormat = (apiCampaign as Record<string, unknown>).adFormat || (apiCampaign as Record<string, unknown>).creative?.adFormat || null;
+    const sbAdFormat = (apiCampaign as Record<string, any>).adFormat || (apiCampaign as Record<string, any>).creative?.adFormat || null;
     const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
     const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
 
@@ -753,7 +753,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
+            (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
           ),
         });
       }
@@ -841,20 +841,20 @@ try {
     // 始终使用Amazon API返回的最新数据更新本地记录
 
     // ✅ 获取SD广告的计费类型
-    const sdCostType = ((apiCampaign as Record<string, unknown>).costType || 'cpc').toLowerCase();
+    const sdCostType = ((apiCampaign as Record<string, any>).costType || 'cpc').toLowerCase();
     const validCostTypes = ['cpc', 'vcpm', 'cpm'];
     const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
     // ✅ 获取SD广告的Campaign Goal（广告目标）
-    const sdGoal = (apiCampaign as Record<string, unknown>).goal || 
-                   (apiCampaign as Record<string, unknown>).optimizationGoal || 
-                   (apiCampaign as Record<string, unknown>).bidOptimization || '';
+    const sdGoal = (apiCampaign as Record<string, any>).goal || 
+                   (apiCampaign as Record<string, any>).optimizationGoal || 
+                   (apiCampaign as Record<string, any>).bidOptimization || '';
 
     // ✅ 获取SD广告的tactic（定向策略）
-    const sdTactic = (apiCampaign as Record<string, unknown>).tactic || null;
+    const sdTactic = (apiCampaign as Record<string, any>).tactic || null;
 
     // ✅ 获取SD广告的竞价优化目标
-    const sdBidOptimization = (apiCampaign as Record<string, unknown>).bidOptimization || null;
+    const sdBidOptimization = (apiCampaign as Record<string, any>).bidOptimization || null;
     const validBidOpts = ['reach', 'pageVisits', 'conversions'];
     const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
@@ -904,7 +904,7 @@ try {
           previousData: existing,
           newData: campaignData,
           changedFields: Object.keys(campaignData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (campaignData as Record<string, unknown>[])[k as number]
+            (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
           ),
         });
       }
@@ -1050,7 +1050,7 @@ try {
           previousData: existing,
           newData: adGroupData,
           changedFields: Object.keys(adGroupData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (adGroupData as Record<string, unknown>[])[k]
+            (existing as Record<string, any>)[k] !== (adGroupData as Record<string, any>[])[k]
           ),
         });
       }
@@ -1208,7 +1208,7 @@ try {
           previousData: existing,
           newData: keywordData,
           changedFields: Object.keys(keywordData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (keywordData as Record<string, unknown>[])[k]
+            (existing as Record<string, any>)[k] !== (keywordData as Record<string, any>[])[k]
           ),
         });
       }
@@ -1220,7 +1220,7 @@ try {
         const hasRecentOpt = protectedKeywordIds.has(existing.id);
         if (hasRecentOpt) {
           log.debug(`v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
-          delete (keywordData as Record<string, unknown>[]).bid;
+          delete (keywordData as Record<string, any>[]).bid;
           protectionStats.bidProtected++;
           protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
         } else {
@@ -1392,7 +1392,7 @@ try {
           previousData: existing,
           newData: targetData,
           changedFields: Object.keys(targetData).filter(k => 
-            (existing as Record<string, unknown>)[k] !== (targetData as Record<string, unknown>[])[k]
+            (existing as Record<string, any>)[k] !== (targetData as Record<string, any>[])[k]
           ),
         });
       }
@@ -1404,7 +1404,7 @@ try {
         const hasRecentOpt = protectedTargetIds.has(existing.id);
         if (hasRecentOpt) {
           log.debug(`v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
-          delete (targetData as Record<string, unknown>[]).bid;
+          delete (targetData as Record<string, any>[]).bid;
           protectionStats.bidProtected++;
           protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
         } else {

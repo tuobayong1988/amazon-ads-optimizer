@@ -86,7 +86,7 @@ export default function DaypartingStrategy() {
   });
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // 获取广告活动列表
   const { data: campaigns } = trpc.campaign.list.useQuery(
@@ -191,7 +191,7 @@ export default function DaypartingStrategy() {
       () => []
     );
 
-    bidPreview.adjustments.forEach((adj) => {
+    bidPreview.adjustments.forEach((adj: any) => {
       if (!matrix[adj.dayOfWeek]) matrix[adj.dayOfWeek] = [];
       matrix[adj.dayOfWeek][adj.hour] = adj;
     });
@@ -201,7 +201,7 @@ export default function DaypartingStrategy() {
 
   // 设置默认账号
   if (accounts && accounts.length > 0 && !selectedAccountId) {
-    const defaultAccount = accounts.find((a) => a.isDefault) || accounts[0];
+    const defaultAccount = accounts.find((a: any) => a.isDefault) || accounts[0];
     setSelectedAccountId(defaultAccount.id);
   }
 
@@ -232,7 +232,7 @@ export default function DaypartingStrategy() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -250,7 +250,7 @@ export default function DaypartingStrategy() {
                 <SelectValue placeholder="选择广告活动" />
               </SelectTrigger>
               <SelectContent>
-                {campaigns?.map((campaign) => (
+                {campaigns?.map((campaign: any) => (
                   <SelectItem key={campaign.id} value={campaign.id.toString()}>
                     {campaign.campaignName}
                   </SelectItem>
@@ -292,7 +292,7 @@ export default function DaypartingStrategy() {
                   <div className="space-y-2">
                     <Label>优化目标</Label>
                     <div className="grid grid-cols-2 gap-3">
-                      {OPTIMIZATION_GOALS.map((goal) => (
+                      {OPTIMIZATION_GOALS.map((goal: any) => (
                         <div
                           key={goal.value}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -396,7 +396,7 @@ export default function DaypartingStrategy() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {strategies.map((strategy) => (
+                {strategies.map((strategy: any) => (
                   <div
                     key={strategy.id}
                     className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
@@ -414,7 +414,7 @@ export default function DaypartingStrategy() {
                         <div className="text-sm text-muted-foreground">
                           {strategy.strategyType === "budget" ? "预算分配" : strategy.strategyType === "bidding" ? "竞价调整" : "预算+竞价"}
                           {" · "}
-                          {OPTIMIZATION_GOALS.find((g) => g.value === strategy.daypartingOptGoal)?.label || strategy.daypartingOptGoal}
+                          {OPTIMIZATION_GOALS.find((g: any) => g.value === strategy.daypartingOptGoal)?.label || strategy.daypartingOptGoal}
                         </div>
                       </div>
                     </div>
@@ -473,7 +473,7 @@ export default function DaypartingStrategy() {
                       </div>
                     ) : weeklyAnalysis && weeklyAnalysis.length > 0 ? (
                       <div className="space-y-3">
-                        {weeklyAnalysis.map((day) => (
+                        {weeklyAnalysis.map((day: any) => (
                           <div key={day.dayOfWeek} className="flex items-center gap-3">
                             <div className="w-12 text-sm font-medium">{day.dayLabel}</div>
                             <div className="flex-1">
@@ -512,7 +512,7 @@ export default function DaypartingStrategy() {
                   <CardContent>
                     {budgetPreview?.allocation ? (
                       <div className="space-y-3">
-                        {budgetPreview.allocation.map((rule) => (
+                        {budgetPreview.allocation.map((rule: any) => (
                           <div key={rule.dayOfWeek} className="flex items-center gap-3">
                             <div className="w-12 text-sm font-medium">{DAY_LABELS[rule.dayOfWeek]}</div>
                             <div className="flex-1 flex items-center gap-2">
@@ -554,9 +554,9 @@ export default function DaypartingStrategy() {
                     <div className="space-y-4">
                       {/* 热力图 */}
                       <div className="grid grid-cols-7 gap-2">
-                        {DAY_LABELS.map((label, index) => {
-                          const dayData = budgetPreview.weeklyData.find((d) => d.dayOfWeek === index);
-                          const allocation = budgetPreview.allocation.find((a) => a.dayOfWeek === index);
+                        {DAY_LABELS.map((label: any, index: any) => {
+                          const dayData = budgetPreview.weeklyData.find((d: any) => d.dayOfWeek === index);
+                          const allocation = budgetPreview.allocation.find((a: any) => a.dayOfWeek === index);
                           return (
                             <div key={index} className="text-center">
                               <div className="text-sm font-medium mb-2">{label}</div>
@@ -629,7 +629,7 @@ export default function DaypartingStrategy() {
                         {/* 小时标签 */}
                         <div className="flex mb-2">
                           <div className="w-16" />
-                          {HOUR_LABELS.map((hour, index) => (
+                          {HOUR_LABELS.map((hour: any, index: any) => (
                             <div key={index} className="flex-1 text-center text-xs text-muted-foreground">
                               {index % 3 === 0 ? hour.split(":")[0] : ""}
                             </div>
@@ -637,11 +637,11 @@ export default function DaypartingStrategy() {
                         </div>
 
                         {/* 热力图网格 */}
-                        {DAY_LABELS.map((dayLabel, dayIndex) => (
+                        {DAY_LABELS.map((dayLabel: any, dayIndex: any) => (
                           <div key={dayIndex} className="flex mb-1">
                             <div className="w-16 text-sm font-medium flex items-center">{dayLabel}</div>
                             <div className="flex-1 flex gap-0.5">
-                              {HOUR_LABELS.map((_, hourIndex) => {
+                              {HOUR_LABELS.map((_: any, hourIndex: any) => {
                                 const adjustment = bidPreview.adjustments.find(
                                   (a) => a.dayOfWeek === dayIndex && a.hour === hourIndex
                                 );

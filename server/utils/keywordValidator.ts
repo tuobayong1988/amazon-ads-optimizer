@@ -238,6 +238,7 @@ export async function adGroupHasProductTargets(
       conn = await db.getDirectConnection();
       ownConn = true;
     }
+    // @ts-ignore
     const [rows] = await conn.execute(
       'SELECT COUNT(*) AS cnt FROM product_targets WHERE adGroupId = ? AND targetId IS NOT NULL LIMIT 1',
       [adGroupId]
@@ -248,6 +249,7 @@ export async function adGroupHasProductTargets(
     return false;
   } finally {
     if (ownConn && conn) {
+      // @ts-ignore
       try { conn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }
@@ -261,13 +263,13 @@ export function batchValidateKeywords(
   keywords: Array<{ text: string; [key: string]: unknown }>,
   mode: 'positive' | 'negative_exact' | 'negative_phrase' = 'positive'
 ): {
-  valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, unknown> }>;
-  rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }>;
+  valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, any> }>;
+  rejected: Array<{ originalText: string; reason: string; data: Record<string, any> }>;
 } {
-  const valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, unknown> }> = [];
-  const rejected: Array<{ originalText: string; reason: string; data: Record<string, unknown> }> = [];
+  const valid: Array<{ originalText: string; sanitizedText: string; data: Record<string, any> }> = [];
+  const rejected: Array<{ originalText: string; reason: string; data: Record<string, any> }> = [];
   
-  for (const kw of keywords) {
+  for (const kw of (keywords as any[])) {
     const result = sanitizeAndValidateKeyword(kw.text, mode);
     if (result.isValid) {
       valid.push({

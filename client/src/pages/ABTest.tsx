@@ -29,7 +29,7 @@ export default function ABTest() {
   const [activeTab, setActiveTab] = useState('overview');
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
 
   // 获取A/B测试列表
   const { data: tests, refetch: refetchTests } = trpc.abTest.list.useQuery(
@@ -209,7 +209,7 @@ export default function ABTest() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -456,7 +456,7 @@ export default function ABTest() {
                     <p className="text-xs text-muted-foreground">点击上方"快速创建"或"自定义创建"开始</p>
                   </div>
                 )}
-                {tests?.map((test) => (
+                {tests?.map((test: any) => (
                   <div
                     key={test.id}
                     className={`p-3 rounded-lg border cursor-pointer transition-colors ${

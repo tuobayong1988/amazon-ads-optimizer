@@ -179,7 +179,7 @@ const log = createModuleLogger('validation');
  */
 export function safeParseApiResponse<T>(
   schema: z.ZodType<T>,
-  data: unknown,
+  data: any,
   context: string
 ): T | null {
   try {
@@ -187,9 +187,9 @@ export function safeParseApiResponse<T>(
   } catch (error) {
     if (error instanceof z.ZodError) {
       log.warn(`API数据校验失败 [${context}]:`, {
-        errors: (error.issues as unknown[]).map((e: Record<string, unknown>) => ({
+        errors: (error.issues as any[]).map((e: Record<string, any>) => ({
           path: e.path?.join('.') || '',
-          message: e.message || '',
+          message: (e as Error).message || '',
           received: e.received,
         })),
         dataPreview: JSON.stringify(data).slice(0, 500),
@@ -207,7 +207,7 @@ export function safeParseApiResponse<T>(
  */
 export function safeParseWithDefault<T>(
   schema: z.ZodType<T>,
-  data: unknown,
+  data: any,
   defaultValue: T,
   context: string
 ): T {

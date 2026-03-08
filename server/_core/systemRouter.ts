@@ -20,7 +20,7 @@ export const systemRouter = router({
     .input(z.object({
       retentionDays: z.number().min(7).max(90).default(30),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const conn = await getDirectConnection(120_000); // 2分钟超时
       const results: string[] = [];
       try {
@@ -28,28 +28,28 @@ export const systemRouter = router({
         const [r1] = await conn.execute(
           `DELETE FROM sync_conflicts WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as unknown[];
+        ) as any[];
         results.push(`sync_conflicts: 删除${r1.affectedRows}条`);
 
         // 清理sync_change_records
         const [r2] = await conn.execute(
           `DELETE FROM sync_change_records WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as unknown[];
+        ) as any[];
         results.push(`sync_change_records: 删除${r2.affectedRows}条`);
 
         // 清理system_logs
         const [r3] = await conn.execute(
           `DELETE FROM system_logs WHERE timestamp < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as unknown[];
+        ) as any[];
         results.push(`system_logs: 删除${r3.affectedRows}条`);
 
         // 清理optimization_tasks已完成的任务
         const [r4] = await conn.execute(
           `DELETE FROM optimization_tasks WHERE status IN ('synced', 'permanently_failed') AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`,
           [input.retentionDays]
-        ) as unknown[];
+        ) as any[];
         results.push(`optimization_tasks: 删除${r4.affectedRows}条`);
 
         return { success: true, results };
@@ -75,7 +75,7 @@ export const systemRouter = router({
         content: z.string().min(1, "content is required"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const delivered = await notifyOwner(input);
       return {
         success: delivered,
@@ -89,7 +89,7 @@ export const systemRouter = router({
         migrationName: z.string().min(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
@@ -98,7 +98,7 @@ export const systemRouter = router({
       if (input.migrationName === '0020_add_bidding_logs_columns') {
         // 添加bidding_logs表缺失的列
         try {
-          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') DEFAULT 'pending'`);
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') as any DEFAULT 'pending'`);
           results.push('Added execution_status column');
         } catch (e: unknown) {
           if ((e as Error).message?.includes('Duplicate column')) {
@@ -109,7 +109,7 @@ export const systemRouter = router({
         }
 
         try {
-          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) DEFAULT NULL`);
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) as any DEFAULT NULL`);
           results.push('Added api_response_id column');
         } catch (e: unknown) {
           if ((e as Error).message?.includes('Duplicate column')) {
@@ -120,7 +120,7 @@ export const systemRouter = router({
         }
 
         try {
-          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN error_message text DEFAULT NULL`);
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN error_message text DEFAULT NULL`) as any;
           results.push('Added error_message column');
         } catch (e: unknown) {
           if ((e as Error).message?.includes('Duplicate column')) {
@@ -139,7 +139,7 @@ export const systemRouter = router({
   // 诊断端点 - 查询缺少Amazon keywordId的关键词
   diagnoseKeywords: adminProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       

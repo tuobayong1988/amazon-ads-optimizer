@@ -7,7 +7,7 @@
 /**
  * 生成模拟的趋势数据（当没有真实历史数据时使用）
  */
-export function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
+export function generateSimulatedTrendData(target: Record<string, any>, days: number) {
   const data = [];
   const now = new Date();
   
@@ -59,7 +59,7 @@ export function generateSimulatedTrendData(target: Record<string, unknown>, days
 /**
  * 计算趋势摘要数据
  */
-export function calculateTrendSummary(data: unknown[]) {
+export function calculateTrendSummary(data: any[]) {
   if (!data || data.length === 0) {
     return {
       totalImpressions: 0,
@@ -83,11 +83,11 @@ export function calculateTrendSummary(data: unknown[]) {
     };
   }
   
-  const totalImpressions = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.impressions, 0);
-  const totalClicks = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.clicks, 0);
-  const totalSpend = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.spend, 0);
-  const totalSales = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.sales, 0);
-  const totalOrders = data.reduce((sum: number, d: Record<string, unknown>) => sum + d.orders, 0);
+  const totalImpressions = data.reduce((sum: number, d: Record<string, any>) => sum + d.impressions, 0);
+  const totalClicks = data.reduce((sum: number, d: Record<string, any>) => sum + d.clicks, 0);
+  const totalSpend = data.reduce((sum: number, d: Record<string, any>) => sum + d.spend, 0);
+  const totalSales = data.reduce((sum: number, d: Record<string, any>) => sum + d.sales, 0);
+  const totalOrders = data.reduce((sum: number, d: Record<string, any>) => sum + d.orders, 0);
   
   const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100) : 0;
   const avgCvr = totalClicks > 0 ? (totalOrders / totalClicks * 100) : 0;
@@ -101,8 +101,8 @@ export function calculateTrendSummary(data: unknown[]) {
   const secondHalf = data.slice(midPoint);
   
   const calcTrend = (metric: string) => {
-    const firstAvg = firstHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
-    const secondAvg = secondHalf.reduce((sum: number, d: Record<string, unknown>) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
+    const firstAvg = firstHalf.reduce((sum: number, d: Record<string, any>) => sum + (d[metric] || 0), 0) / (firstHalf.length || 1);
+    const secondAvg = secondHalf.reduce((sum: number, d: Record<string, any>) => sum + (d[metric] || 0), 0) / (secondHalf.length || 1);
     const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg * 100) : 0;
     
     if (change > 10) return 'up';

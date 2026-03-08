@@ -94,7 +94,7 @@ export function FloatingActionButton({
       {/* 展开的操作按钮 */}
       {isOpen && (
         <div className="flex flex-col items-end gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          {actions.map((action, index) => (
+          {actions.map((action: any, index: any) => (
             <div 
               key={action.id} 
               className="flex items-center gap-2"

@@ -66,22 +66,22 @@ export default function AlgorithmOptimization() {
   const [parametersDialogOpen, setParametersDialogOpen] = useState(false);
 
   // 获取算法参数
-  const { data: parameters, refetch: refetchParameters } = trpc.algorithmOptimization.getParameters.useQuery();
+  const { data: parameters, refetch: refetchParameters } = trpc.algorithmOptimization.getParameters.useQuery() as any;
 
   // 获取性能指标
-  const { data: performance, isLoading: performanceLoading } = trpc.algorithmOptimization.getPerformance.useQuery({ days });
+  const { data: performance, isLoading: performanceLoading } = trpc.algorithmOptimization.getPerformance.useQuery({ days }) as any;
 
   // 获取按类型分析
-  const { data: byType, isLoading: byTypeLoading } = trpc.algorithmOptimization.analyzeByType.useQuery({ days });
+  const { data: byType, isLoading: byTypeLoading } = trpc.algorithmOptimization.analyzeByType.useQuery({ days }) as any;
 
   // 获取按幅度分析
-  const { data: byRange, isLoading: byRangeLoading } = trpc.algorithmOptimization.analyzeByRange.useQuery({ days });
+  const { data: byRange, isLoading: byRangeLoading } = trpc.algorithmOptimization.analyzeByRange.useQuery({ days }) as any;
 
   // 获取优化建议
-  const { data: suggestions, isLoading: suggestionsLoading } = trpc.algorithmOptimization.getSuggestions.useQuery({ days });
+  const { data: suggestions, isLoading: suggestionsLoading } = trpc.algorithmOptimization.getSuggestions.useQuery({ days }) as any;
 
   // 获取参数调优建议
-  const { data: parameterTuning } = trpc.algorithmOptimization.getParameterTuning.useQuery({ days });
+  const { data: parameterTuning } = trpc.algorithmOptimization.getParameterTuning.useQuery({ days }) as any;
 
   // 更新参数
   const updateParametersMutation = trpc.algorithmOptimization.updateParameters.useMutation({

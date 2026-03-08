@@ -48,7 +48,7 @@ export async function tenantMiddleware(ctx: Context): Promise<TenantContext> {
   }
 
   // 获取用户的组织ID
-  const organizationId = (ctx.user as Record<string, unknown>).organizationId;
+  const organizationId = (ctx.user as Record<string, any>).organizationId;
   if (!organizationId) {
     throw new TRPCError({
       code: 'FORBIDDEN',

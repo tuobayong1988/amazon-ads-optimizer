@@ -12,7 +12,7 @@ const TITLE_MAX_LENGTH = 1200;
 const CONTENT_MAX_LENGTH = 20000;
 
 const trimValue = (value: string): string => value.trim();
-const isNonEmptyString = (value: unknown): value is string =>
+const isNonEmptyString = (value: any): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
 const buildEndpointUrl = (baseUrl: string): string => {

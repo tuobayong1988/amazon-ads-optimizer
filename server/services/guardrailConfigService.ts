@@ -247,7 +247,7 @@ export class GuardrailConfigService {
       `);
       
       if (rows && Array.isArray(rows) && rows.length > 0) {
-        for (const row of rows) {
+        for (const row of (rows as any[])) {
           try {
             const detail = JSON.parse((row as any).action_detail || '{}');
             if (detail.scope && detail.scopeKey && detail.overrides) {

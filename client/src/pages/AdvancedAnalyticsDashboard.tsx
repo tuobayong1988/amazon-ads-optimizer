@@ -31,7 +31,7 @@ export default function AdvancedAnalyticsDashboard() {
   const [attributionPage, setAttributionPage] = useState(0);
   const [roiGroupBy, setRoiGroupBy] = useState<"strategy" | "actionType" | "eventCategory">("strategy");
 
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccount === "all" ? undefined : parseInt(selectedAccount);
 
   // 高级分析汇总

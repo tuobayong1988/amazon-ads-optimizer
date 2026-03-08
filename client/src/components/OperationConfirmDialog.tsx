@@ -235,7 +235,7 @@ export default function OperationConfirmDialog({
                 变更详情预览
               </h4>
               <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
-                {changes.slice(0, 20).map((change, index) => (
+                {changes.slice(0, 20).map((change: any, index: any) => (
                   <div key={change.id || index} className="p-3 hover:bg-muted/50">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">

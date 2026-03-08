@@ -220,7 +220,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
               const firstUpdatedCreds = await db.getAmazonApiCredentials(updatedAccountIds[0]);
               if (firstUpdatedCreds) {
                 // 查找所有账户的凭证，找到使用不同（旧）refresh_token但属于同一组的账户
-                for (const account of allAccounts) {
+                for (const account of (allAccounts as any[])) {
                   if (updatedAccountIds.includes(account.id)) continue; // 跳过已更新的
                   
                   const creds = await db.getAmazonApiCredentials(account.id);
@@ -290,8 +290,8 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
 
       res.redirect(302, redirectUrl);
     } catch (err: unknown) {
-      log.error("[AmazonAuthCallback] v342: Token exchange failed:", err.response?.data || (err as Error).message);
-      const errorMsg = err.response?.data?.error_description || (err as Error).message || "Token换取失败";
+      log.error("[AmazonAuthCallback] v342: Token exchange failed:", (err as any).response?.data || (err as Error).message);
+      const errorMsg = (err as any).response?.data?.error_description || (err as Error).message || "Token换取失败";
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);
     }

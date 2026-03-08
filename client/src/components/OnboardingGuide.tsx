@@ -93,7 +93,7 @@ export function OnboardingGuide({ onComplete }: { onComplete: () => void }) {
         <CardContent className="p-0">
           {/* 进度条 */}
           <div className="flex gap-1 p-4 pb-0">
-            {ONBOARDING_STEPS.map((_, idx) => (
+            {ONBOARDING_STEPS.map((_: any, idx: any) => (
               <div
                 key={idx}
                 className={`h-1 flex-1 rounded-full transition-colors ${

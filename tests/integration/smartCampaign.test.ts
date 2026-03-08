@@ -251,7 +251,7 @@ describe('智能投放系统集成测试', () => {
       ];
 
       // 模拟执行
-      const results = decisions.map((decision) => ({
+      const results = decisions.map((decision: any) => ({
         campaignId: decision.campaignId,
         action: decision.action,
         success: true,
@@ -259,7 +259,7 @@ describe('智能投放系统集成测试', () => {
       }));
 
       expect(results).toHaveLength(2);
-      results.forEach((result) => {
+      results.forEach((result: any) => {
         expect(result.success).toBe(true);
         expect(result.dryRun).toBe(true);
       });
@@ -275,7 +275,7 @@ describe('智能投放系统集成测试', () => {
       ];
 
       // 模拟执行失败
-      const results = decisions.map((decision) => ({
+      const results = decisions.map((decision: any) => ({
         campaignId: decision.campaignId,
         action: decision.action,
         success: false,
@@ -417,19 +417,19 @@ describe('智能投放系统集成测试', () => {
       expect(decisions).toBeDefined();
 
       // 应该建议暂停低效活动
-      const pauseDecision = decisions.find((d) => d.campaignId === 2);
+      const pauseDecision = decisions.find((d: any) => d.campaignId === 2);
       expect(pauseDecision?.action).toBe('pause');
 
       // 应该建议启用暂停的高效活动
-      const enableDecision = decisions.find((d) => d.campaignId === 3);
+      const enableDecision = decisions.find((d: any) => d.campaignId === 3);
       expect(enableDecision?.action).toBe('enable');
 
       // 应该为高效活动建议增加投入
-      const increaseDecision = decisions.find((d) => d.campaignId === 1);
+      const increaseDecision = decisions.find((d: any) => d.campaignId === 1);
       expect(increaseDecision?.action).toMatch(/increase/);
 
       // 新活动应该有低置信度
-      const newCampaignDecision = decisions.find((d) => d.campaignId === 4);
+      const newCampaignDecision = decisions.find((d: any) => d.campaignId === 4);
       if (newCampaignDecision) {
         expect(newCampaignDecision.confidence).toBeLessThan(0.6);
       }

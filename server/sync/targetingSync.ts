@@ -54,7 +54,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
     log.debug(`获取到 ${reportData.length} 条自动定向数据`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 只处理自动定向数据
       if (row.targetingType !== 'AUTO') continue;
 
@@ -171,7 +171,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     log.debug(`获取到 ${reportData.length} 条SD定向数据`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
         .select()
@@ -285,7 +285,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     log.debug(`获取到 ${reportData.length} 条SB定向数据`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
         .select()

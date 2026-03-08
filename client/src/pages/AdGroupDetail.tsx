@@ -87,21 +87,21 @@ export default function AdGroupDetail() {
   const keywordSummary = {
     total: keywords?.length || 0,
     enabled: keywords?.filter(k => k.keywordStatus === "enabled").length || 0,
-    totalSpend: keywords?.reduce((sum, k) => sum + parseFloat(k.spend || "0"), 0) || 0,
-    totalSales: keywords?.reduce((sum, k) => sum + parseFloat(k.sales || "0"), 0) || 0,
-    totalClicks: keywords?.reduce((sum, k) => sum + (k.clicks || 0), 0) || 0,
-    totalImpressions: keywords?.reduce((sum, k) => sum + (k.impressions || 0), 0) || 0,
-    totalOrders: keywords?.reduce((sum, k) => sum + (k.orders || 0), 0) || 0,
+    totalSpend: keywords?.reduce((sum: any, k: any) => sum + parseFloat(k.spend || "0"), 0) || 0,
+    totalSales: keywords?.reduce((sum: any, k: any) => sum + parseFloat(k.sales || "0"), 0) || 0,
+    totalClicks: keywords?.reduce((sum: any, k: any) => sum + (k.clicks || 0), 0) || 0,
+    totalImpressions: keywords?.reduce((sum: any, k: any) => sum + (k.impressions || 0), 0) || 0,
+    totalOrders: keywords?.reduce((sum: any, k: any) => sum + (k.orders || 0), 0) || 0,
   };
   
   const targetSummary = {
     total: productTargets?.length || 0,
     enabled: productTargets?.filter(t => t.targetStatus === "enabled").length || 0,
-    totalSpend: productTargets?.reduce((sum, t) => sum + parseFloat(t.spend || "0"), 0) || 0,
-    totalSales: productTargets?.reduce((sum, t) => sum + parseFloat(t.sales || "0"), 0) || 0,
-    totalClicks: productTargets?.reduce((sum, t) => sum + (t.clicks || 0), 0) || 0,
-    totalImpressions: productTargets?.reduce((sum, t) => sum + (t.impressions || 0), 0) || 0,
-    totalOrders: productTargets?.reduce((sum, t) => sum + (t.orders || 0), 0) || 0,
+    totalSpend: productTargets?.reduce((sum: any, t: any) => sum + parseFloat(t.spend || "0"), 0) || 0,
+    totalSales: productTargets?.reduce((sum: any, t: any) => sum + parseFloat(t.sales || "0"), 0) || 0,
+    totalClicks: productTargets?.reduce((sum: any, t: any) => sum + (t.clicks || 0), 0) || 0,
+    totalImpressions: productTargets?.reduce((sum: any, t: any) => sum + (t.impressions || 0), 0) || 0,
+    totalOrders: productTargets?.reduce((sum: any, t: any) => sum + (t.orders || 0), 0) || 0,
   };
   
   const getStatusBadge = (status: string) => {
@@ -387,7 +387,7 @@ export default function AdGroupDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredKeywords.map((keyword) => {
+                        {filteredKeywords.map((keyword: any) => {
                           const kwSpend = parseFloat(keyword.spend || "0");
                           const kwSales = parseFloat(keyword.sales || "0");
                           const kwImpressions = keyword.impressions || 0;
@@ -459,7 +459,7 @@ export default function AdGroupDetail() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredTargets.map((target) => {
+                        {filteredTargets.map((target: any) => {
                           const tSpend = parseFloat(target.spend || "0");
                           const tSales = parseFloat(target.sales || "0");
                           const tImpressions = target.impressions || 0;

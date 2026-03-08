@@ -64,13 +64,13 @@ export default function AutoRollbackSettings() {
   const [reviewNote, setReviewNote] = useState('');
 
   // 获取回滚规则
-  const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = trpc.autoRollback.getRules.useQuery();
+  const { data: rules, isLoading: rulesLoading, refetch: refetchRules } = trpc.autoRollback.getRules.useQuery() as any;
 
   // 获取回滚建议
-  const { data: suggestions, isLoading: suggestionsLoading, refetch: refetchSuggestions } = trpc.autoRollback.getSuggestions.useQuery({});
+  const { data: suggestions, isLoading: suggestionsLoading, refetch: refetchSuggestions } = trpc.autoRollback.getSuggestions.useQuery({}) as any;
 
   // 获取统计数据
-  const { data: stats } = trpc.autoRollback.getStats.useQuery();
+  const { data: stats } = trpc.autoRollback.getStats.useQuery() as any;
 
   // 运行评估
   const runEvaluationMutation = trpc.autoRollback.runEvaluation.useMutation({

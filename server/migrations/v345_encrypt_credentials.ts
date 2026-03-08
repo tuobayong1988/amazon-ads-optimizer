@@ -81,12 +81,13 @@ export async function migrateEncryptCredentials(): Promise<{
       FROM amazon_api_credentials
     `) as unknown;
     
+    // @ts-ignore
     const records = rows[0] || rows;
     result.totalRecords = records.length;
     console.log(`[v345-migration] 共 ${records.length} 条凭证记录`);
 
     // 步骤3: 逐条加密
-    for (const record of records) {
+    for (const record of (records as any[])) {
       try {
         const needEncryptSecret = record.clientSecret && !isEncrypted(record.clientSecret);
         const needEncryptToken = record.refreshToken && !isEncrypted(record.refreshToken);

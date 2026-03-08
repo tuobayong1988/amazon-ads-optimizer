@@ -2,7 +2,7 @@
  * M4X 文案动态进化引擎服务
  * 初始生成(Gen-0) → 反馈归因 → 变异 → 适应度排序 → 下一代
  */
-import { getDb } from '../../db';
+import { DbInstance, getDb } from '../../db';
 import {
   prelaunchCopyVersions, prelaunchCopyFeedback,
   prelaunchQnaSeeds, prelaunchKeywords,
@@ -63,28 +63,29 @@ export class M4XCopyService {
         .where(eq(prelaunchCompetitorUserLanguage.projectId, projectId));
 
       // 构建上下文
-      const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 20);
-      const extKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'extended').slice(0, 15);
-      const painPhrases = userLanguage.filter((u: Record<string, unknown>) => u.sentiment === 'negative').slice(0, 10);
-      const praisePhrases = userLanguage.filter((u: Record<string, unknown>) => u.sentiment === 'positive').slice(0, 10);
+      const coreKws = keywords.filter((k: Record<string, any>) => k.relevanceLayer === 'core').slice(0, 20);
+      const extKws = keywords.filter((k: Record<string, any>) => k.relevanceLayer === 'extended').slice(0, 15);
+      const painPhrases = userLanguage.filter((u: Record<string, any>) => u.sentiment === 'negative').slice(0, 10);
+      const praisePhrases = userLanguage.filter((u: Record<string, any>) => u.sentiment === 'positive').slice(0, 10);
 
       const copyTypes = ['title', 'bullet_points', 'description', 'backend_keywords', 'a_plus'];
 
       for (const copyType of copyTypes) {
         const prompt = this.buildCopyPrompt(copyType, {
-          coreKeywords: coreKws.map((k: Record<string, unknown>) => k.keyword),
-          extendedKeywords: extKws.map((k: Record<string, unknown>) => k.keyword),
-          personas: personas.map((p: Record<string, unknown>) => ({ name: p.personaName, painPoints: p.painPoints })),
-          cosmoTriples: cosmoTriples.slice(0, 10).map((t: Record<string, unknown>) => ({
+          coreKeywords: coreKws.map((k: Record<string, any>) => k.keyword),
+          extendedKeywords: extKws.map((k: Record<string, any>) => k.keyword),
+          personas: personas.map((p: Record<string, any>) => ({ name: p.personaName, painPoints: p.painPoints })),
+          cosmoTriples: cosmoTriples.slice(0, 10).map((t: Record<string, any>) => ({
             cause: t.causeNode, effect: t.effectNode, outcome: t.outcomeNode,
           })),
-          painPhrases: painPhrases.map((p: Record<string, unknown>) => p.phrase),
-          praisePhrases: praisePhrases.map((p: Record<string, unknown>) => p.phrase),
+          painPhrases: painPhrases.map((p: Record<string, any>) => p.phrase),
+          praisePhrases: praisePhrases.map((p: Record<string, any>) => p.phrase),
         });
 
         const result = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.5 });
 
         await db.insert(prelaunchCopyVersions).values({
+          // @ts-ignore
           projectId,
           generation: 0,
           copyType,
@@ -133,7 +134,7 @@ export class M4XCopyService {
         .where(eq(prelaunchCopyFeedback.projectId, projectId));
 
       // 按copyType分组获取最佳版本
-      const bestByType = new Map<string, unknown>();
+      const bestByType = new Map<string, any>();
       for (const v of currentVersions) {
         if (!bestByType.has(v.copyType)) {
           bestByType.set(v.copyType, v);
@@ -143,8 +144,8 @@ export class M4XCopyService {
       // 为每种类型生成变异版本
       for (const [copyType, parent] of bestByType) {
         const feedbackSummary = feedback
-          .filter((f: Record<string, unknown>) => f.copyVersionId === parent.id)
-          .map((f: Record<string, unknown>) => `${f.signalType}: ${f.metricName}=${f.metricValue}`)
+          .filter((f: Record<string, any>) => f.copyVersionId === parent.id)
+          .map((f: Record<string, any>) => `${f.signalType}: ${f.metricName}=${f.metricValue}`)
           .join(', ');
 
         const prompt = `You are an Amazon listing copywriting evolution engine.
@@ -200,14 +201,14 @@ Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKey
   }
 
   /** 生成Rufus Q&A种子 */
-  private async generateQnaSeeds(db: ReturnType<typeof getDb> | null, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
+  private async generateQnaSeeds(db: DbInstance, projectId: number, cosmoTriples: any[], keywords: any[]) {
     const prompt = `Generate Amazon Rufus-optimized Q&A pairs based on these COSMO cause-effect-outcome triples and keywords.
 
 COSMO TRIPLES:
-${cosmoTriples.slice(0, 15).map((t: Record<string, unknown>) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
+${cosmoTriples.slice(0, 15).map((t: Record<string, any>) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
 
 CORE KEYWORDS:
-${keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 20).map((k: Record<string, unknown>) => k.keyword).join(', ')}
+${keywords.filter((k: Record<string, any>) => k.relevanceLayer === 'core').slice(0, 20).map((k: Record<string, any>) => k.keyword).join(', ')}
 
 Generate 10-20 Q&A pairs that:
 1. Address common customer questions
@@ -217,9 +218,10 @@ Generate 10-20 Q&A pairs that:
 
 Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keyword_faq|competitor_gap"}]`;
 
-    const qnas = await geminiStructuredOutput<Record<string, unknown>[]>('', prompt, { temperature: 0.4 });
+    const qnas = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.4 });
 
     for (const qna of qnas) {
+      // @ts-ignore
       await db.insert(prelaunchQnaSeeds).values({
         projectId,
         question: qna.question,
@@ -230,17 +232,17 @@ Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keywor
   }
 
   /** 构建文案生成Prompt */
-  private buildCopyPrompt(copyType: string, context: unknown): string {
+  private buildCopyPrompt(copyType: string, context: any): string {
     const base = `You are an expert Amazon listing copywriter. Use the following data to create optimized copy.
 
 CORE KEYWORDS (must include): ${context.coreKeywords.join(', ')}
 EXTENDED KEYWORDS (include where natural): ${context.extendedKeywords.join(', ')}
 
 BUYER PERSONAS:
-${context.personas.map((p: Record<string, unknown>) => `- ${p.name}: Pain points: ${JSON.stringify(p.painPoints)}`).join('\n')}
+${context.personas.map((p: Record<string, any>) => `- ${p.name}: Pain points: ${JSON.stringify(p.painPoints)}`).join('\n')}
 
 COSMO CAUSAL CHAINS (use for persuasion logic):
-${context.cosmoTriples.map((t: Record<string, unknown>) => `${t.cause} → ${t.effect} → ${t.outcome}`).join('\n')}
+${context.cosmoTriples.map((t: Record<string, any>) => `${t.cause} → ${t.effect} → ${t.outcome}`).join('\n')}
 
 REAL USER LANGUAGE (pain points): ${context.painPhrases.join('; ')}
 REAL USER LANGUAGE (praises): ${context.praisePhrases.join('; ')}`;

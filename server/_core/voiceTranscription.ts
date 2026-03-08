@@ -119,7 +119,7 @@ export async function transcribeAudio(
       return {
         error: "Failed to fetch audio file",
         code: "SERVICE_ERROR",
-        details: error instanceof Error ? error.message : "Unknown error"
+        details: error instanceof Error ? (error as Error).message : "Unknown error"
       };
     }
 
@@ -189,7 +189,7 @@ export async function transcribeAudio(
     return {
       error: "Voice transcription failed",
       code: "SERVICE_ERROR",
-      details: error instanceof Error ? error.message : "An unexpected error occurred"
+      details: error instanceof Error ? (error as Error).message : "An unexpected error occurred"
     };
   }
 }
@@ -255,7 +255,7 @@ function getLanguageName(langCode: string): string {
  *       language: z.string().optional(),
  *       prompt: z.string().optional(),
  *     }))
- *     .mutation(async ({ input, ctx }) => {
+ *     .mutation(async ({ input, ctx }: any) => {
  *       const result = await transcribeAudio(input);
  *       
  *       // Check if it's an error

@@ -197,7 +197,7 @@ function MarketCurveVisualization({
           <path
             d={`
               M 0 ${100}
-              ${curveData.map((p, i) => {
+              ${curveData.map((p: any, i: any) => {
                 const x = (p.bid / maxBid) * 100;
                 const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
@@ -212,7 +212,7 @@ function MarketCurveVisualization({
           <path
             d={`
               M ${(curveData[0].bid / maxBid) * 100} ${100 - ((curveData[0].profit - minProfit) / profitRange) * 100}
-              ${curveData.slice(1).map((p) => {
+              ${curveData.slice(1).map((p: any) => {
                 const x = (p.bid / maxBid) * 100;
                 const y = 100 - ((p.profit - minProfit) / profitRange) * 100;
                 return `L ${x} ${y}`;
@@ -364,7 +364,7 @@ function KeywordPredictionTable({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const sortedPredictions = useMemo(() => {
-    return [...predictions].sort((a, b) => {
+    return [...predictions].sort((a: any, b: any) => {
       const aVal = a[sortBy];
       const bVal = b[sortBy];
       return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
@@ -421,7 +421,7 @@ function KeywordPredictionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedPredictions.slice(0, 20).map((pred) => {
+            {sortedPredictions.slice(0, 20).map((pred: any) => {
               const confidenceInfo = getConfidenceLevel(pred.confidence);
               return (
                 <TableRow key={pred.keywordId}>
@@ -603,7 +603,7 @@ function BidObjectProfitTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {profitData.map((item) => {
+            {profitData.map((item: any) => {
               const confidenceInfo = getConfidenceLevel(item.confidence);
               const profitChangePercent = item.currentProfit !== 0 
                 ? ((item.profitChange / Math.abs(item.currentProfit)) * 100)
@@ -667,7 +667,7 @@ export default function AdvancedPlacementOptimization() {
   const [applyingRecommendationId, setApplyingRecommendationId] = useState<number | null>(null);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // 获取广告活动列表
   const { data: campaigns } = trpc.campaign.list.useQuery(
@@ -772,8 +772,8 @@ export default function AdvancedPlacementOptimization() {
       };
     }
 
-    const totalSpend = performanceData.reduce((sum, p) => sum + (p.metrics?.spend || 0), 0);
-    const totalSales = performanceData.reduce((sum, p) => sum + (p.metrics?.sales || 0), 0);
+    const totalSpend = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.spend || 0), 0);
+    const totalSales = performanceData.reduce((sum: any, p: any) => sum + (p.metrics?.sales || 0), 0);
     const totalProfit = totalSales - totalSpend;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
@@ -820,7 +820,7 @@ export default function AdvancedPlacementOptimization() {
 
   const optimalPoint = useMemo(() => {
     if (mockMarketCurveData.length === 0) return undefined;
-    const maxProfitPoint = mockMarketCurveData.reduce((max, p) => p.profit > max.profit ? p : max);
+    const maxProfitPoint = mockMarketCurveData.reduce((max: any, p: any) => p.profit > max.profit ? p : max);
     return { bid: maxProfitPoint.bid, profit: maxProfitPoint.profit };
   }, [mockMarketCurveData]);
 
@@ -882,7 +882,7 @@ export default function AdvancedPlacementOptimization() {
                     <SelectValue placeholder="选择账号" />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts?.map((account) => (
+                    {accounts?.map((account: any) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.storeName || account.accountName}
                       </SelectItem>
@@ -902,7 +902,7 @@ export default function AdvancedPlacementOptimization() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">全部广告活动</SelectItem>
-                    {campaigns?.map((campaign) => (
+                    {campaigns?.map((campaign: any) => (
                       <SelectItem key={campaign.id} value={campaign.campaignId}>
                         {campaign.campaignName}
                       </SelectItem>
@@ -1077,7 +1077,7 @@ export default function AdvancedPlacementOptimization() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {performanceData.map((placement) => {
+                      {performanceData.map((placement: any) => {
                         const placementInfo = PLACEMENT_LABELS[placement.placementType];
                         const profit = (placement.metrics?.sales || 0) - (placement.metrics?.spend || 0);
                         
@@ -1275,7 +1275,7 @@ export default function AdvancedPlacementOptimization() {
                       { name: "关键词类型", importance: 0.20, color: "bg-purple-500" },
                       { name: "产品类别", importance: 0.12, color: "bg-orange-500" },
                       { name: "平均出价", importance: 0.08, color: "bg-pink-500" },
-                    ].map((feature) => (
+                    ].map((feature: any) => (
                       <div key={feature.name} className="space-y-1">
                         <div className="flex justify-between text-sm">
                           <span>{feature.name}</span>

@@ -80,14 +80,14 @@ export function linearRegression(data: DataPoint[]): {
   }));
 
   // 计算均值
-  const sumX = points.reduce((sum, p) => sum + p.x, 0);
-  const sumY = points.reduce((sum, p) => sum + p.y, 0);
+  const sumX = points.reduce((sum: any, p: any) => sum + p.x, 0);
+  const sumY = points.reduce((sum: any, p: any) => sum + p.y, 0);
   const meanX = sumX / n;
   const meanY = sumY / n;
 
   // 计算斜率和截距
-  const numerator = points.reduce((sum, p) => sum + (p.x - meanX) * (p.y - meanY), 0);
-  const denominator = points.reduce((sum, p) => sum + Math.pow(p.x - meanX, 2), 0);
+  const numerator = points.reduce((sum: any, p: any) => sum + (p.x - meanX) * (p.y - meanY), 0);
+  const denominator = points.reduce((sum: any, p: any) => sum + Math.pow(p.x - meanX, 2), 0);
   
   const slope = denominator === 0 ? 0 : numerator / denominator;
   const intercept = meanY - slope * meanX;
@@ -95,7 +95,7 @@ export function linearRegression(data: DataPoint[]): {
   // 计算R²(决定系数)
   const predictions = points.map(p => slope * p.x + intercept);
   const ssRes = points.reduce((sum, p, i) => sum + Math.pow(p.y - predictions[i], 2), 0);
-  const ssTot = points.reduce((sum, p) => sum + Math.pow(p.y - meanY, 2), 0);
+  const ssTot = points.reduce((sum: any, p: any) => sum + Math.pow(p.y - meanY, 2), 0);
   const r2 = ssTot === 0 ? 0 : 1 - (ssRes / ssTot);
 
   return { slope, intercept, r2 };
@@ -122,9 +122,9 @@ export function predictFutureDays(
   }));
   
   const predictions = points.map(p => slope * p.x + intercept);
-  const residuals = points.map((p, i) => p.y - predictions[i]);
+  const residuals = points.map((p: any, i: any) => p.y - predictions[i]);
   const standardError = Math.sqrt(
-    residuals.reduce((sum, r) => sum + r * r, 0) / (data.length - 2)
+    residuals.reduce((sum: any, r: any) => sum + r * r, 0) / (data.length - 2)
   );
 
   // 生成预测结果
@@ -141,7 +141,7 @@ export function predictFutureDays(
     const predicted = slope * x + intercept;
     
     // 95%置信区间 (约1.96个标准误差)
-    const margin = 1.96 * standardError * Math.sqrt(1 + 1/data.length + Math.pow(x - points.reduce((sum, p) => sum + p.x, 0) / data.length, 2) / points.reduce((sum, p) => sum + Math.pow(p.x, 2), 0));
+    const margin = 1.96 * standardError * Math.sqrt(1 + 1/data.length + Math.pow(x - points.reduce((sum: any, p: any) => sum + p.x, 0) / data.length, 2) / points.reduce((sum: any, p: any) => sum + Math.pow(p.x, 2), 0));
     
     results.push({
       date: safeToISODateString(futureDate),
@@ -190,7 +190,7 @@ export function predictTrend(data: DataPoint[]): {
   const { slope, r2 } = linearRegression(data);
   
   // 计算平均值用于归一化斜率
-  const avgValue = data.reduce((sum, d) => sum + d.value, 0) / data.length;
+  const avgValue = data.reduce((sum: any, d: any) => sum + d.value, 0) / data.length;
   const normalizedSlope = avgValue === 0 ? 0 : slope / avgValue;
   
   // 判断趋势方向
@@ -227,7 +227,7 @@ export function detectSeasonality(data: DataPoint[], period: number = 7): {
 
   // 计算自相关系数
   const values = data.map(d => d.value);
-  const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+  const mean = values.reduce((sum: any, v: any) => sum + v, 0) / values.length;
   
   let numerator = 0;
   let denominator = 0;
@@ -268,20 +268,20 @@ export function linearRegressionIndexed(data: Array<{ value: number; index: numb
     return { slope: 0, intercept: data[0].value, rSquared: 1 };
   }
 
-  const sumX = data.reduce((sum, p) => sum + p.index, 0);
-  const sumY = data.reduce((sum, p) => sum + p.value, 0);
+  const sumX = data.reduce((sum: any, p: any) => sum + p.index, 0);
+  const sumY = data.reduce((sum: any, p: any) => sum + p.value, 0);
   const meanX = sumX / n;
   const meanY = sumY / n;
 
-  const numerator = data.reduce((sum, p) => sum + (p.index - meanX) * (p.value - meanY), 0);
-  const denominator = data.reduce((sum, p) => sum + Math.pow(p.index - meanX, 2), 0);
+  const numerator = data.reduce((sum: any, p: any) => sum + (p.index - meanX) * (p.value - meanY), 0);
+  const denominator = data.reduce((sum: any, p: any) => sum + Math.pow(p.index - meanX, 2), 0);
   
   const slope = denominator === 0 ? 0 : numerator / denominator;
   const intercept = meanY - slope * meanX;
 
   const predictions = data.map(p => slope * p.index + intercept);
   const ssRes = data.reduce((sum, p, i) => sum + Math.pow(p.value - predictions[i], 2), 0);
-  const ssTot = data.reduce((sum, p) => sum + Math.pow(p.value - meanY, 2), 0);
+  const ssTot = data.reduce((sum: any, p: any) => sum + Math.pow(p.value - meanY, 2), 0);
   const rSquared = ssTot === 0 ? 1 : 1 - (ssRes / ssTot);
 
   return { slope, intercept, rSquared };
@@ -298,7 +298,7 @@ export function movingAverage(data: number[], window: number): number[] {
   for (let i = 0; i < data.length; i++) {
     const start = Math.max(0, i - window + 1);
     const windowData = data.slice(start, i + 1);
-    const avg = windowData.reduce((sum, v) => sum + v, 0) / windowData.length;
+    const avg = windowData.reduce((sum: any, v: any) => sum + v, 0) / windowData.length;
     result.push(avg);
   }
   
@@ -369,7 +369,7 @@ export function analyzeTrend(data: DataPoint[]): {
   }
 
   const { slope, r2 } = linearRegression(data);
-  const avgValue = data.reduce((sum, d) => sum + d.value, 0) / data.length;
+  const avgValue = data.reduce((sum: any, d: any) => sum + d.value, 0) / data.length;
   const normalizedSlope = avgValue === 0 ? 0 : slope / avgValue;
   
   let direction: 'up' | 'down' | 'stable';
@@ -408,7 +408,7 @@ export function combinedPrediction(
   const { slope } = linearRegression(data);
   
   // 组合预测(70%线性回归 + 30%EMA)
-  return linearPred.map((pred, i) => {
+  return linearPred.map((pred: any, i: any) => {
     const emaPred = lastEMA + slope * (i + 1);
     const combined = pred.predicted * 0.7 + emaPred * 0.3;
     

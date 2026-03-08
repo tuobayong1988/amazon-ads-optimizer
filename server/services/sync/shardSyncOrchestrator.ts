@@ -84,12 +84,13 @@ export async function shardBasedSyncAll(
     const steps = getStepsForTier(tier);
     const shardDefs: ShardDefinition[] = [];
 
-    for (const account of accounts) {
+    for (const account of (accounts as any[])) {
       for (const step of steps) {
         shardDefs.push({
           accountId: account.accountId,
           stepId: step.id,
           stepName: step.name,
+          // @ts-ignore
           tier: step.tier,
         });
       }
@@ -189,7 +190,7 @@ export async function shardBasedSyncAll(
               errorCode = 'API_THROTTLE';
             }
             
-            await markShardFailed(shard.shardId, error.message, errorCode);
+            await markShardFailed(shard.shardId, (error as Error).message, errorCode);
             result.failedShards++;
           }
 

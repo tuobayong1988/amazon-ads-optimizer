@@ -69,41 +69,41 @@ function generateCampaignHistory(
 function generateDiverseCampaignData(): Record<string, CampaignPerformance[]> {
   return {
     // 高效活动 - 低ACoS,高ROAS
-    highPerformer: generateCampaignHistory(1, 90).map((d) => ({
+    highPerformer: generateCampaignHistory(1, 90).map((d: any) => ({
       ...d,
       sales: d.sales * 1.5, // 提高销售额
       spend: d.spend * 0.8, // 降低花费
     })),
 
     // 低效活动 - 高ACoS,低ROAS
-    lowPerformer: generateCampaignHistory(2, 90).map((d) => ({
+    lowPerformer: generateCampaignHistory(2, 90).map((d: any) => ({
       ...d,
       sales: d.sales * 0.6, // 降低销售额
       spend: d.spend * 1.3, // 提高花费
     })),
 
     // 上升趋势活动
-    growingCampaign: generateCampaignHistory(3, 90).map((d, i) => ({
+    growingCampaign: generateCampaignHistory(3, 90).map((d: any, i: any) => ({
       ...d,
       sales: d.sales * (1 + i / 180), // 逐渐增长
       impressions: Math.floor(d.impressions * (1 + i / 180)),
     })),
 
     // 下降趋势活动
-    decliningCampaign: generateCampaignHistory(4, 90).map((d, i) => ({
+    decliningCampaign: generateCampaignHistory(4, 90).map((d: any, i: any) => ({
       ...d,
       sales: d.sales * (1 - i / 360), // 逐渐下降
       impressions: Math.floor(d.impressions * (1 - i / 360)),
     })),
 
     // 稳定活动
-    stableCampaign: generateCampaignHistory(5, 90).map((d) => ({
+    stableCampaign: generateCampaignHistory(5, 90).map((d: any) => ({
       ...d,
       // 保持原样,波动较小
     })),
 
     // 季节性活动
-    seasonalCampaign: generateCampaignHistory(6, 90).map((d, i) => {
+    seasonalCampaign: generateCampaignHistory(6, 90).map((d: any, i: any) => {
       const seasonalFactor = 1 + Math.sin((i / 90) * Math.PI * 2) * 0.5;
       return {
         ...d,
@@ -174,13 +174,13 @@ function generateReport() {
   console.log('\n========== ML训练数据统计报告 ==========\n');
 
   for (const [type, data] of Object.entries(campaignData)) {
-    const totalSpend = data.reduce((sum, d) => sum + d.spend, 0);
-    const totalSales = data.reduce((sum, d) => sum + d.sales, 0);
-    const totalImpressions = data.reduce((sum, d) => sum + d.impressions, 0);
-    const totalClicks = data.reduce((sum, d) => sum + d.clicks, 0);
-    const totalOrders = data.reduce((sum, d) => sum + d.orders, 0);
+    const totalSpend = data.reduce((sum: any, d: any) => sum + d.spend, 0);
+    const totalSales = data.reduce((sum: any, d: any) => sum + d.sales, 0);
+    const totalImpressions = data.reduce((sum: any, d: any) => sum + d.impressions, 0);
+    const totalClicks = data.reduce((sum: any, d: any) => sum + d.clicks, 0);
+    const totalOrders = data.reduce((sum: any, d: any) => sum + d.orders, 0);
 
-    const avgBid = data.reduce((sum, d) => sum + d.bid, 0) / data.length;
+    const avgBid = data.reduce((sum: any, d: any) => sum + d.bid, 0) / data.length;
     const acos = (totalSpend / totalSales) * 100;
     const roas = totalSales / totalSpend;
     const ctr = (totalClicks / totalImpressions) * 100;
@@ -222,7 +222,7 @@ async function exportToCSV() {
   for (const [type, data] of Object.entries(campaignData)) {
     const csvContent = [
       'date,campaign_id,bid,spend,impressions,clicks,sales,orders,acos,roas,ctr,cvr',
-      ...data.map((d) => {
+      ...data.map((d: any) => {
         const acos = (d.spend / d.sales) * 100;
         const roas = d.sales / d.spend;
         const ctr = (d.clicks / d.impressions) * 100;

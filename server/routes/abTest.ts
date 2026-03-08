@@ -42,8 +42,8 @@ export const abTestRouter = router({
         minSampleSize: input.minSampleSize,
         confidenceLevel: input.confidenceLevel,
         durationDays: input.durationDays,
-        controlConfig: input.controlConfig as Record<string, unknown>,
-        treatmentConfig: input.treatmentConfig as Record<string, unknown>,
+        controlConfig: input.controlConfig as Record<string, any>,
+        treatmentConfig: input.treatmentConfig as Record<string, any>,
         trafficSplit: input.trafficSplit,
       }, ctx.user.id);
     }),
@@ -51,14 +51,14 @@ export const abTestRouter = router({
   // 获取测试列表
   list: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return abTestService.getABTests(input.accountId);
     }),
   
   // 获取测试详情
   get: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return abTestService.getABTestById(input.testId);
     }),
   
@@ -69,7 +69,7 @@ export const abTestRouter = router({
       campaignIds: z.array(z.number()),
       splitMethod: z.enum(['random', 'stratified', 'manual']).optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return abTestService.assignCampaignsToTest(
         input.testId,
         input.campaignIds,
@@ -83,7 +83,7 @@ export const abTestRouter = router({
       testId: z.number(),
       durationDays: z.number().optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await abTestService.startABTest(input.testId, input.durationDays);
       return { success: true };
     }),
@@ -91,7 +91,7 @@ export const abTestRouter = router({
   // 暂停测试
   pause: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await abTestService.pauseABTest(input.testId);
       return { success: true };
     }),
@@ -99,7 +99,7 @@ export const abTestRouter = router({
   // 结束测试
   complete: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await abTestService.completeABTest(input.testId);
       return { success: true };
     }),
@@ -107,14 +107,14 @@ export const abTestRouter = router({
   // 分析测试结果
   analyze: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return abTestService.analyzeABTestResults(input.testId);
     }),
   
   // 删除测试
   delete: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await abTestService.deleteABTest(input.testId);
       return { success: true };
     }),
@@ -124,7 +124,7 @@ export const abTestRouter = router({
   // v276: 实验统计概览 — 提供全局实验状态汇总
   overview: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const db = await getDb();
       if (!db) return { total: 0, running: 0, completed: 0, draft: 0, avgConfidence: 0, recentResults: [] };
 
@@ -165,7 +165,7 @@ export const abTestRouter = router({
           draft,
           paused,
           avgConfidence: allTests.length > 0
-            ? allTests.reduce((sum, t) => sum + parseFloat(t.confidenceLevel || '0.95'), 0) / allTests.length
+            ? allTests.reduce((sum: any, t: any) => sum + parseFloat(t.confidenceLevel || '0.95'), 0) / allTests.length
             : 0.95,
           recentResults,
         };
@@ -219,7 +219,7 @@ export const abTestRouter = router({
       applyToAll: z.boolean().default(false),
       targetGroupId: z.number().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Database not available' });
 
@@ -279,7 +279,7 @@ export const abTestRouter = router({
   // v276: 获取实验每日趋势数据 — 用于前端趋势图展示
   getDailyTrend: protectedProcedure
     .input(z.object({ testId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const db = await getDb();
       if (!db) return { controlTrend: [], treatmentTrend: [] };
 

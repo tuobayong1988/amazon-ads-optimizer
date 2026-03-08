@@ -54,7 +54,7 @@ export async function syncSbSearchTerms(service: SyncContext,days: number = 14):
     log.debug(`获取到 ${reportData.length} 条SB搜索词数据`);
     let synced = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的campaign
       const [campaign] = await db
         .select()
@@ -230,7 +230,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
       .from(campaigns)
       .where(eq(campaigns.accountId, service.accountId));
     const campaignMap = new Map<string, { id: number }>();
-    for (const c of allCampaigns) {
+    for (const c of (allCampaigns as any[])) {
       campaignMap.set(String(c.campaignId), { id: c.id });
     }
 
@@ -252,7 +252,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
       // @ts-expect-error - property exists at runtime
       .where(eq(keywords.accountId, service.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
-    for (const kw of allKeywords) {
+    for (const kw of (allKeywords as any[])) {
       const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
       keywordMap.set(key, { id: kw.id, matchType: kw.matchType });
     }
@@ -285,7 +285,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     let synced = 0;
     let skipped = 0;
 
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // 查找对应的campaign（从Map查找，O(1)）
       const campaign = campaignMap.get(String(row.campaignId));
       if (!campaign) { skipped++; continue; }

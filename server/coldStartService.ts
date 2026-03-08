@@ -199,7 +199,7 @@ export async function triggerColdStartForAllAccounts(
     
     log.info(`[ColdStart] 发现 ${accounts.length} 个账户需要冷启动`);
     
-    for (const account of accounts) {
+    for (const account of (accounts as any[])) {
       try {
         const triggerResult = await triggerColdStart(account.accountId, {
           reason,
@@ -272,7 +272,7 @@ async function executeColdStart(
       log.info(`[ColdStart] 阶段1: 全量数据同步开始 (${historicalDays}天)...`);
       
       try {
-        const syncResult = await executeFullSync(accountId, historicalDays);
+        const syncResult: any = await executeFullSync(accountId, historicalDays);
         result.syncPhase = {
           executed: true,
           campaigns: syncResult.campaigns,
@@ -573,7 +573,7 @@ async function checkIdempotency(accountId: number, reason: ColdStartTriggerReaso
         WHERE accountId = ${accountId} 
         LIMIT 1
       `);
-      const row = (rows as Record<string, unknown>[])?.[0]?.[0];
+      const row = (rows as Record<string, any>[])?.[0]?.[0];
       if (row?.last_cold_start_version >= SYSTEM_VERSION) {
         return `该账户已在 v${row.last_cold_start_version} 执行过冷启动，当前版本 v${SYSTEM_VERSION}`;
       }
@@ -584,7 +584,7 @@ async function checkIdempotency(accountId: number, reason: ColdStartTriggerReaso
         WHERE accountId = ${accountId} 
         LIMIT 1
       `);
-      const row = (rows as Record<string, unknown>[])?.[0]?.[0];
+      const row = (rows as Record<string, any>[])?.[0]?.[0];
       if (row?.last_cold_start_at) {
         const lastColdStart = new Date(row.last_cold_start_at).getTime();
         const hoursSince = (Date.now() - lastColdStart) / (1000 * 60 * 60);
@@ -599,7 +599,7 @@ async function checkIdempotency(accountId: number, reason: ColdStartTriggerReaso
         WHERE accountId = ${accountId} 
         LIMIT 1
       `);
-      const row = (rows as Record<string, unknown>[])?.[0]?.[0];
+      const row = (rows as Record<string, any>[])?.[0]?.[0];
       if (row?.last_cold_start_at) {
         const lastColdStart = new Date(row.last_cold_start_at).getTime();
         const minutesSince = (Date.now() - lastColdStart) / (1000 * 60);
@@ -629,7 +629,7 @@ async function createColdStartLog(accountId: number, reason: ColdStartTriggerRea
       VALUES (${accountId}, ${reason}, ${SYSTEM_VERSION}, 'started')
     `);
     
-    return (result as Record<string, unknown>[])?.[0]?.insertId || 0;
+    return (result as Record<string, any>[])?.[0]?.insertId || 0;
   } catch (err: unknown) {
     log.warn(`[ColdStart] 创建日志记录失败: ${(err as Error).message}`);
     return 0;
@@ -786,7 +786,7 @@ export async function getColdStartStatus(accountId: number): Promise<{
       LIMIT 1
     `);
     
-    const row = (rows as Record<string, unknown>[])?.[0]?.[0];
+    const row = (rows as Record<string, any>[])?.[0]?.[0];
     return {
       lastColdStartAt: row?.last_cold_start_at || null,
       lastColdStartVersion: row?.last_cold_start_version || null,
@@ -801,7 +801,7 @@ export async function getColdStartStatus(accountId: number): Promise<{
 /**
  * 获取冷启动执行日志
  */
-export async function getColdStartLogs(accountId?: number, limit: number = 20): Promise<Record<string, unknown>[]> {
+export async function getColdStartLogs(accountId?: number, limit: number = 20): Promise<Record<string, any>[]> {
   try {
     const database = await getDb();
     if (!database) return [];
@@ -813,14 +813,16 @@ export async function getColdStartLogs(accountId?: number, limit: number = 20): 
         ORDER BY created_at DESC 
         LIMIT ${limit}
       `);
-      return (rows as Record<string, unknown>[])?.[0] || [];
+      // @ts-ignore
+      return (rows as Record<string, any>[])?.[0] || [];
     } else {
       const rows = await database.execute(sql`
         SELECT * FROM cold_start_logs 
         ORDER BY created_at DESC 
         LIMIT ${limit}
       `);
-      return (rows as Record<string, unknown>[])?.[0] || [];
+      // @ts-ignore
+      return (rows as Record<string, any>[])?.[0] || [];
     }
   } catch (err: unknown) {
     log.warn(`[ColdStart] 查询冷启动日志失败: ${(err as Error).message}`);

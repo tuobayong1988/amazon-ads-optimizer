@@ -224,7 +224,7 @@ export default function SyncLogs() {
                   <SelectValue placeholder="选择账户" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accounts?.map((account) => (
+                  {accounts?.map((account: any) => (
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {account.accountName} ({account.marketplace})
                     </SelectItem>

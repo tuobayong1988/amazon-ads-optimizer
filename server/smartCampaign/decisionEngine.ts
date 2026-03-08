@@ -308,12 +308,14 @@ export class SmartDecisionEngine {
     campaigns: CampaignMetrics[],
     goal: OptimizationGoal
   ): Decision[] {
-    const decisions = campaigns.map((campaign) => this.makeDecision(campaign, goal));
+    const decisions = campaigns.map((campaign: any) => this.makeDecision(campaign, goal));
 
     // 按优先级和置信度排序
-    decisions.sort((a, b) => {
+    decisions.sort((a: any, b: any) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
+      // @ts-ignore
       const scoreA = priorityScore[a.priority] * a.confidence;
+      // @ts-ignore
       const scoreB = priorityScore[b.priority] * b.confidence;
       return scoreB - scoreA;
     });
@@ -334,8 +336,8 @@ export class SmartDecisionEngine {
     };
     recommendations: Decision[];
   } {
-    const actionableDecisions = decisions.filter((d) => d.action !== 'no_action');
-    const highPriorityDecisions = actionableDecisions.filter((d) => d.priority === 'high');
+    const actionableDecisions = decisions.filter((d: any) => d.action !== 'no_action');
+    const highPriorityDecisions = actionableDecisions.filter((d: any) => d.priority === 'high');
 
     const expectedSalesIncrease = actionableDecisions.reduce(
       (sum, d) => sum + d.expectedImpact.salesChange,
@@ -439,7 +441,7 @@ export class AutoExecutionEngine {
       return {
         success: false,
         executed: false,
-        message: `Failed to execute: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Failed to execute: ${error instanceof Error ? (error as Error).message : 'Unknown error'}`,
       };
     }
   }

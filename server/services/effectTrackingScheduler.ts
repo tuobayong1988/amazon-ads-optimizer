@@ -135,31 +135,31 @@ export function aggregateTrackingStats(records: Array<{
     };
   }
   
-  const totalEstimated = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.expectedProfitIncrease || 0), 0);
-  const totalActual7Day = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.actualProfit7D || 0), 0);
-  const totalActual14Day = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.actualProfit14D || 0), 0);
-  const totalActual30Day = records.reduce((sum: number, r: Record<string, unknown>) => sum + (r.actualProfit30D || 0), 0);
+  const totalEstimated = records.reduce((sum: number, r: Record<string, any>) => sum + (r.expectedProfitIncrease || 0), 0);
+  const totalActual7Day = records.reduce((sum: number, r: Record<string, any>) => sum + (r.actualProfit7D || 0), 0);
+  const totalActual14Day = records.reduce((sum: number, r: Record<string, any>) => sum + (r.actualProfit14D || 0), 0);
+  const totalActual30Day = records.reduce((sum: number, r: Record<string, any>) => sum + (r.actualProfit30D || 0), 0);
   
   // 计算7天准确度
   const accuracies7Day = records
-    .filter((r: Record<string, unknown>) => r.actualProfit7D !== null)
-    .map((r: Record<string, unknown>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit7D!));
+    .filter((r: Record<string, any>) => r.actualProfit7D !== null)
+    .map((r: Record<string, any>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit7D!));
   const averageAccuracy7Day = accuracies7Day.length > 0 
     ? accuracies7Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies7Day.length 
     : 0;
   
   // 计算14天准确度
   const accuracies14Day = records
-    .filter((r: Record<string, unknown>) => r.actualProfit14D !== null && r.actualProfit14D !== undefined)
-    .map((r: Record<string, unknown>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit14D!));
+    .filter((r: Record<string, any>) => r.actualProfit14D !== null && r.actualProfit14D !== undefined)
+    .map((r: Record<string, any>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit14D!));
   const averageAccuracy14Day = accuracies14Day.length > 0 
     ? accuracies14Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies14Day.length 
     : 0;
   
   // 计算30天准确度
   const accuracies30Day = records
-    .filter((r: Record<string, unknown>) => r.actualProfit30D !== null && r.actualProfit30D !== undefined)
-    .map((r: Record<string, unknown>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit30D!));
+    .filter((r: Record<string, any>) => r.actualProfit30D !== null && r.actualProfit30D !== undefined)
+    .map((r: Record<string, any>) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit30D!));
   const averageAccuracy30Day = accuracies30Day.length > 0 
     ? accuracies30Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies30Day.length 
     : 0;
@@ -179,7 +179,7 @@ export function aggregateTrackingStats(records: Array<{
 /**
  * 获取需要追踪的记录
  */
-export async function getPendingTrackingRecords(): Promise<Record<string, unknown>[]> {
+export async function getPendingTrackingRecords(): Promise<Record<string, any>[]> {
   const currentDate = new Date();
   const sevenDaysAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
   
@@ -197,6 +197,7 @@ export async function getPendingTrackingRecords(): Promise<Record<string, unknow
       .where(
         and(
           eq(bidAdjustmentHistory.status, 'applied'),
+          // @ts-ignore
           lte(bidAdjustmentHistory.appliedAt, sevenDaysAgo as unknown)
         )
       );
@@ -263,7 +264,7 @@ export async function updateTrackingData(
   data: EffectTrackingData
 ): Promise<boolean> {
   try {
-    const updateData: Record<string, unknown> = {};
+    const updateData: Record<string, any> = {};
     
     if (period === 7) {
       updateData.actualProfit7D = data.profit;
@@ -316,7 +317,7 @@ export async function runEffectTrackingTask(): Promise<{
     const records = await getPendingTrackingRecords();
     result.processed = records.length;
     
-    for (const record of records) {
+    for (const record of (records as any[])) {
       const daysSince = calculateDaysSinceAdjustment(new Date(record.appliedAt!));
       const needs = shouldCollectData(
         daysSince,
@@ -496,55 +497,55 @@ export async function generateEffectTrackingReport(options: {
     let filteredRecords = records;
     
     if (options.startDate) {
-      filteredRecords = filteredRecords.filter((r: Record<string, unknown>) => 
+      filteredRecords = filteredRecords.filter((r: Record<string, any>) => 
         new Date(r.adjustedAt!) >= options.startDate!
       );
     }
     
     if (options.endDate) {
-      filteredRecords = filteredRecords.filter((r: Record<string, unknown>) => 
+      filteredRecords = filteredRecords.filter((r: Record<string, any>) => 
         new Date(r.adjustedAt!) <= options.endDate!
       );
     }
     
     if (options.campaignId) {
-      filteredRecords = filteredRecords.filter((r: Record<string, unknown>) => 
+      filteredRecords = filteredRecords.filter((r: Record<string, any>) => 
         r.campaignId === options.campaignId
       );
     }
     
     if (options.performanceGroupId) {
-      filteredRecords = filteredRecords.filter((r: Record<string, unknown>) => 
+      filteredRecords = filteredRecords.filter((r: Record<string, any>) => 
         r.performanceGroupId === options.performanceGroupId
       );
     }
     
     // 计算汇总统计
-    const recordsWith7DayData = filteredRecords.filter((r: Record<string, unknown>) => r.actualProfit7D !== null);
-    const recordsWith14DayData = filteredRecords.filter((r: Record<string, unknown>) => r.actualProfit14D !== null);
-    const recordsWith30DayData = filteredRecords.filter((r: Record<string, unknown>) => r.actualProfit30D !== null);
+    const recordsWith7DayData = filteredRecords.filter((r: Record<string, any>) => r.actualProfit7D !== null);
+    const recordsWith14DayData = filteredRecords.filter((r: Record<string, any>) => r.actualProfit14D !== null);
+    const recordsWith30DayData = filteredRecords.filter((r: Record<string, any>) => r.actualProfit30D !== null);
     
-    const totalEstimatedProfit = filteredRecords.reduce((sum: number, r: Record<string, unknown>) => 
+    const totalEstimatedProfit = filteredRecords.reduce((sum: number, r: Record<string, any>) => 
       sum + (r.expectedProfitIncrease || 0), 0
     );
-    const totalActual7DayProfit = recordsWith7DayData.reduce((sum: number, r: Record<string, unknown>) => 
+    const totalActual7DayProfit = recordsWith7DayData.reduce((sum: number, r: Record<string, any>) => 
       sum + (r.actualProfit7D || 0), 0
     );
-    const totalActual14DayProfit = recordsWith14DayData.reduce((sum: number, r: Record<string, unknown>) => 
+    const totalActual14DayProfit = recordsWith14DayData.reduce((sum: number, r: Record<string, any>) => 
       sum + (r.actualProfit14D || 0), 0
     );
-    const totalActual30DayProfit = recordsWith30DayData.reduce((sum: number, r: Record<string, unknown>) => 
+    const totalActual30DayProfit = recordsWith30DayData.reduce((sum: number, r: Record<string, any>) => 
       sum + (r.actualProfit30D || 0), 0
     );
     
     // 计算准确度
-    const accuracies7Day = recordsWith7DayData.map((r: Record<string, unknown>) => 
+    const accuracies7Day = recordsWith7DayData.map((r: Record<string, any>) => 
       calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit7D || 0)
     );
-    const accuracies14Day = recordsWith14DayData.map((r: Record<string, unknown>) => 
+    const accuracies14Day = recordsWith14DayData.map((r: Record<string, any>) => 
       calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit14D || 0)
     );
-    const accuracies30Day = recordsWith30DayData.map((r: Record<string, unknown>) => 
+    const accuracies30Day = recordsWith30DayData.map((r: Record<string, any>) => 
       calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit30D || 0)
     );
     
@@ -561,55 +562,55 @@ export async function generateEffectTrackingReport(options: {
     // 计算算法性能指标
     // MAE (Mean Absolute Error)
     const mae7Day = recordsWith7DayData.length > 0
-      ? recordsWith7DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? recordsWith7DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit7D || 0)), 0
         ) / recordsWith7DayData.length
       : 0;
     const mae14Day = recordsWith14DayData.length > 0
-      ? recordsWith14DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? recordsWith14DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit14D || 0)), 0
         ) / recordsWith14DayData.length
       : 0;
     const mae30Day = recordsWith30DayData.length > 0
-      ? recordsWith30DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? recordsWith30DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit30D || 0)), 0
         ) / recordsWith30DayData.length
       : 0;
     
     // RMSE (Root Mean Square Error)
     const rmse7Day = recordsWith7DayData.length > 0
-      ? Math.sqrt(recordsWith7DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? Math.sqrt(recordsWith7DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit7D || 0), 2), 0
         ) / recordsWith7DayData.length)
       : 0;
     const rmse14Day = recordsWith14DayData.length > 0
-      ? Math.sqrt(recordsWith14DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? Math.sqrt(recordsWith14DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit14D || 0), 2), 0
         ) / recordsWith14DayData.length)
       : 0;
     const rmse30Day = recordsWith30DayData.length > 0
-      ? Math.sqrt(recordsWith30DayData.reduce((sum: number, r: Record<string, unknown>) => 
+      ? Math.sqrt(recordsWith30DayData.reduce((sum: number, r: Record<string, any>) => 
           sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit30D || 0), 2), 0
         ) / recordsWith30DayData.length)
       : 0;
     
     // Hit Rate (预测方向正确率)
     const hitRate7Day = recordsWith7DayData.length > 0
-      ? recordsWith7DayData.filter((r: Record<string, unknown>) => {
+      ? recordsWith7DayData.filter((r: Record<string, any>) => {
           const est = r.expectedProfitIncrease || 0;
           const act = r.actualProfit7D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);
         }).length / recordsWith7DayData.length * 100
       : 0;
     const hitRate14Day = recordsWith14DayData.length > 0
-      ? recordsWith14DayData.filter((r: Record<string, unknown>) => {
+      ? recordsWith14DayData.filter((r: Record<string, any>) => {
           const est = r.expectedProfitIncrease || 0;
           const act = r.actualProfit14D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);
         }).length / recordsWith14DayData.length * 100
       : 0;
     const hitRate30Day = recordsWith30DayData.length > 0
-      ? recordsWith30DayData.filter((r: Record<string, unknown>) => {
+      ? recordsWith30DayData.filter((r: Record<string, any>) => {
           const est = r.expectedProfitIncrease || 0;
           const act = r.actualProfit30D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);

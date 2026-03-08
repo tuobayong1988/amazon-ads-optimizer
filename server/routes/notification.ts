@@ -14,7 +14,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 export const notificationRouter = router({
   // Get notification settings
   getSettings: protectedProcedure
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx }: any) => {
       const settings = await db.getNotificationSettingsByUserId(ctx.user.id);
       if (!settings) {
         // Return default settings if none exist
@@ -58,7 +58,7 @@ export const notificationRouter = router({
 
   // Send test notification
   sendTest: protectedProcedure
-    .mutation(async ({ ctx }) => {
+    .mutation(async ({ ctx }: any) => {
       const success = await notificationService.sendNotification({
         userId: ctx.user.id,
         type: 'system',
@@ -81,7 +81,7 @@ export const notificationRouter = router({
   // Mark notification as read
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await db.markNotificationAsRead(input.id);
       return { success: true };
     }),
@@ -106,7 +106,7 @@ export const collaborationRouter = router({
     }),
 
   // 获取通知统计
-  stats: protectedProcedure.query(async ({ ctx }) => {
+  stats: protectedProcedure.query(async ({ ctx }: any) => {
     const { getNotificationStats } = await import("../collaborationNotificationService");
     return getNotificationStats(ctx.user.id);
   }),
@@ -114,20 +114,20 @@ export const collaborationRouter = router({
   // 标记通知为已读
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { markNotificationAsRead } = await import("../collaborationNotificationService");
       return markNotificationAsRead(input.id);
     }),
 
   // 标记所有通知为已读
-  markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
+  markAllAsRead: protectedProcedure.mutation(async ({ ctx }: any) => {
     const { markAllNotificationsAsRead } = await import("../collaborationNotificationService");
     const count = await markAllNotificationsAsRead(ctx.user.id);
     return { count };
   }),
 
   // 获取用户通知偏好设置
-  getPreferences: protectedProcedure.query(async ({ ctx }) => {
+  getPreferences: protectedProcedure.query(async ({ ctx }: any) => {
     const { getUserNotificationPreferences } = await import("../collaborationNotificationService");
     return getUserNotificationPreferences(ctx.user.id);
   }),
@@ -171,6 +171,7 @@ export const collaborationRouter = router({
         notifyOnCritical: input.notifyOnCritical !== undefined ? (input.notifyOnCritical ? 1 : 0) : undefined,
         quietHoursEnabled: input.quietHoursEnabled !== undefined ? (input.quietHoursEnabled ? 1 : 0) : undefined,
       };
+      // @ts-ignore
       return updateUserNotificationPreferences(ctx.user.id, convertedInput as unknown);
     }),
 

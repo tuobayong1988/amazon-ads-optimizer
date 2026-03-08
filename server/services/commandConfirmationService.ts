@@ -170,7 +170,7 @@ export class CommandConfirmationService {
         // 删除最旧的pending请求
         const oldest = Array.from(this.queue.values())
           .filter(r => r.status === 'pending')
-          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+          .sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime())[0];
         if (oldest) this.queue.delete(oldest.id);
       }
     }
@@ -314,7 +314,7 @@ export class CommandConfirmationService {
       
       // 调用原有的确认同步逻辑
       const { confirmationSync } = await import('../unifiedSyncEngine');
-      const syncResult = await confirmationSync(
+      const syncResult: any = await confirmationSync(
         request.accountId,
         request.affectedEntities as ('campaigns' | 'keywords' | 'targets' | 'budgets' | 'ad_groups')[],
         `v359_reliable_${request.triggerSource}`
@@ -415,7 +415,7 @@ export class CommandConfirmationService {
     }
     
     // 使用最近20次的P75延迟作为自适应值
-    const recent = history.slice(-20).sort((a, b) => a - b);
+    const recent = history.slice(-20).sort((a: any, b: any) => a - b);
     const p75Index = Math.floor(recent.length * 0.75);
     const p75Delay = recent[p75Index];
     
@@ -449,7 +449,7 @@ export class CommandConfirmationService {
     const result: Record<string, number> = {};
     for (const [type, history] of this.propagationHistory.entries()) {
       if (history.length > 0) {
-        result[type] = Math.round(history.reduce((a, b) => a + b, 0) / history.length);
+        result[type] = Math.round(history.reduce((a: any, b: any) => a + b, 0) / history.length);
       }
     }
     return result;

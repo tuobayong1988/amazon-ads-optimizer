@@ -60,10 +60,10 @@ interface TierStats {
 
 export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgressProps) {
   // 获取分层配置
-  const { data: tierConfig } = trpc.reportJobs.getTierConfig.useQuery();
+  const { data: tierConfig } = trpc.reportJobs.getTierConfig.useQuery() as any;
 
   // 获取分层任务数量
-  const { data: taskCounts } = trpc.reportJobs.calculateTieredTaskCounts.useQuery();
+  const { data: taskCounts } = trpc.reportJobs.calculateTieredTaskCounts.useQuery() as any;
 
   // 获取分层初始化进度
   const { data: tieredStats, isLoading, refetch } = trpc.reportJobs.getTieredInitializationStats.useQuery(

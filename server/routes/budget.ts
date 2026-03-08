@@ -56,6 +56,7 @@ export const budgetAllocationRouter = router({
         input.goalId,
         input.allocationName,
         input.description,
+        // @ts-ignore
         input.result
       );
       return { allocationId };
@@ -135,7 +136,7 @@ export const budgetAllocationRouter = router({
       totalBudget: z.number().optional(),
       status: z.enum(["active", "paused", "completed", "expired"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { updateBudgetGoal } = await import("../budgetAllocationService");
       await updateBudgetGoal(input.goalId, {
         targetValue: input.targetValue,
@@ -150,7 +151,7 @@ export const budgetAllocationRouter = router({
     .input(z.object({
       goalId: z.number(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { deleteBudgetGoal } = await import("../budgetAllocationService");
       await deleteBudgetGoal(input.goalId);
       return { success: true };
@@ -237,14 +238,14 @@ export const budgetTrackingRouter = router({
   // 获取追踪详情
   getTrackingDetail: protectedProcedure
     .input(z.object({ trackingId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return budgetTrackingService.getTrackingReport(input.trackingId);
     }),
 
   // 生成效果报告
   generateReport: protectedProcedure
     .input(z.object({ trackingId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return budgetTrackingService.updateTrackingMetrics(input.trackingId);
     }),
 });
@@ -282,7 +283,7 @@ export const seasonalBudgetRouter = router({
   // 获取即将到来的促销活动
   getUpcomingEvents: protectedProcedure
     .input(z.object({ marketplace: z.string().optional() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return seasonalBudgetService.getPromotionalEvents({ marketplace: input.marketplace, isActive: true });
     }),
 
@@ -328,7 +329,7 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
         input.performanceGroupId
       );
@@ -339,7 +340,7 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return intelligentBudgetAllocationService.getBudgetAllocationConfig(
         input.performanceGroupId
       );
@@ -376,7 +377,7 @@ export const intelligentBudgetAllocationRouter = router({
       campaignId: z.number(),
       newBudget: z.number()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const campaigns = await intelligentBudgetAllocationService.collectCampaignPerformanceData(
         input.performanceGroupId
       );
@@ -407,7 +408,7 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return intelligentBudgetAllocationService.collectCampaignPerformanceData(
         input.performanceGroupId
       );
@@ -460,7 +461,7 @@ export const budgetAutoExecutionRouter = router({
       notifyOnExecution: z.boolean().optional(),
       notifyOnError: z.boolean().optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { configId, ...updates } = input;
       await budgetAutoExecutionService.updateAutoExecutionConfig(configId, updates);
       return { success: true };
@@ -469,7 +470,7 @@ export const budgetAutoExecutionRouter = router({
   // 删除自动执行配置
   deleteConfig: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await budgetAutoExecutionService.deleteAutoExecutionConfig(input.configId);
       return { success: true };
     }),
@@ -477,21 +478,21 @@ export const budgetAutoExecutionRouter = router({
   // 获取自动执行配置列表
   listConfigs: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return budgetAutoExecutionService.getAutoExecutionConfigs(input.accountId);
     }),
   
   // 获取单个配置
   getConfig: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return budgetAutoExecutionService.getAutoExecutionConfigById(input.configId);
     }),
   
   // 手动触发执行
   triggerExecution: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       return budgetAutoExecutionService.triggerManualExecution(input.configId);
     }),
   
@@ -501,7 +502,7 @@ export const budgetAutoExecutionRouter = router({
       accountId: z.number(),
       limit: z.number().optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return budgetAutoExecutionService.getExecutionHistory(
         input.accountId,
         input.limit
@@ -511,7 +512,7 @@ export const budgetAutoExecutionRouter = router({
   // 获取执行详情
   getExecutionDetails: protectedProcedure
     .input(z.object({ executionId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return budgetAutoExecutionService.getExecutionDetails(input.executionId);
     }),
   

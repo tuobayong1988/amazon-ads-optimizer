@@ -115,11 +115,11 @@ export async function checkAccountIntegrity(
       ORDER BY DATE(date)
     `);
 
-    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
-    const dataByDate = new Map<string, unknown>();
+    const rows = (dailyData as Record<string, any>[])?.[0] || dailyData;
+    const dataByDate = new Map<string, any>();
     
     if (Array.isArray(rows)) {
-      for (const row of rows) {
+      for (const row of (rows as any[])) {
         const dateStr = row.report_date instanceof Date 
           ? row.report_date.toISOString().split('T')[0]
           : String(row.report_date);
@@ -153,9 +153,9 @@ export async function checkAccountIntegrity(
     // 2. 检查数据量异常（可能是累积问题）
     if (dataByDate.size > 1) {
       const recordCounts = Array.from(dataByDate.values()).map(r => Number(r.record_count));
-      const avgCount = recordCounts.reduce((a, b) => a + b, 0) / recordCounts.length;
+      const avgCount = recordCounts.reduce((a: any, b: any) => a + b, 0) / recordCounts.length;
       const stdDev = Math.sqrt(
-        recordCounts.reduce((sum, c) => sum + Math.pow(c - avgCount, 2), 0) / recordCounts.length
+        recordCounts.reduce((sum: any, c: any) => sum + Math.pow(c - avgCount, 2), 0) / recordCounts.length
       );
 
       for (const [dateStr, data] of dataByDate.entries()) {
@@ -215,7 +215,7 @@ export async function checkAccountIntegrity(
       LIMIT 10
     `);
 
-    const dupRows = (duplicateCheck as Record<string, unknown>[])?.[0] || duplicateCheck;
+    const dupRows = (duplicateCheck as Record<string, any>[])?.[0] || duplicateCheck;
     if (Array.isArray(dupRows) && dupRows.length > 0) {
       for (const dup of dupRows) {
         const dateStr = dup.report_date instanceof Date
@@ -312,14 +312,14 @@ export async function checkAllAccountsIntegrity(
       WHERE status = 'active' OR status = 'connected'
     `);
 
-    const accountRows = (accounts as Record<string, unknown>[])?.[0] || accounts;
+    const accountRows = (accounts as Record<string, any>[])?.[0] || accounts;
     if (!Array.isArray(accountRows)) {
       return { totalAccounts: 0, healthyAccounts: 0, unhealthyAccounts: 0, results };
     }
 
     log.info(`[v358] 开始批量完整性检查: ${accountRows.length}个账户`);
 
-    for (const account of accountRows) {
+    for (const account of (accountRows as any[])) {
       const result = await checkAccountIntegrity(account.id, daysToCheck);
       results.push(result);
       
@@ -368,9 +368,9 @@ export async function executeAutoRepair(
   log.info(`[v358] 开始自动修复账户${checkResult.accountId}: ${checkResult.repairActions.length}个修复动作`);
 
   // 按优先级排序
-  const sortedActions = [...checkResult.repairActions].sort((a, b) => a.priority - b.priority);
+  const sortedActions = [...checkResult.repairActions].sort((a: any, b: any) => a.priority - b.priority);
 
-  for (const action of sortedActions) {
+  for (const action of (sortedActions as any[])) {
     try {
       switch (action.type) {
         case 'deduplicate':
@@ -433,6 +433,7 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
       WHERE dp1.account_id = ${accountId}
     `);
 
+    // @ts-ignore
     const deletedCount = (result as unknown)?.affectedRows || 0;
     log.info(`[v358] 账户${accountId}去重完成: 删除${deletedCount}条重复记录`);
     return deletedCount;

@@ -659,7 +659,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     
     return (
       <div className="flex items-center gap-1 mt-2">
-        {steps.map((step, idx) => {
+        {steps.map((step: any, idx: any) => {
           const isLast = idx === steps.length - 1;
           let stepColor = 'text-gray-500';
           let dotColor = 'bg-gray-500';

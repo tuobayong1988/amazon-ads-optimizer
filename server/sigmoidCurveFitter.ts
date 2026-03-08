@@ -86,7 +86,7 @@ export function fitSigmoidCurve(
   if (n < 4) {
     // 数据不足，返回保守默认值
     const maxImp = impressions.length > 0 ? Math.max(...impressions) : 1000;
-    const avgBid = bids.length > 0 ? bids.reduce((a, b) => a + b, 0) / bids.length : 1;
+    const avgBid = bids.length > 0 ? bids.reduce((a: any, b: any) => a + b, 0) / bids.length : 1;
     return {
       L: maxImp * 2,
       k: 2,
@@ -97,8 +97,8 @@ export function fitSigmoidCurve(
   }
   
   // 初始参数估计
-  const sortedByBid = bids.map((b, i) => ({ bid: b, imp: impressions[i] }))
-    .sort((a, b) => a.bid - b.bid);
+  const sortedByBid = bids.map((b: any, i: any) => ({ bid: b, imp: impressions[i] }))
+    .sort((a: any, b: any) => a.bid - b.bid);
   
   const maxImp = Math.max(...impressions);
   const minImp = Math.min(...impressions);
@@ -186,7 +186,7 @@ export function fitSigmoidCurve(
   }
   
   // 计算R²
-  const meanImp = impressions.reduce((a, b) => a + b, 0) / n;
+  const meanImp = impressions.reduce((a: any, b: any) => a + b, 0) / n;
   let ssTotal = 0, ssResidual = 0;
   for (let i = 0; i < n; i++) {
     ssTotal += (impressions[i] - meanImp) ** 2;
@@ -209,7 +209,7 @@ export function fitSigmoidCurve(
  */
 function solveLinearSystem(A: number[][], b: number[]): number[] | null {
   const n = A.length;
-  const aug = A.map((row, i) => [...row, b[i]]);
+  const aug = A.map((row: any, i: any) => [...row, b[i]]);
   
   for (let col = 0; col < n; col++) {
     // 选主元

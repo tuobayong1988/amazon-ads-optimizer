@@ -24,7 +24,7 @@ export default function SeasonalBudget() {
   const [marketplace, setMarketplace] = useState("US");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
   // 获取季节性建议
@@ -263,7 +263,7 @@ export default function SeasonalBudget() {
                       {(() => {
                         const pending = recommendationsData?.recommendations.filter(r => r.status === "pending") || [];
                         if (pending.length === 0) return "N/A";
-                        const avg = pending.reduce((sum, r) => sum + Number(r.budgetMultiplier || 1), 0) / pending.length;
+                        const avg = pending.reduce((sum: any, r: any) => sum + Number(r.budgetMultiplier || 1), 0) / pending.length;
                         return `${avg.toFixed(2)}x`;
                       })()}
                     </p>
@@ -290,7 +290,7 @@ export default function SeasonalBudget() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {recommendationsData?.recommendations.map((rec) => (
+                  {recommendationsData?.recommendations.map((rec: any) => (
                     <div
                       key={rec.id}
                       className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"

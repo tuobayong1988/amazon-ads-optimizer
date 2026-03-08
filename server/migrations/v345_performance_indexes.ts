@@ -85,6 +85,7 @@ export async function runV345PerformanceIndexMigration(): Promise<{
   for (const idx of INDEXES) {
     try {
       // 检查索引是否已存在
+      // @ts-ignore
       const [existingIndexes] = await db.execute(
         sql.raw(`SHOW INDEX FROM ${idx.table} WHERE Key_name = '${idx.name}'`)
       ) as unknown;
@@ -103,10 +104,10 @@ export async function runV345PerformanceIndexMigration(): Promise<{
       console.log(`[v345-indexes] ${idx.name} 创建成功`);
       result.created++;
     } catch (error: unknown) {
-      if ((error as Error).message?.includes('Duplicate key name') || error.code === 'ER_DUP_KEYNAME') {
+      if ((error as Error).message?.includes('Duplicate key name') || (error as any).code === 'ER_DUP_KEYNAME') {
         console.log(`[v345-indexes] ${idx.name} 已存在（不同检测方式），跳过`);
         result.skipped++;
-      } else if ((error as Error).message?.includes("doesn't exist") || error.code === 'ER_NO_SUCH_TABLE') {
+      } else if ((error as Error).message?.includes("doesn't exist") || (error as any).code === 'ER_NO_SUCH_TABLE') {
         console.log(`[v345-indexes] 表 ${idx.table} 不存在，跳过索引 ${idx.name}`);
         result.skipped++;
       } else {

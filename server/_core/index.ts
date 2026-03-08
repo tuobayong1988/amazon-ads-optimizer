@@ -198,7 +198,7 @@ async function startServer() {
         log.error('[NextGen] 数据库表创建失败:', result.error);
       }
     }).catch(err => {
-      log.error('[NextGen] 数据库表检查异常:', err.message);
+      log.error('[NextGen] 数据库表检查异常:', (err as Error).message);
     });
 
     // v248: 启动时自动创建v245+所需的数据库表和列
@@ -209,7 +209,7 @@ async function startServer() {
         log.error('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      log.error('[AutoDbMigration] v248迁移异常:', err.message);
+      log.error('[AutoDbMigration] v248迁移异常:', (err as Error).message);
     });
 
     // 预发布引擎数据库表自动创建
@@ -220,13 +220,13 @@ async function startServer() {
         log.error('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      log.error('[PrelaunchDb] 预发布引擎表迁移异常:', err.message);
+      log.error('[PrelaunchDb] 预发布引擎表迁移异常:', (err as Error).message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
       if (result.success) {
-        const total = Object.values(result.migrated).reduce((a, b) => a + b, 0);
+        const total = Object.values(result.migrated).reduce((a: any, b: any) => a + b, 0);
         if (total > 0) {
           log.info(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
         } else {
@@ -236,7 +236,7 @@ async function startServer() {
         log.error('[AutoMigration] v146数据迁移失败:', result.skipped);
       }
     }).catch(err => {
-      log.error('[AutoMigration] v146迁移异常:', err.message);
+      log.error('[AutoMigration] v146迁移异常:', (err as Error).message);
     });
 
     // v208: 启动时自动修复历史数据中的campaignId（本地int → Amazon ID）
@@ -244,8 +244,8 @@ async function startServer() {
       log.info('[AutoMigration] v208 campaignId标准化迁移完成');
       logMigration('CampaignIdMigration', 'v208 campaignId标准化迁移完成');
     }).catch(err => {
-      log.error('[AutoMigration] v208 campaignId迁移异常:', err.message);
-      logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${err.message}`);
+      log.error('[AutoMigration] v208 campaignId迁移异常:', (err as Error).message);
+      logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${(err as Error).message}`);
     });
 
     // 启动定时同步调度器（每1小时执行一次）
@@ -264,7 +264,7 @@ async function startServer() {
       startSQSConsumer().then(() => {
         log.info('[SQS Consumer] AMS实时数据流消费者已启动');
       }).catch(err => {
-        log.error('[SQS Consumer] 启动失败:', err.message);
+        log.error('[SQS Consumer] 启动失败:', (err as Error).message);
       });
     } else {
       log.info('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
@@ -281,7 +281,7 @@ async function startServer() {
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
     orchestrateStartup(server).catch(err => {
-      log.error('[LifecycleManager] 启动协调失败:', err.message);
+      log.error('[LifecycleManager] 启动协调失败:', (err as Error).message);
     });
   });
 }

@@ -96,7 +96,7 @@ export default function DataValidation() {
     const matchCount = validationResults.filter(r => r.status === 'match').length;
     const mismatchCount = validationResults.filter(r => r.status === 'mismatch').length;
     const errorCount = validationResults.filter(r => r.status === 'error').length;
-    const totalDifference = validationResults.reduce((sum, r) => sum + Math.abs(r.difference), 0);
+    const totalDifference = validationResults.reduce((sum: any, r: any) => sum + Math.abs(r.difference), 0);
     
     return { matchCount, mismatchCount, errorCount, totalDifference };
   }, [validationResults]);
@@ -191,7 +191,7 @@ export default function DataValidation() {
                   <SelectValue placeholder="选择账户" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accounts?.map((account) => (
+                  {accounts?.map((account: any) => (
                     <SelectItem key={account.id} value={account.id.toString()}>
                       {account.accountName} ({account.marketplace})
                     </SelectItem>
@@ -340,7 +340,7 @@ export default function DataValidation() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {validationResults.map((result, index) => {
+                {validationResults.map((result: any, index: any) => {
                   const diffDisplay = getDifferenceDisplay(result.difference);
                   return (
                     <div 

@@ -45,7 +45,7 @@ export function useOnboarding() {
   const [savedProgress, setSavedProgress] = useState<OnboardingStep | null>(null);
 
   // 检查是否有已授权的账号
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
+  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery() as any;
 
   useEffect(() => {
     if (accountsLoading) return;
@@ -115,7 +115,7 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, 
   const [syncProgress, setSyncProgress] = useState(0);
 
   // 获取账号列表
-  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery() as any;
   const hasAccounts = accounts && accounts.length > 0;
 
   // 创建同步任务
@@ -293,7 +293,7 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, 
                   <div>
                     <p className="font-medium text-green-600">已连接 {accounts.length} 个账号</p>
                     <p className="text-sm text-muted-foreground">
-                      {accounts.map(a => a.accountName).join(", ")}
+                      {accounts.map((a: any) => a.accountName).join(", ")}
                     </p>
                   </div>
                 </div>
@@ -461,7 +461,7 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, 
         {/* Progress Steps */}
         <div className="py-4">
           <div className="flex items-center justify-between mb-2">
-            {steps.map((step, index) => (
+            {steps.map((step: any, index: any) => (
               <div key={step.id} className="flex items-center">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
                   index <= currentStepIndex 

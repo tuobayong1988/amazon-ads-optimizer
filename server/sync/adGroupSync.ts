@@ -392,7 +392,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
         const spReportId = await service.client.requestSpAdGroupReport(spStart, spEnd);
         const spData = await service.client.waitAndDownloadReport(spReportId);
         if (spData && spData.length > 0) {
-          for (const row of spData) {
+          for (const row of (spData as any[])) {
             const adGroupId = String(row.adGroupId);
             // 查找对应的广告组
             const [adGroup] = await db
@@ -439,7 +439,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
         const sbData = await service.client.waitAndDownloadReport(sbReportId);
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
-          for (const row of sbData) {
+          for (const row of (sbData as any[])) {
             const adGroupId = String(row.adGroupId);
             const [adGroup] = await db
               .select()
@@ -492,7 +492,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
         const sdData = await service.client.waitAndDownloadReport(sdReportId);
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
-          for (const row of sdData) {
+          for (const row of (sdData as any[])) {
             const adGroupId = String(row.adGroupId);
             const [adGroup] = await db
               .select()

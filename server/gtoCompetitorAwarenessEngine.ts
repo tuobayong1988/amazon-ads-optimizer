@@ -99,7 +99,7 @@ export async function analyzeCompetitionForCampaign(
       const impressions = dailyData.map(d => d.impressions || 0);
       const ctrs = dailyData.filter(d => (d.impressions || 0) > 0).map(d => (d.clicks || 0) / (d.impressions || 1));
       
-      const avgCpc = cpcs.length > 0 ? cpcs.reduce((a, b) => a + b, 0) / cpcs.length : 0;
+      const avgCpc = cpcs.length > 0 ? cpcs.reduce((a: any, b: any) => a + b, 0) / cpcs.length : 0;
       const cpcTrend = cpcs.length >= 3 ? (cpcs[cpcs.length - 1] - cpcs[0]) / (cpcs[0] || 1) : 0;
       const impressionTrend = impressions.length >= 3 ? (impressions[impressions.length - 1] - impressions[0]) / (impressions[0] || 1) : 0;
       const ctrTrend = ctrs.length >= 3 ? (ctrs[ctrs.length - 1] - ctrs[0]) / (ctrs[0] || 1) : 0;
@@ -140,7 +140,7 @@ export async function analyzeCompetitionForCampaign(
       hourlyMetrics.set(h, { cpcs: [], impressions: [], competitions: [] });
     }
 
-    for (const row of hourlyData) {
+    for (const row of (hourlyData as any[])) {
       const h = row.hour;
       const clicks = row.clicks || 0;
       const spend = parseFloat(row.spend || '0');
@@ -168,21 +168,21 @@ export async function analyzeCompetitionForCampaign(
     const hourlyAvgImpressions: { hour: number; avg: number }[] = [];
     for (const [hour, m] of hourlyMetrics) {
       const avg = m.impressions.length > 0 
-        ? m.impressions.reduce((a, b) => a + b, 0) / m.impressions.length 
+        ? m.impressions.reduce((a: any, b: any) => a + b, 0) / m.impressions.length 
         : 0;
       hourlyAvgImpressions.push({ hour, avg });
     }
-    hourlyAvgImpressions.sort((a, b) => b.avg - a.avg);
+    hourlyAvgImpressions.sort((a: any, b: any) => b.avg - a.avg);
     
-    const totalAvgImpressions = hourlyAvgImpressions.reduce((sum, h) => sum + h.avg, 0);
-    const top6Impressions = hourlyAvgImpressions.slice(0, 6).reduce((sum, h) => sum + h.avg, 0);
+    const totalAvgImpressions = hourlyAvgImpressions.reduce((sum: any, h: any) => sum + h.avg, 0);
+    const top6Impressions = hourlyAvgImpressions.slice(0, 6).reduce((sum: any, h: any) => sum + h.avg, 0);
     const impressionConcentration = totalAvgImpressions > 0 ? top6Impressions / totalAvgImpressions : 0.25;
 
     // 4. 识别竞争窗口（曝光最高=竞争最弱的时段，因为我们能获得更多曝光）
     // 和竞争高峰（曝光最低=竞争最强，因为被挤出）
     // 注意：这里的逻辑是——当我们的曝光低时，说明竞争激烈（CPC高、被挤出）
     // 当我们的曝光高时，说明竞争较弱（竞品不在线或预算耗尽）
-    const sortedByImpression = [...hourlyAvgImpressions].sort((a, b) => b.avg - a.avg);
+    const sortedByImpression = [...hourlyAvgImpressions].sort((a: any, b: any) => b.avg - a.avg);
     const weakCompetitionHours = sortedByImpression.slice(0, 4).map(h => h.hour);
     const peakCompetitionHours = sortedByImpression.slice(-4).map(h => h.hour);
 
@@ -190,11 +190,11 @@ export async function analyzeCompetitionForCampaign(
     const hourlyCpcAvg: { hour: number; avgCpc: number }[] = [];
     for (const [hour, m] of hourlyMetrics) {
       if (m.cpcs.length > 0) {
-        hourlyCpcAvg.push({ hour, avgCpc: m.cpcs.reduce((a, b) => a + b, 0) / m.cpcs.length });
+        hourlyCpcAvg.push({ hour, avgCpc: m.cpcs.reduce((a: any, b: any) => a + b, 0) / m.cpcs.length });
       }
     }
     if (hourlyCpcAvg.length >= 12) {
-      hourlyCpcAvg.sort((a, b) => a.avgCpc - b.avgCpc);
+      hourlyCpcAvg.sort((a: any, b: any) => a.avgCpc - b.avgCpc);
       weakCompetitionHours.length = 0;
       peakCompetitionHours.length = 0;
       weakCompetitionHours.push(...hourlyCpcAvg.slice(0, 4).map(h => h.hour));
@@ -206,7 +206,7 @@ export async function analyzeCompetitionForCampaign(
       ? (() => {
           const allComps: number[] = [];
           for (const [, m] of hourlyMetrics) allComps.push(...m.competitions);
-          return allComps.length > 0 ? allComps.reduce((a, b) => a + b, 0) / allComps.length : 0.5;
+          return allComps.length > 0 ? allComps.reduce((a: any, b: any) => a + b, 0) / allComps.length : 0.5;
         })()
       : 0.5;
     let competitionIntensity = Math.min(1, Math.max(0, avgCompetition));
@@ -346,9 +346,9 @@ function calculateBidModifier(competitorType: CompetitorType, intensity: number)
  */
 function calculateCV(values: number[]): number {
   if (values.length < 2) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  const mean = values.reduce((a: any, b: any) => a + b, 0) / values.length;
   if (mean === 0) return 0;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / values.length;
+  const variance = values.reduce((sum: any, v: any) => sum + (v - mean) ** 2, 0) / values.length;
   return Math.sqrt(variance) / mean;
 }
 

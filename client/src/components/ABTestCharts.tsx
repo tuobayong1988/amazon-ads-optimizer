@@ -98,7 +98,7 @@ const getMetricLabel = (metric: string): string => {
 
 // 指标对比柱状图组件
 function MetricComparisonChart({ metrics }: { metrics: MetricAnalysis[] }) {
-  const chartData = metrics.map((m) => ({
+  const chartData = metrics.map((m: any) => ({
     name: getMetricLabel(m.metricName),
     metric: m.metricName,
     对照组: m.controlValue,
@@ -158,7 +158,7 @@ function MetricComparisonChart({ metrics }: { metrics: MetricAnalysis[] }) {
 
 // 效果提升百分比图表
 function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
-  const chartData = metrics.map((m) => ({
+  const chartData = metrics.map((m: any) => ({
     name: getMetricLabel(m.metricName),
     metric: m.metricName,
     提升: m.relativeDifference,
@@ -243,7 +243,7 @@ function ImprovementChart({ metrics }: { metrics: MetricAnalysis[] }) {
 
 // 置信区间可视化
 function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
-  const chartData = metrics.map((m) => ({
+  const chartData = metrics.map((m: any) => ({
     name: getMetricLabel(m.metricName),
     metric: m.metricName,
     差异: m.relativeDifference,
@@ -255,7 +255,7 @@ function ConfidenceIntervalChart({ metrics }: { metrics: MetricAnalysis[] }) {
 
   return (
     <div className="space-y-4">
-      {chartData.map((item, index) => {
+      {chartData.map((item: any, index: any) => {
         const range = item.上限 - item.下限;
         const center = (item.上限 + item.下限) / 2;
         const minVal = Math.min(item.下限, -20);
@@ -399,10 +399,10 @@ function TrendComparisonChart({
 // 累计效果面积图
 function CumulativeEffectChart({ dailyMetrics }: { dailyMetrics: DailyMetric[] }) {
   // 计算累计差异
-  const cumulativeData = dailyMetrics.map((item, index) => {
+  const cumulativeData = dailyMetrics.map((item: any, index: any) => {
     const prevItems = dailyMetrics.slice(0, index + 1);
-    const cumulativeControl = prevItems.reduce((sum, i) => sum + i.controlValue, 0);
-    const cumulativeTreatment = prevItems.reduce((sum, i) => sum + i.treatmentValue, 0);
+    const cumulativeControl = prevItems.reduce((sum: any, i: any) => sum + i.controlValue, 0);
+    const cumulativeTreatment = prevItems.reduce((sum: any, i: any) => sum + i.treatmentValue, 0);
     const difference = cumulativeTreatment - cumulativeControl;
     
     return {
@@ -467,7 +467,7 @@ function CumulativeEffectChart({ dailyMetrics }: { dailyMetrics: DailyMetric[] }
 function StatisticsSummary({ metrics }: { metrics: MetricAnalysis[] }) {
   const significantCount = metrics.filter(m => m.isSignificant).length;
   const positiveCount = metrics.filter(m => m.relativeDifference > 0).length;
-  const avgImprovement = metrics.reduce((sum, m) => sum + m.relativeDifference, 0) / metrics.length;
+  const avgImprovement = metrics.reduce((sum: any, m: any) => sum + m.relativeDifference, 0) / metrics.length;
   const minPValue = Math.min(...metrics.map(m => m.pValue));
 
   return (
@@ -586,7 +586,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {analysisResults.metrics.map((m) => (
+                      {analysisResults.metrics.map((m: any) => (
                         <SelectItem key={m.metricName} value={m.metricName}>
                           {getMetricLabel(m.metricName)}
                         </SelectItem>
@@ -627,7 +627,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
                 </tr>
               </thead>
               <tbody>
-                {analysisResults.metrics.map((metric) => (
+                {analysisResults.metrics.map((metric: any) => (
                   <tr key={metric.metricName} className="border-b hover:bg-accent/50">
                     <td className="py-3 px-4 font-medium">{getMetricLabel(metric.metricName)}</td>
                     <td className="text-right py-3 px-4">{formatNumber(metric.controlValue, metric.metricName)}</td>

@@ -14,7 +14,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 export const schedulerRouter = router({
   // Get scheduled tasks
   getTasks: protectedProcedure
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx }: any) => {
       return db.getScheduledTasksByUserId(ctx.user.id);
     }),
 
@@ -68,7 +68,7 @@ export const schedulerRouter = router({
       requireApproval: z.boolean().optional(),
       parameters: z.record(z.string(), z.unknown()).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await db.updateScheduledTask(input.id, {
         name: input.name,
         description: input.description,
@@ -87,7 +87,7 @@ export const schedulerRouter = router({
   // Delete scheduled task
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       await db.deleteScheduledTask(input.id);
       return { success: true };
     }),
@@ -192,7 +192,7 @@ export const schedulerRouter = router({
       taskId: z.number(),
       limit: z.number().optional().default(20),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getTaskExecutionHistory(input.taskId, input.limit);
     }),
 

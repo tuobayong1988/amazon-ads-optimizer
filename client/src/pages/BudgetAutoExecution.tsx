@@ -24,7 +24,7 @@ export default function BudgetAutoExecution() {
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
 
   // 获取自动执行配置列表
   const { data: configs, refetch: refetchConfigs } = trpc.budgetAutoExecution.listConfigs.useQuery(
@@ -158,7 +158,7 @@ export default function BudgetAutoExecution() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -224,7 +224,7 @@ export default function BudgetAutoExecution() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {dayOfWeekLabels.map((label, index) => (
+                          {dayOfWeekLabels.map((label: any, index: any) => (
                             <SelectItem key={index} value={index.toString()}>{label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -323,7 +323,7 @@ export default function BudgetAutoExecution() {
                 </CardContent>
               </Card>
             )}
-            {configs?.map((config) => (
+            {configs?.map((config: any) => (
               <Card key={config.id}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -419,7 +419,7 @@ export default function BudgetAutoExecution() {
                         </TableCell>
                       </TableRow>
                     )}
-                    {history?.map((execution) => (
+                    {history?.map((execution: any) => (
                       <TableRow key={execution.id}>
                         <TableCell>
                           {execution.executionStartAt ? safeToLocaleString(execution.executionStartAt) : '-'}
@@ -512,7 +512,7 @@ export default function BudgetAutoExecution() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {executionDetails.details.map((detail) => (
+                        {executionDetails.details.map((detail: any) => (
                           <TableRow key={detail.id}>
                             <TableCell className="font-medium">{detail.campaignName}</TableCell>
                             <TableCell>${parseFloat(detail.budgetBefore || '0').toFixed(2)}</TableCell>

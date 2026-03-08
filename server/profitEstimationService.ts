@@ -520,7 +520,7 @@ export async function getProfitConfigForTarget(
       return getDefaultAdEfficiencyConfig();
     }
     
-    const group = groups[0];
+    const group = groups[0] as any;
     
     // 数据源1: 用户在优化目标中设定的目标ACOS
     const targetAcosNum = group.targetAcos ? Number(group.targetAcos) : 0;
@@ -661,15 +661,15 @@ export function getProfitTrend(
   }
   
   const recent = history.slice(-lookbackEntries);
-  const avgRoas = recent.reduce((sum, h) => sum + h.roas, 0) / recent.length;
+  const avgRoas = recent.reduce((sum: any, h: any) => sum + h.roas, 0) / recent.length;
   
   // 比较前半和后半的平均值
   const mid = Math.floor(recent.length / 2);
   const firstHalf = recent.slice(0, mid);
   const secondHalf = recent.slice(mid);
   
-  const firstAvg = firstHalf.reduce((sum, h) => sum + h.roas, 0) / firstHalf.length;
-  const secondAvg = secondHalf.reduce((sum, h) => sum + h.roas, 0) / secondHalf.length;
+  const firstAvg = firstHalf.reduce((sum: any, h: any) => sum + h.roas, 0) / firstHalf.length;
+  const secondAvg = secondHalf.reduce((sum: any, h: any) => sum + h.roas, 0) / secondHalf.length;
   
   const change = firstAvg > 0 ? (secondAvg - firstAvg) / firstAvg : 0;
   

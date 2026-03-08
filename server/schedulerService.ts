@@ -25,7 +25,7 @@ export interface TaskConfig {
   runTime: string; // HH:MM format
   dayOfWeek?: number; // 0-6 for weekly
   dayOfMonth?: number; // 1-31 for monthly
-  parameters?: Record<string, unknown>;
+  parameters?: Record<string, any>;
   autoApply: boolean;
   requireApproval: boolean;
 }
@@ -42,7 +42,7 @@ export interface TaskExecutionResult {
   suggestionsGenerated: number;
   suggestionsApplied: number;
   errorMessage?: string;
-  resultSummary: Record<string, unknown>;
+  resultSummary: Record<string, any>;
 }
 
 // Default task configurations
@@ -245,7 +245,7 @@ export async function executeNgramAnalysis(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }
@@ -308,7 +308,7 @@ export async function executeFunnelMigration(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }
@@ -371,7 +371,7 @@ export async function executeTrafficConflictDetection(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }
@@ -437,7 +437,7 @@ export async function executeSmartBidding(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }
@@ -493,7 +493,7 @@ export async function executeHealthCheck(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }
@@ -614,7 +614,7 @@ export async function executeTrafficIsolationFull(
       itemsProcessed: 0,
       suggestionsGenerated: 0,
       suggestionsApplied: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorMessage: error instanceof Error ? (error as Error).message : 'Unknown error',
       resultSummary: {}
     };
   }

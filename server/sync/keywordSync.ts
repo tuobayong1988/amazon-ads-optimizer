@@ -35,19 +35,19 @@ const log = createModuleLogger('keywordSync');
  */
 function serializeError(error: Error): string {
   try {
-    const info: Record<string, unknown> = {
-      message: error.message || 'Unknown error',
-      code: error.code,
-      status: error.status || error.response?.status,
-      statusText: error.response?.statusText,
+    const info: Record<string, any> = {
+      message: (error as Error).message || 'Unknown error',
+      code: (error as any).code,
+      status: error.status || (error as any).response?.status,
+      statusText: (error as any).response?.statusText,
       url: error.config?.url,
       method: error.config?.method,
       retryCount: error.retryCount,
     };
     // 记录API响应体（截断到500字符避免日志爆炸）
     if (error.response?.data) {
-      const dataStr = typeof error.response.data === 'string' 
-        ? error.response.data 
+      const dataStr = typeof (error as any).response.data === 'string' 
+        ? (error as any).response.data 
         : JSON.stringify(error.response.data);
       info.responseData = dataStr.substring(0, 500);
     }
@@ -228,7 +228,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
       // v215修复: 移除错误的updatedAt跳过逻辑
       // 始终使用Amazon API返回的最新数据更新本地记录
 
-      const keywordData: Record<string, unknown> = {
+      const keywordData: Record<string, any> = {
         adGroupId: adGroup.id,
         accountId: service.accountId,
         campaignId: adGroup.campaignId,
@@ -346,7 +346,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     // 纯文本键: keywordText (最后兜底)
     const kwByText = new Map<string, typeof allKeywords[0]>();
     
-    for (const kw of allKeywords) {
+    for (const kw of (allKeywords as any[])) {
       if (kw.keywordId) kwByKeywordId.set(kw.keywordId, kw);
       if (kw.adGroupId && kw.keywordText && kw.matchType) {
         kwByAdGroupTextMatch.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
@@ -381,10 +381,10 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
     
     // 批量更新缓冲
-    const kwUpdates: { id: number; data: Record<string, unknown> }[] = [];
-    const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const kwUpdates: { id: number; data: Record<string, any> }[] = [];
+    const ptUpdates: { id: number; data: Record<string, any> }[] = [];
     
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       // v242: 字段兼容层 - spTargeting报告API返回keyword/keywordId/targeting，映射到旧字段名
       if (!row.targetId && row.keywordId) row.targetId = row.keywordId;
       if (!row.targetingText && row.keyword) row.targetingText = row.keyword;
@@ -501,7 +501,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     
     // v196: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
     let backfilled = 0;
-    for (const row of reportData) {
+    for (const row of (reportData as any[])) {
       const reportTargetId = String(row.targetId || row.keywordId || '');
       if (!reportTargetId || !row.targetingText) continue;
       

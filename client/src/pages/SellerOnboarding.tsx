@@ -50,7 +50,7 @@ export default function SellerOnboarding() {
   const [isSyncing, setIsSyncing] = useState(false);
 
   // 获取账号列表
-  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery() as any;
 
   // 获取Amazon OAuth URL
   const getOAuthUrl = (clientId: string, redirectUri: string, region?: 'NA' | 'EU' | 'FE') => {
@@ -127,7 +127,7 @@ export default function SellerOnboarding() {
               </div>
               <Progress value={progress} className="h-2" />
               <div className="flex justify-between mt-6">
-                {onboardingSteps.map((step) => {
+                {onboardingSteps.map((step: any) => {
                   const StepIcon = step.icon;
                   const isCompleted = step.id < currentStep;
                   const isCurrent = step.id === currentStep;
@@ -249,7 +249,7 @@ export default function SellerOnboarding() {
 
         {/* 功能亮点 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {features.map((feature, index) => {
+          {features.map((feature: any, index: any) => {
             const FeatureIcon = feature.icon;
             return (
               <Card key={index} className="bg-gradient-to-br from-muted/50 to-muted/30">

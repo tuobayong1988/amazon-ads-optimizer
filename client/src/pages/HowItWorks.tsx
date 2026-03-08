@@ -231,7 +231,7 @@ export default function HowItWorks() {
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-            {algorithmSteps.map((step, i) => (
+            {algorithmSteps.map((step: any, i: any) => (
               <div key={i} className="relative">
                 {i < algorithmSteps.length - 1 && (
                   <div className="hidden lg:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent -translate-x-4"></div>
@@ -248,7 +248,7 @@ export default function HowItWorks() {
                   <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
-                    {step.details.map((detail, j) => (
+                    {step.details.map((detail: any, j: any) => (
                       <Badge key={j} variant="secondary" className="text-xs">{detail}</Badge>
                     ))}
                   </div>
@@ -272,7 +272,7 @@ export default function HowItWorks() {
             </div>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mlEngines.map((engine, i) => (
+            {mlEngines.map((engine: any, i: any) => (
               <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
@@ -284,7 +284,7 @@ export default function HowItWorks() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">{engine.description}</p>
                   <ul className="space-y-2">
-                    {engine.benefits.map((benefit, j) => (
+                    {engine.benefits.map((benefit: any, j: any) => (
                       <li key={j} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                         <span>{benefit}</span>
@@ -324,7 +324,7 @@ export default function HowItWorks() {
             </div>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gtoEngines.map((engine, i) => (
+            {gtoEngines.map((engine: any, i: any) => (
               <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
@@ -336,7 +336,7 @@ export default function HowItWorks() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">{engine.description}</p>
                   <ul className="space-y-2">
-                    {engine.benefits.map((benefit, j) => (
+                    {engine.benefits.map((benefit: any, j: any) => (
                       <li key={j} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                         <span>{benefit}</span>
@@ -362,7 +362,7 @@ export default function HowItWorks() {
           </div>
           <div className="max-w-4xl mx-auto">
             <div className="grid gap-4">
-              {comparisons.map((item, i) => (
+              {comparisons.map((item: any, i: any) => (
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   <div className="font-medium text-primary">{item.aspect}</div>
                   <div className="flex items-start gap-2">

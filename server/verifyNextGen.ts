@@ -41,6 +41,7 @@ async function setupMockData() {
     await db.delete(contextualFeatures).where(eq(contextualFeatures.accountId, TEST_ACCOUNT_ID));
 
     // Create mock campaign
+    // @ts-ignore
     await db.insert(campaigns).values({
         id: 9999,
         accountId: TEST_ACCOUNT_ID,
@@ -49,18 +50,20 @@ async function setupMockData() {
         campaignType: "sp_manual",
         campaignStatus: "enabled",
         dailyBudget: "50.00",
-    } as Record<string, unknown>);
+    } as Record<string, any>);
 
     // Create mock ad group
+    // @ts-ignore
     await db.insert(adGroups).values({
         id: TEST_ADGROUP_ID,
         campaignId: "9999",
         adGroupId: "test_adgroup_999901",
         adGroupName: "Test AdGroup",
         adGroupStatus: "enabled",
-    } as Record<string, unknown>);
+    } as Record<string, any>);
 
     // Create mock keyword
+    // @ts-ignore
     await db.insert(keywords).values({
         id: TEST_KEYWORD_ID,
         adGroupId: TEST_ADGROUP_ID,
@@ -69,9 +72,10 @@ async function setupMockData() {
         matchType: "broad",
         bid: "1.23",
         keywordStatus: "enabled",
-    } as Record<string, unknown>);
+    } as Record<string, any>);
 
     // Create some mock RL logs to make algorithms eligible
+    // @ts-ignore
     await db.insert(rlTrainingLogs).values(Array.from({ length: 60 }, (_, i) => ({
         accountId: TEST_ACCOUNT_ID,
         keywordId: TEST_KEYWORD_ID,
@@ -127,6 +131,7 @@ async function runVerification() {
             targetAcos: 0.35,
         };
 
+        // @ts-ignore
         const bidResult = await (calculateNextGenBid as unknown)(TEST_ACCOUNT_ID, mockTarget, mockGroupConfig, {
             enableNextGen: true,
             nextGenTrafficRatio: 1.0, // Force usage of new algo

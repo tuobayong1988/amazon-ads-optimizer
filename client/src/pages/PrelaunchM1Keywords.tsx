@@ -28,7 +28,7 @@ export default function PrelaunchM1Keywords() {
   const [sortBy, setSortBy] = useState<'kviScore' | 'searchVolume' | 'drAmScore'>('kviScore');
 
   // 获取项目列表
-  const projectsQuery = trpc.prelaunch.listProjects.useQuery();
+  const projectsQuery = trpc.prelaunch.listProjects.useQuery() as any;
   const projects = (() => {
     const d = projectsQuery.data;
     return (d && 'data' in (d as any) ? (d as any).data : d) || [];
@@ -205,7 +205,7 @@ export default function PrelaunchM1Keywords() {
                 <Filter className="w-3 h-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">分类:</span>
               </div>
-              {relevanceLayers.map((layer) => (
+              {relevanceLayers.map((layer: any) => (
                 <Button
                   key={layer.key}
                   variant={relevanceFilter === layer.key ? "default" : "outline"}

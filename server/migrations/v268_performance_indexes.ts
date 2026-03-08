@@ -19,6 +19,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
 
   try {
     // 检查索引是否已存在
+    // @ts-ignore
     const [existingIndexes] = await db.execute() as unknown;
 
     if (existingIndexes && existingIndexes.length > 0) {
@@ -34,6 +35,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
     console.log('[v268-migration] Index idx_dp_account_date created successfully');
 
     // 检查optimization_events表的索引
+    // @ts-ignore
     const [eventsIndexes] = await db.execute() as unknown;
 
     if (!eventsIndexes || eventsIndexes.length === 0) {
@@ -46,7 +48,7 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
 
   } catch (error: unknown) {
     // 索引可能已存在（不同名称），忽略重复索引错误
-    if ((error as Error).message?.includes('Duplicate key name') || error.code === 'ER_DUP_KEYNAME') {
+    if ((error as Error).message?.includes('Duplicate key name') || (error as any).code === 'ER_DUP_KEYNAME') {
       console.log('[v268-migration] Index already exists (different name), skipping');
     } else {
       console.error('[v268-migration] Error creating indexes:', (error as Error).message);

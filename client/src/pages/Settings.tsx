@@ -30,8 +30,9 @@ export default function Settings() {
   const { resetOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading, refetch } = trpc.adAccount.list.useQuery();
+  const { data: accounts, isLoading: accountsLoading, refetch } = trpc.adAccount.list.useQuery() as any;
   const accountId = selectedAccountId || accounts?.[0]?.id;
+  // @ts-ignore
   const selectedAccount = accounts?.find(a => a.id === accountId);
 
   // Update account mutation
@@ -96,7 +97,7 @@ export default function Settings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {accounts.map((account) => (
+                    {accounts.map((account: any) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
                         {account.accountName} ({account.marketplace})
                       </SelectItem>

@@ -79,7 +79,7 @@ export function WastedSpendTop10({
           </div>
         ) : (
           <div className="space-y-3">
-            {keywords.map((keyword, index) => (
+            {keywords.map((keyword: any, index: any) => (
               <div
                 key={keyword.id}
                 className="group relative p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"

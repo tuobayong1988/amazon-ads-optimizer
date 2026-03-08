@@ -337,7 +337,7 @@ export default function PerformanceGroupDetail() {
     }
     
     // 添加预测数据点
-    const predictionData = trendPrediction.spend.prediction.map((pred, i) => ({
+    const predictionData = trendPrediction.spend.prediction.map((pred: any, i: any) => ({
       date: pred.date,
       spend: pred.predicted,
       sales: trendPrediction.sales.prediction[i]?.predicted || 0,
@@ -976,8 +976,8 @@ export default function PerformanceGroupDetail() {
                         const firstHalf = data.slice(0, mid);
                         const secondHalf = data.slice(mid);
                         const calcChange = (arr1: typeof data, arr2: typeof data, key: string) => {
-                          const avg1 = arr1.length > 0 ? arr1.reduce((s, d) => s + ((d as any)[key] || 0), 0) / arr1.length : 0;
-                          const avg2 = arr2.length > 0 ? arr2.reduce((s, d) => s + ((d as any)[key] || 0), 0) / arr2.length : 0;
+                          const avg1 = arr1.length > 0 ? arr1.reduce((s: any, d: any) => s + ((d as any)[key] || 0), 0) / arr1.length : 0;
+                          const avg2 = arr2.length > 0 ? arr2.reduce((s: any, d: any) => s + ((d as any)[key] || 0), 0) / arr2.length : 0;
                           return avg1 > 0 ? ((avg2 - avg1) / avg1) * 100 : 0;
                         };
                         const spendChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'spend') : null;
@@ -1313,8 +1313,8 @@ export default function PerformanceGroupDetail() {
                           <PieChart>
                             <Pie
                               data={[
-                                { name: '花费', value: performanceTrendData.reduce((sum, d) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                { name: '销售额', value: performanceTrendData.reduce((sum, d) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                                { name: '花费', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.sales || 0), 0), fill: '#10b981' },
                               ]}
                               cx="50%"
                               cy="50%"
@@ -1324,9 +1324,9 @@ export default function PerformanceGroupDetail() {
                               dataKey="value"
                             >
                               {[
-                                { name: '花费', value: performanceTrendData.reduce((sum, d) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
-                                { name: '销售额', value: performanceTrendData.reduce((sum, d) => sum + (d.sales || 0), 0), fill: '#10b981' },
-                              ].map((entry, index) => (
+                                { name: '花费', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum: any, d: any) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                              ].map((entry: any, index: any) => (
                                 <Cell key={`cell-${index}`} fill={entry.fill} />
                               ))}
                             </Pie>
@@ -1831,11 +1831,11 @@ export default function PerformanceGroupDetail() {
               
               // 计算历史平均指标
               const totalDays = data.length;
-              const totalSpend = data.reduce((s, d) => s + (Number(d.spend) || 0), 0);
-              const totalSales = data.reduce((s, d) => s + (Number(d.sales) || 0), 0);
-              const totalClicks = data.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
-              const totalImpressions = data.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
-              const totalOrders = data.reduce((s, d) => s + (Number(d.orders) || 0), 0);
+              const totalSpend = data.reduce((s: any, d: any) => s + (Number(d.spend) || 0), 0);
+              const totalSales = data.reduce((s: any, d: any) => s + (Number(d.sales) || 0), 0);
+              const totalClicks = data.reduce((s: any, d: any) => s + (Number(d.clicks) || 0), 0);
+              const totalImpressions = data.reduce((s: any, d: any) => s + (Number(d.impressions) || 0), 0);
+              const totalOrders = data.reduce((s: any, d: any) => s + (Number(d.orders) || 0), 0);
               
               const avgDailySpend = totalSpend / totalDays;
               const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
@@ -1848,11 +1848,11 @@ export default function PerformanceGroupDetail() {
               // 近期数据权重更高（时间衰减）
               const recentDays = Math.min(14, data.length);
               const recentData = data.slice(-recentDays);
-              const recentSpend = recentData.reduce((s, d) => s + (Number(d.spend) || 0), 0);
-              const recentSales = recentData.reduce((s, d) => s + (Number(d.sales) || 0), 0);
-              const recentClicks = recentData.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
-              const recentOrders = recentData.reduce((s, d) => s + (Number(d.orders) || 0), 0);
-              const recentImpressions = recentData.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
+              const recentSpend = recentData.reduce((s: any, d: any) => s + (Number(d.spend) || 0), 0);
+              const recentSales = recentData.reduce((s: any, d: any) => s + (Number(d.sales) || 0), 0);
+              const recentClicks = recentData.reduce((s: any, d: any) => s + (Number(d.clicks) || 0), 0);
+              const recentOrders = recentData.reduce((s: any, d: any) => s + (Number(d.orders) || 0), 0);
+              const recentImpressions = recentData.reduce((s: any, d: any) => s + (Number(d.impressions) || 0), 0);
               
               const recentAvgDailySpend = recentSpend / recentDays;
               const recentCPC = recentClicks > 0 ? recentSpend / recentClicks : avgCPC;
@@ -1997,7 +1997,7 @@ export default function PerformanceGroupDetail() {
                               </tr>
                             </thead>
                             <tbody>
-                              {scenarios.map((s, i) => (
+                              {scenarios.map((s: any, i: any) => (
                                 <tr key={i} className={`border-b border-muted/50 ${s.multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
                                   <td className="py-2 px-3">
                                     {s.label}

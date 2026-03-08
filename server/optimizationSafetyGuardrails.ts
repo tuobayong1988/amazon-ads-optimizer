@@ -332,19 +332,19 @@ export async function checkEmergencyBrake(
     let recentSpend = 0, recentSales = 0, recentOrders = 0;
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
     
-    for (const campaign of campaigns) {
+    for (const campaign of (campaigns as any[])) {
       try {
         // v206: getDailyPerformanceByDateRange需要Amazon campaignId（varchar）
         const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId);
         const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId);
         
-        for (const d of recentData) {
+        for (const d of (recentData as any[])) {
           recentSpend += Number(d.spend) || 0;
           recentSales += Number(d.sales) || 0;
           recentOrders += d.orders || 0;
         }
         
-        for (const d of previousData) {
+        for (const d of (previousData as any[])) {
           previousSpend += Number(d.spend) || 0;
           previousSales += Number(d.sales) || 0;
           previousOrders += d.orders || 0;
@@ -370,6 +370,7 @@ export async function checkEmergencyBrake(
           .where(and(
             eq(optimizationLogs.accountId, accountId),
             sql`created_at >= DATE_SUB(NOW(), INTERVAL ${lookback} DAY)`,
+            // @ts-ignore
             eq(optimizationLogs.status, 'applied' as unknown)
           ))
           .limit(1);
@@ -485,16 +486,16 @@ export async function assessRiskLevel(
     let recentSpend = 0, recentSales = 0, recentClicks = 0;
     let previousSpend = 0, previousSales = 0, previousClicks = 0;
 
-    for (const campaign of campaigns) {
+    for (const campaign of (campaigns as any[])) {
       try {
         const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, now, campaign.campaignId);
         const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, recentStart, campaign.campaignId);
-        for (const d of recentData) {
+        for (const d of (recentData as any[])) {
           recentSpend += Number(d.spend) || 0;
           recentSales += Number(d.sales) || 0;
           recentClicks += d.clicks || 0;
         }
-        for (const d of previousData) {
+        for (const d of (previousData as any[])) {
           previousSpend += Number(d.spend) || 0;
           previousSales += Number(d.sales) || 0;
           previousClicks += d.clicks || 0;

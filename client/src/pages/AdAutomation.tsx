@@ -220,7 +220,7 @@ export default function AdAutomation() {
   });
   
   // Fetch accounts
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   
   // N-Gram Analysis
   const ngramQuery = trpc.adAutomation.analyzeNgrams.useQuery({
@@ -376,7 +376,7 @@ export default function AdAutomation() {
                 <SelectValue placeholder="选择广告账号" />
               </SelectTrigger>
               <SelectContent>
-                {accounts?.map((account) => (
+                {accounts?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>
@@ -700,7 +700,7 @@ export default function AdAutomation() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {conflict.campaigns.map((campaign, i) => (
+                                {conflict.campaigns.map((campaign: any, i: any) => (
                                   <tr 
                                     key={i} 
                                     className={`border-b border-border/30 ${
@@ -745,7 +745,7 @@ export default function AdAutomation() {
                                 {Array.isArray(conflict.recommendation.loserCampaigns) && 
                                  conflict.recommendation.loserCampaigns.length > 0 && (
                                   <div className="mt-2 space-y-1">
-                                    {conflict.recommendation.loserCampaigns.map((loser, i) => {
+                                    {conflict.recommendation.loserCampaigns.map((loser: any, i: any) => {
                                       const loserInfo = typeof loser === 'string' 
                                         ? { name: loser, negativeLevel: 'ad_group' as const }
                                         : loser;

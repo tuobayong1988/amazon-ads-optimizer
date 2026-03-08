@@ -102,17 +102,17 @@ export function buildImpressionCurve(dataPoints: BidPerformanceData[]): Impressi
   const y = validPoints.map(p => p.impressions);
   
   // 计算线性回归参数
-  const sumLnX = lnX.reduce((a, b) => a + b, 0);
-  const sumY = y.reduce((a, b) => a + b, 0);
+  const sumLnX = lnX.reduce((a: any, b: any) => a + b, 0);
+  const sumY = y.reduce((a: any, b: any) => a + b, 0);
   const sumLnXY = lnX.reduce((sum, x, i) => sum + x * y[i], 0);
-  const sumLnX2 = lnX.reduce((sum, x) => sum + x * x, 0);
+  const sumLnX2 = lnX.reduce((sum: any, x: any) => sum + x * x, 0);
   
   const a = (n * sumLnXY - sumLnX * sumY) / (n * sumLnX2 - sumLnX * sumLnX);
   const c = (sumY - a * sumLnX) / n;
   
   // 计算R²
   const meanY = sumY / n;
-  const ssTotal = y.reduce((sum, yi) => sum + Math.pow(yi - meanY, 2), 0);
+  const ssTotal = y.reduce((sum: any, yi: any) => sum + Math.pow(yi - meanY, 2), 0);
   const ssResidual = validPoints.reduce((sum, p, i) => {
     const predicted = a * lnX[i] + c;
     return sum + Math.pow(p.impressions - predicted, 2);
@@ -143,17 +143,17 @@ export function buildCTRCurve(dataPoints: BidPerformanceData[]): CTRCurveParams 
   }
   
   // 计算平均CTR
-  const totalClicks = validPoints.reduce((sum, p) => sum + p.clicks, 0);
-  const totalImpressions = validPoints.reduce((sum, p) => sum + p.impressions, 0);
+  const totalClicks = validPoints.reduce((sum: any, p: any) => sum + p.clicks, 0);
+  const totalImpressions = validPoints.reduce((sum: any, p: any) => sum + p.impressions, 0);
   const baseCtr = totalClicks / totalImpressions;
   
   // 分析出价与CTR的关系（高出价通常获得更好位置，CTR更高）
-  const sortedByBid = [...validPoints].sort((a, b) => b.bid - a.bid);
+  const sortedByBid = [...validPoints].sort((a: any, b: any) => b.bid - a.bid);
   const topHalf = sortedByBid.slice(0, Math.ceil(sortedByBid.length / 2));
   const bottomHalf = sortedByBid.slice(Math.ceil(sortedByBid.length / 2));
   
-  const topCTR = topHalf.reduce((sum, p) => sum + p.ctr, 0) / topHalf.length;
-  const bottomCTR = bottomHalf.reduce((sum, p) => sum + p.ctr, 0) / bottomHalf.length;
+  const topCTR = topHalf.reduce((sum: any, p: any) => sum + p.ctr, 0) / topHalf.length;
+  const bottomCTR = bottomHalf.reduce((sum: any, p: any) => sum + p.ctr, 0) / bottomHalf.length;
   
   const positionBonus = bottomCTR > 0 ? (topCTR - bottomCTR) / bottomCTR : 0.5;
   
@@ -178,9 +178,9 @@ export function calculateConversionParams(dataPoints: BidPerformanceData[]): Con
     };
   }
   
-  const totalClicks = validPoints.reduce((sum, p) => sum + p.clicks, 0);
-  const totalOrders = validPoints.reduce((sum, p) => sum + p.orders, 0);
-  const totalSales = validPoints.reduce((sum, p) => sum + p.sales, 0);
+  const totalClicks = validPoints.reduce((sum: any, p: any) => sum + p.clicks, 0);
+  const totalOrders = validPoints.reduce((sum: any, p: any) => sum + p.orders, 0);
+  const totalSales = validPoints.reduce((sum: any, p: any) => sum + p.sales, 0);
   
   const cvr = totalOrders / Math.max(totalClicks, 1);
   const aov = totalOrders > 0 ? totalSales / totalOrders : 30;
@@ -363,7 +363,7 @@ export async function buildMarketCurveForKeyword(
       return null;
     }
     
-    const kw = keywordData[0];
+    const kw = keywordData[0] as any;
     
     // 使用关键词汇总数据构建简化模型
     const dataPoints: BidPerformanceData[] = [{
@@ -439,8 +439,8 @@ function calculateModelConfidence(dataPoints: BidPerformanceData[], r2: number):
   
   // 基于数据一致性的置信度
   const clicks = dataPoints.map(p => p.clicks);
-  const avgClicks = clicks.reduce((a, b) => a + b, 0) / clicks.length;
-  const variance = clicks.reduce((sum, c) => sum + Math.pow(c - avgClicks, 2), 0) / clicks.length;
+  const avgClicks = clicks.reduce((a: any, b: any) => a + b, 0) / clicks.length;
+  const variance = clicks.reduce((sum: any, c: any) => sum + Math.pow(c - avgClicks, 2), 0) / clicks.length;
   const cv = Math.sqrt(variance) / Math.max(avgClicks, 1); // 变异系数
   const consistencyConfidence = Math.max(0, 1 - cv);
   
@@ -540,7 +540,7 @@ export async function getMarketCurveModel(
     return null;
   }
   
-  const m = models[0];
+  const m = models[0] as any;
   
   return {
     impressionCurve: {
@@ -595,7 +595,7 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
     .where(eq(keywords.keywordStatus, 'enabled'))
     .limit(1000);
   
-  for (const kw of allKeywords) {
+  for (const kw of (allKeywords as any[])) {
     try {
       // 获取关键词所属的广告活动
       const adGroupData = await db
@@ -627,7 +627,7 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
       }
     } catch (error) {
       result.failed++;
-      result.errors.push(`关键词 ${kw.id}: ${error instanceof Error ? error.message : String(error)}`);
+      result.errors.push(`关键词 ${kw.id}: ${error instanceof Error ? (error as Error).message : String(error)}`);
     }
   }
   

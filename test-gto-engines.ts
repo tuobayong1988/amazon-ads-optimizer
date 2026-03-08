@@ -52,8 +52,8 @@ const mockGroupConfig = {
 // ===== 测试函数 =====
 function testCompetitorAwareness() {
   console.log('\n========== 模块1: 竞争环境感知引擎 ==========');
-  const avgCpc = mockTargets.reduce((sum, t) => sum + t.cpc, 0) / mockTargets.length;
-  const totalImpressions = mockTargets.reduce((sum, t) => sum + t.impressions, 0);
+  const avgCpc = mockTargets.reduce((sum: any, t: any) => sum + t.cpc, 0) / mockTargets.length;
+  const totalImpressions = mockTargets.reduce((sum: any, t: any) => sum + t.impressions, 0);
   
   // 模拟不同竞争环境
   const scenarios = [
@@ -130,8 +130,8 @@ function testExploratoryInvestment() {
 
 function testBudgetPooling() {
   console.log('\n========== 模块4: 预算分池与风控引擎 ==========');
-  const totalSpend = mockTargets.reduce((sum, t) => sum + t.spend, 0);
-  const totalSales = mockTargets.reduce((sum, t) => sum + t.sales, 0);
+  const totalSpend = mockTargets.reduce((sum: any, t: any) => sum + t.spend, 0);
+  const totalSales = mockTargets.reduce((sum: any, t: any) => sum + t.sales, 0);
   const overallAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
   
   console.log(`  总花费: $${totalSpend}, 总销售: $${totalSales}, 整体ACoS: ${overallAcos.toFixed(1)}%`);

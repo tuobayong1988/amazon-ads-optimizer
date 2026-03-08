@@ -18,7 +18,7 @@ export const dataHealthRouter = router({
   getOverview: protectedProcedure
     .query(async () => {
       try {
-        const results: Record<string, unknown> = {};
+        const results: Record<string, any> = {};
         
         // 1. 获取限流服务指标
         try {
@@ -169,7 +169,7 @@ export const dataHealthRouter = router({
    */
   getRateLimitMetrics: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       try {
         const { getApiRateLimitService } = await import('../services/apiRateLimitService');
         const service = getApiRateLimitService();

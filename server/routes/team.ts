@@ -13,7 +13,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 // ==================== Team Member Router ====================
 export const teamRouter = router({
   // 获取团队成员列表（P2优化: 自动包含所有者/管理员自身）
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }: any) => {
     const members = await db.getTeamMembersByOwner(ctx.user.id);
     // P2优化: 将当前用户（所有者）作为第一个成员显示
     const ownerEntry = {
@@ -32,7 +32,7 @@ export const teamRouter = router({
   // 获取单个团队成员
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getTeamMemberById(input.id);
     }),
 
@@ -168,7 +168,7 @@ export const teamRouter = router({
   // 获取账号的所有权限
   getAccountPermissions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       return db.getPermissionsByAccount(input.accountId);
     }),
 });
@@ -177,7 +177,7 @@ export const teamRouter = router({
 // ==================== Email Report Router ====================
 export const emailReportRouter = router({
   // 获取订阅列表
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }: any) => {
     return db.getEmailSubscriptionsByUser(ctx.user.id);
   }),
 
@@ -392,13 +392,13 @@ export const inviteCodeRouter = router({
       
       const result = await createInviteCode({
         createdBy: ctx.user.id,
-        organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
+        organizationId: (ctx.user as Record<string, any>).organizationId || 1,
         ...input,
       });
       
       if (result.success && result.inviteCode) {
         await createAuditLog({
-          organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
+          organizationId: (ctx.user as Record<string, any>).organizationId || 1,
           userId: ctx.user.id,
           userName: ctx.user.name || ctx.user.email || undefined,
           actionType: 'invite_create',
@@ -426,7 +426,7 @@ export const inviteCodeRouter = router({
       const { createInviteCodesBatch } = await import('../inviteCodeService');
       return createInviteCodesBatch({
         createdBy: ctx.user.id,
-        organizationId: (ctx.user as Record<string, unknown>).organizationId || 1,
+        organizationId: (ctx.user as Record<string, any>).organizationId || 1,
         inviteType: input.inviteType,
         maxUses: input.maxUses,
         expiresInDays: input.expiresInDays,
@@ -437,19 +437,19 @@ export const inviteCodeRouter = router({
   // 验证邀请码（公开接口）
   validate: protectedProcedure
     .input(z.object({ code: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: any) => {
       const { validateInviteCode } = await import('../inviteCodeService');
       return validateInviteCode(input.code);
     }),
 
   // 获取邀请码列表
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: protectedProcedure.query(async ({ ctx }: any) => {
     const { getInviteCodes } = await import('../inviteCodeService');
     return getInviteCodes(ctx.user.id);
   }),
 
   // 获取邀请码统计
-  stats: protectedProcedure.query(async ({ ctx }) => {
+  stats: protectedProcedure.query(async ({ ctx }: any) => {
     const { getInviteCodeStats } = await import('../inviteCodeService');
     return getInviteCodeStats(ctx.user.id);
   }),
@@ -457,7 +457,7 @@ export const inviteCodeRouter = router({
   // 禁用邀请码
   disable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { disableInviteCode } = await import('../inviteCodeService');
       return disableInviteCode(input.id);
     }),
@@ -465,7 +465,7 @@ export const inviteCodeRouter = router({
   // 启用邀请码
   enable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { enableInviteCode } = await import('../inviteCodeService');
       return enableInviteCode(input.id);
     }),
@@ -473,7 +473,7 @@ export const inviteCodeRouter = router({
   // 删除邀请码
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: any) => {
       const { deleteInviteCode } = await import('../inviteCodeService');
       return deleteInviteCode(input.id);
     }),

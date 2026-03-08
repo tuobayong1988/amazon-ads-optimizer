@@ -32,7 +32,7 @@ export default function ApiStatusWidget({ className = "", compact = false }: Api
   const [, setLocation] = useLocation();
   
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
   const firstAccountId = accounts?.[0]?.id;
 
   // 获取API健康状态

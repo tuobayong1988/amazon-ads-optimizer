@@ -127,7 +127,7 @@ export function StrategyTemplates({ currentAcos, onApplyTemplate }: StrategyTemp
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => {
+          {templates.map((template: any) => {
             const isRecommended = template.id === recommendedId;
             return (
               <div
@@ -178,7 +178,7 @@ export function StrategyTemplates({ currentAcos, onApplyTemplate }: StrategyTemp
                 </div>
                 
                 <div className="flex flex-wrap gap-1 mb-4">
-                  {template.tags.map((tag) => (
+                  {template.tags.map((tag: any) => (
                     <Badge key={tag} variant="secondary" className="text-xs">
                       {tag}
                     </Badge>

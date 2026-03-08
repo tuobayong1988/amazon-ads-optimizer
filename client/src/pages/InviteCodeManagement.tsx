@@ -28,8 +28,8 @@ export default function InviteCodeManagement() {
   const [batchCount, setBatchCount] = useState(5);
 
   // 获取邀请码列表
-  const inviteCodesQuery = trpc.inviteCode.list.useQuery();
-  const statsQuery = trpc.inviteCode.stats.useQuery();
+  const inviteCodesQuery = trpc.inviteCode.list.useQuery() as any;
+  const statsQuery = trpc.inviteCode.stats.useQuery() as any;
 
   // 创建邀请码
   const createMutation = trpc.inviteCode.create.useMutation({

@@ -30,7 +30,7 @@ export default function HealthMonitor() {
   const [activeTab, setActiveTab] = useState("overview");
 
   // 获取广告账号列表
-  const accountsQuery = trpc.adAccount.list.useQuery();
+  const accountsQuery = trpc.adAccount.list.useQuery() as any;
   
   // 获取健康度分析
   const healthQuery = trpc.adAutomation.analyzeCampaignHealth.useQuery({
@@ -104,7 +104,7 @@ export default function HealthMonitor() {
                 <SelectValue placeholder="选择广告账号" />
               </SelectTrigger>
               <SelectContent>
-                {accountsQuery.data?.map((account) => (
+                {accountsQuery.data?.map((account: any) => (
                   <SelectItem key={account.id} value={account.id.toString()}>
                     {account.accountName}
                   </SelectItem>

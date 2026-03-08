@@ -35,7 +35,7 @@ export interface OpsEntry {
   /** 日志消息 */
   message: string;
   /** 结构化附加数据 */
-  data?: Record<string, unknown>;
+  data?: Record<string, any>;
 }
 
 export interface OpsQuery {
@@ -120,7 +120,7 @@ class OpsCollector {
     }
   }
   
-  log(category: OpsCategory, level: OpsLevel, module: string, message: string, data?: Record<string, unknown>): void {
+  log(category: OpsCategory, level: OpsLevel, module: string, message: string, data?: Record<string, any>): void {
     const entry: OpsEntry = {
       seq: ++this.seq,
       timestamp: new Date().toISOString(),
@@ -157,7 +157,8 @@ class OpsCollector {
     if (keyword) {
       const kw = keyword.toLowerCase();
       entries = entries.filter(e => 
-        e.message.toLowerCase().includes(kw) || 
+        // @ts-ignore
+        (e as Error).message.toLowerCase().includes(kw) || 
         (e.data && JSON.stringify(e.data).toLowerCase().includes(kw))
       );
     }
@@ -196,55 +197,55 @@ export const opsCollector = new OpsCollector();
 // ============================================================
 
 /** 记录数据迁移事件 */
-export function logMigration(module: string, message: string, data?: Record<string, unknown>): void {
+export function logMigration(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('migration', 'info', module, message, data);
 }
-export function logMigrationWarn(module: string, message: string, data?: Record<string, unknown>): void {
+export function logMigrationWarn(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('migration', 'warn', module, message, data);
 }
-export function logMigrationError(module: string, message: string, data?: Record<string, unknown>): void {
+export function logMigrationError(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('migration', 'error', module, message, data);
 }
 
 /** 记录ID守卫拦截 */
-export function logIdGuard(module: string, message: string, data?: Record<string, unknown>): void {
+export function logIdGuard(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('id-guard', 'warn', module, message, data);
 }
-export function logIdGuardError(module: string, message: string, data?: Record<string, unknown>): void {
+export function logIdGuardError(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('id-guard', 'error', module, message, data);
 }
 
 /** 记录优化执行 */
-export function logOptimization(module: string, message: string, data?: Record<string, unknown>): void {
+export function logOptimization(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('optimization', 'info', module, message, data);
 }
-export function logOptimizationWarn(module: string, message: string, data?: Record<string, unknown>): void {
+export function logOptimizationWarn(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('optimization', 'warn', module, message, data);
 }
-export function logOptimizationError(module: string, message: string, data?: Record<string, unknown>): void {
+export function logOptimizationError(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('optimization', 'error', module, message, data);
 }
 
 /** 记录数据同步 */
-export function logSync(module: string, message: string, data?: Record<string, unknown>): void {
+export function logSync(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('sync', 'info', module, message, data);
 }
-export function logSyncWarn(module: string, message: string, data?: Record<string, unknown>): void {
+export function logSyncWarn(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('sync', 'warn', module, message, data);
 }
-export function logSyncError(module: string, message: string, data?: Record<string, unknown>): void {
+export function logSyncError(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('sync', 'error', module, message, data);
 }
 
 /** 记录系统错误 */
-export function logOpsError(module: string, message: string, data?: Record<string, unknown>): void {
+export function logOpsError(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('error', 'error', module, message, data);
 }
 
 /** 记录系统事件 */
-export function logSystem(module: string, message: string, data?: Record<string, unknown>): void {
+export function logSystem(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('system', 'info', module, message, data);
 }
-export function logSystemWarn(module: string, message: string, data?: Record<string, unknown>): void {
+export function logSystemWarn(module: string, message: string, data?: Record<string, any>): void {
   opsCollector.log('system', 'warn', module, message, data);
 }

@@ -311,7 +311,7 @@ function MarketingPage() {
             
             {/* 核心指标展示 */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {performanceMetrics.map((metric, i) => (
+              {performanceMetrics.map((metric: any, i: any) => (
                 <div key={i} className="bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     {metric.trend === "up" ? (
@@ -368,7 +368,7 @@ function MarketingPage() {
               </div>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mlEngines.map((feature, i) => (
+              {mlEngines.map((feature: any, i: any) => (
                 <Card key={i} className="bg-card/50 border-blue-500/20 hover:border-blue-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4 group-hover:bg-blue-500/20 transition-colors">
@@ -380,7 +380,7 @@ function MarketingPage() {
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      {feature.benefits.map((benefit, j) => (
+                      {feature.benefits.map((benefit: any, j: any) => (
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
                           <span>{benefit}</span>
@@ -418,7 +418,7 @@ function MarketingPage() {
               </div>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gtoEngines.map((feature, i) => (
+              {gtoEngines.map((feature: any, i: any) => (
                 <Card key={i} className="bg-card/50 border-amber-500/20 hover:border-amber-500/50 transition-colors group">
                   <CardHeader>
                     <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center mb-4 group-hover:bg-amber-500/20 transition-colors">
@@ -430,7 +430,7 @@ function MarketingPage() {
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">{feature.description}</p>
                     <ul className="space-y-2">
-                      {feature.benefits.map((benefit, j) => (
+                      {feature.benefits.map((benefit: any, j: any) => (
                         <li key={j} className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="w-4 h-4 text-amber-500 flex-shrink-0" />
                           <span>{benefit}</span>
@@ -457,7 +457,7 @@ function MarketingPage() {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-            {algorithmSteps.map((step, i) => (
+            {algorithmSteps.map((step: any, i: any) => (
               <div key={i} className="relative">
                 {/* 连接线 */}
                 {i < algorithmSteps.length - 1 && (
@@ -476,7 +476,7 @@ function MarketingPage() {
                   <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{step.description}</p>
                   <div className="flex flex-wrap justify-center gap-2">
-                    {step.details.map((detail, j) => (
+                    {step.details.map((detail: any, j: any) => (
                       <Badge key={j} variant="secondary" className="text-xs">
                         {detail}
                       </Badge>
@@ -533,7 +533,7 @@ function MarketingPage() {
                   traditional: "缺乏降级机制，算法失效时无兜底",
                   ours: "三层降级 + GTO安全边界(0.6~1.4) + 预算熔断，永不失控"
                 }
-              ].map((item, i) => (
+              ].map((item: any, i: any) => (
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
                   <div className="font-medium text-primary">{item.aspect}</div>
                   <div className="flex items-start gap-2">
@@ -582,7 +582,7 @@ function MarketingPage() {
                 description: "展示型推广广告，站内外精准触达消费者",
                 features: ["受众定向优化", "再营销策略", "跨渠道追踪"]
               }
-            ].map((ad, i) => (
+            ].map((ad: any, i: any) => (
               <Card key={i} className="text-center">
                 <CardHeader>
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -593,7 +593,7 @@ function MarketingPage() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2 text-left">
-                    {ad.features.map((feature, j) => (
+                    {ad.features.map((feature: any, j: any) => (
                       <li key={j} className="flex items-center gap-2 text-sm">
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                         <span>{feature}</span>
@@ -618,7 +618,7 @@ function MarketingPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            {getAllPosts().slice(0, 6).map((post) => (
+            {getAllPosts().slice(0, 6).map((post: any) => (
               <Link key={post.id} href={`/blog/${post.slug}`}>
                 <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
                   <div className="relative aspect-video overflow-hidden">
@@ -673,7 +673,7 @@ function MarketingPage() {
           </div>
           
           <div className="max-w-3xl mx-auto space-y-4">
-            {faqs.map((faq, i) => (
+            {faqs.map((faq: any, i: any) => (
               <div 
                 key={i} 
                 className="bg-card border border-border/50 rounded-lg overflow-hidden"
@@ -956,26 +956,26 @@ function DashboardContent() {
   // 按ACoS从高到低排序（风险排行）
   const accountsData = useMemo(() => {
     if (!accountsWithPerformance || accountsWithPerformance.length === 0) return [];
-    return [...accountsWithPerformance].sort((a, b) => b.acos - a.acos);
+    return [...accountsWithPerformance].sort((a: any, b: any) => b.acos - a.acos);
   }, [accountsWithPerformance]);
   
   // 计算汇总数据
   const summary = useMemo(() => {
-    const totalSpend = accountsData.reduce((sum, a) => sum + a.spend, 0);
-    const totalSales = accountsData.reduce((sum, a) => sum + a.sales, 0);
-    const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
+    const totalSpend = accountsData.reduce((sum: any, a: any) => sum + a.spend, 0);
+    const totalSales = accountsData.reduce((sum: any, a: any) => sum + a.sales, 0);
+    const totalOrders = accountsData.reduce((sum: any, a: any) => sum + a.orders, 0);
     const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     const profit = totalSales - totalSpend;
     
     const spendChange = accountsData.length > 0 
-      ? accountsData.reduce((sum, a) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
+      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
       : 0;
     const salesChange = accountsData.length > 0
-      ? accountsData.reduce((sum, a) => sum + (a.change?.sales || 0) * a.sales, 0) / Math.max(totalSales, 1)
+      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.sales || 0) * a.sales, 0) / Math.max(totalSales, 1)
       : 0;
     const acosChange = accountsData.length > 0
-      ? accountsData.reduce((sum, a) => sum + (a.change?.acos || 0), 0) / accountsData.length
+      ? accountsData.reduce((sum: any, a: any) => sum + (a.change?.acos || 0), 0) / accountsData.length
       : 0;
     const roasChange = -acosChange;
     
@@ -1105,7 +1105,7 @@ function DashboardContent() {
                 {...provided.droppableProps}
                 className={`grid gap-6 items-stretch ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
               >
-                {cardOrder.map((cardId, index) => {
+                {cardOrder.map((cardId: any, index: any) => {
                   // v251: full-width卡片跨全列，compact卡片自然流入grid列
                   const sizeType = CARD_SIZE_TYPE[cardId] || 'full';
                   const isFullWidth = sizeType === 'full';
@@ -1440,7 +1440,7 @@ function DashboardContent() {
                             </CardHeader>
                             <CardContent className="flex-1">
                               <div className="space-y-3">
-                                {accountsData.map((account, idx) => (
+                                {accountsData.map((account: any, idx: any) => (
                                   <div 
                                     key={account.id}
                                     className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}

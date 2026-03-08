@@ -88,7 +88,7 @@ describe("Budget Allocation Service", () => {
       ];
       
       const totalBudget = 300;
-      const totalScore = campaigns.reduce((sum, c) => sum + c.score, 0);
+      const totalScore = campaigns.reduce((sum: any, c: any) => sum + c.score, 0);
       
       const allocations = campaigns.map(c => ({
         ...c,
@@ -100,7 +100,7 @@ describe("Budget Allocation Service", () => {
       expect(allocations[1].recommendedBudget).toBeGreaterThan(allocations[2].recommendedBudget);
       
       // 总预算应该等于分配的预算
-      const totalAllocated = allocations.reduce((sum, a) => sum + a.recommendedBudget, 0);
+      const totalAllocated = allocations.reduce((sum: any, a: any) => sum + a.recommendedBudget, 0);
       expect(totalAllocated).toBeCloseTo(totalBudget, 2);
     });
 
@@ -124,7 +124,7 @@ describe("Budget Allocation Service", () => {
       ];
       
       const totalBudget = 200;
-      const totalScore = campaigns.reduce((sum, c) => sum + c.score, 0);
+      const totalScore = campaigns.reduce((sum: any, c: any) => sum + c.score, 0);
       
       // 当总分为0时，应该平均分配
       const allocations = campaigns.map(c => ({
@@ -225,8 +225,8 @@ describe("Budget Allocation Service", () => {
           increasedCount: increased.length,
           decreasedCount: decreased.length,
           unchangedCount: unchanged.length,
-          totalIncrease: increased.reduce((sum, r) => sum + r.budgetChange, 0),
-          totalDecrease: Math.abs(decreased.reduce((sum, r) => sum + r.budgetChange, 0)),
+          totalIncrease: increased.reduce((sum: any, r: any) => sum + r.budgetChange, 0),
+          totalDecrease: Math.abs(decreased.reduce((sum: any, r: any) => sum + r.budgetChange, 0)),
         };
       };
       

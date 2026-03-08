@@ -27,8 +27,8 @@ export default function NotificationSettings() {
     quietHoursEnd: 8,
   });
 
-  const { data: savedSettings, isLoading } = trpc.notification.getSettings.useQuery();
-  const { data: notificationHistory, isLoading: historyLoading } = trpc.notification.getHistory.useQuery({ limit: 20 });
+  const { data: savedSettings, isLoading } = trpc.notification.getSettings.useQuery() as any;
+  const { data: notificationHistory, isLoading: historyLoading } = trpc.notification.getHistory.useQuery({ limit: 20 }) as any;
   const updateSettingsMutation = trpc.notification.updateSettings.useMutation();
   const sendTestMutation = trpc.notification.sendTest.useMutation();
   const markAsReadMutation = trpc.notification.markAsRead.useMutation();
@@ -314,7 +314,7 @@ export default function NotificationSettings() {
                   </div>
                 ) : notificationHistory && notificationHistory.length > 0 ? (
                   <div className="space-y-4">
-                    {notificationHistory.map((notification) => (
+                    {notificationHistory.map((notification: any) => (
                       <div
                         key={notification.id}
                         className={`flex items-start gap-4 p-4 rounded-lg border ${
