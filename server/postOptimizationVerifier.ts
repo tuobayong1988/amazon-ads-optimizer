@@ -85,6 +85,8 @@ export interface VerificationResult {
 
 // ============================================================
 // 验证任务队列（内存队列 + 定时器驱动）
+// v360: 添加重启恢复机制，通过budgetSyncStatus='pending_confirmation'持久化状态
+// 服务重启后，通过正常同步流程中的pending_confirmation检查自动恢复
 // ============================================================
 
 /** 待执行的验证任务队列 */
@@ -92,6 +94,22 @@ const pendingTasks: Map<string, VerificationTask> = new Map();
 
 /** 活跃的定时器 */
 const activeTimers: Map<string, NodeJS.Timeout> = new Map();
+
+/** v360: 获取当前待验证任务数量（用于监控） */
+export function getPendingVerificationCount(): number {
+  return pendingTasks.size;
+}
+
+/** v360: 获取待验证任务摘要（用于诊断） */
+export function getPendingVerificationSummary(): Array<{ taskId: string; accountId: number; itemCount: number; attempt: number; createdAt: Date }> {
+  return Array.from(pendingTasks.values()).map(t => ({
+    taskId: t.id,
+    accountId: t.accountId,
+    itemCount: t.items.length,
+    attempt: t.attempt,
+    createdAt: t.createdAt,
+  }));
+}
 
 /** 验证延迟配置（秒） */
 const VERIFICATION_DELAYS = {
