@@ -153,6 +153,8 @@ interface AllocationConfig {
   // 风险控制
   anomalyThreshold: number;
   minDataDays: number;
+  // v360: 优化目标日预算约束
+  targetTotalBudget?: number;  // 优化目标设定的日预算总额，如$300
 }
 
 // ==================== 默认配置 ====================
@@ -170,6 +172,11 @@ const DEFAULT_CONFIG: AllocationConfig = {
   anomalyThreshold: 2.5,  // 标准差倍数
   minDataDays: 7
 };
+
+/** v360: 导出默认配置以便外部模块可以基于默认配置进行扩展 */
+export function getDefaultAllocationConfig(): AllocationConfig {
+  return { ...DEFAULT_CONFIG };
+}
 
 // ==================== 数据收集模块 ====================
 
@@ -764,12 +771,48 @@ export async function generateBudgetAllocationSuggestions(
     });
   }
   
-  // 4. 预算守恒调整（确保总预算不变）
+  // 4. v360: 预算约束调整 — 以优化目标日预算为约束目标，渐进式趋向目标
   const totalCurrentBudget = suggestions.reduce((sum, s) => sum + s.currentBudget, 0);
   const totalSuggestedBudget = suggestions.reduce((sum, s) => sum + s.suggestedBudget, 0);
   
-  if (Math.abs(totalSuggestedBudget - totalCurrentBudget) > 1) {
-    // 按比例调整，保持总预算不变
+  // v360: 确定目标总预算
+  // 如果设置了targetTotalBudget，以它为目标；否则保持当前总预算不变
+  const targetBudget = config.targetTotalBudget && config.targetTotalBudget > 0 
+    ? config.targetTotalBudget 
+    : totalCurrentBudget;
+  
+  if (config.targetTotalBudget && config.targetTotalBudget > 0) {
+    // v360: 有明确的目标日预算，渐进式趋向目标
+    // 每次缩小差距的25%（渐进式，避免断崖式下滑）
+    const GRADUAL_FACTOR = 0.25;
+    const budgetGap = totalCurrentBudget - targetBudget;
+    let effectiveTarget: number;
+    
+    if (Math.abs(budgetGap) < totalCurrentBudget * 0.02) {
+      // 差距小于2%，直接使用目标值
+      effectiveTarget = targetBudget;
+    } else if (budgetGap > 0) {
+      // 当前总预算 > 目标，需要降低，使用保守系数(0.65)
+      effectiveTarget = totalCurrentBudget - budgetGap * GRADUAL_FACTOR * 0.65;
+    } else {
+      // 当前总预算 < 目标，需要增加
+      effectiveTarget = totalCurrentBudget - budgetGap * GRADUAL_FACTOR;
+    }
+    
+    // 按比例调整各广告活动预算，使总和趋向effectiveTarget
+    const adjustmentRatio = effectiveTarget / totalSuggestedBudget;
+    for (const suggestion of suggestions) {
+      suggestion.suggestedBudget *= adjustmentRatio;
+      suggestion.suggestedBudget = Math.max(config.minDailyBudget, suggestion.suggestedBudget);
+      suggestion.adjustmentAmount = suggestion.suggestedBudget - suggestion.currentBudget;
+      suggestion.adjustmentPercent = suggestion.currentBudget > 0 
+        ? (suggestion.adjustmentAmount / suggestion.currentBudget) * 100 
+        : 0;
+    }
+    
+    warnings.push(`[v360] 优化目标日预算: $${targetBudget.toFixed(0)}, 当前总预算: $${totalCurrentBudget.toFixed(0)}, 本次调整目标: $${effectiveTarget.toFixed(0)}`);
+  } else if (Math.abs(totalSuggestedBudget - totalCurrentBudget) > 1) {
+    // 无目标日预算，保持总预算不变（原有逻辑）
     const adjustmentRatio = totalCurrentBudget / totalSuggestedBudget;
     for (const suggestion of suggestions) {
       suggestion.suggestedBudget *= adjustmentRatio;

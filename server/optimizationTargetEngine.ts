@@ -3650,7 +3650,14 @@ async function executeBudgetAllocation(
   
   try {
     // 获取预算分配建议
-    const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(config.id);
+    // v360: 将优化目标的日预算约束传递给预算分配算法
+    const budgetConfig = config.dailyBudget 
+      ? { targetTotalBudget: config.dailyBudget } 
+      : undefined;
+    const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
+      config.id,
+      budgetConfig ? { ...intelligentBudgetAllocationService.getDefaultAllocationConfig(), ...budgetConfig } : undefined
+    );
     
     // v353: 预算分配诊断日志
     log.info(`[BudgetAllocation] v353诊断: 目标${config.id} 生成${budgetResult.suggestions.length}条预算建议, campaigns=${campaigns.length}`);
