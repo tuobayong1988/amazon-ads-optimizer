@@ -506,10 +506,9 @@ export const performanceGroupRouter = router({
       // v219: 批量状态变更后触发确认同步，从 Amazon 回读最新状态
       if (apiResult.success > 0 && group.accountId) {
         try {
-          const { confirmationSync } = await import('../unifiedSyncEngine');
-          confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: Error) => {
-            log.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
-          });
+          // v359: 使用可靠确认服务
+          const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
+          submitReliableConfirmation(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus', 'status_change');
         } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
       }
 

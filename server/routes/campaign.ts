@@ -177,12 +177,12 @@ export const campaignRouter = router({
         const successfulSyncs = apiSyncResults.filter(r => r.success);
         if (successfulSyncs.length > 0) {
           try {
-            const { confirmationSync } = await import('../unifiedSyncEngine');
+            // v359: 使用可靠确认服务
+            const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
             const entities: ('campaigns' | 'keywords' | 'targets' | 'budgets')[] = ['campaigns'];
             if (successfulSyncs.some(r => r.field === 'dailyBudget')) entities.push('budgets');
-            confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: Error) => {
-              log.error(`[campaign.update] v219: 确认同步失败:`, err.message);
-            });
+            const hasBudget = entities.includes('budgets');
+            submitReliableConfirmation(previousCampaign.accountId, entities, 'campaignUpdate', hasBudget ? 'budget_change' : 'status_change');
           } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
         }
       }
