@@ -32,6 +32,7 @@ import { eq, and, or, sql, inArray, isNull, desc, lt, gt, gte, lte } from 'drizz
 import * as amazonApiHelper from './services/amazonApiHelper';
 import { sanitizeAndValidateKeyword, isProductTargetingCampaign } from './utils/keywordValidator';
 import { createModuleLogger } from './utils/logger';
+import { recordAudit, auditSystemAction } from './services/auditLogService';
 
 const log = createModuleLogger('AutoCorrector');
 
@@ -353,6 +354,36 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     lastScanTime = completedAt;
     
     log.info(`v204: 纠错扫描完成 - 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+    
+    // v361: 记录纠错扫描到审计日志
+    auditSystemAction('system.deploy', {
+      description: `自动纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`,
+      metadata: {
+        scanId,
+        accountsScanned: accountIds.length,
+        totalIssuesFound: result.totalIssuesFound,
+        totalCorrected: result.totalCorrected,
+        totalFailed: result.totalFailed,
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+      },
+    });
+    
+    // v361: 对每个纠正动作记录审计日志
+    for (const correction of corrections) {
+      if (correction.success) {
+        recordAudit({
+          action: 'optimization.auto_bid',
+          accountId: correction.accountId,
+          entityType: correction.targetType || 'keyword',
+          entityId: correction.targetId,
+          previousValue: { value: correction.previousValue },
+          newValue: { value: correction.correctedValue, type: correction.type },
+          source: 'system',
+          result: 'success',
+          metadata: { module: 'AutoCorrector', scanId, reason: correction.reason },
+        });
+      }
+    }
     
     // v204: 同步健康度评估和告警
     await evaluateSyncHealth(database, result);

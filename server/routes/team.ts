@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { calculateNextSendTime } from './_helpers';
 import * as db from "../db";
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { recordAudit } from '../services/auditLogService';
 
 
 // ==================== Team Member Router ====================
@@ -64,11 +65,20 @@ export const teamRouter = router({
         inviteExpiresAt: inviteExpiresAt.toISOString(),
       });
 
-      // TODO: 发送邀请邮件
-
+        // TODO: 发送邀请邮件
+      // v361: 记录团队邀请审计日志
+      recordAudit({
+        action: 'team.invite',
+        userId: ctx.user.id,
+        entityType: 'team_member',
+        entityId: member?.id,
+        entityName: input.email,
+        newValue: { role: input.role, email: input.email },
+        source: 'api',
+        result: 'success',
+      });
       return member;
     }),
-
   // 更新成员信息
   update: protectedProcedure
     .input(z.object({
@@ -100,10 +110,20 @@ export const teamRouter = router({
       }
 
       await db.deleteTeamMember(input.id);
+      // v361: 记录团队成员删除审计日志
+      recordAudit({
+        action: 'team.remove',
+        userId: ctx.user.id,
+        entityType: 'team_member',
+        entityId: input.id,
+        entityName: member.email,
+        previousValue: { role: member.role, email: member.email },
+        source: 'api',
+        result: 'success',
+      });
       return { success: true };
     }),
-
-  // 重新发送邀请
+  // 重新发送邀请请
   resendInvite: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {

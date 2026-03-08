@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 360.0;  // v360.0: 业务优化全面升级 - 数据去重/限流统一/24h数据采集/预算约束/分时优化/跨广告智能
+export const SYSTEM_VERSION = 361.0;  // v361.0: 架构质量全面优化 - 模块拆分/安全增强/类型安全/审计日志/部署后指令重评估与纠错
