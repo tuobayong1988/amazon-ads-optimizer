@@ -521,7 +521,7 @@ async function checkUnassignedCampaigns(
     );
 
     if (unassigned.length > 0) {
-      const totalBudget = unassigned.reduce((sum: number, c: any) => sum + (Number(c.dailyBudget) || 0), 0);
+      const totalBudget = unassigned.reduce((sum: number, c: Record<string, unknown>) => sum + (Number(c.dailyBudget) || 0), 0);
       const severity: AlertSeverity = unassigned.length > 50 ? 'critical' : unassigned.length > 10 ? 'warning' : 'info';
       
       alerts.push({

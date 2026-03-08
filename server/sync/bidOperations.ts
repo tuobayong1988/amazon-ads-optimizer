@@ -81,8 +81,8 @@ export async function applyBidAdjustment(service: SyncContext,
               }
             }
           }
-        } catch (resolveErr: any) {
-          log.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+        } catch (resolveErr: unknown) {
+          log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
         }
         
         if (!kw.keywordId) {
@@ -148,8 +148,8 @@ export async function applyBidAdjustment(service: SyncContext,
               }
             }
           }
-        } catch (resolveErr: any) {
-          log.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+        } catch (resolveErr: unknown) {
+          log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
         }
         
         if (!pt.targetId) {
@@ -215,23 +215,23 @@ export async function applyBidAdjustment(service: SyncContext,
         executionStatus: 'success',
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
-    } catch (logError: any) {
-      log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${logError.message}`);
+    } catch (logError: unknown) {
+      log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${(logError as Error).message}`);
       try {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
         await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
         log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
-      } catch (rawSqlError: any) {
-        log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${rawSqlError.message}`);
+      } catch (rawSqlError: unknown) {
+        log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${(rawSqlError as Error).message}`);
       }
     }
 
     return true;
-  } catch (error: any) {
-    const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+  } catch (error: unknown) {
+    const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
-    log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${error.response?.status || 'N/A'}`);
+    log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
     // v126: 记录失败的出价调整到bidding_logs
     try {
@@ -241,8 +241,8 @@ export async function applyBidAdjustment(service: SyncContext,
       const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
       const errMsg = errorDetail.substring(0, 500);
       await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
-    } catch (logErr: any) {
-      log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${logErr.message}`);
+    } catch (logErr: unknown) {
+      log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${(logErr as Error).message}`);
     }
     
     return false;

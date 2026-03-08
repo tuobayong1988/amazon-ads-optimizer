@@ -251,8 +251,8 @@ export async function syncSbNegativeKeywords(service: SyncContext,): Promise<{ s
     
     log.info(`SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定关键词同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定关键词同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 }
@@ -298,7 +298,7 @@ export async function syncSbNegativeTargets(service: SyncContext,): Promise<{ sy
       }
       
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;
@@ -341,8 +341,8 @@ export async function syncSbNegativeTargets(service: SyncContext,): Promise<{ sy
     
     log.info(`SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定商品定向同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定商品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 }

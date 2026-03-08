@@ -78,7 +78,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
     const { getEngineStatus } = await import('./unifiedSyncEngine');
     const status = getEngineStatus();
     if ((status as any).lastSyncResults) {
-      const accountResult = ((status as any).lastSyncResults as any[])?.find((r: any) => r.accountId === accountId);
+      const accountResult = ((status as any).lastSyncResults as any[])?.find((r: Record<string, unknown>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
       }
@@ -101,46 +101,46 @@ export interface OptimizationExecutionResult {
   bidOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   placementOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   daypartingOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v179: 分时预算优化
   daypartingBudgetOptimization: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   searchTermAnalysis: {
     executed: boolean;
     negativeKeywordsAdded: number;
     newKeywordsAdded: number;
-    details: any[];
+    details: unknown[];
   };
   
   budgetAllocation: {
     executed: boolean;
     adjustmentsCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   keywordStatusChanges: {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v135: 广告活动状态变更
@@ -148,7 +148,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // v135: 广告组状态变更
@@ -156,7 +156,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
-    details: any[];
+    details: unknown[];
   };
   
   // 多维度智能优化结果
@@ -164,7 +164,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsAnalyzed: number;
     rulesGenerated: number;
-    details: any[];
+    details: unknown[];
   };
   
   // 中央竞价协调器执行结果
@@ -172,7 +172,7 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     campaignsCoordinated: number;
     circuitBreakerTriggered: number;
-    details: any[];
+    details: unknown[];
   };
   
   errors: string[];
@@ -290,8 +290,8 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     // 根据生命周期阶段调整安全参数
     config.maxBidChangePercent = lifecycle.config.bid.maxAdjustmentPercent;
     log.debug(`[OptimizationTargetConfig] 目标 ${group.name} 生命周期: ${lifecycle.overallStage} (${lifecycle.summary})`);
-  } catch (lcErr: any) {
-    log.error(`[OptimizationTargetConfig] 生命周期查询失败: ${lcErr.message}`);
+  } catch (lcErr: unknown) {
+    log.error(`[OptimizationTargetConfig] 生命周期查询失败: ${(lcErr as Error).message}`);
   }
   
   return config;
@@ -381,8 +381,8 @@ export async function executeOptimizationTarget(
     if (riskBidMultiplier < 1.0) {
       log.info(`[OptimizationTarget] v275: 风险自动响应生效 - 出价乘数=${riskBidMultiplier}, 冷却延长=${riskCooldownExtension}x`);
     }
-  } catch (safetyErr: any) {
-    log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
+  } catch (safetyErr: unknown) {
+    log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${(safetyErr as Error).message}`);
   }
   
   // v221: 数据新鲜度检查 - 确保不基于过时数据做优化决策
@@ -405,13 +405,13 @@ export async function executeOptimizationTarget(
           const { syncAllAccounts } = await import('./unifiedSyncEngine');
           await syncAllAccounts('high');
           log.info(`[OptimizationTarget] v221: 紧急同步完成，继续执行优化`);
-        } catch (syncErr: any) {
-          log.warn(`[OptimizationTarget] v221: 紧急同步失败，仍继续执行: ${syncErr.message}`);
+        } catch (syncErr: unknown) {
+          log.warn(`[OptimizationTarget] v221: 紧急同步失败，仍继续执行: ${(syncErr as Error).message}`);
         }
       }
     }
-  } catch (freshnessErr: any) {
-    log.warn(`[OptimizationTarget] v221: 数据新鲜度检查异常: ${freshnessErr.message}`);
+  } catch (freshnessErr: unknown) {
+    log.warn(`[OptimizationTarget] v221: 数据新鲜度检查异常: ${(freshnessErr as Error).message}`);
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
@@ -438,8 +438,8 @@ export async function executeOptimizationTarget(
         `最大出价降低${Math.round(adaptiveParams.maxBidDecrease * 100)}%, ` +
         `成功率${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
     }
-  } catch (evoErr: any) {
-    log.warn(`[OptimizationTarget] v164 自我进化异常，继续执行: ${evoErr.message}`);
+  } catch (evoErr: unknown) {
+    log.warn(`[OptimizationTarget] v164 自我进化异常，继续执行: ${(evoErr as Error).message}`);
   }
   
   // 获取优化目标下的所有广告活动
@@ -475,8 +475,8 @@ export async function executeOptimizationTarget(
           log.debug(`[OptimizationTarget] ${pauseMsg}`);
           result.warnings.push(pauseMsg);
           result.status = 'skipped';
-        } catch (autoPauseErr: any) {
-          log.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, autoPauseErr.message);
+        } catch (autoPauseErr: unknown) {
+          log.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, (autoPauseErr as Error).message);
         }
       }
     }
@@ -498,9 +498,9 @@ export async function executeOptimizationTarget(
           result.warnings.push(`Pre-Sync ID Resolution: 仍有${idResolution.totalMissingAfter}个实体缺少Amazon ID`);
         }
       }
-    } catch (idErr: any) {
-      log.error(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${idErr.message}`);
-      result.warnings.push(`Pre-Sync ID Resolution异常: ${idErr.message}`);
+    } catch (idErr: unknown) {
+      log.error(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${(idErr as Error).message}`);
+      result.warnings.push(`Pre-Sync ID Resolution异常: ${(idErr as Error).message}`);
     }
   }
   
@@ -523,8 +523,8 @@ export async function executeOptimizationTarget(
       // 标记已处理
       await markEmergencyOptimizationProcessed(config.accountId);
     }
-  } catch (riskErr: any) {
-    log.warn(`[OptimizationTarget] v235: 紧急优化检查异常: ${riskErr.message}`);
+  } catch (riskErr: unknown) {
+    log.warn(`[OptimizationTarget] v235: 紧急优化检查异常: ${(riskErr as Error).message}`);
   }
 
   // v272 P2: 紧急模式下的风险响应闭环
@@ -546,8 +546,8 @@ export async function executeOptimizationTarget(
       // v244: 移除v235的emergencyPause提前返回逻辑
       // 原v235行为：单个campaign安全检查触发 → 终止所有优化模块执行
       // 修复：安全检查只跳过单个campaign，不再影响其他优化模块（位置优化、分时竞价、搜索词分析、预算分配）的执行
-    } catch (error: any) {
-      result.errors.push(`出价优化失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`出价优化失败: ${(error as Error).message}`);
     }
   }
   
@@ -556,8 +556,8 @@ export async function executeOptimizationTarget(
     try {
       const placementResults = await executePlacementOptimization(config, campaigns, dryRun);
       result.placementOptimization = placementResults;
-    } catch (error: any) {
-      result.errors.push(`位置优化失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`位置优化失败: ${(error as Error).message}`);
     }
   }
   
@@ -581,9 +581,9 @@ export async function executeOptimizationTarget(
       );
       result.multiDimensionOptimization = multiDimResults;
       log.info(`[OptimizationTarget] 多维度优化完成: 分析${multiDimResults.campaignsAnalyzed}个campaign, 生成${multiDimResults.rulesGenerated}条规则`);
-    } catch (error: any) {
-      result.errors.push(`多维度智能优化失败: ${error.message}`);
-      log.error(`[OptimizationTarget] 多维度优化异常:`, error.message);
+    } catch (error: unknown) {
+      result.errors.push(`多维度智能优化失败: ${(error as Error).message}`);
+      log.error(`[OptimizationTarget] 多维度优化异常:`, (error as Error).message);
     }
   }
   
@@ -617,9 +617,9 @@ export async function executeOptimizationTarget(
           };
         }
       }
-    } catch (error: any) {
-      log.error(`[OptimizationTarget] v183 多维度组合分析异常:`, error.message);
-      result.warnings.push(`多维度组合分析失败: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`[OptimizationTarget] v183 多维度组合分析异常:`, (error as Error).message);
+      result.warnings.push(`多维度组合分析失败: ${(error as Error).message}`);
     }
   }
   
@@ -628,8 +628,8 @@ export async function executeOptimizationTarget(
     try {
       const daypartingResults = await executeDaypartingOptimization(config, campaigns, dryRun);
       result.daypartingOptimization = daypartingResults;
-    } catch (error: any) {
-      result.errors.push(`分时竞价优化失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`分时竞价优化失败: ${(error as Error).message}`);
     }
   }
   
@@ -638,8 +638,8 @@ export async function executeOptimizationTarget(
     try {
       const daypartingBudgetResults = await executeDaypartingBudgetOptimization(config, campaigns, dryRun);
       result.daypartingBudgetOptimization = daypartingBudgetResults;
-    } catch (error: any) {
-      result.errors.push(`分时预算优化失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`分时预算优化失败: ${(error as Error).message}`);
     }
   }
   
@@ -648,8 +648,8 @@ export async function executeOptimizationTarget(
     try {
       const searchTermResults = await executeSearchTermAnalysis(config, campaigns, dryRun);
       result.searchTermAnalysis = searchTermResults;
-    } catch (error: any) {
-      result.errors.push(`搜索词分析失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`搜索词分析失败: ${(error as Error).message}`);
     }
   }
   
@@ -661,9 +661,9 @@ export async function executeOptimizationTarget(
       if (ngramResults.negativeKeywordsAdded > 0) {
         log.info(`[NgramAutoNegation] v337.3: Ngram自动否定完成: 添加${ngramResults.negativeKeywordsAdded}个否定词`);
       }
-    } catch (error: any) {
-      result.errors.push(`Ngram自动否定失败: ${error.message}`);
-      log.error(`[NgramAutoNegation] v337.3: Ngram自动否定失败:`, error.message);
+    } catch (error: unknown) {
+      result.errors.push(`Ngram自动否定失败: ${(error as Error).message}`);
+      log.error(`[NgramAutoNegation] v337.3: Ngram自动否定失败:`, (error as Error).message);
     }
   }
 
@@ -672,8 +672,8 @@ export async function executeOptimizationTarget(
     try {
       const budgetResults = await executeBudgetAllocation(config, campaigns, dryRun);
       result.budgetAllocation = budgetResults;
-    } catch (error: any) {
-      result.errors.push(`预算分配优化失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`预算分配优化失败: ${(error as Error).message}`);
     }
   }
   
@@ -682,8 +682,8 @@ export async function executeOptimizationTarget(
     try {
       const keywordResults = await executeKeywordStatusChanges(config, campaigns, dryRun);
       result.keywordStatusChanges = keywordResults;
-    } catch (error: any) {
-      result.errors.push(`投放词状态变更失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`投放词状态变更失败: ${(error as Error).message}`);
     }
   }
   
@@ -692,8 +692,8 @@ export async function executeOptimizationTarget(
     try {
       const campaignResults = await executeCampaignStatusChanges(config, campaigns, dryRun);
       result.campaignStatusChanges = campaignResults;
-    } catch (error: any) {
-      result.errors.push(`广告活动状态变更失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`广告活动状态变更失败: ${(error as Error).message}`);
     }
   }
   
@@ -702,8 +702,8 @@ export async function executeOptimizationTarget(
     try {
       const adGroupResults = await executeAdGroupStatusChanges(config, campaigns, dryRun);
       result.adGroupStatusChanges = adGroupResults;
-    } catch (error: any) {
-      result.errors.push(`广告组状态变更失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`广告组状态变更失败: ${(error as Error).message}`);
     }
   }
   
@@ -728,8 +728,8 @@ export async function executeOptimizationTarget(
           }
         }
       }
-    } catch (error: any) {
-      result.errors.push(`中央竞价协调失败: ${error.message}`);
+    } catch (error: unknown) {
+      result.errors.push(`中央竞价协调失败: ${(error as Error).message}`);
     }
   }
   
@@ -754,8 +754,8 @@ export async function executeOptimizationTarget(
         const errorCount = result.errors.length;
         log.info(`[v272] 权重自学习已激活: strategy=${config.strategyTemplateId}, bidCount=${bidCount}, errors=${errorCount}`);
       }
-    } catch (tuningErr: any) {
-      log.debug(`[v272] 权重自学习异常(不影响业务): ${tuningErr.message}`);
+    } catch (tuningErr: unknown) {
+      log.debug(`[v272] 权重自学习异常(不影响业务): ${(tuningErr as Error).message}`);
     }
     
     // v272 P0-1: 集成算法可观测性 — 记录执行摘要指标
@@ -776,7 +776,7 @@ export async function executeOptimizationTarget(
     try {
       const { enqueueTasks } = await import('./optimizationSyncEngine');
       const { randomUUID } = await import('crypto');
-      const failedTasks: any[] = [];
+      const failedTasks: unknown[] = [];
       const batchId = randomUUID();
       
       // 收集出价调整中失败的任务
@@ -885,7 +885,7 @@ export async function executeOptimizationTarget(
             if (detail.action === 'add_negative') {
               // v201: 否定关键词创建失败 → 入队 negative_keyword 类型
               // 修复: detail.campaignId是本地ID，需要查找Amazon campaignId
-              const negCampaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+              const negCampaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
               const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
@@ -935,7 +935,7 @@ export async function executeOptimizationTarget(
       if (result.budgetAllocation?.details) {
         for (const detail of result.budgetAllocation.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -961,7 +961,7 @@ export async function executeOptimizationTarget(
       if (result.placementOptimization?.details) {
         for (const detail of result.placementOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -987,7 +987,7 @@ export async function executeOptimizationTarget(
       if (result.daypartingBudgetOptimization?.details) {
         for (const detail of result.daypartingBudgetOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
+            const campaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -1040,8 +1040,8 @@ export async function executeOptimizationTarget(
         result.retryBatchId = batchId;
         result.retryTaskCount = failedTasks.length;
       }
-    } catch (enqueueErr: any) {
-      log.error(`[OptimizationTarget] v137: 入队失败任务异常: ${enqueueErr.message}`);
+    } catch (enqueueErr: unknown) {
+      log.error(`[OptimizationTarget] v137: 入队失败任务异常: ${(enqueueErr as Error).message}`);
     }
   }
   
@@ -1069,8 +1069,8 @@ export async function executeOptimizationTarget(
         log.warn(`[OptimizationTarget] v221: 确认同步失败 - 账户 ${config.accountId}: ${err.message}`);
       });
     }
-  } catch (confirmErr: any) {
-    log.warn(`[OptimizationTarget] v221: 触发确认同步异常: ${confirmErr.message}`);
+  } catch (confirmErr: unknown) {
+    log.warn(`[OptimizationTarget] v221: 触发确认同步异常: ${(confirmErr as Error).message}`);
   }
   
   // v181: 释放账户+模块级优化锁
@@ -1088,10 +1088,10 @@ export async function executeOptimizationTarget(
  */
 async function executeBidOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[]; apiSyncResult?: any; apiSyncStatus?: string; emergencyPause?: boolean; emergencyReason?: string }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   let safetyPausedCampaignCount = 0; // v244: 记录安全检查触发暂停的campaign数量
   
@@ -1196,8 +1196,8 @@ async function executeBidOptimization(
           }
         }
       }
-    } catch (fallbackErr: any) {
-      log.warn(`[BidOptimization] v330 冷启动CVR回退异常: ${fallbackErr.message}，使用默认值0.08`);
+    } catch (fallbackErr: unknown) {
+      log.warn(`[BidOptimization] v330 冷启动CVR回退异常: ${(fallbackErr as Error).message}，使用默认值0.08`);
       groupAvgCvr = 0.08;
       cvrSource = 'error_fallback';
     }
@@ -1231,14 +1231,14 @@ async function executeBidOptimization(
                 };
                 log.info(`[BidOptimization] v330 R-01: 获取到建议出价 suggestedBid=$${rec.suggestedBid}, range=[$${rec.rangeStart}-$${rec.rangeEnd}]`);
               }
-            } catch (kwBidErr: any) {
-              log.debug(`[BidOptimization] v330 R-01: 关键词建议出价获取失败: ${kwBidErr.message}`);
+            } catch (kwBidErr: unknown) {
+              log.debug(`[BidOptimization] v330 R-01: 关键词建议出价获取失败: ${(kwBidErr as Error).message}`);
             }
           }
         }
       }
-    } catch (suggestedBidErr: any) {
-      log.debug(`[BidOptimization] v330 R-01: 建议出价API调用异常: ${suggestedBidErr.message}`);
+    } catch (suggestedBidErr: unknown) {
+      log.debug(`[BidOptimization] v330 R-01: 建议出价API调用异常: ${(suggestedBidErr as Error).message}`);
     }
   }
   
@@ -1281,8 +1281,8 @@ async function executeBidOptimization(
       }
     }
     log.info(`[BidOptimization] v267 P3-3: 品类推断结果=${inferredCategory} (优化目标: ${config.name})`);
-  } catch (catErr: any) {
-    log.warn(`[BidOptimization] v267 P3-3: 品类推断失败: ${catErr.message}`);
+  } catch (catErr: unknown) {
+    log.warn(`[BidOptimization] v267 P3-3: 品类推断失败: ${(catErr as Error).message}`);
   }
 
   const bidConfig: bidOptimizer.PerformanceGroupConfig = {
@@ -1315,8 +1315,8 @@ async function executeBidOptimization(
     bidConfig._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
     bidConfig._confidenceMultiplier = evoParams.confidenceMultiplier;
     log.info(`[BidOptimization] v164: 自适应参数已注入 - 最大提升${Math.round(evoParams.maxBidIncrease * 100)}%, 最大降低${Math.round(evoParams.maxBidDecrease * 100)}%, 成功率${Math.round(evoParams.recentSuccessRate * 100)}%`);
-  } catch (e: any) {
-    log.warn(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${e.message}`);
+  } catch (e: unknown) {
+    log.warn(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${(e as Error).message}`);
   }
   
   const currentDate = new Date();
@@ -1358,8 +1358,8 @@ async function executeBidOptimization(
       }));
       campaignTimeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
       log.debug(`[BidOptimization] v163: Campaign ${campaignLocalId} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
-    } catch (e: any) {
-      log.warn(`[BidOptimization] 获取campaign ${campaignLocalId} 历史数据失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.warn(`[BidOptimization] 获取campaign ${campaignLocalId} 历史数据失败: ${(e as Error).message}`);
     }
     
     // v163: 安全检查 - 检测异常信号
@@ -1488,7 +1488,7 @@ async function executeBidOptimization(
     // v122h: 商品定向也使用UCB增强版算法
     const adGroupsList = await db.getAdGroupsByCampaignId(campaignAmazonId);
     const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
-    const allTargets: any[] = [];
+    const allTargets: unknown[] = [];
     
     // v345: 优化N+1查询 — 批量获取所有广告组的商品定向
     const adGroupIds = adGroupsList.map(ag => ag.id);
@@ -1674,11 +1674,11 @@ async function executeBidOptimization(
               }));
               const bphResult = await batchRecordBidPerformanceHistory(bidPerfRecords);
               log.info(`[BidOptimization] v230: bidPerformanceHistory写入: recorded=${bphResult.recorded}, failed=${bphResult.failed}`);
-            } catch (bphErr: any) {
-              log.warn(`[BidOptimization] v230: bidPerformanceHistory写入失败(不阻塞主流程): ${bphErr.message}`);
+            } catch (bphErr: unknown) {
+              log.warn(`[BidOptimization] v230: bidPerformanceHistory写入失败(不阻塞主流程): ${(bphErr as Error).message}`);
             }
-          } catch (txErr: any) {
-            log.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${txErr.message}`);
+          } catch (txErr: unknown) {
+            log.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${(txErr as Error).message}`);
             // 事务失败时，所有DB更新自动回滚，保持数据一致性
           }
         }
@@ -1703,14 +1703,14 @@ async function executeBidOptimization(
             }))
           );
           log.info(`[BidOptimization] v166: 已注册${syncedDetails.length}个出价验证任务`);
-        } catch (verifyErr: any) {
-          log.warn(`[BidOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+        } catch (verifyErr: unknown) {
+          log.warn(`[BidOptimization] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
         }
       }
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       apiSyncStatus = 'failed';
-      apiSyncResult.errors.push(apiError.message);
-      log.error(`[BidOptimization] Amazon API同步异常:`, apiError.message);
+      apiSyncResult.errors.push((apiError as Error).message);
+      log.error(`[BidOptimization] Amazon API同步异常:`, (apiError as Error).message);
       // v148: API整体异常，不更新任何本地DB记录
       log.error(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
     }
@@ -1767,10 +1767,10 @@ async function executeBidOptimization(
  */
 async function executePlacementOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // v183: 预加载多维度组合分析结果，用于智能位置倾斜
@@ -1787,8 +1787,8 @@ async function executePlacementOptimization(
       }
       log.info(`[PlacementOptimization] v183: 加载${allCombos.length}个投放词的组合分析结果`);
     }
-  } catch (comboErr: any) {
-    log.warn(`[PlacementOptimization] v183: 加载组合分析结果失败: ${comboErr.message}`);
+  } catch (comboErr: unknown) {
+    log.warn(`[PlacementOptimization] v183: 加载组合分析结果失败: ${(comboErr as Error).message}`);
   }
 
   for (const campaign of campaigns) {
@@ -1816,12 +1816,12 @@ async function executePlacementOptimization(
           placements: analysis?.placements?.length || 0,
         })}`);
       } else {
-        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: any) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
+        log.info(`[PlacementOptimization] v353诊断: Campaign "${campaign.campaignName}" (${campaignAmazonId}) 生成${suggestions.length}条建议: ${suggestions.map((s: Record<string, unknown>) => `${s.placement}: ${s.currentMultiplier}→${s.suggestedMultiplier}%`).join(', ')}`);
       }
       
       // v183: 基于多维度组合分析智能调整位置倾斜
       const campaignCombos = accountComboMap.get(campaignLocalId) || [];
-      const goldenCombos = campaignCombos.filter((c: any) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
+      const goldenCombos = campaignCombos.filter((c: Record<string, unknown>) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
       
       // 统计黄金组合中各位置的表现
       let topOfSearchGoldenCount = 0;
@@ -1884,8 +1884,8 @@ async function executePlacementOptimization(
         try {
           // v186: Amazon API调用必须使用Amazon Campaign ID
           const amazonCampaignId = campaignAmazonId;
-          const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
-          const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
+          const topSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+          const productSuggestion = suggestions.find((s: Record<string, unknown>) => s.placement === 'product_page');
           
           if (topSuggestion || productSuggestion) {
             const syncResult = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
@@ -1897,9 +1897,9 @@ async function executePlacementOptimization(
             );
             placementSyncSuccess = syncResult;
           }
-        } catch (apiError: any) {
-          placementSyncError = apiError.message;
-          log.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+        } catch (apiError: unknown) {
+          placementSyncError = (apiError as Error).message;
+          log.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
         
         // v134: 将同步状态回写到该campaign的所有detail中
@@ -1913,8 +1913,8 @@ async function executePlacementOptimization(
           try {
             // v186: 验证任务中也使用正确的Amazon Campaign ID
             const amazonCampaignIdForVerify = campaignAmazonId;
-            const topSuggestion = suggestions?.find((s: any) => s.placement === 'top_of_search');
-            const productSuggestion = suggestions?.find((s: any) => s.placement === 'product_page');
+            const topSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'top_of_search');
+            const productSuggestion = suggestions?.find((s: Record<string, unknown>) => s.placement === 'product_page');
             postOptVerifier.schedulePlacementVerification(
               config.accountId,
               [{
@@ -1924,17 +1924,17 @@ async function executePlacementOptimization(
                 expectedProductPage: productSuggestion?.suggestedMultiplier,
               }]
             );
-          } catch (verifyErr: any) {
-            log.warn(`[PlacementOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+          } catch (verifyErr: unknown) {
+            log.warn(`[PlacementOptimization] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -1947,10 +1947,10 @@ async function executePlacementOptimization(
  */
 async function executeDaypartingOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // v122h: 使用站点本地时间而非UTC时间
@@ -1972,8 +1972,8 @@ async function executeDaypartingOptimization(
       }
       log.info(`[DaypartingOptimization] v183: 加载${comboAnalysisMap.size}个投放词的多维度组合分析结果`);
     }
-  } catch (comboErr: any) {
-    log.warn(`[DaypartingOptimization] v183: 加载组合分析结果失败，使用统一乘数: ${comboErr.message}`);
+  } catch (comboErr: unknown) {
+    log.warn(`[DaypartingOptimization] v183: 加载组合分析结果失败，使用统一乘数: ${(comboErr as Error).message}`);
   }
   
   // v183: 最高出价红线
@@ -2006,7 +2006,7 @@ async function executeDaypartingOptimization(
         let retried = 0, superseded = 0, timedOut = 0;
         
         // 按keywordId分组，只保留每个keyword的最新pending记录
-        const latestByKeyword = new Map<string, any>();
+        const latestByKeyword = new Map<string, unknown>();
         const olderIds: number[] = [];
         
         for (const row of pendingRows) {
@@ -2078,15 +2078,15 @@ async function executeDaypartingOptimization(
                 `);
               }
             }
-          } catch (retryErr: any) {
-            log.warn(`[DaypartingOptimization] v310: dayparting_bid重试失败 kwId=${kwId}: ${retryErr.message}`);
+          } catch (retryErr: unknown) {
+            log.warn(`[DaypartingOptimization] v310: dayparting_bid重试失败 kwId=${kwId}: ${(retryErr as Error).message}`);
           }
         }
         log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理完成: 重试成功=${retried}, 已过时=${timedOut}, 已覆盖=${superseded}`);
       }
     }
-  } catch (pendingErr: any) {
-    log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理失败: ${pendingErr.message}`);
+  } catch (pendingErr: unknown) {
+    log.warn(`[DaypartingOptimization] v310: pending dayparting_bid处理失败: ${(pendingErr as Error).message}`);
   }
   
   // v349: 分时竞价诊断统计
@@ -2171,9 +2171,9 @@ async function executeDaypartingOptimization(
           } else {
             log.info(`[DaypartingOptimization] v337: 广告活动 ${campaign.campaignName} 数据不足(${totalDataPoints}<7)，保持draft状态`);
           }
-        } catch (upgradeErr: any) {
+        } catch (upgradeErr: unknown) {
           dpDiag.draftUpgradeFailed++;
-          log.warn(`[DaypartingOptimization] v337: 自动升级分时策略失败: ${upgradeErr.message}`);
+          log.warn(`[DaypartingOptimization] v337: 自动升级分时策略失败: ${(upgradeErr as Error).message}`);
         }
       }
       
@@ -2215,8 +2215,8 @@ async function executeDaypartingOptimization(
             log.info(`[DaypartingOptimization] v351: 重新计算分时规则 strategyId=${strategy.id}, 上次分析=${hoursSinceLastAnalysis.toFixed(0)}h前`);
           }
         }
-      } catch (recalcErr: any) {
-        log.warn(`[DaypartingOptimization] v351: 重新计算分时规则失败: ${recalcErr.message}`);
+      } catch (recalcErr: unknown) {
+        log.warn(`[DaypartingOptimization] v351: 重新计算分时规则失败: ${(recalcErr as Error).message}`);
       }
       
       // 获取当前时段的调整规则
@@ -2256,13 +2256,13 @@ async function executeDaypartingOptimization(
             comboTimeMultiplier = parseFloat(comboAnalysis.suggestedTimeMultiplier || '1.000');
             
             // v183: 检查当前时段是否在该投放词的最佳/最差时间窗口内
-            const bestWindows: any[] = comboAnalysis.bestTimeWindows || [];
-            const worstWindows: any[] = comboAnalysis.worstTimeWindows || [];
+            const bestWindows: unknown[] = comboAnalysis.bestTimeWindows || [];
+            const worstWindows: unknown[] = comboAnalysis.worstTimeWindows || [];
             
-            const isInBestWindow = bestWindows.some((w: any) => 
+            const isInBestWindow = bestWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
-            const isInWorstWindow = worstWindows.some((w: any) => 
+            const isInWorstWindow = worstWindows.some((w: Record<string, unknown>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
             
@@ -2352,7 +2352,7 @@ async function executeDaypartingOptimization(
               adjustment.apiSyncStatus = 'failed';
               adjustment.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
             }
-          } catch (apiError: any) {
+          } catch (apiError: unknown) {
             // v267 P2-1: 分时竞价失败自动重试一次
             try {
               await new Promise(r => setTimeout(r, 2000)); // 等待2秒后重试
@@ -2373,22 +2373,22 @@ async function executeDaypartingOptimization(
                 log.info(`[DaypartingOptimization] v267 重试成功 (kw ${keyword.keywordText})`);
               } else {
                 adjustment.apiSyncStatus = 'failed';
-                adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message, retryFailed: true });
+                adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message, retryFailed: true });
               }
-            } catch (retryError: any) {
+            } catch (retryError: unknown) {
               adjustment.apiSyncStatus = 'failed';
-              adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message, retryError: retryError.message });
-              log.error(`[DaypartingOptimization] v267 重试也失败 (kw ${keyword.keywordText}):`, retryError.message);
+              adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message, retryError: (retryError as Error).message });
+              log.error(`[DaypartingOptimization] v267 重试也失败 (kw ${keyword.keywordText}):`, (retryError as Error).message);
             }
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -2406,10 +2406,10 @@ async function executeDaypartingOptimization(
  */
 async function executeDaypartingBudgetOptimization(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   // 获取当前星期几（站点本地时间）
@@ -2427,7 +2427,7 @@ async function executeDaypartingBudgetOptimization(
       
       // 获取今天的预算规则
       const budgetRules = await daypartingService.getBudgetRules(strategy.id);
-      const todayRule = budgetRules.find((r: any) => r.dayOfWeek === currentDayOfWeek);
+      const todayRule = budgetRules.find((r: Record<string, unknown>) => r.dayOfWeek === currentDayOfWeek);
       
       if (!todayRule) continue;
       
@@ -2448,8 +2448,8 @@ async function executeDaypartingBudgetOptimization(
           // 安全护栏: 最终乘数限制在 0.80 ~ 1.30 之间
           budgetMultiplier = Math.max(0.80, Math.min(1.30, budgetMultiplier));
         }
-      } catch (comboErr: any) {
-        log.warn(`[DaypartingBudget] v183.1: 获取组合分析预算乘数失败: ${comboErr.message}`);
+      } catch (comboErr: unknown) {
+        log.warn(`[DaypartingBudget] v183.1: 获取组合分析预算乘数失败: ${(comboErr as Error).message}`);
       }
       
       // 如果倍数接近1.0，跳过调整
@@ -2517,8 +2517,8 @@ async function executeDaypartingBudgetOptimization(
                 triggerHour: getLocalHour(now, marketplace),
                 dpExecStatus: 'success',
               });
-            } catch (logErr: any) {
-              log.warn(`[DaypartingBudget] 日志记录失败: ${logErr.message}`);
+            } catch (logErr: unknown) {
+              log.warn(`[DaypartingBudget] 日志记录失败: ${(logErr as Error).message}`);
             }
             
             log.debug(`[DaypartingBudget] v179: ${campaign.campaignName} 预算调整 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (星期${currentDayOfWeek}, 倍数${budgetMultiplier}x)`);
@@ -2526,18 +2526,18 @@ async function executeDaypartingBudgetOptimization(
             adjustment.apiSyncStatus = 'failed';
             log.warn(`[DaypartingBudget] v179: API同步失败 (Campaign ${campaign.campaignName})`);
           }
-        } catch (apiError: any) {
+        } catch (apiError: unknown) {
           adjustment.apiSyncStatus = 'failed';
-          adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          log.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, apiError.message);
+          adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+          log.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -2553,8 +2553,8 @@ async function executeDaypartingBudgetOptimization(
           });
         }
       }
-    } catch (updateErr: any) {
-      log.warn(`[DaypartingBudget] 更新lastAppliedAt失败: ${updateErr.message}`);
+    } catch (updateErr: unknown) {
+      log.warn(`[DaypartingBudget] 更新lastAppliedAt失败: ${(updateErr as Error).message}`);
     }
   }
   
@@ -2566,10 +2566,10 @@ async function executeDaypartingBudgetOptimization(
  */
 async function executeSearchTermAnalysis(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; newKeywordsAdded: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
   
@@ -2597,8 +2597,8 @@ async function executeSearchTermAnalysis(
       }
       log.info(`[SearchTermAnalysis] v353: 预加载${recentlyProcessedSearchTerms.size}个已处理搜索词用于去重(30天窗口)`);
     }
-  } catch (dedupErr: any) {
-    log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${dedupErr.message}`, dedupErr.stack?.slice(0, 300));
+  } catch (dedupErr: unknown) {
+    log.warn(`[SearchTermAnalysis] v328: 去重预加载失败(不影响主流程): ${(dedupErr as Error).message}`, dedupErr.stack?.slice(0, 300));
   }
   
   // v310-fix: 预加载永久失败的关键词列表，避免反复尝试已知会失败的关键词
@@ -2641,8 +2641,8 @@ async function executeSearchTermAnalysis(
         log.warn(`[SearchTermAnalysis] v310: 发现${permanentlyFailedKeywords.size}个永久失败关键词将被跳过: ${[...permanentlyFailedKeywords].slice(0, 5).join(', ')}`);
       }
     }
-  } catch (failErr: any) {
-    log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${failErr.message}`, failErr.stack?.slice(0, 300));
+  } catch (failErr: unknown) {
+    log.warn(`[SearchTermAnalysis] v310: 永久失败关键词预加载失败: ${(failErr as Error).message}`, failErr.stack?.slice(0, 300));
   }
   
   // v310: 处理pending积压 - 尝试重新同步pending的keyword_create和add_product_target
@@ -2739,10 +2739,10 @@ async function executeSearchTermAnalysis(
                           `);
                           retryFailed++;
                         }
-                      } catch (retryApiErr: any) {
+                      } catch (retryApiErr: unknown) {
                         await dbInstance.execute(sql`
                           UPDATE optimization_logs SET api_sync_status = 'failed',
-                            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                            api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
                           WHERE id = ${row.id}
                         `);
                         retryFailed++;
@@ -2786,10 +2786,10 @@ async function executeSearchTermAnalysis(
                       `);
                       retryFailed++;
                     }
-                  } catch (retryApiErr: any) {
+                  } catch (retryApiErr: unknown) {
                     await dbInstance.execute(sql`
                       UPDATE optimization_logs SET api_sync_status = 'failed',
-                        api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${retryApiErr.message})
+                        api_sync_detail = JSON_SET(COALESCE(api_sync_detail, '{}'), '$.retry_error', ${(retryApiErr as Error).message})
                       WHERE id = ${row.id}
                     `);
                     retryFailed++;
@@ -2811,8 +2811,8 @@ async function executeSearchTermAnalysis(
                 retryFailed++;
               }
             }
-          } catch (rowErr: any) {
-            log.warn(`[SearchTermAnalysis] v310: pending重试单条失败 id=${row.id}: ${rowErr.message}`);
+          } catch (rowErr: unknown) {
+            log.warn(`[SearchTermAnalysis] v310: pending重试单条失败 id=${row.id}: ${(rowErr as Error).message}`);
             retryFailed++;
           }
         }
@@ -2828,13 +2828,13 @@ async function executeSearchTermAnalysis(
           AND api_sync_status = 'pending'
           AND created_at < DATE_SUB(NOW(), INTERVAL 72 HOUR)
       `);
-      const timeoutCount = (timeoutResult as any)[0]?.affectedRows || 0;
+      const timeoutCount = (timeoutResult as Record<string, unknown>[])[0]?.affectedRows || 0;
       if (timeoutCount > 0) {
         log.warn(`[SearchTermAnalysis] v310: 标记${timeoutCount}条超过72小时的pending记录为timeout_failed`);
       }
     }
-  } catch (timeoutErr: any) {
-    log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${timeoutErr.message}`, timeoutErr.stack?.slice(0, 300));
+  } catch (timeoutErr: unknown) {
+    log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${(timeoutErr as Error).message}`, timeoutErr.stack?.slice(0, 300));
   }
   
   for (const campaign of campaigns) {
@@ -2854,8 +2854,8 @@ async function executeSearchTermAnalysis(
         if (campaignAdGroups.length > 0) {
           campaignHasProductTargetAdGroup = await adGroupHasProductTargets(campaignAdGroups[0].id);
         }
-      } catch (ptPreCheckErr: any) {
-        log.debug(`[SearchTermAnalysis] v353: 预检查PT广告组失败(继续处理): ${ptPreCheckErr.message}`);
+      } catch (ptPreCheckErr: unknown) {
+        log.debug(`[SearchTermAnalysis] v353: 预检查PT广告组失败(继续处理): ${(ptPreCheckErr as Error).message}`);
       }
       
       if (isProductTargetingCamp) {
@@ -2884,7 +2884,7 @@ async function executeSearchTermAnalysis(
         return campaignTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       })() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
       
-      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: any) => ({
+      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: Record<string, unknown>) => ({
         searchTerm: st.searchTerm,
         clicks: Number(st.searchTermClicks || 0),
         impressions: Number(st.searchTermImpressions || 0),
@@ -2953,7 +2953,7 @@ async function executeSearchTermAnalysis(
           
           // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
           const matchingKeywords = await db.getKeywordsByCampaignId(campaignAmazonId);
-          const matchingKw = matchingKeywords.find((kw: any) => 
+          const matchingKw = matchingKeywords.find((kw: Record<string, unknown>) => 
             kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
           if (matchingKw?.createdAt) {
@@ -3280,8 +3280,8 @@ async function executeSearchTermAnalysis(
                     newKeyword.apiSyncStatus = 'skipped_pt_adgroup';
                     continue;
                   }
-                } catch (ptCheckErr: any) {
-                  log.warn(`[SearchTermAnalysis] v194: 检查product targets失败: ${ptCheckErr.message}`);
+                } catch (ptCheckErr: unknown) {
+                  log.warn(`[SearchTermAnalysis] v194: 检查product targets失败: ${(ptCheckErr as Error).message}`);
                 }
                 
                 // v168: 增强去重检查
@@ -3305,8 +3305,8 @@ async function executeSearchTermAnalysis(
                       try {
                         await dbInstance.delete(keywords).where(eqOp(keywords.id, dup.id));
                         log.debug(`[SearchTermAnalysis] 清理重复关键词: id=${dup.id} "${decision.targetValue}"`);
-                      } catch (delErr: any) {
-                        log.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${delErr.message}`);
+                      } catch (delErr: unknown) {
+                        log.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${(delErr as Error).message}`);
                       }
                     }
                   }
@@ -3325,7 +3325,7 @@ async function executeSearchTermAnalysis(
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                   });
-                  const localKeywordId = (insertResult as any)[0]?.insertId;
+                  const localKeywordId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                   
                   if (Number(amazonAdGroupId) > 0 && Number(amazonCampaignId) > 0) {
                     try {
@@ -3348,10 +3348,10 @@ async function executeSearchTermAnalysis(
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
                         log.error(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
                       }
-                    } catch (apiError: any) {
+                    } catch (apiError: unknown) {
                       newKeyword.apiSyncStatus = 'failed';
-                      newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      log.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, apiError.message);
+                      newKeyword.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+                      log.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, (apiError as Error).message);
                     }
                   } else {
                     log.warn(`[SearchTermAnalysis] 缺少Amazon ID，无法同步: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
@@ -3427,7 +3427,7 @@ async function executeSearchTermAnalysis(
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
                     });
-                    const localTargetId = (insertResult as any)[0]?.insertId;
+                    const localTargetId = (insertResult as Record<string, unknown>[])[0]?.insertId;
                     
                     // 同步到Amazon
                     try {
@@ -3458,15 +3458,15 @@ async function executeSearchTermAnalysis(
                         newTarget.apiSyncDetail = JSON.stringify({ errors: ptSyncResult.errors });
                         log.error(`[SearchTermAnalysis] v310: ASIN定向同步失败: "${decision.targetValue}" - ${ptSyncResult.errors.join('; ')}`);
                       }
-                    } catch (apiError: any) {
+                    } catch (apiError: unknown) {
                       newTarget.apiSyncStatus = 'failed';
-                      newTarget.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      log.error(`[SearchTermAnalysis] v310: ASIN定向API异常: "${decision.targetValue}" -`, apiError.message);
+                      newTarget.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+                      log.error(`[SearchTermAnalysis] v310: ASIN定向API异常: "${decision.targetValue}" -`, (apiError as Error).message);
                     }
-                  } catch (dbErr: any) {
+                  } catch (dbErr: unknown) {
                     newTarget.apiSyncStatus = 'failed';
-                    newTarget.apiSyncDetail = JSON.stringify({ error: `DB insert failed: ${dbErr.message}` });
-                    log.error(`[SearchTermAnalysis] v310: ASIN定向DB写入失败: "${decision.targetValue}" - ${dbErr.message}`);
+                    newTarget.apiSyncDetail = JSON.stringify({ error: `DB insert failed: ${(dbErr as Error).message}` });
+                    log.error(`[SearchTermAnalysis] v310: ASIN定向DB写入失败: "${decision.targetValue}" - ${(dbErr as Error).message}`);
                   }
                 } else {
                   log.warn(`[SearchTermAnalysis] v310: 缺少Amazon ID，无法同步ASIN定向: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
@@ -3519,17 +3519,17 @@ async function executeSearchTermAnalysis(
                     try {
                       await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
                       log.info(`[SearchTermAnalysis] v2: 否定产品DB写入成功: "${d.searchTerm}"`);
-                    } catch (dbErr: any) {
-                      log.error(`[SearchTermAnalysis] v2: 否定产品DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
+                    } catch (dbErr: unknown) {
+                      log.error(`[SearchTermAnalysis] v2: 否定产品DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
                     }
                   }
                 }
               }
             }
-          } catch (apiError: any) {
+          } catch (apiError: unknown) {
             for (const d of negProdDetails) {
               d.apiSyncStatus = 'failed';
-              d.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
             log.error(`[SearchTermAnalysis] v2: 否定产品定向API同步失败:`, apiError.message);
           }
@@ -3588,8 +3588,8 @@ async function executeSearchTermAnalysis(
                       }
                       
                       log.info(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
-                    } catch (dbErr: any) {
-                      log.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
+                    } catch (dbErr: unknown) {
+                      log.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
                     }
                   }
                 }
@@ -3610,27 +3610,27 @@ async function executeSearchTermAnalysis(
                     }))
                   );
                 }
-              } catch (verifyErr: any) {
-                log.warn(`[SearchTermAnalysis] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+              } catch (verifyErr: unknown) {
+                log.warn(`[SearchTermAnalysis] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
               }
             } else {
               log.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
             }
-          } catch (apiError: any) {
+          } catch (apiError: unknown) {
             for (const d of negativeDetails) {
               d.apiSyncStatus = 'failed';
-              d.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
             log.error(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -3643,10 +3643,10 @@ async function executeSearchTermAnalysis(
  */
 async function executeBudgetAllocation(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; adjustmentsCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let adjustmentsCount = 0;
   
   try {
@@ -3743,24 +3743,24 @@ async function executeBudgetAllocation(
                   expectedBudget: finalBudget,
                 }]
               );
-            } catch (verifyErr: any) {
-              log.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+            } catch (verifyErr: unknown) {
+              log.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${(verifyErr as Error).message}`);
             }
           } else {
             // API返回false，不更新本地DB
             adjustment.apiSyncStatus = 'failed';
             log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
           }
-        } catch (apiError: any) {
+        } catch (apiError: unknown) {
           // API异常，不更新本地DB，保持数据一致性
           adjustment.apiSyncStatus = 'failed';
-          adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          log.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, apiError.message);
+          adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+          log.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }
     }
-  } catch (error: any) {
-    details.push({ error: error.message });
+  } catch (error: unknown) {
+    details.push({ error: (error as Error).message });
   }
   
   // v353: 预算分配汇总诊断日志
@@ -3777,10 +3777,10 @@ async function executeBudgetAllocation(
  */
 async function executeKeywordStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -3841,8 +3841,8 @@ async function executeKeywordStatusChanges(
         if (dailyDataForWeighting.length > 0) {
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
-      } catch (e: any) {
-        log.warn(`[KeywordStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${e.message}`);
+      } catch (e: unknown) {
+        log.warn(`[KeywordStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${(e as Error).message}`);
       }
       
       // 获取广告活动下的所有关键词
@@ -4012,7 +4012,7 @@ async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
                   );
-                } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
+                } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';
@@ -4021,10 +4021,10 @@ async function executeKeywordStatusChanges(
                 }
                 log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText})`);
               }
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
-              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, apiError.message);
+              action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, (apiError as Error).message);
             }
           }
         } else if (shouldEnable) {
@@ -4070,7 +4070,7 @@ async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
                   );
-                } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
+                } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';
@@ -4079,20 +4079,20 @@ async function executeKeywordStatusChanges(
                 }
                 log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText})`);
               }
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
-              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, apiError.message);
+              action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, (apiError as Error).message);
             }
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -4106,10 +4106,10 @@ async function executeKeywordStatusChanges(
  */
 async function executeCampaignStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -4150,8 +4150,8 @@ async function executeCampaignStatusChanges(
         if (dailyDataForWeighting.length > 0) {
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
-      } catch (e: any) {
-        log.warn(`[CampaignStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${e.message}`);
+      } catch (e: unknown) {
+        log.warn(`[CampaignStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${(e as Error).message}`);
       }
       
       // v163: 优先使用时间衰减加权数据，而非简单汇总
@@ -4245,10 +4245,10 @@ async function executeCampaignStatusChanges(
               }
               log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName})`);
             }
-          } catch (apiError: any) {
+          } catch (apiError: unknown) {
             action.apiSyncStatus = 'failed';
-            action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, apiError.message);
+            action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }
       } else if (shouldEnable) {
@@ -4296,20 +4296,20 @@ async function executeCampaignStatusChanges(
               }
               log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName})`);
             }
-          } catch (apiError: any) {
+          } catch (apiError: unknown) {
             action.apiSyncStatus = 'failed';
-            action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, apiError.message);
+            action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
+            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: 'campaign',
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -4323,10 +4323,10 @@ async function executeCampaignStatusChanges(
  */
 async function executeAdGroupStatusChanges(
   config: OptimizationTargetConfig,
-  campaigns: any[],
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let pausedCount = 0;
   let enabledCount = 0;
   
@@ -4390,8 +4390,8 @@ async function executeAdGroupStatusChanges(
                 continue;
               }
             }
-          } catch (failCheckErr: any) {
-            log.warn(`[AdGroupStatus] v328: 失败历史检查异常: ${failCheckErr.message}`);
+          } catch (failCheckErr: unknown) {
+            log.warn(`[AdGroupStatus] v328: 失败历史检查异常: ${(failCheckErr as Error).message}`);
           }
           
           const action: any = {
@@ -4438,9 +4438,9 @@ async function executeAdGroupStatusChanges(
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
-              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
           }
         } else if (shouldEnable) {
@@ -4488,20 +4488,20 @@ async function executeAdGroupStatusChanges(
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-            } catch (apiError: any) {
+            } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
-              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: 'adGroup',
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -4516,13 +4516,13 @@ async function executeAdGroupStatusChanges(
  */
 async function executeBidCoordination(
   config: OptimizationTargetConfig,
-  campaigns: any[],
-  bidDetails: any[],
-  placementDetails: any[],
-  daypartingDetails: any[],
+  campaigns: unknown[],
+  bidDetails: unknown[],
+  placementDetails: unknown[],
+  daypartingDetails: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let campaignsCoordinated = 0;
   let circuitBreakerTriggered = 0;
   
@@ -4635,12 +4635,12 @@ async function executeBidCoordination(
           circuitBreaker: coordinatedResult.circuitBreakerTriggered,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -4684,8 +4684,8 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
               createdAt: now,
               executedAt: now,
             } as any);
-          } catch (safetyLogErr: any) {
-            log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${safetyLogErr.message}`);
+          } catch (safetyLogErr: unknown) {
+            log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${(safetyLogErr as Error).message}`);
           }
           continue; // 跳过后续的bid_adjustment日志写入
         }
@@ -4733,8 +4733,8 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             reasonDetails: detail.reasonDetails ? JSON.stringify(detail.reasonDetails) : undefined,
             guardrailInfo: detail.guardrailInfo ? JSON.stringify(detail.guardrailInfo) : undefined,
           } as any);
-        } catch (insertError: any) {
-          log.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
+        } catch (insertError: unknown) {
+          log.error(`[recordExecutionLog] 出价日志写入失败: ${(insertError as Error).message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
       }
     }
@@ -4976,7 +4976,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         .set({ lastOptimizationAt: new Date() } as any)
         .where(eqOp(performanceGroups.id, result.targetId));
       log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
-    } catch (updateErr: any) {
+    } catch (updateErr: unknown) {
       // v350: 使用连接池获取直接连接，替代独立createConnection
       try {
         const directConn = await db.getDirectConnection();
@@ -4989,8 +4989,8 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         } finally {
           directConn.release(); // v350: 归还连接到池
         }
-      } catch (directErr: any) {
-        log.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${directErr.message}`);
+      } catch (directErr: unknown) {
+        log.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${(directErr as Error).message}`);
       }
     }
     
@@ -5007,8 +5007,8 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       adGroupsPaused: result.adGroupStatusChanges.pausedCount,
       adGroupsEnabled: result.adGroupStatusChanges.enabledCount,
     });
-  } catch (error: any) {
-    log.error(`[OptimizationTargetEngine] 日志写入失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[OptimizationTargetEngine] 日志写入失败:`, (error as Error).message);
     // 回退到console.log
     log.info(`[OptimizationTargetEngine] 执行完成(日志回退): ${result.targetName}`, {
       status: result.status,
@@ -5061,7 +5061,7 @@ export async function executeAllEnabledTargets(
     try {
       const result = await executeOptimizationTarget(target.id, options);
       results.push(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       results.push({
         targetId: target.id,
         targetName: target.name,
@@ -5079,7 +5079,7 @@ export async function executeAllEnabledTargets(
         adGroupStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
         multiDimensionOptimization: { executed: false, campaignsAnalyzed: 0, rulesGenerated: 0, details: [] },
         bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
-        errors: [error.message],
+        errors: [(error as Error).message],
         warnings: [],
       });
     }
@@ -5165,18 +5165,18 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
  * 只自动执行高优先级的否定建议，中/低优先级留给用户手动审核。
  */
 async function executeAutoNgramNegation(
-  config: any,
-  campaigns: any[],
+  config: Record<string, unknown>,
+  campaigns: unknown[],
   dryRun: boolean
-): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: any[] }> {
-  const details: any[] = [];
+): Promise<{ executed: boolean; negativeKeywordsAdded: number; details: unknown[] }> {
+  const details: unknown[] = [];
   let negativeKeywordsAdded = 0;
   
   if (!config.accountId || campaigns.length === 0) {
     return { executed: false, negativeKeywordsAdded: 0, details: [{ reason: '无账号或无广告活动' }] };
   }
   
-  const campaignIds = campaigns.map((c: any) => c.id);
+  const campaignIds = campaigns.map((c: Record<string, unknown>) => c.id);
   
   // 1. 获取全局Ngram否定建议（跨所有campaign）
   const globalSuggestions = await generateNegativeKeywordSuggestions(
@@ -5290,18 +5290,18 @@ async function executeAutoNgramNegation(
             addedCount: execResult.addedCount,
             reason: suggestion.reason,
           });
-        } catch (execError: any) {
+        } catch (execError: unknown) {
           details.push({
             ngram: suggestion.ngram,
             campaignId,
-            error: execError.message,
+            error: (execError as Error).message,
           });
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       details.push({
         ngram: suggestion.ngram,
-        error: `分析失败: ${error.message}`,
+        error: `分析失败: ${(error as Error).message}`,
       });
     }
   }

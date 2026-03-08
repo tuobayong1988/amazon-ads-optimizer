@@ -153,7 +153,7 @@ export async function populateHourlyPerformance() {
   
   let insertedCount = 0;
   const batchSize = 500;
-  let batch: any[] = [];
+  let batch: unknown[] = [];
   
   for (const daily of dailyData) {
     const dateObj = new Date(daily.date);
@@ -273,7 +273,7 @@ export async function populatePlacementPerformance() {
   
   let insertedCount = 0;
   const batchSize = 500;
-  let batch: any[] = [];
+  let batch: unknown[] = [];
   
   const placements: Array<'top_of_search' | 'product_page' | 'rest_of_search'> = ['top_of_search', 'product_page', 'rest_of_search'];
   

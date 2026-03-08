@@ -125,7 +125,7 @@ interface TieredTaskInput {
   reportType: ReportType;
   startDate: string;
   endDate: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -586,7 +586,7 @@ export class TieredSyncService {
       const failedRanges = metadata.failedRanges || [];
       
       // 检查是否还有可重试的范围
-      const retryableRanges = failedRanges.filter((r: any) => r.retryCount < maxRetries);
+      const retryableRanges = failedRanges.filter((r: Record<string, unknown>) => r.retryCount < maxRetries);
       
       if (retryableRanges.length > 0) {
         // 重置任务状态为pending，只处理失败的范围
@@ -597,7 +597,7 @@ export class TieredSyncService {
             metadata: JSON.stringify({
               ...metadata,
               retryMode: true,
-              rangesToProcess: retryableRanges.map((r: any) => ({ start: r.start, end: r.end })),
+              rangesToProcess: retryableRanges.map((r: Record<string, unknown>) => ({ start: r.start, end: r.end })),
             }),
             updatedAt: new Date().toISOString(),
           })

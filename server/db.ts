@@ -89,9 +89,9 @@ export async function getDb() {
       ]);
       conn.release();
       _lastHealthCheck = now;
-    } catch (error: any) {
+    } catch (error: unknown) {
       _poolStats.healthChecksFailed++;
-      log.warn(`[Database] v350: 连接健康检查失败(#${_poolStats.healthChecksFailed}):`, error.message);
+      log.warn(`[Database] v350: 连接健康检查失败(#${_poolStats.healthChecksFailed}):`, (error as Error).message);
       
       // 冷却期保护：防止频繁重建连接池
       if (now - _lastPoolRebuild > POOL_REBUILD_COOLDOWN) {
@@ -192,8 +192,8 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
     };
     
     return conn;
-  } catch (error: any) {
-    log.error(`[Database] v350: 获取直接连接失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[Database] v350: 获取直接连接失败: ${(error as Error).message}`);
     throw error;
   }
 }
@@ -857,7 +857,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
     adGroupId: (log as any).adGroupId ? Number((log as any).adGroupId) : undefined,
     caller: 'createBiddingLog',
   });
-  log.campaignId = safeCampaignId as any;
+  log.campaignId = safeCampaignId as unknown;
   
   const result = await db.insert(biddingLogs).values(log);
   const logId = result[0].insertId;
@@ -1390,7 +1390,7 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
   const { safeEncrypt } = await import('./utils/cryptoService');
   
   // v342: 保护性更新 - 不用空值覆盖已有的有效值
-  const updateSet: Record<string, any> = {
+  const updateSet: Record<string, unknown> = {
     updatedAt: new Date().toISOString(),
   };
   // 只在新值非空时才更新对应字段
@@ -1451,7 +1451,7 @@ export async function updateAmazonApiCredentials(accountId: number, data: Partia
   
   // v345: 加密敏感字段
   const { safeEncrypt } = await import('./utils/cryptoService');
-  const encryptedData: Record<string, any> = { ...data, updatedAt: new Date().toISOString() };
+  const encryptedData: Record<string, unknown> = { ...data, updatedAt: new Date().toISOString() };
   if (encryptedData.clientSecret) {
     encryptedData.clientSecret = safeEncrypt(encryptedData.clientSecret);
   }
@@ -1934,7 +1934,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
   return results;
 }
 
-function calculateAverageMetrics(perfData: any[]): CampaignHealthMetrics['currentMetrics'] {
+function calculateAverageMetrics(perfData: unknown[]): CampaignHealthMetrics['currentMetrics'] {
   if (perfData.length === 0) {
     return {
       impressions: 0,
@@ -3730,7 +3730,7 @@ export async function importBidAdjustmentHistory(records: Array<{
   if (!db || records.length === 0) return { success: false, imported: 0, errors: [] };
   
   const errors: Array<{ row: number; error: string }> = [];
-  const validRecords: any[] = [];
+  const validRecords: unknown[] = [];
   
   records.forEach((record, index) => {
     // 验证必填字段
@@ -4933,7 +4933,7 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
     
     const rows = results[0] || results;
     
-    return (rows as any[]).map((r: any) => {
+    return (rows as any[]).map((r: Record<string, unknown>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
@@ -5251,7 +5251,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
         try {
           if (!data.actionDetail) return undefined;
           const detail = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
-          const meta: Record<string, any> = {};
+          const meta: Record<string, unknown> = {};
           if (detail.gtoModifier) {
             meta.gto = {
               composite: detail.gtoModifier.compositeModifier,
@@ -5863,9 +5863,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           totalBiddingLogs += await migrateFromBiddingLogs(account.id);
         }
         migrated.biddingLogs = totalBiddingLogs;
-      } catch (err: any) {
-        log.error('[AutoMigration] bidding_logs migration error:', err.message);
-        skipped.push(`bidding_logs (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] bidding_logs migration error:', (err as Error).message);
+        skipped.push(`bidding_logs (error: ${(err as Error).message})`);
       }
     }
     
@@ -5880,9 +5880,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           totalBidHistory += await migrateFromBidAdjustmentHistory(account.id);
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
-      } catch (err: any) {
-        log.error('[AutoMigration] bid_adjustment_history migration error:', err.message);
-        skipped.push(`bid_adjustment_history (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] bid_adjustment_history migration error:', (err as Error).message);
+        skipped.push(`bid_adjustment_history (error: ${(err as Error).message})`);
       }
     }
     
@@ -5900,9 +5900,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
           }
         }
         migrated.optimizationLogs = totalOptLogs;
-      } catch (err: any) {
-        log.error('[AutoMigration] optimization_logs migration error:', err.message);
-        skipped.push(`optimization_logs (error: ${err.message})`);
+      } catch (err: unknown) {
+        log.error('[AutoMigration] optimization_logs migration error:', (err as Error).message);
+        skipped.push(`optimization_logs (error: ${(err as Error).message})`);
       }
     }
     
@@ -5910,9 +5910,9 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, { migrated, skipped });
     
     return { success: true, migrated, skipped };
-  } catch (err: any) {
-    log.error('[AutoMigration] 全局迁移失败:', err.message);
-    return { success: false, migrated, skipped: [...skipped, err.message] };
+  } catch (err: unknown) {
+    log.error('[AutoMigration] 全局迁移失败:', (err as Error).message);
+    return { success: false, migrated, skipped: [...skipped, (err as Error).message] };
   }
 }
 

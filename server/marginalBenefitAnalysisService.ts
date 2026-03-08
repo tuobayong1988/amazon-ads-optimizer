@@ -1134,11 +1134,11 @@ export function batchAnalyzeMarginalBenefitsSimple(
   }>
 ): Array<{
   campaignId: string;
-  marginalBenefits: Record<string, any>;
+  marginalBenefits: Record<string, unknown>;
   optimizationResult: any;
 }> {
   return campaignData.map(campaign => {
-    const marginalBenefits: Record<string, any> = {};
+    const marginalBenefits: Record<string, unknown> = {};
     
     for (const [placement, data] of Object.entries(campaign.placements)) {
       marginalBenefits[placement] = calculateMarginalBenefitSimple(

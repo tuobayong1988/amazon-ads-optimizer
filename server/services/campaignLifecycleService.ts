@@ -405,7 +405,7 @@ export async function getAllTargetsLifecycleOverview(accountId?: number): Promis
     ? await db.getPerformanceGroupsByAccountId(accountId)
     : await db.getPerformanceGroupsByAccountId(0);
   
-  const targets: any[] = [];
+  const targets: unknown[] = [];
   
   for (const group of groups) {
     if (group.status !== 'active') continue;

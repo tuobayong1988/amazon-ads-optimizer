@@ -453,7 +453,7 @@ export async function assessRiskLevel(
           previousSales += Number(d.sales) || 0;
           previousClicks += d.clicks || 0;
         }
-      } catch (e: any) { /* v346: 历史数据查询失败时跳过，不影响安全检查 */ }
+      } catch (e: unknown) { /* v346: 历史数据查询失败时跳过，不影响安全检查 */ }
     }
 
     // ACoS趋势评估

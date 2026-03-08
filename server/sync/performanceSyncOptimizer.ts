@@ -23,11 +23,11 @@ export async function preloadAccountCampaigns(
   db: any,
   accountId: number
 ): Promise<{
-  byId: Map<string, any>;
-  byName: Map<string, any>;
+  byId: Map<string, unknown>;
+  byName: Map<string, unknown>;
 }> {
-  const byId = new Map<string, any>();
-  const byName = new Map<string, any>();
+  const byId = new Map<string, unknown>();
+  const byName = new Map<string, unknown>();
 
   try {
     const allCampaigns = await db
@@ -45,8 +45,8 @@ export async function preloadAccountCampaigns(
     }
 
     log.info(`[v358] 预加载账户${accountId}的campaigns: ${allCampaigns.length}个 (byId=${byId.size}, byName=${byName.size})`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载campaigns失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载campaigns失败: ${(error as Error).message}`);
   }
 
   return { byId, byName };
@@ -63,8 +63,8 @@ export async function preloadExistingPerformance(
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, any>> {
-  const existingMap = new Map<string, any>();
+): Promise<Map<string, unknown>> {
+  const existingMap = new Map<string, unknown>();
 
   try {
     const existingRecords = await db
@@ -92,8 +92,8 @@ export async function preloadExistingPerformance(
     }
 
     log.info(`[v358] 预加载账户${accountId}的existing performance: ${existingRecords.length}条 (${startDate} ~ ${endDate})`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载existing performance失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载existing performance失败: ${(error as Error).message}`);
   }
 
   return existingMap;
@@ -107,8 +107,8 @@ export async function preloadExistingPlacementPerformance(
   accountId: number,
   startDate: string,
   endDate: string
-): Promise<Map<string, any>> {
-  const existingMap = new Map<string, any>();
+): Promise<Map<string, unknown>> {
+  const existingMap = new Map<string, unknown>();
 
   try {
     const existingRecords = await db
@@ -137,8 +137,8 @@ export async function preloadExistingPlacementPerformance(
     }
 
     log.info(`[v358] 预加载账户${accountId}的existing placement performance: ${existingRecords.length}条`);
-  } catch (error: any) {
-    log.error(`[v358] 预加载existing placement performance失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 预加载existing placement performance失败: ${(error as Error).message}`);
   }
 
   return existingMap;
@@ -149,7 +149,7 @@ export async function preloadExistingPlacementPerformance(
  * 替代原来的2次数据库查询
  */
 export function matchCampaign(
-  campaignMaps: { byId: Map<string, any>; byName: Map<string, any> },
+  campaignMaps: { byId: Map<string, unknown>; byName: Map<string, unknown> },
   campaignId: string | number | null,
   campaignName: string | null
 ): { campaign: any | null; matchType: 'id' | 'name' | 'none' } {
@@ -177,7 +177,7 @@ export function matchCampaign(
  * 替代原来的数据库查询
  */
 export function findExistingPerformance(
-  existingMap: Map<string, any>,
+  existingMap: Map<string, unknown>,
   campaignId: string,
   dateStr: string
 ): any | null {
@@ -189,7 +189,7 @@ export function findExistingPerformance(
  * v358: 快速检查existing placement记录（内存查找，O(1)）
  */
 export function findExistingPlacementPerformance(
-  existingMap: Map<string, any>,
+  existingMap: Map<string, unknown>,
   campaignId: string,
   dateStr: string,
   placement: string
@@ -211,7 +211,7 @@ export async function batchUpsertPerformance(
     accountId: number;
     campaignId: string;
     date: string;
-    data: any;
+    data: Record<string, unknown>;
   }>
 ): Promise<number> {
   if (records.length === 0) return 0;
@@ -237,14 +237,14 @@ export async function batchUpsertPerformance(
             set: record.data,
           });
           totalUpserted++;
-        } catch (insertErr: any) {
+        } catch (insertErr: unknown) {
           // 如果没有唯一索引，降级到先查后改
-          log.debug(`[v358] UPSERT降级: ${insertErr.message}`);
+          log.debug(`[v358] UPSERT降级: ${(insertErr as Error).message}`);
           totalUpserted++;
         }
       }
-    } catch (error: any) {
-      log.error(`[v358] 批量UPSERT失败: ${error.message}`);
+    } catch (error: unknown) {
+      log.error(`[v358] 批量UPSERT失败: ${(error as Error).message}`);
     }
   }
 

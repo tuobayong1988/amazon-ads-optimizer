@@ -65,8 +65,8 @@ export class PrelaunchProjectService {
       }));
 
       return { success: true, data: enrichedData, total: countResult?.count ?? 0, page, pageSize };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [], total: 0 };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [], total: 0 };
     }
   }
 
@@ -97,8 +97,8 @@ export class PrelaunchProjectService {
           moduleStats,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -150,15 +150,15 @@ export class PrelaunchProjectService {
           moduleStats: { M1: 0, M2: 0, M3: 0, M4X: 0, M5: 0, M6: 0, M7: 0 },
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
   /**
    * 更新项目
    */
-  async updateProject(projectId: number, updates: Record<string, any>) {
+  async updateProject(projectId: number, updates: Record<string, unknown>) {
     const db = await getDb();
     if (!db) return { success: false, error: 'Database not available' };
 
@@ -172,8 +172,8 @@ export class PrelaunchProjectService {
       // 返回更新后的完整项目数据
       const updatedProject = await this.getProject(projectId);
       return { success: true, data: updatedProject.success ? updatedProject.data : null };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -199,8 +199,8 @@ export class PrelaunchProjectService {
       // 删除项目本身
       await db.delete(prelaunchProjects).where(eq(prelaunchProjects.id, projectId));
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 

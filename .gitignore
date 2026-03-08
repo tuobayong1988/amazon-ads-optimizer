@@ -113,3 +113,4 @@ deploy.zip
 # v358: 启用CI质量门禁，不再忽略workflows
 # .github/workflows/
 *.zip
+.github/workflows/

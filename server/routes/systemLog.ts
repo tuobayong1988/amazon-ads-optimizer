@@ -98,7 +98,7 @@ export const systemLogRouter = router({
           logs: rows || [],
           total: countResult?.[0]?.total || 0,
         };
-      } catch (err: any) {
+      } catch (err: unknown) {
         // system_logs表可能尚未创建
         if (err?.code === 'ER_NO_SUCH_TABLE') {
           return { logs: [], total: 0, message: 'system_logs表尚未创建，将在下次部署迁移时自动创建' };
@@ -114,7 +114,7 @@ export const systemLogRouter = router({
       dbLevel: z.number().min(0).max(4).optional(),
     }))
     .mutation(async ({ input }) => {
-      const updates: Record<string, any> = {};
+      const updates: Record<string, unknown> = {};
       if (input.consoleLevel !== undefined) updates.consoleLevel = input.consoleLevel;
       if (input.dbLevel !== undefined) updates.dbLevel = input.dbLevel;
       logger.updateConfig(updates);

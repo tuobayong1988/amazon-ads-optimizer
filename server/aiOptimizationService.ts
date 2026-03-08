@@ -69,8 +69,8 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
   
   // 获取广告组和投放词数据
   const adGroups = await db.getAdGroupsByCampaignId(campaignId);
-  let allKeywords: any[] = [];
-  let allProductTargets: any[] = [];
+  let allKeywords: unknown[] = [];
+  let allProductTargets: unknown[] = [];
   
   for (const adGroup of adGroups) {
     const keywords = await db.getKeywordsByAdGroupId(adGroup.id);
@@ -469,10 +469,10 @@ export async function executeOptimizationSuggestions(
         aiActionExecutedAt: new Date().toISOString()
       });
       successCount++;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await db.updateAiOptimizationAction(action.id, { 
         aiActionStatus: "failed",
-        // aiActionErrorMessage: error.message,
+        // aiActionErrorMessage: (error as Error).message,
         aiActionExecutedAt: new Date().toISOString()
       });
       failedCount++;
@@ -500,7 +500,7 @@ export async function executeOptimizationSuggestions(
  * 映射操作类型
  */
 function mapActionType(action: string): "bid_increase" | "bid_decrease" | "bid_set" | "enable_target" | "pause_target" | "add_negative_phrase" | "add_negative_exact" {
-  const mapping: Record<string, any> = {
+  const mapping: Record<string, unknown> = {
     "bid_increase": "bid_increase",
     "bid_decrease": "bid_decrease",
     "bid_set": "bid_set",

@@ -56,7 +56,7 @@ export const dataSyncRouter = router({
       });
       
       // 异步执行任务
-      dataSyncService.executeSyncJob(jobId).catch((err: any) => log.error(`同步任务执行失败 (jobId=${jobId}):`, err.message));
+      dataSyncService.executeSyncJob(jobId).catch((err: Error) => log.error(`同步任务执行失败 (jobId=${jobId}):`, err.message));
       return { success: true, jobId };
     }),
 

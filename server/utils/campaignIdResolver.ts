@@ -170,8 +170,8 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
     }
     log.warn(`[CampaignIdResolver] adGroupId=${adGroupId} 未找到有效的 campaignId`);
     return null;
-  } catch (err: any) {
-    log.error(`[CampaignIdResolver] 通过 adGroupId=${adGroupId} 解析 campaignId 失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[CampaignIdResolver] 通过 adGroupId=${adGroupId} 解析 campaignId 失败: ${(err as Error).message}`);
     return null;
   }
 }
@@ -191,8 +191,8 @@ async function resolveAdGroupIdFromTarget(targetLocalId: number, targetType: str
       const keyword = await queryKeywordById(targetLocalId);
       return keyword?.adGroupId ? Number(keyword.adGroupId) : null;
     }
-  } catch (err: any) {
-    log.error(`[CampaignIdResolver] 通过 ${targetType} id=${targetLocalId} 解析 adGroupId 失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[CampaignIdResolver] 通过 ${targetType} id=${targetLocalId} 解析 adGroupId 失败: ${(err as Error).message}`);
     return null;
   }
 }
@@ -227,8 +227,8 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
       }
     }
     log.debug(`[CampaignIdResolver] 预热缓存: ${results.length}/${uncachedIds.length} 个 adGroup 的 campaignId`);
-  } catch (err: any) {
-    log.error(`[CampaignIdResolver] 预热缓存失败: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`[CampaignIdResolver] 预热缓存失败: ${(err as Error).message}`);
   }
 }
 

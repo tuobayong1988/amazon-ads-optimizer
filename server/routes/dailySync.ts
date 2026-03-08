@@ -126,11 +126,11 @@ export const dailySyncRouter = router({
             successCount: result.success,
             failedCount: result.failed,
           });
-        } catch (error: any) {
+        } catch (error: unknown) {
           results.push({
             date,
             success: false,
-            error: error.message,
+            error: (error as Error).message,
           });
         }
       }

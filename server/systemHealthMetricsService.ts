@@ -153,7 +153,7 @@ async function calculateRollbackRate(
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const currentResult = await db.execute(currentPeriodQuery);
-    const currentRows = (currentResult as any)[0] || currentResult;
+    const currentRows = (currentResult as Record<string, unknown>[])[0] || currentResult;
     const totalOriginal = Number(currentRows?.[0]?.total_original) || 0;
     const hardRollback = Number(currentRows?.[0]?.hard_rollback) || 0;
     const softRollback = Number(currentRows?.[0]?.soft_rollback) || 0;
@@ -182,7 +182,7 @@ async function calculateRollbackRate(
         AND created_at <= DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const previousResult = await db.execute(previousPeriodQuery);
-    const previousRows = (previousResult as any)[0] || previousResult;
+    const previousRows = (previousResult as Record<string, unknown>[])[0] || previousResult;
     const prevTotal = Number(previousRows?.[0]?.total_original) || 0;
     const prevRolledBack = Number(previousRows?.[0]?.hard_rollback) || 0;
     const previousRate = prevTotal > 0 ? (prevRolledBack / prevTotal) * 100 : 0;
@@ -195,8 +195,8 @@ async function calculateRollbackRate(
     log.info(`[RollbackRate] v266: 账户${accountId} 原始调整=${totalOriginal}, 硬回滚=${hardRollback}, 软回滚=${softRollback}, 真正回滚率=${rate.toFixed(1)}%`);
 
     return { totalAdjustments: total, rolledBackCount: rolledBack, rate: Math.round(rate * 10) / 10, status, trend, previousRate: Math.round(previousRate * 10) / 10 };
-  } catch (error: any) {
-    log.warn(`[RollbackRate] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[RollbackRate] 计算异常: ${(error as Error).message}`);
     return { totalAdjustments: 0, rolledBackCount: 0, rate: 0, status: 'healthy', trend: 'stable', previousRate: 0 };
   }
 }
@@ -268,8 +268,8 @@ async function calculateAlgorithmActivation(
       status,
       algorithmRates,
     };
-  } catch (error: any) {
-    log.warn(`[AlgorithmActivation] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[AlgorithmActivation] 计算异常: ${(error as Error).message}`);
     return { totalDecisions: 0, algorithmCounts: {}, advancedRate: 0, status: 'critical', algorithmRates: {} };
   }
 }
@@ -296,7 +296,7 @@ async function calculateAcosTrend(
         AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
     `;
     const recentResult = await db.execute(recentQuery);
-    const recentRows = (recentResult as any)[0] || recentResult;
+    const recentRows = (recentResult as Record<string, unknown>[])[0] || recentResult;
     const recentSpend = Number(recentRows?.[0]?.total_spend) || 0;
     const recentSales = Number(recentRows?.[0]?.total_sales) || 0;
     const currentAcos = recentSales > 0 ? (recentSpend / recentSales) * 100 : 0;
@@ -312,7 +312,7 @@ async function calculateAcosTrend(
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `;
     const week1Result = await db.execute(week1Query);
-    const week1Rows = (week1Result as any)[0] || week1Result;
+    const week1Rows = (week1Result as Record<string, unknown>[])[0] || week1Result;
     const week1Spend = Number(week1Rows?.[0]?.total_spend) || 0;
     const week1Sales = Number(week1Rows?.[0]?.total_sales) || 0;
     const acos7dAgo = week1Sales > 0 ? (week1Spend / week1Sales) * 100 : 0;
@@ -328,7 +328,7 @@ async function calculateAcosTrend(
         AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `;
     const week2Result = await db.execute(week2Query);
-    const week2Rows = (week2Result as any)[0] || week2Result;
+    const week2Rows = (week2Result as Record<string, unknown>[])[0] || week2Result;
     const week2Spend = Number(week2Rows?.[0]?.total_spend) || 0;
     const week2Sales = Number(week2Rows?.[0]?.total_sales) || 0;
     const acos14dAgo = week2Sales > 0 ? (week2Spend / week2Sales) * 100 : 0;
@@ -348,8 +348,8 @@ async function calculateAcosTrend(
       changePoints: Math.round(changePoints * 10) / 10,
       deathSpiralDetected,
     };
-  } catch (error: any) {
-    log.warn(`[AcosTrend] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[AcosTrend] 计算异常: ${(error as Error).message}`);
     return { currentAcos: 0, acos7dAgo: 0, acos14dAgo: 0, direction: 'stable', changePoints: 0, deathSpiralDetected: false };
   }
 }
@@ -419,8 +419,8 @@ async function calculateBidIncreaseAnalysis(
       successRate: 0, // 需要后续数据验证才能计算
       byScenario,
     };
-  } catch (error: any) {
-    log.warn(`[BidIncreaseAnalysis] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[BidIncreaseAnalysis] 计算异常: ${(error as Error).message}`);
     return { totalIncreases: 0, avgIncreasePercent: 0, successRate: 0, byScenario: [] };
   }
 }
@@ -447,7 +447,7 @@ async function calculateCircuitBreakerRate(
         AND created_at > DATE_SUB(NOW(), INTERVAL ${days} DAY)
     `;
     const totalResult = await db.execute(totalQuery);
-    const totalRows = (totalResult as any)[0] || totalResult;
+    const totalRows = (totalResult as Record<string, unknown>[])[0] || totalResult;
     const totalDecisions = Number(totalRows?.[0]?.total) || 0;
 
     // 熔断触发数
@@ -463,7 +463,7 @@ async function calculateCircuitBreakerRate(
       GROUP BY change_reason
     `;
     const trippedResult = await db.execute(trippedQuery);
-    const trippedRows = (trippedResult as any)[0] || trippedResult;
+    const trippedRows = (trippedResult as Record<string, unknown>[])[0] || trippedResult;
 
     let trippedCount = 0;
     const byReason: Record<string, number> = {};
@@ -485,8 +485,8 @@ async function calculateCircuitBreakerRate(
       rate: Math.round(rate * 10) / 10,
       byReason,
     };
-  } catch (error: any) {
-    log.warn(`[CircuitBreakerRate] 计算异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.warn(`[CircuitBreakerRate] 计算异常: ${(error as Error).message}`);
     return { totalDecisions: 0, trippedCount: 0, rate: 0, byReason: {} };
   }
 }

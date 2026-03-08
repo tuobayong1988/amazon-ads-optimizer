@@ -107,7 +107,7 @@ export async function collectKeywordPerformance(
   // 注意：dailyPerformance表是按账号/活动级别存储的，没有keywordId字段
   // 这里我们模拟返回空数据，实际实现需要从关键词表或其他数据源获取
   // 在实际生产环境中，应该从Amazon API获取关键词级别的历史数据
-  const metrics: any[] = [];
+  const metrics: unknown[] = [];
   
   // 汇总数据
   const totalClicks = metrics.reduce((sum, m) => sum + (m.clicks || 0), 0);
@@ -407,8 +407,8 @@ async function executeScheduledTask(): Promise<void> {
     schedulerStatus.errors = [];
     
     log.info(`[${new Date().toISOString()}] 效果追踪任务完成: 7天=${results.day7.length}, 14天=${results.day14.length}, 30天=${results.day30.length}`);
-  } catch (error: any) {
-    const errorMsg = `效果追踪任务执行失败: ${error.message}`;
+  } catch (error: unknown) {
+    const errorMsg = `效果追踪任务执行失败: ${(error as Error).message}`;
     log.error(errorMsg);
     schedulerStatus.errors.push(errorMsg);
   }
@@ -438,10 +438,10 @@ export async function triggerEffectTrackingTask(): Promise<{
         day30: results.day30.length,
       },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       success: false,
-      message: `效果追踪任务执行失败: ${error.message}`,
+      message: `效果追踪任务执行失败: ${(error as Error).message}`,
     };
   }
 }

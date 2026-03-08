@@ -38,8 +38,8 @@ interface QueuedRequest {
   endpoint: string;
   method: string;
   params?: any;
-  resolve: (value: any) => void;
-  reject: (error: any) => void;
+  resolve: (value: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
   priority: number;
   addedAt: number;
 }
@@ -186,15 +186,15 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
     }).where(eq(dataSyncJobs.id, jobId));
 
     return { success: true, message: "同步完成", stats };
-  } catch (error: any) {
+  } catch (error: unknown) {
     await db.update(dataSyncJobs).set({
       status: "failed",
       completedAt: new Date().toISOString(),
-      errorMessage: error.message,
+      errorMessage: (error as Error).message,
     }).where(eq(dataSyncJobs.id, jobId));
 
-    await logSyncActivity(jobId, "error", "error", error.message);
-    return { success: false, message: error.message };
+    await logSyncActivity(jobId, "error", "error", (error as Error).message);
+    return { success: false, message: (error as Error).message };
   }
 }
 
@@ -225,9 +225,9 @@ async function syncCampaigns(userId: number, accountId: number, account: any): P
       count: result?.campaigns || 0, 
       message: `通过Amazon API同步了${result?.campaigns || 0}个广告活动` 
     };
-  } catch (error: any) {
-    log.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, error.message);
-    return { success: false, count: 0, message: error.message };
+  } catch (error: unknown) {
+    log.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, (error as Error).message);
+    return { success: false, count: 0, message: (error as Error).message };
   }
 }
 
@@ -258,9 +258,9 @@ async function syncKeywords(userId: number, accountId: number, account: any): Pr
       count: result?.keywords || 0, 
       message: `通过Amazon API同步了${result?.keywords || 0}个关键词` 
     };
-  } catch (error: any) {
-    log.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, error.message);
-    return { success: false, count: 0, message: error.message };
+  } catch (error: unknown) {
+    log.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, (error as Error).message);
+    return { success: false, count: 0, message: (error as Error).message };
   }
 }
 
@@ -289,9 +289,9 @@ async function syncPerformance(userId: number, accountId: number, account: any):
       count: result?.performance || 0, 
       message: `通过Amazon API同步了${result?.performance || 0}条绩效数据` 
     };
-  } catch (error: any) {
-    log.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, error.message);
-    return { success: false, count: 0, message: error.message };
+  } catch (error: unknown) {
+    log.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, (error as Error).message);
+    return { success: false, count: 0, message: (error as Error).message };
   }
 }
 
@@ -424,7 +424,7 @@ export async function updateSyncSchedule(id: number, userId: number, updates: Pa
   if (!db) return false;
 
   const setClauses: string[] = [];
-  const values: any[] = [];
+  const values: unknown[] = [];
 
   if (updates.syncType !== undefined) { setClauses.push("sync_type = ?"); values.push(updates.syncType); }
   if (updates.frequency !== undefined) { setClauses.push("frequency = ?"); values.push(updates.frequency); }
@@ -700,7 +700,7 @@ export async function getScheduleExecutionHistory(
     `);
 
     const rows = (result as any)[0] || [];
-    return rows.map((row: any) => ({
+    return rows.map((row: Record<string, unknown>) => ({
       id: row.id,
       scheduleId: row.scheduleId,
       jobId: row.jobId,
@@ -823,7 +823,7 @@ async function sendScheduleFailureAlert(
       WHERE s.id = ${scheduleId}
     `);
     
-    const schedule = (scheduleResult as any)[0]?.[0];
+    const schedule = (scheduleResult as Record<string, unknown>[])[0]?.[0];
     if (!schedule) return;
 
     // 使用通知服务发送告警
@@ -1015,8 +1015,8 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
 
     log.info(`[DataSync] v334: 卡死任务清理完成，共清理 ${staleJobs.length} 个任务: ${jobIds.join(', ')}`);
     return { cleaned: staleJobs.length, jobIds };
-  } catch (error: any) {
-    log.error(`[DataSync] v334: 卡死任务清理失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[DataSync] v334: 卡死任务清理失败: ${(error as Error).message}`);
     return { cleaned: 0, jobIds: [] };
   }
 }
@@ -1048,8 +1048,8 @@ export async function cleanupOrphanedPendingJobs(maxPendingMinutes: number = 60)
       log.info(`[DataSync] v334: 清理了 ${cleaned} 个孤儿pending任务`);
     }
     return { cleaned };
-  } catch (error: any) {
-    log.error(`[DataSync] v334: 孤儿pending任务清理失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[DataSync] v334: 孤儿pending任务清理失败: ${(error as Error).message}`);
     return { cleaned: 0 };
   }
 }

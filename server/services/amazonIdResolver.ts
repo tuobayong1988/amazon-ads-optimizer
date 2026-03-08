@@ -90,9 +90,9 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     log.warn(`ProductTargets: 回填${result.productTargetsResolved}, 失败${result.productTargetsFailed}`);
     log.debug(`总缺失: ${result.totalMissingBefore} → ${result.totalMissingAfter}`);
 
-  } catch (err: any) {
-    result.errors.push(`IdResolver异常: ${err.message}`);
-    log.error(`异常: ${err.message}`);
+  } catch (err: unknown) {
+    result.errors.push(`IdResolver异常: ${(err as Error).message}`);
+    log.error(`异常: ${(err as Error).message}`);
   } finally {
     if (directConn) {
       try { directConn.release(); } catch (_) {} // v350: 归还连接到池
@@ -211,7 +211,7 @@ async function resolveKeywordIds(
       }
 
       // 需要创建的关键词列表
-      const toCreate: any[] = [];
+      const toCreate: unknown[] = [];
 
       for (const kw of kwsInGroup) {
         // v194: ASIN格式的搜索词不应该作为keyword，清理
@@ -246,15 +246,15 @@ async function resolveKeywordIds(
             );
             result.keywordsResolved++;
             log.debug(`✅ v357: 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}, accountId=${accountId}`);
-          } catch (updateErr: any) {
-            if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
+          } catch (updateErr: unknown) {
+            if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               // 唯一约束冲突 → 说明是重复记录，删除
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
               result.keywordsCleanedUp++;
               log.debug(`🧹 清理重复keyword id=${kw.id} (keywordId=${amazonKeywordId}已存在)`);
             } else {
               result.keywordsFailed++;
-              log.error(`❌ 回填keyword id=${kw.id}失败: ${updateErr.message}`);
+              log.error(`❌ 回填keyword id=${kw.id}失败: ${(updateErr as Error).message}`);
             }
           }
         } else {
@@ -291,7 +291,7 @@ async function resolveKeywordIds(
           }
         } else if (amazonCampaignId) {
           // v192: 批量校验关键词数据质量
-          const validatedBatch: any[] = [];
+          const validatedBatch: unknown[] = [];
           for (const kw of toCreate) {
             const validation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
             if (validation.isValid) {
@@ -314,7 +314,7 @@ async function resolveKeywordIds(
             const batch = validatedBatch.slice(i, i + batchSize);
             try {
               const createResults = await syncService.client.createSpKeywords(
-                batch.map((kw: any) => ({
+                batch.map((kw: Record<string, unknown>) => ({
                   campaignId: amazonCampaignId,
                   adGroupId: amazonAdGroupId,
                   keywordText: kw.keywordText,
@@ -340,8 +340,8 @@ async function resolveKeywordIds(
                     );
                     result.keywordsCreated++;
                     log.info(`✅ v357: 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}, accountId=${accountId}, campaignId=${amazonCampaignId}`);
-                  } catch (upErr: any) {
-                    if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
+                  } catch (upErr: unknown) {
+                    if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
                       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                       result.keywordsCleanedUp++;
                     } else {
@@ -371,7 +371,7 @@ async function resolveKeywordIds(
                       const amazonKeywords = isAdGroupSb
                         ? await syncService.client.listSbKeywords(String(amazonAdGroupId))
                         : await syncService.client.listSpKeywords(Number(amazonAdGroupId));
-                      const matchedKw = amazonKeywords.find((ak: any) => 
+                      const matchedKw = amazonKeywords.find((ak: Record<string, unknown>) => 
                         ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
                         ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
                       );
@@ -388,8 +388,8 @@ async function resolveKeywordIds(
                         log.debug(`✅ v357: 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}, accountId=${accountId}`);
                         resolved = true;
                       }
-                    } catch (lookupErr: any) {
-                      log.warn(`⚠️ Amazon关键词查询失败: ${lookupErr.message}`);
+                    } catch (lookupErr: unknown) {
+                      log.warn(`⚠️ Amazon关键词查询失败: ${(lookupErr as Error).message}`);
                     }
                   }
                   
@@ -400,8 +400,8 @@ async function resolveKeywordIds(
                   }
                 }
               }
-            } catch (createErr: any) {
-              log.error(`❌ 批量创建keywords异常: ${createErr.message}`);
+            } catch (createErr: unknown) {
+              log.error(`❌ 批量创建keywords异常: ${(createErr as Error).message}`);
               result.keywordsFailed += batch.length;
             }
 
@@ -415,8 +415,8 @@ async function resolveKeywordIds(
           result.keywordsFailed += toCreate.length;
         }
       }
-    } catch (agErr: any) {
-      log.error(`adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
+    } catch (agErr: unknown) {
+      log.error(`adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
       result.keywordsFailed += kwsInGroup.length;
     }
   }
@@ -490,7 +490,7 @@ async function resolveProductTargetIds(
       // 构建匹配索引
       const amazonPtMap = new Map<string, string>();
       for (const at of amazonTargets) {
-        const atAny = at as any;
+        const atAny = at as unknown;
         // 用expression作为匹配键
         const expr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
         amazonPtMap.set(expr, String(at.targetId));
@@ -511,7 +511,7 @@ async function resolveProductTargetIds(
         // 方式2: 遍历Amazon targets，按ASIN或类目匹配
         if (!amazonTargetId && pt.targetValue) {
           for (const at of amazonTargets) {
-            const atAny2 = at as any;
+            const atAny2 = at as unknown;
             const exprStr = JSON.stringify(atAny2.expression || atAny2.targetingClause?.expression || []);
             if (exprStr.includes(pt.targetValue)) {
               amazonTargetId = String(at.targetId);
@@ -528,8 +528,8 @@ async function resolveProductTargetIds(
             );
             result.productTargetsResolved++;
             log.debug(`✅ 回填product_target id=${pt.id} → targetId=${amazonTargetId}`);
-          } catch (updateErr: any) {
-            if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
+          } catch (updateErr: unknown) {
+            if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
               result.productTargetsResolved++;
               log.debug(`🧹 清理重复product_target id=${pt.id}`);
@@ -551,8 +551,8 @@ async function resolveProductTargetIds(
           }
         }
       }
-    } catch (agErr: any) {
-      log.error(`PT adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
+    } catch (agErr: unknown) {
+      log.error(`PT adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
       result.productTargetsFailed += ptsInGroup.length;
     }
   }
@@ -639,8 +639,8 @@ export async function resolveKeywordIdOnDemand(
           );
           log.debug(`✅ 即时回填keyword id=${keywordLocalId} → keywordId=${amazonKeywordId}`);
           return amazonKeywordId;
-        } catch (upErr: any) {
-          if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
+        } catch (upErr: unknown) {
+          if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
           }
           return null;
@@ -702,14 +702,14 @@ export async function resolveKeywordIdOnDemand(
           log.info(`✅ v357: 即时创建keyword id=${keywordLocalId} → keywordId=${newKeywordId}, accountId=${accountId}`);
           return newKeywordId;
         }
-      } catch (createErr: any) {
-        log.error(`即时创建keyword失败: ${createErr.message}`);
+      } catch (createErr: unknown) {
+        log.error(`即时创建keyword失败: ${(createErr as Error).message}`);
       }
     }
 
     return null;
-  } catch (err: any) {
-    log.error(`resolveKeywordIdOnDemand异常: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`resolveKeywordIdOnDemand异常: ${(err as Error).message}`);
     return null;
   } finally {
     if (conn) {
@@ -752,7 +752,7 @@ export async function resolveProductTargetIdOnDemand(
     const amazonTargets = await syncService.client.listSpProductTargets(amazonAdGroupId);
 
     for (const at of amazonTargets) {
-      const atAny = at as any;
+      const atAny = at as unknown;
       const exprStr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
 
       let matched = false;
@@ -771,8 +771,8 @@ export async function resolveProductTargetIdOnDemand(
           );
           log.debug(`✅ 即时回填product_target id=${ptLocalId} → targetId=${amazonTargetId}`);
           return amazonTargetId;
-        } catch (upErr: any) {
-          if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
+        } catch (upErr: unknown) {
+          if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [ptLocalId]);
           }
           return null;
@@ -781,8 +781,8 @@ export async function resolveProductTargetIdOnDemand(
     }
 
     return null;
-  } catch (err: any) {
-    log.error(`resolveProductTargetIdOnDemand异常: ${err.message}`);
+  } catch (err: unknown) {
+    log.error(`resolveProductTargetIdOnDemand异常: ${(err as Error).message}`);
     return null;
   } finally {
     if (conn) {

@@ -359,7 +359,7 @@ export async function triggerCollaborationNotification(params: {
   targetName?: string;
   accountId?: number;
   accountName?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   auditLogId?: number;
 }): Promise<number> {
   const db = await getDb();

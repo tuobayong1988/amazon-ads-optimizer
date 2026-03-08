@@ -701,8 +701,8 @@ export async function getCampaignPlacementPerformance(
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
         };
         log.info(`[PlacementOptimization] v163: ${placement} 时间衰减加权 - 加权ROAS=${twMetrics.weightedRoas.toFixed(2)}, 加权ACoS=${twMetrics.weightedAcos.toFixed(1)}%, 置信度=${twMetrics.dataQuality.confidenceLevel}`);
-      } catch (e: any) {
-        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${e.message}`);
+      } catch (e: unknown) {
+        log.info(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${(e as Error).message}`);
       }
     }
     
@@ -884,8 +884,8 @@ export async function updatePlacementSettings(
         );
       log.info(`[PlacementOptimization] v166: campaigns表位置倾斜已同步更新(待确认) - campaignId=${campaignId}`, campaignUpdateData);
     }
-  } catch (campaignUpdateError: any) {
-    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${campaignUpdateError.message}`);
+  } catch (campaignUpdateError: unknown) {
+    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${(campaignUpdateError as Error).message}`);
   }
 }
 
@@ -1023,8 +1023,8 @@ export async function batchExecutePlacementOptimization(
         )
       ) as any[];
     campaignsToOptimize = allCampaigns
-      .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
-      .map((c: any) => ({ amazonCampaignId: String(c.campaignId) }));
+      .filter((c: Record<string, unknown>) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+      .map((c: Record<string, unknown>) => ({ amazonCampaignId: String(c.campaignId) }));
   }
 
   const results: Array<{
@@ -1090,9 +1090,9 @@ export async function analyzePlacementPerformance(
     campaignId,
     placements: performance,
     analysis: {
-      bestPerforming: performance.reduce((best: any, p: any) => 
+      bestPerforming: performance.reduce((best: any, p: Record<string, unknown>) => 
         (p.metrics?.roas || 0) > (best?.metrics?.roas || 0) ? p : best, performance[0]),
-      worstPerforming: performance.reduce((worst: any, p: any) => 
+      worstPerforming: performance.reduce((worst: any, p: Record<string, unknown>) => 
         (p.metrics?.roas || Infinity) < (worst?.metrics?.roas || Infinity) ? p : worst, performance[0]),
       reliableDataCount: performance.filter(p => p.isReliable).length,
       totalPlacements: performance.length
@@ -1118,7 +1118,7 @@ export async function generatePlacementSuggestions(
     accountId
   );
   
-  const suggestions: any[] = [];
+  const suggestions: unknown[] = [];
   
   for (const suggestion of adjustmentSuggestions) {
     const adjustmentDelta = Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment);

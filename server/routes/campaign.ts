@@ -127,9 +127,9 @@ export const campaignRouter = router({
               reason: '用户手动更新campaign状态',
             }]);
             apiSyncResults.push({ field: 'campaignStatus', success: result.success > 0, error: result.errors[0] });
-          } catch (e: any) {
-            apiSyncResults.push({ field: 'campaignStatus', success: false, error: e.message });
-            log.error(`[campaign.update] 状态同步失败:`, e.message);
+          } catch (e: unknown) {
+            apiSyncResults.push({ field: 'campaignStatus', success: false, error: (e as Error).message });
+            log.error(`[campaign.update] 状态同步失败:`, (e as Error).message);
           }
         }
         
@@ -144,9 +144,9 @@ export const campaignRouter = router({
               '用户手动更新日预算'
             );
             apiSyncResults.push({ field: 'dailyBudget', success });
-          } catch (e: any) {
-            apiSyncResults.push({ field: 'dailyBudget', success: false, error: e.message });
-            log.error(`[campaign.update] 预算同步失败:`, e.message);
+          } catch (e: unknown) {
+            apiSyncResults.push({ field: 'dailyBudget', success: false, error: (e as Error).message });
+            log.error(`[campaign.update] 预算同步失败:`, (e as Error).message);
           }
         }
         
@@ -165,9 +165,9 @@ export const campaignRouter = router({
               '用户手动更新位置出价调整'
             );
             apiSyncResults.push({ field: 'placementAdjustment', success });
-          } catch (e: any) {
-            apiSyncResults.push({ field: 'placementAdjustment', success: false, error: e.message });
-            log.error(`[campaign.update] 位置调整同步失败:`, e.message);
+          } catch (e: unknown) {
+            apiSyncResults.push({ field: 'placementAdjustment', success: false, error: (e as Error).message });
+            log.error(`[campaign.update] 位置调整同步失败:`, (e as Error).message);
           }
         }
         
@@ -180,10 +180,10 @@ export const campaignRouter = router({
             const { confirmationSync } = await import('../unifiedSyncEngine');
             const entities: ('campaigns' | 'keywords' | 'targets' | 'budgets')[] = ['campaigns'];
             if (successfulSyncs.some(r => r.field === 'dailyBudget')) entities.push('budgets');
-            confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: any) => {
+            confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: Error) => {
               log.error(`[campaign.update] v219: 确认同步失败:`, err.message);
             });
-          } catch (e: any) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
+          } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
         }
       }
       
@@ -312,7 +312,7 @@ export const campaignRouter = router({
       // 获取广告组和关键词数据
       const adGroups = await db.getAdGroupsByCampaignId(input.campaignId);
       let totalKeywords = 0;
-      let topKeywords: any[] = [];
+      let topKeywords: unknown[] = [];
       
       for (const adGroup of adGroups) {
         const keywords = await db.getKeywordsByAdGroupId(adGroup.id);

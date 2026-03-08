@@ -56,7 +56,7 @@ export type AmazonNegativeKeywordId = string & { readonly __brand: unique symbol
  * 验证一个值是否是有效的Amazon ID格式
  * Amazon ID特征：纯数字字符串，通常10-20位
  */
-export function isValidAmazonId(value: any): boolean {
+export function isValidAmazonId(value: Record<string, unknown>): boolean {
   if (typeof value !== 'string' && typeof value !== 'number') return false;
   const str = String(value).trim();
   if (str === '' || str === '0' || str === 'null' || str === 'undefined') return false;
@@ -67,7 +67,7 @@ export function isValidAmazonId(value: any): boolean {
 /**
  * 验证一个值是否是本地数据库ID（正整数）
  */
-export function isValidLocalId(value: any): boolean {
+export function isValidLocalId(value: Record<string, unknown>): boolean {
   if (typeof value === 'number') return Number.isInteger(value) && value > 0;
   if (typeof value === 'string') {
     const num = parseInt(value, 10);
@@ -119,7 +119,7 @@ export function classifyCampaignId(value: string | number): 'amazon' | 'local' |
  * - Amazon API调用
  */
 export function assertAmazonCampaignId(
-  value: any,
+  value: Record<string, unknown>,
   context: string
 ): asserts value is string {
   const str = String(value).trim();
@@ -139,7 +139,7 @@ export function assertAmazonCampaignId(
  * 断言一个值是有效的Amazon Ad Group ID
  */
 export function assertAmazonAdGroupId(
-  value: any,
+  value: Record<string, unknown>,
   context: string
 ): asserts value is string {
   const str = String(value).trim();
@@ -157,7 +157,7 @@ export function assertAmazonAdGroupId(
  * 断言一个值是有效的本地ID（正整数）
  */
 export function assertLocalId(
-  value: any,
+  value: Record<string, unknown>,
   context: string
 ): asserts value is number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {

@@ -39,10 +39,10 @@ const log = createModuleLogger('syncSd');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSdCampaigns(...args: any[]): any;
-    syncSdAdGroups(...args: any[]): any;
-    syncSdProductTargets(...args: any[]): any;
-    syncSdTargeting(...args: any[]): any;
+    syncSdCampaigns(...args: unknown[]): any;
+    syncSdAdGroups(...args: unknown[]): any;
+    syncSdProductTargets(...args: unknown[]): any;
+    syncSdTargeting(...args: unknown[]): any;
   }
 }
 
@@ -321,7 +321,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -451,7 +451,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SD定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -469,8 +469,8 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SD定向第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SD定向第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 

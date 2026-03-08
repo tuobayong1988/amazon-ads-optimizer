@@ -26,7 +26,7 @@ export interface SyncTaskConfig {
 /**
  * 将API返回的行数据转换为DailyPerformance插入格式
  */
-function buildPerformanceRecord(row: any, campaignId: string, date: string) {
+function buildPerformanceRecord(row: Record<string, unknown>, campaignId: string, date: string) {
   const impressions = parseInt(row.impressions || '0');
   const clicks = parseInt(row.clicks || '0');
   const spend = parseFloat(row.cost || '0');
@@ -58,14 +58,14 @@ function buildPerformanceRecord(row: any, campaignId: string, date: string) {
  * 同步单个广告活动的每日数据
  */
 export async function syncCampaignDailyData(
-  apiData: any[],
+  apiData: unknown[],
   campaignId: string,
   date: string
 ): Promise<void> {
   try {
     // 查找该广告活动的数据
     const campaignData = apiData.find(
-      (row: any) => row.campaignId?.toString() === campaignId
+      (row: Record<string, unknown>) => row.campaignId?.toString() === campaignId
     );
     
     if (!campaignData) {
@@ -78,8 +78,8 @@ export async function syncCampaignDailyData(
     await db.createDailyPerformance(record as any);
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
-  } catch (error: any) {
-    log.error(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, (error as Error).message);
     throw error;
   }
 }
@@ -118,8 +118,8 @@ export async function syncAllCampaignsDailyData(
         const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
         await db.createDailyPerformance(record as any);
         successCount++;
-      } catch (error: any) {
-        log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);
         failedCount++;
       }
     }
@@ -130,8 +130,8 @@ export async function syncAllCampaignsDailyData(
     
     log.info(`[Daily Sync] 同步完成, 成功: ${successCount}, 失败: ${failedCount}`);
     return { success: successCount, failed: failedCount };
-  } catch (error: any) {
-    log.error('[Daily Sync] 同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('[Daily Sync] 同步失败:', (error as Error).message);
     throw error;
   }
 }

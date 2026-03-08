@@ -232,8 +232,8 @@ export function batchCalculateGTOModifiers(
         target, groupConfig, context, portfolioAnalysis, competitionProfile
       );
       results.set(target.id, modifier);
-    } catch (err: any) {
-      log.warn(`[GTO] 计算修正系数失败(target=${target.id}): ${err.message}`);
+    } catch (err: unknown) {
+      log.warn(`[GTO] 计算修正系数失败(target=${target.id}): ${(err as Error).message}`);
       // 失败时返回中性修正
       results.set(target.id, buildNeutralModifier(target, competitionProfile));
     }

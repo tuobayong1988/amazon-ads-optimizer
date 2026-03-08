@@ -313,7 +313,7 @@ export function getAllStrategyConfigSummary(): Record<string, {
   explorationRange: string;
   rotationCycle: string;
 }> {
-  const summary: Record<string, any> = {};
+  const summary: Record<string, unknown> = {};
   
   for (const [key, config] of Object.entries(STRATEGY_ALGORITHM_CONFIGS)) {
     summary[key] = {

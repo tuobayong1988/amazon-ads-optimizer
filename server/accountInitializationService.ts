@@ -104,8 +104,8 @@ export async function initializeAccount(params: {
           recentDays: 14,
         });
         log.info(`账号 ${accountId} (${marketplace}) 冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
-      } catch (coldStartErr: any) {
-        log.warn(`账号 ${accountId} (${marketplace}) 冷启动触发失败（不影响正常运行）: ${coldStartErr.message}`);
+      } catch (coldStartErr: unknown) {
+        log.warn(`账号 ${accountId} (${marketplace}) 冷启动触发失败（不影响正常运行）: ${(coldStartErr as Error).message}`);
       }
     }).catch(err => {
       log.error(`账号 ${accountId} (${marketplace}) 全量同步失败:`, err);
@@ -113,9 +113,9 @@ export async function initializeAccount(params: {
 
     result.syncResult = { success: true };
     log.info(`步骤1完成: 全量同步已启动`);
-  } catch (syncError: any) {
+  } catch (syncError: unknown) {
     log.error(`步骤1失败: 全量同步启动失败:`, syncError);
-    result.syncResult = { success: false, error: syncError.message };
+    result.syncResult = { success: false, error: (syncError as Error).message };
   }
 
   // ==================== 步骤2: 创建定时同步配置 ====================
@@ -149,9 +149,9 @@ export async function initializeAccount(params: {
       }
       result.scheduleResult = { success: true, scheduleId: existingSchedule.id };
     }
-  } catch (scheduleError: any) {
+  } catch (scheduleError: unknown) {
     log.error(`步骤2失败: 创建定时同步配置失败:`, scheduleError);
-    result.scheduleResult = { success: false, error: scheduleError.message };
+    result.scheduleResult = { success: false, error: (scheduleError as Error).message };
   }
 
   // ==================== 步骤3: 创建AMS实时数据流订阅 ====================
@@ -228,9 +228,9 @@ export async function initializeAccount(params: {
         log.warn(`步骤3: 没有新创建的AMS订阅（可能已存在）`);
       }
     }
-  } catch (amsError: any) {
+  } catch (amsError: unknown) {
     log.error(`步骤3失败: AMS订阅创建失败:`, amsError);
-    result.amsResult = { success: false, error: amsError.message };
+    result.amsResult = { success: false, error: (amsError as Error).message };
   }
 
   log.info(`账号 ${accountId} (${marketplace}) 初始化完成:`, {
@@ -269,14 +269,14 @@ export async function initializeMultipleAccounts(accounts: Array<{
       if (accounts.indexOf(account) < accounts.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error(`账号 ${account.accountId} 初始化异常:`, error);
       results.push({
         accountId: account.accountId,
         marketplace: account.marketplace,
-        syncResult: { success: false, error: error.message },
-        scheduleResult: { success: false, error: error.message },
-        amsResult: { success: false, error: error.message },
+        syncResult: { success: false, error: (error as Error).message },
+        scheduleResult: { success: false, error: (error as Error).message },
+        amsResult: { success: false, error: (error as Error).message },
       });
     }
   }

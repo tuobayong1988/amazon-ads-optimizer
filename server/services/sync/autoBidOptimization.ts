@@ -61,12 +61,12 @@ export async function runAutoBidOptimization(
     const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as any, context);
     
     for (const ngResult of nextGenResults) {
-      if ((ngResult as any).action === 'hold') {
+      if ((ngResult as Record<string, unknown>[]).action === 'hold') {
         results.skipped++;
         continue;
       }
       
-      const kw = keywordsToOptimize.find(k => k.id === (ngResult as any).keywordId);
+      const kw = keywordsToOptimize.find(k => k.id === (ngResult as Record<string, unknown>[]).keywordId);
       if (!kw) { results.skipped++; continue; }
       
       const [adGroup] = await db
@@ -80,7 +80,7 @@ export async function runAutoBidOptimization(
           'keyword',
           kw.id,
           ngResult.newBid,
-          `NextGen[${(ngResult as any).algorithm}]: ${ngResult.reason}`,
+          `NextGen[${(ngResult as Record<string, unknown>[]).algorithm}]: ${ngResult.reason}`,
           adGroup.campaignId
         );
         
@@ -96,8 +96,8 @@ export async function runAutoBidOptimization(
     
     log.info(`v230: NextGen优化完成 optimized=${results.optimized}, skipped=${results.skipped}`);
     return results;
-  } catch (nextGenError: any) {
-    log.warn(`v230: NextGen算法失败，回退到旧算法: ${nextGenError.message}`);
+  } catch (nextGenError: unknown) {
+    log.warn(`v230: NextGen算法失败，回退到旧算法: ${(nextGenError as Error).message}`);
   }
 
   // v230: 回退到旧算法

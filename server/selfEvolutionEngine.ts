@@ -332,7 +332,7 @@ async function getTimeWeightedCampaignMetrics(
   const decayRate = dataPoints < 7 ? 0.02 : dataPoints < 14 ? 0.04 : 0.06; // 数据越多衰减越快
   
   // 计算数据波动性（用于调整衰减强度）
-  const spendValues = dailyData.map((d: any) => Number(d.spend) || 0);
+  const spendValues = dailyData.map((d: Record<string, unknown>) => Number(d.spend) || 0);
   const avgSpendRaw = spendValues.length > 0 ? spendValues.reduce((a: number, b: number) => a + b, 0) / spendValues.length : 0;
   const variance = spendValues.length > 1 
     ? spendValues.reduce((sum: number, v: number) => sum + Math.pow(v - avgSpendRaw, 2), 0) / spendValues.length 

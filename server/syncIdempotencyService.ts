@@ -131,10 +131,10 @@ export async function acquireSyncLock(accountId: number, syncType: string = 'all
       log.info(`[v358] 分布式锁被占用: ${lockKey}`);
       return null;
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (currentLockMode === 'auto') {
       // 降级到内存锁
-      log.warn(`[v358] 分布式锁获取失败(${error.message})，降级到内存锁`);
+      log.warn(`[v358] 分布式锁获取失败(${(error as Error).message})，降级到内存锁`);
       return acquireMemoryLock(accountId, syncType);
     }
     log.error(`[v358] 分布式锁获取失败: ${error.message}`);
@@ -161,8 +161,8 @@ export async function releaseSyncLock(accountId: number, syncType: string = 'all
     await releaseLock(lockKey, holderId);
     log.info(`[v358] 分布式锁已释放: ${lockKey}`);
     return true;
-  } catch (error: any) {
-    log.warn(`[v358] 分布式锁释放失败(${error.message})，内存锁已释放`);
+  } catch (error: unknown) {
+    log.warn(`[v358] 分布式锁释放失败(${(error as Error).message})，内存锁已释放`);
     return true; // 内存锁已释放，不阻塞
   }
 }
@@ -218,7 +218,7 @@ export async function clearPerformanceDataForFullSync(
     
     log.info(`[SyncIdempotency] 已清除 ${deletedCount} 条旧绩效数据`);
     return deletedCount;
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[SyncIdempotency] 清除旧绩效数据失败:`, error);
     return 0;
   }
@@ -248,9 +248,9 @@ export async function executeWithIdempotency<T>(
     // 2. 执行同步
     const result = await syncFn();
     return { success: true, result };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[SyncIdempotency] 同步执行失败: accountId=${accountId}, syncType=${syncType}`, error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   } finally {
     // 3. 始终释放锁
     await releaseSyncLock(accountId, syncType, lockId);

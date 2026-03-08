@@ -185,7 +185,7 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
         const localBudgetSb = parseFloat(existing.dailyBudget || '0');
         if (dailyBudget === 0 && localBudgetSb > 0) {
           log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
-          delete (campaignData as any).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         await db
           .update(campaigns)
@@ -526,7 +526,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
         const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
         if (apiBudget === 0 && localBudget > 0) {
           log.warn(`v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
-          delete (campaignData as any).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         
         // v150: 智能预算保护策略
@@ -539,7 +539,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
           if (hasRecentOpt) {
             // 有近期优化事件，保留本地预算
             log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
-            delete (campaignData as any).dailyBudget;
+            delete (campaignData as Record<string, unknown>[]).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
@@ -555,37 +555,37 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
           const pendingBudgetVal = parseFloat(String(existing.pendingBudget));
           if (apiBudget > 0 && Math.abs(apiBudget - pendingBudgetVal) < 0.01) {
             // Amazon已确认预算调整
-            (campaignData as any).budgetSyncStatus = 'synced';
-            (campaignData as any).pendingBudget = null;
+            (campaignData as Record<string, unknown>[]).budgetSyncStatus = 'synced';
+            (campaignData as Record<string, unknown>[]).pendingBudget = null;
             log.info(`v245: 预算同步确认 - campaign=${existing.campaignName}, pending=$${pendingBudgetVal}, api=$${apiBudget}, 状态→synced`);
           } else if (apiBudget > 0 && Math.abs(apiBudget - pendingBudgetVal) >= 0.01) {
             // Amazon返回的budget与pendingBudget不一致，标记为conflict
-            (campaignData as any).budgetSyncStatus = 'conflict';
+            (campaignData as Record<string, unknown>[]).budgetSyncStatus = 'conflict';
             log.warn(`v245: 预算同步冲突 - campaign=${existing.campaignName}, pending=$${pendingBudgetVal}, api=$${apiBudget}, 状态→conflict`);
           }
         }
         
         // 同样处理位置倾斜同步状态
         if (existing.placementSyncStatus === 'pending_confirmation') {
-          const apiTop = (campaignData as any).placementTopSearchBidAdjustment || 0;
-          const apiProduct = (campaignData as any).placementProductPageBidAdjustment || 0;
+          const apiTop = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
+          const apiProduct = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
           // 如果API返回了有效的位置倾斜数据，确认同步成功
           if (apiTop > 0 || apiProduct > 0) {
-            (campaignData as any).placementSyncStatus = 'synced';
+            (campaignData as Record<string, unknown>[]).placementSyncStatus = 'synced';
             log.info(`v245: 位置倾斜同步确认 - campaign=${existing.campaignName}, top=${apiTop}%, product=${apiProduct}%, 状态→synced`);
           }
         }
 
         // v165: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
-        const apiTopPlacement1 = (campaignData as any).placementTopSearchBidAdjustment || 0;
+        const apiTopPlacement1 = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
-        const apiProductPlacement1 = (campaignData as any).placementProductPageBidAdjustment || 0;
+        const apiProductPlacement1 = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
         const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
-          delete (campaignData as any).placementTopSearchBidAdjustment;
-          delete (campaignData as any).placementProductPageBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
@@ -609,14 +609,14 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
     log.info(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
     logSyncProtectionSummary('syncSpCampaigns', protectionStats);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[同步] ❌ SP广告活动同步失败');
     log.error('[同步] 错误类型:', error.constructor.name);
-    log.error('[同步] 错误消息:', error.message);
-    log.error('[同步] 错误堆栈:', error.stack);
-    if (error.response) {
-      log.error('[同步] API响应状态:', error.response.status);
-      log.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
+    log.error('[同步] 错误消息:', (error as Error).message);
+    log.error('[同步] 错误堆栈:', (error as Error).stack);
+    if ((error as Error & { response?: unknown }).response) {
+      log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }
@@ -645,24 +645,24 @@ export async function syncCampaignsOnly(service: SyncContext,): Promise<{
     const spResult = await service.syncSpCampaigns();
     results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
     results.campaigns += results.spCampaigns;
-  } catch (error: any) {
-    log.error('SP广告活动同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SP广告活动同步失败:', (error as Error).message);
   }
   
   try {
     const sbResult = await service.syncSbCampaigns();
     results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
     results.campaigns += results.sbCampaigns;
-  } catch (error: any) {
-    log.error('SB广告活动同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告活动同步失败:', (error as Error).message);
   }
   
   try {
     const sdResult = await service.syncSdCampaigns();
     results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
     results.campaigns += results.sdCampaigns;
-  } catch (error: any) {
-    log.error('SD广告活动同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SD广告活动同步失败:', (error as Error).message);
   }
   
   log.info(`广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);

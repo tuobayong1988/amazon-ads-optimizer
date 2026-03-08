@@ -242,8 +242,8 @@ export async function collectCampaignPerformanceData(
         timeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         log.info(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减加权 - 加权日均花费=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, 加权ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
       }
-    } catch (e: any) {
-      log.info(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+    } catch (e: unknown) {
+      log.info(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${(e as Error).message}`);
     }
     
     const currentBudget = Number(campaign.dailyBudget) || 0;

@@ -31,7 +31,7 @@ const log = createModuleLogger('AutoDbMigration');
 /**
  * 检查MySQL错误是否为"已存在"类型（表/列已存在），可安全忽略
  */
-function isAlreadyExistsError(err: any): boolean {
+function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
@@ -52,13 +52,13 @@ async function safeDDL(database: any, ddlSql: any, tableName: string, results: s
     results.push(`${tableName}: 已就绪`);
     log.info(`${tableName} 已就绪`);
     return true;
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (isAlreadyExistsError(err)) {
       results.push(`${tableName}: 已存在（跳过）`);
       return true;
     } else {
-      results.push(`${tableName}: 失败 - ${err.message}`);
-      log.error(`${tableName} 操作失败: ${err.message}`);
+      results.push(`${tableName}: 失败 - ${(err as Error).message}`);
+      log.error(`${tableName} 操作失败: ${(err as Error).message}`);
       return false;
     }
   }
@@ -274,8 +274,8 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     log.info(`v349: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
-  } catch (error: any) {
-    log.error(`v349: 数据库自动迁移异常: ${error.message}`);
-    return { success: false, results: [`迁移异常: ${error.message}`] };
+  } catch (error: unknown) {
+    log.error(`v349: 数据库自动迁移异常: ${(error as Error).message}`);
+    return { success: false, results: [`迁移异常: ${(error as Error).message}`] };
   }
 }

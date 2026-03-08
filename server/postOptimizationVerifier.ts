@@ -364,8 +364,8 @@ async function executeVerificationTask(taskId: string): Promise<void> {
       cleanupTask(taskId);
     }
     
-  } catch (error: any) {
-    log.error(`v166: 验证任务执行异常 taskId=${taskId}:`, error.message);
+  } catch (error: unknown) {
+    log.error(`v166: 验证任务执行异常 taskId=${taskId}:`, (error as Error).message);
     
     // 异常时安排重试
     if (task.attempt < task.maxAttempts) {
@@ -445,7 +445,7 @@ async function verifyBidAdjustments(
     try {
       // 查询该adGroup下的所有关键词
       const isProductTarget = groupItems[0]?.context?.fieldName === 'product_target_bid';
-      let amazonItems: any[];
+      let amazonItems: unknown[];
       
       if (isProductTarget) {
         amazonItems = await syncService.client.listSpProductTargets(adGroupId || undefined);
@@ -483,10 +483,10 @@ async function verifyBidAdjustments(
         }
       }
       
-    } catch (error: any) {
-      log.error(`出价验证API调用失败 adGroupId=${adGroupId}:`, error.message);
+    } catch (error: unknown) {
+      log.error(`出价验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
       for (const item of groupItems) {
-        results.push({ item, status: 'error', message: error.message });
+        results.push({ item, status: 'error', message: (error as Error).message });
       }
     }
   }
@@ -536,10 +536,10 @@ async function verifyBudgetAdjustments(
       }
     }
     
-  } catch (error: any) {
-    log.error(`预算验证API调用失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`预算验证API调用失败:`, (error as Error).message);
     for (const item of items) {
-      results.push({ item, status: 'error', message: error.message });
+      results.push({ item, status: 'error', message: (error as Error).message });
     }
   }
   
@@ -603,10 +603,10 @@ async function verifyPlacementAdjustments(
       }
     }
     
-  } catch (error: any) {
-    log.error(`位置倾斜验证API调用失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`位置倾斜验证API调用失败:`, (error as Error).message);
     for (const item of items) {
-      results.push({ item, status: 'error', message: error.message });
+      results.push({ item, status: 'error', message: (error as Error).message });
     }
   }
   
@@ -638,7 +638,7 @@ async function verifyNegativeKeywords(
       const amazonNegatives = await syncService.client.listSpCampaignNegativeKeywords(campaignId || undefined);
       
       // 构建keywordText到记录的映射
-      const amazonNegMap = new Map<string, any>();
+      const amazonNegMap = new Map<string, unknown>();
       for (const neg of amazonNegatives) {
         const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
         amazonNegMap.set(key, neg);
@@ -653,8 +653,8 @@ async function verifyNegativeKeywords(
             const key = `${neg.keywordText}_${neg.matchType}`.toLowerCase();
             amazonNegMap.set(key, neg);
           }
-        } catch (e: any) {
-          log.warn(`查询adGroup ${adGroupId} 否定关键词失败: ${e.message}`);
+        } catch (e: unknown) {
+          log.warn(`查询adGroup ${adGroupId} 否定关键词失败: ${(e as Error).message}`);
         }
       }
       
@@ -674,10 +674,10 @@ async function verifyNegativeKeywords(
         }
       }
       
-    } catch (error: any) {
-      log.error(`否词验证API调用失败 campaignId=${campaignId}:`, error.message);
+    } catch (error: unknown) {
+      log.error(`否词验证API调用失败 campaignId=${campaignId}:`, (error as Error).message);
       for (const item of groupItems) {
-        results.push({ item, status: 'error', message: error.message });
+        results.push({ item, status: 'error', message: (error as Error).message });
       }
     }
   }
@@ -731,10 +731,10 @@ async function verifyKeywordStatus(
         }
       }
       
-    } catch (error: any) {
-      log.error(`状态验证API调用失败 adGroupId=${adGroupId}:`, error.message);
+    } catch (error: unknown) {
+      log.error(`状态验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
       for (const item of groupItems) {
-        results.push({ item, status: 'error', message: error.message });
+        results.push({ item, status: 'error', message: (error as Error).message });
       }
     }
   }
@@ -835,8 +835,8 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
     
     log.info(`v166: 事务回填完成, ${results.length}项已确认并更新`);
     
-  } catch (error: any) {
-    log.error(`v166: 事务回填失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`v166: 事务回填失败:`, (error as Error).message);
   }
 }
 
@@ -911,8 +911,8 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
     
     log.warn(`v166: ${results.length}项冲突已处理（以Amazon实际值为准）`);
     
-  } catch (error: any) {
-    log.error(`v166: 冲突处理事务失败:`, error.message);
+  } catch (error: unknown) {
+    log.error(`v166: 冲突处理事务失败:`, (error as Error).message);
   }
 }
 
@@ -1069,8 +1069,8 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
     
     log.info(`v257: 自动冲突解决完成 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
     
-  } catch (error: any) {
-    log.error(`v257: 自动冲突解决失败 accountId=${accountId}: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v257: 自动冲突解决失败 accountId=${accountId}: ${(error as Error).message}`);
   }
   
   return { resolved, ignored, skipped };

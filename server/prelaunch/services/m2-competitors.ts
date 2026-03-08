@@ -40,8 +40,8 @@ export class M2CompetitorService {
         .where(and(...conditions));
 
       return { success: true, data, total: countResult?.count ?? 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [], total: 0 };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [], total: 0 };
     }
   }
 
@@ -64,8 +64,8 @@ export class M2CompetitorService {
           trsBreakdown: comp.trsBreakdown ? (typeof comp.trsBreakdown === 'string' ? JSON.parse(comp.trsBreakdown) : comp.trsBreakdown) : null,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -78,8 +78,8 @@ export class M2CompetitorService {
         .from(prelaunchCompetitorScenarioMatrix)
         .where(eq(prelaunchCompetitorScenarioMatrix.projectId, projectId));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -96,8 +96,8 @@ export class M2CompetitorService {
         .where(and(...conditions))
         .orderBy(desc(prelaunchCompetitorUserLanguage.frequency));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -120,7 +120,7 @@ export class M2CompetitorService {
           .limit(10);
 
         if (keywords.length > 0) {
-          const kwList = keywords.map((k: any) => k.keyword).join(', ');
+          const kwList = keywords.map((k: Record<string, unknown>) => k.keyword).join(', ');
           const discovered = await geminiStructuredOutput<any[]>('',
             `Given these Amazon search keywords: ${kwList}
             
@@ -135,7 +135,7 @@ Identify 15-25 competitor ASINs that would appear in search results. For each, p
 
 Return JSON array.`, { temperature: 0.3 });
 
-          asins = discovered.map((d: any) => d.asin);
+          asins = discovered.map((d: Record<string, unknown>) => d.asin);
 
           // 写入竞品基础数据
           for (const comp of discovered) {
@@ -183,13 +183,13 @@ Return JSON array.`, { temperature: 0.3 });
         success: true,
         summary: {
           totalCompetitors: competitors.length,
-          t1Count: competitors.filter((c: any) => c.tier === 'T1_head').length,
-          t2Count: competitors.filter((c: any) => c.tier === 'T2_waist').length,
-          t3Count: competitors.filter((c: any) => c.tier === 'T3_niche').length,
+          t1Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T1_head').length,
+          t2Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T2_waist').length,
+          t3Count: competitors.filter((c: Record<string, unknown>) => c.tier === 'T3_niche').length,
         },
       };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -223,7 +223,7 @@ Return JSON array.`, { temperature: 0.3 });
   }
 
   /** 竞品评论分析 */
-  private async analyzeCompetitorReviews(db: any, projectId: number, competitors: any[]) {
+  private async analyzeCompetitorReviews(db: any, projectId: number, competitors: unknown[]) {
     const topCompetitors = competitors.slice(0, 10);
 
     for (const comp of topCompetitors) {
@@ -258,7 +258,7 @@ Generate 10-20 diverse phrases. Return JSON array:
   }
 
   /** 竞品场景矩阵 */
-  private async buildScenarioMatrix(db: any, projectId: number, competitors: any[]) {
+  private async buildScenarioMatrix(db: any, projectId: number, competitors: unknown[]) {
     const scenarios = [
       'S01', 'S02', 'S03', 'S04', 'S05', 'S06',
       'S07', 'S08', 'S09', 'S10', 'S11', 'S12',

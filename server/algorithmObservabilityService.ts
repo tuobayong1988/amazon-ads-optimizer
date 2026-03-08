@@ -55,7 +55,7 @@ export interface AlgorithmDecisionTrace {
   abTestDetail?: {
     testId: number;
     variantType: 'control' | 'treatment';
-    configOverrides: Record<string, any>;
+    configOverrides: Record<string, unknown>;
   };
   
   // 探索决策详情
@@ -337,7 +337,7 @@ export function cleanupOldTraces(maxAgeDays: number = 7): number {
 // ==================== v272 P0-1: 通用指标记录 ====================
 
 /** 通用指标缓冲区 */
-const metricBuffer: Array<{ type: string; data: Record<string, any>; timestamp: Date }> = [];
+const metricBuffer: Array<{ type: string; data: Record<string, unknown>; timestamp: Date }> = [];
 const MAX_METRIC_BUFFER = 1000; // v329: 从5000降至1000，减少内存占用约80%
 
 /**
@@ -346,7 +346,7 @@ const MAX_METRIC_BUFFER = 1000; // v329: 从5000降至1000，减少内存占用�
  * 用于核心业务流程中记录关键操作指标，
  * 支持后续聚合分析和仪表板展示。
  */
-export function recordMetric(type: string, data: Record<string, any>): void {
+export function recordMetric(type: string, data: Record<string, unknown>): void {
   metricBuffer.push({
     type,
     data,
@@ -363,7 +363,7 @@ export function recordMetric(type: string, data: Record<string, any>): void {
 /**
  * v272 P0-1: 获取指标缓冲区数据
  */
-export function getMetrics(type?: string, limit: number = 100): Array<{ type: string; data: Record<string, any>; timestamp: Date }> {
+export function getMetrics(type?: string, limit: number = 100): Array<{ type: string; data: Record<string, unknown>; timestamp: Date }> {
   const filtered = type ? metricBuffer.filter(m => m.type === type) : metricBuffer;
   return filtered.slice(-limit);
 }

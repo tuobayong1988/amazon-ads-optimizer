@@ -288,7 +288,7 @@ export async function generateBudgetAllocation(
     ? and(eq(campaigns.accountId, accountId), eq(campaigns.campaignStatus, "enabled"))
     : eq(campaigns.campaignStatus, "enabled");
 
-  const campaignList: any[] = await db
+  const campaignList: unknown[] = await db
     .select()
     .from(campaigns)
     .where(campaignQuery);

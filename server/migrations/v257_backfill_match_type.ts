@@ -53,7 +53,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
       WHERE event_category = 'bid_adjustment'
     `);
     
-    const coverage = (coverageResult as any)[0] || {};
+    const coverage = (coverageResult as Record<string, unknown>[])[0] || {};
     const total = Number(coverage.total) || 0;
     const withMatchType = Number(coverage.with_match_type) || 0;
     const withKeyword = Number(coverage.with_keyword) || 0;
@@ -61,8 +61,8 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     
     log.info(`[v257] match_type覆盖率: ${withMatchType}/${withKeyword}条关键词事件有match_type (${coverageRate}%), 总事件=${total}`);
     
-  } catch (error: any) {
-    log.error(`[v257] match_type回填失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v257] match_type回填失败: ${(error as Error).message}`);
     errors++;
   }
   

@@ -39,16 +39,16 @@ const log = createModuleLogger('syncSb');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSbCampaigns(...args: any[]): any;
-    syncSbAdGroups(...args: any[]): any;
-    syncSbKeywords(...args: any[]): any;
-    syncSbProductTargets(...args: any[]): any;
-    syncSbSearchTerms(...args: any[]): any;
-    syncSbTargeting(...args: any[]): any;
-    syncSbAds(...args: any[]): any;
-    syncSbNegativeKeywords(...args: any[]): any;
-    syncSbNegativeTargets(...args: any[]): any;
-    syncSbPlacementPerformance(...args: any[]): any;
+    syncSbCampaigns(...args: unknown[]): any;
+    syncSbAdGroups(...args: unknown[]): any;
+    syncSbKeywords(...args: unknown[]): any;
+    syncSbProductTargets(...args: unknown[]): any;
+    syncSbSearchTerms(...args: unknown[]): any;
+    syncSbTargeting(...args: unknown[]): any;
+    syncSbAds(...args: unknown[]): any;
+    syncSbNegativeKeywords(...args: unknown[]): any;
+    syncSbNegativeTargets(...args: unknown[]): any;
+    syncSbPlacementPerformance(...args: unknown[]): any;
   }
 }
 
@@ -209,7 +209,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         const localBudgetSb = parseFloat(existing.dailyBudget || '0');
         if (dailyBudget === 0 && localBudgetSb > 0) {
           log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
-          delete (campaignData as any).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         await db
           .update(campaigns)
@@ -376,7 +376,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
     const statusCode = error?.response?.status || 'unknown';
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
@@ -420,7 +420,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || apiTarget.expressions || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -523,7 +523,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
 
     log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
     const statusCode = error?.response?.status || 'unknown';
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
@@ -552,7 +552,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -570,8 +570,8 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB搜索词第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB搜索词第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -748,7 +748,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -766,8 +766,8 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB定向第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB定向第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -916,8 +916,8 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
     
     log.info(`SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
-    log.error('SB广告素材同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告素材同步失败:', (error as Error).message);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -1008,8 +1008,8 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
     
     log.info(`SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定关键词同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定关键词同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -1055,7 +1055,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
       }
       
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;
@@ -1098,8 +1098,8 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
     
     log.info(`SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
-  } catch (error: any) {
-    log.error('SB否定商品定向同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB否定商品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -1121,7 +1121,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB广告位绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -1139,8 +1139,8 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
           log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
         }
         if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: any) {
-        log.error(`v339: SB广告位第${batch + 1}批请求失败:`, batchError.message);
+      } catch (batchError: unknown) {
+        log.error(`v339: SB广告位第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -1240,8 +1240,8 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     }
     
     log.info(`SB广告位绩效同步完成: ${synced}条`);
-  } catch (error: any) {
-    log.error('SB广告位绩效同步失败:', error.message);
+  } catch (error: unknown) {
+    log.error('SB广告位绩效同步失败:', (error as Error).message);
   }
   return synced;
 };

@@ -110,7 +110,7 @@ export async function getCoreKeywordRoots(
     FROM keywords 
     WHERE account_id = ?
   `;
-  const params: any[] = [accountId];
+  const params: unknown[] = [accountId];
   
   if (campaignIds && campaignIds.length > 0) {
     query += ` AND campaign_id IN (${campaignIds.map(() => '?').join(',')})`;
@@ -160,7 +160,7 @@ export async function analyzeSearchTermNgrams(
     WHERE account_id = ?
     AND report_start_date >= ?
   `;
-  const params: any[] = [accountId, startDateStr];
+  const params: unknown[] = [accountId, startDateStr];
   
   if (campaignIds && campaignIds.length > 0) {
     query += ` AND campaign_id IN (${campaignIds.map(() => '?').join(',')})`;
@@ -367,9 +367,9 @@ export async function executeNegativeKeywords(
         negativeStatus: 'active',
       } as any);
       addedCount++;
-    } catch (error: any) {
-      if (!error.message?.includes('Duplicate')) {
-        errors.push(`添加否定词 "${negative.keyword}" 失败: ${error.message}`);
+    } catch (error: unknown) {
+      if (!(error as Error).message?.includes('Duplicate')) {
+        errors.push(`添加否定词 "${negative.keyword}" 失败: ${(error as Error).message}`);
       }
     }
   }

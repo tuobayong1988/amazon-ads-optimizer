@@ -19,12 +19,12 @@ async function ensurePreferencesColumn(db: any) {
   try {
     await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`);
     columnEnsured = true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     try {
       await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`);
       log.info('[User] preferences column added to team_members table');
       columnEnsured = true;
-    } catch (alterError: any) {
+    } catch (alterError: unknown) {
       if (alterError?.message?.includes('Duplicate column')) {
         columnEnsured = true;
       } else {
@@ -56,7 +56,7 @@ export const userRouter = router({
         }
       }
       return {};
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.warn('[User] Failed to get preferences:', error?.message);
       return {};
     }
@@ -83,7 +83,7 @@ export const userRouter = router({
         const rows = result[0];
         const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
         
-        let currentPrefs: Record<string, any> = {};
+        let currentPrefs: Record<string, unknown> = {};
         if (row && row.preferences) {
           const prefs = row.preferences;
           currentPrefs = typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
@@ -107,7 +107,7 @@ export const userRouter = router({
         
         log.info(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
         return { success: true };
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error('[User] Failed to update preferences:', error?.message);
         return { success: false, error: error?.message };
       }

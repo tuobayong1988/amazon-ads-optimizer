@@ -173,19 +173,19 @@ export async function shardBasedSyncAll(
               result.failedShards++;
             }
 
-          } catch (error: any) {
+          } catch (error: unknown) {
             const durationMs = Date.now() - shardStartTime;
-            log.error(`[v358] Shard ${shard.shardId} 执行异常: ${error.message}`);
+            log.error(`[v358] Shard ${shard.shardId} 执行异常: ${(error as Error).message}`);
             
             // 根据错误类型分类
             let errorCode = 'UNKNOWN';
-            if (error.message?.includes('DATABASE_UNAVAILABLE')) {
+            if ((error as Error).message?.includes('DATABASE_UNAVAILABLE')) {
               errorCode = 'DATABASE_UNAVAILABLE';
-            } else if (error.message?.includes('PARTIAL_SYNC_FAILURE')) {
+            } else if ((error as Error).message?.includes('PARTIAL_SYNC_FAILURE')) {
               errorCode = 'PARTIAL_SYNC_FAILURE';
-            } else if (error.message?.includes('timeout') || error.message?.includes('TIMEOUT')) {
+            } else if ((error as Error).message?.includes('timeout') || (error as Error).message?.includes('TIMEOUT')) {
               errorCode = 'API_TIMEOUT';
-            } else if (error.message?.includes('429') || error.message?.includes('throttl')) {
+            } else if ((error as Error).message?.includes('429') || (error as Error).message?.includes('throttl')) {
               errorCode = 'API_THROTTLE';
             }
             
@@ -292,9 +292,9 @@ export async function retryFailedShards(): Promise<{
         await markShardFailed(shard.shardId, errorMsg, 'RETRY_FAILED');
         result.failed++;
       }
-    } catch (error: any) {
-      log.error(`[v358] 重试shard ${shard.shardId} 异常: ${error.message}`);
-      await markShardFailed(shard.shardId, error.message, 'RETRY_EXCEPTION');
+    } catch (error: unknown) {
+      log.error(`[v358] 重试shard ${shard.shardId} 异常: ${(error as Error).message}`);
+      await markShardFailed(shard.shardId, (error as Error).message, 'RETRY_EXCEPTION');
       result.failed++;
     }
   }

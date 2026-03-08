@@ -106,7 +106,7 @@ export async function analyzeCompetitionForCampaign(
       
       dailyCompetitionSignals = { avgCpc, cpcTrend, impressionTrend, ctrTrend };
     }
-  } catch (dailyErr: any) {
+  } catch (dailyErr: unknown) {
     // 日报信号失败不影响核心流程
   }
 
@@ -245,9 +245,9 @@ export async function analyzeCompetitionForCampaign(
       confidence,
       reasoning,
     };
-  } catch (error: any) {
-    log.error(`[GTO-CompetitorAwareness] Error analyzing competition: ${error.message}`);
-    return buildDefaultProfile(`分析异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[GTO-CompetitorAwareness] Error analyzing competition: ${(error as Error).message}`);
+    return buildDefaultProfile(`分析异常: ${(error as Error).message}`);
   }
 }
 

@@ -152,8 +152,8 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         }
         
         log.info(`[AmazonAuthCallback] v343: 去重后的profiles: ${profiles.length} - ${profiles.map(p => `${p.profileId}(${p.countryCode},type=${p.accountType})`).join(', ')}`);
-      } catch (profileError: any) {
-        log.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", profileError.message);
+      } catch (profileError: unknown) {
+        log.error("[AmazonAuthCallback] v343: Failed to fetch profiles:", (profileError as Error).message);
       }
 
       // ★ 步骤3 (v342新增): 后端直接保存凭证到数据库
@@ -207,8 +207,8 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
               } else {
                 log.info(`[AmazonAuthCallback] v342: 未找到profileId=${profile.profileId}(${profile.countryCode})对应的账户，跳过（前端将处理新账户创建）`);
               }
-            } catch (profileSaveError: any) {
-              log.error(`[AmazonAuthCallback] v342: 保存profile ${profile.profileId} 凭证失败:`, profileSaveError.message);
+            } catch (profileSaveError: unknown) {
+              log.error(`[AmazonAuthCallback] v342: 保存profile ${profile.profileId} 凭证失败:`, (profileSaveError as Error).message);
               credentialsFailed++;
             }
           }
@@ -238,14 +238,14 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
                   }
                 }
               }
-            } catch (batchUpdateError: any) {
-              log.error(`[AmazonAuthCallback] v342: 批量更新共享Token失败:`, batchUpdateError.message);
+            } catch (batchUpdateError: unknown) {
+              log.error(`[AmazonAuthCallback] v342: 批量更新共享Token失败:`, (batchUpdateError as Error).message);
             }
           }
 
           log.info(`[AmazonAuthCallback] v342: 凭证保存完成 - 成功=${credentialsSaved}, 失败=${credentialsFailed}, 更新账户IDs=[${updatedAccountIds.join(',')}]`);
-        } catch (dbError: any) {
-          log.error("[AmazonAuthCallback] v342: 数据库操作失败:", dbError.message);
+        } catch (dbError: unknown) {
+          log.error("[AmazonAuthCallback] v342: 数据库操作失败:", (dbError as Error).message);
         }
       }
 
@@ -259,12 +259,12 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
               try {
                 await triggerImmediateSync(accountId, `v342: OAuth回调后自动同步 (accountId=${accountId})`);
                 log.info(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 立即同步`);
-              } catch (syncErr: any) {
-                log.error(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 同步失败:`, syncErr.message);
+              } catch (syncErr: unknown) {
+                log.error(`[AmazonAuthCallback] v342: 触发账户 ${accountId} 同步失败:`, (syncErr as Error).message);
               }
             }
-          } catch (importErr: any) {
-            log.error(`[AmazonAuthCallback] v342: 导入dataSyncScheduler失败:`, importErr.message);
+          } catch (importErr: unknown) {
+            log.error(`[AmazonAuthCallback] v342: 导入dataSyncScheduler失败:`, (importErr as Error).message);
           }
         })();
       }
@@ -289,9 +289,9 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
       log.info(`[AmazonAuthCallback] v342: Redirecting to settings page (backend saved ${credentialsSaved} credentials for accounts [${updatedAccountIds.join(',')}])`);
 
       res.redirect(302, redirectUrl);
-    } catch (err: any) {
-      log.error("[AmazonAuthCallback] v342: Token exchange failed:", err.response?.data || err.message);
-      const errorMsg = err.response?.data?.error_description || err.message || "Token换取失败";
+    } catch (err: unknown) {
+      log.error("[AmazonAuthCallback] v342: Token exchange failed:", err.response?.data || (err as Error).message);
+      const errorMsg = err.response?.data?.error_description || (err as Error).message || "Token换取失败";
       const redirectUrl = `/amazon-api?auth_error=${encodeURIComponent(errorMsg)}`;
       res.redirect(302, redirectUrl);
     }

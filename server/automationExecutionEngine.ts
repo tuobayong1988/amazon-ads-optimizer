@@ -516,8 +516,8 @@ export async function executeOptimization(
                   }]);
                   bidApiSuccess = true;
                 }
-              } catch (apiErr: any) {
-                log.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, apiErr.message);
+              } catch (apiErr: unknown) {
+                log.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, (apiErr as Error).message);
               }
             }
           }
@@ -574,8 +574,8 @@ export async function executeOptimization(
               );
               budgetApiSuccess = true;
             }
-          } catch (budgetApiErr: any) {
-            log.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, budgetApiErr.message);
+          } catch (budgetApiErr: unknown) {
+            log.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, (budgetApiErr as Error).message);
           }
         }
         // v148: 先API后DB原则 - 只有API成功才更新本地DB
@@ -639,8 +639,8 @@ export async function executeOptimization(
                   }]);
                   ptApiSuccess = true;
                 }
-              } catch (ptApiErr: any) {
-                log.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, ptApiErr.message);
+              } catch (ptApiErr: unknown) {
+                log.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, (ptApiErr as Error).message);
               }
             }
           }
@@ -711,8 +711,8 @@ export async function executeOptimization(
               );
               placementApiSuccess = true;
             }
-          } catch (plApiErr: any) {
-            log.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, plApiErr.message);
+          } catch (plApiErr: unknown) {
+            log.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, (plApiErr as Error).message);
           }
         }
         await db.createBiddingLog({
@@ -766,8 +766,8 @@ export async function executeOptimization(
               );
               daypartingApiSuccess = true;
             }
-          } catch (dpApiErr: any) {
-            log.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, dpApiErr.message);
+          } catch (dpApiErr: unknown) {
+            log.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, (dpApiErr as Error).message);
           }
         }
         // v271: 先API后DB原则
@@ -833,8 +833,8 @@ export async function executeOptimization(
           } else {
             log.error(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
           }
-        } catch (negApiErr: any) {
-          log.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, negApiErr.message);
+        } catch (negApiErr: unknown) {
+          log.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, (negApiErr as Error).message);
         }
         
         // 先API后DB原则: 只有API成功才写入本地DB
@@ -846,8 +846,8 @@ export async function executeOptimization(
               matchType: negMatchType === 'negativePhrase' ? 'phrase' : 'exact',
               level: 'campaign',
             });
-          } catch (dbErr: any) {
-            log.warn(`[AutoExec] v266: 否定词本地DB写入失败(API已成功): ${dbErr.message}`);
+          } catch (dbErr: unknown) {
+            log.warn(`[AutoExec] v266: 否定词本地DB写入失败(API已成功): ${(dbErr as Error).message}`);
           }
         }
         
@@ -908,8 +908,8 @@ export async function executeOptimization(
           } else {
             log.error(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
           }
-        } catch (harvestApiErr: any) {
-          log.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, harvestApiErr.message);
+        } catch (harvestApiErr: unknown) {
+          log.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, (harvestApiErr as Error).message);
         }
         
         // v357: 先API后DB原则 - 只有API成功且返回有效keywordId才写入本地DB
@@ -933,8 +933,8 @@ export async function executeOptimization(
                 keywordStatus: 'enabled',
               });
               log.info(`[AutoExec] v357: 本地keyword已创建: amazonKeywordId=${validKeywordId}, accountId=${accountId}`);
-            } catch (dbErr: any) {
-              log.warn(`[AutoExec] v357: 搜索词收割本地DB写入失败(API已成功): ${dbErr.message}`);
+            } catch (dbErr: unknown) {
+              log.warn(`[AutoExec] v357: 搜索词收割本地DB写入失败(API已成功): ${(dbErr as Error).message}`);
             }
           }
         }
@@ -1092,7 +1092,7 @@ export async function batchExecuteOptimizations(
  * 运行完整的自动优化流程
  */
 export async function runFullAutomationCycle(accountId: number): Promise<{
-  analysisResults: any[];
+  analysisResults: unknown[];
   executionBatch: ExecutionBatch | null;
   summary: {
     totalAnalyzed: number;
@@ -1366,8 +1366,8 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
           if (syncResult.failed > 0) {
             log.warn(`[AutomationEngine] N-Gram否定词部分同步失败: ${syncResult.errors.join('; ')}`);
           }
-        } catch (apiError: any) {
-          log.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${apiError.message}`);
+        } catch (apiError: unknown) {
+          log.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${(apiError as Error).message}`);
           // API失败时仍然写入本地DB，等待AutoCorrector重试
           for (const campaign of campaigns) {
             try {

@@ -403,9 +403,9 @@ export class SQSConsumerService {
 
       try {
         await this.pollQueue(queue);
-      } catch (error: any) {
-        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, error.message);
-        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, error: error.message });
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, (error as Error).message);
+        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, error: (error as Error).message });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -460,9 +460,9 @@ export class SQSConsumerService {
           status.messagesProcessed++;
           status.lastProcessedAt = new Date().toISOString();
         }
-      } catch (error: any) {
-        log.error(`[SQS Consumer] 处理消息失败:`, error.message);
-        logSyncError('SQSConsumer', `处理消息失败`, { queue: queue.name, error: error.message });
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 处理消息失败:`, (error as Error).message);
+        logSyncError('SQSConsumer', `处理消息失败`, { queue: queue.name, error: (error as Error).message });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -480,7 +480,7 @@ export class SQSConsumerService {
       return;
     }
 
-    let body: any;
+    let body: Record<string, unknown>;
     try {
       body = JSON.parse(message.Body);
     } catch (e) {
@@ -528,7 +528,7 @@ export class SQSConsumerService {
   /**
    * 处理SNS订阅确认消息
    */
-  private async handleSubscriptionConfirmation(body: any): Promise<void> {
+  private async handleSubscriptionConfirmation(body: Record<string, unknown>): Promise<void> {
     const subscribeUrl = body.SubscribeURL;
     const topicArn = body.TopicArn;
     
@@ -546,8 +546,8 @@ export class SQSConsumerService {
         } else {
           log.error(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
         }
-      } catch (error: any) {
-        log.error(`[SQS Consumer] SNS订阅确认请求失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] SNS订阅确认请求失败:`, (error as Error).message);
       }
     }
   }
@@ -619,8 +619,8 @@ export class SQSConsumerService {
         campaignId: localCampaignId,
       });
       log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
-    } catch (error: any) {
-      log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, error.message);
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (keyword × placement × hour)
@@ -642,8 +642,8 @@ export class SQSConsumerService {
           orders: 0,
           dataType: 'traffic',
         });
-      } catch (err: any) {
-        log.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${err.message}`);
+      } catch (err: unknown) {
+        log.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${(err as Error).message}`);
       }
     }
   }
@@ -704,8 +704,8 @@ export class SQSConsumerService {
         campaignId: localCampaignId,
       });
       log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
-    } catch (error: any) {
-      log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, error.message);
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (转化数据)
@@ -727,8 +727,8 @@ export class SQSConsumerService {
           orders,
           dataType: 'conversion',
         });
-      } catch (err: any) {
-        log.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${err.message}`);
+      } catch (err: unknown) {
+        log.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${(err as Error).message}`);
       }
     }
   }
@@ -756,8 +756,8 @@ export class SQSConsumerService {
           lastBudgetUpdateAt: new Date().toISOString(),
         });
         log.info(`[SQS Consumer] ${adType}预算状态已更新: campaignId=${campaignId}`);
-      } catch (error: any) {
-        log.error(`[SQS Consumer] 更新${adType}预算状态失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 更新${adType}预算状态失败:`, (error as Error).message);
       }
     }
     
@@ -801,8 +801,8 @@ export class SQSConsumerService {
       }
       
       return account ? { id: account.id } : null;
-    } catch (error: any) {
-      log.error(`[SQS Consumer] 查找账户失败:`, error.message);
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 查找账户失败:`, (error as Error).message);
       return null;
     }
   }
@@ -842,8 +842,8 @@ export class SQSConsumerService {
           messagesAvailable: parseInt(response.Attributes?.ApproximateNumberOfMessages || '0'),
           messagesInFlight: parseInt(response.Attributes?.ApproximateNumberOfMessagesNotVisible || '0'),
         });
-      } catch (error: any) {
-        log.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, error.message);
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, (error as Error).message);
         stats.push({
           name: queue.name,
           adType: queue.adType,
@@ -939,7 +939,7 @@ export class SQSConsumerService {
           .where(eq((await import('../drizzle/schema')).keywords.keywordId, params.amazonKeywordId))
           .limit(1);
         if (result[0]) localKeywordId = result[0].id;
-      } catch (e: any) { log.debug(`关键词ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
+      } catch (e: unknown) { log.debug(`关键词ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
     }
 
     if (params.amazonTargetId) {
@@ -949,7 +949,7 @@ export class SQSConsumerService {
           .where(eq((await import('../drizzle/schema')).productTargets.targetId, params.amazonTargetId))
           .limit(1);
         if (result[0]) localTargetId = result[0].id;
-      } catch (e: any) { log.debug(`目标ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
+      } catch (e: unknown) { log.debug(`目标ID映射失败: ${e.message}`); /* 映射失败不影响写入 */ }
     }
 
     // 如果无法映射到本地ID，跳过写入

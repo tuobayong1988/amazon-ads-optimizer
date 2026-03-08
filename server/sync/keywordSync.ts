@@ -33,9 +33,9 @@ const log = createModuleLogger('keywordSync');
 /**
  * v242: 结构化错误日志辅助函数 - 确保错误信息不被截断
  */
-function serializeError(error: any): string {
+function serializeError(error: Error): string {
   try {
-    const info: Record<string, any> = {
+    const info: Record<string, unknown> = {
       message: error.message || 'Unknown error',
       code: error.code,
       status: error.status || error.response?.status,
@@ -71,10 +71,10 @@ async function withRetry<T>(
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      const isThrottle = error.status === 429 || error.message?.includes('429') || error.message?.includes('限流');
-      const isRetryable = isThrottle || error.status >= 500 || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+      const isThrottle = error.status === 429 || (error as Error).message?.includes('429') || (error as Error).message?.includes('限流');
+      const isRetryable = isThrottle || error.status >= 500 || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
       
       if (isRetryable && attempt <= maxRetries) {
         const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 1000;
@@ -163,7 +163,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
 
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[v242] SB关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
@@ -277,7 +277,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[v242] SP关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
@@ -381,8 +381,8 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
     
     // 批量更新缓冲
-    const kwUpdates: { id: number; data: any }[] = [];
-    const ptUpdates: { id: number; data: any }[] = [];
+    const kwUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
     
     for (const row of reportData) {
       // v242: 字段兼容层 - spTargeting报告API返回keyword/keywordId/targeting，映射到旧字段名
@@ -483,16 +483,16 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
       try {
         await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
         dbWritten++;
-      } catch (e: any) {
-        log.error(`v196: 更新keyword ${upd.id} 失败: ${e.message}`);
+      } catch (e: unknown) {
+        log.error(`v196: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
       }
     }
     for (const upd of ptUpdates) {
       try {
         await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
         dbWritten++;
-      } catch (e: any) {
-        log.error(`v196: 更新product_target ${upd.id} 失败: ${e.message}`);
+      } catch (e: unknown) {
+        log.error(`v196: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
       }
     }
     
@@ -511,7 +511,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
         try {
           await db.update(keywords).set({ keywordId: reportTargetId }).where(eq(keywords.id, kw.id));
           backfilled++;
-        } catch (e: any) {
+        } catch (e: unknown) {
           // 忽略重复键错误
         }
       }
@@ -521,7 +521,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     }
     
     return synced;
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error(`[v242] 关键词绩效同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return 0;
   }

@@ -288,59 +288,59 @@ export async function syncAdGroupsAndTargeting(service: SyncContext,): Promise<{
   try {
     const spAdGroupResult = await service.syncSpAdGroups();
     results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
-  } catch (e: any) {
-    log.error('SP广告组同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SP广告组同步失败:', (e as Error).message);
   }
 
   try {
     const sbAdGroupResult = await service.syncSbAdGroups();
     results.adGroups += sbAdGroupResult.synced;
-  } catch (e: any) {
-    log.error('SB广告组同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SB广告组同步失败:', (e as Error).message);
   }
 
   try {
     const sdAdGroupResult = await service.syncSdAdGroups();
     results.adGroups += sdAdGroupResult.synced;
-  } catch (e: any) {
-    log.error('SD广告组同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SD广告组同步失败:', (e as Error).message);
   }
   
   // ==================== 同步关键词投放（SP + SB） ====================
   try {
     const spKeywordResult = await service.syncSpKeywords();
     results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
-  } catch (e: any) {
-    log.error('SP关键词同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SP关键词同步失败:', (e as Error).message);
   }
 
   try {
     const sbKeywordResult = await service.syncSbKeywords();
     results.keywords += sbKeywordResult.synced;
-  } catch (e: any) {
-    log.error('SB关键词同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SB关键词同步失败:', (e as Error).message);
   }
   
   // ==================== 同步商品定位（SP + SB + SD） ====================
   try {
     const spTargetResult = await service.syncSpProductTargets();
     results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
-  } catch (e: any) {
-    log.error('SP商品定位同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SP商品定位同步失败:', (e as Error).message);
   }
 
   try {
     const sbTargetResult = await service.syncSbProductTargets();
     results.targets += sbTargetResult.synced;
-  } catch (e: any) {
-    log.error('SB商品定位同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SB商品定位同步失败:', (e as Error).message);
   }
 
   try {
     const sdTargetResult = await service.syncSdProductTargets();
     results.targets += sdTargetResult.synced;
-  } catch (e: any) {
-    log.error('SD商品定位同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('SD商品定位同步失败:', (e as Error).message);
   }
 
   // v196: 中频同步时同时同步搜索词数据（7天窗口），确保搜索词数据不滞后
@@ -348,8 +348,8 @@ export async function syncAdGroupsAndTargeting(service: SyncContext,): Promise<{
     log.info(`v196: 中频同步 - 开始同步SP搜索词数据(7天)...`);
     const spSearchTermSynced = await service.syncSearchTerms(7);
     log.info(`v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
-  } catch (e: any) {
-    log.error('v196: 中频同步 - SP搜索词同步失败:', e.message);
+  } catch (e: unknown) {
+    log.error('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
   }
 
   log.info(`全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);

@@ -181,12 +181,19 @@ function getWeights(strategyTemplateId: string | null): WeightConfig {
   const baseWeights = (!strategyTemplateId) ? DEFAULT_WEIGHTS : (STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS);
   
   // v272 P0-1: 集成weightAutoTuningService，优先使用自学习权重
+  // v358.1: 使用延迟加载模式避免循环依赖，保持同步调用确保兼容性
+  let weightModule: Record<string, unknown> | null = null;
   try {
     if (strategyTemplateId) {
-      const { getEffectiveWeights } = require('./weightAutoTuningService');
-      const tunedWeights = getEffectiveWeights(strategyTemplateId, baseWeights as any);
-      if (tunedWeights && Object.keys(tunedWeights).length > 0) {
-        return tunedWeights as unknown as WeightConfig;
+      if (!weightModule) {
+        weightModule = require('./weightAutoTuningService');
+      }
+      const getEffectiveWeights = (weightModule as Record<string, Function>).getEffectiveWeights;
+      if (typeof getEffectiveWeights === 'function') {
+        const tunedWeights = getEffectiveWeights(strategyTemplateId, baseWeights);
+        if (tunedWeights && Object.keys(tunedWeights).length > 0) {
+          return tunedWeights as unknown as WeightConfig;
+        }
       }
     }
   } catch (_e) {

@@ -32,8 +32,8 @@ export class M5VisualService {
         .where(eq(prelaunchVisualBriefs.projectId, projectId))
         .orderBy(prelaunchVisualBriefs.slotPosition);
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -51,7 +51,7 @@ export class M5VisualService {
       const competitors = await db.select().from(prelaunchCompetitors)
         .where(eq(prelaunchCompetitors.projectId, projectId));
 
-      const coreKws = keywords.filter((k: any) => k.relevanceLayer === 'core').slice(0, 15);
+      const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 15);
       const topPersona = personas[0];
       const topCompetitors = competitors.slice(0, 5);
 
@@ -63,12 +63,12 @@ SLOT ROLE: ${slot.role}
 SLOT PURPOSE: ${slot.description}
 
 PRODUCT CONTEXT:
-- Core Keywords: ${coreKws.map((k: any) => k.keyword).join(', ')}
+- Core Keywords: ${coreKws.map((k: Record<string, unknown>) => k.keyword).join(', ')}
 - Target Persona: ${topPersona?.personaName || 'General consumer'}
 - Persona Demographics: ${topPersona?.demographics || 'N/A'}
 
 COMPETITIVE LANDSCAPE:
-${topCompetitors.map((c: any) => `- ${c.brand}: ${c.title}`).join('\n')}
+${topCompetitors.map((c: Record<string, unknown>) => `- ${c.brand}: ${c.title}`).join('\n')}
 
 Generate:
 1. headline: A compelling text overlay for this image (if applicable)
@@ -95,8 +95,8 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
       }
 
       return { success: true, summary: { briefCount: SLOT_ROLES.length } };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -132,8 +132,8 @@ ${brief.headline ? `Text overlay: "${brief.headline}"` : ''}`;
       }
 
       return { success: false, error: 'Image generation failed' };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 }

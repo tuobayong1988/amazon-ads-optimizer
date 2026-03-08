@@ -27,8 +27,8 @@ export class M4XCopyService {
         .where(and(...conditions))
         .orderBy(desc(prelaunchCopyVersions.fitnessScore));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -41,8 +41,8 @@ export class M4XCopyService {
         .from(prelaunchQnaSeeds)
         .where(eq(prelaunchQnaSeeds.projectId, projectId));
       return { success: true, data };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message, data: [] };
     }
   }
 
@@ -63,23 +63,23 @@ export class M4XCopyService {
         .where(eq(prelaunchCompetitorUserLanguage.projectId, projectId));
 
       // 构建上下文
-      const coreKws = keywords.filter((k: any) => k.relevanceLayer === 'core').slice(0, 20);
-      const extKws = keywords.filter((k: any) => k.relevanceLayer === 'extended').slice(0, 15);
-      const painPhrases = userLanguage.filter((u: any) => u.sentiment === 'negative').slice(0, 10);
-      const praisePhrases = userLanguage.filter((u: any) => u.sentiment === 'positive').slice(0, 10);
+      const coreKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 20);
+      const extKws = keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'extended').slice(0, 15);
+      const painPhrases = userLanguage.filter((u: Record<string, unknown>) => u.sentiment === 'negative').slice(0, 10);
+      const praisePhrases = userLanguage.filter((u: Record<string, unknown>) => u.sentiment === 'positive').slice(0, 10);
 
       const copyTypes = ['title', 'bullet_points', 'description', 'backend_keywords', 'a_plus'];
 
       for (const copyType of copyTypes) {
         const prompt = this.buildCopyPrompt(copyType, {
-          coreKeywords: coreKws.map((k: any) => k.keyword),
-          extendedKeywords: extKws.map((k: any) => k.keyword),
-          personas: personas.map((p: any) => ({ name: p.personaName, painPoints: p.painPoints })),
-          cosmoTriples: cosmoTriples.slice(0, 10).map((t: any) => ({
+          coreKeywords: coreKws.map((k: Record<string, unknown>) => k.keyword),
+          extendedKeywords: extKws.map((k: Record<string, unknown>) => k.keyword),
+          personas: personas.map((p: Record<string, unknown>) => ({ name: p.personaName, painPoints: p.painPoints })),
+          cosmoTriples: cosmoTriples.slice(0, 10).map((t: Record<string, unknown>) => ({
             cause: t.causeNode, effect: t.effectNode, outcome: t.outcomeNode,
           })),
-          painPhrases: painPhrases.map((p: any) => p.phrase),
-          praisePhrases: praisePhrases.map((p: any) => p.phrase),
+          painPhrases: painPhrases.map((p: Record<string, unknown>) => p.phrase),
+          praisePhrases: praisePhrases.map((p: Record<string, unknown>) => p.phrase),
         });
 
         const result = await geminiStructuredOutput<any>('', prompt, { temperature: 0.5 });
@@ -103,8 +103,8 @@ export class M4XCopyService {
       await this.generateQnaSeeds(db, projectId, cosmoTriples, keywords);
 
       return { success: true, generation: 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -133,7 +133,7 @@ export class M4XCopyService {
         .where(eq(prelaunchCopyFeedback.projectId, projectId));
 
       // 按copyType分组获取最佳版本
-      const bestByType = new Map<string, any>();
+      const bestByType = new Map<string, unknown>();
       for (const v of currentVersions) {
         if (!bestByType.has(v.copyType)) {
           bestByType.set(v.copyType, v);
@@ -143,8 +143,8 @@ export class M4XCopyService {
       // 为每种类型生成变异版本
       for (const [copyType, parent] of bestByType) {
         const feedbackSummary = feedback
-          .filter((f: any) => f.copyVersionId === parent.id)
-          .map((f: any) => `${f.signalType}: ${f.metricName}=${f.metricValue}`)
+          .filter((f: Record<string, unknown>) => f.copyVersionId === parent.id)
+          .map((f: Record<string, unknown>) => `${f.signalType}: ${f.metricName}=${f.metricValue}`)
           .join(', ');
 
         const prompt = `You are an Amazon listing copywriting evolution engine.
@@ -194,20 +194,20 @@ Return JSON: {"title":"...","bulletPoints":[...],"description":"...","backendKey
       }
 
       return { success: true, generation: nextGen };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message };
     }
   }
 
   /** 生成Rufus Q&A种子 */
-  private async generateQnaSeeds(db: any, projectId: number, cosmoTriples: any[], keywords: any[]) {
+  private async generateQnaSeeds(db: any, projectId: number, cosmoTriples: unknown[], keywords: unknown[]) {
     const prompt = `Generate Amazon Rufus-optimized Q&A pairs based on these COSMO cause-effect-outcome triples and keywords.
 
 COSMO TRIPLES:
-${cosmoTriples.slice(0, 15).map((t: any) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
+${cosmoTriples.slice(0, 15).map((t: Record<string, unknown>) => `${t.causeNode} → ${t.effectNode} → ${t.outcomeNode}`).join('\n')}
 
 CORE KEYWORDS:
-${keywords.filter((k: any) => k.relevanceLayer === 'core').slice(0, 20).map((k: any) => k.keyword).join(', ')}
+${keywords.filter((k: Record<string, unknown>) => k.relevanceLayer === 'core').slice(0, 20).map((k: Record<string, unknown>) => k.keyword).join(', ')}
 
 Generate 10-20 Q&A pairs that:
 1. Address common customer questions
@@ -237,10 +237,10 @@ CORE KEYWORDS (must include): ${context.coreKeywords.join(', ')}
 EXTENDED KEYWORDS (include where natural): ${context.extendedKeywords.join(', ')}
 
 BUYER PERSONAS:
-${context.personas.map((p: any) => `- ${p.name}: Pain points: ${JSON.stringify(p.painPoints)}`).join('\n')}
+${context.personas.map((p: Record<string, unknown>) => `- ${p.name}: Pain points: ${JSON.stringify(p.painPoints)}`).join('\n')}
 
 COSMO CAUSAL CHAINS (use for persuasion logic):
-${context.cosmoTriples.map((t: any) => `${t.cause} → ${t.effect} → ${t.outcome}`).join('\n')}
+${context.cosmoTriples.map((t: Record<string, unknown>) => `${t.cause} → ${t.effect} → ${t.outcome}`).join('\n')}
 
 REAL USER LANGUAGE (pain points): ${context.painPhrases.join('; ')}
 REAL USER LANGUAGE (praises): ${context.praisePhrases.join('; ')}`;

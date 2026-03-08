@@ -436,7 +436,7 @@ export async function applyOptimization(
     )
   `);
 
-  const applicationId = (insertResult as any)[0].insertId;
+  const applicationId = (insertResult as Record<string, unknown>[])[0].insertId;
 
   try {
     // 应用新设置

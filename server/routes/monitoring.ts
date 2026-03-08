@@ -43,10 +43,10 @@ export const monitoringRouter = router({
             })),
           },
         };
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
       }
@@ -80,10 +80,10 @@ export const monitoringRouter = router({
             })),
           },
         };
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
       }
@@ -115,10 +115,10 @@ export const monitoringRouter = router({
         };
         apiCache.set(cacheKey, result, 5 * 60 * 1000);
         return result;
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           metrics: null,
         };
       }
@@ -224,12 +224,89 @@ export const monitoringRouter = router({
         };
         apiCache.set(cacheKey, result, 10 * 60 * 1000);
         return result;
-      } catch (e: any) {
+      } catch (e: unknown) {
         return {
           success: false,
-          error: e.message,
+          error: (e as Error).message,
           report: null,
         };
+      }
+    }),
+
+  /**
+   * v358.1: 获取SLO监控指标
+   */
+  getSLOMetrics: protectedProcedure
+    .query(async () => {
+      try {
+        const { getSLOMetrics } = await import('../services/sync/sloMonitor');
+        const metrics = await getSLOMetrics();
+        return { success: true, error: null, metrics };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, metrics: null };
+      }
+    }),
+
+  /**
+   * v358.1: 获取SLO趋势数据
+   */
+  getSLOTrend: protectedProcedure
+    .input(z.object({ days: z.number().min(1).max(30).optional() }).optional())
+    .query(async ({ input }) => {
+      try {
+        const { getSLOTrend } = await import('../services/sync/sloMonitor');
+        const trend = await getSLOTrend(input?.days || 7);
+        return { success: true, error: null, trend };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, trend: [] };
+      }
+    }),
+
+  /**
+   * v358.1: 获取数据完整性检查报告
+   */
+  getIntegrityReport: protectedProcedure
+    .input(z.object({ daysToCheck: z.number().min(1).max(90).optional() }).optional())
+    .query(async ({ input }) => {
+      try {
+        const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
+        const report = await checkAllAccountsIntegrity(input?.daysToCheck || 14);
+        return { success: true, error: null, report };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, report: null };
+      }
+    }),
+
+  /**
+   * v358.1: 手动触发数据完整性检查并自动修复
+   */
+  triggerIntegrityCheck: protectedProcedure
+    .mutation(async () => {
+      try {
+        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../services/sync/dataIntegrityChecker');
+        const checkResult = await checkAllAccountsIntegrity(14);
+        const repairResults: Array<{ accountId: number; repaired: boolean; actionsExecuted: number; errors: string[] }> = [];
+        
+        for (const result of checkResult.results.filter(r => r.needsRepair)) {
+          const repairResult = await executeAutoRepair(result);
+          repairResults.push({
+            accountId: result.accountId,
+            ...repairResult,
+          });
+        }
+        
+        return {
+          success: true,
+          error: null,
+          checkResult: {
+            totalAccounts: checkResult.totalAccounts,
+            healthyAccounts: checkResult.healthyAccounts,
+            unhealthyAccounts: checkResult.unhealthyAccounts,
+          },
+          repairResults,
+        };
+      } catch (e: unknown) {
+        return { success: false, error: (e as Error).message, checkResult: null, repairResults: [] };
       }
     }),
 });

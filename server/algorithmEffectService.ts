@@ -345,8 +345,8 @@ export async function getAlgorithmEffectStats(
         positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
       }));
     }
-  } catch (eventsErr: any) {
-    log.error('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', eventsErr.message);
+  } catch (eventsErr: unknown) {
+    log.error('[algorithmEffectService] v235: optimization_events查询失败，回退到optimization_logs:', (eventsErr as Error).message);
   }
   
   // v235: 备用数据源 — 从 optimization_logs 表读取
@@ -404,8 +404,8 @@ export async function getAlgorithmEffectStats(
         positiveRate: stats.count > 0 ? Math.round((stats.positive / stats.count) * 100) : 0,
       }));
     }
-  } catch (logsErr: any) {
-    log.error('[algorithmEffectService] v235: optimization_logs查询也失败:', logsErr.message);
+  } catch (logsErr: unknown) {
+    log.error('[algorithmEffectService] v235: optimization_logs查询也失败:', (logsErr as Error).message);
   }
   
   // 所有数据源都没有数据
@@ -504,15 +504,15 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${optimizationEvents.createdAt})`)
       .orderBy(sql`DATE(${optimizationEvents.createdAt})`);
     
-    return results.map((row: any) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: row.count > 0 ? Math.round((Number(row.positiveCount) / Number(row.count)) * 100) / 100 : 0,
       avgROASChange: 0,
       avgACoSChange: Number(row.avgBidChange) || 0,
       count: Number(row.count),
     }));
-  } catch (err: any) {
-    log.error('[algorithmEffectService] v235: getEffectTrend from optimization_events failed:', err.message);
+  } catch (err: unknown) {
+    log.error('[algorithmEffectService] v235: getEffectTrend from optimization_events failed:', (err as Error).message);
   }
   
   // 回退到旧表
@@ -537,7 +537,7 @@ export async function getEffectTrend(
       .groupBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`)
       .orderBy(sql`DATE(${algorithmEffectRecords.optimizationDate})`);
 
-    return results.map((row: any) => ({
+    return results.map((row: Record<string, unknown>) => ({
       date: String(row.date),
       avgEffectScore: Number(row.avgEffectScore) || 0,
       avgROASChange: Number(row.avgROASChange) || 0,

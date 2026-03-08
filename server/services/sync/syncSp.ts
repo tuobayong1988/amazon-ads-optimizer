@@ -39,12 +39,12 @@ const log = createModuleLogger('syncSp');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSpCampaigns(...args: any[]): any;
-    syncSpAdGroups(...args: any[]): any;
-    syncSpKeywords(...args: any[]): any;
-    syncSpProductTargets(...args: any[]): any;
-    syncSpNegativeKeywords(...args: any[]): any;
-    syncSpNegativeProductTargets(...args: any[]): any;
+    syncSpCampaigns(...args: unknown[]): any;
+    syncSpAdGroups(...args: unknown[]): any;
+    syncSpKeywords(...args: unknown[]): any;
+    syncSpProductTargets(...args: unknown[]): any;
+    syncSpNegativeKeywords(...args: unknown[]): any;
+    syncSpNegativeProductTargets(...args: unknown[]): any;
   }
 }
 
@@ -205,7 +205,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
         if (apiBudget === 0 && localBudget > 0) {
           log.warn(`v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
-          delete (campaignData as any).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         
         // v150: 智能预算保护策略
@@ -218,7 +218,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           if (hasRecentOpt) {
             // 有近期优化事件，保留本地预算
             log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
-            delete (campaignData as any).dailyBudget;
+            delete (campaignData as Record<string, unknown>[]).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
           } else {
@@ -229,14 +229,14 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         
         // v165: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
-        const apiTopPlacement1 = (campaignData as any).placementTopSearchBidAdjustment || 0;
+        const apiTopPlacement1 = (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
-        const apiProductPlacement1 = (campaignData as any).placementProductPageBidAdjustment || 0;
+        const apiProductPlacement1 = (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment || 0;
         const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
-          delete (campaignData as any).placementTopSearchBidAdjustment;
-          delete (campaignData as any).placementProductPageBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementTopSearchBidAdjustment;
+          delete (campaignData as Record<string, unknown>[]).placementProductPageBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
@@ -260,14 +260,14 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     log.info(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
     logSyncProtectionSummary('syncSpCampaigns', protectionStats);
     return { synced, skipped };
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('[同步] ❌ SP广告活动同步失败');
     log.error('[同步] 错误类型:', error.constructor.name);
-    log.error('[同步] 错误消息:', error.message);
-    log.error('[同步] 错误堆栈:', error.stack);
-    if (error.response) {
-      log.error('[同步] API响应状态:', error.response.status);
-      log.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
+    log.error('[同步] 错误消息:', (error as Error).message);
+    log.error('[同步] 错误堆栈:', (error as Error).stack);
+    if ((error as Error & { response?: unknown }).response) {
+      log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }
@@ -514,7 +514,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       let categoryRefinements: string | null = null;
       
       // 收集品类细化条件
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
       
       for (const expr of (apiTarget.expression || [])) {
         const et = (expr.type || '').toLowerCase();
@@ -641,7 +641,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-            delete (targetData as any).bid;
+            delete (targetData as Record<string, unknown>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
           } else {
@@ -836,7 +836,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       const negState = (neg.state || 'enabled').toLowerCase();
       if (negState === 'archived') continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db
@@ -892,7 +892,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         .limit(1);
       if (!campaign) continue;
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const [existing] = await db

@@ -363,9 +363,9 @@ export async function analyzeSeasonalPatterns(
       if (records.length > 0) {
         patterns.push({
           label,
-          avgMarginalROAS: records.reduce((sum: number, r: any) => sum + Number(r.marginal_roas || 0), 0) / records.length,
-          avgMarginalSales: records.reduce((sum: number, r: any) => sum + Number(r.marginal_sales || 0), 0) / records.length,
-          avgElasticity: records.reduce((sum: number, r: any) => sum + Number(r.elasticity || 0), 0) / records.length,
+          avgMarginalROAS: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_roas || 0), 0) / records.length,
+          avgMarginalSales: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.marginal_sales || 0), 0) / records.length,
+          avgElasticity: records.reduce((sum: number, r: Record<string, unknown>) => sum + Number(r.elasticity || 0), 0) / records.length,
           dataPoints: records.length
         });
       }
@@ -427,8 +427,8 @@ export async function comparePeriods(
     `)
   ]);
 
-  const p1Map = new Map(((period1Data as any)[0] as any[] || []).map(r => [r.placement_type, r]));
-  const p2Map = new Map(((period2Data as any)[0] as any[] || []).map(r => [r.placement_type, r]));
+  const p1Map = new Map(((period1Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
+  const p2Map = new Map(((period2Data as Record<string, unknown>[])[0] as any[] || []).map(r => [r.placement_type, r]));
 
   const placements: PlacementType[] = ['top_of_search', 'product_page', 'rest_of_search'];
   const comparison = placements.map(placementType => {

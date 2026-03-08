@@ -107,8 +107,8 @@ export async function createSyncTask(
 
     log.info(`[v358] 同步任务创建成功: taskId=${taskId}, tier=${tier}, shards=${shardDefs.length}, trigger=${triggerSource}`);
     return taskId;
-  } catch (error: any) {
-    log.error(`[v358] 创建同步任务失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 创建同步任务失败: ${(error as Error).message}`);
     return null;
   }
 }
@@ -128,8 +128,8 @@ export async function startTask(taskId: string): Promise<boolean> {
       })
       .where(eq(syncTasksV2.taskId, taskId));
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 启动任务失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 启动任务失败: ${(error as Error).message}`);
     return false;
   }
 }
@@ -165,8 +165,8 @@ export async function getNextPendingShard(taskId: string): Promise<{
       stepName: shard.stepName,
       retryCount: shard.retryCount,
     };
-  } catch (error: any) {
-    log.error(`[v358] 获取待执行shard失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 获取待执行shard失败: ${(error as Error).message}`);
     return null;
   }
 }
@@ -199,8 +199,8 @@ export async function getPendingShards(taskId: string): Promise<Array<{
       stepName: s.stepName,
       retryCount: s.retryCount,
     }));
-  } catch (error: any) {
-    log.error(`[v358] 获取待执行shards失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 获取待执行shards失败: ${(error as Error).message}`);
     return [];
   }
 }
@@ -220,8 +220,8 @@ export async function markShardRunning(shardId: string): Promise<boolean> {
       })
       .where(eq(syncShards.shardId, shardId));
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 标记shard运行失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 标记shard运行失败: ${(error as Error).message}`);
     return false;
   }
 }
@@ -252,8 +252,8 @@ export async function markShardCompleted(shardId: string, result: ShardResult): 
     await updateTaskProgress(taskId);
 
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 标记shard完成失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 标记shard完成失败: ${(error as Error).message}`);
     return false;
   }
 }
@@ -317,8 +317,8 @@ export async function markShardFailed(
     await updateTaskProgress(taskId);
 
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 标记shard失败异常: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 标记shard失败异常: ${(error as Error).message}`);
     return false;
   }
 }
@@ -343,7 +343,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       WHERE task_id = ${taskId}
     `);
 
-    const row = (stats as any)?.[0]?.[0] || (stats as any)?.[0];
+    const row = (stats as Record<string, unknown>[])?.[0]?.[0] || (stats as Record<string, unknown>[])?.[0];
     if (!row) return;
 
     const total = Number(row.total) || 0;
@@ -383,8 +383,8 @@ async function updateTaskProgress(taskId: string): Promise<void> {
     await db.update(syncTasksV2)
       .set(updates)
       .where(eq(syncTasksV2.taskId, taskId));
-  } catch (error: any) {
-    log.error(`[v358] 更新任务进度失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 更新任务进度失败: ${(error as Error).message}`);
   }
 }
 
@@ -426,8 +426,8 @@ export async function getTaskProgress(taskId: string): Promise<TaskProgress | nu
       startedAt: task.startedAt,
       elapsedMs,
     };
-  } catch (error: any) {
-    log.error(`[v358] 获取任务进度失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 获取任务进度失败: ${(error as Error).message}`);
     return null;
   }
 }
@@ -461,8 +461,8 @@ export async function getRetryableShards(): Promise<Array<{
       stepId: s.stepId,
       retryCount: s.retryCount,
     }));
-  } catch (error: any) {
-    log.error(`[v358] 获取可重试shards失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 获取可重试shards失败: ${(error as Error).message}`);
     return [];
   }
 }
@@ -501,9 +501,9 @@ export async function acquireLock(
 
     log.debug(`[v358] 获取锁成功: ${lockKey} by ${holderId}`);
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // UNIQUE约束冲突说明锁已被持有
-    if (error.code === 'ER_DUP_ENTRY' || error.message?.includes('Duplicate')) {
+    if (error.code === 'ER_DUP_ENTRY' || (error as Error).message?.includes('Duplicate')) {
       log.debug(`[v358] 锁已被占用: ${lockKey}`);
       return false;
     }
@@ -527,8 +527,8 @@ export async function releaseLock(lockKey: string, holderId: string): Promise<bo
       ));
     log.debug(`[v358] 释放锁成功: ${lockKey}`);
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 释放锁失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 释放锁失败: ${(error as Error).message}`);
     return false;
   }
 }
@@ -556,8 +556,8 @@ export async function renewLock(
       ));
 
     return true;
-  } catch (error: any) {
-    log.error(`[v358] 续期锁失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`[v358] 续期锁失败: ${(error as Error).message}`);
     return false;
   }
 }

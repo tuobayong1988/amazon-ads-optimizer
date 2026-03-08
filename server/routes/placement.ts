@@ -79,7 +79,7 @@ export const placementRouter = router({
       // 集成边际效益分析
       let marginalBenefitInsights = null;
       try {
-        const marginalBenefits: Record<string, any> = {};
+        const marginalBenefits: Record<string, unknown> = {};
         for (const p of performance) {
           const placementType = p.placementType as 'top_of_search' | 'product_page' | 'rest_of_search';
           const currentAdjustment = currentSettings?.[placementType] || 0;
@@ -869,7 +869,7 @@ export const placementRouter = router({
       });
       // 兼容旧的返回格式
       return {
-        records: result.events.map((e: any) => ({
+        records: result.events.map((e: Record<string, unknown>) => ({
           ...e,
           appliedAt: e.createdAt,
           adjustmentType: e.adjustmentType || e.actionType,
@@ -963,7 +963,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input }) => {
       const result = await db.getOptimizationEvents({ limit: 1, offset: 0 });
-      return result.events.find((e: any) => e.id === input.adjustmentId) || null;
+      return result.events.find((e: Record<string, unknown>) => e.id === input.adjustmentId) || null;
     }),
 
   // 获取效果追踪统计 - v146: 重定向到统一事件表
@@ -1075,7 +1075,7 @@ export const placementRouter = router({
       const accountId = 1; // TODO: 从输入参数或用户会话中获取
       
       // 构建查询条件 - bidAdjustmentHistory表使用status字段而不是isRolledBack
-      const conditions: any[] = [
+      const conditions: unknown[] = [
         eq(bidAdjustmentHistory.accountId, accountId),
       ];
       
@@ -1231,8 +1231,8 @@ export const placementRouter = router({
           }
           
           results.push({ id, success: true });
-        } catch (error: any) {
-          results.push({ id, success: false, error: error.message });
+        } catch (error: unknown) {
+          results.push({ id, success: false, error: (error as Error).message });
         }
       }
       
@@ -1487,7 +1487,7 @@ export const placementRouter = router({
       
       // 计算各位置的边际效益
       const placements: Array<'top_of_search' | 'product_page' | 'rest_of_search'> = ['top_of_search', 'product_page', 'rest_of_search'];
-      const marginalBenefits: Record<string, any> = {};
+      const marginalBenefits: Record<string, unknown> = {};
       
       for (const placement of placements) {
         marginalBenefits[placement] = await calculateMarginalBenefit(

@@ -30,7 +30,7 @@ export async function runV258Migration(): Promise<void> {
     `);
 
     const existingColumns = new Set(
-      (Array.isArray(columns) ? columns : []).map((c: any) => c.COLUMN_NAME)
+      (Array.isArray(columns) ? columns : []).map((c: Record<string, unknown>) => c.COLUMN_NAME)
     );
 
     if (!existingColumns.has('reason_details')) {
@@ -68,7 +68,7 @@ export async function runV258Migration(): Promise<void> {
     }
 
     log.info('v258迁移: 优化日志增强字段添加完成');
-  } catch (error: any) {
-    log.error(`v258迁移失败: ${error.message}`);
+  } catch (error: unknown) {
+    log.error(`v258迁移失败: ${(error as Error).message}`);
   }
 }

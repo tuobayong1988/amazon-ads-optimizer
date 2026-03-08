@@ -131,7 +131,7 @@ export async function analyzeSearchTermPerformance(
     WHERE st.account_id = ?
     AND st.report_start_date >= ?
   `;
-  const params: any[] = [accountId, startDateStr];
+  const params: unknown[] = [accountId, startDateStr];
   
   if (campaignIds && campaignIds.length > 0) {
     query += ` AND st.campaign_id IN (${campaignIds.map(() => '?').join(',')})`;
@@ -144,7 +144,7 @@ export async function analyzeSearchTermPerformance(
   const rows = (result as any[])[0] || [];
   
   // 计算指标
-  return rows.map((t: any) => {
+  return rows.map((t: Record<string, unknown>) => {
     const impressions = Number(t.impressions) || 0;
     const clicks = Number(t.clicks) || 0;
     const spend = Number(t.spend) || 0;
@@ -378,9 +378,9 @@ export async function executeTrafficIsolation(
         negativeStatus: 'active',
       } as any);
       addedCount++;
-    } catch (error: any) {
-      if (!error.message?.includes('Duplicate')) {
-        errors.push(`添加否定词 "${isolation.searchTerm}" 到Campaign ${isolation.campaignId} 失败: ${error.message}`);
+    } catch (error: unknown) {
+      if (!(error as Error).message?.includes('Duplicate')) {
+        errors.push(`添加否定词 "${isolation.searchTerm}" 到Campaign ${isolation.campaignId} 失败: ${(error as Error).message}`);
       }
     }
   }

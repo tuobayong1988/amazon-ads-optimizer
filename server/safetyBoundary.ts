@@ -69,7 +69,7 @@ export async function getAverageSpend(
     AND date >= ?
     AND date <= ?
   `;
-  const params: any[] = [accountId, startDateStr, endDateStr];
+  const params: unknown[] = [accountId, startDateStr, endDateStr];
   
   if (campaignId) {
     query += ` AND campaign_id = ?`;
@@ -104,7 +104,7 @@ export async function getAverageCPC(
     AND date >= ?
     AND date <= ?
   `;
-  const params: any[] = [accountId, startDateStr, endDateStr];
+  const params: unknown[] = [accountId, startDateStr, endDateStr];
   
   if (campaignId) {
     query += ` AND campaign_id = ?`;

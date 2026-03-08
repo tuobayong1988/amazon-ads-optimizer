@@ -282,7 +282,7 @@ export async function getUserAuditStats(userId: number | undefined, days: number
   }
 
   // 按天统计 - 使用DATE_FORMAT避免DATE函数兼容性问题
-  let dayStats: any[] = [];
+  let dayStats: unknown[] = [];
   try {
     dayStats = await db
       .select({
@@ -368,7 +368,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.userId, auditLogs.userName) as any;
 
-  const actionsByUser = userStats.map((stat: any) => ({
+  const actionsByUser = userStats.map((stat: Record<string, unknown>) => ({
     userId: stat.userId || 0,
     userName: stat.userName || "未知用户",
     count: stat.count,

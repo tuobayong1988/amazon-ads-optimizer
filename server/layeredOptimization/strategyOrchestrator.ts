@@ -181,7 +181,7 @@ export async function identifyProductLifecycle(
  */
 export function mergeStrategies(
   strategies: StrategyConfig[],
-  strategyTemplates: any[]
+  strategyTemplates: unknown[]
 ): OptimizationObjective {
   // 按优先级排序
   const sortedStrategies = strategies

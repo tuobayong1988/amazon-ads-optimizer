@@ -32,11 +32,11 @@ async function withRetry<T>(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      const isThrottle = error.response?.status === 429 || error.message?.includes('请求过于频繁') || error.message?.includes('Too Many Requests');
-      const isServerError = error.response?.status >= 500;
-      const isRetryable = isThrottle || isServerError || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+      const isThrottle = error.response?.status === 429 || (error as Error).message?.includes('请求过于频繁') || (error as Error).message?.includes('Too Many Requests');
+      const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
+      const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
       
       if (!isRetryable || attempt >= maxRetries) {
         throw error;
@@ -140,7 +140,7 @@ export async function syncBidAdjustmentsToAmazon(
           consecutiveThrottles = 0;
           success = true;
           // v333: 从rapplyBidAdjustment的返回值中提取apiResponseId
-          const responseId = (typeof apiResult === 'object' && apiResult !== null && 'apiResponseId' in apiResult) ? (apiResult as any).apiResponseId : undefined;
+          const responseId = (typeof apiResult === 'object' && apiResult !== null && 'apiResponseId' in apiResult) ? (apiResult as Record<string, unknown>[]).apiResponseId : undefined;
           result.itemResults.set(adj.keywordId, { status: 'synced', apiResponseId: responseId });
         } else {
           result.failed++;
@@ -152,9 +152,9 @@ export async function syncBidAdjustmentsToAmazon(
           // v155: 不再 break，继续处理下一个关键词，避免一个失败导致整个批次中断
           break; // break inner while loop only
         }
-      } catch (error: any) {
-        const isMissingId = error.message?.includes('MISSING_AMAZON_ID');
-        const isThrottle = error.message?.includes('请求过于频繁') || error.status === 429;
+      } catch (error: unknown) {
+        const isMissingId = (error as Error).message?.includes('MISSING_AMAZON_ID');
+        const isThrottle = (error as Error).message?.includes('请求过于频繁') || error.status === 429;
         
         if (isMissingId) {
           // v190: MISSING_AMAZON_ID不在即时重试中重试（因为ID不会在几秒内出现）
@@ -218,9 +218,9 @@ export async function syncBidAdjustmentsToAmazon(
         const errorSummary = result.errors.slice(0, 3).join('; ');
         await dbInstance.execute(sql`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${'api_sync_failure'}, ${'warning'}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
-    } catch (alertErr: any) {
+    } catch (alertErr: unknown) {
       // system_alerts表可能不存在，忽略错误
-      log.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${alertErr.message}`);
+      log.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${(alertErr as Error).message}`);
     }
   }
   
@@ -257,8 +257,8 @@ export async function syncBidAdjustmentsToAmazon(
         `);
         log.warn(`[ALERT] v333: 认证失败告警已写入anomaly_alert_logs: accountId=${accountId}, authErrors=${authErrors.length}`);
       }
-    } catch (authAlertErr: any) {
-      log.warn(`[ALERT] v333: 认证失败告警写入失败: ${authAlertErr.message}`);
+    } catch (authAlertErr: unknown) {
+      log.warn(`[ALERT] v333: 认证失败告警写入失败: ${(authAlertErr as Error).message}`);
     }
   }
   
@@ -320,8 +320,8 @@ export async function syncNewKeywordsToAmazon(
         }
         existingKeywordsMap.set(agId, keySet);
         log.debug(`[AmazonApiHelper] v337: AdGroup ${agId} 已有 ${keySet.size} 个关键词`);
-      } catch (listErr: any) {
-        log.warn(`[AmazonApiHelper] v337: 查询AdGroup ${agId} 关键词列表失败(继续创建): ${listErr.message}`);
+      } catch (listErr: unknown) {
+        log.warn(`[AmazonApiHelper] v337: 查询AdGroup ${agId} 关键词列表失败(继续创建): ${(listErr as Error).message}`);
       }
     }
     
@@ -353,8 +353,8 @@ export async function syncNewKeywordsToAmazon(
       log.info(`[AmazonApiHelper] v337: 所有关键词已存在于Amazon，无需创建`);
       return result;
     }
-  } catch (checkErr: any) {
-    log.warn(`[AmazonApiHelper] v337: Amazon端存在性检查失败(继续正常创建): ${checkErr.message}`);
+  } catch (checkErr: unknown) {
+    log.warn(`[AmazonApiHelper] v337: Amazon端存在性检查失败(继续正常创建): ${(checkErr as Error).message}`);
   }
   
   // v127: 分批处理机制 - 每批最多50个关键词，批间延迟1秒避免限流
@@ -374,7 +374,7 @@ export async function syncNewKeywordsToAmazon(
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
-          (batch as any[]).map((k: any) => ({
+          (batch as any[]).map((k: Record<string, unknown>) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
@@ -416,8 +416,8 @@ export async function syncNewKeywordsToAmazon(
               } finally {
                 rawConn.release();
               }
-            } catch (dbError: any) {
-              log.error(`[AmazonApiHelper] v357: 更新本地keywordId失败:`, dbError.message);
+            } catch (dbError: unknown) {
+              log.error(`[AmazonApiHelper] v357: 更新本地keywordId失败:`, (dbError as Error).message);
             }
           }
         } else {
@@ -457,24 +457,24 @@ export async function syncNewKeywordsToAmazon(
                 `);
                 log.warn(`[AmazonApiHelper] v351: 关键词"${original.keywordText}"已标记为永久失败 (${errorCode})`);
               }
-            } catch (markErr: any) {
-              log.error(`[AmazonApiHelper] v351: 标记永久失败异常: ${markErr.message}`);
+            } catch (markErr: unknown) {
+              log.error(`[AmazonApiHelper] v351: 标记永久失败异常: ${(markErr as Error).message}`);
             }
           }
         }
       }
       
       log.info(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 单批失败不影响其他批次
       const batchFailCount = batch.length;
       result.failed += batchFailCount;
-      const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${error.message}`;
+      const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${(error as Error).message}`;
       result.errors.push(errorMsg);
-      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
+      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`, (error as Error & { response?: unknown }).response?.data || '');
       
       // 如果是限流错误，增加等待时间
-      if (error.response?.status === 429) {
+      if ((error as Error & { response?: unknown }).response?.status === 429) {
         const throttleWait = BATCH_DELAY_MS * 5;
         log.debug(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
         await new Promise(resolve => setTimeout(resolve, throttleWait));
@@ -554,10 +554,10 @@ export async function syncNewProductTargetsToAmazon(
           log.error(`[AmazonApiHelper] v310: 商品定向创建失败: ${errMsg}`);
         }
       }
-    } catch (batchErr: any) {
-      log.error(`[AmazonApiHelper] v310: 商品定向批次同步失败: ${batchErr.message}`);
+    } catch (batchErr: unknown) {
+      log.error(`[AmazonApiHelper] v310: 商品定向批次同步失败: ${(batchErr as Error).message}`);
       result.failed += batch.length;
-      result.errors.push(`Batch error: ${batchErr.message}`);
+      result.errors.push(`Batch error: ${(batchErr as Error).message}`);
     }
     
     if (i + BATCH_SIZE < newTargets.length) {
@@ -606,8 +606,8 @@ export async function syncBudgetAdjustmentToAmazon(
     
     log.info(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
-  } catch (error: any) {
-    log.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, error.message);
+  } catch (error: unknown) {
+    log.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, (error as Error).message);
     return false;
   }
 }
@@ -641,8 +641,8 @@ export async function syncPlacementAdjustmentToAmazon(
     log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     return true;
-  } catch (error: any) {
-    log.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, error.message);
+  } catch (error: unknown) {
+    log.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, (error as Error).message);
     return false;
   }
 }
@@ -707,8 +707,8 @@ export async function syncNegativeKeywordsToAmazon(
             const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
           }
-        } catch (listErr: any) {
-          log.warn(`[AmazonApiHelper] 查询campaign ${cid} 已有否定词失败: ${listErr.message}`);
+        } catch (listErr: unknown) {
+          log.warn(`[AmazonApiHelper] 查询campaign ${cid} 已有否定词失败: ${(listErr as Error).message}`);
         }
       }
       
@@ -759,9 +759,9 @@ export async function syncNegativeKeywordsToAmazon(
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.failed += campaignLevel.length;
-      result.errors.push(`Campaign否定词批量创建失败: ${error.message}`);
+      result.errors.push(`Campaign否定词批量创建失败: ${(error as Error).message}`);
     }
   }
   
@@ -779,8 +779,8 @@ export async function syncNegativeKeywordsToAmazon(
             const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
           }
-        } catch (listErr: any) {
-          log.warn(`[AmazonApiHelper] 查询adGroup ${agId} 已有否定词失败: ${listErr.message}`);
+        } catch (listErr: unknown) {
+          log.warn(`[AmazonApiHelper] 查询adGroup ${agId} 已有否定词失败: ${(listErr as Error).message}`);
         }
       }
       
@@ -799,7 +799,7 @@ export async function syncNegativeKeywordsToAmazon(
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
         const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
-          (newAdGroupNegatives as any[]).map((n: any) => ({
+          (newAdGroupNegatives as any[]).map((n: Record<string, unknown>) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,
@@ -826,9 +826,9 @@ export async function syncNegativeKeywordsToAmazon(
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.failed += adGroupLevel.length;
-      result.errors.push(`AdGroup否定词批量创建失败: ${error.message}`);
+      result.errors.push(`AdGroup否定词批量创建失败: ${(error as Error).message}`);
     }
   }
   
@@ -892,9 +892,9 @@ export async function syncNegativeProductTargetsToAmazon(
           result.errors.push(`SP Campaign否定产品失败: ${(r as any).details || 'unknown'}`);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       result.failed += spCampaignLevel.length;
-      result.errors.push(`SP Campaign否定产品批量失败: ${err.message}`);
+      result.errors.push(`SP Campaign否定产品批量失败: ${(err as Error).message}`);
     }
   }
   
@@ -918,9 +918,9 @@ export async function syncNegativeProductTargetsToAmazon(
           result.errors.push(`SP AdGroup否定产品失败: ${(r as any).details || 'unknown'}`);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       result.failed += spAdGroupLevel.length;
-      result.errors.push(`SP AdGroup否定产品批量失败: ${err.message}`);
+      result.errors.push(`SP AdGroup否定产品批量失败: ${(err as Error).message}`);
     }
   }
   
@@ -936,9 +936,9 @@ export async function syncNegativeProductTargetsToAmazon(
       );
       result.success += apiResults.length;
       log.info(`[AmazonApiHelper] v2: SB否定产品定向同步成功: ${apiResults.length}个`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       result.failed += sbAdGroupLevel.length;
-      result.errors.push(`SB否定产品批量失败: ${err.message}`);
+      result.errors.push(`SB否定产品批量失败: ${(err as Error).message}`);
     }
   }
   
@@ -953,9 +953,9 @@ export async function syncNegativeProductTargetsToAmazon(
       );
       result.success += apiResults.length;
       log.info(`[AmazonApiHelper] v2: SD否定产品定向同步成功: ${apiResults.length}个`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       result.failed += sdAdGroupLevel.length;
-      result.errors.push(`SD否定产品批量失败: ${err.message}`);
+      result.errors.push(`SD否定产品批量失败: ${(err as Error).message}`);
     }
   }
   
@@ -1033,8 +1033,8 @@ export async function syncKeywordStatusToAmazon(
             if (resolvedId) {
               kw = { keywordId: resolvedId };
             }
-          } catch (resolveErr: any) {
-            log.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
+          } catch (resolveErr: unknown) {
+            log.error(`[AmazonApiHelper] 即时回填异常: ${(resolveErr as Error).message}`);
           }
           
           if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
@@ -1071,10 +1071,10 @@ export async function syncKeywordStatusToAmazon(
           }
         }
         log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
-      } catch (batchErr: any) {
-        log.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${batchErr.message}`);
+      } catch (batchErr: unknown) {
+        log.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${(batchErr as Error).message}`);
         result.failed += resolvedKeywordUpdates.length;
-        result.errors.push(`关键词状态批量更新异常: ${batchErr.message}`);
+        result.errors.push(`关键词状态批量更新异常: ${(batchErr as Error).message}`);
       }
     }
   }
@@ -1102,8 +1102,8 @@ export async function syncKeywordStatusToAmazon(
           try {
             const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
             resolvedTargetId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
-          } catch (resolveErr: any) {
-            log.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
+          } catch (resolveErr: unknown) {
+            log.error(`[AmazonApiHelper] 商品定向即时回填异常: ${(resolveErr as Error).message}`);
           }
         }
         
@@ -1139,10 +1139,10 @@ export async function syncKeywordStatusToAmazon(
           }
         }
         log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
-      } catch (batchErr: any) {
-        log.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${batchErr.message}`);
+      } catch (batchErr: unknown) {
+        log.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${(batchErr as Error).message}`);
         result.failed += resolvedTargetUpdates.length;
-        result.errors.push(`商品定向状态批量更新异常: ${batchErr.message}`);
+        result.errors.push(`商品定向状态批量更新异常: ${(batchErr as Error).message}`);
       }
     }
   }
@@ -1225,11 +1225,11 @@ export async function syncCampaignStatusToAmazon(
           
           success = true;
           break;
-        } catch (e: any) {
+        } catch (e: unknown) {
           lastError = e;
           // 不可重试的错误立即跳出
           // v336.2: 401/403也加入不可重试列表，认证失败重试无意义
-          if (e.response?.status === 400 || e.response?.status === 401 || e.response?.status === 403 || e.response?.status === 404 || e.response?.status === 422) {
+          if ((e as Error & { response?: unknown }).response?.status === 400 || (e as Error & { response?: unknown }).response?.status === 401 || (e as Error & { response?: unknown }).response?.status === 403 || (e as Error & { response?: unknown }).response?.status === 404 || (e as Error & { response?: unknown }).response?.status === 422) {
             break;
           }
         }
@@ -1260,9 +1260,9 @@ export async function syncCampaignStatusToAmazon(
           log.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as any).message);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.failed++;
-      const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) 状态同步异常: ${error.message}`;
+      const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) 状态同步异常: ${(error as Error).message}`;
       result.errors.push(errorMsg);
       log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
     }
@@ -1350,9 +1350,9 @@ export async function syncAdGroupStatusToAmazon(
       } else {
         result.success++;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       result.failed++;
-      const errorMsg = `广告组 "${change.adGroupName}" (${change.amazonAdGroupId}) 状态同步异常: ${error.message}`;
+      const errorMsg = `广告组 "${change.adGroupName}" (${change.amazonAdGroupId}) 状态同步异常: ${(error as Error).message}`;
       result.errors.push(errorMsg);
       log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
     }

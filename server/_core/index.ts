@@ -184,8 +184,8 @@ async function startServer() {
             INDEX \`idx_syslog_level_timestamp\` (\`level\`, \`timestamp\`)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
           log.info('[Logger] system_logs表已就绪');
-        } catch (e: any) {
-          log.error('[Logger] system_logs表创建失败:', e.message);
+        } catch (e: unknown) {
+          log.error('[Logger] system_logs表创建失败:', (e as Error).message);
         }
       }
     }).catch(() => {});

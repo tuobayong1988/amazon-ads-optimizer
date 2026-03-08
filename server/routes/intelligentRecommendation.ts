@@ -57,9 +57,9 @@ export const intelligentRecommendationRouter = router({
 
         log.info(`[智能推荐] 成功创建优化目标 #${id}，包含${input.campaignIds.length}个广告活动`);
         return { success: true, goalId: id, campaignCount: input.campaignIds.length };
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.error('[智能推荐] 创建优化目标失败:', error);
-        throw new Error(`创建优化目标失败: ${error.message}`);
+        throw new Error(`创建优化目标失败: ${(error as Error).message}`);
       }
     }),
 

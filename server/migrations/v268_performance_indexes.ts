@@ -48,12 +48,12 @@ export async function runV268PerformanceIndexMigration(): Promise<void> {
       console.log('[v268-migration] Index idx_oe_category_type created successfully');
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 索引可能已存在（不同名称），忽略重复索引错误
-    if (error.message?.includes('Duplicate key name') || error.code === 'ER_DUP_KEYNAME') {
+    if ((error as Error).message?.includes('Duplicate key name') || error.code === 'ER_DUP_KEYNAME') {
       console.log('[v268-migration] Index already exists (different name), skipping');
     } else {
-      console.error('[v268-migration] Error creating indexes:', error.message);
+      console.error('[v268-migration] Error creating indexes:', (error as Error).message);
     }
   }
 }

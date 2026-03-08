@@ -19,7 +19,7 @@ const SQS_QUEUE_URLS = {
 
 async function checkSqsQueues() {
   const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-east-1' });
-  const results: any[] = [];
+  const results: unknown[] = [];
   let allQueuesActive = true;
 
   for (const [name, url] of Object.entries(SQS_QUEUE_URLS)) {
@@ -40,8 +40,8 @@ async function checkSqsQueues() {
       const lastModified = attributes ? new Date(parseInt(attributes.LastModifiedTimestamp || '0') * 1000).toISOString() : 'N/A';
 
       results.push({ name, status: 'ok', messageCount, lastModified });
-    } catch (error: any) {
-      results.push({ name, status: 'error', reason: error.message });
+    } catch (error: unknown) {
+      results.push({ name, status: 'error', reason: (error as Error).message });
       allQueuesActive = false;
     }
   }
@@ -54,7 +54,7 @@ async function checkDatabase() {
     return { dbStatus: 'error', reason: 'Database connection failed' };
   }
 
-  const results: any = {};
+  const results: Record<string, unknown>[] = {};
 
   // AMS Data Check
   try {
@@ -64,7 +64,7 @@ async function checkDatabase() {
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
     `) as any;
     results.amsData = amsResult[0];
-  } catch (e: any) { results.amsData = { error: e.message }; }
+  } catch (e: unknown) { results.amsData = { error: e.message }; }
 
   // API Report Jobs Check
   try {
@@ -75,7 +75,7 @@ async function checkDatabase() {
       GROUP BY status
     `) as any;
     results.reportJobs = reportResult;
-  } catch (e: any) { results.reportJobs = { error: e.message }; }
+  } catch (e: unknown) { results.reportJobs = { error: e.message }; }
 
   // Data Fusion Check
   try {
@@ -86,7 +86,7 @@ async function checkDatabase() {
       GROUP BY dataSource
     `) as any;
     results.dataFusion = fusionResult;
-  } catch (e: any) { results.dataFusion = { error: e.message }; }
+  } catch (e: unknown) { results.dataFusion = { error: e.message }; }
 
   return { dbStatus: 'ok', ...results };
 }
