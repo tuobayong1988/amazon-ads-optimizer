@@ -302,6 +302,15 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     }
   }, 5 * 60 * 1000);
   
+  // v359: 启动独立自愈调度器（与主同步流程完全解耦）
+  try {
+    const { startSelfHealing } = await import('./services/selfHealingScheduler');
+    startSelfHealing();
+    log.info('[DataSyncScheduler] v359: 独立自愈调度器已启动');
+  } catch (healErr: unknown) {
+    log.error(`[DataSyncScheduler] v359: 自愈调度器启动失败: ${(healErr as Error).message}`);
+  }
+  
   log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 

@@ -110,7 +110,23 @@ export function registerGracefulShutdown(server: unknown): void {
     await handleShutdown('uncaughtException');
   });
   
-  log.info('[LifecycleManager] v185: 优雅关闭处理器已注册');
+  // v359: 添加未处理的Promise拒绝全局捕获，防止进程意外退出
+  process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+    const errorMessage = reason instanceof Error ? reason.message : String(reason);
+    const errorStack = reason instanceof Error ? reason.stack : undefined;
+    log.error(`[LifecycleManager] 未处理的Promise拒绝: ${errorMessage}`);
+    if (errorStack) {
+      log.error(errorStack as unknown);
+    }
+    // 记录但不关闭进程，避免因单个异步失败导致服务中断
+    // 如果是严重的数据库连接错误，触发优雅关闭
+    if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('PROTOCOL_CONNECTION_LOST')) {
+      log.error('[LifecycleManager] 检测到严重连接错误，触发优雅关闭');
+      handleShutdown('unhandledRejection-critical').catch(() => {});
+    }
+  });
+  
+  log.info('[LifecycleManager] v359: 优雅关闭处理器已注册（含 unhandledRejection 全局捕获）');
 }
 
 /**

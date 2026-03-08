@@ -365,96 +365,110 @@ export class AmazonSyncService {
       return null;
     };
 
-    // 同步SP广告活动
-    const spResult = await runStep('SP广告活动', () => this.syncSpCampaigns());
-    if (spResult !== null) {
-      results.spCampaigns = typeof spResult === 'number' ? spResult : (spResult as Record<string, unknown>[])?.synced || 0;
+    // v359: DAG并行调度 - 按层级依赖关系并行执行同步步骤
+    // 原来: 33步全部串行，总耗时 = sum(所有步骤耗时)
+    // 现在: 按层级并行，总耗时 = sum(max(每层最慢步骤))
+    
+    // ==================== Layer 0: 广告活动（SP/SB/SD并行） ====================
+    log.info(`[syncAll] v359: Layer 0 - 广告活动同步 (3个并行)`);
+    const [spResult, sbResult, sdResult] = await Promise.allSettled([
+      runStep('SP广告活动', () => this.syncSpCampaigns()),
+      runStep('SB广告活动', () => this.syncSbCampaigns()),
+      runStep('SD广告活动', () => this.syncSdCampaigns()),
+    ]);
+    
+    if (spResult.status === 'fulfilled' && spResult.value !== null) {
+      results.spCampaigns = typeof spResult.value === 'number' ? spResult.value : (spResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.spCampaigns;
     }
-    
-    // 同步SB广告活动
-    const sbResult = await runStep('SB广告活动', () => this.syncSbCampaigns());
-    if (sbResult !== null) {
-      results.sbCampaigns = typeof sbResult === 'number' ? sbResult : (sbResult as Record<string, unknown>[])?.synced || 0;
+    if (sbResult.status === 'fulfilled' && sbResult.value !== null) {
+      results.sbCampaigns = typeof sbResult.value === 'number' ? sbResult.value : (sbResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.sbCampaigns;
     }
-    
-    // 同步SD广告活动
-    const sdResult = await runStep('SD广告活动', () => this.syncSdCampaigns());
-    if (sdResult !== null) {
-      results.sdCampaigns = typeof sdResult === 'number' ? sdResult : (sdResult as Record<string, unknown>[])?.synced || 0;
+    if (sdResult.status === 'fulfilled' && sdResult.value !== null) {
+      results.sdCampaigns = typeof sdResult.value === 'number' ? sdResult.value : (sdResult.value as Record<string, unknown>)?.synced as number || 0;
       results.campaigns += results.sdCampaigns;
     }
     
-    // ==================== 同步广告组（SP + SB + SD） ====================
-    const spAdGroupResult = await runStep('SP广告组', () => this.syncSpAdGroups());
-    if (spAdGroupResult !== null) {
-      results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : (spAdGroupResult as Record<string, unknown>[])?.synced || 0;
-    }
-
-    const sbAdGroupResult = await runStep('SB广告组', () => this.syncSbAdGroups());
-    if (sbAdGroupResult !== null) results.adGroups += (sbAdGroupResult as Record<string, unknown>[])?.synced || 0;
-
-    const sdAdGroupResult = await runStep('SD广告组', () => this.syncSdAdGroups());
-    if (sdAdGroupResult !== null) results.adGroups += (sdAdGroupResult as Record<string, unknown>[])?.synced || 0;
+    // ==================== Layer 1: 广告组（SP/SB/SD并行） ====================
+    log.info(`[syncAll] v359: Layer 1 - 广告组同步 (3个并行)`);
+    const [spAdGroupResult, sbAdGroupResult, sdAdGroupResult] = await Promise.allSettled([
+      runStep('SP广告组', () => this.syncSpAdGroups()),
+      runStep('SB广告组', () => this.syncSbAdGroups()),
+      runStep('SD广告组', () => this.syncSdAdGroups()),
+    ]);
     
-    // ==================== 同步关键词投放（SP + SB） ====================
-    const spKeywordResult = await runStep('SP关键词', () => this.syncSpKeywords());
-    if (spKeywordResult !== null) {
-      results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : (spKeywordResult as Record<string, unknown>[])?.synced || 0;
+    if (spAdGroupResult.status === 'fulfilled' && spAdGroupResult.value !== null) {
+      results.adGroups += typeof spAdGroupResult.value === 'number' ? spAdGroupResult.value : (spAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
     }
-
-    const sbKeywordResult = await runStep('SB关键词', () => this.syncSbKeywords());
-    if (sbKeywordResult !== null) results.keywords += (sbKeywordResult as Record<string, unknown>[])?.synced || 0;
+    if (sbAdGroupResult.status === 'fulfilled' && sbAdGroupResult.value !== null) {
+      results.adGroups += (sbAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    if (sdAdGroupResult.status === 'fulfilled' && sdAdGroupResult.value !== null) {
+      results.adGroups += (sdAdGroupResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
     
-    // ==================== 同步商品定位（SP + SB + SD） ====================
-    const spTargetResult = await runStep('SP商品定位', () => this.syncSpProductTargets());
-    if (spTargetResult !== null) {
-      results.targets += typeof spTargetResult === 'number' ? spTargetResult : (spTargetResult as Record<string, unknown>[])?.synced || 0;
+    // ==================== Layer 2: 关键词+商品定位+广告素材（6个并行） ====================
+    log.info(`[syncAll] v359: Layer 2 - 关键词/商品定位/素材同步 (6个并行)`);
+    const [spKeywordResult, sbKeywordResult, spTargetResult, sbTargetResult, sdTargetResult, sbAdsResult] = await Promise.allSettled([
+      runStep('SP关键词', () => this.syncSpKeywords()),
+      runStep('SB关键词', () => this.syncSbKeywords()),
+      runStep('SP商品定位', () => this.syncSpProductTargets()),
+      runStep('SB商品定位', () => this.syncSbProductTargets()),
+      runStep('SD商品定位', () => this.syncSdProductTargets()),
+      runStep('SB广告素材', () => this.syncSbAds()),
+    ]);
+    
+    if (spKeywordResult.status === 'fulfilled' && spKeywordResult.value !== null) {
+      results.keywords += typeof spKeywordResult.value === 'number' ? spKeywordResult.value : (spKeywordResult.value as Record<string, unknown>)?.synced as number || 0;
     }
+    if (sbKeywordResult.status === 'fulfilled' && sbKeywordResult.value !== null) {
+      results.keywords += (sbKeywordResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    if (spTargetResult.status === 'fulfilled' && spTargetResult.value !== null) {
+      results.targets += typeof spTargetResult.value === 'number' ? spTargetResult.value : (spTargetResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    if (sbTargetResult.status === 'fulfilled' && sbTargetResult.value !== null) {
+      results.targets += (sbTargetResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    if (sdTargetResult.status === 'fulfilled' && sdTargetResult.value !== null) {
+      results.targets += (sdTargetResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
+    
+    // ==================== Layer 3: 否定词+搜索词+广告位绩效（8个并行） ====================
+    log.info(`[syncAll] v359: Layer 3 - 否定词/搜索词/广告位绩效同步 (8个并行)`);
+    await Promise.allSettled([
+      runStep('SP否定关键词', () => this.syncSpNegativeKeywords()),
+      runStep('SP否定商品定向', () => this.syncSpNegativeProductTargets()),
+      runStep('SB否定关键词', () => this.syncSbNegativeKeywords()),
+      runStep('SB否定商品定向', () => this.syncSbNegativeTargets()),
+      runStep('SP搜索词(90天)', () => this.syncSearchTerms(90)),
+      runStep('SB搜索词(60天)', () => this.syncSbSearchTerms(60)),
+      runStep('SP广告位绩效(90天)', () => this.syncPlacementPerformance(90)),
+      runStep('SB广告位绩效(60天)', () => this.syncSbPlacementPerformance(60)),
+    ]);
 
-    const sbTargetResult = await runStep('SB商品定位', () => this.syncSbProductTargets());
-    if (sbTargetResult !== null) results.targets += (sbTargetResult as Record<string, unknown>[])?.synced || 0;
+    // ==================== Layer 4: 定向报告+素材URL（4个并行） ====================
+    log.info(`[syncAll] v359: Layer 4 - 定向报告/素材URL同步 (4个并行)`);
+    await Promise.allSettled([
+      runStep('SP自动定向(90天)', () => this.syncAutoTargeting(90)),
+      runStep('SD定向报告(90天)', () => this.syncSdTargeting(90)),
+      runStep('SB定向报告(60天)', () => this.syncSbTargeting(60)),
+      runStep('SB素材URL解析', () => this.syncAssetUrls()),
+    ]);
 
-    const sdTargetResult = await runStep('SD商品定位', () => this.syncSdProductTargets());
-    if (sdTargetResult !== null) results.targets += (sdTargetResult as Record<string, unknown>[])?.synced || 0;
-
-    // ==================== 同步否定关键词 ====================
-    await runStep('SP否定关键词', () => this.syncSpNegativeKeywords());
-    await runStep('SP否定商品定向', () => this.syncSpNegativeProductTargets());
-
-    // ==================== 同步搜索词 ====================
-    await runStep('SP搜索词(90天)', () => this.syncSearchTerms(90));
-    await runStep('SB搜索词(60天)', () => this.syncSbSearchTerms(60));
-
-    // ==================== 同步SB广告素材 ====================
-    await runStep('SB广告素材', () => this.syncSbAds());
-
-    // ==================== 同步SB否定 ====================
-    await runStep('SB否定关键词', () => this.syncSbNegativeKeywords());
-    await runStep('SB否定商品定向', () => this.syncSbNegativeTargets());
-
-    // ==================== 同步广告位绩效 ====================
-    await runStep('SP广告位绩效(90天)', () => this.syncPlacementPerformance(90));
-    await runStep('SB广告位绩效(60天)', () => this.syncSbPlacementPerformance(60));
-
-    // ==================== 同步定向报告 ====================
-    await runStep('SP自动定向(90天)', () => this.syncAutoTargeting(90));
-    await runStep('SD定向报告(90天)', () => this.syncSdTargeting(90));
-    await runStep('SB定向报告(60天)', () => this.syncSbTargeting(60));
-
-    // ==================== 解析SB素材URL ====================
-    await runStep('SB素材URL解析', () => this.syncAssetUrls());
-
-    // 同步绩效数据（快慢双轨架构）
-    // v339: performanceDays支持外部传入，默认14天归因回溯
+    // ==================== Layer 5: 绩效数据（4个并行） ====================
     const performanceDays = options?.performanceDays || 14;
-    const perfResult = await runStep(`广告活动绩效(${performanceDays}天)`, () => this.syncPerformanceData(performanceDays));
-    if (perfResult !== null) results.performance += typeof perfResult === 'number' ? perfResult : (perfResult as Record<string, unknown>[])?.synced || 0;
-
-    await runStep(`关键词绩效(${performanceDays}天)`, () => this.syncKeywordPerformanceData(performanceDays));
-    await runStep(`商品定位绩效(${performanceDays}天)`, () => this.syncProductTargetPerformanceData(performanceDays));
-    await runStep(`广告组绩效(${performanceDays}天)`, () => this.syncAdGroupPerformanceData(performanceDays));
+    log.info(`[syncAll] v359: Layer 5 - 绩效数据同步 (4个并行, ${performanceDays}天)`);
+    const [perfResult, _kwPerfResult, _ptPerfResult, _agPerfResult] = await Promise.allSettled([
+      runStep(`广告活动绩效(${performanceDays}天)`, () => this.syncPerformanceData(performanceDays)),
+      runStep(`关键词绩效(${performanceDays}天)`, () => this.syncKeywordPerformanceData(performanceDays)),
+      runStep(`商品定位绩效(${performanceDays}天)`, () => this.syncProductTargetPerformanceData(performanceDays)),
+      runStep(`广告组绩效(${performanceDays}天)`, () => this.syncAdGroupPerformanceData(performanceDays)),
+    ]);
+    if (perfResult.status === 'fulfilled' && perfResult.value !== null) {
+      results.performance += typeof perfResult.value === 'number' ? perfResult.value : (perfResult.value as Record<string, unknown>)?.synced as number || 0;
+    }
 
     // v340: 同步完成汇总报告
     const totalDurationMs = Date.now() - syncAllStartTime;

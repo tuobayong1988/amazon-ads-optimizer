@@ -145,7 +145,7 @@ function calculateTrendSummary(data: unknown[]) {
 
 // ==================== Performance Group Router ====================
 export const performanceGroupRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       log.info('[performanceGroup.list] accountId:', input.accountId);
@@ -275,7 +275,7 @@ export const performanceGroupRouter = router({
       return enrichedResult;
     }),
   
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return db.getPerformanceGroupById(input.id);
@@ -506,10 +506,9 @@ export const performanceGroupRouter = router({
       // v219: 批量状态变更后触发确认同步，从 Amazon 回读最新状态
       if (apiResult.success > 0 && group.accountId) {
         try {
-          const { confirmationSync } = await import('../unifiedSyncEngine');
-          confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: Error) => {
-            log.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
-          });
+          // v359: 使用可靠确认服务
+          const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
+          submitReliableConfirmation(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus', 'status_change');
         } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
       }
 
@@ -592,7 +591,7 @@ export const performanceGroupRouter = router({
     }),
 
   // 添加广告活动到绩效组
-  addCampaigns: publicProcedure
+  addCampaigns: protectedProcedure
     .input(z.object({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
@@ -619,7 +618,7 @@ export const performanceGroupRouter = router({
     }),
 
   // 从绩效组移除单个广告活动
-  removeCampaign: publicProcedure
+  removeCampaign: protectedProcedure
     .input(z.object({
       groupId: z.number(),
       campaignId: z.number(),
@@ -748,7 +747,7 @@ export const performanceGroupRouter = router({
   // ==================== 优化日志 API ====================
   
   // 获取优化目标的日志列表
-  getLogs: publicProcedure
+  getLogs: protectedProcedure
     .input(z.object({
       performanceGroupId: z.number(),
       category: z.enum(['all', 'performance_target', 'bid_adjustment', 'placement_adjustment', 'optimization_settings']).optional().default('all'),
@@ -790,7 +789,7 @@ export const performanceGroupRouter = router({
     }),
   
   // 获取日志统计信息
-  getLogStats: publicProcedure
+  getLogStats: protectedProcedure
     .input(z.object({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
@@ -800,7 +799,7 @@ export const performanceGroupRouter = router({
     }),
 
   // 获取绩效趋势数据 (使用真实历史数据)
-  getTrendData: publicProcedure
+  getTrendData: protectedProcedure
     .input(z.object({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),

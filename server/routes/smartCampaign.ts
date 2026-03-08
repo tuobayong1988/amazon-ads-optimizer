@@ -126,7 +126,7 @@ export const smartCampaignRouter = router({
   /**
    * 获取单个广告活动的优化建议
    */
-  getOptimizationRecommendation: publicProcedure
+  getOptimizationRecommendation: protectedProcedure
     .input(
       z.object({
         campaignId: z.string(),
@@ -181,7 +181,7 @@ export const smartCampaignRouter = router({
   /**
    * 获取绩效组的批量优化建议
    */
-  getBatchOptimizationRecommendations: publicProcedure
+  getBatchOptimizationRecommendations: protectedProcedure
     .input(
       z.object({
         performanceGroupId: z.string(),
@@ -235,7 +235,7 @@ export const smartCampaignRouter = router({
   /**
    * 执行优化决策
    */
-  executeOptimization: publicProcedure
+  executeOptimization: protectedProcedure
     .input(
       z.object({
         campaignId: z.string(),
@@ -271,7 +271,7 @@ export const smartCampaignRouter = router({
   /**
    * 批量执行优化决策
    */
-  executeBatchOptimization: publicProcedure
+  executeBatchOptimization: protectedProcedure
     .input(
       z.object({
         performanceGroupId: z.string(),

@@ -13,25 +13,38 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
-  // 获取用户所有账号列表（公开访问，返回所有账户）
-  list: publicProcedure.query(async () => {
-    // 返回所有账户供前端使用
-    return db.getAdAccounts();
+  // v359: 安全修复 — 获取用户所有账号列表（需认证，按用户隔离数据）
+  list: protectedProcedure.query(async ({ ctx }) => {
+    // v359: 管理员可查看所有账户，普通用户仅查看自己的账户
+    if (ctx.user.role === 'admin') {
+      return db.getAdAccounts();
+    }
+    return db.getAdAccountsByUserId(ctx.user.id);
   }),
   
-  // 获取单个账号详情
-  get: publicProcedure
+  // v359: 安全修复 — 获取单个账号详情（需认证，验证归属）
+  get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      return db.getAdAccountById(input.id);
+    .query(async ({ ctx, input }) => {
+      const account = await db.getAdAccountById(input.id);
+      if (!account) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+      }
+      // v359: 非管理员只能查看自己的账户
+      if (ctx.user.role !== 'admin' && account.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: '无权访问此账号' });
+      }
+      return account;
     }),
   
-  // 获取默认账号
-  getDefault: publicProcedure
+  // v359: 安全修复 — 获取默认账号（需认证，按用户隔离）
+  getDefault: protectedProcedure
     .input(z.object({ userId: z.number().optional() }).optional())
-    .query(async ({ input }) => {
-      // 如果没有userId，返回第一个账户作为默认
-      const accounts = await db.getAdAccounts();
+    .query(async ({ ctx }) => {
+      // v359: 使用认证用户的ID获取其账户列表
+      const accounts = ctx.user.role === 'admin'
+        ? await db.getAdAccounts()
+        : await db.getAdAccountsByUserId(ctx.user.id);
       return accounts.find(a => a.isDefault) || accounts[0] || null;
     }),
   

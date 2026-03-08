@@ -180,10 +180,9 @@ export const keywordRouter = router({
               // v219: 出价同步后触发确认同步
               if (syncResult.success > 0) {
                 try {
-                  const { confirmationSync } = await import('../unifiedSyncEngine');
-                  confirmationSync(accountId, ['keywords'], 'batchUpdateBid').catch((err: Error) => {
-                    log.error(`[Keyword.batchUpdateBid] v220: 确认同步失败:`, err.message);
-                  });
+                  // v359: 使用可靠确认服务
+                  const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
+                  submitReliableConfirmation(accountId, ['keywords'], 'batchUpdateBid', 'bid_change');
                 } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
               }
             }
@@ -252,10 +251,9 @@ export const keywordRouter = router({
             // v219: 关键词状态同步后触发确认同步
             if (syncResult.success > 0) {
               try {
-                const { confirmationSync } = await import('../unifiedSyncEngine');
-                confirmationSync(accountId, ['keywords'], 'batchUpdateStatus').catch((err: Error) => {
-                  log.error(`[Keyword.batchUpdateStatus] v220: 确认同步失败:`, err.message);
-                });
+                // v359: 使用可靠确认服务
+                const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
+                submitReliableConfirmation(accountId, ['keywords'], 'batchUpdateStatus', 'status_change');
               } catch (e: unknown) { log.debug(`确认同步触发忽略: ${e instanceof Error ? e.message : e}`); }
             }
           }

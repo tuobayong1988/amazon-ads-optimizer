@@ -1059,15 +1059,14 @@ export async function executeOptimizationTarget(
     
     if (affectedEntities.length > 0) {
       const uniqueEntities = [...new Set(affectedEntities)];
-      const { confirmationSync } = await import('./unifiedSyncEngine');
-      // 异步触发，不阻塞优化流程返回
-      confirmationSync(config.accountId, uniqueEntities as unknown[], `optimizationTarget_${config.id}`).then(syncResult => {
-        if (syncResult) {
-          log.info(`[OptimizationTarget] v221: 确认同步完成 - 账户 ${config.accountId}, 目标 ${config.id}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
-        }
-      }).catch(err => {
-        log.warn(`[OptimizationTarget] v221: 确认同步失败 - 账户 ${config.accountId}: ${err.message}`);
-      });
+      // v359: 使用可靠确认服务替代fire-and-forget模式
+      const { submitReliableConfirmation } = await import('./services/commandConfirmationService');
+      const entityArray = uniqueEntities as ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[];
+      const hasKeywords = entityArray.includes('keywords');
+      const hasBudgets = entityArray.includes('budgets');
+      const opType = hasKeywords ? 'bid_change' : hasBudgets ? 'budget_change' : 'status_change';
+      const requestId = submitReliableConfirmation(config.accountId, entityArray, `optimizationTarget_${config.id}`, opType);
+      log.info(`[OptimizationTarget] v359: 提交可靠确认请求 - 账户${config.accountId}, 目标${config.id}: ${requestId}`);
     }
   } catch (confirmErr: unknown) {
     log.warn(`[OptimizationTarget] v221: 触发确认同步异常: ${(confirmErr as Error).message}`);

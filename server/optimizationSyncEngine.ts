@@ -345,15 +345,17 @@ export async function executeBatchSync(options?: {
         }
       }
       
-      // 异步触发确认同步（不阻塞当前流程）
+      // v359: 使用可靠确认服务替代fire-and-forget模式
+      const { submitReliableConfirmation } = await import('./services/commandConfirmationService');
       for (const [accountId, entities] of affectedAccounts) {
-        confirmationSync(accountId, Array.from(entities) as unknown[], 'optimizationSyncEngine').then(syncResult => {
-          if (syncResult) {
-            log.info(`[SyncEngine] v219: 确认同步完成 - 账户 ${accountId}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
-          }
-        }).catch(err => {
-          log.error(`[SyncEngine] v219: 确认同步失败 - 账户 ${accountId}: ${err.message}`);
-        });
+        const entityArray = Array.from(entities) as ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[];
+        // 根据任务类型确定操作类型
+        const hasKeywords = entityArray.includes('keywords');
+        const hasBudgets = entityArray.includes('budgets');
+        const hasCampaigns = entityArray.includes('campaigns');
+        const opType = hasKeywords ? 'bid_change' : hasBudgets ? 'budget_change' : hasCampaigns ? 'status_change' : 'general';
+        const requestId = submitReliableConfirmation(accountId, entityArray, 'optimizationSyncEngine', opType);
+        log.info(`[SyncEngine] v359: 提交可靠确认请求 - 账户${accountId}: ${requestId}`);
       }
     } catch (confirmErr: unknown) {
       log.error(`[SyncEngine] v219: 触发确认同步异常: ${(confirmErr as Error).message}`);

@@ -76,6 +76,7 @@ const AmazonApiAuthStatus = lazy(() => import("./pages/AmazonApiAuthStatus"));
 const AutoOptimizationDashboard = lazy(() => import("./pages/AutoOptimizationDashboard"));
 const AdvancedAnalyticsDashboard = lazy(() => import("./pages/AdvancedAnalyticsDashboard"));
 const AutoCorrectionDashboard = lazy(() => import("./pages/AutoCorrectionDashboard"));
+const DataHealthDashboard = lazy(() => import("./pages/DataHealthDashboard")); // v359
 
 // 预发布引擎页面（仅admin可见）
 const PrelaunchDashboard = lazy(() => import("./pages/PrelaunchDashboard"));
@@ -141,6 +142,7 @@ function Router() {
       <Route path="/data-validation">{() => <LazyRoute component={DataValidation} />}</Route>
       <Route path="/automation">{() => <LazyRoute component={AdAutomation} />}</Route>
       <Route path="/health">{() => <LazyRoute component={HealthMonitor} />}</Route>
+      <Route path="/data-health">{() => <LazyRoute component={DataHealthDashboard} />}</Route>
       <Route path="/notifications">{() => <LazyRoute component={NotificationSettings} />}</Route>
       {/* /scheduler已重定向到/dashboard */}
       <Route path="/batch-operations">{() => <LazyRoute component={BatchOperations} />}</Route>

@@ -175,7 +175,7 @@ export const collaborationRouter = router({
     }),
 
   // 获取重要操作类型列表
-  getImportantActions: publicProcedure.query(async () => {
+  getImportantActions: protectedProcedure.query(async () => {
     const { IMPORTANT_ACTIONS, ACTION_PRIORITY, ACTION_NOTIFICATION_TEMPLATES } = await import("../collaborationNotificationService");
     return {
       importantActions: IMPORTANT_ACTIONS,
