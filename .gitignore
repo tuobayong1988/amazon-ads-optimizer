@@ -110,5 +110,6 @@ deploy.zip
 .elasticbeanstalk/app_versions/
 .org.chromium.Chromium*
 .X0-lock
-.github/workflows/
+# v358: 启用CI质量门禁，不再忽略workflows
+# .github/workflows/
 *.zip
