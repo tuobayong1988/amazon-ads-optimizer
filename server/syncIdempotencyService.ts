@@ -8,21 +8,36 @@ const log = createModuleLogger('SyncIdempotencyService');
  * 2. 全量同步前清除旧数据 - 确保覆盖写入而非累积
  * 3. 同步锁管理 - 带超时的分布式锁
  * 
- * 设计原则：
- * - 所有同步模式（全量/增量/AMS实时）都必须保证幂等性
- * - 多次手动触发同步不会导致数据重复或累积
- * - 同步锁有超时机制，防止死锁
+ * v358改造：
+ * - 新增分布式锁模式（基于数据库），支持多实例部署
+ * - 保留内存锁作为降级方案（数据库不可用时自动切换）
+ * - 新增锁模式自动检测和切换
  */
 
 import * as db from './db';
+import { acquireLock, releaseLock, renewLock } from './services/sync/shardManager';
+import { randomUUID } from 'crypto';
 
-// ==================== 同步锁管理 ====================
+// ==================== 锁模式配置 ====================
+
+type LockMode = 'memory' | 'distributed' | 'auto';
+
+// v358: 默认使用auto模式（优先分布式锁，降级到内存锁）
+let currentLockMode: LockMode = 'auto';
+
+// 进程实例ID（用于分布式锁的持有者标识）
+const PROCESS_ID = `proc-${randomUUID().slice(0, 8)}`;
 
 /**
- * 内存级同步锁（单实例部署足够，多实例需改用Redis）
- * key: `sync:${accountId}:${syncType}`
- * value: { lockId, acquiredAt, expiresAt }
+ * v358: 设置锁模式
  */
+export function setLockMode(mode: LockMode): void {
+  currentLockMode = mode;
+  log.info(`[v358] 锁模式设置为: ${mode}`);
+}
+
+// ==================== 内存锁（降级方案） ====================
+
 interface SyncLock {
   lockId: string;
   accountId: number;
@@ -32,41 +47,28 @@ interface SyncLock {
 }
 
 const syncLocks = new Map<string, SyncLock>();
-
-// 锁超时时间（30分钟，足够完成一次完整同步）
 const LOCK_TIMEOUT_MS = 30 * 60 * 1000;
 
-/**
- * 生成锁的唯一key
- */
 function getLockKey(accountId: number, syncType: string = 'all'): string {
   return `sync:${accountId}:${syncType}`;
 }
 
-/**
- * 尝试获取同步锁
- * 
- * @param accountId 账号ID
- * @param syncType 同步类型
- * @returns lockId（成功）或 null（失败，说明有其他同步正在进行）
- */
-export function acquireSyncLock(accountId: number, syncType: string = 'all'): string | null {
+// ==================== 内存锁操作 ====================
+
+function acquireMemoryLock(accountId: number, syncType: string = 'all'): string | null {
   const key = getLockKey(accountId, syncType);
   const existing = syncLocks.get(key);
   
-  // 检查是否已有锁
   if (existing) {
-    // 检查锁是否已超时
     if (new Date() > existing.expiresAt) {
-      log.warn(`[SyncLock] 锁已超时，强制释放: ${key} (acquired at ${existing.acquiredAt.toISOString()})`);
+      log.warn(`[SyncLock] 内存锁已超时，强制释放: ${key}`);
       syncLocks.delete(key);
     } else {
-      log.info(`[SyncLock] 同步锁被占用: ${key}, 获取于 ${existing.acquiredAt.toISOString()}, 将于 ${existing.expiresAt.toISOString()} 超时`);
+      log.info(`[SyncLock] 内存锁被占用: ${key}`);
       return null;
     }
   }
   
-  // 获取新锁
   const lockId = `lock_${accountId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = new Date();
   
@@ -78,52 +80,99 @@ export function acquireSyncLock(accountId: number, syncType: string = 'all'): st
     expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS),
   });
   
-  log.info(`[SyncLock] 同步锁已获取: ${key}, lockId=${lockId}`);
   return lockId;
 }
 
-/**
- * 释放同步锁
- * 
- * @param accountId 账号ID
- * @param syncType 同步类型
- * @param lockId 锁ID（用于验证释放者身份）
- */
-export function releaseSyncLock(accountId: number, syncType: string = 'all', lockId?: string): boolean {
+function releaseMemoryLock(accountId: number, syncType: string = 'all', lockId?: string): boolean {
   const key = getLockKey(accountId, syncType);
   const existing = syncLocks.get(key);
   
-  if (!existing) {
-    return true; // 锁不存在，视为成功
-  }
-  
-  // 如果提供了lockId，验证身份
-  if (lockId && existing.lockId !== lockId) {
-    log.warn(`[SyncLock] 锁ID不匹配，拒绝释放: expected=${existing.lockId}, got=${lockId}`);
-    return false;
-  }
+  if (!existing) return true;
+  if (lockId && existing.lockId !== lockId) return false;
   
   syncLocks.delete(key);
-  log.info(`[SyncLock] 同步锁已释放: ${key}`);
   return true;
+}
+
+function isMemoryLocked(accountId: number, syncType: string = 'all'): boolean {
+  const key = getLockKey(accountId, syncType);
+  const existing = syncLocks.get(key);
+  if (!existing) return false;
+  if (new Date() > existing.expiresAt) {
+    syncLocks.delete(key);
+    return false;
+  }
+  return true;
+}
+
+// ==================== 统一锁接口（v358） ====================
+
+/**
+ * 尝试获取同步锁（v358: 支持分布式锁）
+ */
+export async function acquireSyncLock(accountId: number, syncType: string = 'all'): Promise<string | null> {
+  const lockKey = getLockKey(accountId, syncType);
+  
+  if (currentLockMode === 'memory') {
+    return acquireMemoryLock(accountId, syncType);
+  }
+  
+  // auto或distributed模式：优先尝试分布式锁
+  try {
+    const holderId = `${PROCESS_ID}:${lockKey}`;
+    const acquired = await acquireLock(lockKey, holderId, LOCK_TIMEOUT_MS);
+    
+    if (acquired) {
+      log.info(`[v358] 分布式锁已获取: ${lockKey}`);
+      // 同时在内存中记录（用于快速查询）
+      acquireMemoryLock(accountId, syncType);
+      return holderId;
+    } else {
+      log.info(`[v358] 分布式锁被占用: ${lockKey}`);
+      return null;
+    }
+  } catch (error: any) {
+    if (currentLockMode === 'auto') {
+      // 降级到内存锁
+      log.warn(`[v358] 分布式锁获取失败(${error.message})，降级到内存锁`);
+      return acquireMemoryLock(accountId, syncType);
+    }
+    log.error(`[v358] 分布式锁获取失败: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * 释放同步锁（v358: 支持分布式锁）
+ */
+export async function releaseSyncLock(accountId: number, syncType: string = 'all', lockId?: string): Promise<boolean> {
+  const lockKey = getLockKey(accountId, syncType);
+  
+  // 始终释放内存锁
+  releaseMemoryLock(accountId, syncType, lockId);
+  
+  if (currentLockMode === 'memory') {
+    return true;
+  }
+  
+  // 释放分布式锁
+  try {
+    const holderId = lockId || `${PROCESS_ID}:${lockKey}`;
+    await releaseLock(lockKey, holderId);
+    log.info(`[v358] 分布式锁已释放: ${lockKey}`);
+    return true;
+  } catch (error: any) {
+    log.warn(`[v358] 分布式锁释放失败(${error.message})，内存锁已释放`);
+    return true; // 内存锁已释放，不阻塞
+  }
 }
 
 /**
  * 检查同步锁状态
  */
 export function isSyncLocked(accountId: number, syncType: string = 'all'): boolean {
-  const key = getLockKey(accountId, syncType);
-  const existing = syncLocks.get(key);
-  
-  if (!existing) return false;
-  
-  // 检查是否超时
-  if (new Date() > existing.expiresAt) {
-    syncLocks.delete(key);
-    return false;
-  }
-  
-  return true;
+  // 快速路径：检查内存锁
+  return isMemoryLocked(accountId, syncType);
 }
 
 /**
@@ -152,10 +201,6 @@ export function getActiveSyncLocks(): SyncLock[] {
  * ⚠️ 重要设计原则：
  * 全量同步采用"先删后写"策略，确保数据完全覆盖而非累积。
  * 这样即使一天内多次触发全量同步，数据也不会翻倍。
- * 
- * @param accountId 账号ID
- * @param startDate 开始日期 (YYYY-MM-DD)
- * @param endDate 结束日期 (YYYY-MM-DD)
  */
 export async function clearPerformanceDataForFullSync(
   accountId: number,
@@ -175,7 +220,6 @@ export async function clearPerformanceDataForFullSync(
     return deletedCount;
   } catch (error: any) {
     log.error(`[SyncIdempotency] 清除旧绩效数据失败:`, error);
-    // 清除失败不应阻止同步继续，因为upsert本身也能处理
     return 0;
   }
 }
@@ -183,26 +227,15 @@ export async function clearPerformanceDataForFullSync(
 // ==================== 带锁的同步执行器 ====================
 
 /**
- * 带幂等性保护的同步执行器
- * 
- * 自动处理：
- * 1. 获取同步锁
- * 2. 执行同步函数
- * 3. 释放同步锁
- * 4. 异常时自动释放锁
- * 
- * @param accountId 账号ID
- * @param syncType 同步类型
- * @param syncFn 实际的同步函数
- * @returns 同步结果，或 null（如果锁被占用）
+ * 带幂等性保护的同步执行器（v358: 支持分布式锁）
  */
 export async function executeWithIdempotency<T>(
   accountId: number,
   syncType: string,
   syncFn: () => Promise<T>
 ): Promise<{ success: boolean; result?: T; error?: string; locked?: boolean }> {
-  // 1. 尝试获取锁
-  const lockId = acquireSyncLock(accountId, syncType);
+  // 1. 尝试获取锁（v358: 异步，支持分布式锁）
+  const lockId = await acquireSyncLock(accountId, syncType);
   if (!lockId) {
     return {
       success: false,
@@ -214,13 +247,12 @@ export async function executeWithIdempotency<T>(
   try {
     // 2. 执行同步
     const result = await syncFn();
-    
     return { success: true, result };
   } catch (error: any) {
     log.error(`[SyncIdempotency] 同步执行失败: accountId=${accountId}, syncType=${syncType}`, error);
     return { success: false, error: error.message };
   } finally {
     // 3. 始终释放锁
-    releaseSyncLock(accountId, syncType, lockId);
+    await releaseSyncLock(accountId, syncType, lockId);
   }
 }
