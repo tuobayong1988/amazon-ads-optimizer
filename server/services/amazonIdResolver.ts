@@ -308,8 +308,8 @@ async function resolveKeywordIds(
             log.info(`adGroup=${adGroupLocalId}: 所有关键词校验不通过，跳过创建`);
           }
 
-          // 每次最多创建10个，避免API限制
-          const batchSize = 10;
+          // v360: 增加批量大小到每批次25个，Amazon API实际支持每次最多1000个
+          const batchSize = 25;
           for (let i = 0; i < validatedBatch.length; i += batchSize) {
             const batch = validatedBatch.slice(i, i + batchSize);
             try {
@@ -405,9 +405,9 @@ async function resolveKeywordIds(
               result.keywordsFailed += batch.length;
             }
 
-            // 批次间延迟
-            if (i + batchSize < toCreate.length) {
-              await new Promise(r => setTimeout(r, 1000));
+            // v360: 批次间延迟，配合限流服务
+            if (i + batchSize < validatedBatch.length) {
+              await new Promise(r => setTimeout(r, 500));
             }
           }
         } else {
