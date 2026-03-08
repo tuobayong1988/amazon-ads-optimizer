@@ -118,6 +118,7 @@ const REQUEST_EXPIRY_MS = 30 * 60 * 1000; // 30分钟
 
 /** 确认处理循环间隔（毫秒） */
 const PROCESSING_INTERVAL_MS = 2000;
+const IDLE_INTERVAL_MS = 10000; // v360: 队列为空时使用更长间隔，降低CPU消耗
 
 // ==================== 确认服务主类 ====================
 
@@ -216,13 +217,10 @@ export class CommandConfirmationService {
     if (this.running) return;
     this.running = true;
     
-    this.processingTimer = setInterval(() => {
-      this.processQueue().catch(err => {
-        log.error(`[CommandConfirmation] 处理循环异常: ${(err as Error).message}`);
-      });
-    }, PROCESSING_INTERVAL_MS);
+    // v360: P3-5 智能轮询 - 队列为空时使用更长间隔
+    this.scheduleNextProcessing();
     
-    log.info('[CommandConfirmation] v359: 确认处理循环已启动');
+    log.info('[CommandConfirmation] v360: 确认处理循环已启动（智能轮询模式）');
   }
   
   /**
@@ -231,10 +229,29 @@ export class CommandConfirmationService {
   stop(): void {
     this.running = false;
     if (this.processingTimer) {
-      clearInterval(this.processingTimer);
+      clearTimeout(this.processingTimer);
       this.processingTimer = null;
     }
-    log.info('[CommandConfirmation] v359: 确认处理循环已停止');
+    log.info('[CommandConfirmation] v360: 确认处理循环已停止');
+  }
+  
+  /**
+   * v360: 智能调度下一次处理
+   * 队列有待处理项时使用2秒间隔，空闲时使用10秒间隔
+   */
+  private scheduleNextProcessing(): void {
+    if (!this.running) return;
+    const hasPending = Array.from(this.queue.values()).some(
+      r => r.status === 'waiting' || r.status === 'confirming'
+    );
+    const interval = hasPending ? PROCESSING_INTERVAL_MS : IDLE_INTERVAL_MS;
+    this.processingTimer = setTimeout(() => {
+      this.processQueue().catch(err => {
+        log.error(`[CommandConfirmation] 处理循环异常: ${(err as Error).message}`);
+      }).finally(() => {
+        this.scheduleNextProcessing();
+      });
+    }, interval);
   }
   
   /**
