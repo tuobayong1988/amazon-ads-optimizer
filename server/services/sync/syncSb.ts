@@ -39,16 +39,16 @@ const log = createModuleLogger('syncSb');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncSbCampaigns(...args: any[]): any;
-    syncSbAdGroups(...args: any[]): any;
-    syncSbKeywords(...args: any[]): any;
-    syncSbProductTargets(...args: any[]): any;
-    syncSbSearchTerms(...args: any[]): any;
-    syncSbTargeting(...args: any[]): any;
-    syncSbAds(...args: any[]): any;
-    syncSbNegativeKeywords(...args: any[]): any;
-    syncSbNegativeTargets(...args: any[]): any;
-    syncSbPlacementPerformance(...args: any[]): any;
+    syncSbCampaigns(...args: unknown[]): any;
+    syncSbAdGroups(...args: unknown[]): any;
+    syncSbKeywords(...args: unknown[]): any;
+    syncSbProductTargets(...args: unknown[]): any;
+    syncSbSearchTerms(...args: unknown[]): any;
+    syncSbTargeting(...args: unknown[]): any;
+    syncSbAds(...args: unknown[]): any;
+    syncSbNegativeKeywords(...args: unknown[]): any;
+    syncSbNegativeTargets(...args: unknown[]): any;
+    syncSbPlacementPerformance(...args: unknown[]): any;
   }
 }
 
@@ -209,7 +209,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         const localBudgetSb = parseFloat(existing.dailyBudget || '0');
         if (dailyBudget === 0 && localBudgetSb > 0) {
           log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
-          delete (campaignData as any).dailyBudget;
+          delete (campaignData as Record<string, unknown>[]).dailyBudget;
         }
         await db
           .update(campaigns)
@@ -420,7 +420,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
       let categoryName: string | null = null;
       let categoryRefinements: string | null = null;
-      const refinements: Record<string, any> = {};
+      const refinements: Record<string, unknown> = {};
 
       const exprArray = apiTarget.expression || apiTarget.expressions || [];
       if (Array.isArray(exprArray) && exprArray.length > 0) {
@@ -552,7 +552,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -748,7 +748,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -1055,7 +1055,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
       }
       
       const expression = neg.expression || [];
-      const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+      const asinExpr = expression.find((e: Record<string, unknown>) => e.type?.toLowerCase().includes('asin'));
       const negativeText = asinExpr?.value || JSON.stringify(expression);
       const amazonTargetId = String(neg.targetId || '');
       const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;
@@ -1121,7 +1121,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB广告位绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));

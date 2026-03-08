@@ -41,16 +41,16 @@ const log = createModuleLogger('syncPerformance');
 
 declare module '../../amazonSyncService' {
   interface AmazonSyncService {
-    syncPerformanceData(...args: any[]): any;
-    syncPerformanceDataBatch(...args: any[]): any;
-    processReportData(...args: any[]): any;
-    generateMockPerformanceData(...args: any[]): any;
-    syncKeywordPerformanceData(...args: any[]): any;
-    syncProductTargetPerformanceData(...args: any[]): any;
-    generateHourlyFromDaily(...args: any[]): any;
-    syncAdGroupPerformanceData(...args: any[]): any;
-    syncPlacementPerformance(...args: any[]): any;
-    updateCampaignPerformanceSummary(...args: any[]): any;
+    syncPerformanceData(...args: unknown[]): any;
+    syncPerformanceDataBatch(...args: unknown[]): any;
+    processReportData(...args: unknown[]): any;
+    generateMockPerformanceData(...args: unknown[]): any;
+    syncKeywordPerformanceData(...args: unknown[]): any;
+    syncProductTargetPerformanceData(...args: unknown[]): any;
+    generateHourlyFromDaily(...args: unknown[]): any;
+    syncAdGroupPerformanceData(...args: unknown[]): any;
+    syncPlacementPerformance(...args: unknown[]): any;
+    updateCampaignPerformanceSummary(...args: unknown[]): any;
   }
 }
 
@@ -291,7 +291,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
 /**
  * 处理报告数据并存储到数据库
  */
-AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: any, reportData: any[], adType: string): Promise<number> {
+AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: any, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
     
@@ -651,7 +651,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步关键词绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -740,8 +740,8 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     let matchStats = { byKeywordId: 0, byAdGroupTextMatch: 0, byAdGroupText: 0, byText: 0, byTargetId: 0, byExpression: 0 };
     
     // 批量更新缓冲
-    const kwUpdates: { id: number; data: any }[] = [];
-    const ptUpdates: { id: number; data: any }[] = [];
+    const kwUpdates: { id: number; data: Record<string, unknown> }[] = [];
+    const ptUpdates: { id: number; data: Record<string, unknown> }[] = [];
     
     for (const row of reportData) {
       const reportTargetId = String(row.targetId || row.keywordId || '');
@@ -940,7 +940,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
         AND hp.dt IS NULL
     `);
     
-    const rows = (dailyData as any)?.[0] || dailyData;
+    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
       log.debug('v195: 没有新的daily数据需要生成hourly');
       return 0;
@@ -949,7 +949,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
     
     let insertedCount = 0;
-    let batch: any[] = [];
+    let batch: unknown[] = [];
     
     for (const daily of rows) {
       const dateObj = new Date(daily.date);
@@ -1090,7 +1090,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       const reportTotalDays = Math.min(reportDays, 90);
       const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
       const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);
-      let allData: any[] = [];
+      let allData: unknown[] = [];
       for (let batch = 0; batch < rBatches; batch++) {
         const endDateObj = new Date(rEnd);
         endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
@@ -1298,7 +1298,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SP广告位置绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    let allReportData: any[] = [];
+    let allReportData: unknown[] = [];
     for (let batch = 0; batch < batches; batch++) {
       const endDateObj = new Date(rangeEndDate);
       endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));

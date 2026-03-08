@@ -115,8 +115,8 @@ export async function checkAccountIntegrity(
       ORDER BY DATE(date)
     `);
 
-    const rows = (dailyData as any)?.[0] || dailyData;
-    const dataByDate = new Map<string, any>();
+    const rows = (dailyData as Record<string, unknown>[])?.[0] || dailyData;
+    const dataByDate = new Map<string, unknown>();
     
     if (Array.isArray(rows)) {
       for (const row of rows) {
@@ -215,7 +215,7 @@ export async function checkAccountIntegrity(
       LIMIT 10
     `);
 
-    const dupRows = (duplicateCheck as any)?.[0] || duplicateCheck;
+    const dupRows = (duplicateCheck as Record<string, unknown>[])?.[0] || duplicateCheck;
     if (Array.isArray(dupRows) && dupRows.length > 0) {
       for (const dup of dupRows) {
         const dateStr = dup.report_date instanceof Date
@@ -312,7 +312,7 @@ export async function checkAllAccountsIntegrity(
       WHERE status = 'active' OR status = 'connected'
     `);
 
-    const accountRows = (accounts as any)?.[0] || accounts;
+    const accountRows = (accounts as Record<string, unknown>[])?.[0] || accounts;
     if (!Array.isArray(accountRows)) {
       return { totalAccounts: 0, healthyAccounts: 0, unhealthyAccounts: 0, results };
     }

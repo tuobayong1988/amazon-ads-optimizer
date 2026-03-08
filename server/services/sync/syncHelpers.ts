@@ -38,7 +38,7 @@ export async function hasRecentSyncedOptimization(
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
-    const conditions: any[] = [
+    const conditions: unknown[] = [
       eq(optimizationEvents.eventCategory, category),
       eq(optimizationEvents.apiSyncStatus, 'synced'),
       gte(optimizationEvents.createdAt, cutoff),
@@ -106,7 +106,7 @@ export async function getRecentlyOptimizedKeywordIds(
         );
         const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
         if (fallbackRows && fallbackRows.length > 0) {
-          const fallbackKeywordIds = new Set(fallbackRows.map((r: any) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
+          const fallbackKeywordIds = new Set(fallbackRows.map((r: Record<string, unknown>) => Number(r.kw_id)).filter((id: number) => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
             log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
             for (const id of fallbackKeywordIds) protectedSet.add(id);

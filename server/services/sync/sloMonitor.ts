@@ -113,7 +113,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         FROM sync_tasks_v2
         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
       `);
-      const stats = ((taskStats as any)?.[0] || taskStats)?.[0];
+      const stats = ((taskStats as Record<string, unknown>[])?.[0] || taskStats)?.[0];
       if (stats) {
         metrics.syncSuccessRate.totalTasks = Number(stats.total) || 0;
         metrics.syncSuccessRate.successfulTasks = Number(stats.success) || 0;
@@ -142,7 +142,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         WHERE a.status IN ('active', 'connected')
         GROUP BY a.id
       `);
-      const coverageRows = (coverageStats as any)?.[0] || coverageStats;
+      const coverageRows = (coverageStats as Record<string, unknown>[])?.[0] || coverageStats;
       if (Array.isArray(coverageRows) && coverageRows.length > 0) {
         metrics.dataCoverage.accountCount = coverageRows.length;
         metrics.dataCoverage.healthyAccounts = coverageRows.filter(
@@ -166,7 +166,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         FROM daily_performance
         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
       `);
-      const freshness = ((freshnessResult as any)?.[0] || freshnessResult)?.[0];
+      const freshness = ((freshnessResult as Record<string, unknown>[])?.[0] || freshnessResult)?.[0];
       if (freshness?.latest_sync) {
         const latestTime = new Date(freshness.latest_sync);
         const minutesAgo = Math.round((Date.now() - latestTime.getTime()) / 60000);
@@ -188,9 +188,9 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         AND completed_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
         ORDER BY duration_ms ASC
       `);
-      const latencyRows = (latencyResult as any)?.[0] || latencyResult;
+      const latencyRows = (latencyResult as Record<string, unknown>[])?.[0] || latencyResult;
       if (Array.isArray(latencyRows) && latencyRows.length > 0) {
-        const durations = latencyRows.map((r: any) => Number(r.duration_ms) / 60000); // 转为分钟
+        const durations = latencyRows.map((r: Record<string, unknown>) => Number(r.duration_ms) / 60000); // 转为分钟
         const p50Index = Math.floor(durations.length * 0.5);
         const p95Index = Math.floor(durations.length * 0.95);
         const p99Index = Math.floor(durations.length * 0.99);
@@ -218,7 +218,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
         GROUP BY status
       `);
-      const shardRows = (shardStats as any)?.[0] || shardStats;
+      const shardRows = (shardStats as Record<string, unknown>[])?.[0] || shardStats;
       if (Array.isArray(shardRows)) {
         for (const row of shardRows) {
           const count = Number(row.cnt);
@@ -245,7 +245,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
           SUM(CASE WHEN expires_at <= NOW() THEN 1 ELSE 0 END) as expired_locks
         FROM sync_locks
       `);
-      const lockRow = ((lockStats as any)?.[0] || lockStats)?.[0];
+      const lockRow = ((lockStats as Record<string, unknown>[])?.[0] || lockStats)?.[0];
       if (lockRow) {
         metrics.lockStatus.activeLocks = Number(lockRow.active_locks) || 0;
         metrics.lockStatus.expiredLocks = Number(lockRow.expired_locks) || 0;
@@ -335,7 +335,7 @@ export async function getSLOTrend(days: number = 7): Promise<Array<{
       ORDER BY DATE(created_at)
     `);
 
-    const rows = (trendData as any)?.[0] || trendData;
+    const rows = (trendData as Record<string, unknown>[])?.[0] || trendData;
     if (Array.isArray(rows)) {
       for (const row of rows) {
         const dateStr = row.trend_date instanceof Date
