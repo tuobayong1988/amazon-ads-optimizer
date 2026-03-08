@@ -549,7 +549,7 @@ export async function saveBudgetAllocation(
       predictedSales: rec.predictedMetrics.sales.toString(),
       predictedRoas: rec.predictedMetrics.roas.toString(),
       predictedAcos: rec.predictedMetrics.acos.toString(),
-      allocationReason: rec.allocationReason as any,
+      allocationReason: rec.allocationReason as unknown,
       reasonDetail: rec.reasonDetail,
       priorityScore: rec.priorityScore.toString(),
       status: "pending",
@@ -713,19 +713,19 @@ export async function getBudgetHistory(
   let query = eq(budgetHistory.userId, userId);
 
   if (accountId) {
-    query = and(query, eq(budgetHistory.accountId, accountId)) as any;
+    query = and(query, eq(budgetHistory.accountId, accountId)) as unknown;
   }
 
   if (campaignId) {
-    query = and(query, eq(budgetHistory.campaignId, String(campaignId))) as any;
+    query = and(query, eq(budgetHistory.campaignId, String(campaignId))) as unknown;
   }
 
   if (startDate) {
-    query = and(query, gte(budgetHistory.createdAt, startDate.toISOString())) as any;
+    query = and(query, gte(budgetHistory.createdAt, startDate.toISOString())) as unknown;
   }
 
   if (endDate) {
-    query = and(query, lte(budgetHistory.createdAt, endDate.toISOString())) as any;
+    query = and(query, lte(budgetHistory.createdAt, endDate.toISOString())) as unknown;
   }
 
   const history = await db
@@ -763,7 +763,7 @@ export async function createBudgetGoal(
   const [result] = await db.insert(budgetGoals).values({
     userId,
     accountId: data.accountId,
-    goalType: data.goalType as any,
+    goalType: data.goalType as unknown,
     targetValue: data.targetValue.toString(),
     periodType: (data.periodType as any) || "monthly",
     startDate: data.startDate?.toISOString(),

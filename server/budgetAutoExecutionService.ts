@@ -401,7 +401,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     await db.update(budgetAutoExecutionHistory)
       .set({
         executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        status: finalStatus as any,
+        status: finalStatus as unknown,
         totalCampaigns: summary.totalCampaigns,
         campaignsAdjusted: summary.adjustedCampaigns,
         skippedCampaigns: summary.skippedCampaigns,
@@ -555,14 +555,14 @@ export async function approveExecution(
     // 更新执行状态
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'completed' as any,
+        status: 'completed' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   } else {
     // 拒绝执行
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'cancelled' as any,
+        status: 'cancelled' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   }

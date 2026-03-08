@@ -570,7 +570,7 @@ async function checkProactiveRiskWarning(
               FROM daily_performance 
               WHERE account_id = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
-        ) as any;
+        ) as unknown;
         
         const [prevResult] = await db.execute(
           sql`SELECT 
@@ -580,7 +580,7 @@ async function checkProactiveRiskWarning(
               WHERE account_id = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
                 AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
-        ) as any;
+        ) as unknown;
 
         const recentData = recentResult?.[0] || recentResult;
         const prevData = prevResult?.[0] || prevResult;

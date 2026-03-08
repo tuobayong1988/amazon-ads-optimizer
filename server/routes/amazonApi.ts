@@ -1766,7 +1766,7 @@ export const amazonApiRouter = router({
         const group = await db.getPerformanceGroupById(input.performanceGroupId);
         if (group) {
           config = {
-            optimizationGoal: (group.optimizationGoal || 'maximize_sales') as any,
+            optimizationGoal: (group.optimizationGoal || 'maximize_sales') as unknown,
             targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
             targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
             dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
@@ -2005,7 +2005,7 @@ export const amazonApiRouter = router({
         });
         
         const subscription = await client.createAmsSubscription(
-          input.dataSetId as any,
+          input.dataSetId as unknown,
           sqsQueueArn,
           input.notes
         );

@@ -38,7 +38,7 @@ export async function getAlgorithmEfficacyForTarget(
             AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
           ORDER BY created_at DESC
           LIMIT 500`
-    ) as any;
+    ) as unknown;
     
     let totalOperations = 0;
     let advancedCount = 0;
@@ -102,7 +102,7 @@ export async function getAlgorithmEfficacyForTarget(
             FROM algorithm_effect_records
             WHERE performance_group_id = ${targetId}
               AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
-      ) as any;
+      ) as unknown;
       
       if (effectStats && effectStats[0] && effectStats[0].total > 0) {
         precisePositiveRate = (effectStats[0].positive / effectStats[0].total) * 100;
@@ -127,7 +127,7 @@ export async function getAlgorithmEfficacyForTarget(
             WHERE performance_group_id = ${targetId}
               AND action_type = 'correction'
               AND created_at >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`
-      ) as any;
+      ) as unknown;
       
       if (evoStats && evoStats[0]) {
         evolutionCorrections = Number(evoStats[0].total_corrections) || 0;

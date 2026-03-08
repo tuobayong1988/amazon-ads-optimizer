@@ -366,7 +366,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     })
     .from(auditLogs)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
-    .groupBy(auditLogs.userId, auditLogs.userName) as any;
+    .groupBy(auditLogs.userId, auditLogs.userName) as unknown;
 
   const actionsByUser = userStats.map((stat: Record<string, unknown>) => ({
     userId: stat.userId || 0,

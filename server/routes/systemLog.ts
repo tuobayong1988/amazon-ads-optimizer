@@ -90,7 +90,7 @@ export const systemLogRouter = router({
 
         const [countResult] = await dbInstance.execute(
           `SELECT COUNT(*) as total FROM system_logs ${whereClause}`
-        ) as any;
+        ) as unknown;
 
         return {
           logs: rows || [],

@@ -118,7 +118,7 @@ export class M1KeywordService {
         projectId,
         keyword: kw.keyword,
         searchVolume: kw.searchVolume || 0,
-        relevanceLayer: kw.relevanceLayer as any,
+        relevanceLayer: kw.relevanceLayer as unknown,
         dimensionType: kw.dimensionType,
         scenarioCode: kw.scenarioCode,
         intentTag: kw.intentTag,

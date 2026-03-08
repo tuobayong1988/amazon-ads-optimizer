@@ -405,7 +405,7 @@ export class M7AdFrameworkService {
   // ==================== 辅助方法 ====================
 
   /** 根据关键词属性计算出价 */
-  private calculateBid(kw: any, matchType: string, defaultBid: number): number {
+  private calculateBid(kw: unknown, matchType: string, defaultBid: number): number {
     let multiplier = 1.0;
 
     if (kw.relevanceLayer === 'core') multiplier *= 1.2;
@@ -423,7 +423,7 @@ export class M7AdFrameworkService {
   }
 
   /** 根据竞品属性计算出价 */
-  private calculateCompetitorBid(comp: any, tier: string, defaultBid: number): number {
+  private calculateCompetitorBid(comp: unknown, tier: string, defaultBid: number): number {
     let multiplier = 1.0;
 
     if (tier === 'T1_head') multiplier = 0.8;
@@ -447,7 +447,7 @@ export class M7AdFrameworkService {
   }
 
   /** 执行实际部署（调用Amazon Ads API） */
-  private async executeDeployment(structure: any, profileId: string) {
+  private async executeDeployment(structure: unknown, profileId: string) {
     // TODO: 集成Amazon Ads API v3
     return {
       success: true,

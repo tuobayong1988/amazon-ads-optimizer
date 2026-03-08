@@ -421,7 +421,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
 
 // ==================== 1. 重试失败的出价调整 ====================
 
-async function retryFailedBidAdjustments(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedBidAdjustments(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -549,7 +549,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
 
 // ==================== 2. 检测并纠正出价不一致 ====================
 
-async function correctBidMismatches(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function correctBidMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -796,7 +796,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
 
 // ==================== 3. 重试失败的预算调整 ====================
 
-async function retryFailedBudgetAdjustments(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedBudgetAdjustments(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -916,7 +916,7 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
 
 // ==================== 4. 检测并纠正预算不一致 ====================
 
-async function correctBudgetMismatches(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function correctBudgetMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1043,7 +1043,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
 
 // ==================== 5. 检测并纠正位置倾斜不一致 ====================
 
-async function correctPlacementMismatches(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function correctPlacementMismatches(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1158,7 +1158,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
 
 // ==================== 6. 执行未完成的回滚 ====================
 
-async function executeUnfinishedRollbacks(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function executeUnfinishedRollbacks(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1261,7 +1261,7 @@ async function executeUnfinishedRollbacks(database: any, accountId: number): Pro
 
 // ==================== 7. 重试失败的设置变更 ====================
 
-async function retryFailedSettingsChanges(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedSettingsChanges(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1412,7 +1412,7 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
 
 // ==================== 8. 重试失败/pending的关键词创建 ====================
 
-async function retryFailedKeywordCreations(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedKeywordCreations(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1480,7 +1480,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         if (kw.keywordId) {
           // 已有Amazon ID，直接标记为synced
           await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
-          results.push({ type: 'keyword_create_retry' as any, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
+          results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
           continue;
         }
         
@@ -1541,7 +1541,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         }
         
         results.push({
-          type: 'keyword_create_retry' as any,
+          type: 'keyword_create_retry' as unknown,
           accountId,
           targetId: localKeywordId,
           targetType: 'keyword',
@@ -1552,7 +1552,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
           errorMessage: success ? undefined : syncResult.errors.join('; '),
         });
       } catch (retryError: unknown) {
-        results.push({ type: 'keyword_create_retry' as any, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: (retryError as Error).message });
+        results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: (retryError as Error).message });
       }
     }
   } catch (error: unknown) {
@@ -1564,7 +1564,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
 
 // ==================== 9. 重试失败/pending的否定关键词添加 ====================
 
-async function retryFailedNegativeKeywordAdds(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedNegativeKeywordAdds(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -1656,7 +1656,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           } catch {}
         }
         
-        const nkEntry: any = {
+        const nkEntry: Record<string, unknown> = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
           adGroupId: amazonAdGroupId || undefined,  // v201: 保持字符串避免精度丢失
@@ -1872,7 +1872,7 @@ async function getActiveAccountIds(database: any): Promise<number[]> {
   }
 }
 
-async function logCorrectionEvent(database: any, data: {
+async function logCorrectionEvent(database: unknown, data: {
   accountId: number;
   eventCategory: string;
   actionType: string;
@@ -2049,7 +2049,7 @@ let latestHealthReport: SyncHealthReport | null = null;
  * - critical: 同步率 60-80%, 或失败任务 > 100
  * - emergency: 同步率 < 60%, 或纠错失败率 > 50%
  */
-async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResult): Promise<void> {
+async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanResult): Promise<void> {
   try {
     // 1. v230: 查询最近7天的同步状态统计
     // v230: 排除not_applicable状态，避免将不需要同步的操作计入失真
@@ -2254,7 +2254,7 @@ export function getConfig(): typeof AUTO_CORRECTION_CONFIG {
 
 // ==================== 10. v172: 纠正超出max_bid的关键词出价 ====================
 
-async function correctMaxBidViolations(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function correctMaxBidViolations(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -2396,7 +2396,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
 
 // ==================== 11. v172: 清理缺少Amazon ID的孤儿关键词 ====================
 
-async function cleanupOrphanKeywords(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function cleanupOrphanKeywords(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -2491,7 +2491,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
  * 
  * 每次扫描最多处理 20 个事件，避免 API 限流
  */
-async function retryHistoricalFailedKeywordHarvests(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryHistoricalFailedKeywordHarvests(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   const MAX_PER_RUN = 20; // 每次扫描最多处理的数量
   
@@ -2560,7 +2560,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
                 api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
               WHERE id = ${kw.eventId}
             `).catch(() => {});
-            results.push({ type: 'keyword_create_retry' as any, accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `v311: PT campaign不支持keyword，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'pt_campaign_no_keyword' });
+            results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `v311: PT campaign不支持keyword，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'pt_campaign_no_keyword' });
           }
           continue;
         }
@@ -2936,7 +2936,7 @@ let correctionInterval: ReturnType<typeof setInterval> | null = null;
  */
 // ==================== 14. v196: 回填缺少Amazon ID的否定词 ====================
 
-async function backfillNegativeKeywordIds(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function backfillNegativeKeywordIds(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -3090,7 +3090,7 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
  * 对比new_bid与keywords/product_targets表中的当前bid
  * 如果不一致，说明Amazon可能未正确执行，触发重新同步
  */
-async function verifyBiddingLogsExecution(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function verifyBiddingLogsExecution(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -3270,7 +3270,7 @@ const QUALITY_AUDIT_CONFIG = {
   minDataForAudit: true, // 要求有最低数据量
 };
 
-async function auditAlgorithmDecisionQuality(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function auditAlgorithmDecisionQuality(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -3576,7 +3576,7 @@ export function stopAutoCorrector(): void {
  * 3. 调用 syncKeywordStatusToAmazon 重新同步
  * 4. 更新事件状态
  */
-async function retryFailedTargetStatusChanges(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedTargetStatusChanges(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -3791,7 +3791,7 @@ async function retryFailedTargetStatusChanges(database: any, accountId: number):
  * 3. 调用 syncNewProductTargetsToAmazon 重新创建
  * 4. 更新事件状态和本地 targetId
  */
-async function retryFailedProductTargetCreations(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function retryFailedProductTargetCreations(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -3899,7 +3899,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
         `).catch(() => {});
         
         results.push({
-          type: 'keyword_create_retry' as any, // 复用现有类型
+          type: 'keyword_create_retry' as unknown, // 复用现有类型
           accountId,
           targetId: target.localTargetId,
           targetType: 'product_target',
@@ -3910,7 +3910,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
         });
       } else {
         results.push({
-          type: 'keyword_create_retry' as any,
+          type: 'keyword_create_retry' as unknown,
           accountId,
           targetId: target.localTargetId,
           targetType: 'product_target',
@@ -3941,7 +3941,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
  * 
  * 这确保即使PostDeploy没有触发，日常纠错也能清理过时的pending指令
  */
-async function revalidateStalePendingCommands(database: any, accountId: number): Promise<CorrectionResult[]> {
+async function revalidateStalePendingCommands(database: unknown, accountId: number): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
   
   try {
@@ -4028,7 +4028,7 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
           cancelled++;
           
           results.push({
-            type: 'bid_execution_verify' as any,
+            type: 'bid_execution_verify' as unknown,
             accountId,
             targetId: row.keyword_id || row.target_id,
             targetType: row.keyword_id ? 'keyword' : (row.target_id ? 'product_target' : 'unknown'),

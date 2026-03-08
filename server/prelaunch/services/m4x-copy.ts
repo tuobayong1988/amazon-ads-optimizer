@@ -230,7 +230,7 @@ Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keywor
   }
 
   /** 构建文案生成Prompt */
-  private buildCopyPrompt(copyType: string, context: any): string {
+  private buildCopyPrompt(copyType: string, context: unknown): string {
     const base = `You are an expert Amazon listing copywriter. Use the following data to create optimized copy.
 
 CORE KEYWORDS (must include): ${context.coreKeywords.join(', ')}

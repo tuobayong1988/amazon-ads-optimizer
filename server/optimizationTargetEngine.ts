@@ -415,8 +415,8 @@ export async function executeOptimizationTarget(
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
-  let evolutionReport: any = null;
-  let adaptiveParams: any = null;
+  let evolutionReport: unknown = null;
+  let adaptiveParams: unknown = null;
   try {
     // 运行进化周期：评估效果→学习→自动纠错
     evolutionReport = await selfEvolution.runEvolutionCycle(
@@ -1849,7 +1849,7 @@ async function executePlacementOptimization(
           }
         }
         
-        const adjustment: any = {
+        const adjustment: Record<string, unknown> = {
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
@@ -2127,7 +2127,7 @@ async function executeDaypartingOptimization(
             if (hourlyData.length > 0) {
               // 计算最优出价调整并保存
               const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-                optimizationGoal: config.optimizationGoal as any,
+                optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -2147,7 +2147,7 @@ async function executeDaypartingOptimization(
               
               // 计算最优预算分配并保存
               const budgetAllocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
-                optimizationGoal: config.optimizationGoal as any,
+                optimizationGoal: config.optimizationGoal as unknown,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -2194,7 +2194,7 @@ async function executeDaypartingOptimization(
           const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
           if (hourlyData.length > 0) {
             const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-              optimizationGoal: config.optimizationGoal as any,
+              optimizationGoal: config.optimizationGoal as unknown,
               targetAcos: config.targetAcos,
               targetRoas: config.targetRoas,
             });
@@ -2298,7 +2298,7 @@ async function executeDaypartingOptimization(
         if (comboTimeMultiplier !== 1.0) reasonParts.push(`时段${comboTimeMultiplier.toFixed(3)}x`);
         if (comboCategory !== 'standard') reasonParts.push(`[${comboCategory}]`);
         
-        const adjustment: any = {
+        const adjustment: Record<string, unknown> = {
           accountId: config.accountId,
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
@@ -2463,7 +2463,7 @@ async function executeDaypartingBudgetOptimization(
       const baseBudget = parseFloat((campaign as Record<string, unknown>).originalDailyBudget || campaign.dailyBudget || '0');
       const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
       
-      const adjustment: any = {
+      const adjustment: Record<string, unknown> = {
         accountId: config.accountId,
         localCampaignId: campaignLocalId,
         amazonCampaignId: campaignAmazonId,
@@ -3034,7 +3034,7 @@ async function executeSearchTermAnalysis(
             }
           }
 
-          const negativeKeyword: any = {
+          const negativeKeyword: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -3094,7 +3094,7 @@ async function executeSearchTermAnalysis(
             }
           }
           
-          const negativeProduct: any = {
+          const negativeProduct: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -3243,7 +3243,7 @@ async function executeSearchTermAnalysis(
           const matchType = decision.matchType || 'phrase';
           const bid = decision.suggestedBid || 0.50;
           
-          const newKeyword: any = {
+          const newKeyword: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -3371,7 +3371,7 @@ async function executeSearchTermAnalysis(
           const ptType = decision.productTargetingType || 'exact';
           const bid = decision.suggestedBid || 0.50;
           
-          const newTarget: any = {
+          const newTarget: Record<string, unknown> = {
             accountId: config.accountId,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,
@@ -3684,7 +3684,7 @@ async function executeBudgetAllocation(
         log.debug(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
       }
       
-      const adjustment: any = {
+      const adjustment: Record<string, unknown> = {
         accountId: config.accountId,
         campaignId: suggestion.campaignId, // v354: 本地ID
         amazonCampaignId: suggestion.amazonCampaignId, // v354: Amazon ID
@@ -4795,7 +4795,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
           logCategory: 'optimization_settings',
-          actionType: actionType as any,
+          actionType: actionType as unknown,
           campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(enhancedDetail),  // v357: 使用增强后的detail

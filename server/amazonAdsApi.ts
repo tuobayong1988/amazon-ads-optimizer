@@ -243,7 +243,7 @@ export class AmazonAdsApiClient {
           } catch (refreshErr: unknown) {
             log.error(`[Amazon API] v341: Token重刷新失败: ${(refreshErr as Error).message} (profileId=${profileId})`);
             // Token刷新失败，触发告警并继续抛出原始401错误
-            this._triggerAuthFailureAlert(401, 'TOKEN_EXPIRED', profileId, requestUrl).catch((alertErr: any) => {
+            this._triggerAuthFailureAlert(401, 'TOKEN_EXPIRED', profileId, requestUrl).catch((alertErr: unknown) => {
               log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
             });
             throw error;
@@ -258,7 +258,7 @@ export class AmazonAdsApiClient {
           log.error(`[Amazon API] v333: 认证失败告警! status=${status}, type=${authErrorType}, profileId=${profileId}, URL=${requestUrl}`);
           
           // 异步触发告警（不阻塞主流程）
-          this._triggerAuthFailureAlert(status, authErrorType, profileId, requestUrl).catch((alertErr: any) => {
+          this._triggerAuthFailureAlert(status, authErrorType, profileId, requestUrl).catch((alertErr: unknown) => {
             log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
           });
         }
@@ -779,7 +779,7 @@ export class AmazonAdsApiClient {
    */
   async updateSpCampaign(campaignId: string, updates: Partial<SpCampaign>): Promise<void> {  // v356: 统一ID参数类型为string
     // v125: Amazon SP API v3 要求campaignId为字符串类型，dailyBudget四舍五入到两位小数
-    const formattedUpdates: any = { ...updates };
+    const formattedUpdates: Record<string, unknown> = { ...updates };
     if (formattedUpdates.dailyBudget !== undefined) {
       formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
     }
@@ -3557,7 +3557,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新SB广告活动
    */
-  async updateSbCampaign(campaignId: string, updates: any): Promise<void> {
+  async updateSbCampaign(campaignId: string, updates: unknown): Promise<void> {
     await this.axiosInstance.put('/sb/v4/campaigns', 
       { campaigns: [{ campaignId, ...updates }] },
       {
@@ -3714,7 +3714,7 @@ export class AmazonAdsApiClient {
   /**
    * 更新SD广告活动
    */
-  async updateSdCampaign(campaignId: string, updates: any): Promise<void> {  // v356: 统一ID参数类型为string
+  async updateSdCampaign(campaignId: string, updates: unknown): Promise<void> {  // v356: 统一ID参数类型为string
     await this.axiosInstance.put('/sd/campaigns', [{ campaignId: String(campaignId), ...updates }]);
   }
 

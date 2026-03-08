@@ -586,7 +586,7 @@ export async function ensureDaypartingStrategy(
     // v157: campaignId在schema中是int类型，但数据库中是varchar(64)
     const strategyId = await createDaypartingStrategy({
       accountId,
-      campaignId: Number(campaignId) || 0 as any,
+      campaignId: Number(campaignId) || 0 as unknown,
       name: `自动分时策略 - ${campaignName}`,
       strategyType: 'both',
       daypartingOptGoal: (options.optimizationGoal as any) || 'maximize_sales',

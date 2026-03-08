@@ -295,7 +295,7 @@ export async function verifyToken(token: string): Promise<{
     const secret = process.env.JWT_SECRET;
     if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
-    const decoded = jwt.default.verify(token, secret) as any;
+    const decoded = jwt.default.verify(token, secret) as unknown;
     
     const db = await getDb();
     if (!db) return { valid: false, error: '数据库连接失败' };

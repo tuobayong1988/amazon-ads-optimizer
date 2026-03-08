@@ -1644,7 +1644,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             safeNum(accountResult.stepResults['performance_90d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
-            (total: number, step: any) => total + safeNum(step?.synced), 0
+            (total: number, step: unknown) => total + safeNum(step?.synced), 0
           ),
         } as Record<string, unknown>);
       } catch (insertErr: unknown) {

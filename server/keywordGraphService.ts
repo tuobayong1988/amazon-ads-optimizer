@@ -248,7 +248,7 @@ export async function buildKeywordGraph(accountId: number): Promise<{
           sourceNodeId: e.sourceId,
           targetNodeType: 'search_term' as const,
           targetNodeId: e.targetId,
-          edgeType: e.edgeType as any,
+          edgeType: e.edgeType as unknown,
           edgeWeight: String(e.weight),
           sharedImpressions: e.sharedImpressions,
           sharedClicks: e.sharedClicks,

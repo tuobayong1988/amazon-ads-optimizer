@@ -363,7 +363,7 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
     const { sql } = await import('drizzle-orm');
     const [statusStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
-    ) as any;
+    ) as unknown;
     
     const dist = statusStats || [];
     const synced = Number(dist.find((d: Record<string, unknown>) => d.api_sync_status === 'synced')?.count || 0);

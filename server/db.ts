@@ -127,7 +127,7 @@ export async function getDb() {
         _poolStats.created++;
       });
       
-      _db = drizzle(_pool as any, { casing: 'camelCase' });
+      _db = drizzle(_pool as unknown, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();
       log.info(`[Database] v350: 连接池已建立 (limit=20, idle=10, connectTimeout=15s, keepAlive=10s, queueLimit=50)`);
@@ -1800,7 +1800,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       targetId: bidRecord.targetId || 0,
       targetName: bidRecord.targetName || '',
       targetType: bidRecord.logTargetType as 'keyword' | 'product_target' | 'placement',
-      campaignId: bidRecord.campaignId || 0 as any,
+      campaignId: bidRecord.campaignId || 0 as unknown,
       campaignName: '',
       oldBid,
       newBid,
@@ -3391,7 +3391,7 @@ export async function recordBidAdjustment(data: {
       algorithmVersion: undefined,
       optimizationScore: data.optimizationScore,
       expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : undefined,
-      status: (statusMap[data.status || 'applied'] || 'success') as any,
+      status: (statusMap[data.status || 'applied'] || 'success') as unknown,
       apiSyncStatus: 'synced',
       errorMessage: data.errorMessage,
       sourceTable: 'bid_adjustment_history',
@@ -4530,8 +4530,8 @@ export async function createSyncSchedule(data: {
     .values({
       userId: data.userId,
       accountId: data.accountId,
-      syncType: data.syncType as any,
-      frequency: data.frequency as any,
+      syncType: data.syncType as unknown,
+      frequency: data.frequency as unknown,
       preferredTime: data.preferredTime,
       preferredDayOfWeek: data.preferredDayOfWeek,
       isEnabled: data.isEnabled ? 1 : 0,
@@ -4732,7 +4732,7 @@ export async function createSyncLog(data: {
     .values({
       userId: data.userId,
       accountId: data.accountId,
-      syncType: data.syncType as any,
+      syncType: data.syncType as unknown,
       status: data.status as string,
       recordsSynced: data.recordsSynced,
       startedAt: data.startedAt,
@@ -5216,8 +5216,8 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       accountName: data.accountName,
       userId: data.userId,
       userName: data.userName,
-      eventCategory: resolvedCategory as any,
-      actionType: resolvedActionType as any,
+      eventCategory: resolvedCategory as unknown,
+      actionType: resolvedActionType as unknown,
       strategyTemplateId: data.strategyTemplateId,
       strategyTemplateName: data.strategyTemplateName,
       campaignId: data.campaignId,
@@ -5233,7 +5233,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       changeReason: data.changeReason,
       actionDetail: data.actionDetail,
       status: (data.status as string) || 'success',
-      apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as any,
+      apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as unknown,
       apiSyncDetail: finalApiSyncDetail,
       // v333: 传递apiResponseId和apiSyncedAt到optimization_events表
       apiResponseId: extractedApiResponseId || (data as any).apiResponseId || null,
@@ -5442,7 +5442,7 @@ export async function insertOptimizationEvent(event: InsertOptimizationEvent): P
   // v222: campaignId 安全守卫
   if (event.campaignId != null) {
     const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
-    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as any;
+    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as unknown;
   }
   
   const result = await db.insert(optimizationEvents).values(event);
@@ -5462,7 +5462,7 @@ export async function batchInsertOptimizationEvents(events: InsertOptimizationEv
   const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
   for (const event of events) {
     if (event.campaignId != null) {
-      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as any;
+      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as unknown;
     }
   }
   
@@ -5796,8 +5796,8 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
       accountName: log.accountName,
       userId: log.userId,
       userName: log.userName,
-      eventCategory: mappedCategory as any,
-      actionType: mappedAction as any,
+      eventCategory: mappedCategory as unknown,
+      actionType: mappedAction as unknown,
       strategyTemplateId: log.strategyTemplateId,
       strategyTemplateName: log.strategyTemplateName,
       campaignId: log.campaignId,
@@ -5807,7 +5807,7 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
       changeReason: log.changeReason,
       actionDetail: log.actionDetail,
       status: log.status as string || 'success',
-      apiSyncStatus: log.apiSyncStatus as any,
+      apiSyncStatus: log.apiSyncStatus as unknown,
       apiSyncDetail: log.apiSyncDetail,
       errorMessage: log.errorMessage,
       sourceTable: 'optimization_logs',

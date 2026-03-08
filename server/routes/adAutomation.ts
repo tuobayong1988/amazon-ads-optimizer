@@ -39,7 +39,7 @@ export const adAutomationRouter = router({
     }))
     .query(async ({ input }) => {
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
-      const suggestions = adAutomation.analyzeFunnelMigration(searchTerms as any, {
+      const suggestions = adAutomation.analyzeFunnelMigration(searchTerms as unknown, {
         broadToPhrase: { minConversions: input.broadToPhraseMinConversions, minRoas: 1 },
         phraseToExact: { minConversions: input.phraseToExactMinConversions, minRoas: input.phraseToExactMinRoas },
         bidIncreasePercent: 20,
@@ -73,7 +73,7 @@ export const adAutomationRouter = router({
     }))
     .query(async ({ input }) => {
       const targets = await db.getBidTargets(input.accountId);
-      const suggestions = adAutomation.analyzeBidAdjustments(targets as any, {
+      const suggestions = adAutomation.analyzeBidAdjustments(targets as unknown, {
         rampUpPercent: 5,
         maxBidMultiplier: 3,
         minImpressions: 100,

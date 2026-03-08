@@ -271,7 +271,7 @@ class SDKServer {
         // v345: 移除不安全的默认密钥回退
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
-        const decoded = jwt.default.verify(token, secret) as any;
+        const decoded = jwt.default.verify(token, secret) as unknown;
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
           // v257.1: 添加超时保护，防止数据库查询导致504

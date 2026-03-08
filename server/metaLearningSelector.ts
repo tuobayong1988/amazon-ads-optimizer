@@ -382,7 +382,7 @@ async function executeAlgorithm(
       if (keywordId || targetId) {
         const entityType = keywordId ? 'keyword' : 'target';
         const entityId = keywordId || targetId || 0;
-        const params = await fitAndCacheSigmoidForEntity(accountId, entityType as any, entityId, campaignId || '');
+        const params = await fitAndCacheSigmoidForEntity(accountId, entityType as unknown, entityId, campaignId || '');
         if (params && params.r2 > 0.3) {
           sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
           bid = sigmoid.optimalBid; conf = sigmoid.confidence;
@@ -629,7 +629,7 @@ export async function selectBestAlgorithm(
     keywordId: keywordId || null,
     targetId: targetId || null,
     campaignId: campaignId || null,
-    selectedAlgorithm: selectedAlgorithmName as any,
+    selectedAlgorithm: selectedAlgorithmName as unknown,
     algorithmScores: scores,
     selectionReason: decision.reasoning,
     executedBid: String(recommendedBid),

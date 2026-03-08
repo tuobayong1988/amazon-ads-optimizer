@@ -87,7 +87,7 @@ export async function runV345PerformanceIndexMigration(): Promise<{
       // 检查索引是否已存在
       const [existingIndexes] = await db.execute(
         sql.raw(`SHOW INDEX FROM ${idx.table} WHERE Key_name = '${idx.name}'`)
-      ) as any;
+      ) as unknown;
       
       if (existingIndexes && existingIndexes.length > 0) {
         console.log(`[v345-indexes] ${idx.name} 已存在，跳过`);

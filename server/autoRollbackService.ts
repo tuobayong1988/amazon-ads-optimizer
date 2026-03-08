@@ -337,7 +337,7 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
       );
       if (existingSuggestion) continue;
       
-      const suggestion = evaluateAdjustment(record as any, rule);
+      const suggestion = evaluateAdjustment(record as unknown, rule);
       if (suggestion) {
         newSuggestions.push(suggestion);
         rollbackSuggestions.push(suggestion);

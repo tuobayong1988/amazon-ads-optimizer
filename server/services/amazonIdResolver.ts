@@ -57,7 +57,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
 
   log.info(`========== 开始Pre-Sync ID Resolution: accountId=${accountId} ==========`);
 
-  let directConn: any = null;
+  let directConn: unknown = null;
   try {
     // v350: 使用连接池获取直接连接，替代独立createConnection
     directConn = await db.getDirectConnection(60_000); // 60秒超时，ID解析可能较长

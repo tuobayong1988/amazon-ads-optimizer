@@ -39,7 +39,7 @@ export async function runAutoBidOptimization(
   // v230: 尝试使用NextGen算法
   try {
     const { batchCalculateNextGenBids } = await import('../../nextGenBidOrchestrator');
-    const { buildContextFeatures } = await import('../../contextualFeatureService') as any;
+    const { buildContextFeatures } = await import('../../contextualFeatureService') as unknown;
     
     const batchItems = keywordsToOptimize.map(kw => ({
       keywordId: kw.id,
@@ -58,7 +58,7 @@ export async function runAutoBidOptimization(
     }));
     
     const context = await buildContextFeatures(accountId);
-    const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as any, context);
+    const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as unknown, context);
     
     for (const ngResult of nextGenResults) {
       if ((ngResult as Record<string, unknown>[]).action === 'hold') {

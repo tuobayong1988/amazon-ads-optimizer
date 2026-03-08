@@ -568,7 +568,7 @@ export async function getAllLearningStatuses(accountId?: number): Promise<Learni
   let query = db.select().from(performanceGroups);
   
   if (accountId) {
-    query = query.where(eq(performanceGroups.accountId, accountId)) as any;
+    query = query.where(eq(performanceGroups.accountId, accountId)) as unknown;
   }
   
   const groups = await query;

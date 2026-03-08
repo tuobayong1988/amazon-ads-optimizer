@@ -338,7 +338,7 @@ export const autoCorrectionRouter = router({
     // 2. 获取事件状态统计
     const [statusStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
-    ) as any;
+    ) as unknown;
     
     // 3. 获取按操作类型的统计
     const [actionStats] = await dbInstance.execute(
@@ -346,7 +346,7 @@ export const autoCorrectionRouter = router({
           FROM optimization_events 
           GROUP BY action_type, api_sync_status 
           ORDER BY action_type, api_sync_status`
-    ) as any;
+    ) as unknown;
     
     // 4. 获取最近7天的纠错活动趋势
     const [trendData] = await dbInstance.execute(
@@ -357,7 +357,7 @@ export const autoCorrectionRouter = router({
           WHERE api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
           GROUP BY DATE(api_synced_at)
           ORDER BY date DESC`
-    ) as any;
+    ) as unknown;
     
     // 5. 获取待处理的关键词创建重试统计
     const [harvestRetryStats] = await dbInstance.execute(
@@ -367,7 +367,7 @@ export const autoCorrectionRouter = router({
           WHERE action_type = 'keyword_create' 
             AND api_sync_status = 'not_applicable'
             AND keyword_id IS NULL`
-    ) as any;
+    ) as unknown;
     
     // 6. 获取否定关键词状态统计
     const [negKeywordStats] = await dbInstance.execute(
@@ -375,7 +375,7 @@ export const autoCorrectionRouter = router({
           FROM optimization_events 
           WHERE action_type = 'negative_keyword_add'
           GROUP BY api_sync_status`
-    ) as any;
+    ) as unknown;
     
     // 7. 获取最近的纠错活动日志（最近20条）
     const [recentCorrections] = await dbInstance.execute() as unknown;

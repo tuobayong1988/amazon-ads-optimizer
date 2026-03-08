@@ -364,7 +364,7 @@ async function updateTaskProgress(taskId: string): Promise<void> {
       taskStatus = 'completed';
     }
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       completedShards: completed,
       failedShards: failed,
       totalRecordsSynced: totalSynced,

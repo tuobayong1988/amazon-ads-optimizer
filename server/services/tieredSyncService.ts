@@ -332,7 +332,7 @@ export class TieredSyncService {
     const progress = await this.getTaskProgress(taskId);
     if (!progress) return;
 
-    const metadata: any = {
+    const metadata: Record<string, unknown> = {
       tier: progress.tier,
       reportType: progress.reportType,
       processedRanges: progress.processedRanges,

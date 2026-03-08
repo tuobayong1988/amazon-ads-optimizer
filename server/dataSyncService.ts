@@ -203,7 +203,7 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
  * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
  * 此函数作为轻量级封装，实际同步逻辑在amazonSyncService.ts中
  */
-async function syncCampaigns(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
+async function syncCampaigns(userId: number, accountId: number, account: unknown): Promise<{ success: boolean; count: number; message: string }> {
   try {
     const { AmazonSyncService } = await import('./amazonSyncService');
     // 从账号信息创建SyncService实例
@@ -236,7 +236,7 @@ async function syncCampaigns(userId: number, accountId: number, account: any): P
  * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
  * 关键词同步包含在syncAll流程中，这里执行完整同步并返回关键词数量
  */
-async function syncKeywords(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
+async function syncKeywords(userId: number, accountId: number, account: unknown): Promise<{ success: boolean; count: number; message: string }> {
   try {
     const { AmazonSyncService } = await import('./amazonSyncService');
     const syncService = await AmazonSyncService.createFromCredentials(
@@ -268,7 +268,7 @@ async function syncKeywords(userId: number, accountId: number, account: any): Pr
  * 同步绩效数据
  * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
  */
-async function syncPerformance(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
+async function syncPerformance(userId: number, accountId: number, account: unknown): Promise<{ success: boolean; count: number; message: string }> {
   try {
     const { AmazonSyncService } = await import('./amazonSyncService');
     const syncService = await AmazonSyncService.createFromCredentials(
@@ -358,7 +358,7 @@ export async function recordApiRateLimit(accountId: number, apiType: string, req
   if (!db) return;
   await db.insert(apiRateLimits).values({
     accountId,
-    apiType: apiType as any,
+    apiType: apiType as unknown,
     currentSecondCount: requestCount,
     currentMinuteCount: requestCount,
     currentDayCount: requestCount,

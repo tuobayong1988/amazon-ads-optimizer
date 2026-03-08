@@ -143,7 +143,7 @@ export async function resolveAmazonCampaignId(localCampaignId: number): Promise<
       campaignAmazonToLocal.set(amazonId, localCampaignId);
       return amazonId;
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] resolveAmazonCampaignId(${localCampaignId}) 失败: ${err.message}`);
   }
   return null;
@@ -189,7 +189,7 @@ export async function resolveLocalCampaignId(
       campaignLocalToAmazon.set(campaign.id, amazonIdStr);
       return campaign.id;
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] resolveLocalCampaignId(${amazonIdStr}) 失败: ${err.message}`);
   }
   return null;
@@ -225,7 +225,7 @@ export async function resolveAmazonKeywordId(localKeywordId: number): Promise<st
         return amazonId;
       }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] resolveAmazonKeywordId(${localKeywordId}) 失败: ${err.message}`);
   }
   return null;
@@ -256,7 +256,7 @@ export async function resolveAmazonTargetId(localTargetId: number): Promise<stri
         return amazonId;
       }
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] resolveAmazonTargetId(${localTargetId}) 失败: ${err.message}`);
   }
   return null;
@@ -287,7 +287,7 @@ export async function preloadCampaignIds(accountId: number): Promise<number> {
 
     log.debug(`[IdResolver] 预热Campaign ID缓存: accountId=${accountId}, 加载${campaigns.length}条`);
     return campaigns.length;
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] preloadCampaignIds 失败: ${err.message}`);
     return 0;
   }
@@ -325,7 +325,7 @@ export async function preloadKeywordIds(amazonCampaignId: string): Promise<numbe
 
     log.debug(`[IdResolver] 预热Keyword ID缓存: campaign=${amazonCampaignId}, 加载${loaded}条`);
     return loaded;
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[IdResolver] preloadKeywordIds 失败: ${err.message}`);
     return 0;
   }

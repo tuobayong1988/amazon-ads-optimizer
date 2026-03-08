@@ -46,7 +46,7 @@ function isAlreadyExistsError(err: Error): boolean {
 /**
  * 安全执行DDL语句，自动处理"已存在"错误
  */
-async function safeDDL(database: any, ddlSql: any, tableName: string, results: string[]): Promise<boolean> {
+async function safeDDL(database: unknown, ddlSql: unknown, tableName: string, results: string[]): Promise<boolean> {
   try {
     await database.execute(ddlSql);
     results.push(`${tableName}: 已就绪`);

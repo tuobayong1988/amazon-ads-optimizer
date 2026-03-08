@@ -406,7 +406,7 @@ export async function checkSpendLimit(
       configId: config.id,
       userId,
       accountId,
-      alertType: alertType as any,
+      alertType: alertType as unknown,
       alertLevel,
       currentSpend: currentSpend.toString(),
       dailyLimit: dailyLimit.toString(),
@@ -687,7 +687,7 @@ export async function checkAnomalyRules(
 /**
  * 发送异常告警通知
  */
-async function sendAnomalyAlert(rule: any, value: number, operationType: string): Promise<void> {
+async function sendAnomalyAlert(rule: unknown, value: number, operationType: string): Promise<void> {
   const actionEmojis: Record<string, string> = {
     'alert_only': '⚠️',
     'pause_and_alert': '⏸️',

@@ -950,7 +950,7 @@ export async function backfillBidPerformanceResults(): Promise<{ updated: number
     
     for (const record of staleRecords) {
       try {
-        let perfData: any = null;
+        let perfData: unknown = null;
         
         if (record.bidObjectType === 'keyword') {
           const [kw] = await db.select({

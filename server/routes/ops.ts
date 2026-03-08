@@ -881,7 +881,7 @@ router.get('/sync-diagnosis', async (req: Request, res: Response) => {
 function parseOpsQuery(req: Request): OpsQuery {
   return {
     category: req.query.category as OpsCategory | undefined,
-    level: req.query.level as any,
+    level: req.query.level as unknown,
     module: req.query.module as string | undefined,
     keyword: req.query.keyword as string || req.query.search as string || undefined,
     since: req.query.since as string | undefined,

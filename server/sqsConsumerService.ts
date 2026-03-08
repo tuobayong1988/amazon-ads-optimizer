@@ -474,7 +474,7 @@ export class SQSConsumerService {
   /**
    * 处理单条消息
    */
-  private async processMessage(queue: SQSQueueConfig, message: any): Promise<void> {
+  private async processMessage(queue: SQSQueueConfig, message: unknown): Promise<void> {
     if (!message.Body) {
       log.warn('[SQS Consumer] 消息体为空');
       return;

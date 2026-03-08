@@ -1509,7 +1509,7 @@ export const placementRouter = router({
       
       // 生成报告
       const report = generateMarginalBenefitReport(
-        marginalBenefits as any,
+        marginalBenefits as unknown,
         allocationResult
       );
       

@@ -81,7 +81,7 @@ async function setupMockData() {
         reward: String(Math.random() * 5 - 1), // Random reward between -1 and 4
         rewardFilledAt: new Date().toISOString(),
         createdAt: new Date(Date.now() - (60 - i) * 86400000).toISOString(),
-    })) as any);
+    })) as unknown);
 
     log.info("Mock data setup complete.");
 }

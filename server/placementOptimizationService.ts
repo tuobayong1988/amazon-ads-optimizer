@@ -1090,9 +1090,9 @@ export async function analyzePlacementPerformance(
     campaignId,
     placements: performance,
     analysis: {
-      bestPerforming: performance.reduce((best: any, p: Record<string, unknown>) => 
+      bestPerforming: performance.reduce((best: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || 0) > (best?.metrics?.roas || 0) ? p : best, performance[0]),
-      worstPerforming: performance.reduce((worst: any, p: Record<string, unknown>) => 
+      worstPerforming: performance.reduce((worst: unknown, p: Record<string, unknown>) => 
         (p.metrics?.roas || Infinity) < (worst?.metrics?.roas || Infinity) ? p : worst, performance[0]),
       reliableDataCount: performance.filter(p => p.isReliable).length,
       totalPlacements: performance.length
@@ -1191,7 +1191,7 @@ export async function getPlacementAdjustmentEffectAnalysis(
   if (!db) throw new Error('Database connection failed');
   
   // 获取调整记录
-  let adjustmentRecord: any = null;
+  let adjustmentRecord: unknown = null;
   
   if (adjustmentId) {
     const records = await db.select()
