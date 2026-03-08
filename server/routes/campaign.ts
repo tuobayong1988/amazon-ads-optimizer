@@ -15,7 +15,7 @@ const log = createModuleLogger('Route_campaign');
 
 // ==================== Campaign Router ====================
 export const campaignRouter = router({
-  list: publicProcedure
+  list: protectedProcedure
     .input(z.object({ 
       accountId: z.number().optional(),
       startDate: z.string().optional(),
@@ -57,7 +57,7 @@ export const campaignRouter = router({
     }),
 
   // 获取未分配到绩效组的广告活动
-  listUnassigned: publicProcedure
+  listUnassigned: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
     .query(async ({ input }) => {
       return db.getUnassignedCampaigns(input.accountId);

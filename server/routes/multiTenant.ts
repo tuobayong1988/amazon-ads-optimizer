@@ -13,7 +13,7 @@ export const multiTenantRouter = router({
   /**
    * 获取当前组织信息
    */
-  getOrganization: publicProcedure
+  getOrganization: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -29,7 +29,7 @@ export const multiTenantRouter = router({
   /**
    * 获取使用统计
    */
-  getUsageStats: publicProcedure
+  getUsageStats: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -79,7 +79,7 @@ export const multiTenantRouter = router({
   /**
    * 获取组织成员列表
    */
-  getMembers: publicProcedure
+  getMembers: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -95,7 +95,7 @@ export const multiTenantRouter = router({
   /**
    * 邀请新成员
    */
-  inviteMember: publicProcedure
+  inviteMember: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -143,7 +143,7 @@ export const multiTenantRouter = router({
   /**
    * 更新成员角色
    */
-  updateMemberRole: publicProcedure
+  updateMemberRole: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -171,7 +171,7 @@ export const multiTenantRouter = router({
   /**
    * 移除成员
    */
-  removeMember: publicProcedure
+  removeMember: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -206,7 +206,7 @@ export const multiTenantRouter = router({
   /**
    * 更新订阅计划
    */
-  updateSubscription: publicProcedure
+  updateSubscription: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -247,7 +247,7 @@ export const multiTenantRouter = router({
   /**
    * 获取计费历史
    */
-  getBillingHistory: publicProcedure
+  getBillingHistory: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -268,7 +268,7 @@ export const multiTenantRouter = router({
   /**
    * 获取API密钥
    */
-  getApiKeys: publicProcedure
+  getApiKeys: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -284,7 +284,7 @@ export const multiTenantRouter = router({
   /**
    * 创建API密钥
    */
-  createApiKey: publicProcedure
+  createApiKey: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });
@@ -325,7 +325,7 @@ export const multiTenantRouter = router({
   /**
    * 撤销API密钥
    */
-  revokeApiKey: publicProcedure
+  revokeApiKey: protectedProcedure
     .use(async ({ ctx, next }) => {
       const tenantCtx = await withTenant()(ctx);
       return next({ ctx: tenantCtx });

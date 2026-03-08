@@ -92,7 +92,7 @@ async function checkDatabase() {
 }
 
 export const devRouter = router({
-  verifySync: publicProcedure
+  verifySync: protectedProcedure
     .query(async () => {
       const sqsResults = await checkSqsQueues();
       const dbResults = await checkDatabase();

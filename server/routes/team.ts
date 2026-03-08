@@ -435,7 +435,7 @@ export const inviteCodeRouter = router({
     }),
 
   // 验证邀请码（公开接口）
-  validate: publicProcedure
+  validate: protectedProcedure
     .input(z.object({ code: z.string() }))
     .query(async ({ input }) => {
       const { validateInviteCode } = await import('../inviteCodeService');

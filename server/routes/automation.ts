@@ -12,7 +12,7 @@ import * as autoOperationService from '../autoOperationService';
 // ==================== Automation Execution Router ====================
 export const automationRouter = router({
   // 获取账号自动化配置
-  getConfig: publicProcedure
+  getConfig: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return automationExecutionEngine.getAccountAutomationConfig(input.accountId);
