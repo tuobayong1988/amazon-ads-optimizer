@@ -196,7 +196,7 @@ function getWeights(strategyTemplateId: string | null): WeightConfig {
         }
       }
     }
-  } catch (_e) {
+  } catch (_e) { // v362: 解析错误不影响进度计算
     // weightAutoTuningService不可用时降级到静态权重
   }
   return baseWeights;

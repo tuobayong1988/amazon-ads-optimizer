@@ -1168,6 +1168,11 @@ async function updateLocalBid(conn: DbInstance, entityType: string, entityId: nu
 
 // @ts-ignore
 async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: number, newStatus: string) {
+  // v362: SQL注入防护 - 白名单验证表名
+  const ALLOWED_TABLES = ['keywords', 'product_targets', 'campaigns', 'ad_groups'];
+  if (!ALLOWED_TABLES.includes(tableName)) {
+    throw new Error(`[updateLocalStatus] 非法表名: ${tableName}`);
+  }
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
   await conn.execute(`UPDATE ${tableName} SET status = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);

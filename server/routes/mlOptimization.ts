@@ -51,7 +51,6 @@ export const mlOptimizationRouter = router({
   /**
    * 获取出价推荐
    */
-  // @ts-ignore
   getBidRecommendation: protectedProcedure
     .input(
       z.object({
@@ -125,7 +124,6 @@ export const mlOptimizationRouter = router({
   /**
    * 批量获取多个广告活动的出价推荐
    */
-  // @ts-ignore
   getBatchBidRecommendations: protectedProcedure
     .input(
       z.object({
@@ -206,7 +204,6 @@ export const mlOptimizationRouter = router({
   /**
    * 预算分配优化
    */
-  // @ts-ignore
   optimizeBudgetAllocation: protectedProcedure
     .input(
       z.object({
@@ -286,7 +283,6 @@ export const mlOptimizationRouter = router({
   /**
    * 模型性能评估
    */
-  // @ts-ignore
   evaluateModel: protectedProcedure
     .input(
       z.object({
