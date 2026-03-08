@@ -1616,6 +1616,20 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     }
   }
 
+  // 4f. v361: 核心表索引迁移
+  if (parseFloat(lastVersion) < 361.0) {
+    try {
+      const { runV361CoreTableIndexes } = await import('./migrations/v361_core_table_indexes');
+      const database = await getDb();
+      if (database) {
+        await runV361CoreTableIndexes(database);
+        log.info(`[PostDeployOptimizer] v361: 核心表索引创建完成`);
+      }
+    } catch (migrationErr: unknown) {
+      log.error(`[PostDeployOptimizer] v361: 核心表索引创建失败: ${(migrationErr as Error).message}`);
+    }
+  }
+
   // 5. 获取所有活跃优化目标（恢复后重新获取）
   const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
   const targets = await getEnabledOptimizationTargets();
