@@ -441,7 +441,7 @@ export default function AuditLogs() {
                                 <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
                                   <User className="w-3 h-3 text-primary" />
                                 </div>
-                                <span className="text-sm">{log.userName || "未知用户"}</span>
+                                <span className="text-sm">{log.userName || (log.userId === 0 ? "系统自动优化" : "未知用户")}</span>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -629,7 +629,7 @@ export default function AuditLogs() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">操作用户</label>
-                    <p className="mt-1">{selectedLog.userName || "未知用户"}</p>
+                    <p className="mt-1">{selectedLog.userName || (selectedLog.userId === 0 ? "系统自动优化" : "未知用户")}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">操作类型</label>

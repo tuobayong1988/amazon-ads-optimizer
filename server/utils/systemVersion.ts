@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 374;  // v374: 动态并发控制反馈回路修复、分批轮转同步、Leader选举保护优化调度器、API限流联动、多租户隔离增强
+export const SYSTEM_VERSION = 375;  // v375: 审计日志完善(修复未知用户显示、新增否定词/收割/位置倾斜/分时审计日志)

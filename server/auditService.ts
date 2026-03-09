@@ -375,7 +375,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
   // @ts-ignore
   const actionsByUser = userStats.map((stat: Record<string, any>) => ({
     userId: stat.userId || 0,
-    userName: stat.userName || "未知用户",
+    userName: stat.userName || (stat.userId === 0 || !stat.userId ? '系统自动优化' : '未知用户'), // v375: 修复系统自动操作显示为"未知用户"的问题
     count: stat.count,
   }));
 

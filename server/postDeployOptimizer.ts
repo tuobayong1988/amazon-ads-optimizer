@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 375,
+    description: 'v375: [审计日志完善与操作可追溯性增强] — (1)P2-修复审计日志显示"未知用户":系统自动操作(userId=0)现在正确显示为"系统自动优化",同时修复后端统计查询和前端显示的fallback逻辑 (2)P2-新增否定关键词/否定ASIN审计日志:优化同步引擎执行否定词操作后记录完整审计跟踪 (3)P2-新增搜索词收割审计日志:新关键词添加操作可完整追溯 (4)P2-新增位置倾斜/分时调整审计日志:所有优化操作类型均有完整审计记录',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands'],
+  },
+  {
     version: 374,
     description: 'v374: [架构级缺陷修复] — (1)P0-动态并发控制反馈回路修复:recordThrottleEvent/recordSuccessEvent在amazonAdsApi响应拦截器中正式连接,实现真正的动态并发调整 (2)P0-分批轮转同步:full同步间隔6h+每周期最多25账号,high最多30账号,medium最多50账号,解决500租户API调用量超限 (3)P0-Leader选举保护优化调度器:startOptimizationScheduler移至onBecomeLeader回调,确保单实例执行 (4)P1-API限流联动并发控制:apiRateLimitService.recordExternalThrottle联动syncPriorityScheduler.recordThrottleEvent (5)P1-多租户隔离增强:getCampaignsByPerformanceGroupId增加accountId二次验证',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

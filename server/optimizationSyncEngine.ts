@@ -284,9 +284,16 @@ export async function executeBatchSync(options?: {
         const statusTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'campaign_status' || t.task_type === 'keyword_status');
         const budgetTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'budget_adjustment');
         
+        // v375: 为所有操作类型添加审计日志，并修复userName显示"未知用户"问题
+        const negKeywordTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'negative_keyword');
+        const newKeywordTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'new_keyword');
+        const placementTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'placement_adjustment');
+        const daypartingTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'dayparting_adjustment');
+        
         if (bidTasks.length > 0) {
           await logAudit({
-            userId: 0, // 系统自动操作
+            userId: 0,
+            userName: '系统自动优化', // v375: 修复审计日志显示"未知用户"问题
             actionType: 'bid_adjust_batch',
             targetType: 'keyword',
             targetId: String(accountId),
@@ -297,6 +304,7 @@ export async function executeBatchSync(options?: {
         if (statusTasks.length > 0) {
           await logAudit({
             userId: 0,
+            userName: '系统自动优化',
             actionType: 'campaign_update',
             targetType: 'campaign',
             targetId: String(accountId),
@@ -307,10 +315,59 @@ export async function executeBatchSync(options?: {
         if (budgetTasks.length > 0) {
           await logAudit({
             userId: 0,
+            userName: '系统自动优化',
             actionType: 'campaign_update',
             targetType: 'campaign',
             targetId: String(accountId),
             description: `自动优化: 批量调整 ${budgetTasks.length} 个广告活动预算`,
+            accountId,
+          });
+        }
+        // v375: 新增否定关键词审计日志
+        if (negKeywordTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            userName: '系统自动优化',
+            actionType: 'campaign_update',
+            targetType: 'keyword',
+            targetId: String(accountId),
+            description: `自动优化: 批量添加 ${negKeywordTasks.length} 个否定关键词`,
+            accountId,
+          });
+        }
+        // v375: 新增搜索词收割审计日志
+        if (newKeywordTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            userName: '系统自动优化',
+            actionType: 'campaign_update',
+            targetType: 'keyword',
+            targetId: String(accountId),
+            description: `自动优化: 搜索词收割 - 新增 ${newKeywordTasks.length} 个投放关键词`,
+            accountId,
+          });
+        }
+        // v375: 新增位置倾斜审计日志
+        if (placementTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            userName: '系统自动优化',
+            actionType: 'campaign_update',
+            targetType: 'campaign',
+            targetId: String(accountId),
+            description: `自动优化: 调整 ${placementTasks.length} 个广告活动位置倾斜`,
+            accountId,
+          });
+        }
+        // v375: 新增分时调整审计日志
+        if (daypartingTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            userName: '系统自动优化',
+            actionType: 'campaign_update',
+            targetType: 'campaign',
+            targetId: String(accountId),
+            description: `自动优化: 分时调整 ${daypartingTasks.length} 个广告活动`,
             accountId,
           });
         }
