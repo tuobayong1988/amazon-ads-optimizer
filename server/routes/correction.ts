@@ -330,7 +330,7 @@ export const autoCorrectionRouter = router({
     
     // 获取当前用户的所有账户ID
     const userAccounts = await dbInstance.execute(
-      sql`SELECT id FROM ad_accounts WHERE user_id = ${ctx.user.id}`
+      sql`SELECT id FROM ad_accounts WHERE userId = ${ctx.user.id}`
     ) as any;
     const accountIds = (userAccounts?.[0] || []).map((a: any) => a.id);
     

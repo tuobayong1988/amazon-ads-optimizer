@@ -1444,6 +1444,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
         (e.includes('已有') && e.includes('在运行')) ||
         e.includes('层同步在运行') ||
         e.includes('层正在运行') ||
+        e.includes('层跳过') ||
         e.includes('层跟过') ||
         e.includes('智能跳过') ||
         e.includes('等下一轮')
@@ -1636,11 +1637,17 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
         (e.includes('已有') && e.includes('在运行')) ||
         e.includes('层同步在运行') ||
         e.includes('层正在运行') ||
+        e.includes('层跳过') ||
         e.includes('层跟过') ||
         e.includes('智能跳过') ||
         e.includes('等下一轮')
       )) {
         continue; // v248: 跳过层冲突导致的跳过，不记录为failed
+      }
+
+      // v370: 跳过totalSteps为0的空同步记录（避免0/0步骤的无效记录）
+      if (accountResult.totalSteps === 0 && Object.keys(accountResult.stepResults).length === 0) {
+        continue;
       }
 
       try {
