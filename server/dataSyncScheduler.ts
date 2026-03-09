@@ -22,6 +22,12 @@ import * as nextGenOrchestrator from './nextGenBidOrchestrator';
 import { createModuleLogger } from './utils/logger';
 import { AsyncMutex, withMutex } from './utils/asyncMutex';
 import { logSync, logSyncWarn, logSyncError, logSystem, logOptimization, logOptimizationError } from './utils/opsLogger';
+import {
+  acquireAccountOptimizationLock as _lmAcquireLock,
+  releaseAccountOptimizationLock as _lmReleaseLock,
+  acquireAccountOptimizationLockWithRetry as _lmAcquireLockWithRetry,
+  getModuleLockGroup as _lmGetModuleLockGroup,
+} from './utils/lockManager';
 
 const log = createModuleLogger('Scheduler');
 
@@ -520,7 +526,8 @@ async function processQueue(): Promise<void> {
   isProcessingQueue = true;
 
   // v215优化: 账户级并行同步，同一账户内串行
-  const MAX_CONCURRENT_ACCOUNTS = 3;
+  // v366: 从环境变量读取并发数，默认10，支持动态调整
+  const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '10', 10);
   const accountGroups = new Map<number, QueuedRequest[]>();
   
   // 按账户分组
@@ -625,7 +632,9 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     default:
       // 完整同步：覆盖式全量同步，确保数据与亚马逊后台一致
       // 包含所有层级：广告活动、广告组、关键词、定位、否定词、搜索词、广告位、素材URL、绩效数据
-      result = await syncService.syncAll();
+      // v366: 同步天数从14天扩展到90天，充分利用Amazon API支持的最大范围
+      const performanceDays = parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10);
+      result = await syncService.syncAll({ performanceDays });
       break;
   }
 
@@ -1295,90 +1304,14 @@ const executionLocks: Record<string, boolean> = {};
 // v122: 上次执行时间记录 - 防止同一小时内重复执行
 const lastExecutionHour: Record<string, string> = {};
 
-// v181: 账户+模块级优化锁 - 不同模块的优化可以并行执行，只阻塞相同模块的并发
-// 锁key格式: `${accountId}:${moduleGroup}` 例如 "90023:bid" "90023:dayparting"
-const accountModuleLocks: Record<string, { locked: boolean; lockedBy: string; lockedAt: Date | null }> = {};
-
-// v181: 模块分组映射 - 将specificModules映射到锁分组
-// 同一分组内的模块共享锁，不同分组之间不互相阻塞
-export function getModuleLockGroup(specificModules?: string[]): string {
-  if (!specificModules || specificModules.length === 0) return 'all';
-  // 按模块类型分组
-  if (specificModules.includes('bid') || specificModules.includes('keyword')) return 'bid';
-  if (specificModules.includes('dayparting') || specificModules.includes('multidim')) return 'dayparting';
-  if (specificModules.includes('dayparting_budget')) return 'dayparting_budget';
-  if (specificModules.includes('placement')) return 'placement';
-  if (specificModules.includes('searchterm')) return 'searchterm';
-  if (specificModules.includes('budget')) return 'budget';
-  return 'all';
-}
-
 /**
- * v181: 获取账户+模块级别的优化锁
- * 不同模块类型的优化可以并行执行，只阻塞相同模块的并发操作
- * @param accountId 账户ID
- * @param lockedBy 锁持有者标识
- * @param moduleGroup 模块分组（可选，默认为'all'）
+ * v366: 锁函数统一委托给 lockManager.ts，消除重复实现
+ * 保留export以兼容可能的外部引用
  */
-export function acquireAccountOptimizationLock(accountId: number, lockedBy: string, moduleGroup?: string): boolean {
-  const group = moduleGroup || 'all';
-  const lockKey = `${accountId}:${group}`;
-  
-  if (!accountModuleLocks[lockKey]) {
-    accountModuleLocks[lockKey] = { locked: false, lockedBy: '', lockedAt: null };
-  }
-  const lock = accountModuleLocks[lockKey];
-  
-  // 检查是否已锁定
-  if (lock.locked) {
-    // v181: 防止死锁 - 如果锁定超过5分钟，强制释放（从30分钟缩短到5分钟）
-    if (lock.lockedAt && (Date.now() - lock.lockedAt.getTime()) > 5 * 60 * 1000) {
-      log.warn(`[v181-Lock] ${lockKey} 优化锁超时5分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
-    } else {
-      log.info(`[v181-Lock] ${lockKey} 优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
-      return false;
-    }
-  }
-  
-  lock.locked = true;
-  lock.lockedBy = lockedBy;
-  lock.lockedAt = new Date();
-  return true;
-}
-
-/**
- * v181: 释放账户+模块级别的优化锁
- */
-export function releaseAccountOptimizationLock(accountId: number, moduleGroup?: string): void {
-  const group = moduleGroup || 'all';
-  const lockKey = `${accountId}:${group}`;
-  if (accountModuleLocks[lockKey]) {
-    accountModuleLocks[lockKey].locked = false;
-    accountModuleLocks[lockKey].lockedBy = '';
-    accountModuleLocks[lockKey].lockedAt = null;
-  }
-}
-
-/**
- * v181: 带重试的锁获取 - 获取失败时等待后重试
- */
-export async function acquireAccountOptimizationLockWithRetry(
-  accountId: number, lockedBy: string, moduleGroup?: string, maxRetries: number = 3, retryDelayMs: number = 10000
-): Promise<boolean> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup)) {
-      if (attempt > 0) {
-        log.debug(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 第${attempt + 1}次尝试获取锁成功 (${lockedBy})`);
-      }
-      return true;
-    }
-    if (attempt < maxRetries) {
-      log.debug(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 锁被占用，${retryDelayMs / 1000}秒后重试 (${attempt + 1}/${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
-    }
-  }
-  return false;
-}
+export const getModuleLockGroup = _lmGetModuleLockGroup;
+export const acquireAccountOptimizationLock = _lmAcquireLock;
+export const releaseAccountOptimizationLock = _lmReleaseLock;
+export const acquireAccountOptimizationLockWithRetry = _lmAcquireLockWithRetry;
 
 // v143: 每个优化目标的每个模块的上次执行时间
 // key: `${targetId}:${moduleName}`  value: Date

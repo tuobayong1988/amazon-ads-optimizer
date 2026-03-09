@@ -213,33 +213,38 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
             }
           }
 
-          // ★ 步骤3b (v342新增): 批量更新共享旧refresh_token的其他账户
-          // 如果有成功更新的账户，查找其他使用旧refresh_token的账户并一起更新
+          // ★ 步骤3b (v365修复): 按sellerId精确匹配同一卖家的其他站点
+          // 只更新与已授权profile属于同一卖家(sellerId)的其他站点，不再跨卖家覆盖
           if (updatedAccountIds.length > 0) {
             try {
-              const firstUpdatedCreds = await db.getAmazonApiCredentials(updatedAccountIds[0]);
-              if (firstUpdatedCreds) {
-                // 查找所有账户的凭证，找到使用不同（旧）refresh_token但属于同一组的账户
-                for (const account of (allAccounts as any[])) {
-                  if (updatedAccountIds.includes(account.id)) continue; // 跳过已更新的
-                  
-                  const creds = await db.getAmazonApiCredentials(account.id);
-                  if (!creds) continue;
-                  
-                  // 如果这个账户的clientId与当前授权的clientId相同，说明属于同一个应用
-                  // 且其refreshToken不是新的，则更新为新的refreshToken
-                  if (creds.clientId === clientId && creds.refreshToken !== newRefreshToken) {
-                    await db.updateAmazonApiCredentials(account.id, {
-                      refreshToken: newRefreshToken,
-                    });
-                    updatedAccountIds.push(account.id);
-                    credentialsSaved++;
-                    log.info(`[AmazonAuthCallback] v342: 批量更新共享Token账户 ${account.id} (${account.marketplace}) 的refresh_token`);
-                  }
+              // 收集本次授权涉及的所有sellerIds
+              const authorizedSellerIds = new Set<string>();
+              for (const accountId of updatedAccountIds) {
+                const account = allAccounts.find(a => a.id === accountId);
+                if (account?.sellerId) {
+                  authorizedSellerIds.add(account.sellerId);
                 }
               }
+              
+              log.info(`[AmazonAuthCallback] v365: 本次授权涉及的sellerIds: [${[...authorizedSellerIds].join(',')}]`);
+              
+              // 只更新属于同一卖家(sellerId)但尚未更新的其他站点
+              for (const account of (allAccounts as any[])) {
+                if (updatedAccountIds.includes(account.id)) continue; // 跳过已更新的
+                if (!account.sellerId || !authorizedSellerIds.has(account.sellerId)) continue; // 跳过不同卖家
+                
+                const creds = await db.getAmazonApiCredentials(account.id);
+                if (!creds) continue;
+                
+                await db.updateAmazonApiCredentials(account.id, {
+                  refreshToken: newRefreshToken,
+                });
+                updatedAccountIds.push(account.id);
+                credentialsSaved++;
+                log.info(`[AmazonAuthCallback] v365: 更新同卖家(${account.sellerId})站点 ${account.id} (${account.marketplace}) 的refresh_token`);
+              }
             } catch (batchUpdateError: unknown) {
-              log.error(`[AmazonAuthCallback] v342: 批量更新共享Token失败:`, (batchUpdateError as Error).message);
+              log.error(`[AmazonAuthCallback] v365: 同卖家站点批量更新失败:`, (batchUpdateError as Error).message);
             }
           }
 

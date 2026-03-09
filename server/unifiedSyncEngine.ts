@@ -924,8 +924,8 @@ const engineStatus: EngineStatus = {
   discoveredAccounts: 0,
 };
 
-// v352: 并发控制 - 从3降为2，降低API并发压力
-const MAX_CONCURRENT_ACCOUNTS = 2;
+// v366: 并发控制 - 从环境变量读取，默认10，支持动态调整
+const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '10', 10);
 const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date }>();
 
 // 导出速率控制器供外部使用

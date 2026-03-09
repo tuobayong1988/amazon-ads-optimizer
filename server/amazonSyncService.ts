@@ -501,7 +501,8 @@ export class AmazonSyncService {
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
     
     // ==================== Layer 5: 绩效数据（4个并行） ====================
-    const performanceDays = options?.performanceDays || 14;
+    // v366: 默认同步天数从14天扩展到90天，充分利用Amazon API支持的最大范围
+    const performanceDays = options?.performanceDays || parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10);
     log.info(`[syncAll] v359: Layer 5 - 绩效数据同步 (4个并行, ${performanceDays}天)`);
     const [perfResult, _kwPerfResult, _ptPerfResult, _agPerfResult] = await Promise.allSettled([
       // @ts-ignore
@@ -706,7 +707,7 @@ export class AmazonSyncService {
    * 同步搜索词数据
    * 使用Report API v3获取客户搜索词和绩效数据
    */
-  async syncSearchTerms(days: number = 14): Promise<number> {
+  async syncSearchTerms(days: number = 90): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
 
@@ -927,7 +928,7 @@ export class AmazonSyncService {
    * 同步SP自动定向数据
    * 获取自动广告的匹配组数据（紧密匹配、宽泛匹配、同类商品、关联商品）
    */
-  async syncAutoTargeting(days: number = 14): Promise<number> {
+  async syncAutoTargeting(days: number = 90): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
     try {
@@ -1065,7 +1066,7 @@ export class AmazonSyncService {
    * 完整同步所有广告数据
    * 包括广告活动、广告组、投放词、搜索词、位置绩效
    */
-  async syncAllAdData(days: number = 14): Promise<{
+  async syncAllAdData(days: number = 90): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -1188,7 +1189,7 @@ export class AmazonSyncService {
    * 
    * 重要：默认14天归因回溯，确保数据与亚马逊后台一致
    */
-  async syncPerformanceOnly(days: number = 14): Promise<{
+  async syncPerformanceOnly(days: number = 90): Promise<{
     performance: number;
     keywordPerf: number;
     targetPerf: number;
