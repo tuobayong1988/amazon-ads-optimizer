@@ -1,21 +1,18 @@
 /**
- * v359: 增强型分端点API限流服务
+ * v368: 增强型分端点API限流服务
  * 
- * 解决评估报告中指出的问题:
- * 1. 单例内存限流器无法跨实例共享 → 预留分布式接口(RateLimitStore)
- * 2. 限流配置"一刀切"未区分API端点 → 按端点类型区分TPS配置
- * 3. 缺少限流指标监控 → 内置指标收集和告警
+ * 基于v359版本优化:
+ * 1. 429自适应退避改为per-account级别，不再影响全局配置
+ * 2. 退避恢复策略从线性(+1)改为指数恢复（更快恢复到正常TPS）
+ * 3. 增加全局TPS上限（跨账户），防止多账户并发超过Amazon应用级限额
+ * 4. 增强限流日志，记录账户维度的限流统计
  * 
  * Amazon Advertising API 限流规则:
  * - 列表/查询端点 (list): ~10 TPS
  * - 批量更新端点 (mutate): ~5 TPS  
  * - 报告请求端点 (report): ~1 TPS
  * - 快照请求端点 (snapshot): ~1 TPS
- * 
- * 架构:
- * - RateLimitStore: 存储抽象层 (当前内存实现，未来可替换为Redis)
- * - TokenBucket: 令牌桶算法核心
- * - ApiRateLimitService: 面向业务的限流服务
+ * - 应用级全局限额: 所有账户共享，约为单账户的3-5倍
  */
 
 import { createModuleLogger } from '../utils/logger';
@@ -189,10 +186,68 @@ const DEFAULT_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
   },
 };
 
+/**
+ * v368: 应用级全局TPS上限配置
+ * 所有账户共享的全局限额，防止多账户并发超过Amazon应用级限制
+ * 通常为单账户限额的3-5倍
+ */
+const GLOBAL_ENDPOINT_CONFIGS: Record<ApiEndpointType, EndpointRateConfig> = {
+  list: {
+    maxRequestsPerSecond: 30,
+    maxRequestsPerMinute: 1500,
+    burstCapacity: 50,
+    refillRatePerSecond: 30,
+  },
+  mutate: {
+    maxRequestsPerSecond: 15,
+    maxRequestsPerMinute: 750,
+    burstCapacity: 25,
+    refillRatePerSecond: 15,
+  },
+  report: {
+    maxRequestsPerSecond: 5,
+    maxRequestsPerMinute: 150,
+    burstCapacity: 10,
+    refillRatePerSecond: 5,
+  },
+  snapshot: {
+    maxRequestsPerSecond: 3,
+    maxRequestsPerMinute: 60,
+    burstCapacity: 5,
+    refillRatePerSecond: 3,
+  },
+  default: {
+    maxRequestsPerSecond: 20,
+    maxRequestsPerMinute: 800,
+    burstCapacity: 30,
+    refillRatePerSecond: 20,
+  },
+};
+
+// ==================== Per-Account 退避状态 ====================
+
+/**
+ * v368: Per-account退避状态
+ * 429退避不再修改全局配置，而是维护每个账户独立的退避系数
+ */
+interface AccountThrottleState {
+  /** 当前退避系数 (0-1, 1=正常, 0.3=最低) */
+  backoffFactor: number;
+  /** 连续429次数 */
+  consecutive429Count: number;
+  /** 上次429时间 */
+  lastThrottleTime: number;
+  /** 恢复定时器 */
+  recoveryTimer: ReturnType<typeof setTimeout> | null;
+}
+
+const accountThrottleStates = new Map<string, AccountThrottleState>();
+
 // ==================== 限流服务主类 ====================
 
 export class ApiRateLimitService {
   private store: RateLimitStore;
+  private globalStore: RateLimitStore;
   private configs: Record<ApiEndpointType, EndpointRateConfig>;
   private metrics = new Map<string, RateLimitMetrics>();
   
@@ -204,6 +259,7 @@ export class ApiRateLimitService {
     configs?: Partial<Record<ApiEndpointType, Partial<EndpointRateConfig>>>
   ) {
     this.store = store || new InMemoryRateLimitStore();
+    this.globalStore = new InMemoryRateLimitStore(); // v368: 全局限流独立存储
     
     // 合并自定义配置和默认配置
     this.configs = { ...DEFAULT_ENDPOINT_CONFIGS };
@@ -218,54 +274,104 @@ export class ApiRateLimitService {
       }
     }
     
-    log.info(`[ApiRateLimitService] v359: 初始化完成, 端点配置: ${JSON.stringify(
+    log.info(`[ApiRateLimitService] v368: 初始化完成, 端点配置: ${
       Object.entries(this.configs).map(([k, v]) => `${k}=${v.maxRequestsPerSecond}TPS`).join(', ')
-    )}`);
+    }, 全局限额: ${
+      Object.entries(GLOBAL_ENDPOINT_CONFIGS).map(([k, v]) => `${k}=${v.maxRequestsPerSecond}TPS`).join(', ')
+    }`);
+  }
+  
+  /**
+   * v368: 获取账户的有效限流配置（考虑退避系数）
+   */
+  private getEffectiveConfig(accountId: number, endpointType: ApiEndpointType): EndpointRateConfig {
+    const baseConfig = this.configs[endpointType] || this.configs.default;
+    const stateKey = `${accountId}:${endpointType}`;
+    const state = accountThrottleStates.get(stateKey);
+    
+    if (!state || state.backoffFactor >= 1.0) {
+      return baseConfig;
+    }
+    
+    // 应用退避系数
+    return {
+      maxRequestsPerSecond: Math.max(1, Math.floor(baseConfig.maxRequestsPerSecond * state.backoffFactor)),
+      maxRequestsPerMinute: Math.max(10, Math.floor(baseConfig.maxRequestsPerMinute * state.backoffFactor)),
+      burstCapacity: Math.max(1, Math.floor(baseConfig.burstCapacity * state.backoffFactor)),
+      refillRatePerSecond: Math.max(0.5, baseConfig.refillRatePerSecond * state.backoffFactor),
+    };
   }
   
   /**
    * 请求限流检查 - 核心方法
    * 在发起API调用前调用此方法，获取限流决策
    * 
-   * @param accountId 广告账户ID
-   * @param endpointType API端点类型
-   * @param autoWait 是否自动等待（true则阻塞直到获得令牌，false则立即返回决策）
-   * @returns 限流决策
+   * v368: 增加全局限流层，先检查全局限额再检查per-account限额
    */
   async acquirePermit(
     accountId: number,
     endpointType: ApiEndpointType = 'default',
     autoWait: boolean = true
   ): Promise<RateLimitDecision> {
-    const config = this.configs[endpointType] || this.configs.default;
+    const effectiveConfig = this.getEffectiveConfig(accountId, endpointType);
+    const globalConfig = GLOBAL_ENDPOINT_CONFIGS[endpointType] || GLOBAL_ENDPOINT_CONFIGS.default;
+    
     const bucketKey = `ratelimit:${accountId}:${endpointType}`;
     const minuteCounterKey = `ratelimit:minute:${accountId}:${endpointType}`;
+    const globalBucketKey = `ratelimit:global:${endpointType}`;
+    const globalMinuteKey = `ratelimit:global:minute:${endpointType}`;
     
-    // v360: 将递归重试改为迭代重试，防止死亡螺旋
     const MAX_ACQUIRE_RETRIES = 3;
     let acquireAttempt = 0;
     
     while (acquireAttempt < MAX_ACQUIRE_RETRIES) {
-      // 检查每分钟限额
+      // v368: 先检查全局限额
+      const globalMinuteCount = await this.globalStore.getCounter(globalMinuteKey);
+      if (globalMinuteCount >= globalConfig.maxRequestsPerMinute) {
+        const waitMs = 10000; // 全局限额满时等待10秒
+        this.recordThrottle(accountId, endpointType, waitMs);
+        
+        if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
+          acquireAttempt++;
+          log.warn(`[RateLimit] v368: 全局${endpointType}端点每分钟限额已满(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), 等待10s (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+          await this.delay(waitMs);
+          continue;
+        }
+        return { allowed: false, waitMs, remainingTokens: 0, retryAfterMs: waitMs };
+      }
+      
+      // 检查per-account每分钟限额
       const minuteCount = await this.store.getCounter(minuteCounterKey);
-      if (minuteCount >= config.maxRequestsPerMinute) {
+      if (minuteCount >= effectiveConfig.maxRequestsPerMinute) {
         const waitMs = 60000;
         this.recordThrottle(accountId, endpointType, waitMs);
         
         if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
           acquireAttempt++;
-          log.warn(`[RateLimit] 账户${accountId} ${endpointType}端点每分钟限额已满(${minuteCount}/${config.maxRequestsPerMinute}), 等待${Math.min(waitMs, 10000)}ms (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+          log.warn(`[RateLimit] 账户${accountId} ${endpointType}端点每分钟限额已满(${minuteCount}/${effectiveConfig.maxRequestsPerMinute}), 等待${Math.min(waitMs, 10000)}ms (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
           await this.delay(Math.min(waitMs, 10000));
-          continue; // v360: 迭代重试替代递归
+          continue;
         }
         
         return { allowed: false, waitMs, remainingTokens: 0, retryAfterMs: waitMs };
       }
-      break; // 限额未满，继续执行令牌桶检查
+      break;
     }
     
-    // 令牌桶检查
-    const { remaining, waitMs } = await this.store.consumeToken(bucketKey, config);
+    // v368: 全局令牌桶检查
+    const globalResult = await this.globalStore.consumeToken(globalBucketKey, globalConfig);
+    if (globalResult.waitMs > 0) {
+      if (autoWait) {
+        log.debug(`[RateLimit] v368: 全局${endpointType}端点令牌不足, 等待${globalResult.waitMs}ms`);
+        await this.delay(globalResult.waitMs);
+        await this.globalStore.consumeToken(globalBucketKey, globalConfig);
+      } else {
+        return { allowed: false, waitMs: globalResult.waitMs, remainingTokens: 0, retryAfterMs: globalResult.waitMs };
+      }
+    }
+    
+    // Per-account令牌桶检查
+    const { remaining, waitMs } = await this.store.consumeToken(bucketKey, effectiveConfig);
     
     if (waitMs > 0) {
       this.recordThrottle(accountId, endpointType, waitMs);
@@ -274,8 +380,9 @@ export class ApiRateLimitService {
         log.debug(`[RateLimit] 账户${accountId} ${endpointType}端点令牌不足, 等待${waitMs}ms`);
         await this.delay(waitMs);
         // 等待后重新消费令牌
-        const retryResult = await this.store.consumeToken(bucketKey, config);
+        const retryResult = await this.store.consumeToken(bucketKey, effectiveConfig);
         await this.store.incrementCounter(minuteCounterKey, 60000);
+        await this.globalStore.incrementCounter(`ratelimit:global:minute:${endpointType}`, 60000);
         this.recordAccepted(accountId, endpointType, waitMs);
         return { allowed: true, waitMs, remainingTokens: retryResult.remaining };
       }
@@ -285,18 +392,13 @@ export class ApiRateLimitService {
     
     // 令牌充足，记录请求
     await this.store.incrementCounter(minuteCounterKey, 60000);
+    await this.globalStore.incrementCounter(`ratelimit:global:minute:${endpointType}`, 60000);
     this.recordAccepted(accountId, endpointType, 0);
     return { allowed: true, waitMs: 0, remainingTokens: remaining };
   }
   
   /**
    * 批量请求限流 - 用于批量API调用前预检
-   * 预先检查是否有足够的配额执行N个请求
-   * 
-   * @param accountId 广告账户ID
-   * @param endpointType API端点类型
-   * @param requestCount 预计请求数量
-   * @returns 建议的批次大小和间隔
    */
   async planBatchRequests(
     accountId: number,
@@ -307,19 +409,15 @@ export class ApiRateLimitService {
     batchIntervalMs: number;
     estimatedTotalTimeMs: number;
   }> {
-    const config = this.configs[endpointType] || this.configs.default;
+    const config = this.getEffectiveConfig(accountId, endpointType);
     
-    // 根据TPS计算推荐的批次大小
     const recommendedBatchSize = Math.min(
       requestCount,
       config.burstCapacity,
-      config.maxRequestsPerSecond * 2 // 允许2秒的突发
+      config.maxRequestsPerSecond * 2
     );
     
-    // 批次间隔 = 批次大小 / TPS * 1000ms + 安全余量
     const batchIntervalMs = Math.ceil((recommendedBatchSize / config.refillRatePerSecond) * 1000) + 500;
-    
-    // 预计总时间
     const totalBatches = Math.ceil(requestCount / recommendedBatchSize);
     const estimatedTotalTimeMs = totalBatches * batchIntervalMs;
     
@@ -329,29 +427,74 @@ export class ApiRateLimitService {
   }
   
   /**
-   * 记录外部429限流事件
-   * 当Amazon API返回429时调用，触发自适应降速
+   * v368: 记录外部429限流事件 - Per-account退避
+   * 当Amazon API返回429时调用，触发该账户的自适应降速
+   * 不再修改全局配置，只影响触发429的特定账户
    */
   recordExternalThrottle(accountId: number, endpointType: ApiEndpointType): void {
-    const config = this.configs[endpointType];
-    if (config) {
-      // 临时降低该端点的TPS（自适应退避）
-      const originalTps = DEFAULT_ENDPOINT_CONFIGS[endpointType].maxRequestsPerSecond;
-      config.maxRequestsPerSecond = Math.max(1, Math.floor(config.maxRequestsPerSecond * 0.7));
-      config.refillRatePerSecond = config.maxRequestsPerSecond;
-      
-      log.warn(`[RateLimit] v359: 外部429限流! 账户${accountId} ${endpointType}端点TPS降低: ${originalTps} -> ${config.maxRequestsPerSecond}`);
-      
-      // 60秒后尝试恢复
-      setTimeout(() => {
-        config.maxRequestsPerSecond = Math.min(
-          config.maxRequestsPerSecond + 1,
-          DEFAULT_ENDPOINT_CONFIGS[endpointType].maxRequestsPerSecond
-        );
-        config.refillRatePerSecond = config.maxRequestsPerSecond;
-        log.info(`[RateLimit] v359: ${endpointType}端点TPS恢复: -> ${config.maxRequestsPerSecond}`);
-      }, 60000);
+    const stateKey = `${accountId}:${endpointType}`;
+    let state = accountThrottleStates.get(stateKey);
+    
+    if (!state) {
+      state = {
+        backoffFactor: 1.0,
+        consecutive429Count: 0,
+        lastThrottleTime: Date.now(),
+        recoveryTimer: null,
+      };
+      accountThrottleStates.set(stateKey, state);
     }
+    
+    // 清除之前的恢复定时器
+    if (state.recoveryTimer) {
+      clearTimeout(state.recoveryTimer);
+      state.recoveryTimer = null;
+    }
+    
+    // 递增连续429计数
+    state.consecutive429Count++;
+    state.lastThrottleTime = Date.now();
+    
+    // 指数退避：每次429将退避系数乘以0.6，最低0.3（即最低降到原始TPS的30%）
+    const previousFactor = state.backoffFactor;
+    state.backoffFactor = Math.max(0.3, state.backoffFactor * 0.6);
+    
+    const baseConfig = this.configs[endpointType] || this.configs.default;
+    const effectiveTps = Math.max(1, Math.floor(baseConfig.maxRequestsPerSecond * state.backoffFactor));
+    
+    log.warn(`[RateLimit] v368: 外部429限流! 账户${accountId} ${endpointType}端点 ` +
+      `退避系数: ${previousFactor.toFixed(2)} -> ${state.backoffFactor.toFixed(2)}, ` +
+      `有效TPS: ${effectiveTps}, 连续429: ${state.consecutive429Count}次`);
+    
+    // v368: 指数恢复 - 30秒后开始恢复，每30秒恢复一次
+    // 恢复速度：backoffFactor = min(1.0, current * 1.5)
+    const scheduleRecovery = () => {
+      const recoveryIntervalMs = 30000; // 30秒恢复间隔
+      state!.recoveryTimer = setTimeout(() => {
+        if (!state) return;
+        
+        const previousRecoveryFactor = state.backoffFactor;
+        state.backoffFactor = Math.min(1.0, state.backoffFactor * 1.5);
+        state.consecutive429Count = Math.max(0, state.consecutive429Count - 1);
+        
+        const recoveredTps = Math.max(1, Math.floor(baseConfig.maxRequestsPerSecond * state.backoffFactor));
+        log.info(`[RateLimit] v368: 账户${accountId} ${endpointType}端点TPS恢复: ` +
+          `退避系数 ${previousRecoveryFactor.toFixed(2)} -> ${state.backoffFactor.toFixed(2)}, ` +
+          `有效TPS: ${recoveredTps}`);
+        
+        if (state.backoffFactor < 1.0) {
+          // 还未完全恢复，继续调度恢复
+          scheduleRecovery();
+        } else {
+          // 完全恢复
+          state.consecutive429Count = 0;
+          state.recoveryTimer = null;
+          log.info(`[RateLimit] v368: 账户${accountId} ${endpointType}端点已完全恢复到正常TPS`);
+        }
+      }, recoveryIntervalMs);
+    };
+    
+    scheduleRecovery();
     
     if (this.onThrottleCallback) {
       this.onThrottleCallback(accountId, endpointType, 0);
@@ -388,6 +531,15 @@ export class ApiRateLimitService {
   }
   
   /**
+   * v368: 获取账户退避状态
+   */
+  getAccountThrottleState(accountId: number, endpointType: ApiEndpointType): { backoffFactor: number; consecutive429Count: number } | null {
+    const state = accountThrottleStates.get(`${accountId}:${endpointType}`);
+    if (!state) return null;
+    return { backoffFactor: state.backoffFactor, consecutive429Count: state.consecutive429Count };
+  }
+  
+  /**
    * 获取当前限流配置
    */
   getConfigs(): Record<ApiEndpointType, EndpointRateConfig> {
@@ -400,7 +552,7 @@ export class ApiRateLimitService {
   updateConfig(endpointType: ApiEndpointType, config: Partial<EndpointRateConfig>): void {
     if (this.configs[endpointType]) {
       this.configs[endpointType] = { ...this.configs[endpointType], ...config };
-      log.info(`[RateLimit] v359: 更新${endpointType}端点配置: ${JSON.stringify(config)}`);
+      log.info(`[RateLimit] v368: 更新${endpointType}端点配置: ${JSON.stringify(config)}`);
     }
   }
   
@@ -476,7 +628,7 @@ export function getApiRateLimitService(): ApiRateLimitService {
     // 设置限流告警回调
     globalRateLimitService.onThrottle((accountId, endpointType, waitMs) => {
       if (waitMs > 5000) {
-        log.error(`[ALERT] v359: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
+        log.error(`[ALERT] v368: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
       }
     });
   }

@@ -103,7 +103,7 @@ function MarketingPage() {
       title: "三层分频数据同步",
       description: "采用高频(15分钟)、中频(30分钟)、低频(1小时)三层分频策略，实时同步Amazon Ads API数据，确保广告活动状态、竞价和绩效数据始终保持最新。",
       icon: Search,
-      details: ["SP/SB/SD全类型覆盖", "多站点多账户聚合", "60天历史数据回溯"]
+      details: ["SP/SB/SD全类型覆盖", "多站点多账户聚合", "90天历史数据回溯"]
     },
     {
       step: 2,
@@ -1197,7 +1197,7 @@ function DashboardContent() {
                           </div>
                         )}
                         
-                        {cardId === 'system-health' && healthMetrics?.success && healthMetrics.metrics && (
+                        {cardId === 'system-health' && (
                           <Card className="h-full flex flex-col">
                             <CardHeader className="pb-2">
                               <div className="flex items-center justify-between">
@@ -1214,6 +1214,13 @@ function DashboardContent() {
                               </div>
                             </CardHeader>
                             <CardContent className="flex-1">
+                              {!(healthMetrics?.success && healthMetrics?.metrics) ? (
+                                <div className="flex flex-col items-center justify-center py-8">
+                                  <Shield className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                                  <p className="text-sm text-muted-foreground">暂无健康监控数据</p>
+                                  <p className="text-xs text-muted-foreground mt-1">系统将在优化执行后生成健康指标</p>
+                                </div>
+                              ) : (
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {/* 回滚率 */}
                                 <div className={`p-4 rounded-lg border ${
@@ -1365,6 +1372,7 @@ function DashboardContent() {
                                     </div>
                                   </div>
                                 </div>
+                              )}
                               )}
                             </CardContent>
                           </Card>

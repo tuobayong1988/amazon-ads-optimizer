@@ -343,14 +343,14 @@ export async function executeOptimizationTarget(
   
   // v181: 获取账户+模块级优化锁，不同模块类型可以并行执行
   const moduleLockGroup = getModuleLockGroup(specificModules);
-  if (!dryRun && !acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`, moduleLockGroup)) {
+  if (!dryRun && !(await acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`, moduleLockGroup))) {
     throw new Error(`账户 ${config.accountId} 模块组 ${moduleLockGroup} 优化锁已被占用，跳过本次执行`);
   }
   const shouldReleaseLock = !dryRun;
   
   // v185: 检查系统是否正在关闭，避免在关闭过程中启动新的优化任务
   if (isShuttingDown() && !forceExecution) {
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
     throw new Error(`系统正在关闭，跳过优化目标 ${config.name} 的执行`);
   }
   
@@ -468,7 +468,7 @@ export async function executeOptimizationTarget(
   const allCampaigns = await db.getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
     result.warnings.push('优化目标下没有广告活动');
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
     unregisterActiveTask(activeTaskId); // v185
     return result;
   }
@@ -505,7 +505,7 @@ export async function executeOptimizationTarget(
       }
     }
     
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
     unregisterActiveTask(activeTaskId); // v185
     return result;
   }
@@ -1099,7 +1099,7 @@ export async function executeOptimizationTarget(
   }
   
   // v181: 释放账户+模块级优化锁
-  if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+  if (shouldReleaseLock) await releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
   
   // v185: 注销活跃任务
   unregisterActiveTask(activeTaskId);
