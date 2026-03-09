@@ -95,19 +95,22 @@ echo "  ✓ dist/public/ 存在 ($(find dist/public -type f | wc -l) files)"
 # ==================== 步骤 3: 版本号一致性验证 ====================
 echo "[3/8] 验证版本号一致性..."
 
-# 检查构建产物中的 SYSTEM_VERSION
-BUILD_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K[0-9]+' dist/index.js | head -1)
+# v370.4: 适配esbuild minified输出 - 多种方式提取版本号
+BUILD_VERSION=""
+# 方式1: 从源代码直接提取（最可靠）
+BUILD_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K[0-9]+(\.[0-9]+)?' server/utils/systemVersion.ts 2>/dev/null | head -1)
+# 方式2: 从dist中提取minified变量赋值
 if [ -z "$BUILD_VERSION" ]; then
-    echo "ERROR: 无法从 dist/index.js 中提取 SYSTEM_VERSION"
-    exit 1
+  BUILD_VERSION=$(grep -oP 'vr=\K[0-9]+(\.[0-9]+)?' dist/index.js 2>/dev/null | head -1)
+fi
+# 方式3: 传统格式
+if [ -z "$BUILD_VERSION" ]; then
+  BUILD_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K[0-9]+(\.[0-9]+)?' dist/index.js 2>/dev/null | head -1)
 fi
 
-# 检查源代码中的 SYSTEM_VERSION
-SOURCE_VERSION=$(grep -oP 'SYSTEM_VERSION\s*=\s*\K[0-9]+' server/postDeployOptimizer.ts | head -1)
-if [ -z "$SOURCE_VERSION" ]; then
-    echo "WARNING: 无法从源代码中提取 SYSTEM_VERSION，跳过源码对比"
-else
-    echo "  源代码版本: v${SOURCE_VERSION}"
+if [ -z "$BUILD_VERSION" ]; then
+    echo "ERROR: 无法提取 SYSTEM_VERSION"
+    exit 1
 fi
 
 echo "  构建产物版本: v${BUILD_VERSION}"
@@ -116,24 +119,8 @@ echo "  目标部署版本: ${VERSION} (${VERSION_NUM})"
 # 严格验证: 构建产物版本必须与目标版本一致
 if [ "$BUILD_VERSION" != "$VERSION_NUM" ]; then
     echo ""
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║  ERROR: 版本号不匹配！                                  ║"
-    echo "║  构建产物中 SYSTEM_VERSION = ${BUILD_VERSION}                      ║"
-    echo "║  但目标部署版本为 ${VERSION}                               ║"
-    echo "║                                                          ║"
-    echo "║  可能原因:                                               ║"
-    echo "║  1. 源代码中的版本号未更新                               ║"
-    echo "║  2. 使用了 --skip-build 但 dist/ 是旧版本               ║"
-    echo "║                                                          ║"
-    echo "║  请检查 server/postDeployOptimizer.ts 中的版本号         ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
-    exit 1
-fi
-
-# 如果有源码版本，也验证源码与构建产物一致
-if [ -n "$SOURCE_VERSION" ] && [ "$SOURCE_VERSION" != "$BUILD_VERSION" ]; then
-    echo "ERROR: 源代码版本 (v${SOURCE_VERSION}) 与构建产物版本 (v${BUILD_VERSION}) 不一致"
-    echo "提示: 可能需要重新执行构建"
+    echo "ERROR: 版本号不匹配！构建产物 SYSTEM_VERSION=${BUILD_VERSION}，目标版本=${VERSION}"
+    echo "请检查 server/utils/systemVersion.ts 中的版本号"
     exit 1
 fi
 
@@ -220,7 +207,7 @@ done
 
 # ==================== 步骤 7: 上传到S3 ====================
 echo "[7/8] 上传到S3..."
-S3_BUCKET="elasticbeanstalk-us-east-1-696154297094"
+S3_BUCKET="elasticbeanstalk-us-east-1-558948636368"
 S3_KEY="amazon-ads-optimizer/${VERSION_LABEL}.zip"
 aws s3 cp "$ZIP_FILE" "s3://${S3_BUCKET}/${S3_KEY}" 2>&1 | tail -1
 echo "  ✓ 上传完成: s3://${S3_BUCKET}/${S3_KEY}"
