@@ -168,10 +168,19 @@ export async function getAllCampaigns() {
   return db.select().from(campaigns);
 }
 
-export async function getCampaignsByPerformanceGroupId(performanceGroupId: number) {
+export async function getCampaignsByPerformanceGroupId(performanceGroupId: number, expectedAccountId?: number) {
   const db = await getDb();
   if (!db) return [];
   
+  // v374: 多租户数据隔离增强 - 如果提供了accountId，同时验证广告活动属于该账户
+  if (expectedAccountId) {
+    return db.select().from(campaigns).where(
+      and(
+        eq(campaigns.performanceGroupId, performanceGroupId),
+        eq(campaigns.accountId, expectedAccountId)
+      )
+    );
+  }
   return db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
 }
 

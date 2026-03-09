@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 373;  // v373: 500租户规模承载力优化 - 同步优先级调度、动态并发控制、指令执行可靠性增强、自愈状态修复、前端体验优化
+export const SYSTEM_VERSION = 374;  // v374: 动态并发控制反馈回路修复、分批轮转同步、Leader选举保护优化调度器、API限流联动、多租户隔离增强

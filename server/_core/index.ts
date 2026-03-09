@@ -282,9 +282,10 @@ async function startServer() {
     startDataSyncScheduler(60 * 60 * 1000);
     log.info('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
     
-    // v143: 启动生命周期感知的智能优化调度器
-    startOptimizationScheduler();
-    log.info('[OptimizationScheduler] v143生命周期感知智能优化调度器已启动');
+    // v374: 优化调度器不再在此处直接启动，而是由Leader选举机制控制
+    // 原因: 多实例环境下，每个实例都会启动优化调度器，导致重复优化和API调用量翻倍
+    // startOptimizationScheduler() 已移至 dataSyncScheduler.ts 的 onBecomeLeader 回调中
+    log.info('[OptimizationScheduler] v374: 优化调度器将由Leader选举机制控制启动，确保单实例执行');
     
     // v142: 禁用optimizationScheduler的daily全量执行，避免与dataSyncScheduler重复
     log.info('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');

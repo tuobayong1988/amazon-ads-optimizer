@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 374,
+    description: 'v374: [架构级缺陷修复] — (1)P0-动态并发控制反馈回路修复:recordThrottleEvent/recordSuccessEvent在amazonAdsApi响应拦截器中正式连接,实现真正的动态并发调整 (2)P0-分批轮转同步:full同步间隔6h+每周期最多25账号,high最多30账号,medium最多50账号,解决500租户API调用量超限 (3)P0-Leader选举保护优化调度器:startOptimizationScheduler移至onBecomeLeader回调,确保单实例执行 (4)P1-API限流联动并发控制:apiRateLimitService.recordExternalThrottle联动syncPriorityScheduler.recordThrottleEvent (5)P1-多租户隔离增强:getCampaignsByPerformanceGroupId增加accountId二次验证',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 373,
     description: 'v373: [500租户规模承载力优化] — (1)P1-同步优先级调度:引入租户活跃度评分和滚动窗口模式,确保高优先级账号优先同步 (2)P1-动态并发控制:根据API 429错误率自动调整并发数,批次间延迟自适应100ms-2000ms (3)P2-指令执行可靠性:添加失败指令自动重试队列和执行确认机制 (4)P2-自愈状态修复:数据健康页面通过数据库查询Leader实例的自愈状态,解决非Leader实例显示“已停止”问题 (5)P3-前端体验优化:纠错监控页面添加空状态提示,广告活动列表添加同步状态提示',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

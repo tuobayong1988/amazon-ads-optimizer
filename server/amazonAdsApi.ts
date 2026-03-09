@@ -13,6 +13,8 @@ import JSONBig from 'json-bigint';
 import { createModuleLogger } from './utils/logger';
 // v360: 集成统一限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './services/apiRateLimitService';
+// v374: 集成动态并发控制反馈回路
+import { recordThrottleEvent, recordSuccessEvent } from './services/syncPriorityScheduler';
 
 const log = createModuleLogger('AmazonAPI');
 
@@ -209,7 +211,11 @@ export class AmazonAdsApiClient {
 
     // v148: 增强版响应拦截器 - 包含指数退避重试、429/503处理、HTML响应检测
     this.axiosInstance.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // v374: 成功响应时通知动态并发控制，支持并发升级
+        try { recordSuccessEvent(); } catch (_) { /* 不影响主流程 */ }
+        return response;
+      },
       async (error) => {
         const config = error.config;
         const status = (error as any).response?.status;
@@ -285,10 +291,12 @@ export class AmazonAdsApiClient {
         const MAX_RETRIES = 3;
         
         // v360+v369: 429时通知统一限流服务，触发自适应降速，使用真实accountId
+        // v374: 同时通知动态并发控制，触发并发降级
         if (status === 429) {
           try {
             const endpointType = classifyEndpoint(config.url || 'default');
             getApiRateLimitService().recordExternalThrottle(this.accountId, endpointType);
+            recordThrottleEvent(); // v374: 连接动态并发控制反馈回路
           } catch (_) { /* 限流服务异常不影响主流程 */ }
         }
         

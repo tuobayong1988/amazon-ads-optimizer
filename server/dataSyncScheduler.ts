@@ -57,8 +57,8 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 30 * 60 * 1000, // 30分钟（完整同步，获取各广告类型最大支持天数的历史数据）
-    description: '完整同步 - 所有数据（SP 90天/SB 60天/SD 90天）',
+    intervalMs: 6 * 60 * 60 * 1000, // v374: 6小时（从30分钟延长，配合分批轮转机制，确保500租户规模下可控）
+    description: 'v374: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每周期最多25个账号',
     syncTypes: ['all'],
   },
 };
@@ -156,10 +156,13 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
   log.info('[DataSyncScheduler] v371: 启动Leader选举...');
   await startLeaderElection({
     onBecomeLeader: () => {
-      log.info('[DataSyncScheduler] v371: 当选为Leader，启动同步和优化调度器');
-      logSystem('DataSyncScheduler', 'v371: 当选Leader，启动调度器');
+      log.info('[DataSyncScheduler] v374: 当选为Leader，启动同步和优化调度器');
+      logSystem('DataSyncScheduler', 'v374: 当选Leader，启动调度器');
       // Leader负责启动实际的调度任务
       startSchedulerTasks(defaultIntervalMs);
+      // v374: 优化调度器也由Leader控制，确保单实例执行
+      startOptimizationScheduler();
+      log.info('[DataSyncScheduler] v374: 优化调度器已由Leader启动');
     },
     onLoseLeadership: () => {
       log.warn('[DataSyncScheduler] v371: 失去Leadership，停止同步和优化调度器');

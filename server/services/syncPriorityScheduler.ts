@@ -55,9 +55,9 @@ interface PriorityConfig {
 
 // ==================== 配置 ====================
 const DEFAULT_CONFIG: PriorityConfig = {
-  highFreqMaxAccounts: 50,       // 高频同步每周期最多50个账号
-  mediumFreqMaxAccounts: 100,    // 中频同步每周期最多100个账号
-  fullSyncMaxAccounts: 9999,     // 完整同步不限制
+  highFreqMaxAccounts: 30,       // v374: 高频同步每周期最多30个账号（从50降低，确保15分钟内完成）
+  mediumFreqMaxAccounts: 50,     // v374: 中频同步每周期最多50个账号（从100降低）
+  fullSyncMaxAccounts: 25,       // v374: 完整同步每周期最多25个账号（从9999降低，实现分批轮转）
   staleSyncThresholdMinutes: 30, // 30分钟未同步视为过期
   activeTargetBonus: 30,         // 有活跃优化目标加30分
   recentActivityBonus: 20,       // 最近有用户操作加20分

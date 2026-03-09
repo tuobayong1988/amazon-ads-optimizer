@@ -467,6 +467,12 @@ export class ApiRateLimitService {
       `退避系数: ${previousFactor.toFixed(2)} -> ${state.backoffFactor.toFixed(2)}, ` +
       `有效TPS: ${effectiveTps}, 连续429: ${state.consecutive429Count}次`);
     
+    // v374: 联动动态并发控制 - 将API层限流事件传递到同步调度层
+    try {
+      const { recordThrottleEvent } = require('./syncPriorityScheduler');
+      recordThrottleEvent();
+    } catch (_) { /* 不影响主流程 */ }
+    
     // v368: 指数恢复 - 30秒后开始恢复，每30秒恢复一次
     // 恢复速度：backoffFactor = min(1.0, current * 1.5)
     const scheduleRecovery = () => {
