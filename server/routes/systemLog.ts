@@ -2,7 +2,7 @@
  * 系统日志路由
  * 从 routers.ts 拆分的独立路由模块
  */
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
@@ -11,8 +11,9 @@ import { logger, LogLevel } from '../utils/logger';
 
 // ==================== v205: System Log Router ====================
 export const systemLogRouter = router({
+  // v371: 系统日志仅管理员可访问，防止普通用户查看服务器内部日志
   // 查询内存缓冲区日志（实时，最近5000条）
-  query: protectedProcedure
+  query: adminProcedure
     .input(z.object({
       level: z.number().min(0).max(4).optional(),
       module: z.string().optional(),
@@ -28,21 +29,21 @@ export const systemLogRouter = router({
     }),
 
   // 获取最新N条日志
-  getLatest: protectedProcedure
+  getLatest: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(100).optional().default(50) }))
     .query(async ({ input }: any) => {
       return logger.getLatest(input.limit);
     }),
 
   // 获取错误和警告日志
-  getAlerts: protectedProcedure
+  getAlerts: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(100).optional().default(50) }))
     .query(async ({ input }: any) => {
       return logger.getAlerts(input.limit);
     }),
 
   // 获取特定模块的日志
-  getModuleLogs: protectedProcedure
+  getModuleLogs: adminProcedure
     .input(z.object({
       module: z.string(),
       limit: z.number().min(1).max(100).optional().default(50),
@@ -52,17 +53,17 @@ export const systemLogRouter = router({
     }),
 
   // 获取日志统计信息
-  getStats: protectedProcedure.query(async () => {
+  getStats: adminProcedure.query(async () => {
     return logger.getStats();
   }),
 
   // 获取日志系统运行状态
-  getStatus: protectedProcedure.query(async () => {
+  getStatus: adminProcedure.query(async () => {
     return logger.getStatus();
   }),
 
   // 查询数据库持久化日志（历史，WARN及以上）
-  queryPersisted: protectedProcedure
+  queryPersisted: adminProcedure
     .input(z.object({
       level: z.string().optional(),
       module: z.string().optional(),
@@ -109,7 +110,7 @@ export const systemLogRouter = router({
     }),
 
   // 更新日志级别（运行时动态调整）
-  updateLevel: protectedProcedure
+  updateLevel: adminProcedure
     .input(z.object({
       consoleLevel: z.number().min(0).max(4).optional(),
       dbLevel: z.number().min(0).max(4).optional(),

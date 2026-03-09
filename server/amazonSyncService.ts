@@ -328,7 +328,9 @@ export class AmazonSyncService {
     log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始全量同步 (performanceDays=${options?.performanceDays || 14})`);
 
     // v345: 步骤级重试配置
-    const STEP_RETRY_CONFIG = { maxRetries: 1, baseDelayMs: 3000 };
+    // v371: 增加重试次数到3次（原1次），增强429/5xx错误的恢复能力
+    // 退避策略: 3s -> 6s -> 12s，总等待约21秒，足以覆盖大多数临时限流
+    const STEP_RETRY_CONFIG = { maxRetries: 3, baseDelayMs: 3000 };
     // v360: DAG层间延迟配置 - 避免层切换时API请求突增
     const LAYER_TRANSITION_DELAY_MS = 2000;
     const MAX_CONCURRENT_PER_LAYER = 8; // v360: 每层最大并发数

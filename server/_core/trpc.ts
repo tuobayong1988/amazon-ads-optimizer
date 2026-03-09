@@ -153,9 +153,10 @@ export function invalidateUserAccountCache(userId?: number): void {
 
 // ==================== 核心中间件 ====================
 const enforceAccountAccess = t.middleware(async opts => {
-  const { ctx, next, rawInput } = opts;
+  const { ctx, next, getRawInput } = opts;
 
   // 只对已认证用户生效
+  const rawInput = await getRawInput();
   if (ctx.user && rawInput && typeof rawInput === 'object') {
     const input = rawInput as Record<string, any>;
     const userId = ctx.user.id;

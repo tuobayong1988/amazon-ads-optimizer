@@ -28,6 +28,7 @@ import {
   acquireAccountOptimizationLockWithRetry as _lmAcquireLockWithRetry,
   getModuleLockGroup as _lmGetModuleLockGroup,
 } from './utils/lockManager';
+import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from './utils/leaderElection';
 
 const log = createModuleLogger('Scheduler');
 
@@ -151,6 +152,48 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
 
   schedulerStatus.isRunning = true;
   
+  // v371: 启动Leader选举 - 确保多实例环境下只有一个实例执行调度任务
+  log.info('[DataSyncScheduler] v371: 启动Leader选举...');
+  await startLeaderElection({
+    onBecomeLeader: () => {
+      log.info('[DataSyncScheduler] v371: 当选为Leader，启动同步和优化调度器');
+      logSystem('DataSyncScheduler', 'v371: 当选Leader，启动调度器');
+      // Leader负责启动实际的调度任务
+      startSchedulerTasks(defaultIntervalMs);
+    },
+    onLoseLeadership: () => {
+      log.warn('[DataSyncScheduler] v371: 失去Leadership，停止同步和优化调度器');
+      logSystem('DataSyncScheduler', 'v371: 失去Leadership，停止调度器');
+      // 停止所有调度任务（但不改变schedulerStatus.isRunning，因为选举仍在进行）
+      stopSchedulerTasks();
+    },
+  });
+  
+  log.info(`[DataSyncScheduler] v371: Leader选举已启动，等待选举结果...`);
+}
+
+/**
+ * v371: 停止调度任务（不停止Leader选举）
+ */
+function stopSchedulerTasks(): void {
+  Object.keys(schedulerIntervals).forEach((tier: any) => {
+    const interval = schedulerIntervals[tier as SyncTier];
+    if (interval) {
+      clearInterval(interval);
+      schedulerIntervals[tier as SyncTier] = null;
+    }
+  });
+  for (const timer of monitoringIntervals) {
+    clearInterval(timer);
+  }
+  monitoringIntervals.length = 0;
+  schedulerStatus.currentTier = null;
+}
+
+/**
+ * v371: 启动实际的调度任务（仅Leader调用）
+ */
+async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v335: 启动时立即清理卡死的同步任务（进程重启后DB中残留的running状态）
   (async () => {
     try {
@@ -167,8 +210,8 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
   })();
 
   // v219: 启动统一同步引擎驱动的分层同步
-  log.info('[DataSyncScheduler] v219: 启动统一同步引擎驱动的分层同步调度器...');
-  logSystem('DataSyncScheduler', 'v219统一同步调度器启动', { defaultIntervalMs, mode: 'unified_engine' });
+  log.info('[DataSyncScheduler] v371: Leader启动统一同步引擎驱动的分层同步调度器...');
+  logSystem('DataSyncScheduler', 'v371 Leader启动同步调度器', { defaultIntervalMs, mode: 'unified_engine' });
   
   // 高频同步：每15分钟 - 广告活动状态和当日绩效
   schedulerIntervals.high = setInterval(async () => {
@@ -332,27 +375,16 @@ export function stopDataSyncScheduler(): void {
     log.info('[DataSyncScheduler] 定时同步调度器未在运行');
     return;
   }
-
-  // 停止所有层级的调度器
-  Object.keys(schedulerIntervals).forEach((tier: any) => {
-    const interval = schedulerIntervals[tier as SyncTier];
-    if (interval) {
-      clearInterval(interval);
-      schedulerIntervals[tier as SyncTier] = null;
-    }
+  // v371: 停止Leader选举
+  stopLeaderElection().catch(err => {
+    log.error(`[DataSyncScheduler] v371: 停止Leader选举失败: ${(err as Error).message}`);
   });
-
-  // v361: 清理所有监控和辅助定时器
-  for (const timer of monitoringIntervals) {
-    clearInterval(timer);
-  }
-  monitoringIntervals.length = 0;
-  log.info(`[DataSyncScheduler] v361: 已清理 ${monitoringIntervals.length} 个监控定时器`);
-
+  // 停止所有层级的调度器
+  stopSchedulerTasks();
+  log.info(`[DataSyncScheduler] v371: 已清理所有监控定时器`);
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
   schedulerStatus.currentTier = null;
-
   log.info('[DataSyncScheduler] 定时同步调度器已停止');
   logSystem('DataSyncScheduler', '同步调度器已停止');
 }
@@ -377,6 +409,11 @@ const tierRunningState: Record<string, boolean> = {
  * 3. high层运行时，medium层正常执行（步骤不重叠，但会串行等待API资源）
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
+  // v371: Leader检查 - 非Leader实例不执行同步
+  if (!isCurrentLeader()) {
+    log.debug(`[DataSyncScheduler] v371: 非Leader实例，跳过${tier}层同步`);
+    return;
+  }
   // v222: 智能协调 - 检查是否应该跳过当前层级
   if (tier === 'high') {
     if (tierRunningState.full) {
@@ -1737,6 +1774,11 @@ export function stopOptimizationScheduler(): void {
  * 4. 使用执行锁防止重复执行
  */
 async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<void> {
+  // v371: Leader检查 - 非Leader实例不执行优化任务
+  if (!isCurrentLeader()) {
+    log.debug(`[OptimizationScheduler] v371: 非Leader实例，跳过优化任务: ${taskType}`);
+    return;
+  }
   // 获取执行锁
   if (!acquireLock(taskType)) return;
   

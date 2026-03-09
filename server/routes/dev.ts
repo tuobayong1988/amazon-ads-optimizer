@@ -1,5 +1,5 @@
 
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { SQSClient, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
@@ -103,7 +103,8 @@ async function checkDatabase() {
 
 export const devRouter = router({
   // @ts-ignore
-  verifySync: protectedProcedure
+  // v371: 开发工具仅管理员可访问
+  verifySync: adminProcedure
     .query(async () => {
       const sqsResults = await checkSqsQueues();
       const dbResults = await checkDatabase();

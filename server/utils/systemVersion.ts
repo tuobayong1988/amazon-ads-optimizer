@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 370.4;  // v370.4: 多租户数据绝对隔离 - 全面修复所有路由(campaign/performanceGroup/keyword/adGroup/batchOp/scheduler/correction/audit等)的数据隔离漏洞
+export const SYSTEM_VERSION = 371;  // v371: 系统架构优化 - Leader选举防止多实例重复同步、受控并行同步、连接池修复、同步重试增强、系统日志权限控制

@@ -1423,45 +1423,74 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   log.info(`[UnifiedSync] [v352] 发现 ${accounts.length} 个账户，智能交错排序后开始串行同步（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
   log.info(`[UnifiedSync] [v352] 交错顺序: ${interleaved.map(a => `${a.accountId}(${a.accountName})`).join(' → ')}`);
 
-  // v352: 串行执行每个账户（替代之前的并行批次）
-  // 原因：并行执行多个账户会导致API调用集中爆发，而且数据库写入也会产生竞争
-  // 新策略：逐个账户串行执行，账户间加入5秒延迟，确保单个账户完成后再开始下一个
-  const ACCOUNT_DELAY_MS = 5000; // 账户间延迟5秒
+  // v371: 受控并行同步 - 不同用户的账户可以并行，同一用户的账户串行
+  // 原因：同一用户的账户共享API凭证，必须串行以避免限流
+  // 不同用户的账户使用不同的API凭证，可以安全并行
+  const PARALLEL_USERS = Math.min(MAX_CONCURRENT_ACCOUNTS, 5); // 最多5个用户并行
+  const ACCOUNT_DELAY_MS = 3000; // 同一用户的账户间延迟3秒
   
-  for (let i = 0; i < interleaved.length; i++) {
-    const account = interleaved[i];
+  // 按用户分组
+  const userGroups = new Map<number, SyncableAccount[]>();
+  for (const account of interleaved) {
+    const group = userGroups.get(account.userId) || [];
+    group.push(account);
+    userGroups.set(account.userId, group);
+  }
+  
+  log.info(`[UnifiedSync] [v371] 发现 ${accounts.length} 个账户，属于 ${userGroups.size} 个用户，最大并行用户数: ${PARALLEL_USERS}`);
+  
+  // 将用户分组转为数组
+  const userGroupArray = Array.from(userGroups.entries());
+  
+  // 按批次并行执行
+  for (let batchStart = 0; batchStart < userGroupArray.length; batchStart += PARALLEL_USERS) {
+    const userBatch = userGroupArray.slice(batchStart, batchStart + PARALLEL_USERS);
     
-    log.info(`[UnifiedSync] [v352] 开始同步账户 [${i + 1}/${interleaved.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
+    log.info(`[UnifiedSync] [v371] 开始用户批次 [${Math.floor(batchStart / PARALLEL_USERS) + 1}/${Math.ceil(userGroupArray.length / PARALLEL_USERS)}]: ${userBatch.map(([uid]) => `user${uid}`).join(', ')}`);
     
-    const accountResult = await syncAccount(account, tier);
-    const batchResults = [accountResult];
-
-    for (const accountResult of batchResults) {
-      batchResult.accountResults.push(accountResult);
-      if (accountResult.success) {
-        batchResult.successfulAccounts++;
-      } else if (accountResult.errors.some(e => 
-        (e.includes('已有') && e.includes('在运行')) ||
-        e.includes('层同步在运行') ||
-        e.includes('层正在运行') ||
-        e.includes('层跳过') ||
-        e.includes('层跟过') ||
-        e.includes('智能跳过') ||
-        e.includes('等下一轮')
-      )) {
-        batchResult.skippedAccounts++;
-      } else {
-        batchResult.failedAccounts++;
+    // 每个用户的账户串行同步，不同用户并行
+    const userPromises = userBatch.map(async ([userId, userAccounts]) => {
+      for (let i = 0; i < userAccounts.length; i++) {
+        const account = userAccounts[i];
+        log.info(`[UnifiedSync] [v371] 同步用户${userId}账户 [${i + 1}/${userAccounts.length}]: ${account.accountId}(${account.accountName}) ${account.marketplace}`);
+        
+        const accountResult = await syncAccount(account, tier);
+        
+        // 统计结果
+        batchResult.accountResults.push(accountResult);
+        if (accountResult.success) {
+          batchResult.successfulAccounts++;
+        } else if (accountResult.errors.some(e => 
+          (e.includes('已有') && e.includes('在运行')) ||
+          e.includes('层同步在运行') ||
+          e.includes('层正在运行') ||
+          e.includes('层跳过') ||
+          e.includes('层跟过') ||
+          e.includes('智能跳过') ||
+          e.includes('等下一轮')
+        )) {
+          batchResult.skippedAccounts++;
+        } else {
+          batchResult.failedAccounts++;
+        }
+        
+        // 同一用户的账户间延迟
+        if (i < userAccounts.length - 1) {
+          const rateDelay = rateController.getBatchDelay();
+          const totalDelay = Math.max(ACCOUNT_DELAY_MS, rateDelay);
+          await sleep(totalDelay);
+        }
       }
-    }
-
-    // v352: 账户间自适应延迟（替代旧的批次间延迟）
-    if (i < interleaved.length - 1) {
-      const baseDelay = ACCOUNT_DELAY_MS;
+    });
+    
+    await Promise.all(userPromises);
+    
+    // 用户批次间延迟
+    if (batchStart + PARALLEL_USERS < userGroupArray.length) {
       const rateDelay = rateController.getBatchDelay();
-      const totalDelay = Math.max(baseDelay, rateDelay); // 取较大值
-      log.info(`[UnifiedSync] [v352] 账户间延迟 ${totalDelay}ms (基础${baseDelay}ms, 速率控制${rateDelay}ms, 利用率: ${rateController.getStatus().utilizationPercent}%)`);
-      await sleep(totalDelay);
+      const batchDelay = Math.max(2000, rateDelay);
+      log.info(`[UnifiedSync] [v371] 用户批次间延迟 ${batchDelay}ms (速率控制${rateDelay}ms, 利用率: ${rateController.getStatus().utilizationPercent}%)`);
+      await sleep(batchDelay);
     }
   }
 

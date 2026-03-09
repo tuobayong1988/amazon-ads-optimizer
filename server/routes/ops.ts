@@ -307,6 +307,15 @@ router.get('/status', async (req: Request, res: Response) => {
         dbBufferPending: loggerStatus.dbBufferSize,
       },
       opsLogger: opsSummary,
+      // v371: Leader选举状态
+      leaderElection: (() => {
+        try {
+          const { getLeaderStatus } = require('../utils/leaderElection');
+          return getLeaderStatus();
+        } catch (e) {
+          return { isLeader: 'unknown', error: (e as Error).message };
+        }
+      })(),
       timestamp: new Date().toISOString(),
     });
   } catch (e: unknown) {

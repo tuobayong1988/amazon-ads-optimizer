@@ -100,8 +100,10 @@ export async function getDb() {
   
   if (!_db) {
     try {
-      // v364: 进一步优化连接池配置 — 支持200-500租户规模
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || '50', 10);
+      // v371: 修复连接池超限问题
+      // db.t4g.small max_connections=170，4个EB实例×30=120，留50个给管理连接和直连
+      // 如需更多连接，应升级数据库实例（db.t4g.medium max_connections=340）
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '30', 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
