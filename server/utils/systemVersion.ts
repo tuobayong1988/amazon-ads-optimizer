@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 371;  // v371: 系统架构优化 - Leader选举防止多实例重复同步、受控并行同步、连接池修复、同步重试增强、系统日志权限控制
+export const SYSTEM_VERSION = 372;  // v372: 性能与扩展性优化 - 核心表索引添加、MySQL分布式API限流、并发同步提升至50、优雅停机延长至90s

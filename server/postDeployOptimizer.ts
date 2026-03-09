@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 372,
+    description: 'v372: [性能与扩展性优化] — (1)P1-核心表索引添加:campaigns/adGroups/keywords/searchTerms/negativeKeywords/productTargets/scheduledTasks添加accountId/campaignId等关键索引,解决500租户规模全表扫描性能瓶颈 (2)P1-MySQL分布式API限流:生产环境使用MySQL存储替代内存存储,确保多EB实例环境下API限流全局一致性 (3)P2-并发同步提升:MAX_CONCURRENT_ACCOUNTS从10提升至50,大幅缩短全量数据同步时间 (4)P3-优雅停机延长:GRACEFUL_SHUTDOWN_TIMEOUT从25s延长至90s,避免长时间优化任务被中断',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 370,
     description: 'v370: [批量完整性检查+告警持久化+HTTP 425+前端修复] — (1)P0-批量完整性检查SQL修复:dataIntegrityChecker.ts和sloMonitor.ts中表名从mazon_ad_accounts修复为ad_accounts,status列名修复为is_active (2)P0-anomaly_alert_logs列名修复:riskActionEngine.ts中persistRiskAlert使用与实际数据库结构匹配的列名 (3)P0-dbAutoMigration修复:anomaly_alert_logs的CREATE TABLE与ALTER TABLE与Drizzle migration实际结构对齐 (4)P1-HTTP 425处理:Amazon API返回425 Too Early时不重试直接跳过 (5)P1-HealthMonitor全局账户同步:从硬编码selectedAccountId=1改为使用全局useCurrentAccountId',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
@@ -1651,6 +1657,20 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       }
     } catch (migrationErr: unknown) {
       log.error(`[PostDeployOptimizer] v361: 核心表索引创建失败: ${(migrationErr as Error).message}`);
+    }
+  }
+
+  // 4g. v372: 扩展索引迁移 + 分布式限流表
+  if (!lastVersion || parseFloat(String(lastVersion)) < 372.0) {
+    try {
+      const { runV372ExtendedIndexes } = await import('./migrations/v372_extended_indexes');
+      const database = await getDb();
+      if (database) {
+        await runV372ExtendedIndexes(database);
+        log.info(`[PostDeployOptimizer] v372: 扩展索引和分布式限流表创建完成`);
+      }
+    } catch (migrationErr: unknown) {
+      log.error(`[PostDeployOptimizer] v372: 扩展索引迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 

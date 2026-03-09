@@ -181,7 +181,11 @@ export const adGroups = mysqlTable("ad_groups", {
 	viewAttributedOrders: int("view_attributed_orders").default(0),
 	unitsOrdered: int("units_ordered").default(0),
 	adGroupState: varchar("ad_group_state", { length: 20 }).default('enabled'),
-});
+}, (table) => ({
+	idx_adGroups_accountId: index('idx_adGroups_accountId').on(table.accountId),
+	idx_adGroups_campaignId: index('idx_adGroups_campaignId').on(table.campaignId),
+	idx_adGroups_account_campaign: index('idx_adGroups_account_campaign').on(table.accountId, table.campaignId),
+}));
 
 export const aiOptimizationActions = mysqlTable("ai_optimization_actions", {
 	id: int().autoincrement().notNull(),
@@ -1418,7 +1422,14 @@ export const campaigns = mysqlTable("campaigns", {
 	pendingPlacementProduct: decimal("pending_placement_product", { precision: 10, scale: 2 }),
 	placementSyncStatus: mysqlEnum("placement_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
 	lastSyncedAt: datetime("last_synced_at", { mode: 'string' }),
-});
+}, (table) => ({
+	idx_campaigns_accountId: index('idx_campaigns_accountId').on(table.accountId),
+	idx_campaigns_account_status: index('idx_campaigns_account_status').on(table.accountId, table.campaignStatus),
+	idx_campaigns_account_opt: index('idx_campaigns_account_opt').on(table.accountId, table.optimizationStatus),
+	idx_campaigns_account_type: index('idx_campaigns_account_type').on(table.accountId, table.campaignType),
+	idx_campaigns_campaignId: index('idx_campaigns_campaignId').on(table.campaignId),
+	idx_campaigns_pgId: index('idx_campaigns_pgId').on(table.performanceGroupId),
+}));
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {
 	id: int().autoincrement().notNull(),
@@ -1939,7 +1950,13 @@ export const keywords = mysqlTable("keywords", {
 	lastOptimizedAt: datetime("last_optimized_at", { mode: 'string' }),
 	pendingBid: decimal("pending_bid", { precision: 10, scale: 2 }),
 	bidSyncStatus: mysqlEnum("bid_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
-});
+}, (table) => ({
+	idx_keywords_accountId: index('idx_keywords_accountId').on(table.accountId),
+	idx_keywords_campaignId: index('idx_keywords_campaignId').on(table.campaignId),
+	idx_keywords_adGroupId: index('idx_keywords_adGroupId').on(table.adGroupId),
+	idx_keywords_account_campaign: index('idx_keywords_account_campaign').on(table.accountId, table.campaignId),
+	idx_keywords_keywordId: index('idx_keywords_keywordId').on(table.keywordId),
+}));
 
 export const localUsers = mysqlTable("local_users", {
 	id: int().autoincrement().notNull(),
@@ -2089,7 +2106,11 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	preNegativeSpend: decimal("pre_negative_spend", { precision: 10, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+	idx_negKw_accountId: index('idx_negKw_accountId').on(table.accountId),
+	idx_negKw_campaignId: index('idx_negKw_campaignId').on(table.campaignId),
+	idx_negKw_account_campaign: index('idx_negKw_account_campaign').on(table.accountId, table.campaignId),
+}));
 
 export const notificationHistory = mysqlTable("notification_history", {
 	id: int().autoincrement().notNull(),
@@ -2313,7 +2334,12 @@ export const productTargets = mysqlTable("product_targets", {
 	unitsOrdered: int("units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+	idx_prodTargets_accountId: index('idx_prodTargets_accountId').on(table.accountId),
+	idx_prodTargets_campaignId: index('idx_prodTargets_campaignId').on(table.campaignId),
+	idx_prodTargets_account_campaign: index('idx_prodTargets_account_campaign').on(table.accountId, table.campaignId),
+	idx_prodTargets_targetId: index('idx_prodTargets_targetId').on(table.targetId),
+}));
 
 export const promotionalEvents = mysqlTable("promotional_events", {
 	id: int().autoincrement().notNull(),
@@ -2373,7 +2399,11 @@ export const scheduledTasks = mysqlTable("scheduled_tasks", {
 	requireApproval: tinyint().default(1),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+	idx_scheduledTasks_userId: index('idx_scheduledTasks_userId').on(table.userId),
+	idx_scheduledTasks_accountId: index('idx_scheduledTasks_accountId').on(table.accountId),
+	idx_scheduledTasks_user_type: index('idx_scheduledTasks_user_type').on(table.userId, table.taskType),
+}));
 
 export const sdAudienceTargeting = mysqlTable("sd_audience_targeting", {
 	id: int().autoincrement().notNull(),
@@ -2511,7 +2541,12 @@ export const searchTerms = mysqlTable("search_terms", {
 	searchTermUnitsOrdered: int("search_term_units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+	idx_searchTerms_accountId: index('idx_searchTerms_accountId').on(table.accountId),
+	idx_searchTerms_account_campaign: index('idx_searchTerms_account_campaign').on(table.accountId, table.campaignId),
+	idx_searchTerms_campaignId: index('idx_searchTerms_campaignId').on(table.campaignId),
+	idx_searchTerms_adGroupId: index('idx_searchTerms_adGroupId').on(table.adGroupId),
+}));
 
 export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recommendations", {
 	id: int().autoincrement().notNull(),

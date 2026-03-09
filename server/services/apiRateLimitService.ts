@@ -620,11 +620,34 @@ export class ApiRateLimitService {
 let globalRateLimitService: ApiRateLimitService | null = null;
 
 /**
+ * v372: 创建分布式限流存储
+ * 生产环境使用MySQL存储实现跨实例共享限流状态
+ * 开发环境使用内存存储
+ */
+function createDistributedStore(): RateLimitStore {
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    try {
+      const { MysqlRateLimitStore } = require('./mysqlRateLimitStore');
+      log.info(`[v372] 生产环境: 使用MySQL分布式限流存储`);
+      return new MysqlRateLimitStore();
+    } catch (err) {
+      log.warn(`[v372] MySQL限流存储初始化失败，降级到内存存储: ${(err as Error).message}`);
+      return new InMemoryRateLimitStore();
+    }
+  }
+  log.info(`[v372] 开发环境: 使用内存限流存储`);
+  return new InMemoryRateLimitStore();
+}
+
+/**
  * 获取全局限流服务实例
+ * v372: 生产环境自动使用MySQL分布式存储
  */
 export function getApiRateLimitService(): ApiRateLimitService {
   if (!globalRateLimitService) {
-    globalRateLimitService = new ApiRateLimitService();
+    const store = createDistributedStore();
+    globalRateLimitService = new ApiRateLimitService(store);
     
     // 设置限流告警回调
     globalRateLimitService.onThrottle((accountId, endpointType, waitMs) => {
