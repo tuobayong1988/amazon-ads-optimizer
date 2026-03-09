@@ -1406,28 +1406,52 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   logSync('UnifiedSync', `开始${tier}层批量同步`, { tier });
 
   // 自动发现所有可同步账户
-  const accounts = await discoverSyncableAccounts();
-  batchResult.totalAccounts = accounts.length;
+  const allAccounts = await discoverSyncableAccounts();
+  batchResult.totalAccounts = allAccounts.length;
 
-  if (accounts.length === 0) {
+  if (allAccounts.length === 0) {
     log.info('[UnifiedSync] 没有发现可同步的账户');
     batchResult.endTime = new Date();
     batchResult.durationMs = batchResult.endTime.getTime() - startTime.getTime();
     return batchResult;
   }
 
-  // v352: 智能账户交错排序 - 同一品牌不同站点的账户分散到不同批次
-  // 目的：避免同一品牌的多个站点账户同时发起API请求，因为它们共享API凭证
-  // 策略：按userId分组，然后交错合并（如[A-US, B-US, A-CA, B-CA, A-MX, B-MX]）
-  const interleaved = interleaveAccountsByUser(accounts);
-  log.info(`[UnifiedSync] [v352] 发现 ${accounts.length} 个账户，智能交错排序后开始串行同步（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
-  log.info(`[UnifiedSync] [v352] 交错顺序: ${interleaved.map(a => `${a.accountId}(${a.accountName})`).join(' → ')}`);
+  // v373: 同步优先级调度 - 为每个账号计算优先级评分，滚动窗口模式
+  let accounts = allAccounts;
+  try {
+    const { calculateAccountPriorities, getMaxAccountsForTier } = await import('./services/syncPriorityScheduler');
+    const prioritized = await calculateAccountPriorities(
+      allAccounts.map(a => ({ ...a, priorityScore: 0, priorityReasons: [] }))
+    );
+    const maxAccounts = getMaxAccountsForTier(tier);
+    if (prioritized.length > maxAccounts) {
+      accounts = prioritized.slice(0, maxAccounts) as typeof allAccounts;
+      log.info(`[UnifiedSync] [v373] 优先级调度: ${allAccounts.length}个账号中选取TOP-${maxAccounts}个进行${tier}层同步`);
+      log.info(`[UnifiedSync] [v373] 跳过的${prioritized.length - maxAccounts}个低优先级账号将在下一周期同步`);
+    } else {
+      accounts = prioritized as typeof allAccounts;
+      log.info(`[UnifiedSync] [v373] 优先级调度: 全部${accounts.length}个账号参与${tier}层同步`);
+    }
+  } catch (priErr) {
+    log.warn(`[UnifiedSync] [v373] 优先级调度失败，使用默认顺序: ${(priErr as Error).message}`);
+  }
 
-  // v371: 受控并行同步 - 不同用户的账户可以并行，同一用户的账户串行
-  // 原因：同一用户的账户共享API凭证，必须串行以避免限流
-  // 不同用户的账户使用不同的API凭证，可以安全并行
-  const PARALLEL_USERS = Math.min(MAX_CONCURRENT_ACCOUNTS, 5); // 最多5个用户并行
-  const ACCOUNT_DELAY_MS = 3000; // 同一用户的账户间延迟3秒
+  // v352: 智能账户交错排序 - 同一品牌不同站点的账户分散到不同批次
+  const interleaved = interleaveAccountsByUser(accounts);
+  log.info(`[UnifiedSync] [v373] 发现 ${allAccounts.length} 个账户，本周期同步 ${accounts.length} 个（最大并发: ${MAX_CONCURRENT_ACCOUNTS}）`);
+
+  // v373: 动态并发控制 - 根据API限流反馈自动调整
+  let PARALLEL_USERS: number;
+  let ACCOUNT_DELAY_MS: number;
+  try {
+    const { getCurrentConcurrency, getCurrentBatchDelay } = await import('./services/syncPriorityScheduler');
+    PARALLEL_USERS = Math.min(getCurrentConcurrency(), 10);
+    ACCOUNT_DELAY_MS = Math.max(getCurrentBatchDelay(), 1000);
+    log.info(`[UnifiedSync] [v373] 动态并发: ${PARALLEL_USERS}用户并行, 批次延迟${ACCOUNT_DELAY_MS}ms`);
+  } catch {
+    PARALLEL_USERS = Math.min(MAX_CONCURRENT_ACCOUNTS, 5);
+    ACCOUNT_DELAY_MS = 3000;
+  }
   
   // 按用户分组
   const userGroups = new Map<number, SyncableAccount[]>();

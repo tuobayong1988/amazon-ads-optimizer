@@ -225,7 +225,21 @@ export const performanceGroupRouter = router({
               // 算法效能数据获取失败不影响主流程
             }
             
-            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow, algorithmData);
+            // v373: 修复数据口径不一致问题
+            // campaigns表的spend/sales是30天汇总，但timeWeighted使用90天时间衰减加权
+            // 当有timeWeighted数据时，用其加权指标覆盖metrics中的核心指标，确保一致性
+            let effectiveMetrics = metrics;
+            if (timeWeighted) {
+              effectiveMetrics = {
+                ...metrics,
+                avgAcos: timeWeighted.weightedAcos,
+                avgRoas: timeWeighted.weightedRoas,
+                cvr: timeWeighted.weightedCvr,
+                cpc: timeWeighted.weightedCpc,
+              };
+            }
+            
+            goalProgressResult = calculateGoalProgress(groupConfig, effectiveMetrics, trendData, timeWeighted, multiWindow, algorithmData);
           } catch (progressErr) {
             log.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
           }

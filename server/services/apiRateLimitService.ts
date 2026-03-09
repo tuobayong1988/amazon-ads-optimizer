@@ -260,7 +260,7 @@ export class ApiRateLimitService {
     configs?: Partial<Record<ApiEndpointType, Partial<EndpointRateConfig>>>
   ) {
     this.store = store || new InMemoryRateLimitStore();
-    this.globalStore = new InMemoryRateLimitStore(); // v368: 全局限流独立存储
+    this.globalStore = store || new InMemoryRateLimitStore(); // v373: 全局限流也使用分布式存储，多实例共享全局TPS限额
     
     // 合并自定义配置和默认配置
     this.configs = { ...DEFAULT_ENDPOINT_CONFIGS };

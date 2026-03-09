@@ -100,10 +100,10 @@ export async function getDb() {
   
   if (!_db) {
     try {
-      // v371: 修复连接池超限问题
-      // db.t4g.small max_connections=170，4个EB实例×30=120，留50个给管理连接和直连
-      // 如需更多连接，应升级数据库实例（db.t4g.medium max_connections=340）
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || '30', 10);
+      // v373: 连接池优化 - 适配500租户规模
+      // db.t4g.small max_connections=170，4个EB实例×25=100，疙70个给管理连接、直连和分布式限流
+      // 升级到db.t4g.medium(max_connections=340)后可提升DB_POOL_SIZE到每实例60
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '25', 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
@@ -126,7 +126,7 @@ export async function getDb() {
       _db = drizzle(_pool as unknown, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();
-      log.info(`[Database] v364: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.4)}, connectTimeout=15s, keepAlive=10s, queueLimit=${poolSize*4})`);
+      log.info(`[Database] v373: 连接池已建立 (limit=${poolSize}, idle=${Math.floor(poolSize*0.4)}, connectTimeout=15s, keepAlive=10s, queueLimit=${poolSize*4})`);
     } catch (error) {
       log.warn("[Database] v350: 连接池创建失败:", error);
       _db = null;

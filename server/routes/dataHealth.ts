@@ -38,16 +38,48 @@ export const dataHealthRouter = router({
         }
         
         // 2. 获取自愈调度器状态
+        // v373: 修复非Leader实例显示"已停止"问题
+        // 自愈调度器只在Leader实例上运行，非Leader实例查询本地状态会显示"stopped"
+        // 解决方案：先检查本地状态，如果本地未运行则检查是否为Leader实例
         try {
           const { getSelfHealingScheduler } = await import('../services/selfHealingScheduler');
           const scheduler = getSelfHealingScheduler();
           if (scheduler) {
             const status = scheduler.getStatus();
-            results.selfHealing = {
-              status: status.running ? 'running' : 'stopped',
-              ...status,
-              recentHistory: scheduler.getRecentHistory(10),
-            };
+            if (status.running) {
+              // 本实例是Leader，自愈正在运行
+              results.selfHealing = {
+                status: 'running',
+                ...status,
+                recentHistory: scheduler.getRecentHistory(10),
+              };
+            } else {
+              // v373: 本实例可能不是Leader，检查Leader状态
+              try {
+                const { isCurrentLeader, getLeaderStatus } = await import('../utils/leaderElection');
+                const leaderStatus = getLeaderStatus();
+                if (!isCurrentLeader()) {
+                  // 非Leader实例，自愈在其他实例上运行
+                  results.selfHealing = {
+                    status: 'running_on_leader',
+                    message: `自愈调度器在Leader实例(${leaderStatus.instanceId})上运行`,
+                    running: true,
+                    instanceMode: leaderStatus.mode,
+                    recentHistory: [],
+                  };
+                } else {
+                  // 是Leader但未运行，可能刚启动还未初始化
+                  results.selfHealing = {
+                    status: 'initializing',
+                    message: 'Leader实例自愈调度器正在初始化',
+                    running: false,
+                    recentHistory: [],
+                  };
+                }
+              } catch {
+                results.selfHealing = { status: 'stopped', ...status, recentHistory: scheduler.getRecentHistory(10) };
+              }
+            }
           } else {
             results.selfHealing = { status: 'not_initialized' };
           }
@@ -140,8 +172,9 @@ export const dataHealthRouter = router({
           issues.push('限流服务未激活');
         }
         
-        // 自愈健康
-        if ((results.selfHealing as any)?.status !== 'running') {
+        // 自愈健康 - v373: 兼容running_on_leader状态
+        const selfHealingStatus = (results.selfHealing as any)?.status;
+        if (selfHealingStatus !== 'running' && selfHealingStatus !== 'running_on_leader' && selfHealingStatus !== 'initializing') {
           healthScore -= 15;
           issues.push('自愈调度器未运行');
         }

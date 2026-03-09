@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 372;  // v372: 性能与扩展性优化 - 核心表索引添加、MySQL分布式API限流、并发同步提升至50、优雅停机延长至90s
+export const SYSTEM_VERSION = 373;  // v373: 500租户规模承载力优化 - 同步优先级调度、动态并发控制、指令执行可靠性增强、自愈状态修复、前端体验优化

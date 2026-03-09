@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 373,
+    description: 'v373: [500租户规模承载力优化] — (1)P1-同步优先级调度:引入租户活跃度评分和滚动窗口模式,确保高优先级账号优先同步 (2)P1-动态并发控制:根据API 429错误率自动调整并发数,批次间延迟自适应100ms-2000ms (3)P2-指令执行可靠性:添加失败指令自动重试队列和执行确认机制 (4)P2-自愈状态修复:数据健康页面通过数据库查询Leader实例的自愈状态,解决非Leader实例显示“已停止”问题 (5)P3-前端体验优化:纠错监控页面添加空状态提示,广告活动列表添加同步状态提示',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 372,
     description: 'v372: [性能与扩展性优化] — (1)P1-核心表索引添加:campaigns/adGroups/keywords/searchTerms/negativeKeywords/productTargets/scheduledTasks添加accountId/campaignId等关键索引,解决500租户规模全表扫描性能瓶颈 (2)P1-MySQL分布式API限流:生产环境使用MySQL存储替代内存存储,确保多EB实例环境下API限流全局一致性 (3)P2-并发同步提升:MAX_CONCURRENT_ACCOUNTS从10提升至50,大幅缩短全量数据同步时间 (4)P3-优雅停机延长:GRACEFUL_SHUTDOWN_TIMEOUT从25s延长至90s,避免长时间优化任务被中断',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
