@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useCurrentAccountId } from "@/components/AccountSwitcher";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,11 +27,19 @@ import {
 import { toast } from "sonner";
 
 export default function HealthMonitor() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number>(1);
+  const globalAccountId = useCurrentAccountId();
+  const [selectedAccountId, setSelectedAccountId] = useState<number>(globalAccountId || 1);
   const [activeTab, setActiveTab] = useState("overview");
 
   // 获取广告账号列表
   const accountsQuery = trpc.adAccount.list.useQuery() as any;
+
+  // v369.6: 全局账户切换时自动同步
+  useEffect(() => {
+    if (globalAccountId && globalAccountId !== selectedAccountId) {
+      setSelectedAccountId(globalAccountId);
+    }
+  }, [globalAccountId]);
   
   // 获取健康度分析
   const healthQuery = trpc.adAutomation.analyzeCampaignHealth.useQuery({

@@ -20,26 +20,27 @@ export async function runV361CoreTableIndexes(db: any): Promise<void> {
   log.info('[v361] 开始创建核心表索引...');
 
   const indexDefinitions = [
+    // v370: 修复列名为camelCase（与Drizzle migration创建的实际数据库列名一致）
     // campaigns表索引
-    { name: 'idx_campaigns_account_id', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_account_id ON campaigns (account_id)' },
-    { name: 'idx_campaigns_campaign_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_campaigns_campaign_id ON campaigns (campaign_id)' },
-    { name: 'idx_campaigns_account_status', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_account_status ON campaigns (account_id, campaign_status)' },
-    { name: 'idx_campaigns_perf_group', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_perf_group ON campaigns (performance_group_id)' },
+    { name: 'idx_campaigns_account_id', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_account_id ON campaigns (accountId)' },
+    { name: 'idx_campaigns_campaign_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_campaigns_campaign_id ON campaigns (campaignId)' },
+    { name: 'idx_campaigns_account_status', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_account_status ON campaigns (accountId, campaignStatus)' },
+    { name: 'idx_campaigns_perf_group', sql: 'CREATE INDEX IF NOT EXISTS idx_campaigns_perf_group ON campaigns (performanceGroupId)' },
 
     // ad_groups表索引
-    { name: 'idx_ad_groups_campaign_id', sql: 'CREATE INDEX IF NOT EXISTS idx_ad_groups_campaign_id ON ad_groups (campaign_id)' },
-    { name: 'idx_ad_groups_ad_group_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_ad_groups_ad_group_id ON ad_groups (ad_group_id)' },
-    { name: 'idx_ad_groups_account_id', sql: 'CREATE INDEX IF NOT EXISTS idx_ad_groups_account_id ON ad_groups (account_id)' },
+    { name: 'idx_ad_groups_campaign_id', sql: 'CREATE INDEX IF NOT EXISTS idx_ad_groups_campaign_id ON ad_groups (campaignId)' },
+    { name: 'idx_ad_groups_ad_group_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_ad_groups_ad_group_id ON ad_groups (adGroupId)' },
+    { name: 'idx_ad_groups_account_id', sql: 'CREATE INDEX IF NOT EXISTS idx_ad_groups_account_id ON ad_groups (accountId)' },
 
     // keywords表索引
-    { name: 'idx_keywords_ad_group_id', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_ad_group_id ON keywords (ad_group_id)' },
-    { name: 'idx_keywords_keyword_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_keywords_keyword_id ON keywords (keyword_id)' },
-    { name: 'idx_keywords_campaign_id', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_campaign_id ON keywords (campaign_id)' },
-    { name: 'idx_keywords_account_status', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_account_status ON keywords (account_id, keyword_status)' },
+    { name: 'idx_keywords_ad_group_id', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_ad_group_id ON keywords (adGroupId)' },
+    { name: 'idx_keywords_keyword_id', sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_keywords_keyword_id ON keywords (keywordId)' },
+    { name: 'idx_keywords_campaign_id', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_campaign_id ON keywords (campaignId)' },
+    { name: 'idx_keywords_account_status', sql: 'CREATE INDEX IF NOT EXISTS idx_keywords_account_status ON keywords (accountId, keywordStatus)' },
 
     // daily_performance表索引
-    { name: 'idx_daily_perf_campaign_date', sql: 'CREATE INDEX IF NOT EXISTS idx_daily_perf_campaign_date ON daily_performance (campaign_id, date)' },
-    { name: 'idx_daily_perf_account_date', sql: 'CREATE INDEX IF NOT EXISTS idx_daily_perf_account_date ON daily_performance (account_id, date)' },
+    { name: 'idx_daily_perf_campaign_date', sql: 'CREATE INDEX IF NOT EXISTS idx_daily_perf_campaign_date ON daily_performance (campaignId, date)' },
+    { name: 'idx_daily_perf_account_date', sql: 'CREATE INDEX IF NOT EXISTS idx_daily_perf_account_date ON daily_performance (accountId, date)' },
     { name: 'idx_daily_perf_date', sql: 'CREATE INDEX IF NOT EXISTS idx_daily_perf_date ON daily_performance (date)' },
   ];
 

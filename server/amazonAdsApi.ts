@@ -274,6 +274,12 @@ export class AmazonAdsApiClient {
           });
         }
         
+        // v369.6: HTTP 425 (Too Early) 表示Amazon拒绝重复请求，不应重试
+        if (status === 425) {
+          log.warn(`[Amazon API] v369.6: HTTP 425 Too Early (重复请求被拒绝), URL: ${config.url}, 跳过重试`);
+          return Promise.reject(error);
+        }
+        
         // v148: 可重试的状态码: 429(限流), 500, 502, 503, 504(服务器错误)
         const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
         const MAX_RETRIES = 3;

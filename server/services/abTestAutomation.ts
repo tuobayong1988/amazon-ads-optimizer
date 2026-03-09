@@ -322,13 +322,13 @@ export class ABTestAutomationScheduler {
       const accounts = await database.execute(sql`
         SELECT DISTINCT aa.id as account_id, aa.accountName as account_name
         FROM ad_accounts aa
-        LEFT JOIN ab_tests abt ON aa.id = abt.account_id AND abt.status IN ('running', 'created')
+        LEFT JOIN ab_tests abt ON aa.id = abt.accountId AND abt.status IN ('running', 'created')
         WHERE aa.status = 'active'
         AND abt.id IS NULL
         AND aa.id IN (
-          SELECT DISTINCT account_id FROM daily_performance 
+          SELECT DISTINCT accountId FROM daily_performance 
           WHERE date > DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-          GROUP BY account_id
+          GROUP BY accountId
           HAVING COUNT(DISTINCT date) >= 14
         )
         LIMIT 5
@@ -473,7 +473,7 @@ export class ABTestAutomationScheduler {
       
       // 查找所有运行中的实验
       const runningTests = await database.execute(sql`
-        SELECT id, account_id FROM ab_tests WHERE status = 'running'
+        SELECT id, accountId FROM ab_tests WHERE status = 'running'
       `);
       
       const tests = (runningTests as any[][])?.[0] || [];
@@ -481,7 +481,7 @@ export class ABTestAutomationScheduler {
       for (const test of tests as Record<string, any>[]) {
         try {
           const { recordExperimentDailyMetrics } = await import('../abTestIntegration');
-          await recordExperimentDailyMetrics(Number(test.account_id));
+          await recordExperimentDailyMetrics(Number(test.accountId));
         } catch (err: unknown) {
           log.warn(`[ABTestAutomation] 收集实验${test.id}指标失败: ${(err as Error).message}`);
         }

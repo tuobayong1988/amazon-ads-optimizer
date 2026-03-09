@@ -306,10 +306,10 @@ export async function checkAllAccountsIntegrity(
       return { totalAccounts: 0, healthyAccounts: 0, unhealthyAccounts: 0, results };
     }
 
-    // 获取所有活跃账户
+    // 获取所有活跃账户 (v369.6: 修复表名 amazon_ad_accounts → ad_accounts, 修复status条件)
     const accounts = await database.execute(sql`
-      SELECT DISTINCT id FROM amazon_ad_accounts 
-      WHERE status = 'active' OR status = 'connected'
+      SELECT DISTINCT id FROM ad_accounts 
+      WHERE status = 'active' OR connectionStatus = 'connected'
     `);
 
     const accountRows = (accounts as Record<string, any>[])?.[0] || accounts;

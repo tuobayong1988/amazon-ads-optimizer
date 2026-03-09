@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 369;  // v369: 全面系统评估优化 - 缺失表迁移/API限流accountId修复/RL日志增强/缓冲区扩容
+export const SYSTEM_VERSION = 370;  // v370: 批量完整性检查SQL修复/anomaly_alert_logs列名修复/HTTP 425处理/HealthMonitor全局账户同步

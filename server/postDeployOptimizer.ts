@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 370,
+    description: 'v370: [批量完整性检查+告警持久化+HTTP 425+前端修复] — (1)P0-批量完整性检查SQL修复:dataIntegrityChecker.ts和sloMonitor.ts中表名从mazon_ad_accounts修复为ad_accounts,status列名修复为is_active (2)P0-anomaly_alert_logs列名修复:riskActionEngine.ts中persistRiskAlert使用与实际数据库结构匹配的列名 (3)P0-dbAutoMigration修复:anomaly_alert_logs的CREATE TABLE与ALTER TABLE与Drizzle migration实际结构对齐 (4)P1-HTTP 425处理:Amazon API返回425 Too Early时不重试直接跳过 (5)P1-HealthMonitor全局账户同步:从硬编码selectedAccountId=1改为使用全局useCurrentAccountId',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 369,
     description: 'v369: [全面系统评估优化] — (1)P0-API限流accountId=0修复:所有API调用现在传递真实accountId (2)P0-缺失数据库表迁移:budget_auto_execution_configs/history/details/logs+keyword_auto_execution_configs (3)P0-RL日志增强:recordBidAction错误日志包含完整上下文 (4)P1-日志缓冲区扩容15000→30000+批次大小100→200 (5)P1-同步记录数统计修复 (6)P1-前端优化目标达成度显示优化',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

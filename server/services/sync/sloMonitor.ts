@@ -136,10 +136,10 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
         SELECT 
           a.id as account_id,
           COUNT(DISTINCT DATE(dp.date)) as data_days
-        FROM amazon_ad_accounts a
-        LEFT JOIN daily_performance dp ON a.id = dp.account_id 
+        FROM ad_accounts a
+        LEFT JOIN daily_performance dp ON a.id = dp.accountId 
           AND DATE(dp.date) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
-        WHERE a.status IN ('active', 'connected')
+        WHERE a.status = 'active' OR a.connectionStatus = 'connected'
         GROUP BY a.id
       `);
       const coverageRows = (coverageStats as Record<string, any>[])?.[0] || coverageStats;

@@ -79,27 +79,33 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     log.info('v347: 开始数据库自动迁移检查...');
 
     // ============================================================
-    // 1. anomaly_alert_logs 表（v245 riskActionEngine 使用 snake_case 列名）
+    // 1. anomaly_alert_logs 表
+    // v369.6: 表已由 Drizzle migration 0019 创建，此处仅作为安全回退
+    // 实际列名: rule_id, user_id, account_id, trigger_value, threshold_value,
+    //   trigger_description, action_taken, notification_sent, status, created_at 等
     // ============================================================
     await safeDDL(database, sql`
       CREATE TABLE IF NOT EXISTS anomaly_alert_logs (
         id INT NOT NULL AUTO_INCREMENT,
+        rule_id INT NOT NULL DEFAULT 0,
+        user_id INT NOT NULL DEFAULT 0,
         account_id INT,
-        alert_type VARCHAR(100),
-        severity VARCHAR(50),
-        message MEDIUMTEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        trigger_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+        threshold_value DECIMAL(10,2) NOT NULL DEFAULT 0,
+        trigger_description TEXT,
+        action_taken ENUM('alert_sent','operation_paused','operation_rolled_back','operation_blocked') NOT NULL DEFAULT 'alert_sent',
+        notification_sent TINYINT NOT NULL DEFAULT 0,
+        notification_sent_at TIMESTAMP NULL,
+        status ENUM('active','acknowledged','resolved','false_positive') NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         INDEX idx_aal_account (account_id),
-        INDEX idx_aal_type (alert_type),
+        INDEX idx_aal_rule (rule_id),
         INDEX idx_aal_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `, 'anomaly_alert_logs', results);
 
-    // v347: 确保message列为MEDIUMTEXT（旧版可能是TEXT，无法存储大JSON）
-    await safeDDL(database, sql`
-      ALTER TABLE anomaly_alert_logs MODIFY COLUMN message MEDIUMTEXT
-    `, 'anomaly_alert_logs.message→MEDIUMTEXT', results);
+    // v369.6: 不再尝试ALTER TABLE修改不存在的message列
 
     // ============================================================
     // 2. emergency_optimization_queue 表（v245 riskActionEngine 使用 camelCase 列名）

@@ -186,9 +186,10 @@ async function persistRiskAlert(
   
   try {
     const { sql } = await import('drizzle-orm');
+    // v369.6: 修复列名匹配实际数据库结构 (Drizzle migration 0019)
     await dbInstance.execute(sql`
-      INSERT INTO anomaly_alert_logs (accountId, anomalyType, detectedValue, actionTaken, createdAt)
-      VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
+      INSERT INTO anomaly_alert_logs (account_id, rule_id, user_id, trigger_value, threshold_value, trigger_description, action_taken, created_at)
+      VALUES (${accountId}, 0, 0, 0, 0, ${`[${alertType}] severity=${severity}: ${detail}`}, 'alert_sent', NOW())
     `);
   } catch (err: unknown) {
     log.error(`[persistRiskAlert] 写入anomaly_alert_logs失败: ${(err as Error).message}`);
