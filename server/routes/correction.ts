@@ -25,13 +25,17 @@ export const correctionRouter = router({
       return db.listCorrectionReviewSessions(ctx.user.id, input.accountId);
     }),
 
-  // Get correction review session details
+  // v370.4: 数据隔离 - Get correction review session details
   getSession: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const session = await db.getCorrectionReviewSession(input.id);
       if (!session) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+      }
+      // v370.4: 验证session归属当前用户
+      if (session.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       return session;
     }),
@@ -170,14 +174,18 @@ export const correctionRouter = router({
       return report;
     }),
 
-  // Get correction records for a session
+  // v370.4: 数据隔离 - Get correction records for a session
   getCorrections: protectedProcedure
     .input(z.object({ sessionId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const session = await db.getCorrectionReviewSession(input.sessionId);
+      if (!session || session.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
+      }
       return db.getCorrectionRecordsForSession(input.sessionId);
     }),
 
-  // Apply corrections as batch operation
+  // v370.4: 数据隔离 - Apply corrections as batch operation
   applyCorrections: protectedProcedure
     .input(z.object({
       sessionId: z.number(),
@@ -187,6 +195,10 @@ export const correctionRouter = router({
       const session = await db.getCorrectionReviewSession(input.sessionId);
       if (!session) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+      }
+      // v370.4: 数据隔离
+      if (session.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
 
       // Get correction records
@@ -253,10 +265,14 @@ export const correctionRouter = router({
       return { success: true };
     }),
 
-  // Get recommendations
+  // v370.4: 数据隔离 - Get recommendations
   getRecommendations: protectedProcedure
     .input(z.object({ sessionId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const session = await db.getCorrectionReviewSession(input.sessionId);
+      if (!session || session.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
+      }
       const corrections = await db.getCorrectionRecordsForSession(input.sessionId);
       
       // Convert to CorrectionAnalysis format for recommendations

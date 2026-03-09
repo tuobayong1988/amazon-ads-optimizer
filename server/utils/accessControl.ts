@@ -1,24 +1,32 @@
 /**
- * v366: 多租户数据隔离 - accountId归属验证
+ * v370.4: 全面增强的多租户数据隔离 - 实体所有权验证
  * 
- * 确保所有面向用户的API端点在接收accountId参数时，
- * 验证该accountId确实属于当前登录用户，防止跨租户数据泄露。
+ * 提供对所有关键实体（account, campaign, performanceGroup, keyword, adGroup, scheduledTask等）
+ * 的所有权验证函数，确保用户只能访问属于自己的数据。
+ * 
+ * 数据层级关系：
+ *   user → ad_accounts (userId)
+ *        → campaigns (accountId) → ad_groups (campaignId/accountId) → keywords (adGroupId/accountId)
+ *        → performance_groups (accountId, userId)
+ *        → scheduled_tasks (userId)
+ *        → optimization_logs (account_id)
  */
 import { TRPCError } from '@trpc/server';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 
 const log = createModuleLogger('AccessControl');
 
-// 缓存：userId -> Set<accountId(number)>
-// 使用TTL缓存避免每次请求都查数据库
+// ==================== 缓存层 ====================
 const userAccountCache = new Map<number, { accounts: Set<number>; expiry: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟缓存
+const campaignAccountCache = new Map<number, { accountId: number; expiry: number }>();
+const pgOwnershipCache = new Map<number, { accountId: number; userId: number; expiry: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 
-/**
- * 获取用户拥有的所有accountId集合（带缓存）
- */
-async function getUserAccountIds(userId: number): Promise<Set<number>> {
+// ==================== 基础查询函数 ====================
+
+/** 获取用户拥有的所有accountId集合（带缓存） */
+export async function getUserAccountIds(userId: number): Promise<Set<number>> {
   const cached = userAccountCache.get(userId);
   if (cached && cached.expiry > Date.now()) {
     return cached.accounts;
@@ -28,10 +36,7 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
     const { getDb } = await import('../db/connection');
     const { adAccounts } = await import('../../drizzle/schema');
     const db = await getDb();
-    if (!db) {
-      log.error(`[v366] 数据库连接失败，无法验证用户 ${userId} 的账户归属`);
-      return new Set();
-    }
+    if (!db) return new Set();
 
     const accounts = await db.select({ id: adAccounts.id })
       .from(adAccounts)
@@ -39,69 +44,188 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
 
     const accountSet = new Set(accounts.map(a => a.id));
     userAccountCache.set(userId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
-
     return accountSet;
   } catch (error) {
-    log.error(`[v366] 查询用户 ${userId} 的账户列表失败:`, error);
+    log.error(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
     return new Set();
   }
 }
 
-/**
- * 验证accountId是否属于指定用户
- * 
- * @param userId - 当前登录用户的ID
- * @param accountId - 需要验证的accountId
- * @throws TRPCError FORBIDDEN 如果accountId不属于该用户
- */
+/** 反查campaign的accountId（带缓存） */
+async function getCampaignAccountId(campaignId: number): Promise<number | null> {
+  const cached = campaignAccountCache.get(campaignId);
+  if (cached && cached.expiry > Date.now()) return cached.accountId;
+  try {
+    const { getDb } = await import('../db/connection');
+    const { campaigns } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db.select({ accountId: campaigns.accountId })
+      .from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+    if (row) {
+      campaignAccountCache.set(campaignId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });
+      return row.accountId;
+    }
+    return null;
+  } catch { return null; }
+}
+
+/** 反查performanceGroup的accountId和userId（带缓存） */
+async function getPGOwnership(pgId: number): Promise<{ accountId: number; userId: number } | null> {
+  const cached = pgOwnershipCache.get(pgId);
+  if (cached && cached.expiry > Date.now()) return { accountId: cached.accountId, userId: cached.userId };
+  try {
+    const { getDb } = await import('../db/connection');
+    const { performanceGroups } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db.select({ accountId: performanceGroups.accountId, userId: performanceGroups.userId })
+      .from(performanceGroups).where(eq(performanceGroups.id, pgId)).limit(1);
+    if (row) {
+      pgOwnershipCache.set(pgId, { accountId: row.accountId, userId: row.userId, expiry: Date.now() + CACHE_TTL_MS });
+      return { accountId: row.accountId, userId: row.userId };
+    }
+    return null;
+  } catch { return null; }
+}
+
+/** 反查keyword的accountId */
+async function getKeywordAccountId(keywordId: number): Promise<number | null> {
+  try {
+    const { getDb } = await import('../db/connection');
+    const { keywords } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db.select({ accountId: keywords.accountId })
+      .from(keywords).where(eq(keywords.id, keywordId)).limit(1);
+    return row?.accountId ?? null;
+  } catch { return null; }
+}
+
+/** 反查adGroup的accountId */
+async function getAdGroupAccountId(adGroupId: number): Promise<number | null> {
+  try {
+    const { getDb } = await import('../db/connection');
+    const { adGroups } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db.select({ accountId: adGroups.accountId })
+      .from(adGroups).where(eq(adGroups.id, adGroupId)).limit(1);
+    return row?.accountId ?? null;
+  } catch { return null; }
+}
+
+/** 反查scheduledTask的userId */
+async function getScheduledTaskUserId(taskId: number): Promise<number | null> {
+  try {
+    const { getDb } = await import('../db/connection');
+    const { scheduledTasks } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return null;
+    const [row] = await db.select({ userId: scheduledTasks.userId })
+      .from(scheduledTasks).where(eq(scheduledTasks.id, taskId)).limit(1);
+    return row?.userId ?? null;
+  } catch { return null; }
+}
+
+// ==================== 验证函数 ====================
+
+/** 验证accountId是否属于指定用户 */
 export async function verifyAccountAccess(userId: number, accountId: number): Promise<void> {
   if (!accountId || !userId) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: '缺少必要的用户或账户信息',
-    });
+    throw new TRPCError({ code: 'BAD_REQUEST', message: '缺少必要的用户或账户信息' });
   }
-
   const userAccounts = await getUserAccountIds(userId);
-
   if (!userAccounts.has(accountId)) {
-    log.warn(`[v366] 数据隔离拦截: 用户 ${userId} 试图访问不属于自己的账户 ${accountId}`);
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: '您没有权限访问此账户的数据',
-    });
+    log.warn(`[v370.4] 数据隔离拦截(account): 用户 ${userId} 试图访问不属于自己的账户 ${accountId}`);
+    throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此账户的数据' });
   }
 }
 
-/**
- * 验证多个accountId是否都属于指定用户
- */
+/** 验证多个accountId是否都属于指定用户 */
 export async function verifyMultipleAccountAccess(userId: number, accountIds: number[]): Promise<void> {
   if (!accountIds || accountIds.length === 0) return;
-
   const userAccounts = await getUserAccountIds(userId);
-
   for (const accountId of accountIds) {
     if (!userAccounts.has(accountId)) {
-      log.warn(`[v366] 数据隔离拦截: 用户 ${userId} 试图批量访问不属于自己的账户 ${accountId}`);
-      throw new TRPCError({
-        code: 'FORBIDDEN',
-        message: '您没有权限访问部分账户的数据',
-      });
+      log.warn(`[v370.4] 数据隔离拦截(accounts): 用户 ${userId} 试图批量访问不属于自己的账户 ${accountId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问部分账户的数据' });
     }
   }
 }
 
-/**
- * 清除指定用户的缓存（在账户变更时调用）
- */
+/** v370.4: 验证campaign是否属于指定用户 */
+export async function verifyCampaignAccess(userId: number, campaignId: number): Promise<void> {
+  const accountId = await getCampaignAccountId(campaignId);
+  if (accountId === null) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: '广告活动不存在' });
+  }
+  const userAccounts = await getUserAccountIds(userId);
+  if (!userAccounts.has(accountId)) {
+    log.warn(`[v370.4] 数据隔离拦截(campaign): 用户 ${userId} 试图访问不属于自己的广告活动 ${campaignId}`);
+    throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此广告活动' });
+  }
+}
+
+/** v370.4: 验证performanceGroup是否属于指定用户 */
+export async function verifyPerformanceGroupAccess(userId: number, pgId: number): Promise<void> {
+  const ownership = await getPGOwnership(pgId);
+  if (!ownership) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
+  }
+  if (ownership.userId !== userId) {
+    const userAccounts = await getUserAccountIds(userId);
+    if (!userAccounts.has(ownership.accountId)) {
+      log.warn(`[v370.4] 数据隔离拦截(performanceGroup): 用户 ${userId} 试图访问不属于自己的优化目标 ${pgId}`);
+      throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此优化目标' });
+    }
+  }
+}
+
+/** v370.4: 验证keyword是否属于指定用户 */
+export async function verifyKeywordAccess(userId: number, keywordId: number): Promise<void> {
+  const accountId = await getKeywordAccountId(keywordId);
+  if (accountId === null) return; // 旧数据可能没有accountId
+  const userAccounts = await getUserAccountIds(userId);
+  if (!userAccounts.has(accountId)) {
+    log.warn(`[v370.4] 数据隔离拦截(keyword): 用户 ${userId} 试图访问不属于自己的关键词 ${keywordId}`);
+    throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此关键词' });
+  }
+}
+
+/** v370.4: 验证adGroup是否属于指定用户 */
+export async function verifyAdGroupAccess(userId: number, adGroupId: number): Promise<void> {
+  const accountId = await getAdGroupAccountId(adGroupId);
+  if (accountId === null) return; // 旧数据可能没有accountId
+  const userAccounts = await getUserAccountIds(userId);
+  if (!userAccounts.has(accountId)) {
+    log.warn(`[v370.4] 数据隔离拦截(adGroup): 用户 ${userId} 试图访问不属于自己的广告组 ${adGroupId}`);
+    throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此广告组' });
+  }
+}
+
+/** v370.4: 验证scheduledTask是否属于指定用户 */
+export async function verifyScheduledTaskAccess(userId: number, taskId: number): Promise<void> {
+  const taskUserId = await getScheduledTaskUserId(taskId);
+  if (taskUserId === null) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: '任务不存在' });
+  }
+  if (taskUserId !== userId) {
+    log.warn(`[v370.4] 数据隔离拦截(scheduledTask): 用户 ${userId} 试图访问不属于自己的任务 ${taskId}`);
+    throw new TRPCError({ code: 'FORBIDDEN', message: '您没有权限访问此任务' });
+  }
+}
+
+// ==================== 缓存管理 ====================
+
+/** 清除指定用户的缓存 */
 export function invalidateUserAccountCache(userId: number): void {
   userAccountCache.delete(userId);
 }
 
-/**
- * 清除所有缓存
- */
+/** 清除所有缓存 */
 export function clearAllAccountCache(): void {
   userAccountCache.clear();
+  campaignAccountCache.clear();
+  pgOwnershipCache.clear();
 }

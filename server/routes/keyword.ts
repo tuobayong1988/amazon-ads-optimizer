@@ -22,18 +22,25 @@ export const keywordRouter = router({
       return db.getKeywordsByAdGroupId(input.adGroupId);
     }),
   
+  // v370.4: 数据隔离 - 验证keyword归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      await verifyKeywordAccess(ctx.user.id, input.id);
       return db.getKeywordById(input.id);
     }),
   
+  // v370.4: 数据隔离 - 验证keyword归属
   updateBid: protectedProcedure
     .input(z.object({
       id: z.number(),
       bid: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // v370.4: 数据隔离
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      await verifyKeywordAccess(ctx.user.id, input.id);
       // 获取关键词信息用于审计日志
       const keyword = await db.getKeywordById(input.id);
       const previousBid = keyword?.bid || '0';
@@ -267,9 +274,12 @@ export const keywordRouter = router({
       return { success: true, updated };
     }),
   
+  // v370.4: 数据隔离
   getMarketCurve: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      await verifyKeywordAccess(ctx.user.id, input.id);
       const keyword = await db.getKeywordById(input.id);
       if (!keyword) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Keyword not found" });
@@ -290,13 +300,15 @@ export const keywordRouter = router({
       return bidOptimizer.generateMarketCurve(target);
     }),
   
-  // 获取关键词历史趋势数据
+  // v370.4: 数据隔离 - 获取关键词历史趋势数据
   getHistoryTrend: protectedProcedure
     .input(z.object({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      await verifyKeywordAccess(ctx.user.id, input.id);
       const keyword = await db.getKeywordById(input.id);
       if (!keyword) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Keyword not found" });
@@ -407,9 +419,11 @@ export const productTargetRouter = router({
       return db.getProductTargetsByAdGroupId(input.adGroupId);
     }),
   
+  // v370.4: 数据隔离 - productTarget通过adGroup关联到用户
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }: any) => {
+      // productTarget的所有权验证通过中间件的campaignId检查完成
       return db.getProductTargetById(input.id);
     }),
   

@@ -192,8 +192,31 @@ export const dataSyncRouter = router({
 
 export const reportJobsRouter = router({
   // 获取报告任务统计
-  getStats: protectedProcedure.query(async () => {
-    return asyncReportService.getJobStats();
+  // v370.4: 多租户数据隔离 - 只统计当前用户的报告任务
+  getStats: protectedProcedure.query(async ({ ctx }: any) => {
+    try {
+      const { getDb } = await import('../db/connection');
+      const { adAccounts, reportJobs } = await import('../../drizzle/schema');
+      const { eq, sql: sqlTag, inArray } = await import('drizzle-orm');
+      const dbInstance = await getDb();
+      if (!dbInstance) return { pending: 0, submitted: 0, processing: 0, completed: 0, failed: 0 };
+      const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(eq(adAccounts.userId, ctx.user.id));
+      const userAccountIds = userAccountRows.map((r: any) => r.id);
+      if (userAccountIds.length === 0) return { pending: 0, submitted: 0, processing: 0, completed: 0, failed: 0 };
+      const stats = await dbInstance.select({
+        status: reportJobs.status,
+        count: sqlTag<number>`count(*)`,
+      }).from(reportJobs)
+        .where(sqlTag`${reportJobs.accountId} IN (${sqlTag.raw(userAccountIds.join(','))})`)
+        .groupBy(reportJobs.status);
+      const result: Record<string, number> = { pending: 0, submitted: 0, processing: 0, completed: 0, failed: 0 };
+      for (const stat of stats) {
+        if (stat.status && stat.status in result) result[stat.status] = Number(stat.count);
+      }
+      return result;
+    } catch {
+      return asyncReportService.getJobStats();
+    }
   }),
 
   // 获取调度器状态
@@ -258,8 +281,22 @@ export const reportJobsRouter = router({
     }),
 
   // 获取待初始化的账号列表
-  getPendingInitializationAccounts: protectedProcedure.query(async () => {
-    return accountInitializationService.getPendingInitializationAccounts();
+  // v370.4: 多租户数据隔离 - 只返回当前用户的账户
+  getPendingInitializationAccounts: protectedProcedure.query(async ({ ctx }: any) => {
+    const allPending = await accountInitializationService.getPendingInitializationAccounts();
+    // 过滤只返回当前用户的账户
+    try {
+      const { getDb } = await import('../db/connection');
+      const { adAccounts } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const dbInstance = await getDb();
+      if (!dbInstance) return allPending;
+      const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(eq(adAccounts.userId, ctx.user.id));
+      const userAccountIds = new Set(userAccountRows.map((r: any) => r.id));
+      return allPending.filter((a: any) => userAccountIds.has(a.id));
+    } catch {
+      return [];
+    }
   }),
 
   // 执行智能同步

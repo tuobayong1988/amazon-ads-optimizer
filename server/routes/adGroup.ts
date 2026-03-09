@@ -22,17 +22,21 @@ export const adGroupRouter = router({
       return db.getAdGroupsByCampaignId(input.campaignId);
     }),
   
-  // 获取广告组详情
+  // v370.4: 数据隔离 - 获取广告组详情
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.id);
       return db.getAdGroupById(input.id);
     }),
   
-  // 获取广告组及其关键词统计
+  // v370.4: 数据隔离 - 获取广告组及其关键词统计
   getWithKeywordStats: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.id);
       const adGroup = await db.getAdGroupById(input.id);
       if (!adGroup) return null;
       
@@ -48,13 +52,15 @@ export const adGroupRouter = router({
       };
     }),
   
-  // 更新广告组默认出价
+  // v370.4: 数据隔离 - 更新广告组默认出价
   updateDefaultBid: protectedProcedure
     .input(z.object({
       id: z.number(),
       defaultBid: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.id);
       const adGroup = await db.getAdGroupById(input.id);
       const previousBid = adGroup?.defaultBid || '0';
       
@@ -79,13 +85,15 @@ export const adGroupRouter = router({
       return { success: true };
     }),
   
-  // 更新广告组状态
+  // v370.4: 数据隔离 - 更新广告组状态
   updateStatus: protectedProcedure
     .input(z.object({
       id: z.number(),
       status: z.enum(['enabled', 'paused', 'archived']),
     }))
     .mutation(async ({ ctx, input }) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.id);
       const adGroup = await db.getAdGroupById(input.id);
       const previousStatus = adGroup?.adGroupStatus || 'enabled';
       

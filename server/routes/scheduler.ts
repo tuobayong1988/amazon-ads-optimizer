@@ -53,7 +53,7 @@ export const schedulerRouter = router({
       return { id };
     }),
 
-  // Update scheduled task
+  // v370.4: 数据隔离 - Update scheduled task
   updateTask: protectedProcedure
     .input(z.object({
       id: z.number(),
@@ -68,7 +68,9 @@ export const schedulerRouter = router({
       requireApproval: z.boolean().optional(),
       parameters: z.record(z.string(), z.unknown()).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
+      await verifyScheduledTaskAccess(ctx.user.id, input.id);
       await db.updateScheduledTask(input.id, {
         name: input.name,
         description: input.description,
@@ -84,21 +86,25 @@ export const schedulerRouter = router({
       return { success: true };
     }),
 
-  // Delete scheduled task
+  // v370.4: 数据隔离 - Delete scheduled task
   deleteTask: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
+      await verifyScheduledTaskAccess(ctx.user.id, input.id);
       await db.deleteScheduledTask(input.id);
       return { success: true };
     }),
 
-  // Run task manually
+  // v370.4: 数据隔离 - Run task manually
   runTask: protectedProcedure
     .input(z.object({
       id: z.number(),
       autoApply: z.boolean().optional().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
+      const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
+      await verifyScheduledTaskAccess(ctx.user.id, input.id);
       const task = await db.getScheduledTaskById(input.id);
       if (!task) {
         throw new TRPCError({
@@ -186,13 +192,15 @@ export const schedulerRouter = router({
       return result;
     }),
 
-  // Get task execution history
+  // v370.4: 数据隔离 - Get task execution history
   getExecutionHistory: protectedProcedure
     .input(z.object({
       taskId: z.number(),
       limit: z.number().optional().default(20),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyScheduledTaskAccess } = await import('../utils/accessControl');
+      await verifyScheduledTaskAccess(ctx.user.id, input.taskId);
       return db.getTaskExecutionHistory(input.taskId, input.limit);
     }),
 

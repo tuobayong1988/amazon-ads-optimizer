@@ -65,9 +65,12 @@ export const campaignRouter = router({
       return db.getUnassignedCampaigns(input.accountId);
     }),
   
+  // v370.4: 数据隔离 - 验证campaign归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyCampaignAccess } = await import('../utils/accessControl');
+      await verifyCampaignAccess(ctx.user.id, input.id);
       return db.getCampaignById(input.id);
     }),
   
@@ -86,6 +89,7 @@ export const campaignRouter = router({
       return { id };
     }),
   
+  // v370.4: 数据隔离 - update方法验证campaign归属（通过input.id）
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
@@ -99,6 +103,9 @@ export const campaignRouter = router({
       campaignStatus: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // v370.4: 数据隔离 - 验证campaign归属
+      const { verifyCampaignAccess } = await import('../utils/accessControl');
+      await verifyCampaignAccess(ctx.user.id, input.id);
       // 获取更新前的广告活动信息
       const previousCampaign = await db.getCampaignById(input.id);
       
@@ -505,11 +512,17 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
       return db.getAiOptimizationExecutionsByCampaign(input.campaignId);
     }),
   
-  // 获取AI优化执行详情
+  // v370.4: 获取AI优化执行详情（executionId关联到campaign，需要验证）
   getAIOptimizationDetail: protectedProcedure
     .input(z.object({ executionId: z.number() }))
-    .query(async ({ input }: any) => {
-      return db.getAiOptimizationExecutionDetail(input.executionId);
+    .query(async ({ ctx, input }: any) => {
+      const detail = await db.getAiOptimizationExecutionDetail(input.executionId);
+      // v370.4: 验证执行记录关联的campaign归属
+      if (detail && (detail as any).campaignId) {
+        const { verifyCampaignAccess } = await import('../utils/accessControl');
+        await verifyCampaignAccess(ctx.user.id, (detail as any).campaignId);
+      }
+      return detail;
     }),
 
   // 更新广告活动的策略模板推荐

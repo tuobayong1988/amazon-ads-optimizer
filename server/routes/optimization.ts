@@ -21,24 +21,32 @@ const log = createModuleLogger('Route_optimization');
 // ==================== Optimization Router ====================
 export const optimizationRouter = router({
   // v230: 新增getMetrics、getRecentActions、getTrends方法，修复前端AutoOptimizationDashboard页面失效问题
-  getMetrics: protectedProcedure.query(async () => {
+  getMetrics: protectedProcedure.query(async ({ ctx }: any) => {
     const dbInstance = await db.getDb();
     if (!dbInstance) {
       return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
     }
     try {
-      const { optimizationLogs } = await import('../../drizzle/schema');
+      const { optimizationLogs, adAccounts } = await import('../../drizzle/schema');
       const { sql: sqlTag } = await import('drizzle-orm');
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const todayStr = todayStart.toISOString();
       
-      // 查询今日的优化操作统计
+      // v370.4: 多租户数据隔离 - 只查询当前用户的账户数据
+      const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
+      const userAccountIds = userAccountRows.map((r: any) => r.id);
+      if (userAccountIds.length === 0) {
+        return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
+      }
+      const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
+      
+      // 查询今日的优化操作统计（仅当前用户的账户）
       const [stats] = await dbInstance.select({
         total: sqlTag<number>`COUNT(*)`,
         completed: sqlTag<number>`SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)`,
         failed: sqlTag<number>`SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)`,
-      }).from(optimizationLogs).where(sqlTag`created_at >= ${todayStr}`);
+      }).from(optimizationLogs).where(sqlTag`created_at >= ${todayStr} AND ${accountFilter}`);
       
       const total = Number(stats?.total || 0);
       const completed = Number(stats?.completed || 0);
@@ -62,14 +70,22 @@ export const optimizationRouter = router({
 
   getRecentActions: protectedProcedure
     .input(z.object({ limit: z.number().optional().default(10) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
       const dbInstance = await db.getDb();
       if (!dbInstance) return [];
       try {
-        const { optimizationLogs } = await import('../../drizzle/schema');
-        const { desc } = await import('drizzle-orm');
+        const { optimizationLogs, adAccounts } = await import('../../drizzle/schema');
+        const { desc, sql: sqlTag } = await import('drizzle-orm');
+        
+        // v370.4: 多租户数据隔离
+        const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
+        const userAccountIds = userAccountRows.map((r: any) => r.id);
+        if (userAccountIds.length === 0) return [];
+        const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
+        
         const logs = await dbInstance.select()
           .from(optimizationLogs)
+          .where(accountFilter)
           .orderBy(desc(optimizationLogs.id))
           .limit(input.limit);
         return logs.map(log => ({
@@ -94,21 +110,27 @@ export const optimizationRouter = router({
 
   getTrends: protectedProcedure
     .input(z.object({ days: z.number().optional().default(7) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
       const dbInstance = await db.getDb();
       if (!dbInstance) return [];
       try {
         const { sql: sqlTag } = await import('drizzle-orm');
-        const { optimizationLogs } = await import('../../drizzle/schema');
+        const { optimizationLogs, adAccounts } = await import('../../drizzle/schema');
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - input.days);
         const startStr = startDate.toISOString().slice(0, 10);
+        
+        // v370.4: 多租户数据隔离
+        const userAccountRows = await dbInstance.select({ id: adAccounts.id }).from(adAccounts).where(sqlTag`${adAccounts.userId} = ${ctx.user.id}`);
+        const userAccountIds = userAccountRows.map((r: any) => r.id);
+        if (userAccountIds.length === 0) return [];
+        const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
         
         const rows = await dbInstance.select({
           date: sqlTag<string>`DATE(created_at)`,
           actions: sqlTag<number>`COUNT(*)`,
         }).from(optimizationLogs)
-          .where(sqlTag`DATE(created_at) >= ${startStr}`)
+          .where(sqlTag`DATE(created_at) >= ${startStr} AND ${accountFilter}`)
           .groupBy(sqlTag`DATE(created_at)`)
           .orderBy(sqlTag`DATE(created_at)`);
         

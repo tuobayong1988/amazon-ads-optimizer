@@ -36,12 +36,17 @@ export const auditRouter = router({
       });
     }),
 
-  // 获取单个审计日志详情
+  // v370.4: 数据隔离 - 获取单个审计日志详情
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getAuditLogById } = await import("../auditService");
-      return getAuditLogById(input.id);
+      const log = await getAuditLogById(input.id);
+      // v370.4: 验证审计日志归属（管理员可查看所有）
+      if (log && log.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+        throw new (await import('@trpc/server')).TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
+      }
+      return log;
     }),
 
   // 获取用户操作统计（管理员可查看全部用户的汇总统计）

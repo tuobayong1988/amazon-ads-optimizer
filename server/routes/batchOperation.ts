@@ -28,12 +28,16 @@ export const batchOperationRouter = router({
     }),
 
   // Get batch operation details
+  // v370.4: 数据隔离 - 验证批量操作归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       const items = await db.getBatchOperationItems(input.id);
       return { ...batch, items };
@@ -136,13 +140,16 @@ export const batchOperationRouter = router({
       return { batchId, totalItems: input.items.length };
     }),
 
-  // Approve batch operation
+  // v370.4: 数据隔离 - Approve batch operation
   approve: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       if (batch.batchStatus !== 'pending') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation is not pending approval' });
@@ -152,13 +159,16 @@ export const batchOperationRouter = router({
       return { success: true };
     }),
 
-  // Execute batch operation
+  // v370.4: 数据隔离 - Execute batch operation
   execute: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       if (batch.requiresApproval && batch.batchStatus !== 'approved') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation requires approval before execution' });
@@ -237,13 +247,16 @@ export const batchOperationRouter = router({
       };
     }),
 
-  // Rollback batch operation
+  // v370.4: 数据隔离 - Rollback batch operation
   rollback: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       if (!batchOperationService.canRollback(batch.batchStatus as batchOperationService.BatchStatus, batch.completedAt ? new Date(batch.completedAt) : undefined)) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot rollback this batch operation' });
@@ -285,13 +298,16 @@ export const batchOperationRouter = router({
       return { success: true, rolledBackItems: successCount };
     }),
 
-  // Cancel pending batch operation
+  // v370.4: 数据隔离 - Cancel pending batch operation
   cancel: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       if (batch.batchStatus !== 'pending' && batch.batchStatus !== 'approved') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Can only cancel pending or approved operations' });
@@ -301,13 +317,16 @@ export const batchOperationRouter = router({
       return { success: true };
     }),
 
-  // Get batch operation summary
+  // v370.4: 数据隔离 - Get batch operation summary
   getSummary: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
 
       const result: batchOperationService.BatchOperationResult = {
@@ -389,13 +408,16 @@ export const batchOperationRouter = router({
       };
     }),
 
-  // Get detailed operation record with all items
+  // v370.4: 数据隔离 - Get detailed operation record with all items
   getDetailedRecord: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const batch = await db.getBatchOperation(input.id);
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       const items = await db.getBatchOperationItems(input.id);
 

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 370;  // v370: 批量完整性检查SQL修复/anomaly_alert_logs列名修复/HTTP 425处理/HealthMonitor全局账户同步
+export const SYSTEM_VERSION = 370.4;  // v370.4: 多租户数据绝对隔离 - 全面修复所有路由(campaign/performanceGroup/keyword/adGroup/batchOp/scheduler/correction/audit等)的数据隔离漏洞

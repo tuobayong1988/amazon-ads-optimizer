@@ -29,20 +29,30 @@ const requireUser = t.middleware(async opts => {
 });
 
 /**
- * v366: accountId归属验证中间件
+ * v370.4: 全面增强的多租户数据隔离中间件
  * 
- * 自动拦截所有包含accountId参数的请求，验证该accountId是否属于当前登录用户。
- * 这是一个全局性的安全屏障，确保多租户数据隔离。
+ * 在v366的基础上大幅增强，不仅检查accountId，还自动验证所有关键参数的所有权：
+ * - accountId / accountIds → 直接验证是否属于当前用户
+ * - performanceGroupId / groupId → 反查performance_groups表的accountId，再验证所有权
+ * - campaignId（数字类型）→ 反查campaigns表的accountId，再验证所有权
+ * - taskId / id（在scheduled_tasks上下文中）→ 反查scheduled_tasks表的userId
  * 
- * 工作原理：
- * 1. 检查请求的input中是否包含accountId字段
- * 2. 如果包含，查询数据库验证该accountId的userId是否等于当前用户ID
- * 3. 如果不匹配，立即拒绝请求
- * 4. 使用内存缓存减少数据库查询压力（5分钟TTL）
+ * 数据层级关系：
+ *   user → ad_accounts (userId) → campaigns (accountId) → ad_groups → keywords/targets
+ *                                → performance_groups (accountId, userId)
+ *                                → daily_performance (accountId)
+ *                                → optimization_logs (account_id)
+ *                                → scheduled_tasks (userId)
  */
 
-// 缓存：userId -> Set<accountId(number)>
+// ==================== 缓存层 ====================
+// 缓存1：userId -> Set<accountId(number)>
 const userAccountCache = new Map<number, { accounts: Set<number>; expiry: number }>();
+// 缓存2：campaignId(number) -> accountId(number)
+const campaignAccountCache = new Map<number, { accountId: number; expiry: number }>();
+// 缓存3：performanceGroupId(number) -> accountId(number)
+const pgAccountCache = new Map<number, { accountId: number; expiry: number }>();
+
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 
 async function getUserAccountIds(userId: number): Promise<Set<number>> {
@@ -66,8 +76,66 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
     userAccountCache.set(userId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
     return accountSet;
   } catch (error) {
-    log.error(`[v366] 查询用户 ${userId} 的账户列表失败:`, error);
+    log.error(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
     return new Set();
+  }
+}
+
+/** 反查campaign的accountId */
+async function getCampaignAccountId(campaignId: number): Promise<number | null> {
+  const cached = campaignAccountCache.get(campaignId);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.accountId;
+  }
+
+  try {
+    const { getDb } = await import('../db/connection');
+    const { campaigns } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return null;
+
+    const [row] = await db.select({ accountId: campaigns.accountId })
+      .from(campaigns)
+      .where(eq(campaigns.id, campaignId))
+      .limit(1);
+
+    if (row) {
+      campaignAccountCache.set(campaignId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });
+      return row.accountId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** 反查performanceGroup的accountId */
+async function getPGAccountId(pgId: number): Promise<number | null> {
+  const cached = pgAccountCache.get(pgId);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.accountId;
+  }
+
+  try {
+    const { getDb } = await import('../db/connection');
+    const { performanceGroups } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = await getDb();
+    if (!db) return null;
+
+    const [row] = await db.select({ accountId: performanceGroups.accountId })
+      .from(performanceGroups)
+      .where(eq(performanceGroups.id, pgId))
+      .limit(1);
+
+    if (row) {
+      pgAccountCache.set(pgId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });
+      return row.accountId;
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
@@ -78,23 +146,28 @@ export function invalidateUserAccountCache(userId?: number): void {
   } else {
     userAccountCache.clear();
   }
+  // 同时清除关联缓存
+  campaignAccountCache.clear();
+  pgAccountCache.clear();
 }
 
+// ==================== 核心中间件 ====================
 const enforceAccountAccess = t.middleware(async opts => {
   const { ctx, next, rawInput } = opts;
 
   // 只对已认证用户生效
   if (ctx.user && rawInput && typeof rawInput === 'object') {
     const input = rawInput as Record<string, any>;
+    const userId = ctx.user.id;
     
-    // 检查input中是否有accountId字段
+    // ===== 1. 检查accountId字段（v366原有逻辑） =====
     const accountId = input.accountId;
     if (accountId !== undefined && accountId !== null && typeof accountId === 'number' && accountId > 0) {
-      const userAccounts = await getUserAccountIds(ctx.user.id);
+      const userAccounts = await getUserAccountIds(userId);
       
       if (!userAccounts.has(accountId)) {
         log.warn(
-          `[v366] 数据隔离拦截: 用户 ${ctx.user.id}(${ctx.user.email}) 试图访问不属于自己的账户 ${accountId}`
+          `[v370.4] 数据隔离拦截(accountId): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的账户 ${accountId}`
         );
         throw new TRPCError({
           code: 'FORBIDDEN',
@@ -103,18 +176,110 @@ const enforceAccountAccess = t.middleware(async opts => {
       }
     }
 
-    // 检查accountIds数组字段
+    // ===== 2. 检查accountIds数组字段 =====
     const accountIds = input.accountIds;
     if (Array.isArray(accountIds) && accountIds.length > 0) {
-      const userAccounts = await getUserAccountIds(ctx.user.id);
+      const userAccounts = await getUserAccountIds(userId);
       for (const aid of accountIds) {
         if (typeof aid === 'number' && aid > 0 && !userAccounts.has(aid)) {
           log.warn(
-            `[v366] 数据隔离拦截: 用户 ${ctx.user.id}(${ctx.user.email}) 试图批量访问不属于自己的账户 ${aid}`
+            `[v370.4] 数据隔离拦截(accountIds): 用户 ${userId}(${ctx.user.email}) 试图批量访问不属于自己的账户 ${aid}`
           );
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: '您没有权限访问部分账户的数据',
+          });
+        }
+      }
+    }
+
+    // ===== 3. v370.4新增：检查performanceGroupId / groupId =====
+    const pgId = input.performanceGroupId ?? input.groupId;
+    if (pgId !== undefined && pgId !== null && typeof pgId === 'number' && pgId > 0) {
+      const pgAccountId = await getPGAccountId(pgId);
+      if (pgAccountId !== null) {
+        const userAccounts = await getUserAccountIds(userId);
+        if (!userAccounts.has(pgAccountId)) {
+          log.warn(
+            `[v370.4] 数据隔离拦截(performanceGroupId): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的绩效组 ${pgId} (accountId=${pgAccountId})`
+          );
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '您没有权限访问此优化目标的数据',
+          });
+        }
+      }
+    }
+    // 也检查字符串类型的performanceGroupId（某些路由用z.string()）
+    const pgIdStr = typeof input.performanceGroupId === 'string' ? parseInt(input.performanceGroupId, 10) : NaN;
+    if (!isNaN(pgIdStr) && pgIdStr > 0) {
+      const pgAccountId = await getPGAccountId(pgIdStr);
+      if (pgAccountId !== null) {
+        const userAccounts = await getUserAccountIds(userId);
+        if (!userAccounts.has(pgAccountId)) {
+          log.warn(
+            `[v370.4] 数据隔离拦截(performanceGroupId/str): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的绩效组 ${pgIdStr}`
+          );
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '您没有权限访问此优化目标的数据',
+          });
+        }
+      }
+    }
+
+    // ===== 4. v370.4新增：检查campaignId（数字类型，即数据库内部ID） =====
+    const campaignId = input.campaignId;
+    if (campaignId !== undefined && campaignId !== null && typeof campaignId === 'number' && campaignId > 0) {
+      const campAccountId = await getCampaignAccountId(campaignId);
+      if (campAccountId !== null) {
+        const userAccounts = await getUserAccountIds(userId);
+        if (!userAccounts.has(campAccountId)) {
+          log.warn(
+            `[v370.4] 数据隔离拦截(campaignId): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的广告活动 ${campaignId} (accountId=${campAccountId})`
+          );
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '您没有权限访问此广告活动的数据',
+          });
+        }
+      }
+    }
+
+    // ===== 5. v370.4新增：检查campaignIds数组 =====
+    const campaignIds = input.campaignIds;
+    if (Array.isArray(campaignIds) && campaignIds.length > 0) {
+      const userAccounts = await getUserAccountIds(userId);
+      for (const cid of campaignIds) {
+        if (typeof cid === 'number' && cid > 0) {
+          const campAccountId = await getCampaignAccountId(cid);
+          if (campAccountId !== null && !userAccounts.has(campAccountId)) {
+            log.warn(
+              `[v370.4] 数据隔离拦截(campaignIds): 用户 ${userId}(${ctx.user.email}) 试图批量访问不属于自己的广告活动 ${cid}`
+            );
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: '您没有权限访问部分广告活动的数据',
+            });
+          }
+        }
+      }
+    }
+
+    // ===== 6. v370.4新增：检查targetId（优化目标执行相关，targetId指向performanceGroupId） =====
+    const targetId = input.targetId;
+    if (targetId !== undefined && targetId !== null && typeof targetId === 'number' && targetId > 0) {
+      // targetId在优化上下文中通常指performanceGroupId
+      const pgAccountId = await getPGAccountId(targetId);
+      if (pgAccountId !== null) {
+        const userAccounts = await getUserAccountIds(userId);
+        if (!userAccounts.has(pgAccountId)) {
+          log.warn(
+            `[v370.4] 数据隔离拦截(targetId): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的目标 ${targetId}`
+          );
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '您没有权限访问此目标的数据',
           });
         }
       }
@@ -125,9 +290,9 @@ const enforceAccountAccess = t.middleware(async opts => {
 });
 
 /**
- * v366: protectedProcedure 现在同时包含：
+ * v370.4: protectedProcedure 现在包含全面的多租户数据隔离：
  * 1. requireUser - 验证用户已登录
- * 2. enforceAccountAccess - 验证accountId归属（自动拦截）
+ * 2. enforceAccountAccess - 验证accountId/performanceGroupId/campaignId等所有关键参数的归属
  */
 export const protectedProcedure = t.procedure.use(requireUser).use(enforceAccountAccess);
 

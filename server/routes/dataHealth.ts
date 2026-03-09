@@ -16,7 +16,7 @@ export const dataHealthRouter = router({
    * 聚合所有子系统的健康状态
    */
   getOverview: protectedProcedure
-    .query(async () => {
+    .query(async ({ ctx }: any) => {
       try {
         const results: Record<string, any> = {};
         
@@ -79,7 +79,15 @@ export const dataHealthRouter = router({
             const { dataSyncJobs } = await import('../../drizzle/schema');
             const { desc, eq, sql } = await import('drizzle-orm');
             
-            // 最近的同步任务
+            // v370.4: 多租户数据隔离 - 只查询当前用户的账户数据
+            const { adAccounts } = await import('../../drizzle/schema');
+            const userAccountRows = await db.select({ id: adAccounts.id }).from(adAccounts).where(sql`${adAccounts.userId} = ${ctx.user?.id || 0}`);
+            const userAccountIds = userAccountRows.map((r: any) => r.id);
+            const accountFilter = userAccountIds.length > 0 
+              ? sql`${dataSyncJobs.accountId} IN (${sql.raw(userAccountIds.join(','))})` 
+              : sql`1=0`;
+            
+            // 最近的同步任务（仅当前用户的账户）
             const recentJobs = await db.select({
               id: dataSyncJobs.id,
               accountId: dataSyncJobs.accountId,
@@ -91,10 +99,11 @@ export const dataHealthRouter = router({
               errorMessage: dataSyncJobs.errorMessage,
             })
             .from(dataSyncJobs)
+            .where(accountFilter)
             .orderBy(desc(dataSyncJobs.startedAt))
             .limit(10);
             
-            // 同步成功率统计（最近24小时）
+            // 同步成功率统计（最近24小时，仅当前用户的账户）
             const [syncStats] = await db.select({
               total: sql<number>`COUNT(*)`,
               succeeded: sql<number>`SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)`,
@@ -102,7 +111,7 @@ export const dataHealthRouter = router({
               running: sql<number>`SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END)`,
             })
             .from(dataSyncJobs)
-            .where(sql`${dataSyncJobs.startedAt} >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+            .where(sql`${dataSyncJobs.startedAt} >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND ${accountFilter}`);
             
             results.syncJobs = {
               status: 'active',

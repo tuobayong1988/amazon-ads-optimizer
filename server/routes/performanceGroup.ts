@@ -275,9 +275,12 @@ export const performanceGroupRouter = router({
       return enrichedResult;
     }),
   
+  // v370.4: 数据隔离 - 验证绩效组归属
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       return db.getPerformanceGroupById(input.id);
     }),
   
@@ -371,7 +374,10 @@ export const performanceGroupRouter = router({
       strategyTemplateId: z.string().optional(),
       strategyTemplateName: z.string().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v370.4: 数据隔离 - 验证绩效组归属
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       const { id, ...data } = input;
       await db.updatePerformanceGroup(id, data);
       
@@ -390,9 +396,12 @@ export const performanceGroupRouter = router({
       return { success: true };
     }),
   
+  // v370.4: 数据隔离 - 验证绩效组归属
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       await db.deletePerformanceGroup(input.id);
       return { success: true };
     }),
@@ -538,24 +547,30 @@ export const performanceGroupRouter = router({
       return { success: true, count };
     }),
 
-  // 获取绩效组详情（通过ID）
+  // v370.4: 数据隔离 - 获取绩效组详情（通过ID）
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.id);
       return db.getPerformanceGroupById(input.id);
     }),
 
-  // 获取绩效组内的广告活动（新API，使用groupId参数）
+  // v370.4: 数据隔离 - 获取绩效组内的广告活动
   getCampaigns: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       return db.getCampaignsByPerformanceGroupId(input.groupId);
     }),
 
-  // 获取绩效组KPI汇总
+  // v370.4: 数据隔离 - 获取绩效组KPI汇总
   getKpiSummary: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       // 获取绩效组内所有广告活动的汇总数据
       const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
       let totalSpend = 0;
@@ -591,13 +606,15 @@ export const performanceGroupRouter = router({
       };
     }),
 
-  // 添加广告活动到绩效组
+  // v370.4: 数据隔离 - 添加广告活动到绩效组
   addCampaigns: protectedProcedure
     .input(z.object({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, input.groupId);
@@ -618,19 +635,21 @@ export const performanceGroupRouter = router({
       return { success: true, count };
     }),
 
-  // 从绩效组移除单个广告活动
+  // v370.4: 数据隔离 - 从绩效组移除单个广告活动
   removeCampaign: protectedProcedure
     .input(z.object({
       groupId: z.number(),
       campaignId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       await db.assignCampaignToPerformanceGroup(input.campaignId, null);
       await db.updateCampaign(input.campaignId, { optimizationStatus: 'unmanaged' });
       return { success: true };
     }),
 
-  // 更新绩效组目标
+  // v370.4: 数据隔离 - 更新绩效组目标
   updateGoal: protectedProcedure
     .input(z.object({
       groupId: z.number(),
@@ -642,7 +661,10 @@ export const performanceGroupRouter = router({
       strategyTemplateId: z.string().optional(),
       autoOptimize: z.boolean().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v370.4: 数据隔离
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
       const updateData: Record<string, any> = {
         optimizationGoal: input.goalType,
       };
@@ -682,21 +704,25 @@ export const performanceGroupRouter = router({
 
   // ==================== 优化目标自动执行引擎 API ====================
   
-  // 获取优化目标执行摘要
+  // v370.4: 数据隔离 - 获取优化目标执行摘要
   getExecutionSummary: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       const optimizationTargetEngine = await import('../optimizationTargetEngine');
       return optimizationTargetEngine.getOptimizationTargetSummary(input.targetId);
     }),
   
-  // 执行优化目标（干运行模式 - 预览待执行操作）
+  // v370.4: 数据隔离 - 执行优化目标（干运行模式）
   previewExecution: protectedProcedure
     .input(z.object({ 
       targetId: z.number(),
       specificModules: z.array(z.string()).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       const optimizationTargetEngine = await import('../optimizationTargetEngine');
       return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
         dryRun: true,
@@ -705,13 +731,15 @@ export const performanceGroupRouter = router({
       });
     }),
   
-  // 执行优化目标（实际执行）
+  // v370.4: 数据隔离 - 执行优化目标（实际执行）
   executeOptimization: protectedProcedure
     .input(z.object({ 
       targetId: z.number(),
       specificModules: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
       const optimizationTargetEngine = await import('../optimizationTargetEngine');
       return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
         dryRun: false,
