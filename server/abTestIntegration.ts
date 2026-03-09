@@ -236,9 +236,9 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
             COALESCE(SUM(sales), 0) as sales,
             COALESCE(SUM(orders), 0) as orders
           FROM daily_performance 
-          WHERE campaign_id IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)})
+          WHERE campaignId IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)})
             AND DATE(date) = CURDATE()
-            AND account_id = ${accountId}
+            AND accountId = ${accountId}
         `);
         
         // @ts-ignore

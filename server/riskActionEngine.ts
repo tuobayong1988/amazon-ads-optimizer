@@ -822,7 +822,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `) as unknown;
     
@@ -831,7 +831,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `) as unknown;

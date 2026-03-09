@@ -292,7 +292,7 @@ async function calculateAcosTrend(
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
     `;
     const recentResult = await db.execute(recentQuery);
@@ -307,7 +307,7 @@ async function calculateAcosTrend(
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `;
@@ -323,7 +323,7 @@ async function calculateAcosTrend(
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `;

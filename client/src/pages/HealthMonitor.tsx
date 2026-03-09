@@ -278,32 +278,32 @@ export default function HealthMonitor() {
                           <div>
                             <span className="text-gray-400">效率分</span>
                             <div className="flex items-center gap-1">
-                              <span className={getScoreColor(campaign.scores?.efficiency || 0)}>
-                                {campaign.scores?.efficiency || 0}
+                              <span className={getScoreColor(campaign.scoreBreakdown?.efficiency || 0)}>
+                                {campaign.scoreBreakdown?.efficiency || 0}
                               </span>
                             </div>
                           </div>
                           <div>
                             <span className="text-gray-400">流量分</span>
                             <div className="flex items-center gap-1">
-                              <span className={getScoreColor(campaign.scores?.traffic || 0)}>
-                                {campaign.scores?.traffic || 0}
+                              <span className={getScoreColor(campaign.scoreBreakdown?.traffic || 0)}>
+                                {campaign.scoreBreakdown?.traffic || 0}
                               </span>
                             </div>
                           </div>
                           <div>
                             <span className="text-gray-400">转化分</span>
                             <div className="flex items-center gap-1">
-                              <span className={getScoreColor(campaign.scores?.conversion || 0)}>
-                                {campaign.scores?.conversion || 0}
+                              <span className={getScoreColor(campaign.scoreBreakdown?.conversion || 0)}>
+                                {campaign.scoreBreakdown?.conversion || 0}
                               </span>
                             </div>
                           </div>
                           <div>
                             <span className="text-gray-400">成本分</span>
                             <div className="flex items-center gap-1">
-                              <span className={getScoreColor(campaign.scores?.cost || 0)}>
-                                {campaign.scores?.cost || 0}
+                              <span className={getScoreColor(campaign.scoreBreakdown?.cost || 0)}>
+                                {campaign.scoreBreakdown?.cost || 0}
                               </span>
                             </div>
                           </div>

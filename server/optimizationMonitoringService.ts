@@ -578,7 +578,7 @@ async function checkProactiveRiskWarning(
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
                 SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
               FROM daily_performance 
-              WHERE account_id = ${account.id}
+              WHERE accountId = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;
         
@@ -588,7 +588,7 @@ async function checkProactiveRiskWarning(
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
                 SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
               FROM daily_performance 
-              WHERE account_id = ${account.id}
+              WHERE accountId = ${account.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
                 AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;

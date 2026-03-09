@@ -108,7 +108,7 @@ export async function checkAccountIntegrity(
              SUM(clicks) as total_clicks,
              SUM(impressions) as total_impressions
       FROM daily_performance 
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
       AND DATE(date) >= ${startDateStr}
       AND DATE(date) <= ${endDateStr}
       GROUP BY DATE(date)
@@ -205,12 +205,12 @@ export async function checkAccountIntegrity(
 
     // 5. 检查重复数据
     const duplicateCheck = await database.execute(sql`
-      SELECT DATE(date) as report_date, campaign_id, COUNT(*) as cnt
+      SELECT DATE(date) as report_date, campaignId, COUNT(*) as cnt
       FROM daily_performance
-      WHERE account_id = ${accountId}
+      WHERE accountId = ${accountId}
       AND DATE(date) >= ${startDateStr}
       AND DATE(date) <= ${endDateStr}
-      GROUP BY DATE(date), campaign_id
+      GROUP BY DATE(date), campaignId
       HAVING COUNT(*) > 1
       LIMIT 10
     `);
@@ -426,11 +426,11 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
     const result = await database.execute(sql`
       DELETE dp1 FROM daily_performance dp1
       INNER JOIN daily_performance dp2
-      ON dp1.account_id = dp2.account_id
-      AND dp1.campaign_id = dp2.campaign_id
+      ON dp1.accountId = dp2.accountId
+      AND dp1.campaignId = dp2.campaignId
       AND DATE(dp1.date) = DATE(dp2.date)
       AND dp1.id < dp2.id
-      WHERE dp1.account_id = ${accountId}
+      WHERE dp1.accountId = ${accountId}
     `);
 
     // @ts-ignore

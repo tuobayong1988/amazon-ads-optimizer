@@ -325,13 +325,13 @@ ${t.recommendations.map(r=>`\u2022 ${r}`).join(`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `),[i]=await e.execute(r`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `),s=n?.[0]||n,a=i?.[0]||i,o=Number(s?.total_spend)||0,c=Number(s?.total_sales)||0,l=Number(a?.total_spend)||0,u=Number(a?.total_sales)||0;if(c>0&&u>0){let d=o/c*100,p=l/u*100,f=p>0?(d-p)/p*100:0,m=0,h=[];if(f>0){let E=Math.min(40,f*2);m+=E,f>15&&h.push(`ACoS\u6076\u5316${f.toFixed(0)}%`)}let g=l>0?(o-l)/l*100:0,y=u>0?(c-u)/u*100:0,b=g-y;b>10&&(m+=Math.min(20,b),h.push(`\u82B1\u8D39\u589E\u901F\u8D85\u8FC7\u9500\u552E${b.toFixed(0)}%`)),d>60?(m+=25,h.push(`ACoS\u7EDD\u5BF9\u503C${d.toFixed(0)}%\u4E25\u91CD\u8D85\u6807`)):d>45?(m+=15,h.push(`ACoS\u7EDD\u5BF9\u503C${d.toFixed(0)}%\u504F\u9AD8`)):d>35&&(m+=5);let w=c>0?c/o:0,v=u>0?u/l:0;v>0&&w<v*.8&&(m+=15,h.push(`\u8F6C\u5316\u6548\u7387\u4E0B\u964D${((1-w/v)*100).toFixed(0)}%`));let S=f>15||m>=50;return S&&Ro.warn(`[RiskActionEngine] v267: \u8D26\u6237${t}\u98CE\u9669\u8BC4\u5206=${m}, \u56E0\u7D20=[${h.join(", ")}]`),{isDeteriorating:S,recentAcos:d,prevAcos:p,deteriorationRate:f,riskScore:m,riskFactors:h}}return{isDeteriorating:!1,recentAcos:0,prevAcos:0,deteriorationRate:0,riskScore:0,riskFactors:[]}}catch(r){return Ro.error(`[checkAcosTrendForAccount] Error for account ${t}: ${r.message}`),{isDeteriorating:!1,recentAcos:0,prevAcos:0,deteriorationRate:0}}}async function rAn(){let t=await K();if(t)try{let{sql:e}=await Promise.resolve().then(()=>(St(),Yn)),[r]=await t.execute(e`
@@ -950,18 +950,18 @@ ${t.recommendations.map(r=>`\u2022 ${r}`).join(`
              SUM(clicks) as total_clicks,
              SUM(impressions) as total_impressions
       FROM daily_performance 
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
       AND DATE(date) >= ${s}
       AND DATE(date) <= ${a}
       GROUP BY DATE(date)
       ORDER BY DATE(date)
     `),d=u?.[0]||u,p=new Map;if(Array.isArray(d))for(let v of d){let S=v.report_date instanceof Date?v.report_date.toISOString().split("T")[0]:String(v.report_date);p.set(S,v)}o.actualDays=p.size;let f=new Date(i);for(;f<=n;){let v=f.toISOString().split("T")[0];p.has(v)||(o.missingDates.push(v),o.anomalies.push({type:"missing_data",date:v,description:`\u65E5\u671F${v}\u65E0\u7EE9\u6548\u6570\u636E`,severity:"high"})),f.setDate(f.getDate()+1)}if(o.coveragePercent=o.expectedDays>0?Math.round(o.actualDays/o.expectedDays*100):0,p.size>1){let v=Array.from(p.values()).map(x=>Number(x.record_count)),S=v.reduce((x,T)=>x+T,0)/v.length,E=Math.sqrt(v.reduce((x,T)=>x+Math.pow(T-S,2),0)/v.length);for(let[x,T]of p.entries()){let I=Number(T.record_count);E>0&&I>S+3*E&&o.anomalies.push({type:"data_spike",date:x,description:`\u65E5\u671F${x}\u8BB0\u5F55\u6570\u5F02\u5E38\u504F\u9AD8: ${I}\u6761 (\u5E73\u5747${Math.round(S)}\u6761)`,severity:"high"})}}let m=new Date;m.setDate(m.getDate()-1);let h=m.toISOString().split("T")[0];!p.has(h)&&!p.has(a)&&o.anomalies.push({type:"stale_data",date:h,description:`\u6628\u65E5(${h})\u65E0\u6570\u636E\uFF0C\u6570\u636E\u53EF\u80FD\u4E0D\u65B0\u9C9C`,severity:"medium"});for(let[v,S]of p.entries()){let E=Number(S.total_spend),x=Number(S.total_clicks),T=Number(S.total_impressions);x>0&&E===0&&o.anomalies.push({type:"zero_spend_with_clicks",date:v,description:`\u65E5\u671F${v}\u6709${x}\u6B21\u70B9\u51FB\u4F46\u82B1\u8D39\u4E3A0`,severity:"medium"})}let g=await l.execute($`
-      SELECT DATE(date) as report_date, campaign_id, COUNT(*) as cnt
+      SELECT DATE(date) as report_date, campaignId, COUNT(*) as cnt
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
       AND DATE(date) >= ${s}
       AND DATE(date) <= ${a}
-      GROUP BY DATE(date), campaign_id
+      GROUP BY DATE(date), campaignId
       HAVING COUNT(*) > 1
       LIMIT 10
     `),y=g?.[0]||g;if(Array.isArray(y)&&y.length>0)for(let v of y){let S=v.report_date instanceof Date?v.report_date.toISOString().split("T")[0]:String(v.report_date);o.anomalies.push({type:"duplicate_data",date:S,description:`\u65E5\u671F${S} campaign ${v.campaign_id}\u6709${v.cnt}\u6761\u91CD\u590D\u8BB0\u5F55`,severity:"critical"})}let b=o.anomalies.filter(v=>v.severity==="critical"),w=o.anomalies.filter(v=>v.severity==="high");b.some(v=>v.type==="duplicate_data")&&(o.needsRepair=!0,o.repairActions.push({type:"deduplicate",reason:`\u53D1\u73B0${b.filter(v=>v.type==="duplicate_data").length}\u5904\u91CD\u590D\u6570\u636E`,priority:1})),o.coveragePercent<70?(o.needsRepair=!0,o.repairActions.push({type:"resync_full",reason:`\u6570\u636E\u8986\u76D6\u7387\u4EC5${o.coveragePercent}%\uFF0C\u4F4E\u4E8E70%\u9608\u503C`,priority:2})):o.missingDates.length>0&&(o.needsRepair=!0,o.repairActions.push({type:"resync_dates",dates:o.missingDates,reason:`\u7F3A\u5931${o.missingDates.length}\u5929\u6570\u636E`,priority:3})),mp.info(`[v358] \u8D26\u6237${t}\u5B8C\u6574\u6027\u68C0\u67E5\u5B8C\u6210: \u8986\u76D6\u7387=${o.coveragePercent}%, \u7F3A\u5931=${o.missingDates.length}\u5929, \u5F02\u5E38=${o.anomalies.length}\u4E2A, \u9700\u4FEE\u590D=${o.needsRepair}`),Qc("DataIntegrityChecker",`\u8D26\u6237${t}\u5B8C\u6574\u6027\u68C0\u67E5`,{accountId:t,coveragePercent:o.coveragePercent,missingDays:o.missingDates.length,anomalyCount:o.anomalies.length,needsRepair:o.needsRepair})}catch(c){mp.error(`[v358] \u8D26\u6237${t}\u5B8C\u6574\u6027\u68C0\u67E5\u5931\u8D25: ${c.message}`),fu("DataIntegrityChecker","\u5B8C\u6574\u6027\u68C0\u67E5\u5931\u8D25",{accountId:t,error:c.message})}return o}async function A1n(t=14){let e=[];try{let{getDb:r}=await Promise.resolve().then(()=>(bt(),Cr)),n=await r();if(!n)return{totalAccounts:0,healthyAccounts:0,unhealthyAccounts:0,results:e};let i=await n.execute($`
@@ -970,11 +970,11 @@ ${t.recommendations.map(r=>`\u2022 ${r}`).join(`
     `),s=i?.[0]||i;if(!Array.isArray(s))return{totalAccounts:0,healthyAccounts:0,unhealthyAccounts:0,results:e};mp.info(`[v358] \u5F00\u59CB\u6279\u91CF\u5B8C\u6574\u6027\u68C0\u67E5: ${s.length}\u4E2A\u8D26\u6237`);for(let c of s){let l=await f$t(c.id,t);e.push(l),await new Promise(u=>setTimeout(u,1e3))}let a=e.filter(c=>!c.needsRepair).length,o=e.filter(c=>c.needsRepair).length;return mp.info(`[v358] \u6279\u91CF\u5B8C\u6574\u6027\u68C0\u67E5\u5B8C\u6210: \u603B\u8BA1=${e.length}, \u5065\u5EB7=${a}, \u9700\u4FEE\u590D=${o}`),{totalAccounts:e.length,healthyAccounts:a,unhealthyAccounts:o,results:e}}catch(r){return mp.error(`[v358] \u6279\u91CF\u5B8C\u6574\u6027\u68C0\u67E5\u5931\u8D25: ${r.message}`),{totalAccounts:0,healthyAccounts:0,unhealthyAccounts:0,results:e}}}async function T1n(t){let e=[],r=0;if(!t.needsRepair)return{repaired:!0,actionsExecuted:0,errors:[]};mp.info(`[v358] \u5F00\u59CB\u81EA\u52A8\u4FEE\u590D\u8D26\u6237${t.accountId}: ${t.repairActions.length}\u4E2A\u4FEE\u590D\u52A8\u4F5C`);let n=[...t.repairActions].sort((s,a)=>s.priority-a.priority);for(let s of n)try{switch(s.type){case"deduplicate":await I1n(t.accountId),r++;break;case"resync_dates":s.dates&&s.dates.length>0&&(mp.info(`[v358] \u89E6\u53D1\u8865\u507F\u540C\u6B65: \u8D26\u6237${t.accountId}, \u65E5\u671F=${s.dates.join(",")}`),await p$t(t.accountId,s.dates),r++);break;case"resync_full":mp.info(`[v358] \u89E6\u53D1\u5168\u91CF\u91CD\u65B0\u540C\u6B65: \u8D26\u6237${t.accountId}`),await p$t(t.accountId,["full"]),r++;break;case"alert_only":mp.warn(`[v358] \u4EC5\u544A\u8B66: \u8D26\u6237${t.accountId} - ${s.reason}`),r++;break}}catch(a){e.push(`${s.type}: ${a.message}`),mp.error(`[v358] \u4FEE\u590D\u52A8\u4F5C${s.type}\u5931\u8D25: ${a.message}`)}let i=e.length===0;return mp.info(`[v358] \u8D26\u6237${t.accountId}\u81EA\u52A8\u4FEE\u590D\u5B8C\u6210: \u6267\u884C=${r}, \u9519\u8BEF=${e.length}`),{repaired:i,actionsExecuted:r,errors:e}}async function I1n(t){try{let{getDb:e}=await Promise.resolve().then(()=>(bt(),Cr)),r=await e();if(!r)return 0;let i=(await r.execute($`
       DELETE dp1 FROM daily_performance dp1
       INNER JOIN daily_performance dp2
-      ON dp1.account_id = dp2.account_id
-      AND dp1.campaign_id = dp2.campaign_id
+      ON dp1.accountId = dp2.accountId
+      AND dp1.campaignId = dp2.campaignId
       AND DATE(dp1.date) = DATE(dp2.date)
       AND dp1.id < dp2.id
-      WHERE dp1.account_id = ${t}
+      WHERE dp1.accountId = ${t}
     `))?.affectedRows||0;return mp.info(`[v358] \u8D26\u6237${t}\u53BB\u91CD\u5B8C\u6210: \u5220\u9664${i}\u6761\u91CD\u590D\u8BB0\u5F55`),i}catch(e){return mp.error(`[v358] \u53BB\u91CD\u5931\u8D25: ${e.message}`),0}}async function p$t(t,e){try{let{getDb:r}=await Promise.resolve().then(()=>(bt(),Cr)),n=await r();if(!n)return;let i=new Date().toISOString().slice(0,19).replace("T"," ");await n.execute($`
       INSERT INTO sync_tasks_v2 (task_id, tier, trigger_source, status, total_shards, created_at, updated_at)
       VALUES (
@@ -1688,11 +1688,11 @@ ${n}
       ${t.optimizationGoal}, 'running', NOW()
     )
   `))[0].insertId}async function tai(t,e){let r=await K();if(!r)throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");let n=[],i=0,s=0,a=0,o=0,c=0,l=0,u=await r.execute($`
-    SELECT id, campaign_id, campaign_name, spend, sales
+    SELECT id, campaignId, campaignName, spend, sales
     FROM campaigns
-    WHERE account_id = ${e.accountId}
-    AND campaign_id IN (${OTt(e.campaignIds)})
-  `),d=new Map(u[0].map(b=>[b.campaign_id,b]));for(let b of e.campaignIds){let w=d.get(b),v=w?.campaign_name||b,S=Number(w?.spend)||0,E=Number(w?.sales)||0,x=Number(w?.orders)||0;try{let T={impressions:1e4,clicks:500,spend:S,sales:E,orders:x,ctr:.05,cvr:x>0?x/500:.02,cpc:S/500,acos:E>0?S/E*100:30,roas:S>0?E/S:3},I=oI(T,0),k=oI(T,0),N=oI(T,0),C=vF({top_of_search:I,product_page:k,rest_of_search:N},{top_of_search:0,product_page:0,rest_of_search:0},e.optimizationGoal),O=(I.confidence+k.confidence+N.confidence)/3,j=["top_of_search","product_page","rest_of_search"],H=[I,k,N];for(let B=0;B<j.length;B++)await MJe(e.accountId,b,j[B],{currentAdjustment:0,...H[B],dataPoints:30},{totalImpressions:0,totalClicks:0,totalSpend:S,totalSales:E,totalOrders:0});n.push({campaignId:b,campaignName:v,currentSpend:S,currentSales:E,currentROAS:S>0?E/S:0,currentACoS:E>0?S/E*100:0,marginalBenefits:{topOfSearch:I,productPage:k,restOfSearch:N},optimization:C,confidence:O,status:O>=.3?"success":"insufficient_data"}),i+=S,s+=E,a+=C.expectedSpendChange+S,o+=C.expectedSalesIncrease+E,c+=O,l++}catch(T){n.push({campaignId:b,campaignName:v,currentSpend:S,currentSales:E,currentROAS:S>0?E/S:0,currentACoS:E>0?S/E*100:0,marginalBenefits:{topOfSearch:null,productPage:null,restOfSearch:null},optimization:null,confidence:0,status:"failed",error:T instanceof Error?T.message:"\u5206\u6790\u5931\u8D25"})}}let p=i>0?s/i:0,f=a>0?o/a:0,m=s>0?i/s*100:0,h=o>0?a/o*100:0,g={totalCurrentSpend:i,totalCurrentSales:s,totalExpectedSpend:a,totalExpectedSales:o,overallROASChange:f-p,overallACoSChange:h-m,avgConfidence:l>0?c/l:0},y=rai(n,g);return await r.execute($`
+    WHERE accountId = ${e.accountId}
+    AND campaignId IN (${OTt(e.campaignIds)})
+  `),d=new Map(u[0].map(b=>[b.campaignId,b]));for(let b of e.campaignIds){let w=d.get(b),v=w?.campaignName||b,S=Number(w?.spend)||0,E=Number(w?.sales)||0,x=Number(w?.orders)||0;try{let T={impressions:1e4,clicks:500,spend:S,sales:E,orders:x,ctr:.05,cvr:x>0?x/500:.02,cpc:S/500,acos:E>0?S/E*100:30,roas:S>0?E/S:3},I=oI(T,0),k=oI(T,0),N=oI(T,0),C=vF({top_of_search:I,product_page:k,rest_of_search:N},{top_of_search:0,product_page:0,rest_of_search:0},e.optimizationGoal),O=(I.confidence+k.confidence+N.confidence)/3,j=["top_of_search","product_page","rest_of_search"],H=[I,k,N];for(let B=0;B<j.length;B++)await MJe(e.accountId,b,j[B],{currentAdjustment:0,...H[B],dataPoints:30},{totalImpressions:0,totalClicks:0,totalSpend:S,totalSales:E,totalOrders:0});n.push({campaignId:b,campaignName:v,currentSpend:S,currentSales:E,currentROAS:S>0?E/S:0,currentACoS:E>0?S/E*100:0,marginalBenefits:{topOfSearch:I,productPage:k,restOfSearch:N},optimization:C,confidence:O,status:O>=.3?"success":"insufficient_data"}),i+=S,s+=E,a+=C.expectedSpendChange+S,o+=C.expectedSalesIncrease+E,c+=O,l++}catch(T){n.push({campaignId:b,campaignName:v,currentSpend:S,currentSales:E,currentROAS:S>0?E/S:0,currentACoS:E>0?S/E*100:0,marginalBenefits:{topOfSearch:null,productPage:null,restOfSearch:null},optimization:null,confidence:0,status:"failed",error:T instanceof Error?T.message:"\u5206\u6790\u5931\u8D25"})}}let p=i>0?s/i:0,f=a>0?o/a:0,m=s>0?i/s*100:0,h=o>0?a/o*100:0,g={totalCurrentSpend:i,totalCurrentSales:s,totalExpectedSpend:a,totalExpectedSales:o,overallROASChange:f-p,overallACoSChange:h-m,avgConfidence:l>0?c/l:0},y=rai(n,g);return await r.execute($`
     UPDATE batch_marginal_benefit_analysis SET
       analysis_status = 'completed',
       total_current_spend = ${g.totalCurrentSpend},
@@ -2149,12 +2149,12 @@ ${n}
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
                 SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
               FROM daily_performance 
-              WHERE account_id = ${i.id}
+              WHERE accountId = ${i.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`),[a]=await t.execute($`SELECT 
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
                 SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
               FROM daily_performance 
-              WHERE account_id = ${i.id}
+              WHERE accountId = ${i.id}
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)
                 AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`),o=s?.[0]||s,c=a?.[0]||a,l=Number(o?.total_spend)||0,u=Number(o?.total_sales)||0,d=Number(c?.total_spend)||0,p=Number(c?.total_sales)||0;if(u>0&&p>0){let f=l/u*100,m=d/p*100,h=m>0?(f-m)/m*100:0;h>20&&r.push({id:`proactive-risk-${i.id}-${Date.now()}`,category:"proactive_risk_warning",severity:h>50?"critical":"warning",title:`${i.name} ${i.marketplace} ACoS\u8D8B\u52BF\u6076\u5316\u9884\u8B66`,message:`\u6700\u8FD17\u5929ACoS ${f.toFixed(1)}%\uFF0C\u6BD4\u524D14\u5929(${m.toFixed(1)}%)\u6076\u5316${h.toFixed(0)}%\uFF0C\u9700\u63D0\u524D\u5E72\u9884`,metric:"acos_deterioration_rate",currentValue:h,threshold:20,recommendation:"\u5EFA\u8BAE\u7ACB\u5373\u68C0\u67E5\u8BE5\u8D26\u6237\u7684\u9AD8ACoS\u5173\u952E\u8BCD\uFF0C\u8003\u8651\u5207\u6362\u5230\u66F4\u4FDD\u5B88\u7684\u7B56\u7565\u6A21\u677F\u6216\u964D\u4F4E\u76EE\u6807ACoS",timestamp:new Date,accountId:i.id,accountName:`${i.name} ${i.marketplace}`})}}catch{}}catch(n){Y_.error("[MonitoringService] checkProactiveRiskWarning error:",n)}}function Rli(t){let e=100;for(let r of t)switch(r.severity){case"critical":e-=25;break;case"warning":e-=10;break;case"info":e-=3;break}return Math.max(0,Math.min(100,e))}function O0r(t){let e=[`
 ========== \u7CFB\u7EDF\u76D1\u63A7\u62A5\u544A ==========`,`\u751F\u6210\u65F6\u95F4: ${t.generatedAt.toISOString()}`,`\u7CFB\u7EDF\u7248\u672C: v${t.systemVersion}`,`\u5065\u5EB7\u8BC4\u5206: ${t.healthScore}/100 (${t.status.toUpperCase()})`,"","--- \u6838\u5FC3\u6307\u6807 ---",`\u63D0\u4EF7\u6B21\u6570: ${t.metrics.bidRaiseCount}`,`\u964D\u4EF7\u6B21\u6570: ${t.metrics.bidLowerCount}`,`\u63D0\u4EF7/\u964D\u4EF7\u6BD4: ${t.metrics.bidRaiseToLowerRatio.toFixed(2)}:1`,`\u5E73\u5747ACoS\u8D85\u6807: ${t.metrics.avgAcosOverrun.toFixed(1)}%`,`\u540C\u6B65\u6210\u529F\u7387: ${t.metrics.syncSuccessRate.toFixed(1)}%`,`30\u5929\u4F18\u5316\u64CD\u4F5C: ${t.metrics.optimizationCount30d}`,`\u6B63\u5411\u7387: ${t.metrics.positiveRate.toFixed(1)}%`,`\u6D3B\u8DC3\u7B97\u6CD5: ${t.metrics.activeAlgorithms.join(", ")||"\u65E0"}`,`\u9AD8\u98CE\u9669\u8D26\u6237: ${t.metrics.highRiskAccounts}`];if(t.alerts.length>0){e.push("",`--- \u544A\u8B66 (${t.alerts.length}) ---`);for(let r of t.alerts){let n=r.severity==="critical"?"[CRIT]":r.severity==="warning"?"[WARN]":"[INFO]";e.push(`${n} [${r.severity.toUpperCase()}] ${r.title}`),e.push(`   ${r.message}`),e.push(`   \u5EFA\u8BAE: ${r.recommendation}`)}}else e.push("","\u7CFB\u7EDF\u8FD0\u884C\u6B63\u5E38\uFF0C\u65E0\u544A\u8B66");return e.push(`
@@ -4073,14 +4073,14 @@ ${s.map((g,y)=>`${y+1}. "${g.keywordText}" - \u9500\u552E\u989D: $${parseFloat(g
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
     `,n=await e.execute(r),i=n[0]||n,s=Number(i?.[0]?.total_spend)||0,a=Number(i?.[0]?.total_sales)||0,o=a>0?s/a*100:0,c=$`
       SELECT 
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `,l=await e.execute(c),u=l[0]||l,d=Number(u?.[0]?.total_spend)||0,p=Number(u?.[0]?.total_sales)||0,f=p>0?d/p*100:0,m=$`
@@ -4088,7 +4088,7 @@ ${s.map((g,y)=>`${y+1}. "${g.keywordText}" - \u9500\u552E\u989D: $${parseFloat(g
         SUM(spend) as total_spend,
         SUM(sales) as total_sales
       FROM daily_performance
-      WHERE account_id = ${t}
+      WHERE accountId = ${t}
         AND date >= DATE_SUB(CURDATE(), INTERVAL 17 DAY)
         AND date < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
     `,h=await e.execute(m),g=h[0]||h,y=Number(g?.[0]?.total_spend)||0,b=Number(g?.[0]?.total_sales)||0,w=b>0?y/b*100:0,v=o-f,S=v<-3?"improving":v>3?"worsening":"stable",E=o>50&&o>f&&f>w;return{currentAcos:Math.round(o*10)/10,acos7dAgo:Math.round(f*10)/10,acos14dAgo:Math.round(w*10)/10,direction:S,changePoints:Math.round(v*10)/10,deathSpiralDetected:E}}catch(r){return SI.warn(`[AcosTrend] \u8BA1\u7B97\u5F02\u5E38: ${r.message}`),{currentAcos:0,acos7dAgo:0,acos14dAgo:0,direction:"stable",changePoints:0,deathSpiralDetected:!1}}}async function Nli(t,e=14){let r=await K();if(!r)return{totalIncreases:0,avgIncreasePercent:0,successRate:0,byScenario:[]};try{let n=$`

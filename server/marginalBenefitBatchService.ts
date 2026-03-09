@@ -166,21 +166,21 @@ export async function executeBatchAnalysis(
 
   // 获取广告活动信息
   const campaigns = await db.execute(sql`
-    SELECT id, campaign_id, campaign_name, spend, sales
+    SELECT id, campaignId, campaignName, spend, sales
     FROM campaigns
-    WHERE account_id = ${request.accountId}
-    AND campaign_id IN (${safeStringInClause(request.campaignIds)})
+    WHERE accountId = ${request.accountId}
+    AND campaignId IN (${safeStringInClause(request.campaignIds)})
   `);
 
   const campaignMap = new Map(
     // @ts-ignore
-    ((campaigns as unknown)[0] as any[]).map(c => [c.campaign_id, c])
+    ((campaigns as unknown)[0] as any[]).map(c => [c.campaignId, c])
   );
 
   // 逐个分析广告活动
   for (const campaignId of request.campaignIds) {
     const campaign = campaignMap.get(campaignId);
-    const campaignName = campaign?.campaign_name || campaignId;
+    const campaignName = campaign?.campaignName || campaignId;
     const currentSpend = Number(campaign?.spend) || 0;
     const currentSales = Number(campaign?.sales) || 0;
     const currentOrders = Number(campaign?.orders) || 0;
