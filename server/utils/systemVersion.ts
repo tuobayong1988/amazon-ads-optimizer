@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 364.1;  // v364.0: 绩效同步N+1优化/同步步骤计数修复/纠错仪表盘多租户隔离/优化锁重试/并发能力提升/前端体验优化
+export const SYSTEM_VERSION = 368;  // v368: P1/P2优化 - 分布式锁升级/API限流增强/前端修复

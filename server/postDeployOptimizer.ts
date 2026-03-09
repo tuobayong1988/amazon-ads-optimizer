@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 368,
+    description: 'v368: [P1/P2优化] — (1)P0-lockManager升级为混合锁(内存锁+MySQL GET_LOCK分布式锁) (2)P0-修复GET_LOCK连接管理Bug (3)P1-API限流优化:429退避per-account级别+指数恢复+应用级全局TPS上限 (4)P2-前端修复:60天→90天+系统健康卡片空状态',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 361,
     description: 'v361.0: [架构质量全面优化] — (1)P0-多租户数据隔离修复 (2)P0-幂等性UPSERT (3)P0-统一同步架构 (4)P0-定时器泄漏修复 (5)P0-SQL注入消除 (6)P1-db.ts拆分26子模块 (7)P1-统一竞价与预算架构 (8)P1-连接池+索引优化 (9)P1-前端巨型页面拆分 (10)P2-类型安全提升 (11)P2-API访问控制审计 (12)P2-统一审计日志服务 (13)P2-日志规范化 (14)P3-React.memo优化 (15)P3-算法常量集中管理 (16)P3-环境变量统一管理',
     affectedModules: ['all'],
