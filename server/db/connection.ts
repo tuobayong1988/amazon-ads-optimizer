@@ -192,9 +192,10 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
     
     // v350: 设置会话级查询超时，防止单个慢查询无限期占用连接
     const queryTimeoutSec = Math.ceil(timeoutMs / 1000);
-    // v362: SQL注入防护 - 使用参数化查询
+    // v362: SQL注入防护 - 值已通过Math.max/Math.min严格限制范围
+    // v369.3: 修复参数化查询导致的类型错误 - MySQL SET SESSION不支持prepared statement参数
     const timeoutValue = Math.max(1000, Math.min(queryTimeoutSec * 1000, 300000)); // 限制在1-300秒
-    await conn.execute('SET SESSION max_execution_time = ?', [timeoutValue]) as any;
+    await conn.query(`SET SESSION max_execution_time = ${timeoutValue}`) as any;
     
     // v350: 包装release方法以跟踪归还
     const originalRelease = conn.release.bind(conn);
