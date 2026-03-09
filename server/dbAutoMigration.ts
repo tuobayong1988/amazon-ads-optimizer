@@ -469,9 +469,75 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
         INDEX idx_execution_id (execution_id),
         INDEX idx_keyword_id (keyword_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `, 'keyword_auto_execution_details', results);
+     `, 'keyword_auto_execution_details', results);
 
-    log.info(`v369: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // v369.5: cql_models 表 - CQL离线RL模型存储
+    await safeDDL(database, sql.raw(`
+      CREATE TABLE IF NOT EXISTS cql_models (
+        id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        account_id INT NOT NULL,
+        model_version INT DEFAULT 1,
+        weights TEXT NOT NULL,
+        training_episodes INT DEFAULT 0,
+        training_steps INT DEFAULT 0,
+        avg_loss DECIMAL(12,8),
+        last_trained_at DATETIME,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cql_account (account_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `), 'cql_models', results);
+
+    // v369.5: optimization_logs 表添加缺失的列
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN time_slot_index INT NULL AFTER change_reason
+    `), 'optimization_logs.time_slot_index', results);
+
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN time_slot_label VARCHAR(20) NULL AFTER time_slot_index
+    `), 'optimization_logs.time_slot_label', results);
+
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN placement_reason TEXT NULL AFTER time_slot_label
+    `), 'optimization_logs.placement_reason', results);
+
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN api_sync_status ENUM('pending','synced','failed','skipped') DEFAULT 'pending' AFTER status
+    `), 'optimization_logs.api_sync_status', results);
+
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN api_sync_detail TEXT NULL AFTER api_sync_status
+    `), 'optimization_logs.api_sync_detail', results);
+
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs ADD COLUMN api_synced_at DATETIME NULL AFTER api_sync_detail
+    `), 'optimization_logs.api_synced_at', results);
+
+    // v369.5: optimization_logs 扩展 log_category ENUM
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs MODIFY COLUMN log_category ENUM(
+        'performance_target', 'bid_adjustment', 'placement_adjustment',
+        'budget_adjustment', 'dayparting', 'negative_keyword',
+        'optimization_settings'
+      ) NOT NULL
+    `), 'optimization_logs.log_category_expand', results);
+
+    // v369.5: optimization_logs 扩展 action_type ENUM
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE optimization_logs MODIFY COLUMN action_type ENUM(
+        'create_target', 'update_target', 'delete_target', 'pause_target', 'resume_target',
+        'add_campaign', 'remove_campaign',
+        'bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust',
+        'dayparting_bid',
+        'budget_adjustment',
+        'placement_adjust', 'placement_enable', 'placement_disable',
+        'negative_add', 'negative_remove',
+        'harvest_keyword', 'harvest_asin',
+        'settings_update', 'strategy_change', 'schedule_update'
+      ) NOT NULL
+    `), 'optimization_logs.action_type_expand', results);
+
+    log.info(`v369.5: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {
