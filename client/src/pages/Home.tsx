@@ -1220,7 +1220,7 @@ function DashboardContent() {
                                   <p className="text-sm text-muted-foreground">暂无健康监控数据</p>
                                   <p className="text-xs text-muted-foreground mt-1">系统将在优化执行后生成健康指标</p>
                                 </div>
-                              ) : (
+                              ) : (<>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 {/* 回滚率 */}
                                 <div className={`p-4 rounded-lg border ${
@@ -1373,7 +1373,7 @@ function DashboardContent() {
                                   </div>
                                 </div>
                               )}
-                              )}
+                              </>)}
                             </CardContent>
                           </Card>
                         )}
