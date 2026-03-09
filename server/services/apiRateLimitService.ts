@@ -16,6 +16,7 @@
  */
 
 import { createModuleLogger } from '../utils/logger';
+import { SYSTEM_VERSION } from '../utils/systemVersion';
 
 const log = createModuleLogger('ApiRateLimitService');
 
@@ -274,7 +275,7 @@ export class ApiRateLimitService {
       }
     }
     
-    log.info(`[ApiRateLimitService] v368: 初始化完成, 端点配置: ${
+    log.info(`[ApiRateLimitService] v${SYSTEM_VERSION}: 初始化完成, 端点配置: ${
       Object.entries(this.configs).map(([k, v]) => `${k}=${v.maxRequestsPerSecond}TPS`).join(', ')
     }, 全局限额: ${
       Object.entries(GLOBAL_ENDPOINT_CONFIGS).map(([k, v]) => `${k}=${v.maxRequestsPerSecond}TPS`).join(', ')
@@ -333,7 +334,7 @@ export class ApiRateLimitService {
         
         if (autoWait && acquireAttempt < MAX_ACQUIRE_RETRIES - 1) {
           acquireAttempt++;
-          log.warn(`[RateLimit] v368: 全局${endpointType}端点每分钟限额已满(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), 等待10s (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
+          log.warn(`[RateLimit] v${SYSTEM_VERSION}: 全局${endpointType}端点每分钟限额已满(${globalMinuteCount}/${globalConfig.maxRequestsPerMinute}), 等待10s (重试${acquireAttempt}/${MAX_ACQUIRE_RETRIES})`);
           await this.delay(waitMs);
           continue;
         }
@@ -362,7 +363,7 @@ export class ApiRateLimitService {
     const globalResult = await this.globalStore.consumeToken(globalBucketKey, globalConfig);
     if (globalResult.waitMs > 0) {
       if (autoWait) {
-        log.debug(`[RateLimit] v368: 全局${endpointType}端点令牌不足, 等待${globalResult.waitMs}ms`);
+        log.debug(`[RateLimit] v${SYSTEM_VERSION}: 全局${endpointType}端点令牌不足, 等待${globalResult.waitMs}ms`);
         await this.delay(globalResult.waitMs);
         await this.globalStore.consumeToken(globalBucketKey, globalConfig);
       } else {
@@ -462,7 +463,7 @@ export class ApiRateLimitService {
     const baseConfig = this.configs[endpointType] || this.configs.default;
     const effectiveTps = Math.max(1, Math.floor(baseConfig.maxRequestsPerSecond * state.backoffFactor));
     
-    log.warn(`[RateLimit] v368: 外部429限流! 账户${accountId} ${endpointType}端点 ` +
+    log.warn(`[RateLimit] v${SYSTEM_VERSION}: 外部429限流! 账户${accountId} ${endpointType}端点 ` +
       `退避系数: ${previousFactor.toFixed(2)} -> ${state.backoffFactor.toFixed(2)}, ` +
       `有效TPS: ${effectiveTps}, 连续429: ${state.consecutive429Count}次`);
     
@@ -478,7 +479,7 @@ export class ApiRateLimitService {
         state.consecutive429Count = Math.max(0, state.consecutive429Count - 1);
         
         const recoveredTps = Math.max(1, Math.floor(baseConfig.maxRequestsPerSecond * state.backoffFactor));
-        log.info(`[RateLimit] v368: 账户${accountId} ${endpointType}端点TPS恢复: ` +
+        log.info(`[RateLimit] v${SYSTEM_VERSION}: 账户${accountId} ${endpointType}端点TPS恢复: ` +
           `退避系数 ${previousRecoveryFactor.toFixed(2)} -> ${state.backoffFactor.toFixed(2)}, ` +
           `有效TPS: ${recoveredTps}`);
         
@@ -489,7 +490,7 @@ export class ApiRateLimitService {
           // 完全恢复
           state.consecutive429Count = 0;
           state.recoveryTimer = null;
-          log.info(`[RateLimit] v368: 账户${accountId} ${endpointType}端点已完全恢复到正常TPS`);
+          log.info(`[RateLimit] v${SYSTEM_VERSION}: 账户${accountId} ${endpointType}端点已完全恢复到正常TPS`);
         }
       }, recoveryIntervalMs);
     };
@@ -552,7 +553,7 @@ export class ApiRateLimitService {
   updateConfig(endpointType: ApiEndpointType, config: Partial<EndpointRateConfig>): void {
     if (this.configs[endpointType]) {
       this.configs[endpointType] = { ...this.configs[endpointType], ...config };
-      log.info(`[RateLimit] v368: 更新${endpointType}端点配置: ${JSON.stringify(config)}`);
+      log.info(`[RateLimit] v${SYSTEM_VERSION}: 更新${endpointType}端点配置: ${JSON.stringify(config)}`);
     }
   }
   
@@ -628,7 +629,7 @@ export function getApiRateLimitService(): ApiRateLimitService {
     // 设置限流告警回调
     globalRateLimitService.onThrottle((accountId, endpointType, waitMs) => {
       if (waitMs > 5000) {
-        log.error(`[ALERT] v368: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
+        log.error(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
       }
     });
   }

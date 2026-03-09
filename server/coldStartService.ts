@@ -488,11 +488,12 @@ async function executeHistoricalOptimization(
   for (let i = 0; i < targets.length; i += COLD_START_CONFIG.batchSize) {
     const batch = targets.slice(i, i + COLD_START_CONFIG.batchSize);
     
-    // 内存检查
+    // v369: 内存检查 - 使用RSS绝对值代替heapUsed/heapTotal百分比
     const memUsage = process.memoryUsage();
-    const heapUsedRatio = memUsage.heapUsed / memUsage.heapTotal;
-    if (heapUsedRatio > COLD_START_CONFIG.memoryThreshold) {
-      log.warn(`[ColdStart] 内存使用率 ${(heapUsedRatio * 100).toFixed(1)}% 超过阈值，暂停30秒...`);
+    const rssMB = Math.round(memUsage.rss / 1024 / 1024);
+    if (rssMB > 1000) {
+      log.warn(`[ColdStart] v369: 内存紧张(RSS=${rssMB}MB)，暂停30秒等待GC...`);
+      if (typeof global.gc === 'function') global.gc();
       await sleep(30000);
     }
     

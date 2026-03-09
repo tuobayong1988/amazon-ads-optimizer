@@ -573,9 +573,8 @@ export const attributionCorrectionRecords = mysqlTable("attribution_correction_r
 });
 
 export const auditLogs = mysqlTable("audit_logs", {
-	organizationId: int("organization_id"),
-	userId: int("user_id"),
-	userName: varchar("user_name", { length: 255 }),
+	userId: int().notNull(),
+	userName: varchar({ length: 255 }),
 	id: int().autoincrement().notNull(),
 	userEmail: varchar({ length: 255 }),
 	actionType: mysqlEnum(['account_create','account_update','account_delete','account_connect','account_disconnect','campaign_create','campaign_update','campaign_delete','campaign_pause','campaign_enable','bid_adjust_single','bid_adjust_batch','bid_rollback','negative_add_single','negative_add_batch','negative_remove','performance_group_create','performance_group_update','performance_group_delete','automation_enable','automation_disable','automation_config_update','scheduler_task_create','scheduler_task_update','scheduler_task_delete','scheduler_task_run','team_member_invite','team_member_update','team_member_remove','team_permission_update','data_import','data_export','settings_update','notification_config_update','other']).notNull(),

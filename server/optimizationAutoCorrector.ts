@@ -254,11 +254,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     
     for (const accId of accountIds) {
-      // v329: 每个账户处理前检查内存 - 超过85%则中断剩余账户的纠错
+      // v369: 修复v329的bug - 使用RSS绝对值代替heapUsed/heapTotal百分比
+      // heapUsed/heapTotal不可靠，因为V8的heapTotal是动态增长的
+      // 例如 heapUsed=102MB, heapTotal=115MB → 89%，但实际只用了7%的max-old-space-size
       const memCheck = process.memoryUsage();
-      const heapCheck = Math.round((memCheck.heapUsed / memCheck.heapTotal) * 100);
-      if (heapCheck > 85) {
-        log.warn(`[AutoCorrector] v329: 内存超限(${heapCheck}%)，中断剩余账户纠错扫描，已处理${accountIds.indexOf(accId)}/${accountIds.length}个账户`);
+      const rssMB = Math.round(memCheck.rss / 1024 / 1024);
+      const heapUsedMB = Math.round(memCheck.heapUsed / 1024 / 1024);
+      if (rssMB > 1200) {
+        log.warn(`[AutoCorrector] v369: 内存超限(RSS=${rssMB}MB, heap=${heapUsedMB}MB)，中断剩余账户纠错扫描，已处理${accountIds.indexOf(accId)}/${accountIds.length}个账户`);
         if (typeof global.gc === 'function') global.gc();
         break;
       }

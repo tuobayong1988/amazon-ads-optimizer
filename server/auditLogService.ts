@@ -94,12 +94,11 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<{ succ
     
     await db.execute(sql`
       INSERT INTO audit_logs (
-        organization_id, user_id, user_name, actionType,
+        userId, userName, actionType,
         targetType, targetId, targetName, description,
         previousValue, newValue, ipAddress, userAgent, requestId,
         status, errorMessage, createdAt
       ) VALUES (
-        ${input.organizationId || null},
         ${input.userId || null},
         ${input.userName || null},
         ${input.actionType},
