@@ -256,7 +256,7 @@ export default function HealthMonitor() {
                               {campaign.campaignName}
                             </span>
                             <Badge variant="outline" className="text-xs">
-                              {campaign.campaignType.toUpperCase()}
+                              {(campaign.campaignType || 'N/A').toUpperCase()}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2">
