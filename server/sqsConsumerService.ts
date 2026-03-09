@@ -152,13 +152,20 @@ export class SQSConsumerService {
 
   constructor() {
     // 初始化SQS客户端
-    this.sqsClient = new SQSClient({
+    // 当环境变量中配置了AWS凭证时使用显式凭证，否则使用IAM角色的默认凭证链
+    const sqsConfig: Record<string, unknown> = {
       region: process.env.AWS_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-      },
-    });
+    };
+    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+      sqsConfig.credentials = {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      };
+      log.info('[SQS Consumer] 使用显式AWS凭证初始化SQS客户端');
+    } else {
+      log.info('[SQS Consumer] 使用IAM角色默认凭证链初始化SQS客户端');
+    }
+    this.sqsClient = new SQSClient(sqsConfig);
 
     // 从环境变量加载队列配置
     this.loadAllQueueConfigs();
@@ -404,8 +411,11 @@ export class SQSConsumerService {
       try {
         await this.pollQueue(queue);
       } catch (error: unknown) {
-        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, (error as Error).message);
-        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, error: (error as Error).message });
+        const errMsg = (error as Error).message || 'Unknown error';
+        const errName = (error as any).name || 'Error';
+        const statusCode = (error as any).$metadata?.httpStatusCode || (error as any).statusCode || '';
+        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
+        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, errorName: errName, statusCode, error: errMsg });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
