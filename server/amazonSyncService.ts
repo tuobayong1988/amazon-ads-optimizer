@@ -267,6 +267,8 @@ export class AmazonSyncService {
     this.accountId = accountId;
     this.userId = userId;
     this.marketplace = marketplace;
+    // v369: 确保client始终持有正确的accountId用于限流
+    if (client) client.accountId = accountId;
   }
 
   /**
@@ -287,6 +289,8 @@ export class AmazonSyncService {
     };
 
     const client = createAmazonAdsClient(apiCredentials);
+    // v369: 将accountId传递给client，使其在API限流中按账户独立计数
+    client.accountId = accountId;
     return new AmazonSyncService(client, accountId, userId, marketplace);
   }
 

@@ -91,11 +91,11 @@ interface LoggerConfig {
 const DEFAULT_CONFIG: LoggerConfig = {
   consoleLevel: LogLevel.INFO,
   dbLevel: LogLevel.WARN,
-  bufferSize: 15000,  // v248: 从5000扩容到15000，避免缓冲区满导致日志丢失
+  bufferSize: 30000,  // v369: 从15000扩容到30000，避免缓冲区满导致日志丢失
   samplingWindowMs: 10_000,       // 10秒窗口
   samplingMaxPerWindow: 5,         // 每10秒最多5条同类日志
   dbFlushIntervalMs: 30_000,       // 30秒批量写入
-  dbFlushBatchSize: 100,           // 每批最多100条
+  dbFlushBatchSize: 200,           // v369: 从100提升到200，加快缓冲区消耗速度
   dbRetentionDays: 7,              // 保留7天
 };
 
@@ -619,7 +619,7 @@ class Logger {
 export const logger = new Logger({
   consoleLevel: process.env.LOG_LEVEL === 'debug' ? LogLevel.DEBUG : LogLevel.INFO,
   dbLevel: LogLevel.WARN,
-  bufferSize: 15000,  // v248: 从5000扩容到15000，避免缓冲区满导致日志丢失
+  bufferSize: 30000,  // v369: 从15000扩容到30000，避免缓冲区满导致日志丢失
 });
 
 /** 创建模块专用的日志快捷方法 */

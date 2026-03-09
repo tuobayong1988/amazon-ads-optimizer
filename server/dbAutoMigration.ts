@@ -273,7 +273,205 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `, 'report_jobs', results);
 
-    log.info(`v349: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ============================================================
+    // v369: budget_auto_execution_configs 表
+    //    预算自动执行配置表，schema中定义但从未创建，导致预算自动执行服务全部失败
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS budget_auto_execution_configs (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        performance_group_id INT,
+        config_name VARCHAR(255),
+        is_enabled TINYINT DEFAULT 0,
+        execution_frequency ENUM('daily', 'weekly', 'biweekly', 'monthly') DEFAULT 'daily',
+        execution_time TIME DEFAULT '06:00:00',
+        execution_day_of_week INT,
+        execution_day_of_month INT,
+        min_data_days INT DEFAULT 7,
+        min_confidence_score DECIMAL(3,2) DEFAULT 0.70,
+        max_budget_change_percent DECIMAL(5,2) DEFAULT 30.00,
+        max_adjustment_percent DECIMAL(5,2) DEFAULT 15.00,
+        min_budget DECIMAL(10,2) DEFAULT 5.00,
+        require_approval TINYINT DEFAULT 0,
+        require_approval_above DECIMAL(10,2) DEFAULT 100.00,
+        notify_on_execution TINYINT DEFAULT 1,
+        notify_on_error TINYINT DEFAULT 1,
+        notification_email VARCHAR(255),
+        next_execution_at DATETIME,
+        last_execution_at DATETIME,
+        created_by INT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_account_id (account_id),
+        INDEX idx_performance_group_id (performance_group_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'budget_auto_execution_configs', results);
+
+    // ============================================================
+    // v369: budget_auto_execution_history 表
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS budget_auto_execution_history (
+        id INT NOT NULL AUTO_INCREMENT,
+        config_id INT NOT NULL,
+        account_id INT NOT NULL,
+        performance_group_id INT,
+        execution_type ENUM('scheduled', 'manual', 'emergency') DEFAULT 'scheduled',
+        status ENUM('pending', 'running', 'completed', 'failed', 'cancelled') DEFAULT 'pending',
+        campaigns_analyzed INT DEFAULT 0,
+        campaigns_adjusted INT DEFAULT 0,
+        total_budget_before DECIMAL(12,2),
+        total_budget_after DECIMAL(12,2),
+        total_budget_change DECIMAL(12,2),
+        confidence_score DECIMAL(3,2),
+        data_days_used INT,
+        error_message TEXT,
+        execution_details JSON,
+        started_at TIMESTAMP NULL,
+        completed_at TIMESTAMP NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_config_id (config_id),
+        INDEX idx_account_id (account_id),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'budget_auto_execution_history', results);
+
+    // ============================================================
+    // v369: budget_auto_execution_details 表
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS budget_auto_execution_details (
+        id INT NOT NULL AUTO_INCREMENT,
+        execution_id INT,
+        history_id INT NOT NULL,
+        campaign_id VARCHAR(64) NOT NULL,
+        campaign_name VARCHAR(500),
+        previous_budget DECIMAL(10,2) NOT NULL,
+        new_budget DECIMAL(10,2) NOT NULL,
+        budget_before DECIMAL(10,2),
+        budget_after DECIMAL(10,2),
+        budget_change DECIMAL(10,2) NOT NULL,
+        change_percent DECIMAL(8,2),
+        change_reason TEXT,
+        performance_score DECIMAL(5,2),
+        confidence DECIMAL(3,2),
+        api_sync_status ENUM('pending', 'synced', 'failed') DEFAULT 'pending',
+        api_sync_detail TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_history_id (history_id),
+        INDEX idx_campaign_id (campaign_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'budget_auto_execution_details', results);
+
+    // ============================================================
+    // v369: budget_auto_execution_logs 表
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS budget_auto_execution_logs (
+        id INT NOT NULL AUTO_INCREMENT,
+        execution_id INT,
+        history_id INT,
+        log_level ENUM('info', 'warn', 'error') DEFAULT 'info',
+        message TEXT,
+        metadata JSON,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_execution_id (execution_id),
+        INDEX idx_history_id (history_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'budget_auto_execution_logs', results);
+
+    // ============================================================
+    // v369: keyword_auto_execution_configs 表
+    //    关键词自动执行配置表，schema中定义但从未创建
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS keyword_auto_execution_configs (
+        id INT NOT NULL AUTO_INCREMENT,
+        account_id INT NOT NULL,
+        performance_group_id INT,
+        config_name VARCHAR(255),
+        is_enabled TINYINT DEFAULT 0,
+        execution_frequency ENUM('daily', 'weekly', 'biweekly', 'monthly') DEFAULT 'daily',
+        execution_time TIME DEFAULT '06:00:00',
+        min_data_days INT DEFAULT 14,
+        min_impressions INT DEFAULT 100,
+        min_clicks INT DEFAULT 10,
+        max_acos_threshold DECIMAL(5,2) DEFAULT 50.00,
+        auto_negate_enabled TINYINT DEFAULT 1,
+        auto_harvest_enabled TINYINT DEFAULT 1,
+        auto_pause_enabled TINYINT DEFAULT 0,
+        require_approval TINYINT DEFAULT 0,
+        notify_on_execution TINYINT DEFAULT 1,
+        next_execution_at DATETIME,
+        last_execution_at DATETIME,
+        created_by INT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_account_id (account_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'keyword_auto_execution_configs', results);
+
+    // ============================================================
+    // v369: keyword_auto_execution_history 表
+    //    关键词自动执行历史记录表
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS keyword_auto_execution_history (
+        id INT NOT NULL AUTO_INCREMENT,
+        config_id INT NOT NULL,
+        account_id INT,
+        execution_time DATETIME,
+        keywords_paused INT DEFAULT 0,
+        keywords_enabled INT DEFAULT 0,
+        keywords_skipped INT DEFAULT 0,
+        keywords_error INT DEFAULT 0,
+        estimated_spend_saved DECIMAL(12,2) DEFAULT 0,
+        status ENUM('running','completed','failed','cancelled') DEFAULT 'running',
+        error_message TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_config_id (config_id),
+        INDEX idx_account_id (account_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'keyword_auto_execution_history', results);
+
+    // ============================================================
+    // v369: keyword_auto_execution_details 表
+    //    关键词自动执行详情表
+    // ============================================================
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS keyword_auto_execution_details (
+        id INT NOT NULL AUTO_INCREMENT,
+        execution_id INT NOT NULL,
+        keyword_id INT NOT NULL,
+        keyword_text VARCHAR(500),
+        action_type ENUM('pause','enable','rollback') NOT NULL,
+        status_before VARCHAR(50),
+        status_after VARCHAR(50),
+        trigger_reason TEXT,
+        spend DECIMAL(10,2),
+        sales DECIMAL(10,2),
+        acos DECIMAL(10,2),
+        roas DECIMAL(10,2),
+        clicks INT,
+        impression INT,
+        orders INT,
+        status ENUM('success','failed','skipped','applied') DEFAULT 'success',
+        error_message TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_execution_id (execution_id),
+        INDEX idx_keyword_id (keyword_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `, 'keyword_auto_execution_details', results);
+
+    log.info(`v369: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

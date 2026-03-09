@@ -153,6 +153,8 @@ export class AmazonAdsApiClient {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
   private axiosInstance: AxiosInstance;
+  // v369: 关联的accountId，用于API限流按账户独立计数
+  public accountId: number = 0;
   // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
   private tokenRefreshPromise: Promise<string> | null = null;
 
@@ -197,10 +199,10 @@ export class AmazonAdsApiClient {
     this.axiosInstance.interceptors.request.use(async (config) => {
       const token = await this.getAccessToken();
       config.headers.Authorization = `Bearer ${token}`;
-      // v360: 在每次API请求发出前获取限流许可
+      // v360+v369: 在每次API请求发出前获取限流许可，使用真实accountId
       try {
         const endpointType = classifyEndpoint(config.url || 'default');
-        await acquireApiPermit(0, endpointType);
+        await acquireApiPermit(this.accountId, endpointType);
       } catch (_) { /* 限流服务异常不影响主流程 */ }
       return config;
     });
@@ -276,11 +278,11 @@ export class AmazonAdsApiClient {
         const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
         const MAX_RETRIES = 3;
         
-        // v360: 429时通知统一限流服务，触发自适应降速
+        // v360+v369: 429时通知统一限流服务，触发自适应降速，使用真实accountId
         if (status === 429) {
           try {
             const endpointType = classifyEndpoint(config.url || 'default');
-            getApiRateLimitService().recordExternalThrottle(0, endpointType);
+            getApiRateLimitService().recordExternalThrottle(this.accountId, endpointType);
           } catch (_) { /* 限流服务异常不影响主流程 */ }
         }
         

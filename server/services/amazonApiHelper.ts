@@ -24,20 +24,20 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
 
 const log = createModuleLogger('ApiHelper');
 
-// v189: 统一的API调用重试工具函数
+// v189+v369: 统一的API调用重试工具函数
 async function withRetry<T>(
   fn: () => Promise<T>,
-  options: { maxRetries?: number; baseDelayMs?: number; label?: string } = {}
+  options: { maxRetries?: number; baseDelayMs?: number; label?: string; accountId?: number } = {}
 ): Promise<T> {
-  const { maxRetries = 4, baseDelayMs = 3000, label = 'API' } = options;  // v248: 增强429限流重试（2→4次，2s→3s基础延迟）
+  const { maxRetries = 4, baseDelayMs = 3000, label = 'API', accountId = 0 } = options;  // v248+v369: 增强429限流重试，支持按账户限流
   let lastError: Error | null = null;
   // v360: 真正集成限流服务 - 在每次API调用前获取令牌
   const endpointType = classifyEndpoint(label);
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // v360: 调用前获取限流许可，如果令牌不足会自动等待
+      // v360+v369: 调用前获取限流许可，使用真实accountId
       try {
-        await acquireApiPermit(0, endpointType);
+        await acquireApiPermit(accountId, endpointType);
       } catch (_) { /* 限流服务异常不影响主流程 */ }
       return await fn();
     } catch (error: unknown) {
@@ -48,10 +48,10 @@ async function withRetry<T>(
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
       const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
       
-      // v360: 通知分端点限流服务，触发自适应降速
+      // v360+v369: 通知分端点限流服务，触发自适应降速，使用真实accountId
       if (isThrottle) {
         try {
-          getApiRateLimitService().recordExternalThrottle(0, endpointType);
+          getApiRateLimitService().recordExternalThrottle(accountId, endpointType);
         } catch (_) { /* 限流服务异常不影响主流程 */ }
       }
       
@@ -222,7 +222,7 @@ export async function syncBidAdjustmentsToAmazon(
         () => (syncService as any).client.updateKeywordBids(
           resolvedKeywordBids.map(r => ({ keywordId: r.keywordId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateKeywordBids-${resolvedKeywordBids.length}` }
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateKeywordBids-${resolvedKeywordBids.length}`, accountId }
       );
       
       // 处理成功的
@@ -270,7 +270,7 @@ export async function syncBidAdjustmentsToAmazon(
         () => (syncService as any).client.updateProductTargetBids(
           resolvedTargetBids.map(r => ({ targetId: r.targetId, bid: r.bid }))
         ),
-        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateProductTargetBids-${resolvedTargetBids.length}` }
+        { maxRetries: 3, baseDelayMs: 3000, label: `batchUpdateProductTargetBids-${resolvedTargetBids.length}`, accountId }
       );
       
       const successCount = resolvedTargetBids.length - (apiResult.errors?.length || 0);
@@ -495,7 +495,7 @@ export async function syncNewKeywordsToAmazon(
             state: 'enabled' as const,
           }))
         ),
-        { maxRetries: 2, baseDelayMs: 3000, label: `createSpKeywords-batch${batchIdx + 1}` }
+        { maxRetries: 2, baseDelayMs: 3000, label: `createSpKeywords-batch${batchIdx + 1}`, accountId }
       );
       
       // 处理API返回结果
@@ -719,7 +719,7 @@ export async function syncBudgetAdjustmentToAmazon(
           dailyBudget: newBudget,
         });
       }
-    }, { label: `预算同步 Campaign ${campaignId}` });
+    }, { label: `预算同步 Campaign ${campaignId}`, accountId });
     
     log.info(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
@@ -754,7 +754,7 @@ export async function syncPlacementAdjustmentToAmazon(
           ],
         },
       } as Record<string, any>);
-    }, { label: `位置倾斜同步 Campaign ${campaignId}` });
+    }, { label: `位置倾斜同步 Campaign ${campaignId}`, accountId });
     log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     return true;
@@ -849,7 +849,7 @@ export async function syncNegativeKeywordsToAmazon(
             keywordText: n.keywordText,
             matchType: n.matchType,
           }))
-        ), { label: 'Campaign否定词创建' });
+        ), { label: 'Campaign否定词创建', accountId });
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
         // @ts-ignore
@@ -924,7 +924,7 @@ export async function syncNegativeKeywordsToAmazon(
             keywordText: n.keywordText,
             matchType: n.matchType,
           }))
-        ), { label: 'AdGroup否定词创建' });
+        ), { label: 'AdGroup否定词创建', accountId });
         
         // @ts-ignore
         for (let ri = 0; ri < results.length; ri++) {
@@ -1003,7 +1003,7 @@ export async function syncNegativeProductTargetsToAmazon(
           expression: [{ type: 'asinSameAs', value: n.asin }],
           expressionType: 'manual',
         }))
-      ), { label: 'SP Campaign否定产品定向' });
+      ), { label: 'SP Campaign否定产品定向', accountId });
       
       // @ts-ignore
       for (const r of apiResults) {
@@ -1030,7 +1030,7 @@ export async function syncNegativeProductTargetsToAmazon(
           expression: [{ type: 'asinSameAs', value: n.asin }],
           expressionType: 'manual',
         }))
-      ), { label: 'SP AdGroup否定产品定向' });
+      ), { label: 'SP AdGroup否定产品定向', accountId });
       
       // @ts-ignore
       for (const r of apiResults) {
@@ -1183,7 +1183,7 @@ export async function syncKeywordStatusToAmazon(
         log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedKeywordUpdates.length} 个关键词状态更新到Amazon`);
         const apiResult: any = await withRetry(
           () => (syncService as any).client.updateKeywordStatus(resolvedKeywordUpdates),
-          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}` }
+          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}`, accountId }
         );
         
         result.success += apiResult.successCount;
@@ -1251,7 +1251,7 @@ export async function syncKeywordStatusToAmazon(
         log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedTargetUpdates.length} 个商品定向状态更新到Amazon`);
         const apiResult: any = await withRetry(
           () => (syncService as any).client.updateProductTargetStatus(resolvedTargetUpdates),
-          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}` }
+          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}`, accountId }
         );
         
         result.success += apiResult.successCount;
@@ -1332,7 +1332,7 @@ export async function syncCampaignStatusToAmazon(
         } else {
           await (syncService as any).client.updateSpCampaign(change.amazonCampaignId, { state: change.newStatus.toUpperCase() } as Record<string, any>);
         }
-      }, { maxRetries: 2, baseDelayMs: 2000, label: `campaignStatus-${change.amazonCampaignId}` });
+      }, { maxRetries: 2, baseDelayMs: 2000, label: `campaignStatus-${change.amazonCampaignId}`, accountId });
       
       log.info(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
       return { success: true };
@@ -1443,7 +1443,7 @@ export async function syncAdGroupStatusToAmazon(
         () => (syncService as any).client.updateSpAdGroupStatus(
           spChanges.map(c => ({ adGroupId: c.amazonAdGroupId, state: c.newStatus }))
         ),
-        { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSpAdGroupStatus-${spChanges.length}` }
+        { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSpAdGroupStatus-${spChanges.length}`, accountId }
       );
       
       result.success += apiResult.successCount || 0;
@@ -1473,7 +1473,7 @@ export async function syncAdGroupStatusToAmazon(
         () => (syncService as any).client.updateSdAdGroupStatus(
           sdChanges.map(c => ({ adGroupId: c.amazonAdGroupId, state: c.newStatus }))
         ),
-        { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSdAdGroupStatus-${sdChanges.length}` }
+        { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateSdAdGroupStatus-${sdChanges.length}`, accountId }
       );
       
       result.success += apiResult.successCount || 0;

@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 369,
+    description: 'v369: [全面系统评估优化] — (1)P0-API限流accountId=0修复:所有API调用现在传递真实accountId (2)P0-缺失数据库表迁移:budget_auto_execution_configs/history/details/logs+keyword_auto_execution_configs (3)P0-RL日志增强:recordBidAction错误日志包含完整上下文 (4)P1-日志缓冲区扩容15000→30000+批次大小100→200 (5)P1-同步记录数统计修复 (6)P1-前端优化目标达成度显示优化',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands', 'rerun_optimization'],
+  },
+  {
     version: 368,
     description: 'v368: [P1/P2优化] — (1)P0-lockManager升级为混合锁(内存锁+MySQL GET_LOCK分布式锁) (2)P0-修复GET_LOCK连接管理Bug (3)P1-API限流优化:429退避per-account级别+指数恢复+应用级全局TPS上限 (4)P2-前端修复:60天→90天+系统健康卡片空状态',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

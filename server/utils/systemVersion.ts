@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 368;  // v368: P1/P2优化 - 分布式锁升级/API限流增强/前端修复
+export const SYSTEM_VERSION = 369;  // v369: 全面系统评估优化 - 缺失表迁移/API限流accountId修复/RL日志增强/缓冲区扩容
