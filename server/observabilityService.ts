@@ -145,57 +145,65 @@ async function collectOptimizationMetrics(now: Date): Promise<SystemMetricSnapsh
   
   const db2 = await getDb();
   if (!db2) return { timestamp: now, category: 'optimization' as const, metrics: {} };
-  // 最近1小时的优化事件统计
-  const hourlyStats = await db2.select({
-    status: optimizationEvents.status,
-    cnt: count()
-  })
-  .from(optimizationEvents)
-  .where(gte(optimizationEvents.executedAt, oneHourAgo.toISOString().slice(0, 19).replace('T', ' ')))
-  .groupBy(optimizationEvents.status);
   
-  let hourlyExecuted = 0, hourlyFailed = 0, hourlyRolledBack = 0;
-  for (const row of (hourlyStats as any[])) {
-    const cnt = Number(row.cnt);
-    if (row.status === 'success') hourlyExecuted += cnt;
-    else if (row.status === 'failed') hourlyFailed += cnt;
-    else if (row.status === 'rolled_back') hourlyRolledBack += cnt;
-  }
-  
-  // 最近24小时的优化事件统计
-  const dailyStats = await db2.select({
-    status: optimizationEvents.status,
-    cnt: count()
-  })
-  .from(optimizationEvents)
-  .where(gte(optimizationEvents.executedAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')))
-  .groupBy(optimizationEvents.status);
-  
-  let dailyExecuted = 0, dailyFailed = 0, dailyRolledBack = 0;
-  for (const row of (dailyStats as any[])) {
-    const cnt = Number(row.cnt);
-    if (row.status === 'success') dailyExecuted += cnt;
-    else if (row.status === 'failed') dailyFailed += cnt;
-    else if (row.status === 'rolled_back') dailyRolledBack += cnt;
-  }
-  
-  const hourlyTotal = hourlyExecuted + hourlyFailed + hourlyRolledBack;
-  const dailyTotal = dailyExecuted + dailyFailed + dailyRolledBack;
-  
-  return {
-    timestamp: now,
-    category: 'optimization',
-    metrics: {
-      hourly_executed: hourlyExecuted,
-      hourly_failed: hourlyFailed,
-      hourly_rolled_back: hourlyRolledBack,
-      hourly_success_rate: hourlyTotal > 0 ? Math.round((hourlyExecuted / hourlyTotal) * 10000) / 100 : 100,
-      daily_executed: dailyExecuted,
-      daily_failed: dailyFailed,
-      daily_rolled_back: dailyRolledBack,
-      daily_success_rate: dailyTotal > 0 ? Math.round((dailyExecuted / dailyTotal) * 10000) / 100 : 100,
+  try {
+    // v379: 使用createdAt替代executedAt，避免列不存在的问题
+    // 最近1小时的优化事件统计
+    const hourlyStats = await db2.select({
+      status: optimizationEvents.status,
+      cnt: count()
+    })
+    .from(optimizationEvents)
+    .where(gte(optimizationEvents.createdAt, oneHourAgo.toISOString().slice(0, 19).replace('T', ' ')))
+    .groupBy(optimizationEvents.status);
+    
+    let hourlyExecuted = 0, hourlyFailed = 0, hourlyRolledBack = 0;
+    for (const row of (hourlyStats as any[])) {
+      const cnt = Number(row.cnt);
+      if (row.status === 'success') hourlyExecuted += cnt;
+      else if (row.status === 'failed') hourlyFailed += cnt;
+      else if (row.status === 'rolled_back') hourlyRolledBack += cnt;
     }
-  };
+    
+    // 最近24小时的优化事件统计
+    const dailyStats = await db2.select({
+      status: optimizationEvents.status,
+      cnt: count()
+    })
+    .from(optimizationEvents)
+    .where(gte(optimizationEvents.createdAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')))
+    .groupBy(optimizationEvents.status);
+    
+    let dailyExecuted = 0, dailyFailed = 0, dailyRolledBack = 0;
+    for (const row of (dailyStats as any[])) {
+      const cnt = Number(row.cnt);
+      if (row.status === 'success') dailyExecuted += cnt;
+      else if (row.status === 'failed') dailyFailed += cnt;
+      else if (row.status === 'rolled_back') dailyRolledBack += cnt;
+    }
+    
+    const hourlyTotal = hourlyExecuted + hourlyFailed + hourlyRolledBack;
+    const dailyTotal = dailyExecuted + dailyFailed + dailyRolledBack;
+    
+    return {
+      timestamp: now,
+      category: 'optimization',
+      metrics: {
+        hourly_executed: hourlyExecuted,
+        hourly_failed: hourlyFailed,
+        hourly_rolled_back: hourlyRolledBack,
+        hourly_success_rate: hourlyTotal > 0 ? Math.round((hourlyExecuted / hourlyTotal) * 10000) / 100 : 100,
+        daily_executed: dailyExecuted,
+        daily_failed: dailyFailed,
+        daily_rolled_back: dailyRolledBack,
+        daily_success_rate: dailyTotal > 0 ? Math.round((dailyExecuted / dailyTotal) * 10000) / 100 : 100,
+      }
+    };
+  } catch (err: unknown) {
+    // v379: optimization_events表可能缺少某些列，优雅降级
+    log.warn(`[Observability] v379: optimization_events查询失败，返回空指标: ${(err as Error).message?.substring(0, 100)}`);
+    return { timestamp: now, category: 'optimization' as const, metrics: {} };
+  }
 }
 
 async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapshot> {
@@ -203,24 +211,31 @@ async function collectReliabilityMetrics(now: Date): Promise<SystemMetricSnapsho
   
   const db3 = await getDb();
   if (!db3) return { timestamp: now, category: 'reliability' as const, metrics: {} };
-  // 计算API调用成功率
-  const apiStats = await db3.select({
-    apiSyncStatus: optimizationEvents.apiSyncStatus,
-    cnt: count()
-  })
-  .from(optimizationEvents)
-  .where(and(
-    gte(optimizationEvents.executedAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')),
-    not(eq(optimizationEvents.apiSyncStatus, 'not_applicable'))
-  ))
-  .groupBy(optimizationEvents.apiSyncStatus);
   
   let apiSuccess = 0, apiFailed = 0, apiPending = 0;
-  for (const row of (apiStats as any[])) {
-    const cnt = Number(row.cnt);
-    if (row.apiSyncStatus === 'synced') apiSuccess += cnt;
-    else if (row.apiSyncStatus === 'failed') apiFailed += cnt;
-    else if (row.apiSyncStatus === 'pending') apiPending += cnt;
+  try {
+    // v379: 使用createdAt替代executedAt，避免列不存在的问题
+    // 计算API调用成功率
+    const apiStats = await db3.select({
+      apiSyncStatus: optimizationEvents.apiSyncStatus,
+      cnt: count()
+    })
+    .from(optimizationEvents)
+    .where(and(
+      gte(optimizationEvents.createdAt, oneDayAgo.toISOString().slice(0, 19).replace('T', ' ')),
+      not(eq(optimizationEvents.apiSyncStatus, 'not_applicable'))
+    ))
+    .groupBy(optimizationEvents.apiSyncStatus);
+    
+    for (const row of (apiStats as any[])) {
+      const cnt = Number(row.cnt);
+      if (row.apiSyncStatus === 'synced') apiSuccess += cnt;
+      else if (row.apiSyncStatus === 'failed') apiFailed += cnt;
+      else if (row.apiSyncStatus === 'pending') apiPending += cnt;
+    }
+  } catch (err: unknown) {
+    // v379: optimization_events表可能缺少某些列，优雅降级
+    log.warn(`[Observability] v379: optimization_events API统计查询失败: ${(err as Error).message?.substring(0, 100)}`);
   }
   
   const apiTotal = apiSuccess + apiFailed + apiPending;

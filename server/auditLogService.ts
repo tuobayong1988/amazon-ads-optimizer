@@ -149,7 +149,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
       whereClause = sql`WHERE ${conditions.reduce((acc, cond, idx) => idx === 0 ? cond : sql`${acc} AND ${cond}`)}`;  
     }
     
-    const countResult = await db.execute(sql`SELECT COUNT(*) as any as total FROM audit_logs ${whereClause}`);
+    const countResult = await db.execute(sql`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`);
     const total = (countResult as Record<string, any>[])[0]?.[0]?.total || 0;
     
     const result = await db.execute(sql`

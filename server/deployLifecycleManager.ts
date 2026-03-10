@@ -865,7 +865,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
               const reason = `v${SYSTEM_VERSION} 部署后效果验证: ${newIssues === 0 ? '通过' : `发现${newIssues}个不一致`}`;
               const algVer = `v${SYSTEM_VERSION}`;
               const status = newIssues === 0 ? 'success' : 'pending';
-              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) as any VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
+              await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, ${status}, 'not_applicable')`);
             }
           } catch (logErr: unknown) {
             log.warn(`[LifecycleManager] v329: 记录验证结果失败（不影响系统运行）: ${(logErr as Error).message}`);
@@ -915,7 +915,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
             });
             const reason = `v${SYSTEM_VERSION} crash恢复完成`;
             const algVer = `v${SYSTEM_VERSION}`;
-            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) as any VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
+            await database.execute(sql`INSERT INTO optimization_events (account_id, event_category, action_type, action_detail, change_reason, algorithm_version, status, api_sync_status) VALUES (0, 'settings_change', 'auto_correction', ${detail}, ${reason}, ${algVer}, 'success', 'not_applicable')`);
           }
         } catch (crashLogErr: unknown) {
           log.warn(`[LifecycleManager] v329: 记录crash恢复事件失败（不影响系统运行）: ${(crashLogErr as Error).message}`);

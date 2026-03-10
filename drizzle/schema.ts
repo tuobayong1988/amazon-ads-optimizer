@@ -3467,6 +3467,10 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
   index("idx_opt_log_action_type").on(table.actionType),
   index("idx_opt_log_campaign").on(table.campaignId),
   index("idx_opt_log_created_at").on(table.createdAt),
+  // v379: 复合索引 - 解决SelfEvolution模块30天范围查询超时问题
+  index("idx_opt_log_pg_cat_created").on(table.performanceGroupId, table.logCategory, table.createdAt),
+  // v379: 复合索引 - 支持按账户维度的分类时间范围查询
+  index("idx_opt_log_account_cat_created").on(table.accountId, table.logCategory, table.createdAt),
 ]);
 
 // 优化日志类型导出

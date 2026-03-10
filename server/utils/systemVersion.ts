@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 378;  // v378: 修复AutoOptimizationDashboard和AmazonApiAuthStatus的trpc调用方式(vanilla→react-query hooks)
+export const SYSTEM_VERSION = 379;  // v379: 修复8处SQL as any泄漏+Observability executedAt列不存在+optimization_logs复合索引优化

@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 379,
+    description: 'v379: [SQL安全修复+可观测性修复+数据库索引优化] — (1)P0-修复8处SQL模板字符串中的as any类型断言泄漏: syncPerformance.ts(DATE(date) as any), bidOperations.ts(INSERT...as any x2), deployLifecycleManager.ts(INSERT...as any x2), systemRouter.ts(ALTER TABLE...as any x2), auditLogService.ts(COUNT(*) as any as total) (2)P1-Observability服务修复: 将executedAt替换为createdAt解决optimization_events表查询失败问题+添加try-catch优雅降级 (3)P2-optimization_logs表添加复合索引(pg+category+createdAt, account+category+createdAt)解决SelfEvolution模坰30天范围查询超时',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 378,
     description: 'v378: [修复自动优化仪表盘和API授权状态页面] — (1)P0-AutoOptimizationDashboard.tsx: 修复trpc调用方式从tRPC vanilla client改为react-query hooks(getMetrics/getRecentActions/getTrends三个查询全部修复),解决"t[i] is not a function"错误导致仪表盘显示全部0的问题 (2)P1-AmazonApiAuthStatus.tsx: 修复trpc调用方式(getAllAuthStatus.query→useQuery, refreshToken.mutate→useMutation),解决API授权状态页面无法加载数据的问题',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

@@ -340,7 +340,7 @@ async function flushDailyPerfBatch(
     const row = batch[i];
     const cur = currencyBatch[i];
     if (cur) {
-      await db.execute(sql`UPDATE daily_performance SET currency = ${cur.currency}, exchange_rate = ${cur.exchangeRate}, spend_usd = ${cur.spendUsd}, sales_usd = ${cur.salesUsd} WHERE accountId = ${row.accountId} AND campaignId = ${row.campaignId} AND DATE(date) as any = ${row.date} AND ad_type = ${row.adType}`);
+      await db.execute(sql`UPDATE daily_performance SET currency = ${cur.currency}, exchange_rate = ${cur.exchangeRate}, spend_usd = ${cur.spendUsd}, sales_usd = ${cur.salesUsd} WHERE accountId = ${row.accountId} AND campaignId = ${row.campaignId} AND DATE(date) = ${row.date} AND ad_type = ${row.adType}`);
     }
   }
 }

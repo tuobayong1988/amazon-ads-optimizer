@@ -98,7 +98,7 @@ export const systemRouter = router({
       if (input.migrationName === '0020_add_bidding_logs_columns') {
         // 添加bidding_logs表缺失的列
         try {
-          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') as any DEFAULT 'pending'`);
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') DEFAULT 'pending'`);
           results.push('Added execution_status column');
         } catch (e: unknown) {
           if ((e as Error).message?.includes('Duplicate column')) {
@@ -109,7 +109,7 @@ export const systemRouter = router({
         }
 
         try {
-          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) as any DEFAULT NULL`);
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) DEFAULT NULL`);
           results.push('Added api_response_id column');
         } catch (e: unknown) {
           if ((e as Error).message?.includes('Duplicate column')) {
