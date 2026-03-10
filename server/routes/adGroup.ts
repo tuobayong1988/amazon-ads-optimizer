@@ -19,7 +19,10 @@ export const adGroupRouter = router({
       endDate: z.string().optional(),
     }))
     .query(async ({ input }: any) => {
-      return db.getAdGroupsByCampaignId(input.campaignId);
+      // v381: 修复ID混淆 — 前端传入本地自增ID，需要先查campaign获取Amazon campaignId
+      const campaign = await db.getCampaignById(input.campaignId);
+      if (!campaign) return [];
+      return db.getAdGroupsByCampaignId(campaign.campaignId);
     }),
   
   // v370.4: 数据隔离 - 获取广告组详情

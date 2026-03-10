@@ -22,6 +22,8 @@ export const keywordRouter = router({
       // v376: P1数据隔离修复 - 验证当前用户有权访问该adGroupId
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
+      // v381: keywords.adGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
+      // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
       return db.getKeywordsByAdGroupId(input.adGroupId);
     }),
   
@@ -419,6 +421,8 @@ export const productTargetRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
     .query(async ({ input }: any) => {
+      // v381: productTargets.adGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
+      // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
       return db.getProductTargetsByAdGroupId(input.adGroupId);
     }),
   

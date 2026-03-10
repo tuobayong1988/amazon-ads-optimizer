@@ -678,15 +678,26 @@ export default function CampaignDetail() {
           </Card>
         </div>
         
-        {/* 详细数据Tab */}
+        {/* 详细数据Tab - v381: 根据广告类型动态显示tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
-            <TabsTrigger value="placements">广告位置</TabsTrigger>
+            {/* SP广告显示广告位置绩效 */}
+            {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
+              <TabsTrigger value="placements">广告位置</TabsTrigger>
+            )}
             <TabsTrigger value="adgroups">广告组</TabsTrigger>
-            <TabsTrigger value="targets">投放词</TabsTrigger>
-            <TabsTrigger value="searchterms">客户搜索词</TabsTrigger>
-            <TabsTrigger value="negatives">否定词</TabsTrigger>
+            {/* SB/SD广告在Campaign层级显示出价调整 */}
+            {campaign.campaignType === "sb" && (
+              <TabsTrigger value="bidadjustments">出价调整</TabsTrigger>
+            )}
+            <TabsTrigger value="targets">
+              {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "定向" : "投放词"}
+            </TabsTrigger>
+            <TabsTrigger value="searchterms">搜索词</TabsTrigger>
+            <TabsTrigger value="negatives">
+              {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "否定定向" : "否定词"}
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="mt-4">
@@ -1073,6 +1084,37 @@ export default function CampaignDetail() {
             </Card>
           </TabsContent>
 
+          {/* v381: SB广告的出价调整tab */}
+          {campaign.campaignType === "sb" && (
+            <TabsContent value="bidadjustments" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>出价调整</CardTitle>
+                  <CardDescription>品牌广告的出价调整设置（对应Amazon Ads后台的Bid adjustments）</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">搜索结果顶部</p>
+                      <p className="text-2xl font-bold text-primary">{campaign.placementTopSearchBidAdjustment || 0}%</p>
+                      <p className="text-xs text-muted-foreground mt-2">在搜索结果顶部显示时的出价调整百分比</p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">商品详情页</p>
+                      <p className="text-2xl font-bold text-primary">{campaign.placementProductPageBidAdjustment || 0}%</p>
+                      <p className="text-xs text-muted-foreground mt-2">在商品详情页显示时的出价调整百分比</p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">其他位置</p>
+                      <p className="text-2xl font-bold text-primary">{campaign.placementRestBidAdjustment || 0}%</p>
+                      <p className="text-xs text-muted-foreground mt-2">在其他广告位置显示时的出价调整百分比</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
           <TabsContent value="adgroups" className="mt-4">
             <Card>
               <CardHeader>
@@ -1269,8 +1311,14 @@ export default function CampaignDetail() {
           <TabsContent value="targets" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>投放词列表</CardTitle>
-                <CardDescription>该广告活动下的所有投放词（关键词 + 商品定向）</CardDescription>
+                <CardTitle>
+                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "定向列表" : "投放词列表"}
+                </CardTitle>
+                <CardDescription>
+                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" 
+                    ? "该广告活动下的所有定向（关键词定向 + 商品定向）" 
+                    : "该广告活动下的所有投放词（关键词 + 商品定向）"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <TargetsList campaignId={campaignId} />
@@ -1281,8 +1329,8 @@ export default function CampaignDetail() {
           <TabsContent value="searchterms" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>客户搜索词</CardTitle>
-                <CardDescription>触发该广告活动的客户实际搜索词</CardDescription>
+                <CardTitle>搜索词报告</CardTitle>
+                <CardDescription>触发该广告活动的客户实际搜索词及其绩效数据</CardDescription>
               </CardHeader>
               <CardContent>
                 <SearchTermsList campaignId={campaignId} />
@@ -1293,8 +1341,14 @@ export default function CampaignDetail() {
           <TabsContent value="negatives" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>否定关键词 / 否定商品</CardTitle>
-                <CardDescription>该广告活动下已添加的否定关键词和否定商品定向</CardDescription>
+                <CardTitle>
+                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "否定定向" : "否定关键词 / 否定商品"}
+                </CardTitle>
+                <CardDescription>
+                  {campaign.campaignType === "sb" || campaign.campaignType === "sd"
+                    ? "该广告活动下已添加的否定定向（否定关键词和否定商品）"
+                    : "该广告活动下已添加的否定关键词和否定商品定向"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <NegativeKeywordsList campaignId={campaignId} />

@@ -1,23 +1,30 @@
 /**
- * v361: 广告活动详情
- * 从db.ts拆分的子模块
+ * v381: 广告活动详情 - 修复致命ID混淆bug
+ * 所有函数现在接受Amazon campaignId（字符串）作为参数
  */
 
 import { eq, sql } from 'drizzle-orm';
-import { Campaign, Keyword, ProductTarget, adGroups, campaigns, keywords, productTargets, searchTerms } from '../../drizzle/schema';
+import { Campaign, Keyword, ProductTarget, adGroups, campaigns, keywords, productTargets, searchTerms, placementPerformance, negativeKeywords } from '../../drizzle/schema';
 import { getDb } from './connection';
 
 // ==================== Campaign Detail Functions ====================
-export async function getCampaignDetailWithStats(campaignId: number) {
+
+/**
+ * v381: 获取广告活动详情（包含广告组、关键词、搜索词等）
+ * @param amazonCampaignId - Amazon广告活动ID（字符串）
+ */
+export async function getCampaignDetailWithStats(amazonCampaignId: string) {
   const db = await getDb();
   if (!db) return null;
   
-  // 获取广告活动基本信息
-  const campaign = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  // v381: 使用Amazon campaignId查询
+  const campaign = await db.select().from(campaigns)
+    .where(eq(campaigns.campaignId, amazonCampaignId)).limit(1);
   if (!campaign[0]) return null;
   
-  // 获取广告组列表
-  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, String(campaignId)));
+  // 使用Amazon campaignId查询广告组
+  const adGroupList = await db.select().from(adGroups)
+    .where(eq(adGroups.campaignId, amazonCampaignId));
   
   // 获取广告组ID列表
   const adGroupIds = adGroupList.map(ag => ag.id);
@@ -37,7 +44,8 @@ export async function getCampaignDetailWithStats(campaignId: number) {
   }
   
   // 获取搜索词报告
-  const searchTermList = await db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
+  const searchTermList = await db.select().from(searchTerms)
+    .where(eq(searchTerms.campaignId, amazonCampaignId));
   
   return {
     campaign: campaign[0],
@@ -48,65 +56,124 @@ export async function getCampaignDetailWithStats(campaignId: number) {
   };
 }
 
-// 获取广告活动的广告位表现数据
-
-// 获取广告活动的广告位表现数据
-export async function getCampaignPlacementStats(campaignId: number) {
+/**
+ * v381: 获取广告活动的广告位表现数据 - 使用placement_performance表的真实数据
+ * @param amazonCampaignId - Amazon广告活动ID（字符串）
+ */
+export async function getCampaignPlacementStats(amazonCampaignId: string) {
   const db = await getDb();
   if (!db) return [];
   
-  const campaign = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  // v381: 从placement_performance表获取真实的广告位数据
+  try {
+    const placementData = await db.select().from(placementPerformance)
+      .where(eq(placementPerformance.campaignId, amazonCampaignId));
+    
+    if (placementData.length > 0) {
+      // 按placement类型聚合数据
+      const placementMap = new Map<string, {
+        placement: string;
+        placementLabel: string;
+        bidAdjustment: number;
+        impressions: number;
+        clicks: number;
+        spend: number;
+        sales: number;
+        orders: number;
+      }>();
+      
+      const labelMap: Record<string, string> = {
+        'top_of_search': '搜索结果顶部',
+        'product_page': '商品页面',
+        'rest_of_search': '搜索结果其他位置',
+        'top': '搜索结果顶部',
+        'detail_page': '商品页面',
+        'other': '搜索结果其他位置',
+      };
+      
+      for (const p of placementData) {
+        const key = p.placement || 'other';
+        const existing = placementMap.get(key);
+        if (existing) {
+          existing.impressions += p.impressions || 0;
+          existing.clicks += p.clicks || 0;
+          existing.spend += parseFloat(String(p.spend || '0'));
+          existing.sales += parseFloat(String(p.sales || '0'));
+          existing.orders += p.orders || 0;
+        } else {
+          placementMap.set(key, {
+            placement: key,
+            placementLabel: labelMap[key] || key,
+            bidAdjustment: 0,
+            impressions: p.impressions || 0,
+            clicks: p.clicks || 0,
+            spend: parseFloat(String(p.spend || '0')),
+            sales: parseFloat(String(p.sales || '0')),
+            orders: p.orders || 0,
+          });
+        }
+      }
+      
+      // 获取campaign的bid adjustment设置
+      const campaign = await db.select().from(campaigns)
+        .where(eq(campaigns.campaignId, amazonCampaignId)).limit(1);
+      if (campaign[0]) {
+        for (const [key, data] of placementMap) {
+          if (key === 'top_of_search' || key === 'top') {
+            data.bidAdjustment = campaign[0].placementTopSearchBidAdjustment || 0;
+          } else if (key === 'product_page' || key === 'detail_page') {
+            data.bidAdjustment = campaign[0].placementProductPageBidAdjustment || 0;
+          } else {
+            data.bidAdjustment = campaign[0].placementRestBidAdjustment || 0;
+          }
+        }
+      }
+      
+      return Array.from(placementMap.values());
+    }
+  } catch (e) {
+    // placement_performance表查询失败时回退到campaign级别数据
+  }
+  
+  // 回退：如果placement_performance表没有数据，使用campaign级别数据
+  const campaign = await db.select().from(campaigns)
+    .where(eq(campaigns.campaignId, amazonCampaignId)).limit(1);
   if (!campaign[0]) return [];
   
-  // 返回广告位数据（从campaigns表的placement字段获取）
-  const placementData = [
+  return [
     {
       placement: "top_of_search",
       placementLabel: "搜索结果顶部",
       bidAdjustment: campaign[0].placementTopSearchBidAdjustment || 0,
-      // 模拟数据，实际应从daily_performance或专门的placement表获取
-      impressions: Math.floor((campaign[0].impressions || 0) * 0.3),
-      clicks: Math.floor((campaign[0].clicks || 0) * 0.35),
-      spend: parseFloat(campaign[0].spend || "0") * 0.35,
-      sales: parseFloat(campaign[0].sales || "0") * 0.4,
-      orders: Math.floor((campaign[0].orders || 0) * 0.4),
+      impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0,
     },
     {
       placement: "product_page",
       placementLabel: "商品页面",
       bidAdjustment: campaign[0].placementProductPageBidAdjustment || 0,
-      impressions: Math.floor((campaign[0].impressions || 0) * 0.5),
-      clicks: Math.floor((campaign[0].clicks || 0) * 0.45),
-      spend: parseFloat(campaign[0].spend || "0") * 0.45,
-      sales: parseFloat(campaign[0].sales || "0") * 0.4,
-      orders: Math.floor((campaign[0].orders || 0) * 0.4),
+      impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0,
     },
     {
       placement: "rest_of_search",
       placementLabel: "搜索结果其他位置",
       bidAdjustment: campaign[0].placementRestBidAdjustment || 0,
-      impressions: Math.floor((campaign[0].impressions || 0) * 0.2),
-      clicks: Math.floor((campaign[0].clicks || 0) * 0.2),
-      spend: parseFloat(campaign[0].spend || "0") * 0.2,
-      sales: parseFloat(campaign[0].sales || "0") * 0.2,
-      orders: Math.floor((campaign[0].orders || 0) * 0.2),
+      impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0,
     },
   ];
-  
-  return placementData;
 }
 
-// 获取广告活动下所有投放词（关键词+商品定向）
-
-// 获取广告活动下所有投放词（关键词+商品定向）
-export async function getCampaignTargets(campaignId: number) {
+/**
+ * v381: 获取广告活动下所有投放词（关键词+商品定向）
+ * @param amazonCampaignId - Amazon广告活动ID（字符串）
+ */
+export async function getCampaignTargets(amazonCampaignId: string) {
   const db = await getDb();
   if (!db) return { keywords: [], productTargets: [] };
   
   // 获取广告组ID列表
   const adGroupList = await db.select({ id: adGroups.id, adGroupName: adGroups.adGroupName })
     .from(adGroups)
-    .where(eq(adGroups.campaignId, String(campaignId)));
+    .where(eq(adGroups.campaignId, amazonCampaignId));
   
   if (adGroupList.length === 0) {
     return { keywords: [], productTargets: [] };
@@ -123,7 +190,7 @@ export async function getCampaignTargets(campaignId: number) {
   const productTargetList = await db.select().from(productTargets)
     .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   
-  // v357: adGroupId现在是string类型，需要转换为number才能匹配map key
+  // adGroupId现在是string类型，需要转换为number才能匹配map key
   const keywordsWithAdGroup = keywordList.map(k => ({
     ...k,
     adGroupName: adGroupMap.get(Number(k.adGroupId)) || "未知广告组"

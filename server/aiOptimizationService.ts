@@ -67,8 +67,8 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
     throw new Error("广告活动不存在");
   }
   
-  // 获取广告组和投放词数据
-  const adGroups = await db.getAdGroupsByCampaignId(campaignId);
+  // v381: 修复ID混淆 — 使用Amazon campaignId查询子层级数据
+  const adGroups = await db.getAdGroupsByCampaignId(campaign.campaignId);
   let allKeywords: any[] = [];
   let allProductTargets: any[] = [];
   
@@ -79,8 +79,8 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
     allProductTargets.push(...productTargets.map(pt => ({ ...pt, adGroupName: adGroup.adGroupName })));
   }
   
-  // 获取搜索词数据
-  const searchTerms = await db.getSearchTermsByCampaignId(campaignId);
+  // v381: 修复ID混淆 — 使用Amazon campaignId
+  const searchTerms = await db.getSearchTermsByCampaignId(campaign.campaignId);
   
   // 计算核心指标
   const spend = parseFloat(campaign.spend || "0");

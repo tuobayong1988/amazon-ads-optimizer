@@ -328,7 +328,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
 // 获取广告活动的位置绩效数据
 
 // 获取广告活动的位置绩效数据
-export async function getPlacementPerformanceByCampaignId(campaignId: number) {
+export async function getPlacementPerformanceByCampaignId(campaignId: number | string) {
   const db = await getDb();
   if (!db) return [];
   

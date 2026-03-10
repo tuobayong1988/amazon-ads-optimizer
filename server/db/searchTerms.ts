@@ -561,7 +561,7 @@ export async function addNegativeKeyword(data: {
 // 获取广告活动的否定关键词列表
 
 // 获取广告活动的否定关键词列表
-export async function getNegativeKeywordsByCampaignId(campaignId: number) {
+export async function getNegativeKeywordsByCampaignId(campaignId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
@@ -581,7 +581,7 @@ export async function getNegativeKeywordsByAccountId(accountId: number) {
 // ==================== Notification Functions ====================
 
 // ==================== Search Terms Functions ====================
-export async function getSearchTermsByCampaignId(campaignId: number) {
+export async function getSearchTermsByCampaignId(campaignId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
