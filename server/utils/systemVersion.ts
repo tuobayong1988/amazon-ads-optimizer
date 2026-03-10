@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 390;  // v390: 前端骨架屏优化、getDashboard并行查询、健康分析缓存、性能索引优化
+export const SYSTEM_VERSION = 391;  // v391: N+1查询消除、批量GROUP BY汇总、内存Map匹配、Full同步吞吐量提升

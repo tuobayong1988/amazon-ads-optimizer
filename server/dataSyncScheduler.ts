@@ -58,8 +58,8 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 6 * 60 * 60 * 1000, // v374: 6小时（从30分钟延长，配合分批轮转机制，确保500租户规模下可控）
-    description: 'v374: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每周期最多25个账号',
+    intervalMs: 2 * 60 * 60 * 1000, // v391: 2小时（从6小时缩短，配合批量查询优化，确保500租户规模下每天可完成一轮完整同步）
+    description: 'v391: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每周期最多100个账号',
     syncTypes: ['all'],
   },
 };

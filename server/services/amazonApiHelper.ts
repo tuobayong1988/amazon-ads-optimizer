@@ -139,20 +139,38 @@ export async function syncBidAdjustmentsToAmazon(
   const { keywords, productTargets } = await import('../../drizzle/schema');
   const { eq } = await import('drizzle-orm');
   
-  // v359: 批量解析关键词Amazon ID
+  // v391: 批量IN查询解析关键词Amazon ID，消除N+1查询
   const resolvedKeywordBids: Array<{ keywordId: string; bid: number; localId: number }> = [];
-  for (const adj of keywordAdjustments) {
-    try {
-      const [kw] = await dbInstance.select({ keywordId: keywords.keywordId }).from(keywords).where(eq(keywords.id, adj.keywordId)).limit(1);
-      let amazonKeywordId = kw?.keywordId;
+  if (keywordAdjustments.length > 0) {
+    const { inArray } = await import('drizzle-orm');
+    const kwLocalIds = keywordAdjustments.map(a => a.keywordId);
+    
+    // v391: 一次性查询所有keyword的Amazon ID
+    const kwResults = await dbInstance
+      .select({ id: keywords.id, keywordId: keywords.keywordId })
+      .from(keywords)
+      .where(inArray(keywords.id, kwLocalIds));
+    
+    const kwIdMap = new Map<number, string>();
+    for (const kw of kwResults) {
+      if (kw.keywordId && kw.keywordId !== '0' && kw.keywordId !== '') {
+        kwIdMap.set(kw.id, kw.keywordId);
+      }
+    }
+    log.info(`[v391] 批量解析关键词Amazon ID: ${kwLocalIds.length}个请求, ${kwIdMap.size}个已解析`);
+    
+    // 处理每个keyword的解析结果
+    for (const adj of keywordAdjustments) {
+      let amazonKeywordId = kwIdMap.get(adj.keywordId);
       
-      if (!amazonKeywordId || amazonKeywordId === '0' || amazonKeywordId === '') {
+      // 如果批量查询未找到，尝试即时回填
+      if (!amazonKeywordId) {
         try {
           const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
           // @ts-ignore
           amazonKeywordId = await resolveKeywordIdOnDemand(accountId, adj.keywordId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v359: 即时回填异常: ${(resolveErr as Error).message}`);
+          log.error(`[AmazonApiHelper] v391: 即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -168,28 +186,41 @@ export async function syncBidAdjustmentsToAmazon(
         result.errors.push(errMsg);
         result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID（可重试）' });
       }
-    } catch (lookupErr: unknown) {
-      result.failed++;
-      result.errors.push(`keyword ${adj.keywordId}: 查询失败 ${(lookupErr as Error).message}`);
-      result.itemResults.set(adj.keywordId, { status: 'failed', error: (lookupErr as Error).message });
     }
   }
   
-  // v359: 批量解析商品定向Amazon ID
+  // v391: 批量IN查询解析商品定向Amazon ID，消除N+1查询
   const resolvedTargetBids: Array<{ targetId: string; bid: number; localId: number }> = [];
-  for (const adj of productTargetAdjustments) {
-    try {
+  if (productTargetAdjustments.length > 0) {
+    const { inArray } = await import('drizzle-orm');
+    const ptLocalIds = productTargetAdjustments.map(a => a.productTargetId || a.keywordId);
+    
+    // v391: 一次性查询所有productTarget的Amazon ID
+    const ptResults = await dbInstance
+      .select({ id: productTargets.id, targetId: productTargets.targetId })
+      .from(productTargets)
+      .where(inArray(productTargets.id, ptLocalIds));
+    
+    const ptIdMap = new Map<number, string>();
+    for (const pt of ptResults) {
+      if (pt.targetId && pt.targetId !== '0' && pt.targetId !== '') {
+        ptIdMap.set(pt.id, pt.targetId);
+      }
+    }
+    log.info(`[v391] 批量解析商品定向Amazon ID: ${ptLocalIds.length}个请求, ${ptIdMap.size}个已解析`);
+    
+    for (const adj of productTargetAdjustments) {
       const actualId = adj.productTargetId || adj.keywordId;
-      const [pt] = await dbInstance.select({ targetId: productTargets.targetId }).from(productTargets).where(eq(productTargets.id, actualId)).limit(1);
-      let amazonTargetId = pt?.targetId;
+      let amazonTargetId = ptIdMap.get(actualId);
       
-      if (!amazonTargetId || amazonTargetId === '0' || amazonTargetId === '') {
+      // 如果批量查询未找到，尝试即时回填
+      if (!amazonTargetId) {
         try {
           const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
           // @ts-ignore
           amazonTargetId = await resolveProductTargetIdOnDemand(accountId, actualId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v359: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
+          log.error(`[AmazonApiHelper] v391: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -205,10 +236,6 @@ export async function syncBidAdjustmentsToAmazon(
         result.errors.push(errMsg);
         result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID（可重试）' });
       }
-    } catch (lookupErr: unknown) {
-      result.failed++;
-      result.errors.push(`product_target ${adj.keywordId}: 查询失败 ${(lookupErr as Error).message}`);
-      result.itemResults.set(adj.keywordId, { status: 'failed', error: (lookupErr as Error).message });
     }
   }
   

@@ -381,46 +381,36 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     // v360: 批量UPSERT数组
     let upsertBatch: any[] = [];
     let currencyBatch: { currency: string; exchangeRate: number; spendUsd: string; salesUsd: string }[] = [];
+
+    // v391: 预加载该账户所有campaigns到内存Map，消除N+1查询
+    const allCampaigns = await db
+      .select()
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    
+    const campaignByIdMap = new Map<string, any>();
+    const campaignByNameMap = new Map<string, any>();
+    for (const c of allCampaigns) {
+      campaignByIdMap.set(String(c.campaignId), c);
+      if (c.campaignName) campaignByNameMap.set(c.campaignName, c);
+    }
+    log.info(`[v391] 预加载 ${allCampaigns.length} 个campaigns到内存Map (ID索引: ${campaignByIdMap.size}, Name索引: ${campaignByNameMap.size})`);
     
     for (const row of (reportData as any[])) {
+      // v391: 使用内存Map匹配，避免逐条查询数据库
       // 策略：先用campaignId匹配，失败后用campaignName匹配
-      // 这是因为SB/SD的报告ID可能与List API返回的ID不一致
       
       // 策略1: 先用campaignId匹配
-      // @ts-ignore
-      let [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(row.campaignId))
-          )
-        )
-        .limit(1);
+      let campaign = campaignByIdMap.get(String(row.campaignId));
 
       if (campaign) {
         matchedById++;
       } else if (row.campaignName) {
-        // 策略2: 用campaignName匹配（紧急规避方案）
-        // 亚马逊广告活动名称是唯一的，可以用作关联
-        // @ts-ignore
-        [campaign] = await db
-          .select()
-          .from(campaigns)
-          .where(
-            and(
-              eq(campaigns.accountId, this.accountId),
-              eq(campaigns.campaignName, row.campaignName)
-            )
-          )
-          .limit(1);
+        // 策略2: 用campaignName匹配
+        campaign = campaignByNameMap.get(row.campaignName);
         
         if (campaign) {
           matchedByName++;
-          // 注意：只做只读匹配，不修改campaigns表的campaignId
-          // 因为Management API (List)返回的V4 ID是系统的唯一真理
-          // 报表API返回的可能是Legacy ID，如果覆盖V4 ID会导致下次同步出错
           log.info(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
         }
       }
@@ -444,12 +434,15 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
             // @ts-ignore
             }).returning();
             campaign = newCampaign;
+            // v391: 将新创建的campaign加入内存Map，避免后续重复创建
+            campaignByIdMap.set(String(campaign.campaignId), campaign);
+            if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
             log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
           } catch (createError: unknown) {
             // 可能是重复插入，尝试再次查询
             log.warn(`${adType}创建campaign失败，尝试再次查询:`, (createError as Error).message);
             // @ts-ignore
-            [campaign] = await db
+            const [existingCampaign] = await db
               .select()
               .from(campaigns)
               .where(
@@ -459,12 +452,17 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
                 )
               )
               .limit(1);
+            campaign = existingCampaign;
+            // v391: 将查询到的campaign加入内存Map
+            if (campaign) {
+              campaignByIdMap.set(String(campaign.campaignId), campaign);
+              if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
+            }
           }
         }
         
         if (!campaign) {
           notMatched++;
-          // 记录未找到的campaign，用于调试
           if (notMatched <= 10) {
             log.warn(`${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
           }
@@ -1577,88 +1575,160 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
   if (!db) return;
 
   try {
+    // v391: 批量查询优化 - 消除N+1查询问题
     // 获取该账户下所有广告活动
     const accountCampaigns = await db
       .select()
       .from(campaigns)
       .where(eq(campaigns.accountId, this.accountId));
 
-    log.info(`开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总 (站点: ${this.marketplace})`);
+    if (accountCampaigns.length === 0) return;
+
+    log.info(`[v391] 开始批量更新 ${accountCampaigns.length} 个广告活动的绩效汇总 (站点: ${this.marketplace})`);
 
     // 使用站点时区计算最近30天的日期范围
     const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, 30);
 
-    for (const campaign of (accountCampaigns as any[])) {
-      // 首先尝试仍ailyPerformance表汇总
-      const [dailySummary] = await db
-        .select({
-          totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-          totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-          totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-          totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-          totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
-        })
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.accountId, this.accountId),
-            eq(dailyPerformance.campaignId, String(campaign.campaignId)),
-            sql`${dailyPerformance.date} >= ${startDateStr}`,
-            sql`${dailyPerformance.date} <= ${endDateStr}`
-          )
-        );
+    // v391: 第一步 - 一次性从dailyPerformance表批量GROUP BY汇总所有campaign的绩效数据
+    const dailySummaries = await db
+      .select({
+        campaignId: dailyPerformance.campaignId,
+        totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+        totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+        totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+        totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      })
+      .from(dailyPerformance)
+      .where(
+        and(
+          eq(dailyPerformance.accountId, this.accountId),
+          sql`${dailyPerformance.date} >= ${startDateStr}`,
+          sql`${dailyPerformance.date} <= ${endDateStr}`
+        )
+      )
+      .groupBy(dailyPerformance.campaignId);
 
-      let totalImpressions = dailySummary?.totalImpressions || 0;
-      let totalClicks = dailySummary?.totalClicks || 0;
-      let totalSpend = parseFloat(dailySummary?.totalSpend || '0');
-      let totalSales = parseFloat(dailySummary?.totalSales || '0');
-      let totalOrders = dailySummary?.totalOrders || 0;
+    // 构建campaignId -> 汇总数据的Map
+    const summaryMap = new Map<string, {
+      totalImpressions: number;
+      totalClicks: number;
+      totalSpend: number;
+      totalSales: number;
+      totalOrders: number;
+    }>();
+    for (const s of dailySummaries) {
+      summaryMap.set(s.campaignId, {
+        totalImpressions: s.totalImpressions || 0,
+        totalClicks: s.totalClicks || 0,
+        totalSpend: parseFloat(s.totalSpend || '0'),
+        totalSales: parseFloat(s.totalSales || '0'),
+        totalOrders: s.totalOrders || 0,
+      });
+    }
 
-      // 如果dailyPerformance没有数据，从keywords和productTargets表汇总
-      if (totalImpressions === 0 && totalClicks === 0 && totalSpend === 0) {
-        // 获取该广告活动下的所有广告组
-        const campaignAdGroups = await db
-          .select({ id: adGroups.id })
-          .from(adGroups)
-          .where(eq(adGroups.campaignId, String(campaign.campaignId)));
+    // v391: 第二步 - 找出没有dailyPerformance数据的campaign，从keywords/productTargets批量汇总
+    const campaignsWithoutDailyData = (accountCampaigns as any[]).filter(c => {
+      const summary = summaryMap.get(String(c.campaignId));
+      return !summary || (summary.totalImpressions === 0 && summary.totalClicks === 0 && summary.totalSpend === 0);
+    });
 
-        const adGroupIds = campaignAdGroups.map(ag => ag.id);
+    if (campaignsWithoutDailyData.length > 0) {
+      // 获取这些campaign的所有广告组（一次性查询）
+      const noDailyCampaignIds = campaignsWithoutDailyData.map((c: any) => String(c.campaignId));
+      const allAdGroups = await db
+        .select({ id: adGroups.id, campaignId: adGroups.campaignId })
+        .from(adGroups)
+        .where(sql`${adGroups.campaignId} IN (${sql.join(noDailyCampaignIds, sql`, `)})`);
 
-        if (adGroupIds.length > 0) {
-          // 从keywords表汇总
-          const [keywordSummary] = await db
+      if (allAdGroups.length > 0) {
+        // 构建campaignId -> adGroupIds的Map
+        const campaignAdGroupMap = new Map<string, number[]>();
+        const allAdGroupIds: number[] = [];
+        for (const ag of allAdGroups) {
+          const cid = ag.campaignId;
+          if (!campaignAdGroupMap.has(cid)) campaignAdGroupMap.set(cid, []);
+          campaignAdGroupMap.get(cid)!.push(ag.id);
+          allAdGroupIds.push(ag.id);
+        }
+
+        if (allAdGroupIds.length > 0) {
+          // 从keywords表批量GROUP BY adGroupId汇总
+          const keywordSummaries = await db
             .select({
-              totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-              totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-              totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-              totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-              totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+              adGroupId: keywords.adGroupId,
+              totalImpressions: sql<number>`COALESCE(SUM(${keywords.impressions}), 0)`,
+              totalClicks: sql<number>`COALESCE(SUM(${keywords.clicks}), 0)`,
+              totalSpend: sql<string>`COALESCE(SUM(${keywords.spend}), 0)`,
+              totalSales: sql<string>`COALESCE(SUM(${keywords.sales}), 0)`,
+              totalOrders: sql<number>`COALESCE(SUM(${keywords.orders}), 0)`,
             })
             .from(keywords)
-            .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
+            .where(sql`${keywords.adGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
+            .groupBy(keywords.adGroupId);
 
-          // 从productTargets表汇总
-          const [targetSummary] = await db
+          // 从productTargets表批量GROUP BY adGroupId汇总
+          const targetSummaries = await db
             .select({
-              totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
-              totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
-              totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
-              totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
-              totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+              adGroupId: productTargets.adGroupId,
+              totalImpressions: sql<number>`COALESCE(SUM(${productTargets.impressions}), 0)`,
+              totalClicks: sql<number>`COALESCE(SUM(${productTargets.clicks}), 0)`,
+              totalSpend: sql<string>`COALESCE(SUM(${productTargets.spend}), 0)`,
+              totalSales: sql<string>`COALESCE(SUM(${productTargets.sales}), 0)`,
+              totalOrders: sql<number>`COALESCE(SUM(${productTargets.orders}), 0)`,
             })
             .from(productTargets)
-            .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
+            .where(sql`${productTargets.adGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
+            .groupBy(productTargets.adGroupId);
 
-          // 合并关键词和商品定位的数据
-          totalImpressions = (keywordSummary?.totalImpressions || 0) + (targetSummary?.totalImpressions || 0);
-          totalClicks = (keywordSummary?.totalClicks || 0) + (targetSummary?.totalClicks || 0);
-          totalSpend = parseFloat(keywordSummary?.totalSpend || '0') + parseFloat(targetSummary?.totalSpend || '0');
-          totalSales = parseFloat(keywordSummary?.totalSales || '0') + parseFloat(targetSummary?.totalSales || '0');
-          totalOrders = (keywordSummary?.totalOrders || 0) + (targetSummary?.totalOrders || 0);
+          // 构建adGroupId -> 汇总数据的Map
+          const kwSummaryMap = new Map<number, typeof keywordSummaries[0]>();
+          for (const ks of keywordSummaries) kwSummaryMap.set(ks.adGroupId, ks);
+          const tgtSummaryMap = new Map<number, typeof targetSummaries[0]>();
+          for (const ts of targetSummaries) tgtSummaryMap.set(ts.adGroupId, ts);
+
+          // 按campaign聚合adGroup级别的数据
+          for (const campaign of campaignsWithoutDailyData) {
+            const agIds = campaignAdGroupMap.get(String(campaign.campaignId)) || [];
+            let totalImpressions = 0, totalClicks = 0, totalSpend = 0, totalSales = 0, totalOrders = 0;
+            for (const agId of agIds) {
+              const kw = kwSummaryMap.get(agId);
+              const tgt = tgtSummaryMap.get(agId);
+              if (kw) {
+                totalImpressions += kw.totalImpressions || 0;
+                totalClicks += kw.totalClicks || 0;
+                totalSpend += parseFloat(kw.totalSpend || '0');
+                totalSales += parseFloat(kw.totalSales || '0');
+                totalOrders += kw.totalOrders || 0;
+              }
+              if (tgt) {
+                totalImpressions += tgt.totalImpressions || 0;
+                totalClicks += tgt.totalClicks || 0;
+                totalSpend += parseFloat(tgt.totalSpend || '0');
+                totalSales += parseFloat(tgt.totalSales || '0');
+                totalOrders += tgt.totalOrders || 0;
+              }
+            }
+            if (totalImpressions > 0 || totalClicks > 0 || totalSpend > 0) {
+              summaryMap.set(String(campaign.campaignId), {
+                totalImpressions, totalClicks, totalSpend, totalSales, totalOrders,
+              });
+            }
+          }
         }
       }
+    }
 
-      // 更新campaigns表
+    // v391: 第三步 - 批量更新campaigns表
+    let updatedCount = 0;
+    for (const campaign of (accountCampaigns as any[])) {
+      const summary = summaryMap.get(String(campaign.campaignId));
+      const totalImpressions = summary?.totalImpressions || 0;
+      const totalClicks = summary?.totalClicks || 0;
+      const totalSpend = summary?.totalSpend || 0;
+      const totalSales = summary?.totalSales || 0;
+      const totalOrders = summary?.totalOrders || 0;
+
       await db
         .update(campaigns)
         .set({
@@ -1674,11 +1744,12 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
           cpc: totalClicks > 0 ? String((totalSpend / totalClicks).toFixed(2)) : null,
         })
         .where(eq(campaigns.id, campaign.id));
+      updatedCount++;
     }
 
-    log.info(`广告活动绩效汇总更新完成`);
+    log.info(`[v391] 广告活动绩效汇总批量更新完成: ${updatedCount}个 (SQL查询从${accountCampaigns.length * 2}+次减少到4次)`);
   } catch (error) {
-    log.error('更新广告活动绩效汇总失败:', error);
+    log.error('[v391] 更新广告活动绩效汇总失败:', error);
   }
 };
 

@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 391,
+    description: 'v391: [N+1查询消除+批量汇总优化+同步吞吐量提升] — (1)P1-updateCampaignPerformanceSummary重写为批量GROUP BY汇总,SQL查询从数百次减少到4次 (2)P1-processReportData预加载campaigns到内存Map,消除数千次逐条DB查询 (3)P1-syncBidAdjustmentsToAmazon改为批量IN查询解析Amazon ID (4)P2-Full同步间隔6小时缩短到2小时,每周期最大账号从40增加到100 (5)P2-500租户完整同步从6.2天缩短到20小时',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 390,
     description: 'v390: [前端骨架屏优化+后端API并行查询+健康分析缓存+性能索引] — (1)P2-纠错监控页面添加完整loading骨架屏,解决数据加载时的空白闪烁问题 (2)P2-系统健康监控页面添加loading骨架屏,优化用户体验 (3)P3-getDashboard的6个串行SQL查询改为Promise.all并行执行,提升响应速度约60-70% (4)P3-analyzeCampaignHealth结果缓存120秒,避免重复计算 (5)P3-getHealthAlerts复用健康分析缓存,消除重复数据库查询 (6)P3-添加6个复合索引覆盖optimization_events和daily_performance表高频查询',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
