@@ -9,6 +9,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { OnboardingGuide, NoBrandSelectedGuide } from "@/components/OnboardingGuide";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -927,7 +928,9 @@ function DashboardContent() {
   );
   
   // v261: 获取系统健康核心指标（回滚率 + 算法激活率）
-  const selectedAccountId = accountsWithPerformance?.[0]?.id;
+  // v399: 使用全局选择器的accountId用于健康指标等需要单账户的查询
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const selectedAccountId = globalAccountId || accountsWithPerformance?.[0]?.id;
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: selectedAccountId!, days: 7 },
     { enabled: !!user && !!selectedAccountId, refetchInterval: 5 * 60 * 1000, staleTime: 5 * 60 * 1000 }

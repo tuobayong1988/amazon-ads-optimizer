@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -43,7 +44,12 @@ const PIE_COLORS = ['#8B5CF6', '#3B82F6', '#F59E0B', '#A855F7', '#EC4899', '#14B
 
 export default function AlgorithmEffectDashboard() {
   const [timeRange, setTimeRange] = useState("30");
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  // v399: 默认值跟随全局选择器
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const [selectedAccount, setSelectedAccount] = useState<string>(globalAccountId?.toString() || "all");
+  useEffect(() => {
+    if (globalAccountId) setSelectedAccount(globalAccountId.toString());
+  }, [globalAccountId]);
 
   // v276: 因果推断Tab交互状态
   const [causalSortBy, setCausalSortBy] = useState<string>("date");

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -187,7 +188,13 @@ function ProductTargetingWarning() {
 }
 
 export default function AdAutomation() {
-  const [selectedAccount, setSelectedAccount] = useState<string>("1");
+  // v399: 默认值跟随全局选择器
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const [selectedAccount, setSelectedAccount] = useState<string>(globalAccountId?.toString() || "1");
+  // 当全局选择器变化时同步更新
+  useEffect(() => {
+    if (globalAccountId) setSelectedAccount(globalAccountId.toString());
+  }, [globalAccountId]);
   const [activeTab, setActiveTab] = useState("ngram");
   
   // 批量操作状态

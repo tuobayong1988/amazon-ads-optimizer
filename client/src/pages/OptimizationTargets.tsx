@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useLocation } from "wouter";
@@ -73,7 +74,12 @@ function CreateOptimizationTargetDialog({
   const [maxBid, setMaxBid] = useState("");
   
   // 筛选条件
-  const [filterAccountId, setFilterAccountId] = useState<string>("all");
+  // v399: 默认值跟随全局选择器
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const [filterAccountId, setFilterAccountId] = useState<string>(globalAccountId?.toString() || "all");
+  useEffect(() => {
+    if (globalAccountId) setFilterAccountId(globalAccountId.toString());
+  }, [globalAccountId]);
   const [filterCampaignName, setFilterCampaignName] = useState("");
   const debouncedFilterCampaignName = useDebounce(filterCampaignName, 300); // 搜索防抖300ms
   const [filterCampaignType, setFilterCampaignType] = useState<string>("all");

@@ -2,8 +2,9 @@
  * AdvancedAnalyticsDashboard - 高级分析仪表盘
  * 基于统一事件模型的下一代分析功能：归因分析、趋势分析、异常检测、策略ROI对比
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +26,12 @@ import {
 import { toast } from "sonner";
 
 export default function AdvancedAnalyticsDashboard() {
-  const [selectedAccount, setSelectedAccount] = useState<string>("all");
+  // v399: 默认值跟随全局选择器
+  const { accountId: globalAccountId } = useGlobalAccountId();
+  const [selectedAccount, setSelectedAccount] = useState<string>(globalAccountId?.toString() || "all");
+  useEffect(() => {
+    if (globalAccountId) setSelectedAccount(globalAccountId.toString());
+  }, [globalAccountId]);
   const [timeRange, setTimeRange] = useState("30");
   const [activeTab, setActiveTab] = useState("overview");
   const [attributionPage, setAttributionPage] = useState(0);
