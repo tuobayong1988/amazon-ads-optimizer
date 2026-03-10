@@ -23,7 +23,7 @@ import { createModuleLogger } from '../../utils/logger';
 import type { AmazonAdsApiClient, SpCampaign } from '../../amazonAdsApi';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from '../../utils/timezone';
 import { getExchangeRateByMarketplace } from '../exchangeRateService';
-import { AmazonSyncService } from '../../amazonSyncService';
+import { AmazonSyncService, flushSearchTermBatch } from '../../amazonSyncService';
 import {
   SYNC_PROTECTION_CONFIG,
   createSyncProtectionStats,
@@ -574,43 +574,63 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       return 0;
     }
     log.info(`v339: 共获取到 ${reportData.length} 条SB搜索词数据（${batches}批合并）`);
+    
+    // v395: 批量预加载所有关联数据，避免逐行N+1查询
+    const allCampaigns = await db
+      .select({ id: campaigns.id, campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const campaignMap = new Map<string, { id: number; campaignId: string }>();
+    for (const c of (allCampaigns as any[])) {
+      campaignMap.set(String(c.campaignId), { id: c.id, campaignId: c.campaignId });
+    }
+
+    const allAdGroups = await db
+      .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+      .from(adGroups)
+      // @ts-ignore
+      .where(eq((adGroups as unknown).accountId, this.accountId));
+    const adGroupMap = new Map<string, { id: number }>();
+    for (const ag of allAdGroups) {
+      adGroupMap.set(String(ag.adGroupId), { id: ag.id });
+    }
+
+    const allKeywords = await db
+      .select({ id: keywords.id, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
+      .from(keywords)
+      // @ts-ignore
+      .where(eq((keywords as unknown).accountId, this.accountId));
+    const keywordMap = new Map<string, { id: number; matchType: string | null }>();
+    for (const kw of (allKeywords as any[])) {
+      const key = `${kw.adGroupId}:${(kw.keywordText || '').toLowerCase()}`;
+      keywordMap.set(key, { id: kw.id, matchType: kw.matchType });
+    }
+
+    const allTargets = await db
+      .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
+      .from(productTargets)
+      // @ts-ignore
+      .where(eq((productTargets as unknown).accountId, this.accountId));
+    const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
+    for (const t of allTargets) {
+      const key = `${t.adGroupId}:${(t.targetValue || '').toLowerCase()}`;
+      targetMap.set(key, { id: t.id, targetMatchType: t.targetMatchType });
+    }
+
+    log.info(`[v395] SB搜索词预加载完成: campaigns=${allCampaigns.length}, adGroups=${allAdGroups.length}, keywords=${allKeywords.length}, targets=${allTargets.length}`);
+
     let synced = 0;
+    let skipped = 0;
+    const BATCH_SIZE = 500;
+    let upsertBatch: any[] = [];
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     for (const row of (reportData as any[])) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(row.campaignId))
-          )
-        )
-        .limit(1);
+      const campaign = campaignMap.get(String(row.campaignId));
+      if (!campaign) { skipped++; continue; }
 
-      if (!campaign) continue;
-
-      // v387: 查找对应的adGroup（添加accountId过滤）
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(row.adGroupId))))
-        .limit(1);
-      if (!adGroup) continue;
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(searchTerms)
-        .where(
-          and(
-            eq(searchTerms.accountId, this.accountId),
-            eq(searchTerms.campaignId, String(campaign.campaignId)),
-            eq(searchTerms.adGroupId, String(adGroup.id)),
-            eq(searchTerms.searchTerm, row.searchTerm || '')
-          )
-        )
-        .limit(1);
+      const adGroup = adGroupMap.get(String(row.adGroupId));
+      if (!adGroup) { skipped++; continue; }
 
       const cost = row.cost || 0;
       const sales = row.sales || row.salesClicks || 0;
@@ -618,50 +638,28 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       const impressions = row.impressions || 0;
       const orders = row.purchases || row.purchasesClicks || 0;
 
-      // SB搜索词报告字段映射：
-      // keywordText = 投放词文本, matchType = 匹配类型
       const targetingText = row.keywordText || row.targeting || '';
       const matchType = (row.matchType || '').toLowerCase();
       const isProductTarget = matchType === 'targeting';
 
-      // 尝试关联到本地数据库中的投放词/投放ASIN记录
       let searchTermTargetId: number | null = null;
-      let resolvedMatchType = matchType; // 默认使用报告中的匹配类型
+      let resolvedMatchType = matchType;
       if (!isProductTarget) {
-        const [matchedKeyword] = await db
-          .select({ id: keywords.id, matchType: keywords.matchType })
-          .from(keywords)
-          .where(
-            and(
-              eq(keywords.adGroupId, String(adGroup.id)),
-              eq(keywords.keywordText, targetingText)
-            )
-          )
-          .limit(1);
+        const kwKey = `${adGroup.id}:${targetingText.toLowerCase()}`;
+        const matchedKeyword = keywordMap.get(kwKey);
         if (matchedKeyword) {
           searchTermTargetId = matchedKeyword.id;
-          // 使用数据库中存储的精确匹配类型（broad/phrase/exact）
           resolvedMatchType = matchedKeyword.matchType || matchType;
         }
       } else {
-        const [matchedTarget] = await db
-          .select({ id: productTargets.id, targetMatchType: productTargets.targetMatchType })
-          .from(productTargets)
-          .where(
-            and(
-              eq(productTargets.adGroupId, String(adGroup.id)),
-              eq(productTargets.targetValue, targetingText)
-            )
-          )
-          .limit(1);
+        const tKey = `${adGroup.id}:${targetingText.toLowerCase()}`;
+        const matchedTarget = targetMap.get(tKey);
         if (matchedTarget) {
           searchTermTargetId = matchedTarget.id;
-          // 使用productTarget的具体匹配类型（exact/expanded/loose/close等）
           resolvedMatchType = matchedTarget.targetMatchType || 'targeting';
         }
       }
 
-      // 判断搜索词类型：是关键词搜索词还是ASIN搜索词
       const searchTermText = row.searchTerm || '';
       const isAsinSearchTerm = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
       const searchTermType = isAsinSearchTerm ? 'asin' : 'keyword';
@@ -669,10 +667,13 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
       const sourceTargetType = isProductTarget ? 'product_target' : 'keyword';
       const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
 
-      const searchTermData = {
+      // v395: 使用行级date字段（SB报告也是DAILY模式），而非整个范围的startDate
+      const rowDate = row.date || startDate;
+
+      upsertBatch.push({
         accountId: this.accountId,
         campaignId: campaign.campaignId,
-        adGroupId: String(adGroup.id),  // v357
+        adGroupId: String(adGroup.id),
         searchTerm: searchTermText,
         searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
         searchTermTargetId,
@@ -688,30 +689,30 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
         searchTermCtr: impressions > 0 ? String(clicks / impressions) : null,
         searchTermCvr: clicks > 0 ? String(orders / clicks) : null,
         searchTermCpc: clicks > 0 ? String(cost / clicks) : null,
-        reportStartDate: startDate,
-        reportEndDate: endDate,
-        sourceMatchType: sourceMatchType,
-        sourceTargetType: sourceTargetType,
-        searchTermType: searchTermType,
+        reportStartDate: rowDate,
+        reportEndDate: rowDate,
+        sourceMatchType,
+        sourceTargetType,
+        searchTermType,
         searchTermUnitsOrdered: unitsOrdered,
-        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      };
+        createdAt: nowStr,
+        updatedAt: nowStr,
+      });
 
-      if (existing) {
-        await db
-          .update(searchTerms)
-          .set(searchTermData)
-          .where(eq(searchTerms.id, existing.id));
-      } else {
-        await db.insert(searchTerms).values({
-          ...searchTermData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
+      if (upsertBatch.length >= BATCH_SIZE) {
+        await flushSearchTermBatch(db, upsertBatch);
+        synced += upsertBatch.length;
+        upsertBatch = [];
       }
-      synced++;
     }
 
-    log.info(`SB搜索词同步完成: ${synced} 条记录`);
+    if (upsertBatch.length > 0) {
+      await flushSearchTermBatch(db, upsertBatch);
+      synced += upsertBatch.length;
+      upsertBatch = [];
+    }
+
+    log.info(`[v395] SB搜索词同步完成: 同步=${synced}, 跳过=${skipped}`);
     return synced;
   } catch (error) {
     log.error('同步SB搜索词失败:', error);

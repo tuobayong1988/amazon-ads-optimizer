@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 395,
+    description: 'v395: [搜索词数据精准性修复+SUMMARY聚合+500租户同步吞吐量提升] — (1)P0-搜索词同步从INSERT改为ON DUPLICATE KEY UPDATE,消除每次同步产生的重复数据 (2)P0-SB搜索词同样改为批量UPSERT,消除逐条查询的N+1性能问题 (3)P0-关键词绩效SUMMARY模式分批数据按targetId聚合累加,修复后一批覆盖前一批的数据丢失问题 (4)P0-广告组绩效fetchBatchedReport添加groupByKey参数,SP/SB/SD广告组报告分批聚合 (5)P1-500租户同步吞吐量提升80%:高频50→80,中频80→120,全量100→200 (6)P1-汇率调用从循环内移到循环外预加载,消除每条记录的async开销 (7)搜索词表添加唯一约束迁移,自动清理历史重复数据',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 394,
     description: 'v394: [连接池泄露自动检测回收+前端代码分割推广] — (1)connection.ts新增连接泄露追踪器,每30秒扫描活跃连接,超过120秒未释放自动回收 (2)记录每个借出连接的调用栈便于诊断 (3)getPoolStats()新增activeDirectConnections/oldestActiveConnectionMs/autoReclaimed指标 (4)OptimalBidCell从2968行Campaigns.tsx拆分为独立组件支持lazy loading (5)Home页面(1757行)改为lazy loading,减小初始包体积',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
@@ -1769,6 +1775,20 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       }
     } catch (migrationErr: unknown) {
       log.error(`[PostDeployOptimizer] v390: 性能优化索引迁移失败: ${(migrationErr as Error).message}`);
+    }
+  }
+
+  // v395: 搜索词唯一约束迁移 - 清理重复数据并添加唯一索引
+  if (versionsToApply.some(v => v.version >= 395)) {
+    try {
+      const { runV395SearchTermsUnique } = await import('./migrations/v395_search_terms_unique');
+      const database = await getDb();
+      if (database) {
+        await runV395SearchTermsUnique(database);
+        log.info(`[PostDeployOptimizer] v395: 搜索词唯一约束迁移完成`);
+      }
+    } catch (migrationErr: unknown) {
+      log.error(`[PostDeployOptimizer] v395: 搜索词唯一约束迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 

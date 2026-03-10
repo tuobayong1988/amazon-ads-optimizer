@@ -55,14 +55,14 @@ interface PriorityConfig {
 
 // ==================== 配置 ====================
 const DEFAULT_CONFIG: PriorityConfig = {
-  // v391: 支持通过环境变量动态调整，适应不同规模部署
-  // 500租户规模分析（v391优化后）：
-  //   高频(15min): 50个账号/周期 → 1000账号需300min(5h)轮转一遍
-  //   中频(30min): 80个账号/周期 → 1000账号需375min(6.25h)轮转一遍
-  //   全量(2h): 100个账号/周期 → 1000账号需20h轮转一遍（每天可完成一轮）
-  highFreqMaxAccounts: parseInt(process.env.SYNC_HIGH_FREQ_MAX || '50', 10),
-  mediumFreqMaxAccounts: parseInt(process.env.SYNC_MEDIUM_FREQ_MAX || '80', 10),
-  fullSyncMaxAccounts: parseInt(process.env.SYNC_FULL_MAX || '100', 10),
+  // v395: 提升500租户规模下的同步吞吐量
+  // 500租户规模分析（v395优化后）：
+  //   高频(15min): 80个账号/周期 → 1000账号需187min(3.1h)轮转一遍
+  //   中频(30min): 120个账号/周期 → 1000账号需250min(4.2h)轮转一遍
+  //   全量(2h): 200个账号/周期 → 1000账号需10h轮转一遍（每天可完成2.4轮）
+  highFreqMaxAccounts: parseInt(process.env.SYNC_HIGH_FREQ_MAX || '80', 10),
+  mediumFreqMaxAccounts: parseInt(process.env.SYNC_MEDIUM_FREQ_MAX || '120', 10),
+  fullSyncMaxAccounts: parseInt(process.env.SYNC_FULL_MAX || '200', 10),
   staleSyncThresholdMinutes: 30, // 30分钟未同步视为过期
   activeTargetBonus: 30,         // 有活跃优化目标加30分
   recentActivityBonus: 20,       // 最近有用户操作加20分

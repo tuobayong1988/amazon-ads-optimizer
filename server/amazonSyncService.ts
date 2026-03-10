@@ -733,17 +733,57 @@ export class AmazonSyncService {
  * v383: 搜索词批量UPSERT辅助函数
  * 批量INSERT搜索词数据，失败时回退到逐条插入
  */
-async function flushSearchTermBatch(db: any, batch: any[]): Promise<void> {
+export async function flushSearchTermBatch(db: any, batch: any[]): Promise<void> {
   if (batch.length === 0) return;
   try {
-    await db.insert(searchTerms).values(batch);
+    // v395: 使用ON DUPLICATE KEY UPDATE实现真正的UPSERT，防止重复插入
+    await db.insert(searchTerms).values(batch)
+      .onDuplicateKeyUpdate({
+        set: {
+          searchTermImpressions: sql`VALUES(search_term_impressions)`,
+          searchTermClicks: sql`VALUES(search_term_clicks)`,
+          searchTermSpend: sql`VALUES(search_term_spend)`,
+          searchTermSales: sql`VALUES(search_term_sales)`,
+          searchTermOrders: sql`VALUES(search_term_orders)`,
+          searchTermAcos: sql`VALUES(search_term_acos)`,
+          searchTermRoas: sql`VALUES(search_term_roas)`,
+          searchTermCtr: sql`VALUES(search_term_ctr)`,
+          searchTermCvr: sql`VALUES(search_term_cvr)`,
+          searchTermCpc: sql`VALUES(search_term_cpc)`,
+          searchTermUnitsOrdered: sql`VALUES(search_term_units_ordered)`,
+          searchTermTargetId: sql`VALUES(search_term_target_id)`,
+          targetText: sql`VALUES(target_text)`,
+          searchTermMatchType: sql`VALUES(search_term_match_type)`,
+          sourceMatchType: sql`VALUES(source_match_type)`,
+          sourceTargetType: sql`VALUES(source_target_type)`,
+          searchTermType: sql`VALUES(search_term_type)`,
+          reportEndDate: sql`VALUES(report_end_date)`,
+          updatedAt: sql`VALUES(updated_at)`,
+        },
+      });
   } catch (insertErr: unknown) {
-    log.warn(`[v383] 搜索词批量INSERT失败，回退到逐条模式: ${(insertErr as Error).message}`);
+    log.warn(`[v395] 搜索词批量UPSERT失败，回退到逐条模式: ${(insertErr as Error).message}`);
     for (const row of batch) {
       try {
-        await db.insert(searchTerms).values(row);
+        await db.insert(searchTerms).values(row)
+          .onDuplicateKeyUpdate({
+            set: {
+              searchTermImpressions: sql`VALUES(search_term_impressions)`,
+              searchTermClicks: sql`VALUES(search_term_clicks)`,
+              searchTermSpend: sql`VALUES(search_term_spend)`,
+              searchTermSales: sql`VALUES(search_term_sales)`,
+              searchTermOrders: sql`VALUES(search_term_orders)`,
+              searchTermAcos: sql`VALUES(search_term_acos)`,
+              searchTermRoas: sql`VALUES(search_term_roas)`,
+              searchTermCtr: sql`VALUES(search_term_ctr)`,
+              searchTermCvr: sql`VALUES(search_term_cvr)`,
+              searchTermCpc: sql`VALUES(search_term_cpc)`,
+              searchTermUnitsOrdered: sql`VALUES(search_term_units_ordered)`,
+              updatedAt: sql`VALUES(updated_at)`,
+            },
+          });
       } catch (singleErr: unknown) {
-        log.debug(`[v383] 搜索词单条INSERT失败: ${(singleErr as Error).message}`);
+        log.debug(`[v395] 搜索词单条UPSERT失败: ${(singleErr as Error).message}`);
       }
     }
   }

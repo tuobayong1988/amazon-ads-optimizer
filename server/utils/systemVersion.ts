@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 394;  // v394: 连接池泄露自动检测回收、OptimalBidCell组件拆分、Home页面lazy loading
+export const SYSTEM_VERSION = 395;  // v395: 搜索词UPSERT去重、SUMMARY模式分批聚合、500租户同步吞吐量提升、汇率预加载优化

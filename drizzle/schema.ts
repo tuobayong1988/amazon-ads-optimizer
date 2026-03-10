@@ -2546,6 +2546,8 @@ export const searchTerms = mysqlTable("search_terms", {
 	idx_searchTerms_account_campaign: index('idx_searchTerms_account_campaign').on(table.accountId, table.campaignId),
 	idx_searchTerms_campaignId: index('idx_searchTerms_campaignId').on(table.campaignId),
 	idx_searchTerms_adGroupId: index('idx_searchTerms_adGroupId').on(table.adGroupId),
+	// v395: 唯一约束防止搜索词数据重复插入
+	uk_search_term: unique('uk_search_term').on(table.accountId, table.campaignId, table.adGroupId, table.searchTerm, table.reportStartDate),
 }));
 
 export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recommendations", {

@@ -396,6 +396,10 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     }
     log.info(`[v391] 预加载 ${allCampaigns.length} 个campaigns到内存Map (ID索引: ${campaignByIdMap.size}, Name索引: ${campaignByNameMap.size})`);
     
+    // v395: 将汇率调用从循环内移到循环外，同一marketplace的汇率在整个同步周期内不会变化
+    const { currency: preFetchedCurrency, rate: preFetchedRate } = await getExchangeRateByMarketplace(this.marketplace);
+    log.info(`[v395] 预加载汇率: ${this.marketplace} -> ${preFetchedCurrency}, rate=${preFetchedRate}`);
+    
     for (const row of (reportData as any[])) {
       // v391: 使用内存Map匹配，避免逐条查询数据库
       // 策略：先用campaignId匹配，失败后用campaignName匹配
@@ -519,8 +523,9 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         ntbSales = row.newToBrandSalesClicks || 0;
       }
       
-      // ✅ v149: 货币转换 - 使用实时汇率服务（每日自动从API刷新）
-      const { currency, rate: exchangeRate } = await getExchangeRateByMarketplace(this.marketplace);
+      // v395: 使用预加载的汇率（循环外已获取）
+      const currency = preFetchedCurrency;
+      const exchangeRate = preFetchedRate;
       const spendUsd = cost * exchangeRate;
       const salesUsd = sales * exchangeRate;
 
@@ -730,14 +735,43 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
     }
 
-    const reportData = allReportData;
-    if (!reportData || reportData.length === 0) {
+    if (!allReportData || allReportData.length === 0) {
       log.warn('v339: 所有批次关键词报告数据为空');
       return 0;
     }
     
-    log.info(`v339: 共获取到 ${reportData.length} 条关键词绩效数据（${batches}批合并）`);
-    log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
+    log.info(`v339: 共获取到 ${allReportData.length} 条关键词绩效数据（${batches}批合并）`);
+    log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(allReportData[0], null, 2));
+    
+    // ==================== v395: SUMMARY模式分批数据聚合 ====================
+    // 问题：SUMMARY模式下，同一keyword在不同批次中都会出现，合并时后一批会覆盖前一批
+    // 解决：按targetId/keywordId聚合累加所有批次的指标
+    const aggregatedMap = new Map<string, any>();
+    for (const row of allReportData) {
+      const key = String(row.targetId || row.keywordId || '');
+      if (!key) continue;
+      
+      const existing = aggregatedMap.get(key);
+      if (existing) {
+        // 累加数值指标
+        existing.cost = (existing.cost || 0) + (row.cost || 0);
+        existing.impressions = (existing.impressions || 0) + (row.impressions || 0);
+        existing.clicks = (existing.clicks || 0) + (row.clicks || 0);
+        existing.sales7d = (existing.sales7d || 0) + (row.sales7d || 0);
+        existing.sales14d = (existing.sales14d || 0) + (row.sales14d || 0);
+        existing.purchases7d = (existing.purchases7d || 0) + (row.purchases7d || 0);
+        existing.purchases14d = (existing.purchases14d || 0) + (row.purchases14d || 0);
+        existing.unitsSoldClicks7d = (existing.unitsSoldClicks7d || 0) + (row.unitsSoldClicks7d || 0);
+        existing.unitsSoldSameSku7d = (existing.unitsSoldSameSku7d || 0) + (row.unitsSoldSameSku7d || 0);
+        existing.unitsSoldOtherSku7d = (existing.unitsSoldOtherSku7d || 0) + (row.unitsSoldOtherSku7d || 0);
+        existing.attributedSalesSameSku7d = (existing.attributedSalesSameSku7d || 0) + (row.attributedSalesSameSku7d || 0);
+        existing.salesOtherSku7d = (existing.salesOtherSku7d || 0) + (row.salesOtherSku7d || 0);
+      } else {
+        aggregatedMap.set(key, { ...row });
+      }
+    }
+    const reportData = Array.from(aggregatedMap.values());
+    log.info(`[v395] SUMMARY模式聚合完成: ${allReportData.length}条 -> ${reportData.length}条（去重${allReportData.length - reportData.length}条）`);
     
     // ==================== v387: 批量预加载本地数据 - 按accountId过滤，修复数据隔离漏洞 ====================
     // 1. 预加载当前账户的adGroups的Amazon ID -> 本地ID映射（v387: 添加accountId过滤，避免加载所有租户数据）
@@ -1175,7 +1209,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
     // v339: 通用分批报告请求函数
-    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string): Promise<Record<string, any>[]> => {
+    // v395: 添加groupByKey参数，用于SUMMARY模式分批数据的自动聚合
+    const fetchBatchedReport = async (requestFn: (start: string, end: string) => Promise<string>, reportDays: number, reportName: string, groupByKey?: string): Promise<Record<string, any>[]> => {
       const reportTotalDays = Math.min(reportDays, 90);
       const { startDate: rStart, endDate: rEnd } = getMarketplaceDateRange(this.marketplace, reportTotalDays);
       const rBatches = Math.ceil(reportTotalDays / MAX_DAYS_PER_REQUEST);
@@ -1197,6 +1232,31 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           log.error(`v339: ${reportName}第${batch + 1}批请求失败:`, (e as Error).message);
         }
       }
+      // v395: SUMMARY模式分批数据聚合 - 按groupByKey累加数值指标
+      if (groupByKey && rBatches > 1 && allData.length > 0) {
+        const aggMap = new Map<string, any>();
+        const numericFields = ['cost', 'impressions', 'clicks', 'sales7d', 'sales14d', 'purchases7d', 'purchases14d',
+          'unitsSoldClicks7d', 'unitsSoldSameSku7d', 'unitsSoldOtherSku7d', 'attributedSalesSameSku7d', 'salesOtherSku7d',
+          'sales', 'purchases', 'unitsSold', 'dpv', 'dpvClicks', 'viewImpressions', 'viewAttributedConversions14d',
+          'viewAttributedSales14d', 'viewAttributedUnitsOrdered14d'];
+        for (const row of allData) {
+          const key = String(row[groupByKey] || '');
+          if (!key) continue;
+          const existing = aggMap.get(key);
+          if (existing) {
+            for (const f of numericFields) {
+              if (row[f] !== undefined && row[f] !== null) {
+                existing[f] = (existing[f] || 0) + (row[f] || 0);
+              }
+            }
+          } else {
+            aggMap.set(key, { ...row });
+          }
+        }
+        const aggregated = Array.from(aggMap.values());
+        log.info(`[v395] ${reportName} SUMMARY聚合: ${allData.length}条 -> ${aggregated.length}条`);
+        return aggregated;
+      }
       return allData;
     };
 
@@ -1205,7 +1265,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       try {
         const spData = await fetchBatchedReport(
           (s, e) => this.client.requestSpAdGroupReport(s, e),
-          totalDays, 'SP广告组'
+          totalDays, 'SP广告组', 'adGroupId'
         );
         if (spData && spData.length > 0) {
           for (const row of (spData as any[])) {
@@ -1253,7 +1313,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       try {
         const sbData = await fetchBatchedReport(
           (s, e) => this.client.requestSbAdGroupReport(s, e),
-          Math.min(totalDays, 60), 'SB广告组'
+          totalDays, 'SB广告组', 'adGroupId'
         );
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
@@ -1308,7 +1368,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
       try {
         const sdData = await fetchBatchedReport(
           (s, e) => this.client.requestSdAdGroupReport(s, e),
-          totalDays, 'SD广告组'
+          totalDays, 'SD广告组', 'adGroupId'
         );
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
