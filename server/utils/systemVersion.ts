@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 385;  // v385: 单实例直接启动、锁冲突优化、评分算法惩罚机制、Dashboard性能优化、CQL正向率修复、多租户隔离强化
+export const SYSTEM_VERSION = 389;  // v389: EB实例升级t3.small→t3.medium(4GB)、Node.js内存限制3072MB、DB连接池40、SD否定定位同步注册、纠错监控验证通过

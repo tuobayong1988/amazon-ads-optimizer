@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 389,
+    description: 'v389: [EB实例升级+内存优化+SD否定定位同步注册] — (1)P1-EB实例从 t3.small(2GB)升级到 t3.medium(4GB),支持200-500租户规模 (2)P1-Node.js堆内存限制从1400MB提升到3072MB,充分利用t3.medium内存 (3)P1-SD否定商品定位同步步骤已确认注册到SYNC_STEPS (4)P2-DB_POOL_SIZE从25提升到40,提升并发处理能力 (5)P2-纠错监控页面功能验证通过,94.4%同步率正常',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 380,
     description: 'v380: [P2命令确认增强+心跳探测优化+P3数据完整性+动态超时+RL冷启动] — (1)P2-confirmation同步层级扩展: TIER_HIERARCHY.confirmation从high扩展为high+medium,确俞ad_groups/keywords/targets变更能被确认同步 (2)P2-心跳探测两级策略: 从30分钟单级探测升级为90min+30min两级探测,避免系统重启后误报 (3)P3-joinIntegrity修复: 使用LEFT JOIN+accountId精确统计孤立广告组,修复orphanedAdGroups负数问题 (4)P3-动态超时: 大账户同步超时根据广告活动数动态调整(1000-3000:60min,3000-5000:75min,5000+:90min) (5)P3-RL冷启动加速: 双源数据统计(optimization_events+optimization_logs)+折算比例从0.3提升到0.5',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

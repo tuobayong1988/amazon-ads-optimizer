@@ -729,6 +729,20 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
+    id: 'sd_negative_targets',
+    name: 'SD否定商品定位',
+    tier: 'high',
+    execute: async (service, ctx) => {
+      try {
+        const result = await service.syncSdNegativeTargets();
+        // @ts-ignore
+        return { success: true, synced: result.synced, errors: [] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
+      }
+    },
+  },
+  {
     id: 'sp_search_terms',
     name: 'SP搜索词',
     tier: 'full',
