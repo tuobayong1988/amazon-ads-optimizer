@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 394,
+    description: 'v394: [连接池泄露自动检测回收+前端代码分割推广] — (1)connection.ts新增连接泄露追踪器,每30秒扫描活跃连接,超过120秒未释放自动回收 (2)记录每个借出连接的调用栈便于诊断 (3)getPoolStats()新增activeDirectConnections/oldestActiveConnectionMs/autoReclaimed指标 (4)OptimalBidCell从2968行Campaigns.tsx拆分为独立组件支持lazy loading (5)Home页面(1757行)改为lazy loading,减小初始包体积',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 393,
     description: 'v393: [动态内存配置服务+消除硬编码内存阈值+内存保护自适应] — (1)新建systemConfigService,通过v8.getHeapStatistics()动态获取Node.js堆内存上限 (2)修复unifiedSyncEngine中heapUtilization硬编码1400MB的致命错误,改为动态计算 (3)dataSyncScheduler内存保护阈值从硬编码(1200/900MB)改为动态计算(基于堆内存上限的105%/80%) (4)_core/index.ts健康检查阈值从硬编码1400MB改为动态获取',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

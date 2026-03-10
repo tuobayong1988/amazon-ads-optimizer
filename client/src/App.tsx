@@ -7,8 +7,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { lazy, Suspense } from "react";
 
-// 核心页面 - 直接导入（首屏需要）
-import Home from "./pages/Home";
+// v394: Home页面也改为lazy loading，减小初始包体积
+const Home = lazy(() => import("./pages/Home"));
 
 // 懒加载页面 - 按使用频率分组
 // 高频页面
@@ -112,7 +112,7 @@ function LazyRoute({ component: Component }: { component: React.LazyExoticCompon
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/">{() => <LazyRoute component={Home} />}</Route>
       {/* 登录后的主界面统一为根路径 */}
       <Route path="/dashboard">{() => <Redirect to="/" />}</Route>
       <Route path="/monitoring-center">{() => <Redirect to="/" />}</Route>

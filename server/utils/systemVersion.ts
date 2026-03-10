@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 393;  // v393: 动态内存配置服务、消除硬编码内存阈值、内存保护自适应
+export const SYSTEM_VERSION = 394;  // v394: 连接池泄露自动检测回收、OptimalBidCell组件拆分、Home页面lazy loading
