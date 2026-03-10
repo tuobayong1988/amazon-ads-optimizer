@@ -13,6 +13,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
+import { verifyAccountAccess } from '../utils/accessControl';
 
 
 // ==================== Bidding Log Router ====================
@@ -31,7 +32,8 @@ export const biddingLogRouter = router({
       apiSyncStatus: z.enum(['pending', 'synced', 'failed', 'not_applicable']).optional(),  // 按同步状态过滤
       actionType: z.string().optional(),  // 按操作类型过滤
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await db.getOptimizationEvents({
         accountId: input.accountId,
         eventCategory: 'bid_adjustment',
@@ -96,7 +98,8 @@ export const biddingLogRouter = router({
       performanceGroupId: z.number().optional(),
       days: z.number().min(1).max(365).optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getOptimizationEventStats({
         accountId: input.accountId,
         performanceGroupId: input.performanceGroupId,

@@ -13,6 +13,7 @@ import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { bidAdjustmentHistory } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 const log = createModuleLogger('Route_performanceGroup');
 
@@ -147,7 +148,8 @@ function calculateTrendSummary(data: any[]) {
 export const performanceGroupRouter = router({
   list: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       log.info('[performanceGroup.list] accountId:', input.accountId);
       const result = await db.getPerformanceGroupsByAccountId(input.accountId);
       log.info('[performanceGroup.list] result count:', result.length);
@@ -317,6 +319,7 @@ export const performanceGroupRouter = router({
       strategyTemplateName: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const { campaignIds, targetType, targetValue, dailyBudget, maxBid, strategyTemplateId, strategyTemplateName, ...rest } = input;
       
       // 转换targetType到optimizationGoal

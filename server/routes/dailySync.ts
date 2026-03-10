@@ -5,6 +5,7 @@ import { router, protectedProcedure } from '../_core/trpc';
 import { z } from 'zod';
 import * as dailySyncTask from '../daily-sync-task';
 import * as db from '../db';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 export const dailySyncRouter = router({
   /**
@@ -16,6 +17,7 @@ export const dailySyncRouter = router({
       date: z.string().optional(), // YYYY-MM-DD格式,不传则同步昨天的数据
     }))
     .mutation(async ({ ctx, input }) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取账号信息
       const account = await db.getAdAccountById(input.accountId);
       if (!account) {
@@ -59,7 +61,8 @@ export const dailySyncRouter = router({
     .input(z.object({
       accountId: z.number(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 查询最近的同步记录 - 使用现有的getDailyPerformanceByDateRange函数
       const endDate = new Date();
       const startDate = new Date();
@@ -91,6 +94,7 @@ export const dailySyncRouter = router({
       endDate: z.string(),   // YYYY-MM-DD
     }))
     .mutation(async ({ ctx, input }) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取账号信息
       const account = await db.getAdAccountById(input.accountId);
       if (!account) {

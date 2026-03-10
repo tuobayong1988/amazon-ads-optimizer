@@ -11,6 +11,7 @@ import * as holidayConfigService from '../holidayConfigService';
 import * as algorithmEvolutionEngine from '../algorithmEvolutionEngine';
 import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimizationAutoCorrector';
 import { apiCache } from '../services/apiCacheService';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 
 // ==================== Algorithm Optimization Router ====================
@@ -48,7 +49,8 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return algorithmOptimizationService.calculateAlgorithmPerformance(
         input.accountId,
         input.days || 30
@@ -61,7 +63,8 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return algorithmOptimizationService.analyzeByAdjustmentType(
         input.accountId,
         input.days || 30
@@ -74,7 +77,8 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return algorithmOptimizationService.analyzeByBidChangeRange(
         input.accountId,
         input.days || 30
@@ -87,7 +91,8 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return algorithmOptimizationService.generateOptimizationSuggestions(
         input.accountId,
         input.days || 30
@@ -100,7 +105,8 @@ export const algorithmOptimizationRouter = router({
       accountId: z.number().optional(),
       days: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       const metrics = await algorithmOptimizationService.calculateAlgorithmPerformance(
         input.accountId,
         input.days || 30
@@ -225,7 +231,8 @@ export const algorithmEvolutionRouter = router({
   // v167: 手动触发自动纠错
   runAutoCorrection: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return runAutoCorrection(input.accountId);
     }),
 });

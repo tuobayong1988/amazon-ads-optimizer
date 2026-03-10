@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as daypartingService from '../daypartingService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 
 // ==================== Dayparting Router ====================
@@ -14,7 +15,8 @@ export const daypartingRouter = router({
   // 获取账号的所有分时策略
   listStrategies: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return daypartingService.getDaypartingStrategies(input.accountId);
     }),
 
@@ -62,7 +64,8 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return daypartingService.generateOptimalStrategy(input.accountId, input.campaignId, {
         name: input.name,
         optimizationGoal: input.optimizationGoal,
@@ -89,7 +92,8 @@ export const daypartingRouter = router({
       maxBidMultiplier: z.number().default(2.0),
       minBidMultiplier: z.number().default(0.2),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const strategyId = await daypartingService.createDaypartingStrategy({
         accountId: input.accountId,
         campaignId: input.campaignId as string,

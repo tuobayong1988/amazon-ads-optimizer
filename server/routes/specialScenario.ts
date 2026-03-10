@@ -6,6 +6,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as specialScenarioOptimizationService from '../specialScenarioOptimizationService';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 
 // ==================== Special Scenario Optimization Router ====================
@@ -13,7 +14,8 @@ export const specialScenarioRouter = router({
   // 预算耗尽风险分析
   analyzeBudgetDepletionRisk: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.analyzeBudgetDepletionRisk(input.accountId);
     }),
 
@@ -40,7 +42,8 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       days: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.adjustRecentPerformanceData(
         input.accountId,
         input.days || 7
@@ -50,7 +53,8 @@ export const specialScenarioRouter = router({
   // 获取归因模型
   getAttributionModel: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.getAttributionModel(input.accountId);
     }),
 
@@ -62,7 +66,8 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.analyzeBidEfficiency(
         input.accountId,
         input.targetAcos,
@@ -77,7 +82,8 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       targetDate: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const date = input.targetDate ? new Date(input.targetDate) : new Date();
       return specialScenarioOptimizationService.generateSeasonalStrategy(
         input.accountId,
@@ -91,7 +97,8 @@ export const specialScenarioRouter = router({
       accountId: z.number(),
       metric: z.enum(['sales', 'roas', 'spend']).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.learnSeasonalPatterns(
         input.accountId,
         input.metric
@@ -132,7 +139,8 @@ export const specialScenarioRouter = router({
       profitMargin: z.number().optional(),
       minClicks: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return specialScenarioOptimizationService.runSpecialScenarioAnalysis(
         input.accountId,
         {

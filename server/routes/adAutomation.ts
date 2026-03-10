@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as adAutomation from '../adAutomation';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 
 // ==================== Ad Automation Router ====================
@@ -18,7 +19,8 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取搜索词数据
       const searchTerms = await db.getSearchTermsForAnalysis(input.accountId, input.days);
       const results = adAutomation.analyzeNgrams(searchTerms);
@@ -37,7 +39,8 @@ export const adAutomationRouter = router({
       phraseToExactMinConversions: z.number().default(10),
       phraseToExactMinRoas: z.number().default(5),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
       // @ts-ignore
       const suggestions = adAutomation.analyzeFunnelMigration(searchTerms as unknown, {
@@ -55,7 +58,8 @@ export const adAutomationRouter = router({
   // 流量冲突检测
   detectTrafficConflicts: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
       // @ts-ignore
       const conflicts = adAutomation.detectTrafficConflicts(searchTerms as unknown);
@@ -73,7 +77,8 @@ export const adAutomationRouter = router({
       targetAcos: z.number().default(30),
       targetRoas: z.number().default(3.33),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const targets = await db.getBidTargets(input.accountId);
       // @ts-ignore
       const suggestions = adAutomation.analyzeBidAdjustments(targets as unknown, {
@@ -102,7 +107,8 @@ export const adAutomationRouter = router({
       productColors: z.array(z.string()).optional(),
       productSizes: z.array(z.string()).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getUniqueSearchTerms(input.accountId);
       const classifications = adAutomation.classifySearchTerms(
         searchTerms,
@@ -146,7 +152,8 @@ export const adAutomationRouter = router({
         matchType: z.enum(['phrase', 'exact']),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 这里可以调用Amazon API添加否定词
       // 目前先记录到数据库
       let addedCount = 0;
@@ -172,7 +179,8 @@ export const adAutomationRouter = router({
         suggestedBid: z.number(),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 记录迁移操作
       let migratedCount = 0;
       for (const migration of input.migrations) {
@@ -197,7 +205,8 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       attributionWindowDays: z.number().min(7).max(30).default(14),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // 获取过去30天的出价变更记录
       const bidChanges = await db.getBidChangeRecords(input.accountId, 30);
       const corrections = adAutomation.analyzeBidCorrections(bidChanges, input.attributionWindowDays);
@@ -229,7 +238,8 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       let appliedCount = 0;
       for (const correction of input.corrections) {
         await db.recordBidChange({
@@ -257,7 +267,8 @@ export const adAutomationRouter = router({
       cvrDropCritical: z.number().default(-50),
       roasMinimum: z.number().default(2),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const campaigns = await db.getCampaignHealthMetrics(input.accountId);
       const healthScores = adAutomation.analyzeCampaignHealth(campaigns, {
         acosWarning: input.acosWarning,
@@ -293,7 +304,8 @@ export const adAutomationRouter = router({
       accountId: z.number(),
       severity: z.enum(['all', 'critical', 'warning', 'info']).default('all'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const campaigns = await db.getCampaignHealthMetrics(input.accountId);
       const healthScores = adAutomation.analyzeCampaignHealth(campaigns);
       

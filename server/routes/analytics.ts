@@ -8,6 +8,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as advancedAnalyticsService from '../advancedAnalyticsService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
@@ -145,7 +146,8 @@ export const analyticsRouter = router({
       endDate: z.string(),
       campaignId: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getDailyPerformanceByDateRange(
         input.accountId,
         new Date(input.startDate),
@@ -160,7 +162,8 @@ export const analyticsRouter = router({
       startDate: z.string(),
       endDate: z.string(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getPerformanceSummary(
         input.accountId,
         new Date(input.startDate),
@@ -176,7 +179,8 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // ✅ 支持自定义日期范围，默认近N天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : (() => {
@@ -224,7 +228,8 @@ export const analyticsRouter = router({
   // 获取周对比数据（真实数据）
   getWeeklyComparison: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ...
       
@@ -279,7 +284,8 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),  // YYYY-MM-DD
       endDate: z.string().optional(),    // YYYY-MM-DD
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       // ✅ 支持前端传入日期范围，默认近30天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);

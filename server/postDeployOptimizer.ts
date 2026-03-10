@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 377,
+    description: 'v377: [全面多租户数据隔离强化] — (1)P1-algorithm路由数据隔离:7个方法添加verifyAccountAccess校验,包括getPerformance/analyzeByType/analyzeByRange/getSuggestions/getParameterTuning/runAutoCorrection (2)P1-placement路由数据隔离:33个方法添加verifyAccountAccess校验,覆盖所有位置优化、边际收益分析、决策树等功能 (3)P1-performanceGroup路由数据隔离:list和create方法添加verifyAccountAccess,assignCampaign/batchAssignCampaigns添加verifyPerformanceGroupAccess (4)P1-intelligentRecommendation路由数据隔离:scan/quickCreateGoal/getSummaryBadge添加verifyAccountAccess (5)P1-adAutomation/analytics/automation/bidding/dailySync/dayparting/specialScenario/nextGen路由数据隔离强化',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands'],
+  },
+  {
     version: 376,
     description: 'v376: [数据隔离强化与评分算法优化] — (1)P1-campaign.list/listUnassigned数据隔离:增加verifyAccountAccess校验,防止跨租户查询广告活动 (2)P1-keyword.list数据隔离:增加verifyAdGroupAccess校验,防止跨租户查询关键词 (3)P1-内存泄漏修复:autoOperationService.logStore增加MAX_LOG_STORE_SIZE=10000限制,防止无限增长导致OOM (4)P2-评分算法核心指标权重提升:所有策略模板coreMetric权重从14-30%提升至30-45%,确保ACoS/ROAS偏离时评分真实反映问题严重性 (5)P2-同步时间范围扩展:SP类型同步从90天扩展到95天,充分利用Amazon API最大支持范围',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

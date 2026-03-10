@@ -6,13 +6,15 @@ import { router, protectedProcedure } from '../_core/trpc';
 import { scanAccountHealth } from '../intelligentRecommendationEngine';
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
+import { verifyAccountAccess } from '../utils/accessControl';
 
 const log = createModuleLogger('Route_intelligentRecommendation');
 
 export const intelligentRecommendationRouter = router({
   scan: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return await scanAccountHealth(input.accountId);
     }),
 
@@ -29,6 +31,7 @@ export const intelligentRecommendationRouter = router({
       campaignIds: z.array(z.number()),
     }))
     .mutation(async ({ ctx, input }) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       try {
         const id = await db.createPerformanceGroup({
           userId: ctx.user.id,
@@ -67,7 +70,8 @@ export const intelligentRecommendationRouter = router({
 
   getSummaryBadge: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const result = await scanAccountHealth(input.accountId);
       return {
         totalScanned: result.totalCampaignsScanned,

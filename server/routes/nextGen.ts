@@ -11,6 +11,7 @@ import * as keywordGraphService from '../keywordGraphService';
 import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
 import { ensureNextGenTables } from '../nextGenMigration';
 import { getDb } from '../db';
+import { verifyAccountAccess } from '../utils/accessControl';
 import { causalInferenceResults, cqlModels, optimizationEvents } from '../../drizzle/schema';
 
 
@@ -24,7 +25,8 @@ export const nextGenRouter = router({
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return {
         version: 'v276',
         engineMode: 'unified',
@@ -46,7 +48,8 @@ export const nextGenRouter = router({
   // 查询因果推断分析结果（只读查询，分析由定时任务自动执行）
   getCausalAnalysis: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return causalInferenceEngine.batchCausalAnalysis(input.accountId);
     }),
 
@@ -57,7 +60,8 @@ export const nextGenRouter = router({
       days: z.number().default(30),
       limit: z.number().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { results: [], summary: { total: 0, significant: 0, avgUplift: 0, totalIncrementalProfit: 0 } };
       
@@ -138,7 +142,8 @@ export const nextGenRouter = router({
   // v275: 查询CQL模型训练状态 — 用于前端CQL训练效果监控
   getCqlModelStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { models: [], summary: { totalModels: 0, avgTrainingSteps: 0, latestTrainedAt: null } };
       
@@ -187,7 +192,8 @@ export const nextGenRouter = router({
       accountId: z.number(),
       days: z.number().default(7),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { distribution: [], recentTrend: [], summary: { avgCompetition: 'medium', dominantType: 'neutral' } };
       
@@ -276,7 +282,8 @@ export const nextGenRouter = router({
       accountId: z.number(),
       days: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const db = await getDb();
       if (!db) return { poolAllocation: { coreRatio: 80, explorationRatio: 20 }, dailyTrend: [], summary: { avgCoreRatio: 80, avgExplorationRatio: 20, fusedCount: 0, totalEvents: 0 } };
       
@@ -362,7 +369,8 @@ export const nextGenRouter = router({
   // 查询关键词图谱机会（只读查询，图谱由定时任务自动构建）
   getKeywordOpportunities: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ input, ctx }: any) => {
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       const opportunities = await keywordGraphService.discoverOpportunities(input.accountId);
       const negatives = await keywordGraphService.discoverNegativeCandidates(input.accountId);
       return { opportunities, negatives };
