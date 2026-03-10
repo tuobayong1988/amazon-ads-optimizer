@@ -461,24 +461,26 @@ router.get('/data-integrity', async (req: Request, res: Response) => {
     }
     
     // 检查3: adGroups.campaignId 与 campaigns.campaignId 的JOIN一致性
+    // v380: 修复计算方式，使用LEFT JOIN统计孤立记录，避免一对多关系导致负数
     try {
-      const [joinResult] = await db.execute(sql.raw(
-        `SELECT COUNT(*) as cnt FROM ad_groups ag 
-         INNER JOIN campaigns c ON ag.campaignId = c.campaignId`
-      ));
       const [totalAgResult] = await db.execute(sql.raw(
         `SELECT COUNT(*) as total FROM ad_groups WHERE campaignId IS NOT NULL AND campaignId != ''`
       ));
-      const joinCount = extractCount(joinResult);
+      const [orphanResult] = await db.execute(sql.raw(
+        `SELECT COUNT(*) as cnt FROM ad_groups ag 
+         LEFT JOIN campaigns c ON ag.campaignId = c.campaignId AND ag.accountId = c.accountId
+         WHERE ag.campaignId IS NOT NULL AND ag.campaignId != '' AND c.id IS NULL`
+      ));
       const totalAg = extractCount(totalAgResult);
+      const orphanCount = extractCount(orphanResult);
       
       checks.joinIntegrity = {
         status: 'checked',
         adGroupsTotal: totalAg,
-        successfulJoins: joinCount,
-        orphanedAdGroups: totalAg - joinCount,
-        verdict: totalAg === joinCount ? 'PASS' : 'WARN',
-        note: 'adGroups.campaignId → campaigns.campaignId (Amazon ID对Amazon ID)',
+        successfulJoins: totalAg - orphanCount,
+        orphanedAdGroups: orphanCount,
+        verdict: orphanCount === 0 ? 'PASS' : 'WARN',
+        note: 'v380: 使用LEFT JOIN+accountId精确统计孤立广告组',
       };
     } catch (e: unknown) {
       checks.joinIntegrity = { status: 'error', message: (e as Error).message };

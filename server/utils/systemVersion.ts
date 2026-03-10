@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 379;  // v379: 修复8处SQL as any泄漏+Observability executedAt列不存在+optimization_logs复合索引优化
+export const SYSTEM_VERSION = 380;  // v380: P2命令确认机制增强+心跳探测优化+P3数据完整性修复+动态超时+RL冷启动加速

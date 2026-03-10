@@ -497,35 +497,58 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         }
         
         const { sql } = await import('drizzle-orm');
-        const recentJobs = await database.execute(sql`
-          SELECT COUNT(*) as total, 
-                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
-                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as fail_count
-          FROM data_sync_jobs 
-          WHERE createdAt > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
-        `);
         
-        const row = (recentJobs as any[][])?.[0]?.[0] as Record<string, number> || {};
-        const total = Number(row.total || 0);
-        const failCount = Number(row.fail_count || 0);
+        // v380: 两级探测策略
+        // 第一级: 检查最近90分钟是否有任何同步记录（避免系统重启后误报）
+        // 第二级: 检查最近30分钟的同步健康度
+        const [recentJobs90, recentJobs30] = await Promise.all([
+          database.execute(sql`
+            SELECT COUNT(*) as total
+            FROM data_sync_jobs 
+            WHERE createdAt > DATE_SUB(NOW(), INTERVAL 90 MINUTE)
+          `),
+          database.execute(sql`
+            SELECT COUNT(*) as total, 
+                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success_count,
+                   SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as fail_count
+            FROM data_sync_jobs 
+            WHERE createdAt > DATE_SUB(NOW(), INTERVAL 30 MINUTE)
+          `),
+        ]);
         
-        if (total === 0) {
+        const row90 = (recentJobs90 as any[][])?.[0]?.[0] as Record<string, number> || {};
+        const total90 = Number(row90.total || 0);
+        
+        const row30 = (recentJobs30 as any[][])?.[0]?.[0] as Record<string, number> || {};
+        const total30 = Number(row30.total || 0);
+        const failCount30 = Number(row30.fail_count || 0);
+        
+        // 如果90分钟内都没有同步记录，才升级告警
+        if (total90 === 0) {
           return { 
             success: true, issuesFound: 1, issuesFixed: 0, 
-            details: '最近30分钟无同步记录',
+            details: '最近90分钟无同步记录',
             escalate: true, escalateReason: '同步可能已停止'
           };
         }
         
-        if (failCount > 0 && failCount === total) {
+        // 30分钟内无记录但有更早的记录，可能在同步间隔内，不升级
+        if (total30 === 0 && total90 > 0) {
           return { 
-            success: true, issuesFound: failCount, issuesFixed: 0, 
-            details: `最近30分钟${total}次同步全部失败`,
+            success: true, issuesFound: 0, issuesFixed: 0, 
+            details: `最近30分钟无同步记录，但90分钟内有${total90}条记录，同步间隔正常`
+          };
+        }
+        
+        if (failCount30 > 0 && failCount30 === total30) {
+          return { 
+            success: true, issuesFound: failCount30, issuesFixed: 0, 
+            details: `最近30分钟${total30}次同步全部失败`,
             escalate: true, escalateReason: '同步全部失败'
           };
         }
         
-        return { success: true, issuesFound: 0, issuesFixed: 0, details: `同步正常: ${total - failCount}/${total}成功` };
+        return { success: true, issuesFound: 0, issuesFixed: 0, details: `同步正常: ${total30 - failCount30}/${total30}成功 (90min内共${total90}条)` };
       } catch (error: unknown) {
         return { success: false, issuesFound: 1, issuesFixed: 0, details: (error as Error).message };
       }

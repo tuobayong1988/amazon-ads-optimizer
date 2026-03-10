@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 380,
+    description: 'v380: [P2命令确认增强+心跳探测优化+P3数据完整性+动态超时+RL冷启动] — (1)P2-confirmation同步层级扩展: TIER_HIERARCHY.confirmation从high扩展为high+medium,确俞ad_groups/keywords/targets变更能被确认同步 (2)P2-心跳探测两级策略: 从30分钟单级探测升级为90min+30min两级探测,避免系统重启后误报 (3)P3-joinIntegrity修复: 使用LEFT JOIN+accountId精确统计孤立广告组,修复orphanedAdGroups负数问题 (4)P3-动态超时: 大账户同步超时根据广告活动数动态调整(1000-3000:60min,3000-5000:75min,5000+:90min) (5)P3-RL冷启动加速: 双源数据统计(optimization_events+optimization_logs)+折算比例从0.3提升到0.5',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 379,
     description: 'v379: [SQL安全修复+可观测性修复+数据库索引优化] — (1)P0-修复8处SQL模板字符串中的as any类型断言泄漏: syncPerformance.ts(DATE(date) as any), bidOperations.ts(INSERT...as any x2), deployLifecycleManager.ts(INSERT...as any x2), systemRouter.ts(ALTER TABLE...as any x2), auditLogService.ts(COUNT(*) as any as total) (2)P1-Observability服务修复: 将executedAt替换为createdAt解决optimization_events表查询失败问题+添加try-catch优雅降级 (3)P2-optimization_logs表添加复合索引(pg+category+createdAt, account+category+createdAt)解决SelfEvolution模坰30天范围查询超时',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

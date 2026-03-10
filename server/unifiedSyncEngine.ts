@@ -908,7 +908,7 @@ const TIER_HIERARCHY: Record<SyncTier, SyncTier[]> = {
   high: ['high'],                    // 高频：只执行high专有步骤
   medium: ['medium'],                // 中频：只执行medium专有步骤（不再重复high层）
   full: ['high', 'medium', 'full'],  // 完整：执行所有层级步骤
-  confirmation: ['high'],            // 确认同步：只同步广告活动状态
+  confirmation: ['high', 'medium'],   // v380: 确认同步覆盖high+medium层，确保ad_groups/keywords/targets变更能被确认
 };
 
 // ==================== 引擎状态 ====================
@@ -1139,7 +1139,10 @@ export async function syncAccount(
     let isLargeAccount = false;
     const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
     const LARGE_ACCOUNT_STEP_DELAY_MS = 3000; // 大账户步骤间额外延迟3秒
-    const SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 单账户同步最大超时45分钟
+    const BASE_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 基础超时45分钟
+    // v380: 动态超时 - 大账户根据广告活动数量动态调整
+    // 1000以下: 45分钟, 1000-3000: 60分钟, 3000-5000: 75分钟, 5000+: 90分钟
+    let SYNC_TIMEOUT_MS = BASE_SYNC_TIMEOUT_MS;
     try {
       const database = await db.getDb();
       if (database) {
@@ -1151,7 +1154,15 @@ export async function syncAccount(
         campaignCount = countResult[0]?.count || 0;
         isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
         if (isLargeAccount) {
-          log.warn(`[UnifiedSync] v340: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，启用自适应保护模式`);
+          // v380: 动态超时计算
+          if (campaignCount >= 5000) {
+            SYNC_TIMEOUT_MS = 90 * 60 * 1000;
+          } else if (campaignCount >= 3000) {
+            SYNC_TIMEOUT_MS = 75 * 60 * 1000;
+          } else {
+            SYNC_TIMEOUT_MS = 60 * 60 * 1000;
+          }
+          log.warn(`[UnifiedSync] v380: 大账户检测! 账户${account.accountId}(${account.accountName})拥有${campaignCount}个广告活动，启用自适应保护模式，超时=${Math.round(SYNC_TIMEOUT_MS / 60000)}分钟`);
         }
       }
     } catch (e: unknown) {
@@ -1605,8 +1616,9 @@ export async function confirmationSync(
   // 去重
   const uniqueSteps = [...new Set(stepsToSync)];
 
-  // 等待一小段时间让Amazon处理命令（API通常需要几秒钟传播）
-  await sleep(3000);
+  // v380: 移除固定3秒等待，CommandConfirmationService已提供自适应传播延迟机制
+  // 保留最小1秒等待确保API请求已提交
+  await sleep(1000);
 
   // 执行确认同步
   const result = await syncAccount(account, 'confirmation', {

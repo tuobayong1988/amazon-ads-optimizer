@@ -203,15 +203,27 @@ async function evaluateAlgorithms(
     getAlgorithmStats(accountId),
     // v258: 统计未回填的RL日志（包含已记录但未回填reward的）
     db.select({ count: sql<number>`COUNT(*)` }).from(rlTrainingLogs)
-      .where(eq(rlTrainingLogs.accountId, accountId)),
-    // v259: 从optimiaztion_events中统计历史优化事件作为虚拟RL数据
-    db.select({ count: sql<number>`COUNT(*)` }).from(sql`optimization_events`)
-      .where(and(
-        sql`account_id = ${accountId}`,
-        sql`event_category = 'bid_adjustment'`,
-        sql`status = 'success'`,
-        sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
-      )),
+      .where(eq(rlTrainingLogs.accountId, accountId)),    // v380: 从 optimization_events + optimization_logs 双源统计历史优化事件作为虚拟RL数据
+    // 同时查询两个表，取较大值，确保充分利用已有数据加速冷启动
+    Promise.all([
+      db.select({ count: sql<number>`COUNT(*)` }).from(sql`optimization_events`)
+        .where(and(
+          sql`account_id = ${accountId}`,
+          sql`event_category = 'bid_adjustment'`,
+          sql`status = 'success'`,
+          sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
+        )).catch(() => [{ count: 0 }]),
+      db.select({ count: sql<number>`COUNT(*)` }).from(sql`optimization_logs`)
+        .where(and(
+          sql`account_id = ${accountId}`,
+          sql`action_type = 'bid_adjustment'`,
+          sql`created_at > DATE_SUB(NOW(), INTERVAL 14 DAY)`
+        )).catch(() => [{ count: 0 }]),
+    ]).then(([evtResult, logResult]) => {
+      const evtCount = Number(evtResult[0]?.count) || 0;
+      const logCount = Number(logResult[0]?.count) || 0;
+      return [{ count: Math.max(evtCount, logCount) }];
+    }),
     // v332: 数据新鲜度检测（原为独立查询，现合并到并行执行）
     db.select({ count: sql<number>`COUNT(*)` }).from(rlTrainingLogs)
       .where(and(eq(rlTrainingLogs.accountId, accountId), gte(rlTrainingLogs.createdAt, hoursAgo24))),
@@ -222,9 +234,9 @@ async function evaluateAlgorithms(
   const pendingRLLogs = Number(totalRLLogsIncPending[0]?.count) || 0;
   const totalHistoryEvents = Number(historyEventCount[0]?.count) || 0;
   
-  // v259: 综合数据量 = RL日志 + 历史优化事件(按比例折算)
-  const syntheticDataCount = totalRLLogs + Math.floor(totalHistoryEvents * 0.3);
-  const syntheticPendingCount = pendingRLLogs + Math.floor(totalHistoryEvents * 0.3);
+  // v380: 综合数据量 = RL日志 + 历史优化事件(折算比例从0.3提升到0.5，加速冷启动)
+  const syntheticDataCount = totalRLLogs + Math.floor(totalHistoryEvents * 0.5);
+  const syntheticPendingCount = pendingRLLogs + Math.floor(totalHistoryEvents * 0.5);
   
   log.info(`[MetaLearning] v259算法评估: 账户${accountId}, RL日志(已回填)=${totalRLLogs}, RL日志(含待回填)=${pendingRLLogs}, 历史事件=${totalHistoryEvents}, 合成数据量=${syntheticDataCount}, 特征缓存=${hasFeatures}`);
   
