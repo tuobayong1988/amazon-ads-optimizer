@@ -593,6 +593,41 @@ export async function adjustRecentPerformanceData(
   if (!db) return [];
 
   const model = await getAttributionModel(accountId);
+  
+  // v386: 性能优化 - 将N+1循环查询改为单次批量查询
+  const endDate = new Date();
+  const startDate = subDays(endDate, days - 1);
+  const startDateStr = formatDate(startDate);
+  const endDateStr = formatDate(endDate);
+  
+  // 单次查询获取所有天的汇总数据（按日期分组）
+  const allDayData = await db.select({
+    date: sql<string>`DATE(${dailyPerformance.date})`.as('perf_date'),
+    impressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    clicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    spend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+    sales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+    orders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+  })
+  .from(dailyPerformance)
+  .where(and(
+    eq(dailyPerformance.accountId, accountId),
+    sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
+    sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
+  ))
+  .groupBy(sql`DATE(${dailyPerformance.date})`)
+  .orderBy(sql`DATE(${dailyPerformance.date}) DESC`);
+  
+  // 构建日期到数据的映射
+  const dayDataMap = new Map<string, typeof allDayData[0]>();
+  for (const row of allDayData) {
+    if (row.date) {
+      // 处理可能的Date对象或字符串
+      const dateKey = typeof row.date === 'string' ? row.date.split('T')[0] : String(row.date);
+      dayDataMap.set(dateKey, row);
+    }
+  }
+  
   const results: {
     date: string;
     raw: { spend: number; sales: number; acos: number; roas: number };
@@ -602,28 +637,15 @@ export async function adjustRecentPerformanceData(
   for (let i = 0; i < days; i++) {
     const date = subDays(new Date(), i);
     const dateStr = formatDate(date);
-    
-    // 获取该日期的汇总数据
-    const dayData = await db.select({
-      impressions: sql<number>`SUM(${dailyPerformance.impressions})`,
-      clicks: sql<number>`SUM(${dailyPerformance.clicks})`,
-      spend: sql<number>`SUM(${dailyPerformance.spend})`,
-      sales: sql<number>`SUM(${dailyPerformance.sales})`,
-      orders: sql<number>`SUM(${dailyPerformance.orders})`,
-    })
-    .from(dailyPerformance)
-    .where(and(
-      eq(dailyPerformance.accountId, accountId),
-      sql`DATE(${dailyPerformance.date}) = ${dateStr}`
-    ));
+    const dayData = dayDataMap.get(dateStr);
 
-    if (dayData[0]) {
+    if (dayData) {
       const raw = {
-        impressions: Number(dayData[0].impressions) || 0,
-        clicks: Number(dayData[0].clicks) || 0,
-        spend: Number(dayData[0].spend) || 0,
-        sales: Number(dayData[0].sales) || 0,
-        orders: Number(dayData[0].orders) || 0,
+        impressions: Number(dayData.impressions) || 0,
+        clicks: Number(dayData.clicks) || 0,
+        spend: Number(dayData.spend) || 0,
+        sales: Number(dayData.sales) || 0,
+        orders: Number(dayData.orders) || 0,
       };
       
       const rawAcos = raw.sales > 0 ? (raw.spend / raw.sales) * 100 : 0;

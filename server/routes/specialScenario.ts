@@ -7,6 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as specialScenarioOptimizationService from '../specialScenarioOptimizationService';
 import { verifyAccountAccess } from '../utils/accessControl';
+import { apiCache } from '../services/apiCacheService';
 
 
 // ==================== Special Scenario Optimization Router ====================
@@ -36,7 +37,7 @@ export const specialScenarioRouter = router({
       );
     }),
 
-  // 归因延迟调整后的近期数据
+  // v386: 归因延迟调整后的近期数据（添加API缓存）
   getAttributionAdjustedData: protectedProcedure
     .input(z.object({
       accountId: z.number(),
@@ -44,10 +45,18 @@ export const specialScenarioRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      return specialScenarioOptimizationService.adjustRecentPerformanceData(
+      
+      const cacheKey = apiCache.generateKey('specialScenario.getAttributionAdjustedData', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
+      const result = await specialScenarioOptimizationService.adjustRecentPerformanceData(
         input.accountId,
         input.days || 7
       );
+      
+      apiCache.set(cacheKey, result, 5 * 60 * 1000); // 5分钟缓存
+      return result;
     }),
 
   // 获取归因模型

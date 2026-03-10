@@ -1,14 +1,18 @@
 /**
  * 分析与报表路由
- * 从 routers.ts 拆分的独立路由模块
+ * v386: 性能优化 - 为所有Dashboard查询添加API缓存层
  */
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as advancedAnalyticsService from '../advancedAnalyticsService';
-import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
+import { apiCache } from '../services/apiCacheService';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('Route_analytics');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
@@ -135,6 +139,39 @@ function calculateTrendSummary(data: any[]) {
   };
 }
 
+/**
+ * v386: 账户货币缓存 - 避免每次getKPIs都查询货币
+ * 货币代码几乎不变，缓存15分钟
+ */
+const accountCurrencyCache = new Map<number, { currency: string; expireAt: number }>();
+
+async function getAccountCurrency(accountId: number): Promise<string> {
+  const cached = accountCurrencyCache.get(accountId);
+  if (cached && Date.now() < cached.expireAt) {
+    return cached.currency;
+  }
+  
+  let currency = 'USD';
+  try {
+    const { getDb } = await import('../db/connection');
+    const dbInstance = await getDb();
+    if (dbInstance) {
+      const { amazonApiCredentials } = await import('../../drizzle/schema');
+      const [cred] = await dbInstance.select({ currencyCode: amazonApiCredentials.currencyCode })
+        .from(amazonApiCredentials)
+        .where(eq(amazonApiCredentials.accountId, accountId))
+        .limit(1);
+      if (cred?.currencyCode) {
+        currency = cred.currencyCode;
+      }
+    }
+  } catch (e) {
+    // 查询失败时使用默认USD
+  }
+  
+  accountCurrencyCache.set(accountId, { currency, expireAt: Date.now() + 15 * 60 * 1000 });
+  return currency;
+}
 
 
 // ==================== Analytics Router ====================
@@ -171,7 +208,10 @@ export const analyticsRouter = router({
       );
     }),
   
-  // 获取趋势数据（真实数据）
+  /**
+   * 获取趋势数据（真实数据）
+   * v386: 添加2分钟API缓存
+   */
   getTrendData: protectedProcedure
     .input(z.object({ 
       accountId: z.number(),
@@ -181,6 +221,11 @@ export const analyticsRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      const cacheKey = apiCache.generateKey('analytics.getTrendData', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
       // ✅ 支持自定义日期范围，默认近N天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : (() => {
@@ -200,7 +245,7 @@ export const analyticsRouter = router({
         return [];
       }
       
-      return dailyAggregated.map(day => {
+      const result = dailyAggregated.map(day => {
         const sales = parseFloat(day.totalSales || '0');
         const spend = parseFloat(day.totalSpend || '0');
         const impressions = Number(day.totalImpressions) || 0;
@@ -223,13 +268,24 @@ export const analyticsRouter = router({
           cpc: clicks > 0 ? spend / clicks : 0,
         };
       });
+      
+      apiCache.set(cacheKey, result, 2 * 60 * 1000); // 2分钟缓存
+      return result;
     }),
   
-  // 获取周对比数据（真实数据）
+  /**
+   * 获取周对比数据（真实数据）
+   * v386: 添加2分钟API缓存
+   */
   getWeeklyComparison: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      const cacheKey = apiCache.generateKey('analytics.getWeeklyComparison', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ...
       
@@ -275,9 +331,14 @@ export const analyticsRouter = router({
         };
       });
       
+      apiCache.set(cacheKey, result, 2 * 60 * 1000); // 2分钟缓存
       return result;
     }),
 
+  /**
+   * 获取KPI汇总
+   * v386: 添加2分钟API缓存 + 货币查询缓存
+   */
   getKPIs: protectedProcedure
     .input(z.object({ 
       accountId: z.number(),
@@ -286,6 +347,11 @@ export const analyticsRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      const cacheKey = apiCache.generateKey('analytics.getKPIs', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
       // ✅ 支持前端传入日期范围，默认近30天
       const endDate = input.endDate ? new Date(input.endDate) : new Date();
       const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -294,25 +360,11 @@ export const analyticsRouter = router({
       const diffMs = endDate.getTime() - startDate.getTime();
       const days = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)) + 1); // +1包含开始日
       
-      const summary = await db.getPerformanceSummary(input.accountId, startDate, endDate);
-      
-      // v230: 从数据库读取账户的真实货币代码，而非硬编码USD
-      let accountCurrency = 'USD';
-      try {
-        const dbInstance = await db.getDb();
-        if (dbInstance) {
-          const { amazonApiCredentials } = await import('../../drizzle/schema');
-          const [cred] = await dbInstance.select({ currencyCode: amazonApiCredentials.currencyCode })
-            .from(amazonApiCredentials)
-            .where(eq(amazonApiCredentials.accountId, input.accountId))
-            .limit(1);
-          if (cred?.currencyCode) {
-            accountCurrency = cred.currencyCode;
-          }
-        }
-      } catch (e) {
-        // 查询失败时使用默认USD
-      }
+      // v386: 并行查询绩效汇总和货币代码
+      const [summary, accountCurrency] = await Promise.all([
+        db.getPerformanceSummary(input.accountId, startDate, endDate),
+        getAccountCurrency(input.accountId),
+      ]);
       
       const emptyResult = {
         conversionsPerDay: 0,
@@ -335,6 +387,7 @@ export const analyticsRouter = router({
       };
       
       if (!summary) {
+        apiCache.set(cacheKey, emptyResult, 2 * 60 * 1000);
         return emptyResult;
       }
       
@@ -351,7 +404,7 @@ export const analyticsRouter = router({
       const spDataMaturity = daysSinceEnd >= 7 ? 'finalized' : 'pending'; // SP 7天归因
       const sbSdDataMaturity = daysSinceEnd >= 14 ? 'finalized' : 'pending'; // SB/SD 14天归因
       
-      return {
+      const result = {
         conversionsPerDay: totalOrders / days,
         // ✅ 加权计算派生指标，而非简单平均
         roas: totalSpend > 0 ? totalSales / totalSpend : 0,
@@ -383,9 +436,15 @@ export const analyticsRouter = router({
               : `SB/SD广告的近${14 - daysSinceEnd}天数据尚在归因窗口内，转化数据可能不完整`,
         },
       };
+      
+      apiCache.set(cacheKey, result, 2 * 60 * 1000); // 2分钟缓存
+      return result;
     }),
   
-  // 区域级别数据对比
+  /**
+   * 区域级别数据对比
+   * v386: 添加5分钟API缓存（跨账户查询较重）
+   */
   getRegionComparison: protectedProcedure
     .input(z.object({ 
       userId: z.number(),
@@ -393,6 +452,10 @@ export const analyticsRouter = router({
       endDate: z.string().optional(),
     }))
     .query(async ({ ctx, input }: any) => {
+      const cacheKey = apiCache.generateKey('analytics.getRegionComparison', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
       // 定义区域映射
       const REGIONS: Record<string, { name: string; flag: string; marketplaces: string[] }> = {
         NA: { name: '北美区域', flag: '🇺🇸', marketplaces: ['US', 'CA', 'MX', 'BR'] },
@@ -450,8 +513,8 @@ export const analyticsRouter = router({
       const summaryMap = new Map<number, any>();
       
       if (accountIds.length > 0) {
-        // 并行查询所有账户（最多并行5个）
-        const batchSize = 5;
+        // v386: 并行查询所有账户（提高并行度到10个）
+        const batchSize = 10;
         for (let i = 0; i < accountIds.length; i += batchSize) {
           const batch = accountIds.slice(i, i + batchSize);
           const results = await Promise.all(
@@ -507,7 +570,9 @@ export const analyticsRouter = router({
       }
       
       // 返回有数据的区域
-      return Object.values(regionData).filter(r => r.accountCount > 0);
+      const result = Object.values(regionData).filter(r => r.accountCount > 0);
+      apiCache.set(cacheKey, result, 5 * 60 * 1000); // 5分钟缓存（跨账户查询较重）
+      return result;
     }),
 });
 

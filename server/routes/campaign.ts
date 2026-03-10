@@ -10,6 +10,7 @@ import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_T
 import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
+import { apiCache } from '../services/apiCacheService';
 
 const log = createModuleLogger('Route_campaign');
 
@@ -55,7 +56,14 @@ export const campaignRouter = router({
       }
       
       if (startDate && endDate) {
-        return db.getCampaignsWithPerformance(input.accountId, startDate, endDate, todayDate);
+        // v386: 添加API缓存 - campaigns列表查询较重
+        const cacheKey = apiCache.generateKey('campaign.list', ctx.user.id, { accountId: input.accountId, startDate, endDate, todayDate });
+        const cached = apiCache.get<any>(cacheKey);
+        if (cached) return cached;
+        
+        const result = await db.getCampaignsWithPerformance(input.accountId, startDate, endDate, todayDate);
+        apiCache.set(cacheKey, result, 2 * 60 * 1000); // 2分钟缓存
+        return result;
       }
       
       return db.getCampaignsByAccountId(input.accountId);
@@ -231,6 +239,9 @@ export const campaignRouter = router({
         accountId: previousCampaign?.accountId,
         status: apiFailures.length > 0 ? 'partial' : 'success',
       });
+      
+      // v386: 写操作后清除campaign列表缓存
+      apiCache.invalidateByPrefix('campaign.list');
       
       return { 
         success: true, 

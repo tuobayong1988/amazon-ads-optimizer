@@ -351,12 +351,10 @@ export default function Dashboard() {
   const [regionCustomStartDate, setRegionCustomStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
   const [regionCustomEndDate, setRegionCustomEndDate] = useState<Date | undefined>(new Date());
   
-  // 测试toast是否工作 - 页面加载时显示
+  // v386: 延迟加载状态 - 非关键查询延迟1.5秒后启动，避免阻塞关键路径
+  const [deferredQueriesEnabled, setDeferredQueriesEnabled] = useState(false);
   useEffect(() => {
-    // 延迟1秒后显示toast
-    const timer = setTimeout(() => {
-      toast.success("页面加载完成 - 欢迎使用亚马逊广告优化系统");
-    }, 1000);
+    const timer = setTimeout(() => setDeferredQueriesEnabled(true), 1500);
     return () => clearTimeout(timer);
   }, []);
   
@@ -412,16 +410,16 @@ export default function Dashboard() {
       startDate: kpiDateRange.startDate,
       endDate: kpiDateRange.endDate,
     },
-    { enabled: !!accountId }
+    { enabled: !!accountId, staleTime: 2 * 60 * 1000 } // v386: 2分钟缓存，与后端API缓存对齐
   );
 
   // 获取当前账户的货币符号
   const currencySymbol = getCurrencySymbolByCode(kpis?.currency);
 
-  // 获取归因调整后的近期数据
+  // v386: 归因调整数据延迟加载，不阻塞关键路径
   const { data: attributionData } = trpc.specialScenario.getAttributionAdjustedData.useQuery(
     { accountId: accountId!, days: 7 },
-    { enabled: !!accountId, staleTime: 10 * 60 * 1000 } // v385: 10分钟缓存，减少首屏请求
+    { enabled: !!accountId && deferredQueriesEnabled, staleTime: 10 * 60 * 1000 }
   );
 
   // 计算归因调整后的KPI汇总
@@ -458,16 +456,16 @@ export default function Dashboard() {
   // 是否显示归因调整后的数据
   const [showAdjustedData, setShowAdjustedData] = useState(true);
 
-  // v260: 获取系统健康核心指标（回滚率 + 算法激活率）
+  // v386: 系统健康指标延迟加载，不阻塞关键路径
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: accountId!, days: 7 },
-    { enabled: !!accountId, staleTime: 10 * 60 * 1000, refetchInterval: 10 * 60 * 1000 } // v385: 降低刷新频率
+    { enabled: !!accountId && deferredQueriesEnabled, staleTime: 10 * 60 * 1000, refetchInterval: 10 * 60 * 1000 }
   );
 
-  // v261: 获取部署后纠错报告
+  // v386: 部署纠错报告延迟加载
   const { data: deployCorrectionReport } = trpc.monitoring.getDeployCorrectionReport.useQuery(
     undefined,
-    { staleTime: 30 * 60 * 1000, refetchInterval: 30 * 60 * 1000 } // v385: 30分钟缓存，降低频率
+    { enabled: deferredQueriesEnabled, staleTime: 30 * 60 * 1000, refetchInterval: 30 * 60 * 1000 }
   );
   
   // (kpiDateRange 已移动到上方使用前)
@@ -502,10 +500,10 @@ export default function Dashboard() {
     };
   }, [handleRefreshData]);
 
-  // Fetch performance groups
+  // v386: 绩效组延迟加载
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
     { accountId: accountId! },
-    { enabled: !!accountId }
+    { enabled: !!accountId && deferredQueriesEnabled, staleTime: 5 * 60 * 1000 }
   );
 
   // 计算区域对比的时间范围
@@ -523,14 +521,14 @@ export default function Dashboard() {
     };
   }, [regionDatePreset, regionCustomStartDate, regionCustomEndDate, currentMarketplace]);
 
-  // Fetch region comparison data
+  // v386: 区域对比数据延迟加载（跨账户查询较重，不阻塞关键路径）
   const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
     { 
       userId: user?.id!,
       startDate: regionDateRange.startDate,
       endDate: regionDateRange.endDate,
     },
-    { enabled: !!user?.id, staleTime: 10 * 60 * 1000 } // v385: 10分钟缓存
+    { enabled: !!user?.id && deferredQueriesEnabled, staleTime: 10 * 60 * 1000 }
   );
 
   // ✅ 获取真实趋势数据 - 与日期选择器联动
@@ -540,7 +538,7 @@ export default function Dashboard() {
       startDate: kpiDateRange.startDate,
       endDate: kpiDateRange.endDate,
     },
-    { enabled: !!accountId }
+    { enabled: !!accountId, staleTime: 2 * 60 * 1000 } // v386: 2分钟缓存
   );
   
   // 如果没有真实数据，显示空数据提示
@@ -552,10 +550,10 @@ export default function Dashboard() {
     return [];
   }, [realTrendData]);
 
-  // 获取真实周对比数据
+  // v386: 周对比数据延迟加载
   const { data: realWeeklyComparison } = trpc.analytics.getWeeklyComparison.useQuery(
     { accountId: accountId! },
-    { enabled: !!accountId }
+    { enabled: !!accountId && deferredQueriesEnabled, staleTime: 5 * 60 * 1000 }
   );
   
   // 如果没有真实数据，显示空数据

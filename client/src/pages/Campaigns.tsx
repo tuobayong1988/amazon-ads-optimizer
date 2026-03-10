@@ -715,7 +715,7 @@ export default function Campaigns() {
   } = useResizableColumns(resizableColumnDefs, 'campaigns_columns');
   
   // 时间范围状态 - 使用TimeRangeSelector组件
-  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('today'));
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('7days'));
   
   // 移动端显示更多列状态
   const [showAllColumnsOnMobile, setShowAllColumnsOnMobile] = useState(false);
@@ -839,13 +839,13 @@ export default function Campaigns() {
       startDate: timeRangeValue.preset === 'custom' ? dateRange.startDate : undefined,
       endDate: timeRangeValue.preset === 'custom' ? dateRange.endDate : undefined,
     },
-    { enabled: !!accountId }
+    { enabled: !!accountId, staleTime: 2 * 60 * 1000 } // v386: 2分钟缓存
   );
 
   // Fetch performance groups for assignment
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
     { accountId: accountId! },
-    { enabled: !!accountId }
+    { enabled: !!accountId, staleTime: 5 * 60 * 1000 } // v386: 5分钟缓存
   );
 
   // Update campaign mutation - v221: 添加乐观更新，用户操作后立即显示预期结果
