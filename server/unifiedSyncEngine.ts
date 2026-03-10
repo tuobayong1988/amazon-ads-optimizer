@@ -1054,6 +1054,7 @@ export async function syncAccount(
   // 规则：
   // 1. 同一层级重复触发 → 跳过
   // 2. full层运行时 → 所有其他层级跳过（full包含所有步骤）
+  //    v388例外: confirmation层级允许与full层并行（confirmation只是验证性读取，不会冲突）
   // 3. medium层运行时 → high层跳过（减少API并发压力）
   // 4. high层运行时 → medium层正常执行（步骤不重叠）
   // 5. full层请求时有其他层级运行 → 跳过（等下一轮）
@@ -1061,6 +1062,9 @@ export async function syncAccount(
   const lockKey = `${account.accountId}:${tier}`;
   const accountLocks = Array.from(activeSyncs.entries())
     .filter(([key]) => key.startsWith(`${account.accountId}:`));
+  
+  // v388: 记录是否有full层同步正在运行（用于confirmation层级的特殊处理）
+  let fullSyncRunning = false;
   
   for (const [existingKey, existing] of accountLocks) {
     const existingTier = existingKey.split(':')[1];
@@ -1080,8 +1084,15 @@ export async function syncAccount(
       return result;
     }
     
-    // full层同步在运行时，阻塞其他所有层级
+    // full层同步在运行时的处理
     if (existingTier === 'full') {
+      // v388: confirmation层级允许与full层并行运行
+      // confirmation只是验证性的读取操作，不会与full同步产生数据冲突
+      if (tier === 'confirmation') {
+        fullSyncRunning = true;
+        log.info(`[UnifiedSync] v388: 账户 ${account.accountId} full层同步在运行（${runningMinutes.toFixed(1)}分钟），confirmation层允许并行执行`);
+        continue; // 不阻塞，继续检查其他锁
+      }
       log.info(`[UnifiedSync] 账户 ${account.accountId} 已有full层同步在运行（${runningMinutes.toFixed(1)}分钟），${tier}层跳过`);
       result.errors.push(`已有full层同步在运行`);
       return result;

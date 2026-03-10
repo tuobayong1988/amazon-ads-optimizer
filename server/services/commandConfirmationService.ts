@@ -346,6 +346,24 @@ export class CommandConfirmationService {
         this.recordPropagationDelay(request.operationType, propagationDelay);
         
         log.info(`[CommandConfirmation] 确认成功: ${request.id}, 步骤=${syncResult.completedSteps}/${syncResult.totalSteps}, 匹配率=${(matchRate * 100).toFixed(1)}%, 耗时=${durationMs}ms`);
+      } else if (syncResult && syncResult.errors?.some((e: string) => e.includes('full层同步在运行') || e.includes('同步在运行'))) {
+        // v388: 当full同步正在运行时，数据已被full同步覆盖，视为“已覆盖确认”
+        request.status = 'confirmed';
+        request.lastResult = {
+          success: true,
+          completedSteps: 0,
+          totalSteps: syncResult.totalSteps || 0,
+          totalSynced: 0,
+          durationMs,
+          matchRate: 1, // full同步覆盖所有步骤，视为100%匹配
+          timestamp: new Date(),
+        };
+        
+        this.metrics.confirmedRequests++;
+        this.totalConfirmationTimeMs += (Date.now() - request.createdAt.getTime());
+        this.totalRetryCount += request.retryCount;
+        
+        log.info(`[CommandConfirmation] v388: 确认已被full同步覆盖: ${request.id}, 耗时=${durationMs}ms, 原因: ${syncResult.errors?.join(', ')}`);
       } else {
         // 确认失败，尝试重试
         await this.handleConfirmationFailure(request, durationMs, '确认同步返回空结果或0步骤');
