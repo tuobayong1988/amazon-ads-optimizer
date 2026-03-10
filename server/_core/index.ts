@@ -116,7 +116,9 @@ async function startServer() {
     const memUsage = process.memoryUsage();
     const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
     const heapTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
-    const memoryHealthy = heapUsedMB < 1400; // 1.4GB阈值
+    // v393: 使用systemConfigService动态获取内存健康阈值，替代硬编码的1400MB
+    const { isHeapHealthy } = require('../services/systemConfigService');
+    const memoryHealthy = isHeapHealthy(heapUsedMB);
     
     const overallHealthy = dbHealthy && memoryHealthy;
     const status = overallHealthy ? 'healthy' : 'degraded';

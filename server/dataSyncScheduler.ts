@@ -1775,9 +1775,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
   
-  // 内存阈值基于实例可用内存（t3.small=2GB, max-old-space-size=2048MB）
-  const MEMORY_CRITICAL_MB = 1200;  // RSS超过1200MB: 危急，跳过所有任务
-  const MEMORY_WARNING_MB = 900;    // RSS超过900MB: 紧张，跳过非关键任务
+  // v393: 使用systemConfigService动态计算内存阈值，替代硬编码值
+  // 基于实际的--max-old-space-size动态计算，确保在不同实例类型下自动适配
+  const { memoryConfig } = require('./services/systemConfigService');
+  const MEMORY_CRITICAL_MB = memoryConfig.rssCriticalMB;  // RSS超过此值: 危急，跳过所有任务
+  const MEMORY_WARNING_MB = memoryConfig.rssWarningMB;    // RSS超过此值: 紧张，跳过非关键任务
   
   // 关键任务：出价优化、风控扫描、日内节奏、分时策略
   // v349: 将dayparting_adjustment添加为关键任务，防止因内存压力被跳过导致分时策略停滞

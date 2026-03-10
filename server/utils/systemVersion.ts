@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 392;  // v392: 系统资源监控、DB_POOL_SIZE增大、Dashboard图表懒加载
+export const SYSTEM_VERSION = 393;  // v393: 动态内存配置服务、消除硬编码内存阈值、内存保护自适应

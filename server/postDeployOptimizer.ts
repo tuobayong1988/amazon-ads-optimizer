@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 393,
+    description: 'v393: [动态内存配置服务+消除硬编码内存阈值+内存保护自适应] — (1)新建systemConfigService,通过v8.getHeapStatistics()动态获取Node.js堆内存上限 (2)修复unifiedSyncEngine中heapUtilization硬编码1400MB的致命错误,改为动态计算 (3)dataSyncScheduler内存保护阈值从硬编码(1200/900MB)改为动态计算(基于堆内存上限的105%/80%) (4)_core/index.ts健康检查阈值从硬编码1400MB改为动态获取',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 392,
     description: 'v392: [系统资源监控+DB连接池扩容+前端组件级代码分割] — (1)添加/api/monitoring/system-resources端点,实时监控CPU/内存/DB连接数/事件循环延迟 (2)DB_POOL_SIZE从40增加到60,提升多租户并发能力 (3)Dashboard图表区域提取为DashboardCharts懒加载组件,减少首屏bundle大小 (4)系统健康页面新增系统资源监控标签页',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
