@@ -88,5 +88,5 @@ tsconfig.json
 vite.config.ts
 vite.build.config.ts
 build-server.js
-# Development dependencies
-package-lock.json
+# v395: package-lock.json must NOT be excluded - npm needs it for deployment
+# package-lock.json
