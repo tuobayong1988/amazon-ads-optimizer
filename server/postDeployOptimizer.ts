@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 396,
+    description: 'v396: [否定词同步campaignType安全过滤] — (1)P1-optimizationSyncEngine否定词同步增加campaignType过滤,SB/SD类型campaign自动跳过SP否定词API,避免"parent program type must be Sponsored Products"错误和无限重试 (2)P1-automationExecutionEngine否定词同步同样增加campaignType检查,SB/SD类型记录优化日志但不调用API (3)修复否定词回填时同时获取campaignType字段',
+    affectedModules: ['keyword', 'searchterm'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 395,
     description: 'v395: [搜索词数据精准性修复+SUMMARY聚合+500租户同步吞吐量提升] — (1)P0-搜索词同步从INSERT改为ON DUPLICATE KEY UPDATE,消除每次同步产生的重复数据 (2)P0-SB搜索词同样改为批量UPSERT,消除逐条查询的N+1性能问题 (3)P0-关键词绩效SUMMARY模式分批数据按targetId聚合累加,修复后一批覆盖前一批的数据丢失问题 (4)P0-广告组绩效fetchBatchedReport添加groupByKey参数,SP/SB/SD广告组报告分批聚合 (5)P1-500租户同步吞吐量提升80%:高频50→80,中频80→120,全量100→200 (6)P1-汇率调用从循环内移到循环外预加载,消除每条记录的async开销 (7)搜索词表添加唯一约束迁移,自动清理历史重复数据',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

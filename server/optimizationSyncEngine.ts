@@ -894,17 +894,32 @@ async function executeBatchByType(
     
     case 'negative_keyword': {
       // v189: 否定词批量创建 - 增强自动回填Amazon campaignId
-      // 先尝试回填缺少的campaign_id
+      // v395: P1修复 — 同时获取campaignType，过滤掉SB/SD类型（SP API不支持）
+      // 先尝试回填缺少的campaign_id，并获取campaignType
       for (const t of (batch as any[])) {
         if (!t.campaign_id && t.target_entity_id) {
           try {
             const [rows] = await conn.execute(
-              'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
+              'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
               [t.target_entity_id]
             ) as any[];
             if (rows.length > 0 && rows[0].campaignId) {
               t.campaign_id = rows[0].campaignId;
               t.amazon_entity_id = rows[0].campaignId;
+              t._campaignType = rows[0].campaignType || 'sp_manual';
+            }
+          } catch (lookupErr: unknown) {
+            // 忽略查找失败
+          }
+        } else if (t.campaign_id && !t._campaignType) {
+          // v395: 已有campaign_id但缺少campaignType，尝试查询
+          try {
+            const [rows] = await conn.execute(
+              'SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1',
+              [t.campaign_id]
+            ) as any[];
+            if (rows.length > 0) {
+              t._campaignType = rows[0].campaignType || 'sp_manual';
             }
           } catch (lookupErr: unknown) {
             // 忽略查找失败
@@ -912,8 +927,25 @@ async function executeBatchByType(
         }
       }
       
-      const validTasks = batch.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
-      const invalidTasks = batch.filter((t: Record<string, any>) => !t.campaign_id && !t.amazon_entity_id);
+      // v395: 过滤掉SB/SD类型的campaign（SP否定词API不支持SB/SD）
+      const spTasks = (batch as any[]).filter((t: Record<string, any>) => {
+        const cType = (t._campaignType || 'sp_manual').toLowerCase();
+        return cType.startsWith('sp') || cType === '' || !t._campaignType;
+      });
+      const nonSpTasks = (batch as any[]).filter((t: Record<string, any>) => {
+        const cType = (t._campaignType || '').toLowerCase();
+        return cType === 'sb' || cType === 'sd';
+      });
+      
+      // v395: SB/SD任务直接标记为skipped（这些类型不支持通过SP API创建否定词）
+      for (const t of nonSpTasks) {
+        await markTaskFailed(conn, t.id, `v395: 跳过非SP类型campaign (${t._campaignType})，SP否定词API不支持SB/SD`);
+        result.skipped = (result.skipped || 0) + 1;
+        log.info(`[SyncEngine] v395: 跳过SB/SD否定词: campaign_type=${t._campaignType}, keyword=${t.target_entity_name}`);
+      }
+      
+      const validTasks = spTasks.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
+      const invalidTasks = spTasks.filter((t: Record<string, any>) => !t.campaign_id && !t.amazon_entity_id);
       
       // 标记无法处理的任务
       for (const t of invalidTasks) {

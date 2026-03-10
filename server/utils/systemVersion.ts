@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 395;  // v395: 搜索词UPSERT去重、SUMMARY模式分批聚合、500租户同步吞吐量提升、汇率预加载优化
+export const SYSTEM_VERSION = 396;  // v396: 否定词同步campaignType过滤（SB/SD跳过SP API）、优化同步引擎类型安全

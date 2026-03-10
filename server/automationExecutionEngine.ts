@@ -793,9 +793,10 @@ export async function executeOptimization(
 
       case 'negative_keyword': {
         // ✅ v266 P0-1: 否定关键词添加 - 直接通过Amazon API同步
-        // 修复: 之前错误地假设"已在searchTermHarvester中处理"，实际上通过automationEngine路径的否定词从未调用API
+        // 修复: 之前错误地假设“已在searchTermHarvester中处理”，实际上通过automationEngine路径的否定词从未调用API
         let negApiSuccess = false;
         let negCampaignId: string | number = '';
+        let negCampaignType = 'sp_manual';  // v395: 跟踪campaign类型
         
         // 获取关键词信息以确定campaign
         const negKeyword = await db.getKeywordById(targetId);
@@ -809,7 +810,34 @@ export async function executeOptimization(
             if (negCampaign?.accountId) {
               negAccountId = negCampaign.accountId;
             }
+            // v395: 获取campaign类型，用于判断是否支持SP否定词API
+            if (negCampaign?.campaignType) {
+              negCampaignType = negCampaign.campaignType;
+            }
           }
+        }
+        
+        // v395: P1修复 — SB/SD类型的campaign不支持通过SP API创建否定词
+        const negCTypeNorm = negCampaignType.toLowerCase();
+        if (negCTypeNorm === 'sb' || negCTypeNorm === 'sd') {
+          log.info(`[AutoExec] v395: 跳过SB/SD否定词: campaign_type=${negCampaignType}, keyword="${targetName}"`);
+          // 记录优化日志但不调用API
+          await db.createOptimizationLog({
+            performanceGroupId: performanceGroupId || 0,
+            performanceGroupName: performanceGroupName || '',
+            accountId,
+            accountName: accountName || '',
+            logCategory: 'negative_keyword',
+            actionType: 'negative_keyword_add',
+            targetEntityType: 'keyword',
+            targetEntityId: targetId,
+            targetEntityName: targetName || '',
+            previousValue: '',
+            newValue: `跳过: ${negCampaignType}类型不支持SP否定词API`,
+            reason: `v395: SB/SD campaign不支持通过SP否定词API同步`,
+            apiSyncStatus: 'not_applicable',
+          });
+          break;
         }
         
         // 确定否定匹配类型: 单词/双词用negativePhrase，多词用negativeExact
