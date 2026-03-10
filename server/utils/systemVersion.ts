@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 377;  // v377: 全面多租户数据隔离强化(algorithm/placement/performanceGroup/intelligentRecommendation等路由权限校验)
+export const SYSTEM_VERSION = 378;  // v378: 修复AutoOptimizationDashboard和AmazonApiAuthStatus的trpc调用方式(vanilla→react-query hooks)

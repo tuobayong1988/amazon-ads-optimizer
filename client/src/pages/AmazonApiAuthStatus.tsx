@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { safeToLocaleString } from "@/lib/safeDate";
-import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,33 +21,26 @@ interface ApiAuthStatus {
   refreshUrl?: string;
 }
 
-interface ApiAuthStatusSummary {
-  totalAccounts: number;
-  activeAccounts: number;
-  expiredAccounts: number;
-  expiringAccounts: number;
-  accounts: ApiAuthStatus[];
-}
-
 export default function AmazonApiAuthStatus() {
   const [refreshing, setRefreshing] = useState<number | null>(null);
 
-  // 获取所有账号的API授权状态
-  const { data: summary, isLoading, refetch } = useQuery({
-    queryKey: ['amazon-api-auth-status'],
-    queryFn: async () => {
-      const response = await (trpc as any).amazonApi.getAllAuthStatus.query();
-      return response as ApiAuthStatusSummary;
+  // v378: 修复trpc调用方式 — 使用正确的react-query hooks
+  const { data: summary, isLoading, refetch } = trpc.amazonApi.getAllAuthStatus.useQuery(
+    undefined,
+    { refetchInterval: 60000 }
+  );
+
+  // v378: 使用useMutation替代直接mutate调用
+  const refreshTokenMutation = trpc.amazonApi.refreshToken.useMutation({
+    onSuccess: () => {
+      refetch();
     },
-    refetchInterval: 60000, // 每分钟刷新一次
   });
 
   const handleRefreshToken = async (accountId: number) => {
     setRefreshing(accountId);
     try {
-      await (trpc as any).amazonApi.refreshToken.mutate({ accountId });
-      // 刷新数据
-      await refetch();
+      await refreshTokenMutation.mutateAsync({ accountId });
     } catch (error) {
       console.error('Failed to refresh token:', error);
     } finally {
@@ -95,6 +87,8 @@ export default function AmazonApiAuthStatus() {
     return '授权状态未知';
   };
 
+  const safeSummary = summary as any;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -120,7 +114,7 @@ export default function AmazonApiAuthStatus() {
             <CardTitle className="text-sm font-medium">总账号数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary?.totalAccounts || 0}</div>
+            <div className="text-2xl font-bold">{safeSummary?.totalAccounts || 0}</div>
           </CardContent>
         </Card>
 
@@ -129,7 +123,7 @@ export default function AmazonApiAuthStatus() {
             <CardTitle className="text-sm font-medium text-green-600">已授权</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{summary?.activeAccounts || 0}</div>
+            <div className="text-2xl font-bold text-green-600">{safeSummary?.activeAccounts || 0}</div>
           </CardContent>
         </Card>
 
@@ -138,7 +132,7 @@ export default function AmazonApiAuthStatus() {
             <CardTitle className="text-sm font-medium text-yellow-600">即将过期</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{summary?.expiringAccounts || 0}</div>
+            <div className="text-2xl font-bold text-yellow-600">{safeSummary?.expiringAccounts || 0}</div>
           </CardContent>
         </Card>
 
@@ -147,26 +141,26 @@ export default function AmazonApiAuthStatus() {
             <CardTitle className="text-sm font-medium text-red-600">已过期</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{summary?.expiredAccounts || 0}</div>
+            <div className="text-2xl font-bold text-red-600">{safeSummary?.expiredAccounts || 0}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* 警告信息 */}
-      {summary && summary.expiredAccounts > 0 && (
+      {safeSummary && safeSummary.expiredAccounts > 0 && (
         <Alert className="border-red-200 bg-red-50">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-800">
-            有{summary.expiredAccounts}个账号的API Token已过期，请立即重新授权以恢复数据同步功能
+            有{safeSummary.expiredAccounts}个账号的API Token已过期，请立即重新授权以恢复数据同步功能
           </AlertDescription>
         </Alert>
       )}
 
-      {summary && summary.expiringAccounts > 0 && (
+      {safeSummary && safeSummary.expiringAccounts > 0 && (
         <Alert className="border-yellow-200 bg-yellow-50">
           <Clock className="h-4 w-4 text-yellow-600" />
           <AlertDescription className="text-yellow-800">
-            有{summary.expiringAccounts}个账号的API Token即将过期，建议提前重新授权
+            有{safeSummary.expiringAccounts}个账号的API Token即将过期，建议提前重新授权
           </AlertDescription>
         </Alert>
       )}
@@ -179,11 +173,11 @@ export default function AmazonApiAuthStatus() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {summary?.accounts && summary.accounts.length > 0 ? (
-              summary.accounts.map((account: any) => (
+            {safeSummary?.accounts && safeSummary.accounts.length > 0 ? (
+              safeSummary.accounts.map((account: any) => (
                 <div
                   key={account.accountId}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"
                 >
                   <div className="flex items-center gap-4 flex-1">
                     {getStatusIcon(account.status)}

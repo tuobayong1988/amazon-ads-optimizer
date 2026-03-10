@@ -1,86 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 
-interface OptimizationAction {
-  id: number;
-  campaignId: number;
-  campaignName: string;
-  actionType: 'bid_adjustment' | 'budget_adjustment' | 'keyword_pause' | 'keyword_enable' | 'negative_keyword_add';
-  actionDescription: string;
-  previousValue?: string;
-  newValue?: string;
-  expectedImpact: 'increase' | 'decrease' | 'neutral';
-  expectedImpactPercent: number;
-  status: 'pending' | 'executing' | 'completed' | 'failed';
-  createdAt: string;
-  completedAt?: string;
-  result?: {
-    actualImpactPercent: number;
-    metricsChanged: Record<string, number>;
-  };
-}
-
-interface OptimizationMetrics {
-  totalActionsToday: number;
-  completedActions: number;
-  failedActions: number;
-  pendingActions: number;
-  totalROIImprovement: number;
-  totalCostSavings: number;
-  averageActionDuration: number;
-  successRate: number;
-}
-
-interface OptimizationTrend {
-  date: string;
-  actions: number;
-  roiImprovement: number;
-  costSavings: number;
-}
-
 export default function AutoOptimizationDashboard() {
-  // 获取优化指标
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['optimization-metrics'],
-    queryFn: async () => {
-      const response = await (trpc as any).optimization.getMetrics.query();
-      return response as OptimizationMetrics;
-    },
-    refetchInterval: 30000, // 每30秒刷新一次
-  });
+  // v378: 修复trpc调用方式 — 使用正确的react-query hooks而非vanilla client
+  const { data: metrics, isLoading: metricsLoading } = trpc.optimization.getMetrics.useQuery(
+    undefined,
+    { refetchInterval: 30000 }
+  );
 
-  // 获取最近的优化动作
-  const { data: recentActions, isLoading: actionsLoading } = useQuery({
-    queryKey: ['recent-optimization-actions'],
-    queryFn: async () => {
-      const response = await (trpc as any).optimization.getRecentActions.query({ limit: 10 });
-      return response as OptimizationAction[];
-    },
-    refetchInterval: 30000,
-  });
+  const { data: recentActions, isLoading: actionsLoading } = trpc.optimization.getRecentActions.useQuery(
+    { limit: 10 },
+    { refetchInterval: 30000 }
+  );
 
-  // 获取优化趋势
-  const { data: trends, isLoading: trendsLoading } = useQuery({
-    queryKey: ['optimization-trends'],
-    queryFn: async () => {
-      const response = await (trpc as any).optimization.getTrends.query({ days: 7 });
-      return response as OptimizationTrend[];
-    },
-  });
+  const { data: trends, isLoading: trendsLoading } = trpc.optimization.getTrends.useQuery(
+    { days: 7 }
+  );
 
   const getActionTypeLabel = (type: string): string => {
     const labels: Record<string, string> = {
       bid_adjustment: '出价调整',
+      bid_increase: '出价上调',
+      bid_decrease: '出价下调',
       budget_adjustment: '预算调整',
       keyword_pause: '暂停关键词',
       keyword_enable: '启用关键词',
       negative_keyword_add: '添加否定词',
+      placement_adjust: '位置调整',
+      dayparting_bid: '分时竞价',
+      search_term_harvest: '搜索词收割',
     };
     return labels[type] || type;
   };
@@ -128,6 +81,10 @@ export default function AutoOptimizationDashboard() {
     );
   }
 
+  const safeMetrics = metrics as any;
+  const safeActions = (recentActions || []) as any[];
+  const safeTrends = (trends || []) as any[];
+
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -142,9 +99,9 @@ export default function AutoOptimizationDashboard() {
             <CardTitle className="text-sm font-medium">今日优化动作</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics?.totalActionsToday || 0}</div>
+            <div className="text-2xl font-bold">{safeMetrics?.totalActionsToday || 0}</div>
             <p className="text-xs text-gray-600 mt-1">
-              成功: {metrics?.completedActions || 0} | 失败: {metrics?.failedActions || 0}
+              成功: {safeMetrics?.completedActions || 0} | 失败: {safeMetrics?.failedActions || 0}
             </p>
           </CardContent>
         </Card>
@@ -157,7 +114,7 @@ export default function AutoOptimizationDashboard() {
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
               <div className="text-2xl font-bold text-green-600">
-                {metrics?.totalROIImprovement.toFixed(1) || 0}%
+                {(safeMetrics?.totalROIImprovement || 0).toFixed(1)}%
               </div>
             </div>
             <p className="text-xs text-gray-600 mt-1">相比优化前</p>
@@ -172,7 +129,7 @@ export default function AutoOptimizationDashboard() {
             <div className="flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-blue-600" />
               <div className="text-2xl font-bold text-blue-600">
-                ¥{(metrics?.totalCostSavings || 0).toLocaleString('zh-CN')}
+                ¥{(safeMetrics?.totalCostSavings || 0).toLocaleString('zh-CN')}
               </div>
             </div>
             <p className="text-xs text-gray-600 mt-1">总计节省</p>
@@ -185,7 +142,7 @@ export default function AutoOptimizationDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {metrics?.successRate.toFixed(1) || 0}%
+              {(safeMetrics?.successRate || 0).toFixed(1)}%
             </div>
             <p className="text-xs text-gray-600 mt-1">平均执行成功率</p>
           </CardContent>
@@ -193,7 +150,7 @@ export default function AutoOptimizationDashboard() {
       </div>
 
       {/* 优化趋势图表 */}
-      {trends && trends.length > 0 && (
+      {safeTrends.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>优化趋势（近7天）</CardTitle>
@@ -201,7 +158,7 @@ export default function AutoOptimizationDashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={trends}>
+              <LineChart data={safeTrends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis yAxisId="left" />
@@ -236,16 +193,16 @@ export default function AutoOptimizationDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {recentActions && recentActions.length > 0 ? (
-              recentActions.map((action: any) => (
+            {safeActions.length > 0 ? (
+              safeActions.map((action: any) => (
                 <div
                   key={action.id}
-                  className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                  className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50/5 transition"
                 >
                   <div className="flex items-start gap-4 flex-1">
                     {getStatusIcon(action.status)}
                     <div className="flex-1">
-                      <div className="font-semibold">{action.campaignName}</div>
+                      <div className="font-semibold">{action.campaignName || `广告活动 #${action.campaignId}`}</div>
                       <div className="text-sm text-gray-600 mt-1">
                         {getActionTypeLabel(action.actionType)}: {action.actionDescription}
                       </div>
@@ -255,25 +212,12 @@ export default function AutoOptimizationDashboard() {
                         </div>
                       )}
                       <div className="text-xs text-gray-500 mt-1">
-                        {new Date(action.createdAt).toLocaleString('zh-CN')}
+                        {action.createdAt ? new Date(action.createdAt).toLocaleString('zh-CN') : ''}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-sm font-semibold">
-                        {action.expectedImpactPercent > 0 ? '+' : ''}
-                        {action.expectedImpactPercent}%
-                      </div>
-                      <div className="text-xs text-gray-600">预期效果</div>
-                      {action.result && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          实际: {action.result.actualImpactPercent > 0 ? '+' : ''}
-                          {action.result.actualImpactPercent}%
-                        </div>
-                      )}
-                    </div>
                     {getStatusBadge(action.status)}
                   </div>
                 </div>
@@ -294,23 +238,23 @@ export default function AutoOptimizationDashboard() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {metrics && metrics.pendingActions > 0 && (
+            {safeMetrics && safeMetrics.pendingActions > 0 && (
               <Alert>
                 <Clock className="h-4 w-4" />
                 <AlertDescription>
-                  有{metrics.pendingActions}个待执行的优化动作，系统将在下一个执行周期自动处理
+                  有{safeMetrics.pendingActions}个待执行的优化动作，系统将在下一个执行周期自动处理
                 </AlertDescription>
               </Alert>
             )}
-            {metrics && metrics.failedActions > 0 && (
+            {safeMetrics && safeMetrics.failedActions > 0 && (
               <Alert className="border-yellow-200 bg-yellow-50">
                 <AlertCircle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="text-yellow-800">
-                  有{metrics.failedActions}个优化动作执行失败，请检查相关账号的API授权状态
+                  有{safeMetrics.failedActions}个优化动作执行失败，请检查相关账号的API授权状态
                 </AlertDescription>
               </Alert>
             )}
-            {metrics && metrics.successRate < 80 && (
+            {safeMetrics && safeMetrics.successRate < 80 && safeMetrics.totalActionsToday > 0 && (
               <Alert className="border-orange-200 bg-orange-50">
                 <AlertCircle className="h-4 w-4 text-orange-600" />
                 <AlertDescription className="text-orange-800">
@@ -318,7 +262,7 @@ export default function AutoOptimizationDashboard() {
                 </AlertDescription>
               </Alert>
             )}
-            {metrics && metrics.successRate >= 80 && metrics.failedActions === 0 && (
+            {safeMetrics && (safeMetrics.successRate >= 80 || safeMetrics.totalActionsToday === 0) && safeMetrics.failedActions === 0 && (
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-800">

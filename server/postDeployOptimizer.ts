@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 378,
+    description: 'v378: [修复自动优化仪表盘和API授权状态页面] — (1)P0-AutoOptimizationDashboard.tsx: 修复trpc调用方式从tRPC vanilla client改为react-query hooks(getMetrics/getRecentActions/getTrends三个查询全部修复),解决"t[i] is not a function"错误导致仪表盘显示全部0的问题 (2)P1-AmazonApiAuthStatus.tsx: 修复trpc调用方式(getAllAuthStatus.query→useQuery, refreshToken.mutate→useMutation),解决API授权状态页面无法加载数据的问题',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 377,
     description: 'v377: [全面多租户数据隔离强化] — (1)P1-algorithm路由数据隔离:7个方法添加verifyAccountAccess校验,包括getPerformance/analyzeByType/analyzeByRange/getSuggestions/getParameterTuning/runAutoCorrection (2)P1-placement路由数据隔离:33个方法添加verifyAccountAccess校验,覆盖所有位置优化、边际收益分析、决策树等功能 (3)P1-performanceGroup路由数据隔离:list和create方法添加verifyAccountAccess,assignCampaign/batchAssignCampaigns添加verifyPerformanceGroupAccess (4)P1-intelligentRecommendation路由数据隔离:scan/quickCreateGoal/getSummaryBadge添加verifyAccountAccess (5)P1-adAutomation/analytics/automation/bidding/dailySync/dayparting/specialScenario/nextGen路由数据隔离强化',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
