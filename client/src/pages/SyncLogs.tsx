@@ -46,9 +46,6 @@ const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const pageSize = 50;
-
-  // v399: accounts 已由 useGlobalAccountId Hook 提供，无需重复查询
-
   // 获取同步历史记录
   const { data: syncHistoryData, isLoading: logsLoading, refetch: refetchLogs } = trpc.amazonApi.getSyncHistory.useQuery(
     { accountId: selectedAccountId! },

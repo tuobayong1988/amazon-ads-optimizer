@@ -584,7 +584,7 @@ export default function Campaigns() {
   }, [visibleColumns]);
 
   // Fetch accounts
-  // v399: accounts 已由 useGlobalAccountId Hook 提供
+  const { data: accounts } = trpc.adAccount.list.useQuery();
   
   // 使用GlobalAccountSelector的选择查找对应的accountId
   const accountId = useMemo(() => {

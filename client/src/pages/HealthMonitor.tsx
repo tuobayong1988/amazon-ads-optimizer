@@ -34,12 +34,12 @@ import { toast } from "sonner";
 import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function HealthMonitor() {
   // v399: 使用全局店铺选择器
-  const { accountId: _globalAccountId, accounts: _accounts, isLoading: _accountsLoading } = useGlobalAccountId();
+  const { accountId: _globalAccountId, accounts, isLoading: _accountsLoading } = useGlobalAccountId();
   const selectedAccountId = _globalAccountId || 1;
   const [activeTab, setActiveTab] = useState("overview");
 
   // 获取广告账号列表
-  const accountsQuery = { data: accounts }; // v399: 使用全局Hook提供的accounts
+  const accountsQuery = { data: accounts };
 
   // v399: 全局选择器自动处理账户切换
   

@@ -45,8 +45,6 @@ const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // 获取用户的所有账户
-  // v399: accounts 已由 useGlobalAccountId Hook 提供，无需重复查询
-
   // 获取本地数据统计
   const { data: localStats, refetch: refetchLocalStats } = trpc.amazonApi.getLocalDataStats.useQuery(
     { accountId: selectedAccountId! },

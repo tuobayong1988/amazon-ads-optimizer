@@ -364,7 +364,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // 首次登录引导
   const { showOnboarding, completeOnboarding, skipOnboarding, pauseOnboarding, savedProgress } = useOnboarding();
 
-  // Fetch accounts
+  // Fetch accounts - v399: accounts 已由 useGlobalAccountId Hook 提供
   // Use first account if none selected
   // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
   const accountId = selectedAccountId;

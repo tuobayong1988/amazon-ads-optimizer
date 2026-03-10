@@ -62,7 +62,6 @@ export default function CorrectionReview() {
 const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
     accountId: selectedAccountId || undefined,
   });
-
   const { data: sessionDetails } = trpc.correction.getSession.useQuery(
     { id: selectedSession! },
     { enabled: !!selectedSession }

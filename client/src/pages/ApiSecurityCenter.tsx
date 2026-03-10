@@ -42,6 +42,8 @@ export default function ApiSecurityCenter() {
   
   // 获取账号列表
   // 获取操作日志
+  const { data: accounts } = trpc.adAccount.list.useQuery();
+
   const { data: operationLogs, refetch: refetchLogs } = trpc.apiSecurity.getOperationLogs.useQuery({
     accountId: selectedAccountId,
     limit: 50,
