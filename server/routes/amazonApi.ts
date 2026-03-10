@@ -63,7 +63,7 @@ export const amazonApiRouter = router({
       redirectUri: z.string().optional(),
       region: z.enum(['NA', 'EU', 'FE']).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       try {
         // 使用服务器端环境变量作为默认值，确保紫鸟浏览器手动授权流程能正常工作
         const clientId = input.clientId || process.env.AMAZON_ADS_CLIENT_ID || '';
@@ -603,7 +603,7 @@ export const amazonApiRouter = router({
   // Get API credentials status
   getCredentialsStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         return {
@@ -637,7 +637,7 @@ export const amazonApiRouter = router({
   // Check Token health and expiration status
   checkTokenHealth: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         return {
@@ -781,7 +781,7 @@ export const amazonApiRouter = router({
   // Get available profiles
   getProfiles: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         throw new TRPCError({
@@ -1397,7 +1397,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       limit: z.number().optional().default(20),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncHistory(input.accountId, input.limit);
     }),
 
@@ -1410,21 +1410,21 @@ export const amazonApiRouter = router({
   // 获取账户正在进行的同步任务
   getAccountActiveSyncJob: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getAccountActiveSyncJob(input.accountId);
     }),
 
   // 获取同步任务详情
   getSyncJobDetail: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncJob(input.jobId);
     }),
 
   // 根据jobId获取同步任务状态（用于轮询）
   getSyncJobById: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const job = await db.getSyncJob(input.jobId);
       if (!job) {
         throw new TRPCError({
@@ -1454,28 +1454,28 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncStats(input.accountId, input.days);
     }),
 
   // 获取上次成功同步的数据统计
   getLastSyncData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getLastSyncData(input.accountId);
     }),
 
   // 获取本地数据统计
   getLocalDataStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getLocalDataStats(input.accountId);
     }),
 
   // 数据校验 - 对比本地数据与亚马逊后台数据
   validateData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       // 获取本地数据统计
       const localStats = await db.getLocalDataStats(input.accountId);
       
@@ -1496,7 +1496,7 @@ export const amazonApiRouter = router({
   // 获取同步任务日志
   getSyncLogs: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncLogs(input.jobId);
     }),
 
@@ -1506,14 +1506,14 @@ export const amazonApiRouter = router({
       syncJobId: z.number(),
       entityType: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncChangeRecords(input.syncJobId, input.entityType);
     }),
 
   // 获取同步变更摘要
   getSyncChangeSummary: protectedProcedure
     .input(z.object({ syncJobId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncChangeSummary(input.syncJobId);
     }),
 
@@ -1523,14 +1523,14 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       status: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getSyncConflicts(input.accountId, input.status);
     }),
 
   // 获取待处理冲突数量
   getPendingConflictsCount: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getPendingConflictsCount(input.accountId);
     }),
 
@@ -1668,7 +1668,7 @@ export const amazonApiRouter = router({
   // 取消同步任务
   cancelSyncTask: protectedProcedure
     .input(z.object({ taskId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return db.cancelSyncTask(input.taskId);
     }),
 
@@ -1925,7 +1925,7 @@ export const amazonApiRouter = router({
   // 获取双轨制同步状态
   getDualTrackStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getDualTrackStatus } = await import('../services/dualTrackSyncService');
       return getDualTrackStatus(input.accountId);
     }),
@@ -1933,7 +1933,7 @@ export const amazonApiRouter = router({
   // 获取数据源统计
   getDataSourceStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getDataSourceStats } = await import('../services/dualTrackSyncService');
       return getDataSourceStats(input.accountId);
     }),
@@ -1945,7 +1945,7 @@ export const amazonApiRouter = router({
       startDate: z.string(),
       endDate: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { runConsistencyCheck } = await import('../services/dualTrackSyncService');
       return runConsistencyCheck(input.accountId, input.startDate, input.endDate);
     }),
@@ -1958,7 +1958,7 @@ export const amazonApiRouter = router({
       endDate: z.string(),
       priority: z.enum(['realtime', 'historical', 'reporting']).optional().default('historical'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getMergedPerformanceData } = await import('../services/dualTrackSyncService');
       return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
     }),
@@ -1973,7 +1973,7 @@ export const amazonApiRouter = router({
       includeToday: z.boolean().optional(),
       campaignIds: z.array(z.string()).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getSmartMergedData } = await import('../services/enhancedDualTrackService');
       return getSmartMergedData(input.accountId, input.startDate, input.endDate, {
         purpose: input.purpose,
@@ -1990,7 +1990,7 @@ export const amazonApiRouter = router({
       endDate: z.string(),
       granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getTimelineAggregatedData } = await import('../services/enhancedDualTrackService');
       return getTimelineAggregatedData(input.accountId, input.startDate, input.endDate, input.granularity);
     }),
@@ -1998,7 +1998,7 @@ export const amazonApiRouter = router({
   // 获取实时仪表盘数据（区分可信/不可信字段）
   getRealtimeDashboardData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getRealtimeDashboardData } = await import('../services/enhancedDualTrackService');
       return getRealtimeDashboardData(input.accountId);
     }),
@@ -2009,7 +2009,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       date: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { checkAndBackfillData } = await import('../services/enhancedDualTrackService');
       return checkAndBackfillData(input.accountId, input.date);
     }),
@@ -2019,7 +2019,7 @@ export const amazonApiRouter = router({
   // 获取AMS订阅列表
   listAmsSubscriptions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       try {
         // 获取账号凭证
         const account = await db.getAdAccountById(input.accountId);
@@ -2056,7 +2056,7 @@ export const amazonApiRouter = router({
       dataSetId: z.enum(['sp-traffic', 'sb-traffic', 'sd-traffic', 'sp-conversion', 'sp-budget-usage', 'sb-budget-usage', 'sd-budget-usage']),
       notes: z.string().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
         if (!account) {
@@ -2103,7 +2103,7 @@ export const amazonApiRouter = router({
   // 批量创建快车道订阅（全部 9 个数据集: traffic/conversion/budget-usage 各 3 个）
   createAllTrafficSubscriptions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
         if (!account) {
@@ -2211,7 +2211,7 @@ export const amazonApiRouter = router({
       accountId: z.number(),
       subscriptionId: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       try {
         const account = await db.getAdAccountById(input.accountId);
         if (!account) {

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 381;  // v381: 严格对齐Amazon后台层级结构 - Campaign/AdGroup详情页面重构+ID混淆修复
+export const SYSTEM_VERSION = 382;  // v382: 三阶段同步策略(init/daily/recovery) - 日常同步仅14天归因期数据，API调用量减少80%

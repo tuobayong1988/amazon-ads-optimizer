@@ -154,7 +154,7 @@ export async function initializeAccount(params: {
     );
 
     // v360: 第一轮同步 - 异步执行，完成后启动后续轮次调度
-    syncService.syncAll().then(async (syncData) => {
+    syncService.syncAll({ syncMode: 'init' }).then(async (syncData) => {
       log.info(`[v360] 账号 ${accountId} (${marketplace}) 第1轮全量同步完成:`, syncData);
       await db.updateAmazonApiCredentialsLastSync(accountId);
       
@@ -415,7 +415,7 @@ function scheduleSubsequentRounds(
           marketplace
         );
 
-        const syncData = await syncService.syncAll();
+        const syncData = await syncService.syncAll({ syncMode: 'init' });
         log.info(`[v360] 账号 ${accountId} 第${roundNum}轮全量同步完成:`, syncData);
         await db.updateAmazonApiCredentialsLastSync(accountId);
         await recordSyncRound(accountId, roundNum, true);
@@ -434,7 +434,7 @@ function scheduleSubsequentRounds(
             userId,
             marketplace
           );
-          const retryData = await syncService.syncAll();
+          const retryData = await syncService.syncAll({ syncMode: 'init' });
           log.info(`[v360] 账号 ${accountId} 第${roundNum}轮重试成功:`, retryData);
           await recordSyncRound(accountId, roundNum, true);
         } catch (retryErr) {

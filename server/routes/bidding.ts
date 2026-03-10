@@ -57,7 +57,7 @@ export const biddingLogRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const result = await db.getOptimizationEvents({
         campaignId: input.campaignId,
         eventCategory: 'bid_adjustment',
@@ -79,7 +79,7 @@ export const biddingLogRouter = router({
       endDate: z.string().optional(),
       eventCategory: z.string().optional(),  // 允许查询所有类别的事件
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const result = await db.getOptimizationEvents({
         performanceGroupId: input.performanceGroupId,
         eventCategory: input.eventCategory || undefined,  // 不传则获取所有类别

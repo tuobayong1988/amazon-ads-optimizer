@@ -394,7 +394,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const validation = adAutomation.validateNegativeKeywordBatch(input.items);
       
       let successCount = 0;
@@ -437,7 +437,7 @@ export const adAutomationRouter = router({
         reason: z.string(),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const validation = adAutomation.validateBidAdjustmentBatch(input.items);
       
       let successCount = 0;

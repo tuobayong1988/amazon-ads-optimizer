@@ -5,6 +5,7 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { verifyAccountAccess } from '../utils/accessControl';
 import * as intelligentBudgetAllocationService from '../intelligentBudgetAllocationService';
 import * as budgetAutoExecutionService from '../budgetAutoExecutionService';
 import * as budgetAlertService from "../budgetAlertService";
@@ -136,7 +137,8 @@ export const budgetAllocationRouter = router({
       totalBudget: z.number().optional(),
       status: z.enum(["active", "paused", "completed", "expired"]).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离 - 验证goalId归属权
       const { updateBudgetGoal } = await import("../budgetAllocationService");
       await updateBudgetGoal(input.goalId, {
         targetValue: input.targetValue,
@@ -151,7 +153,8 @@ export const budgetAllocationRouter = router({
     .input(z.object({
       goalId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const { deleteBudgetGoal } = await import("../budgetAllocationService");
       await deleteBudgetGoal(input.goalId);
       return { success: true };
@@ -238,14 +241,16 @@ export const budgetTrackingRouter = router({
   // 获取追踪详情
   getTrackingDetail: protectedProcedure
     .input(z.object({ trackingId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return budgetTrackingService.getTrackingReport(input.trackingId);
     }),
 
   // 生成效果报告
   generateReport: protectedProcedure
     .input(z.object({ trackingId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return budgetTrackingService.updateTrackingMetrics(input.trackingId);
     }),
 });
@@ -283,7 +288,7 @@ export const seasonalBudgetRouter = router({
   // 获取即将到来的促销活动
   getUpcomingEvents: protectedProcedure
     .input(z.object({ marketplace: z.string().optional() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return seasonalBudgetService.getPromotionalEvents({ marketplace: input.marketplace, isActive: true });
     }),
 
@@ -329,7 +334,8 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离 - 通过performanceGroupId验证
       return intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
         input.performanceGroupId
       );
@@ -340,7 +346,8 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return intelligentBudgetAllocationService.getBudgetAllocationConfig(
         input.performanceGroupId
       );
@@ -377,7 +384,8 @@ export const intelligentBudgetAllocationRouter = router({
       campaignId: z.number(),
       newBudget: z.number()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const campaigns = await intelligentBudgetAllocationService.collectCampaignPerformanceData(
         input.performanceGroupId
       );
@@ -408,7 +416,8 @@ export const intelligentBudgetAllocationRouter = router({
     .input(z.object({
       performanceGroupId: z.number()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return intelligentBudgetAllocationService.collectCampaignPerformanceData(
         input.performanceGroupId
       );
@@ -461,7 +470,8 @@ export const budgetAutoExecutionRouter = router({
       notifyOnExecution: z.boolean().optional(),
       notifyOnError: z.boolean().optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const { configId, ...updates } = input;
       await budgetAutoExecutionService.updateAutoExecutionConfig(configId, updates);
       return { success: true };
@@ -470,7 +480,8 @@ export const budgetAutoExecutionRouter = router({
   // 删除自动执行配置
   deleteConfig: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       await budgetAutoExecutionService.deleteAutoExecutionConfig(input.configId);
       return { success: true };
     }),
@@ -478,21 +489,25 @@ export const budgetAutoExecutionRouter = router({
   // 获取自动执行配置列表
   listConfigs: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return budgetAutoExecutionService.getAutoExecutionConfigs(input.accountId);
     }),
   
   // 获取单个配置
   getConfig: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return budgetAutoExecutionService.getAutoExecutionConfigById(input.configId);
     }),
   
   // 手动触发执行
   triggerExecution: protectedProcedure
     .input(z.object({ configId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return budgetAutoExecutionService.triggerManualExecution(input.configId);
     }),
   
@@ -502,7 +517,9 @@ export const budgetAutoExecutionRouter = router({
       accountId: z.number(),
       limit: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
+      if (input.accountId) await verifyAccountAccess(ctx.user.id, input.accountId);
       return budgetAutoExecutionService.getExecutionHistory(
         input.accountId,
         input.limit
@@ -512,7 +529,8 @@ export const budgetAutoExecutionRouter = router({
   // 获取执行详情
   getExecutionDetails: protectedProcedure
     .input(z.object({ executionId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       return budgetAutoExecutionService.getExecutionDetails(input.executionId);
     }),
   

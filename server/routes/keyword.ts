@@ -77,7 +77,8 @@ export const keywordRouter = router({
       bid: z.string().optional(),
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const { id, ...data } = input;
       await db.updateKeyword(id, data);
       return { success: true };
@@ -214,7 +215,8 @@ export const keywordRouter = router({
       ids: z.array(z.number()),
       status: z.enum(["enabled", "paused"]),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       // v159: 先更新本地数据库
       let updated = 0;
       for (const id of input.ids) {
@@ -359,7 +361,8 @@ export const keywordRouter = router({
         bid: z.string(),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const results = [];
       const errors = [];
       
@@ -420,7 +423,8 @@ export const keywordRouter = router({
 export const productTargetRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       // v381: productTargets.adGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
       // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
       return db.getProductTargetsByAdGroupId(input.adGroupId);
@@ -429,7 +433,8 @@ export const productTargetRouter = router({
   // v370.4: 数据隔离 - productTarget通过adGroup关联到用户
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       // productTarget的所有权验证通过中间件的campaignId检查完成
       return db.getProductTargetById(input.id);
     }),
@@ -439,7 +444,8 @@ export const productTargetRouter = router({
       id: z.number(),
       bid: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       await db.updateProductTargetBid(input.id, input.bid);
       return { success: true };
     }),
@@ -450,7 +456,8 @@ export const productTargetRouter = router({
       bid: z.string().optional(),
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const { id, ...data } = input;
       await db.updateProductTarget(id, data);
       return { success: true };
@@ -463,7 +470,8 @@ export const productTargetRouter = router({
       bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const results = [];
       for (const id of input.ids) {
         const target = await db.getProductTargetById(id);
@@ -550,7 +558,8 @@ export const productTargetRouter = router({
       ids: z.array(z.number()),
       status: z.enum(["enabled", "paused"]),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       // v159: 先更新本地数据库
       let updated = 0;
       for (const id of input.ids) {
@@ -609,7 +618,8 @@ export const productTargetRouter = router({
       id: z.number(),
       days: z.number().min(7).max(90).default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v382: 数据隔离
       const target = await db.getProductTargetById(input.id);
       if (!target) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Product target not found" });

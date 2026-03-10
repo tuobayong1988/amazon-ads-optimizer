@@ -34,7 +34,7 @@ export const algorithmOptimizationRouter = router({
       minConfidenceThreshold: z.number().optional(),
       minDataPoints: z.number().optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return algorithmOptimizationService.updateAlgorithmParameters(input);
     }),
   
@@ -187,7 +187,7 @@ export const algorithmEvolutionRouter = router({
   // 获取优化目标的算法配置
   getTargetConfig: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return algorithmEvolutionEngine.getTargetAlgorithmConfig(input.targetId);
     }),
 
@@ -197,7 +197,7 @@ export const algorithmEvolutionRouter = router({
       targetId: z.number(),
       period: z.enum(['7', '14', '30']).optional().default('14'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const period = parseInt(input.period) as 7 | 14 | 30;
       return algorithmEvolutionEngine.evaluateTargetPerformance(input.targetId, period);
     }),
@@ -205,7 +205,7 @@ export const algorithmEvolutionRouter = router({
   // 手动触发单个目标的进化周期
   runEvolutionCycle: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return algorithmEvolutionEngine.runEvolutionCycle(input.targetId);
     }),
 
@@ -224,7 +224,7 @@ export const algorithmEvolutionRouter = router({
   // 获取有效出价配置（供前端展示进化后的参数）
   getEffectiveBidConfig: protectedProcedure
     .input(z.object({ targetId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return algorithmEvolutionEngine.getEffectiveBidConfig(input.targetId);
     }),
 
@@ -297,7 +297,7 @@ export const holidayConfigRouter = router({
       priority: z.enum(['high', 'medium', 'low']).optional(),
       preHolidayDays: z.number().optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { id, ...data } = input;
       return holidayConfigService.updateHolidayConfig(id, data);
     }),
@@ -305,7 +305,7 @@ export const holidayConfigRouter = router({
   // 删除节假日配置
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return holidayConfigService.deleteHolidayConfig(input.id);
     }),
 
@@ -315,7 +315,7 @@ export const holidayConfigRouter = router({
       id: z.number(),
       isActive: z.boolean()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return holidayConfigService.toggleHolidayConfig(input.id, input.isActive);
     }),
 

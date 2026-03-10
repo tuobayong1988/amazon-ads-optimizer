@@ -256,7 +256,7 @@ export const correctionRouter = router({
     .input(z.object({
       correctionIds: z.array(z.number()),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       for (const id of input.correctionIds) {
         await db.updateAttributionCorrectionStatus(id, {
           status: 'dismissed',
@@ -313,7 +313,7 @@ export const autoCorrectionRouter = router({
   // 运行自动纠错扫描
   runScan: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return runAutoCorrection(input.accountId);
     }),
   
@@ -469,7 +469,7 @@ export const autoRollbackRouter = router({
   // 获取单个回滚规则
   getRule: protectedProcedure
     .input(z.object({ ruleId: z.string() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return autoRollbackService.getRollbackRule(input.ruleId);
     }),
   
@@ -491,7 +491,7 @@ export const autoRollbackRouter = router({
         notificationPriority: z.enum(['low', 'medium', 'high'])
       })
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return autoRollbackService.createRollbackRule(input);
     }),
   
@@ -514,7 +514,7 @@ export const autoRollbackRouter = router({
         notificationPriority: z.enum(['low', 'medium', 'high'])
       }).optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { ruleId, ...updates } = input;
       return autoRollbackService.updateRollbackRule(ruleId, updates);
     }),
@@ -522,14 +522,14 @@ export const autoRollbackRouter = router({
   // 删除回滚规则
   deleteRule: protectedProcedure
     .input(z.object({ ruleId: z.string() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return autoRollbackService.deleteRollbackRule(input.ruleId);
     }),
   
   // 运行回滚评估
   runEvaluation: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return autoRollbackService.runRollbackEvaluation(input.accountId);
     }),
   
@@ -540,14 +540,14 @@ export const autoRollbackRouter = router({
       priority: z.enum(['low', 'medium', 'high']).optional(),
       ruleId: z.string().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return autoRollbackService.getRollbackSuggestions(input);
     }),
   
   // 获取单个回滚建议
   getSuggestion: protectedProcedure
     .input(z.object({ suggestionId: z.string() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return autoRollbackService.getRollbackSuggestion(input.suggestionId);
     }),
   
@@ -570,7 +570,7 @@ export const autoRollbackRouter = router({
   // 执行回滚建议
   executeSuggestion: protectedProcedure
     .input(z.object({ suggestionId: z.string() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return autoRollbackService.executeRollbackSuggestion(input.suggestionId);
     }),
   
@@ -634,7 +634,7 @@ export const postDeployRouter = router({
       modules: z.array(z.string()).optional(),
       targetId: z.number().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { forceReoptimize } = await import('../postDeployOptimizer');
       return forceReoptimize(input.modules, input.targetId);
     }),

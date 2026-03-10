@@ -135,7 +135,7 @@ export const smartCampaignRouter = router({
         daysOfHistory: z.number().default(7),
       })
     )
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { campaignId, goal, daysOfHistory } = input;
 
       // 获取广告活动信息
@@ -191,7 +191,7 @@ export const smartCampaignRouter = router({
         daysOfHistory: z.number().default(7),
       })
     )
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { performanceGroupId, goal, daysOfHistory } = input;
 
       // 获取绩效组下的所有广告活动
@@ -247,7 +247,7 @@ export const smartCampaignRouter = router({
         dryRun: z.boolean().default(true),
       })
     )
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { campaignId, action, value, dryRun } = input;
 
       const executor = new AutoExecutionEngine();

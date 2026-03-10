@@ -295,10 +295,12 @@ export class AmazonSyncService {
   }
 
   /**
-   * 完整同步所有数据
-   * 每次同步都获取60天历史数据（包含当日），确保数据完整性和归因窗口期数据准确
+   * v382: 完整同步所有数据（三阶段同步策略）
+   * - init模式: 新账号初始化，同步API支持的最长时间范围（SP 90天/SB 60天/SD 90天）
+   * - daily模式: 日常增量，只同步近14天数据（归因期内可能变化的数据），大幅减少API调用
+   * - recovery模式: 自愈恢复（宕机/数据异常），同步90天全量数据
    */
-  async syncAll(options?: { performanceDays?: number }): Promise<{
+  async syncAll(options?: { performanceDays?: number; syncMode?: 'init' | 'daily' | 'recovery' }): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -325,7 +327,20 @@ export class AmazonSyncService {
     const syncAllStartTime = Date.now();
     let totalSteps = 0;
     let failedSteps = 0;
-    log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始全量同步 (performanceDays=${options?.performanceDays || 14})`);
+    // v382: 三阶段同步策略 - 根据syncMode决定同步天数
+    const syncMode = options?.syncMode || 'daily'; // 默认为daily模式（日常增量）
+    const DAILY_SYNC_DAYS = 14; // 归因期天数，日常只需同步这个范围
+    const FULL_SP_DAYS = 90;    // SP API最大支持天数
+    const FULL_SB_DAYS = 60;    // SB API最大支持天数
+    const FULL_SD_DAYS = 90;    // SD API最大支持天数
+    
+    // init/recovery模式使用全量天数，daily模式使用归因期天数
+    const isFullSync = syncMode === 'init' || syncMode === 'recovery';
+    const spDays = isFullSync ? FULL_SP_DAYS : DAILY_SYNC_DAYS;
+    const sbDays = isFullSync ? FULL_SB_DAYS : DAILY_SYNC_DAYS;
+    const sdDays = isFullSync ? FULL_SD_DAYS : DAILY_SYNC_DAYS;
+    
+    log.info(`[syncAll] ⏱️ 账户${this.accountId} 开始${syncMode}模式同步 (SP=${spDays}天, SB=${sbDays}天, SD=${sdDays}天)`);
 
     // v345: 步骤级重试配置
     // v371: 增加重试次数到3次（原1次），增强429/5xx错误的恢复能力
@@ -470,7 +485,7 @@ export class AmazonSyncService {
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
     
     // ==================== Layer 3: 否定词+搜索词+广告位绩效（8个并行） ====================
-    log.info(`[syncAll] v359: Layer 3 - 否定词/搜索词/广告位绩效同步 (8个并行)`);
+    log.info(`[syncAll] v382: Layer 3 - 否定词/搜索词/广告位绩效同步 (9个并行)`);
     await Promise.allSettled([
       // @ts-ignore
       runStep('SP否定关键词', () => this.syncSpNegativeKeywords()),
@@ -480,13 +495,15 @@ export class AmazonSyncService {
       runStep('SB否定关键词', () => this.syncSbNegativeKeywords()),
       // @ts-ignore
       runStep('SB否定商品定向', () => this.syncSbNegativeTargets()),
-      runStep('SP搜索词(90天)', () => this.syncSearchTerms(90)),
+      // @ts-ignore  v382: 新增SD否定产品定向同步
+      runStep('SD否定产品定向', () => this.syncSdNegativeTargets()),
+      runStep(`SP搜索词(${spDays}天)`, () => this.syncSearchTerms(spDays)),
       // @ts-ignore
-      runStep('SB搜索词(60天)', () => this.syncSbSearchTerms(60)),
+      runStep(`SB搜索词(${sbDays}天)`, () => this.syncSbSearchTerms(sbDays)),
       // @ts-ignore
-      runStep('SP广告位绩效(90天)', () => this.syncPlacementPerformance(90)),
+      runStep(`SP广告位绩效(${spDays}天)`, () => this.syncPlacementPerformance(spDays)),
       // @ts-ignore
-      runStep('SB广告位绩效(60天)', () => this.syncSbPlacementPerformance(60)),
+      runStep(`SB广告位绩效(${sbDays}天)`, () => this.syncSbPlacementPerformance(sbDays)),
     ]);
 
     // v360: 层间转换延迟
@@ -495,11 +512,11 @@ export class AmazonSyncService {
     // ==================== Layer 4: 定向报告+素材URL（4个并行） ====================
     log.info(`[syncAll] v359: Layer 4 - 定向报告/素材URL同步 (4个并行)`);
     await Promise.allSettled([
-      runStep('SP自动定向(90天)', () => this.syncAutoTargeting(90)),
+      runStep(`SP自动定向(${spDays}天)`, () => this.syncAutoTargeting(spDays)),
       // @ts-ignore
-      runStep('SD定向报告(90天)', () => this.syncSdTargeting(90)),
+      runStep(`SD定向报告(${sdDays}天)`, () => this.syncSdTargeting(sdDays)),
       // @ts-ignore
-      runStep('SB定向报告(60天)', () => this.syncSbTargeting(60)),
+      runStep(`SB定向报告(${sbDays}天)`, () => this.syncSbTargeting(sbDays)),
       runStep('SB素材URL解析', () => this.syncAssetUrls()),
     ]);
 
@@ -508,7 +525,8 @@ export class AmazonSyncService {
     
     // ==================== Layer 5: 绩效数据（4个并行） ====================
     // v366: 默认同步天数从14天扩展到90天，充分利用Amazon API支持的最大范围
-    const performanceDays = options?.performanceDays || parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10);
+    // v382: performanceDays优先使用显式传入的值，否则根据syncMode决定
+    const performanceDays = options?.performanceDays || (isFullSync ? parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10) : DAILY_SYNC_DAYS);
     log.info(`[syncAll] v359: Layer 5 - 绩效数据同步 (4个并行, ${performanceDays}天)`);
     const [perfResult, _kwPerfResult, _ptPerfResult, _agPerfResult] = await Promise.allSettled([
       // @ts-ignore
@@ -528,7 +546,7 @@ export class AmazonSyncService {
     const totalDurationMs = Date.now() - syncAllStartTime;
     const totalSynced = results._syncDiagnostics!.reduce((sum: any, d: any) => sum + d.synced, 0);
     const failedStepNames = results._syncDiagnostics!.filter(d => d.error).map(d => d.stepName);
-    log.info(`[syncAll] 📊 账户${this.accountId} 全量同步完成: 总步骤=${totalSteps}, 成功=${totalSteps - failedSteps}, 失败=${failedSteps}, 总记录=${totalSynced}, 总耗时=${totalDurationMs}ms`);
+    log.info(`[syncAll] 📊 账户${this.accountId} ${syncMode}模式同步完成: 总步骤=${totalSteps}, 成功=${totalSteps - failedSteps}, 失败=${failedSteps}, 总记录=${totalSynced}, 总耗时=${totalDurationMs}ms`);
     if (failedSteps > 0) {
       log.warn(`[syncAll] ⚠️ 账户${this.accountId} 失败步骤: ${failedStepNames.join(', ')}`);
     }

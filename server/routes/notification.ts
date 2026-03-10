@@ -81,7 +81,7 @@ export const notificationRouter = router({
   // Mark notification as read
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await db.markNotificationAsRead(input.id);
       return { success: true };
     }),
@@ -114,7 +114,7 @@ export const collaborationRouter = router({
   // 标记通知为已读
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { markNotificationAsRead } = await import("../collaborationNotificationService");
       return markNotificationAsRead(input.id);
     }),

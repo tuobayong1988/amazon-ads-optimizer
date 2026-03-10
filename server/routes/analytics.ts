@@ -392,7 +392,7 @@ export const analyticsRouter = router({
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // 定义区域映射
       const REGIONS: Record<string, { name: string; flag: string; marketplaces: string[] }> = {
         NA: { name: '北美区域', flag: '🇺🇸', marketplaces: ['US', 'CA', 'MX', 'BR'] },
@@ -504,7 +504,7 @@ export const advancedAnalyticsRouter = router({
       performanceGroupId: z.number().optional(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return advancedAnalyticsService.getAdvancedAnalyticsSummary(input);
     }),
   
@@ -518,7 +518,7 @@ export const advancedAnalyticsRouter = router({
       offset: z.number().optional().default(0),
       eventCategory: z.string().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return advancedAnalyticsService.getAttributionAnalysis(input);
     }),
   
@@ -530,7 +530,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       metrics: z.array(z.string()).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return advancedAnalyticsService.getTrendAnalysis(input);
     }),
   
@@ -542,7 +542,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       sensitivity: z.number().optional().default(2),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return advancedAnalyticsService.detectAnomalies(input);
     }),
   
@@ -554,7 +554,7 @@ export const advancedAnalyticsRouter = router({
       days: z.number().optional().default(30),
       groupBy: z.enum(['strategy', 'actionType', 'eventCategory']).optional().default('strategy'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return advancedAnalyticsService.getStrategyROIComparison(input);
     }),
   

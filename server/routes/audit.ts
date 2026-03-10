@@ -63,7 +63,7 @@ export const auditRouter = router({
   // 获取账号操作统计
   accountStats: protectedProcedure
     .input(z.object({ accountId: z.number(), days: z.number().default(30) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getAccountAuditStats } = await import("../auditService");
       return getAccountAuditStats(input.accountId, input.days);
     }),

@@ -27,7 +27,7 @@ export const specialScenarioRouter = router({
       dailyBudget: z.number(),
       currentHour: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return specialScenarioOptimizationService.predictBudgetDepletion(
         input.campaignId,
         input.currentSpend,
@@ -113,7 +113,7 @@ export const specialScenarioRouter = router({
       baseBudget: z.number(),
       baseBid: z.number(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return specialScenarioOptimizationService.generateEventTransitionPlan(
         input.eventName,
         new Date(input.eventDate),
@@ -125,7 +125,7 @@ export const specialScenarioRouter = router({
   // 获取即将到来的大促事件
   getUpcomingEvents: protectedProcedure
     .input(z.object({ daysAhead: z.number().optional() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return specialScenarioOptimizationService.getUpcomingPromotionalEvents(
         input.daysAhead || 30
       );

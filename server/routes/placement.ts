@@ -145,7 +145,7 @@ export const placementRouter = router({
         }).optional(), // V2新增：冷却期状态
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await placementService.updatePlacementSettings(
         input.campaignId,
         input.accountId,
@@ -991,7 +991,7 @@ export const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const result = await db.getOptimizationEvents({ limit: 1, offset: 0 });
       return result.events.find((e: Record<string, any>) => e.id === input.adjustmentId) || null;
     }),
@@ -1047,7 +1047,7 @@ export const placementRouter = router({
     .input(z.object({
       daysAgo: z.number().default(7),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getAdjustmentsNeedingTracking(input.daysAgo);
     }),
 
@@ -1066,7 +1066,7 @@ export const placementRouter = router({
         actualRevenue7D: z.number().optional(),
       }),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return db.updateBidAdjustmentTracking(input.adjustmentId, input.trackingData);
     }),
 
@@ -1075,7 +1075,7 @@ export const placementRouter = router({
     .input(z.object({
       period: z.number().default(7), // 7, 14, 或 30 天
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { runEffectTrackingTask } = await import('../effectTrackingScheduler');
       return runEffectTrackingTask(input.period);
     }),
@@ -1330,7 +1330,7 @@ export const placementRouter = router({
         targetROAS: z.number().optional(),
       }).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { optimizeTrafficAllocation } = await import('../marginalBenefitAnalysisService');
       return optimizeTrafficAllocation(
         input.campaignId,
@@ -1387,7 +1387,7 @@ export const placementRouter = router({
   // 获取批量分析详情
   getBatchAnalysisDetail: protectedProcedure
     .input(z.object({ analysisId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { getBatchAnalysisDetail } = await import('../marginalBenefitBatchService');
       return getBatchAnalysisDetail(input.analysisId);
     }),
@@ -1437,7 +1437,7 @@ export const placementRouter = router({
   // 回滚优化应用
   rollbackApplication: protectedProcedure
     .input(z.object({ applicationId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { rollbackApplication } = await import('../marginalBenefitBatchService');
       return rollbackApplication(input.applicationId);
     }),

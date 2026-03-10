@@ -428,7 +428,7 @@ export const performanceGroupRouter = router({
       campaignId: z.number(),
       performanceGroupId: z.number().nullable(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await db.assignCampaignToPerformanceGroup(input.campaignId, input.performanceGroupId);
       return { success: true };
     }),
@@ -439,7 +439,7 @@ export const performanceGroupRouter = router({
       campaignIds: z.array(z.number()),
       performanceGroupId: z.number(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
@@ -465,7 +465,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, null);
@@ -483,7 +483,7 @@ export const performanceGroupRouter = router({
       campaignIds: z.array(z.number()),
       newStatus: z.enum(['enabled', 'paused']),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.groupId);
       if (!group) throw new TRPCError({ code: 'NOT_FOUND', message: '绩效组不存在' });
       
@@ -554,7 +554,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, null);
@@ -770,7 +770,7 @@ export const performanceGroupRouter = router({
       accountId: z.number().optional(),
       dryRun: z.boolean().optional().default(false),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const optimizationTargetEngine = await import('../optimizationTargetEngine');
       return optimizationTargetEngine.executeAllEnabledTargets(input.accountId, {
         dryRun: input.dryRun,
@@ -783,7 +783,7 @@ export const performanceGroupRouter = router({
       targetId: z.number(),
       isEnabled: z.boolean(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await db.updatePerformanceGroup(input.targetId, { 
         daypartingEnabled: input.isEnabled ? 1 : 0 
       });
@@ -802,7 +802,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getOptimizationLogs(input);
     }),
 
@@ -812,7 +812,7 @@ export const performanceGroupRouter = router({
       batchId: z.string().optional(),
       optimizationTargetId: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const syncEngine = await import('../optimizationSyncEngine');
       if (input.batchId) {
         return syncEngine.getBatchStatus(input.batchId);
@@ -826,7 +826,7 @@ export const performanceGroupRouter = router({
       batchId: z.string().optional(),
       accountId: z.number().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const syncEngine = await import('../optimizationSyncEngine');
       return syncEngine.executeBatchSync({
         batchId: input.batchId,
@@ -840,7 +840,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getOptimizationLogStats(input.performanceGroupId, input.days);
     }),
 
@@ -850,7 +850,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { performanceGroupId, days } = input;
       
       // 获取绩效组信息
@@ -968,7 +968,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
@@ -1003,7 +1003,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1019,7 +1019,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1061,7 +1061,7 @@ export const performanceGroupRouter = router({
     .input(z.object({
       period: z.enum(['7d', '14d', '30d']).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       if (input.period) {
         const { runEffectTrackingTask } = await import('../effectTrackingScheduler');
         const periodMap: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30 };
@@ -1081,7 +1081,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
@@ -1127,7 +1127,7 @@ export const performanceGroupRouter = router({
       page: z.number().optional().default(1),
       pageSize: z.number().optional().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       const result = await db.getOptimizationEvents({
@@ -1151,7 +1151,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       return db.getOptimizationEventStats({
@@ -1176,7 +1176,7 @@ export const performanceGroupRouter = router({
       performanceGroupId: z.number(),
       sourceTables: z.array(z.enum(['bidding_logs', 'bid_adjustment_history', 'optimization_logs'])).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
       
@@ -1206,7 +1206,7 @@ export const performanceGroupRouter = router({
       groupId: z.number(),
       days: z.number().optional().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const group = await import('../db').then(m => m.getPerformanceGroupById(input.groupId));
       if (!group) throw new Error('优化目标不存在');
 
@@ -1235,7 +1235,7 @@ export const performanceGroupRouter = router({
   // 获取优化目标的优化状态（代替原 unifiedOptimization.getPerformanceGroupState）
   getOptimizationState: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
     }),
 });

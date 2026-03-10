@@ -670,11 +670,10 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     case 'low':
     case 'full':
     default:
-      // 完整同步：覆盖式全量同步，确保数据与亚马逊后台一致
-      // 包含所有层级：广告活动、广告组、关键词、定位、否定词、搜索词、广告位、素材URL、绩效数据
-      // v366: 同步天数从14天扩展到90天，充分利用Amazon API支持的最大范围
-      const performanceDays = parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10);
-      result = await syncService.syncAll({ performanceDays });
+      // v382: 日常增量同步，只同步归因期内的数据，大幅减少API调用量
+      // 包含所有层级，但搜索词/广告位/定向报告/绩效数据只同步近14天
+      // 归因期过后数据基本不变，无需每次都同步90天全量数据
+      result = await syncService.syncAll({ syncMode: 'daily' });
       break;
   }
 
@@ -872,8 +871,8 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     account.marketplace || 'US'
   );
 
-  // 执行完整同步（获取90天数据）
-  const result = await syncService.syncAll();
+  // v382: 定时调度使用daily模式（只同步归因期内数据）
+  const result = await syncService.syncAll({ syncMode: 'daily' });
 
   // 更新调度记录
   await db.updateSyncScheduleLastRun(schedule.id);

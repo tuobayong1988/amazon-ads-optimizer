@@ -151,7 +151,7 @@ export const optimizationRouter = router({
       performanceGroupId: z.number(),
       dryRun: z.boolean().optional().default(true),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Performance group not found" });
@@ -379,7 +379,7 @@ export const optimizationRouter = router({
       campaignId: z.number(),
       targetAcos: z.number().optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // In a real implementation, this would fetch placement-level performance data
       // For now, return default adjustments
       return {
@@ -396,14 +396,14 @@ export const unifiedOptimizationRouter = router({
   // 获取广告活动的优化状态
   getCampaignState: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.getCampaignOptimizationState(input.campaignId);
     }),
   
   // 获取绩效组的优化状态
   getPerformanceGroupState: protectedProcedure
     .input(z.object({ groupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
     }),
   
@@ -424,7 +424,7 @@ export const unifiedOptimizationRouter = router({
         'traffic_isolation'
       ])).optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.runUnifiedOptimizationAnalysis(
         input.accountId,
         {
@@ -441,7 +441,7 @@ export const unifiedOptimizationRouter = router({
       decisionId: z.string(),
       executedBy: z.enum(['auto', 'manual']).optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.executeOptimizationDecision(
         input.decisionId,
         input.executedBy || 'manual'
@@ -454,7 +454,7 @@ export const unifiedOptimizationRouter = router({
       decisionIds: z.array(z.string()),
       executedBy: z.enum(['auto', 'manual']).optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.batchExecuteOptimizationDecisions(
         input.decisionIds,
         input.executedBy || 'manual'
@@ -468,7 +468,7 @@ export const unifiedOptimizationRouter = router({
       campaignId: z.number().optional(),
       performanceGroupId: z.number().optional()
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.getOptimizationSummary(
         input.accountId,
         {
@@ -491,7 +491,7 @@ export const unifiedOptimizationRouter = router({
         negativeKeyword: z.boolean().optional()
       }).optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.updateCampaignOptimizationSettings(
         input.campaignId,
         {
@@ -511,7 +511,7 @@ export const unifiedOptimizationRouter = router({
       targetAcos: z.number().optional(),
       targetRoas: z.number().optional()
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return unifiedOptimizationEngine.updatePerformanceGroupOptimizationSettings(
         input.groupId,
         {

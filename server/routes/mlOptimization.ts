@@ -59,7 +59,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { campaignId, target, daysOfHistory } = input;
 
       // 获取广告活动信息以确定accountId
@@ -132,7 +132,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { campaignIds, target, daysOfHistory } = input;
 
       const results = await Promise.allSettled(
@@ -212,7 +212,7 @@ export const mlOptimizationRouter = router({
         daysOfHistory: z.number().default(30),
       })
     )
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { performanceGroupId, totalBudget, daysOfHistory } = input;
 
       // 获取绩效组下的所有广告活动
@@ -291,7 +291,7 @@ export const mlOptimizationRouter = router({
         testDays: z.number().default(14),
       })
     )
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { campaignId, trainingDays, testDays } = input;
 
       const campaign = await db.getCampaignById(parseInt(campaignId, 10));

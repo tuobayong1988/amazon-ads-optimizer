@@ -211,7 +211,7 @@ export const dataHealthRouter = router({
    */
   getRateLimitMetrics: protectedProcedure
     .input(z.object({ accountId: z.number().optional() }).optional())
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       try {
         const { getApiRateLimitService } = await import('../services/apiRateLimitService');
         const service = getApiRateLimitService();

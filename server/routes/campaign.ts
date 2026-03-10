@@ -91,7 +91,7 @@ export const campaignRouter = router({
       performanceGroupId: z.number().optional(),
       maxBid: z.string().optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const id = await db.createCampaign(input);
       return { id };
     }),
@@ -245,7 +245,7 @@ export const campaignRouter = router({
   
   getAdGroups: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复致命ID混淆bug — 前端传入本地自增ID，需要先查campaign获取Amazon campaignId
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -255,7 +255,7 @@ export const campaignRouter = router({
   // 获取广告活动详情（包含广告组、关键词、搜索词等）
   getDetail: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复ID混淆 — getCampaignDetailWithStats内部需要Amazon campaignId
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return null;
@@ -265,7 +265,7 @@ export const campaignRouter = router({
   // 获取广告位置表现数据
   getPlacementStats: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复ID混淆
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return null;
@@ -275,7 +275,7 @@ export const campaignRouter = router({
   // 获取广告位置绩效数据（用于CampaignDetail页面）
   getPlacementPerformance: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复致命ID混淆bug — placement_performance.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -285,7 +285,7 @@ export const campaignRouter = router({
   // 获取广告活动所有投放词（关键词+商品定向）
   getTargets: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复致命ID混淆bug — getCampaignTargets内部通过adGroups.campaignId查询
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return { keywords: [], productTargets: [] };
@@ -295,7 +295,7 @@ export const campaignRouter = router({
   // 获取搜索词报告
   getSearchTerms: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复致命ID混淆bug — search_terms.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -331,7 +331,7 @@ export const campaignRouter = router({
   // 获取否定关键词列表
   getNegativeKeywords: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v381: 修复致命ID混淆bug — negative_keywords.campaignId是Amazon ID
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
@@ -341,7 +341,7 @@ export const campaignRouter = router({
   // AI摘要功能 - 生成广告活动表现摘要
   generateAISummary: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { invokeLLM } = await import("../_core/llm");
       
       // 获取广告活动详情
@@ -455,7 +455,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // AI智能分析（包含可执行建议和效果预估）
   generateAIAnalysis: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { generateAIAnalysisWithSuggestions } = await import("../aiOptimizationService");
       return generateAIAnalysisWithSuggestions(input.campaignId);
     }),
@@ -536,7 +536,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // 获取AI优化执行历史
   getAIOptimizationHistory: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getAiOptimizationExecutionsByCampaign(input.campaignId);
     }),
   
@@ -556,7 +556,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   // 更新广告活动的策略模板推荐
   updateStrategyRecommendations: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { updateAllCampaignRecommendations } = await import('../strategyRecommendationService');
       const updated = await updateAllCampaignRecommendations(input.accountId);
       return { updated };

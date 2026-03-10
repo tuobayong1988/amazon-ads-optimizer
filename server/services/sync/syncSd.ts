@@ -43,6 +43,7 @@ declare module '../../amazonSyncService' {
     syncSdAdGroups(...args: unknown[]): unknown;
     syncSdProductTargets(...args: unknown[]): unknown;
     syncSdTargeting(...args: unknown[]): unknown;
+    syncSdNegativeTargets(...args: unknown[]): unknown;
   }
 }
 
@@ -555,3 +556,110 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
   }
 };
 
+
+/**
+ * v382: 同步SD否定产品定向
+ * SD不支持否定关键词，仅支持否定产品定向（仅Ad Group级，仅限上下文定向）
+ * 使用 listSdNegativeTargets API方法获取数据，存储到 negativeKeywords 表
+ */
+AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonSyncService): Promise<{ synced: number; updated: number }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, updated: 0 };
+  try {
+    let synced = 0;
+    let updated = 0;
+    
+    const sdNegTargets = await this.client.listSdNegativeTargets();
+    log.debug(`获取到 ${sdNegTargets.length} 个SD否定产品定向`);
+    
+    if (sdNegTargets.length === 0) {
+      return { synced: 0, updated: 0 };
+    }
+    
+    // 批量预查询所有相关campaign和adGroup（消除N+1查询）
+    const sdNegCampaignIds = [...new Set(sdNegTargets.map(n => String(n.campaignId)))];
+    const sdNegCampaignRows = sdNegCampaignIds.length > 0
+      ? await db.select().from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), inArray(campaigns.campaignId, sdNegCampaignIds)))
+      : [];
+    const sdNegCampaignMap = new Map(sdNegCampaignRows.map(r => [r.campaignId, r]));
+    
+    const sdNegAdGroupIds = [...new Set(sdNegTargets.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
+    const sdNegAdGroupRows = sdNegAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdNegAdGroupIds))
+      : [];
+    const sdNegAdGroupMap = new Map(sdNegAdGroupRows.map(r => [r.adGroupId, r]));
+    
+    for (const neg of sdNegTargets) {
+      const negState = (neg.state || 'enabled').toLowerCase();
+      if (negState === 'archived') continue;
+      
+      const campaign = sdNegCampaignMap.get(String(neg.campaignId));
+      if (!campaign) continue;
+      
+      // SD否定定向仅在Ad Group级别
+      let adGroupLocalId: string | null = null;
+      if (neg.adGroupId) {
+        const adGroup = sdNegAdGroupMap.get(String(neg.adGroupId));
+        if (adGroup) adGroupLocalId = String(adGroup.id);
+      }
+      
+      // 解析expression获取否定的ASIN或品牌
+      const expression = neg.expression || [];
+      const asinExpr = expression.find((e: Record<string, any>) => 
+        e.type?.toLowerCase().includes('asin') || e.type?.toLowerCase().includes('brand')
+      );
+      const negativeText = asinExpr?.value || JSON.stringify(expression);
+      const amazonTargetId = String(neg.targetId || '');
+      const negLevel = 'ad_group' as const; // SD否定定向仅在Ad Group级别
+      
+      const [existing] = await db
+        .select()
+        .from(negativeKeywords)
+        .where(
+          and(
+            eq(negativeKeywords.accountId, this.accountId),
+            eq(negativeKeywords.campaignId, String(campaign.campaignId)),
+            eq(negativeKeywords.negativeLevel, negLevel),
+            eq(negativeKeywords.negativeType, 'product'),
+            eq(negativeKeywords.negativeText, negativeText)
+          )
+        )
+        .limit(1);
+      
+      if (existing) {
+        await db.update(negativeKeywords)
+          .set({ 
+            amazonNegativeKeywordId: amazonTargetId || null, 
+            negativeStatus: negState === 'enabled' ? 'active' as const : 'removed' as const,
+            campaignType: 'sd' as const,
+            negativeScope: 'ad_group' as const,
+          })
+          .where(eq(negativeKeywords.id, existing.id));
+        updated++;
+      } else {
+        await db.insert(negativeKeywords).values({
+          accountId: this.accountId,
+          campaignId: String(campaign.campaignId),
+          adGroupId: adGroupLocalId,
+          campaignType: 'sd',
+          negativeScope: 'ad_group',
+          negativeLevel: negLevel,
+          negativeType: 'product',
+          negativeText: negativeText,
+          negativeMatchType: 'negative_exact',
+          amazonNegativeKeywordId: amazonTargetId || null,
+          negativeSource: 'manual',
+          negativeStatus: negState === 'enabled' ? 'active' as const : 'removed' as const,
+        });
+        synced++;
+      }
+    }
+    
+    log.info(`SD否定产品定向同步完成: ${synced}条新增, ${updated}条更新`);
+    return { synced, updated };
+  } catch (error: unknown) {
+    log.error('SD否定产品定向同步失败:', (error as Error).message);
+    return { synced: 0, updated: 0 };
+  }
+};

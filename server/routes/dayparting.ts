@@ -23,7 +23,7 @@ export const daypartingRouter = router({
   // 获取单个策略详情
   getStrategy: protectedProcedure
     .input(z.object({ strategyId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const strategy = await daypartingService.getDaypartingStrategy(input.strategyId);
       if (!strategy) {
         throw new TRPCError({ code: "NOT_FOUND", message: "策略不存在" });
@@ -39,7 +39,7 @@ export const daypartingRouter = router({
       campaignId: z.number(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return daypartingService.analyzeWeeklyPerformance(input.campaignId, input.lookbackDays);
     }),
 
@@ -49,7 +49,7 @@ export const daypartingRouter = router({
       campaignId: z.number(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return daypartingService.analyzeHourlyPerformance(input.campaignId, input.lookbackDays);
     }),
 
@@ -119,7 +119,7 @@ export const daypartingRouter = router({
       strategyId: z.number(),
       status: z.enum(["active", "paused", "draft"]),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await daypartingService.updateDaypartingStrategy(input.strategyId, {
         daypartingStatus: input.status,
         lastAppliedAt: input.status === "active" ? new Date().toISOString() : undefined,
@@ -138,7 +138,7 @@ export const daypartingRouter = router({
         isEnabled: z.boolean().default(true),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await daypartingService.saveBudgetRules(
         input.strategyId,
         // @ts-ignore
@@ -163,7 +163,7 @@ export const daypartingRouter = router({
         isEnabled: z.boolean().default(true),
       })),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       await daypartingService.saveBidRules(
         input.strategyId,
         // @ts-ignore
@@ -183,7 +183,7 @@ export const daypartingRouter = router({
       strategyId: z.number(),
       limit: z.number().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return daypartingService.getExecutionLogs(input.strategyId, input.limit);
     }),
 
@@ -196,7 +196,7 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const weeklyData = await daypartingService.analyzeWeeklyPerformance(
         input.campaignId,
         input.lookbackDays
@@ -218,7 +218,7 @@ export const daypartingRouter = router({
       targetRoas: z.number().optional(),
       lookbackDays: z.number().default(30),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const hourlyData = await daypartingService.analyzeHourlyPerformance(
         input.campaignId,
         input.lookbackDays

@@ -75,7 +75,7 @@ export const dataSyncRouter = router({
   // 获取同步日志
   getLogs: protectedProcedure
     .input(z.object({ jobId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return dataSyncService.getSyncLogs(input.jobId);
     }),
 
@@ -95,7 +95,7 @@ export const dataSyncRouter = router({
   // 获取账号API使用统计
   getApiUsage: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return dataSyncService.getApiUsageStats(input.accountId);
     }),
 
@@ -156,35 +156,35 @@ export const dataSyncRouter = router({
   // 手动触发调度执行
   triggerSchedule: protectedProcedure
     .input(z.object({ scheduleId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return dataSyncService.executeScheduledSync(input.scheduleId);
     }),
 
   // 获取调度执行历史
   getScheduleHistory: protectedProcedure
     .input(z.object({ scheduleId: z.number(), limit: z.number().default(20) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return dataSyncService.getScheduleHistory(input.scheduleId, input.limit);
     }),
 
   // 获取调度详细执行历史
   getScheduleExecutionHistory: protectedProcedure
     .input(z.object({ scheduleId: z.number(), limit: z.number().default(50) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return dataSyncService.getScheduleExecutionHistory(input.scheduleId, input.limit);
     }),
 
   // 获取调度执行统计
   getScheduleExecutionStats: protectedProcedure
     .input(z.object({ scheduleId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return dataSyncService.getScheduleExecutionStats(input.scheduleId);
     }),
 
   // 手动触发调度执行（带重试）
   triggerScheduleWithRetry: protectedProcedure
     .input(z.object({ scheduleId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return dataSyncService.executeScheduledSyncWithRetry(input.scheduleId);
     }),
 });
@@ -235,7 +235,7 @@ export const reportJobsRouter = router({
       accountId: z.number(),
       profileId: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const jobIds = await asyncReportService.createAttributionJobs(input.accountId, input.profileId);
       return { success: true, jobCount: jobIds.length, jobIds };
     }),
@@ -246,7 +246,7 @@ export const reportJobsRouter = router({
       accountId: z.number(),
       profileId: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const jobIds = await asyncReportService.createInitializationJobs(input.accountId, input.profileId);
       return { success: true, jobCount: jobIds.length, jobIds };
     }),
@@ -254,7 +254,7 @@ export const reportJobsRouter = router({
   // 清理过期任务
   cleanupExpiredJobs: protectedProcedure
     .input(z.object({ daysOld: z.number().default(7) }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const count = await asyncReportService.cleanupExpiredJobs(input.daysOld);
       return { success: true, deletedCount: count };
     }),
@@ -262,21 +262,21 @@ export const reportJobsRouter = router({
   // 开始账号初始化
   startInitialization: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return accountInitializationService.startInitialization(input.accountId);
     }),
 
   // 获取初始化进度
   getInitializationProgress: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return accountInitializationService.getInitializationProgress(input.accountId);
     }),
 
   // 重试失败的初始化
   retryFailedInitialization: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return accountInitializationService.retryFailedInitialization(input.accountId);
     }),
 
@@ -302,14 +302,14 @@ export const reportJobsRouter = router({
   // 执行智能同步
   executeSmartSync: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return smartSyncService.executeSmartSync(input.accountId);
     }),
 
   // 获取同步统计
   getSyncStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return smartSyncService.getSyncStats(input.accountId);
     }),
 
@@ -336,21 +336,21 @@ export const reportJobsRouter = router({
       accountId: z.number(),
       profileId: z.string(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return tieredSyncService.createTieredInitializationTasks(input.accountId, input.profileId);
     }),
 
   // 获取分层初始化进度
   getTieredInitializationStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return tieredSyncService.getInitializationStats(input.accountId);
     }),
 
   // 获取任务进度（断点续传支持）
   getTaskProgress: protectedProcedure
     .input(z.object({ taskId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return tieredSyncService.getTaskProgress(input.taskId);
     }),
 
@@ -360,14 +360,14 @@ export const reportJobsRouter = router({
       accountId: z.number(),
       maxRetries: z.number().default(3),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       return tieredSyncService.retryFailedTasks(input.accountId, input.maxRetries);
     }),
 
   // 检查任务完成状态
   checkTaskCompletion: protectedProcedure
     .input(z.object({ taskId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return tieredSyncService.checkTaskCompletion(input.taskId);
     }),
 });

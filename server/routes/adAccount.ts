@@ -130,7 +130,7 @@ export const adAccountRouter = router({
       defaultMaxBid: z.string().optional(),
       status: z.enum(["active", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { id, intradayBiddingEnabled, ...rest } = input;
       const data = {
         ...rest,

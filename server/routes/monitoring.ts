@@ -100,7 +100,7 @@ export const monitoringRouter = router({
       accountId: z.number(),
       days: z.number().optional().default(7),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v268 性能优化: 健康指标缓存（TTL 5分钟）
       const cacheKey = `monitoring.healthMetrics:${input.accountId}:${input.days}`;
       const cached = apiCache.get<any>(cacheKey);
@@ -252,7 +252,7 @@ export const monitoringRouter = router({
    */
   getSLOTrend: protectedProcedure
     .input(z.object({ days: z.number().min(1).max(30).optional() }).optional())
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       try {
         const { getSLOTrend } = await import('../services/sync/sloMonitor');
         const trend = await getSLOTrend(input?.days || 7);
@@ -267,7 +267,7 @@ export const monitoringRouter = router({
    */
   getIntegrityReport: protectedProcedure
     .input(z.object({ daysToCheck: z.number().min(1).max(90).optional() }).optional())
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       try {
         const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
         const report = await checkAllAccountsIntegrity(input?.daysToCheck || 14);

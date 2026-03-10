@@ -170,7 +170,7 @@ export const debugSyncRouter = router({
 
         // 异步执行全量同步，立即返回
         const startTime = new Date().toISOString();
-        syncService.syncAll().then((result: Record<string, any>) => {
+        syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, any>) => {
           log.info(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
             JSON.stringify(result).substring(0, 500));
         }).catch((err: Error) => {
@@ -227,7 +227,7 @@ export const debugSyncRouter = router({
             );
 
             // 异步执行，不等待完成
-            syncService.syncAll().then((result: Record<string, any>) => {
+            syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, any>) => {
               log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
             }).catch((err: Error) => {
               log.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, (err as Error).message);

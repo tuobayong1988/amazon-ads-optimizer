@@ -24,21 +24,21 @@ export const systemLogRouter = router({
       cursor: z.number().optional(),
       direction: z.enum(['newer', 'older']).optional().default('older'),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return logger.query(input);
     }),
 
   // 获取最新N条日志
   getLatest: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(100).optional().default(50) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return logger.getLatest(input.limit);
     }),
 
   // 获取错误和警告日志
   getAlerts: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(100).optional().default(50) }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return logger.getAlerts(input.limit);
     }),
 
@@ -48,7 +48,7 @@ export const systemLogRouter = router({
       module: z.string(),
       limit: z.number().min(1).max(100).optional().default(50),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return logger.getModuleLogs(input.module, input.limit);
     }),
 
@@ -73,7 +73,7 @@ export const systemLogRouter = router({
       limit: z.number().min(1).max(100).optional().default(50),
       offset: z.number().min(0).optional().default(0),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const dbInstance = await db.getDb();
       if (!dbInstance) return { logs: [], total: 0 };
 
@@ -115,7 +115,7 @@ export const systemLogRouter = router({
       consoleLevel: z.number().min(0).max(4).optional(),
       dbLevel: z.number().min(0).max(4).optional(),
     }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const updates: Record<string, any> = {};
       if (input.consoleLevel !== undefined) updates.consoleLevel = input.consoleLevel;
       if (input.dbLevel !== undefined) updates.dbLevel = input.dbLevel;

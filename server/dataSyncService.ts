@@ -260,7 +260,7 @@ async function syncKeywords(userId: number, accountId: number, account: any): Pr
       account.marketplace || 'US'
     );
     // syncAll包含关键词同步，返回关键词数量
-    const result = await syncService.syncAll();
+    const result = await syncService.syncAll({ syncMode: 'daily' });
     return { 
       success: true, 
       count: result?.keywords || 0, 

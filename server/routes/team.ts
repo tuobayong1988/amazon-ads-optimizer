@@ -33,7 +33,7 @@ export const teamRouter = router({
   // 获取单个团队成员
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getTeamMemberById(input.id);
     }),
 
@@ -188,7 +188,7 @@ export const teamRouter = router({
   // 获取账号的所有权限
   getAccountPermissions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       return db.getPermissionsByAccount(input.accountId);
     }),
 });
@@ -457,7 +457,7 @@ export const inviteCodeRouter = router({
   // 验证邀请码（公开接口）
   validate: protectedProcedure
     .input(z.object({ code: z.string() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       const { validateInviteCode } = await import('../inviteCodeService');
       return validateInviteCode(input.code);
     }),
@@ -477,7 +477,7 @@ export const inviteCodeRouter = router({
   // 禁用邀请码
   disable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { disableInviteCode } = await import('../inviteCodeService');
       return disableInviteCode(input.id);
     }),
@@ -485,7 +485,7 @@ export const inviteCodeRouter = router({
   // 启用邀请码
   enable: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { enableInviteCode } = await import('../inviteCodeService');
       return enableInviteCode(input.id);
     }),
@@ -493,7 +493,7 @@ export const inviteCodeRouter = router({
   // 删除邀请码
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }: any) => {
+    .mutation(async ({ ctx, input }: any) => {
       const { deleteInviteCode } = await import('../inviteCodeService');
       return deleteInviteCode(input.id);
     }),

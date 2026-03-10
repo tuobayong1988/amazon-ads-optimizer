@@ -407,7 +407,7 @@ async function executeFullSync(
     // v344: 修复P0 Bug - 执行全量同步时必须传入完整的历史天数
     // 之前syncAll()未传performanceDays参数，导致默认只同步14天绩效数据
     log.info(`[ColdStart] v344: 执行全量同步，performanceDays=${days}天`);
-    const syncData = await syncService.syncAll({ performanceDays: days });
+    const syncData = await syncService.syncAll({ performanceDays: days, syncMode: 'recovery' });
     result.campaigns = syncData.campaigns || 0;
     result.keywords = syncData.keywords || 0;
     result.targets = syncData.targets || 0;
