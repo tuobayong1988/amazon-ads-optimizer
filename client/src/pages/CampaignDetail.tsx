@@ -39,8 +39,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Ban, ArrowUpRight, ArrowRight, Clock, Plus } from "lucide-react";
-import { TargetTrendChart } from "@/components/TargetTrendChart";
-import { BidResponseCurve } from "@/components/BidResponseCurve";
+// v381: TargetTrendChart和BidResponseCurve已移至AdGroupDetail页面
 import { safeToLocaleString, safeToLocaleDateString } from '../lib/safeDate';
 
 // 广告活动类型图标映射
@@ -113,9 +112,7 @@ export function formatAutoTargetingExpression(expression: string): string {
 }
 
 // v361: 子组件已拆分到 campaign-detail/ 目录
-import { KeywordsList } from './campaign-detail/KeywordsList';
-import { TargetsList } from './campaign-detail/TargetsList';
-import { SearchTermsList } from './campaign-detail/SearchTermsList';
+// v381: 严格对齐Amazon后台 - TargetsList/SearchTermsList/KeywordsList已移至AdGroupDetail页面
 import { NegativeKeywordsList } from './campaign-detail/NegativeKeywordsList';
 import { PlacementPerformanceList } from './campaign-detail/PlacementPerformanceList';
 
@@ -124,7 +121,7 @@ export default function CampaignDetail() {
   const [match, params] = useRoute("/campaigns/:id");
   const campaignId = params?.id ? parseInt(params.id) : null;
   
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("adgroups");
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryMetrics, setSummaryMetrics] = useState<any>(null);
   
@@ -678,29 +675,30 @@ export default function CampaignDetail() {
           </Card>
         </div>
         
-        {/* 详细数据Tab - v381: 根据广告类型动态显示tabs */}
+        {/* v381: 严格对齐Amazon后台Campaign层级tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="overview">概览</TabsTrigger>
-            {/* SP广告显示广告位置绩效 */}
-            {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
-              <TabsTrigger value="placements">广告位置</TabsTrigger>
-            )}
+            {/* 所有广告类型都有: Ad groups */}
             <TabsTrigger value="adgroups">广告组</TabsTrigger>
-            {/* SB/SD广告在Campaign层级显示出价调整 */}
+            {/* SP广告独有: Placements */}
+            {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
+              <TabsTrigger value="placements">广告位</TabsTrigger>
+            )}
+            {/* SP广告独有: Negative keywords (Campaign级别) */}
+            {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
+              <TabsTrigger value="negatives">否定关键词</TabsTrigger>
+            )}
+            {/* SB广告独有: Bid adjustments */}
             {campaign.campaignType === "sb" && (
               <TabsTrigger value="bidadjustments">出价调整</TabsTrigger>
             )}
-            <TabsTrigger value="targets">
-              {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "定向" : "投放词"}
-            </TabsTrigger>
-            <TabsTrigger value="searchterms">搜索词</TabsTrigger>
-            <TabsTrigger value="negatives">
-              {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "否定定向" : "否定词"}
-            </TabsTrigger>
+            {/* 所有广告类型都有: Campaign settings */}
+            <TabsTrigger value="settings">广告活动设置</TabsTrigger>
+            {/* 所有广告类型都有: History */}
+            <TabsTrigger value="history">历史记录</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="overview" className="mt-4">
+          <TabsContent value="settings" className="mt-4">
             <div className="space-y-4">
               {/* 基本信息卡片 */}
               <Card>
@@ -1159,7 +1157,7 @@ export default function CampaignDetail() {
                             const agCtr = agImpressions > 0 ? (agClicks / agImpressions * 100) : 0;
                             const agCpc = agClicks > 0 ? (agSpend / agClicks) : 0;
                             return (
-                              <TableRow key={adGroup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => window.location.href = `/ad-group/${adGroup.id}`}>
+                              <TableRow key={adGroup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setLocation(`/ad-groups/${adGroup.id}`)}>
                                 <TableCell className="font-medium max-w-[200px] truncate" title={adGroup.adGroupName}>{adGroup.adGroupName}</TableCell>
                                 <TableCell>
                                   <Badge variant={adGroup.adGroupStatus === "enabled" || adGroup.status === "enabled" ? "default" : "secondary"}>
@@ -1308,54 +1306,35 @@ export default function CampaignDetail() {
             </Card>
           </TabsContent>
           
-          <TabsContent value="targets" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "定向列表" : "投放词列表"}
-                </CardTitle>
-                <CardDescription>
-                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" 
-                    ? "该广告活动下的所有定向（关键词定向 + 商品定向）" 
-                    : "该广告活动下的所有投放词（关键词 + 商品定向）"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <TargetsList campaignId={campaignId} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="searchterms" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>搜索词报告</CardTitle>
-                <CardDescription>触发该广告活动的客户实际搜索词及其绩效数据</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SearchTermsList campaignId={campaignId} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
+          {/* SP广告 Campaign级别否定关键词 (Negative keywords) */}
           <TabsContent value="negatives" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {campaign.campaignType === "sb" || campaign.campaignType === "sd" ? "否定定向" : "否定关键词 / 否定商品"}
-                </CardTitle>
-                <CardDescription>
-                  {campaign.campaignType === "sb" || campaign.campaignType === "sd"
-                    ? "该广告活动下已添加的否定定向（否定关键词和否定商品）"
-                    : "该广告活动下已添加的否定关键词和否定商品定向"}
-                </CardDescription>
+                <CardTitle>否定关键词</CardTitle>
+                <CardDescription>该广告活动的Campaign级别否定关键词（对应Amazon后台的Negative keywords）</CardDescription>
               </CardHeader>
               <CardContent>
                 <NegativeKeywordsList campaignId={campaignId} />
               </CardContent>
             </Card>
           </TabsContent>
-          
+
+          {/* 历史记录 (History) */}
+          <TabsContent value="history" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>历史记录</CardTitle>
+                <CardDescription>该广告活动的变更历史记录（对应Amazon后台的History）</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12 text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>历史记录功能开发中</p>
+                  <p className="text-sm mt-2">将记录广告活动的所有变更操作，包括预算调整、状态变更、竞价策略修改等</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
         </Tabs>
       </div>

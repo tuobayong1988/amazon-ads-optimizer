@@ -578,6 +578,14 @@ export async function getNegativeKeywordsByAccountId(accountId: number) {
   return db.select().from(negativeKeywords).where(eq(negativeKeywords.accountId, accountId));
 }
 
+// v381: 获取广告组级别的否定关键词/否定商品定向
+export async function getNegativeKeywordsByAdGroupId(adGroupId: number | string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.adGroupId, String(adGroupId)));
+}
+
 // ==================== Notification Functions ====================
 
 // ==================== Search Terms Functions ====================

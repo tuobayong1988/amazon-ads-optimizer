@@ -88,6 +88,50 @@ export const adGroupRouter = router({
       return { success: true };
     }),
   
+  // v381: 获取广告组所属的广告活动信息（通过adGroupId获取campaign，解决ID类型不匹配问题）
+  getCampaign: protectedProcedure
+    .input(z.object({ adGroupId: z.number() }))
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
+      
+      const adGroup = await db.getAdGroupById(input.adGroupId);
+      if (!adGroup) return null;
+      
+      // adGroup.campaignId是Amazon campaignId (varchar)，用它查找本地campaign记录
+      return db.getCampaignByAmazonCampaignId(adGroup.campaignId);
+    }),
+  
+  // v381: 获取广告组的搜索词列表（Ad Group级别的Search terms tab）
+  getSearchTerms: protectedProcedure
+    .input(z.object({ adGroupId: z.number() }))
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
+      
+      // 获取广告组信息，用其Amazon adGroupId查询搜索词
+      const adGroup = await db.getAdGroupById(input.adGroupId);
+      if (!adGroup) return [];
+      
+      // searchTerms表的adGroupId存储的是Amazon adGroupId (varchar)
+      return db.getSearchTermsByAdGroupId(adGroup.adGroupId);
+    }),
+  
+  // v381: 获取广告组的否定定向列表（Ad Group级别的Negative targeting tab）
+  getNegativeTargeting: protectedProcedure
+    .input(z.object({ adGroupId: z.number() }))
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
+      
+      // 获取广告组信息，用其Amazon adGroupId查询否定词
+      const adGroup = await db.getAdGroupById(input.adGroupId);
+      if (!adGroup) return [];
+      
+      // negativeKeywords表的adGroupId存储的是Amazon adGroupId (varchar)
+      return db.getNegativeKeywordsByAdGroupId(adGroup.adGroupId);
+    }),
+  
   // v370.4: 数据隔离 - 更新广告组状态
   updateStatus: protectedProcedure
     .input(z.object({
