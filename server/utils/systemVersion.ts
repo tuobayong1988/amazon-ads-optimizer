@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 383;  // v383: 消除货币字段N+1查询、搜索词按日期同步、强化多租户隔离、自愈调度器Leader启动
+export const SYSTEM_VERSION = 384;  // v383: 消除货币字段N+1查询、搜索词按日期同步、强化多租户隔离、自愈调度器Leader启动

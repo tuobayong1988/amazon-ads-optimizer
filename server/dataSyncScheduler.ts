@@ -28,7 +28,8 @@ import {
   acquireAccountOptimizationLockWithRetry as _lmAcquireLockWithRetry,
   getModuleLockGroup as _lmGetModuleLockGroup,
 } from './utils/lockManager';
-import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from './utils/leaderElection';
+// v384: 移除Leader选举依赖，改为单实例直接启动模式
+// import { startLeaderElection, isCurrentLeader, getLeaderStatus, stopLeaderElection } from './utils/leaderElection';
 
 const log = createModuleLogger('Scheduler');
 
@@ -152,35 +153,27 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
 
   schedulerStatus.isRunning = true;
   
-  // v371: 启动Leader选举 - 确保多实例环境下只有一个实例执行调度任务
-  log.info('[DataSyncScheduler] v371: 启动Leader选举...');
-  await startLeaderElection({
-    onBecomeLeader: async () => {
-      log.info('[DataSyncScheduler] v383: 当选为Leader，启动同步、优化和自愈调度器');
-      logSystem('DataSyncScheduler', 'v383: 当选Leader，启动所有调度器');
-      // Leader负责启动实际的调度任务
-      startSchedulerTasks(defaultIntervalMs);
-      // v374: 优化调度器也由Leader控制，确保单实例执行
-      startOptimizationScheduler();
-      log.info('[DataSyncScheduler] v374: 优化调度器已由Leader启动');
-      // v383: 自愈调度器也由Leader启动，避免非Leader实例显示"已停止"
-      try {
-        const { startSelfHealing } = await import('./services/selfHealingScheduler');
-        startSelfHealing();
-        log.info('[DataSyncScheduler] v383: 自愈调度器已由Leader启动');
-      } catch (healErr: unknown) {
-        log.error(`[DataSyncScheduler] v383: 自愈调度器启动失败: ${(healErr as Error).message}`);
-      }
-    },
-    onLoseLeadership: () => {
-      log.warn('[DataSyncScheduler] v371: 失去Leadership，停止同步和优化调度器');
-      logSystem('DataSyncScheduler', 'v371: 失去Leadership，停止调度器');
-      // 停止所有调度任务（但不改变schedulerStatus.isRunning，因为选举仍在进行）
-      stopSchedulerTasks();
-    },
-  });
+  // v384: 单实例直接启动模式 - 移除Leader选举，所有调度器直接启动
+  log.info('[DataSyncScheduler] v384: 单实例模式，直接启动所有调度器...');
+  logSystem('DataSyncScheduler', 'v384: 单实例模式启动所有调度器');
   
-  log.info(`[DataSyncScheduler] v371: Leader选举已启动，等待选举结果...`);
+  // 启动数据同步调度任务
+  startSchedulerTasks(defaultIntervalMs);
+  
+  // 启动优化调度器
+  startOptimizationScheduler();
+  log.info('[DataSyncScheduler] v384: 优化调度器已启动');
+  
+  // 启动自愈调度器
+  try {
+    const { startSelfHealing } = await import('./services/selfHealingScheduler');
+    startSelfHealing();
+    log.info('[DataSyncScheduler] v384: 自愈调度器已启动');
+  } catch (healErr: unknown) {
+    log.error(`[DataSyncScheduler] v384: 自愈调度器启动失败: ${(healErr as Error).message}`);
+  }
+  
+  log.info(`[DataSyncScheduler] v384: 所有调度器已启动完成`);
 }
 
 /**
@@ -378,10 +371,7 @@ export function stopDataSyncScheduler(): void {
     log.info('[DataSyncScheduler] 定时同步调度器未在运行');
     return;
   }
-  // v371: 停止Leader选举
-  stopLeaderElection().catch(err => {
-    log.error(`[DataSyncScheduler] v371: 停止Leader选举失败: ${(err as Error).message}`);
-  });
+  // v384: 单实例模式，无需停止Leader选举
   // 停止所有层级的调度器
   stopSchedulerTasks();
   log.info(`[DataSyncScheduler] v371: 已清理所有监控定时器`);
@@ -412,11 +402,7 @@ const tierRunningState: Record<string, boolean> = {
  * 3. high层运行时，medium层正常执行（步骤不重叠，但会串行等待API资源）
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
-  // v371: Leader检查 - 非Leader实例不执行同步
-  if (!isCurrentLeader()) {
-    log.debug(`[DataSyncScheduler] v371: 非Leader实例，跳过${tier}层同步`);
-    return;
-  }
+  // v384: 单实例模式，无需Leader检查，直接执行同步
   // v222: 智能协调 - 检查是否应该跳过当前层级
   if (tier === 'high') {
     if (tierRunningState.full) {
@@ -1776,11 +1762,7 @@ export function stopOptimizationScheduler(): void {
  * 4. 使用执行锁防止重复执行
  */
 async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<void> {
-  // v371: Leader检查 - 非Leader实例不执行优化任务
-  if (!isCurrentLeader()) {
-    log.debug(`[OptimizationScheduler] v371: 非Leader实例，跳过优化任务: ${taskType}`);
-    return;
-  }
+  // v384: 单实例模式，无需Leader检查，直接执行优化任务
   // 获取执行锁
   if (!acquireLock(taskType)) return;
   

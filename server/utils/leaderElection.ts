@@ -38,7 +38,7 @@ let electionTimer: NodeJS.Timeout | null = null;
 let isShuttingDown = false;
 
 // Leader变更回调
-let onBecomeLeader: (() => void) | null = null;
+let onBecomeLeader: (() => void | Promise<void>) | null = null;
 let onLoseLeadership: (() => void) | null = null;
 
 /**
@@ -192,7 +192,7 @@ async function resignLeadership(): Promise<void> {
  * @param callbacks 回调函数
  */
 export async function startLeaderElection(callbacks: {
-  onBecomeLeader: () => void;
+  onBecomeLeader: () => void | Promise<void>;
   onLoseLeadership: () => void;
 }): Promise<void> {
   onBecomeLeader = callbacks.onBecomeLeader;
@@ -210,7 +210,7 @@ export async function startLeaderElection(callbacks: {
     isLeader = true;
     log.info(`[LeaderElection] v371: 当选为Leader! instanceId=${INSTANCE_ID}`);
     logSystem('LeaderElection', 'v371: 当选为Leader', { instanceId: INSTANCE_ID });
-    onBecomeLeader();
+    await Promise.resolve(onBecomeLeader());
     
     // 启动心跳
     heartbeatTimer = setInterval(async () => {
@@ -280,7 +280,10 @@ function startElectionLoop(): void {
         }
       }, HEARTBEAT_INTERVAL_MS);
       
-      onBecomeLeader?.();
+      // v383: 支持async回调
+      Promise.resolve(onBecomeLeader?.()).catch(err => {
+        log.error(`[LeaderElection] v383: onBecomeLeader回调执行失败: ${(err as Error).message}`);
+      });
     }
   }, 45 * 1000);
 }

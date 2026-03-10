@@ -46,40 +46,12 @@ export const dataHealthRouter = router({
           const scheduler = getSelfHealingScheduler();
           if (scheduler) {
             const status = scheduler.getStatus();
-            if (status.running) {
-              // 本实例是Leader，自愈正在运行
-              results.selfHealing = {
-                status: 'running',
-                ...status,
-                recentHistory: scheduler.getRecentHistory(10),
-              };
-            } else {
-              // v373: 本实例可能不是Leader，检查Leader状态
-              try {
-                const { isCurrentLeader, getLeaderStatus } = await import('../utils/leaderElection');
-                const leaderStatus = getLeaderStatus();
-                if (!isCurrentLeader()) {
-                  // 非Leader实例，自愈在其他实例上运行
-                  results.selfHealing = {
-                    status: 'running_on_leader',
-                    message: `自愈调度器在Leader实例(${leaderStatus.instanceId})上运行`,
-                    running: true,
-                    instanceMode: leaderStatus.mode,
-                    recentHistory: [],
-                  };
-                } else {
-                  // 是Leader但未运行，可能刚启动还未初始化
-                  results.selfHealing = {
-                    status: 'initializing',
-                    message: 'Leader实例自愈调度器正在初始化',
-                    running: false,
-                    recentHistory: [],
-                  };
-                }
-              } catch {
-                results.selfHealing = { status: 'stopped', ...status, recentHistory: scheduler.getRecentHistory(10) };
-              }
-            }
+            // v384: 单实例模式，直接返回本实例状态
+            results.selfHealing = {
+              status: status.running ? 'running' : 'stopped',
+              ...status,
+              recentHistory: scheduler.getRecentHistory(10),
+            };
           } else {
             results.selfHealing = { status: 'not_initialized' };
           }
