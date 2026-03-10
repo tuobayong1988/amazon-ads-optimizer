@@ -143,6 +143,12 @@ export default function CampaignDetail() {
     { enabled: !!campaignId }
   );
   
+  // v381: 获取变更历史（History tab）
+  const { data: changeHistory, isLoading: historyLoading } = trpc.campaign.getChangeHistory.useQuery(
+    { campaignId: campaignId!, page: 1, pageSize: 50 },
+    { enabled: !!campaignId && activeTab === 'history' }
+  );
+  
   // AI摘要生成
   const generateSummaryMutation = trpc.campaign.generateAISummary.useMutation({
     onSuccess: (data) => {
@@ -692,6 +698,8 @@ export default function CampaignDetail() {
             {campaign.campaignType === "sb" && (
               <TabsTrigger value="bidadjustments">出价调整</TabsTrigger>
             )}
+            {/* 所有广告类型都有: Budget rules */}
+            <TabsTrigger value="budgetrules">预算规则</TabsTrigger>
             {/* 所有广告类型都有: Campaign settings */}
             <TabsTrigger value="settings">广告活动设置</TabsTrigger>
             {/* 所有广告类型都有: History */}
@@ -1319,19 +1327,143 @@ export default function CampaignDetail() {
             </Card>
           </TabsContent>
 
+          {/* 预算规则 (Budget rules) */}
+          <TabsContent value="budgetrules" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>预算规则</CardTitle>
+                <CardDescription>基于规则的预算调整（对应Amazon后台的Budget rules）</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {/* 当前预算信息 */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">日预算</p>
+                      <p className="text-2xl font-bold text-primary">${campaign.dailyBudget || "N/A"}</p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">广告活动状态</p>
+                      <p className="text-lg font-medium">
+                        {campaign.campaignStatus === "enabled" ? "投放中" : 
+                         campaign.campaignStatus === "paused" ? "已暂停" : 
+                         campaign.campaignStatus === "archived" ? "已归档" : campaign.campaignStatus}
+                      </p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">开始日期</p>
+                      <p className="text-lg font-medium">{campaign.startDate || "N/A"}</p>
+                    </div>
+                    <div className="p-4 border rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">结束日期</p>
+                      <p className="text-lg font-medium">{campaign.endDate || "无限期"}</p>
+                    </div>
+                  </div>
+                  
+                  {/* 预算规则列表 */}
+                  <div className="border rounded-lg p-4">
+                    <h4 className="font-medium mb-3">预算规则列表</h4>
+                    <div className="text-center py-8 text-muted-foreground">
+                      <DollarSign className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                      <p>暂无预算规则</p>
+                      <p className="text-sm mt-2">预算规则可以根据时间段或绩效指标自动调整广告活动的日预算</p>
+                      <p className="text-xs mt-1 text-muted-foreground/70">支持基于日期的规则（如Prime Day期间增加预算）和基于绩效的规则（如ACoS低于目标时增加预算）</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* 历史记录 (History) */}
           <TabsContent value="history" className="mt-4">
             <Card>
               <CardHeader>
                 <CardTitle>历史记录</CardTitle>
-                <CardDescription>该广告活动的变更历史记录（对应Amazon后台的History）</CardDescription>
+                <CardDescription>该广告活动的变更历史记录，包括出价调整、预算变更、状态修改等（对应Amazon后台的History）</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>历史记录功能开发中</p>
-                  <p className="text-sm mt-2">将记录广告活动的所有变更操作，包括预算调整、状态变更、竞价策略修改等</p>
-                </div>
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">加载历史记录...</span>
+                  </div>
+                ) : changeHistory && changeHistory.records && changeHistory.records.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      共 {changeHistory.total} 条变更记录
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>时间</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>目标</TableHead>
+                          <TableHead>原始值</TableHead>
+                          <TableHead>新值</TableHead>
+                          <TableHead>变化</TableHead>
+                          <TableHead>来源</TableHead>
+                          <TableHead>状态</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {changeHistory.records.map((record: any) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {record.timestamp ? new Date(record.timestamp).toLocaleString('zh-CN') : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={record.type === 'bid_adjustment' ? 'default' : 'secondary'}>
+                                {record.typeLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={record.target}>
+                              {record.target}
+                              {record.matchType && (
+                                <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{record.previousValue}</TableCell>
+                            <TableCell className="font-mono text-sm">{record.newValue}</TableCell>
+                            <TableCell className="text-sm">
+                              {record.changePercent && (
+                                <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
+                                  {parseFloat(record.changePercent) > 0 ? '+' : ''}{record.changePercent}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {record.source === 'auto_optimal' ? '自动优化' :
+                                 record.source === 'auto_dayparting' ? '分时优化' :
+                                 record.source === 'auto_placement' ? '广告位优化' :
+                                 record.source === 'manual' ? '手动' :
+                                 record.source === 'batch_campaign' ? '批量操作' :
+                                 record.source === 'rule_based' ? '规则触发' :
+                                 record.source === 'api_sync' ? 'API同步' :
+                                 record.source || '未知'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
+                                {record.status === 'applied' ? '已应用' :
+                                 record.status === 'pending' ? '待执行' :
+                                 record.status === 'failed' ? '失败' :
+                                 record.status === 'rolled_back' ? '已回滚' : record.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>暂无变更历史记录</p>
+                    <p className="text-sm mt-2">当系统执行出价调整、预算变更等操作时，变更记录将显示在此处</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

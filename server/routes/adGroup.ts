@@ -164,4 +164,70 @@ export const adGroupRouter = router({
       
       return { success: true };
     }),
+
+  // v381: 获取广告组变更历史（对应Amazon后台的History tab）
+  getChangeHistory: protectedProcedure
+    .input(z.object({
+      adGroupId: z.number(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ ctx, input }: any) => {
+      try {
+        const adGroup = await db.getAdGroupById(input.adGroupId);
+        if (!adGroup) {
+          return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+        }
+        
+        // 获取该广告组下的所有关键词ID
+        const keywords = await db.getKeywordsByAdGroupId(input.adGroupId);
+        const keywordIds = keywords.map((k: any) => k.id);
+        
+        if (keywordIds.length === 0) {
+          return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+        }
+        
+        // 通过keywordId查询出价调整历史
+        const { getDb } = await import('../db/connection');
+        const { bidAdjustmentHistory } = await import('../../drizzle/schema');
+        const { inArray } = await import('drizzle-orm');
+        const dbConn = await getDb();
+        
+        if (!dbConn) {
+          return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+        }
+        
+        const bidRecords = await dbConn.select()
+          .from(bidAdjustmentHistory)
+          .where(inArray(bidAdjustmentHistory.keywordId, keywordIds))
+          .orderBy(desc(bidAdjustmentHistory.appliedAt))
+          .limit(input.pageSize);
+        
+        const allRecords = bidRecords.map((record: any) => ({
+          id: `bid_${record.id}`,
+          type: 'bid_adjustment',
+          typeLabel: '出价调整',
+          target: record.keywordText || `Keyword #${record.keywordId}`,
+          matchType: record.matchType,
+          previousValue: `$${record.previousBid}`,
+          newValue: `$${record.newBid}`,
+          changePercent: record.bidChangePercent ? `${record.bidChangePercent}%` : null,
+          reason: record.adjustmentReason,
+          source: record.adjustmentType,
+          status: record.status,
+          appliedBy: record.appliedBy,
+          timestamp: record.appliedAt,
+        }));
+        
+        return {
+          records: allRecords,
+          total: allRecords.length,
+          page: input.page,
+          pageSize: input.pageSize,
+        };
+      } catch (error: any) {
+        console.error('Failed to get ad group change history:', error);
+        return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+      }
+    }),
 });

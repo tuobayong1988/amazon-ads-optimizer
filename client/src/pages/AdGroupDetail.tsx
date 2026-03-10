@@ -34,6 +34,7 @@ import {
   FileText,
   Image as ImageIcon,
   Video,
+  Monitor,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -91,9 +92,16 @@ export default function AdGroupDetail() {
     { enabled: !!adGroupId && !!adGroup }
   );
   
+  // v381: 获取变更历史（History tab）
+  const { data: changeHistory, isLoading: historyLoading } = trpc.adGroup.getChangeHistory.useQuery(
+    { adGroupId: adGroupId!, page: 1, pageSize: 50 },
+    { enabled: !!adGroupId && activeTab === 'history' }
+  );
+  
   const campaignType = campaign?.campaignType || "sp_manual";
   const isSD = campaignType === "sd";
   const isSB = campaignType === "sb";
+  const isSP = campaignType === "sp_auto" || campaignType === "sp_manual";
   const isSPAuto = campaignType === "sp_auto";
   
   const isLoading = adGroupLoading || keywordsLoading || targetsLoading;
@@ -431,12 +439,115 @@ export default function AdGroupDetail() {
                   </div>
                 )}
                 
-                {/* SP/SD广告商品列表 */}
-                {!isSB && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>广告商品列表功能开发中</p>
-                    <p className="text-sm mt-2">将展示该广告组下投放的所有产品广告（ASIN）</p>
+                {/* SP广告商品列表 */}
+                {isSP && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <h4 className="font-medium mb-2">广告商品 (Product Ads)</h4>
+                      <p className="text-sm text-muted-foreground">该广告组下投放的产品广告（ASIN）列表。在Amazon后台，每个广告组可以包含多个产品广告，每个产品广告对应一个ASIN。</p>
+                    </div>
+                    <div className="border rounded-lg">
+                      <div className="p-4 border-b bg-muted/20">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">广告组统计概览</h4>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">曝光</p>
+                            <p className="text-xl font-bold">{(adGroup.impressions || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">点击</p>
+                            <p className="text-xl font-bold">{(adGroup.clicks || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">花费</p>
+                            <p className="text-xl font-bold">${parseFloat(adGroup.spend || "0").toFixed(2)}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">订单</p>
+                            <p className="text-xl font-bold">{adGroup.orders || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                      <Package className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">产品广告列表</p>
+                      <p className="text-sm mt-1">产品广告（ASIN）数据将在后续版本中通过Amazon Ads API同步</p>
+                      <p className="text-xs mt-1 text-muted-foreground/70">将展示每个ASIN的状态、曝光、点击、花费、订单等绩效数据</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* SD展示型广告商品列表 */}
+                {isSD && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-muted/30 rounded-lg">
+                      <h4 className="font-medium mb-2">展示型广告创意 (Ads)</h4>
+                      <p className="text-sm text-muted-foreground">该广告组下的展示型广告创意，包括产品广告和自定义创意素材。</p>
+                    </div>
+                    <div className="border rounded-lg">
+                      <div className="p-4 border-b bg-muted/20">
+                        <h4 className="font-medium">广告组统计概览</h4>
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">曝光</p>
+                            <p className="text-xl font-bold">{(adGroup.impressions || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">点击</p>
+                            <p className="text-xl font-bold">{(adGroup.clicks || 0).toLocaleString()}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">花费</p>
+                            <p className="text-xl font-bold">${parseFloat(adGroup.spend || "0").toFixed(2)}</p>
+                          </div>
+                          <div className="p-3 border rounded-lg text-center">
+                            <p className="text-sm text-muted-foreground">订单</p>
+                            <p className="text-xl font-bold">{adGroup.orders || 0}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* SD特有的可见性指标 */}
+                    {(adGroup.viewAttributedSales || adGroup.viewAttributedOrders || adGroup.dpv) && (
+                      <div className="border rounded-lg">
+                        <div className="p-4 border-b bg-muted/20">
+                          <h4 className="font-medium">可见性与浏览归因指标</h4>
+                        </div>
+                        <div className="p-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="p-3 border rounded-lg text-center">
+                              <p className="text-sm text-muted-foreground">详情页浏览</p>
+                              <p className="text-xl font-bold">{adGroup.dpv || 0}</p>
+                            </div>
+                            <div className="p-3 border rounded-lg text-center">
+                              <p className="text-sm text-muted-foreground">浏览归因销售</p>
+                              <p className="text-xl font-bold">${parseFloat(adGroup.viewAttributedSales || "0").toFixed(2)}</p>
+                            </div>
+                            <div className="p-3 border rounded-lg text-center">
+                              <p className="text-sm text-muted-foreground">浏览归因订单</p>
+                              <p className="text-xl font-bold">{adGroup.viewAttributedOrders || 0}</p>
+                            </div>
+                            <div className="p-3 border rounded-lg text-center">
+                              <p className="text-sm text-muted-foreground">新客销售</p>
+                              <p className="text-xl font-bold">${parseFloat(adGroup.ntbSales || "0").toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="text-center py-6 text-muted-foreground border rounded-lg">
+                      <Monitor className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                      <p className="font-medium">广告创意列表</p>
+                      <p className="text-sm mt-1">展示型广告创意数据将在后续版本中通过Amazon Ads API同步</p>
+                      <p className="text-xs mt-1 text-muted-foreground/70">将展示产品广告和自定义创意素材的详细信息</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -855,14 +966,86 @@ export default function AdGroupDetail() {
             <Card>
               <CardHeader>
                 <CardTitle>历史记录</CardTitle>
-                <CardDescription>该广告组的变更历史记录</CardDescription>
+                <CardDescription>该广告组的变更历史记录，包括出价调整、状态变更、定向修改等（对应Amazon后台的History）</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>历史记录功能开发中</p>
-                  <p className="text-sm mt-2">将记录广告组的所有变更操作，包括出价调整、状态变更、定向修改等</p>
-                </div>
+                {historyLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">加载历史记录...</span>
+                  </div>
+                ) : changeHistory && changeHistory.records && changeHistory.records.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      共 {changeHistory.total} 条变更记录
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>时间</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>目标</TableHead>
+                          <TableHead>原始值</TableHead>
+                          <TableHead>新值</TableHead>
+                          <TableHead>变化</TableHead>
+                          <TableHead>来源</TableHead>
+                          <TableHead>状态</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {changeHistory.records.map((record: any) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {record.timestamp ? new Date(record.timestamp).toLocaleString('zh-CN') : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="default">{record.typeLabel}</Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={record.target}>
+                              {record.target}
+                              {record.matchType && (
+                                <span className="text-xs text-muted-foreground ml-1">({record.matchType})</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{record.previousValue}</TableCell>
+                            <TableCell className="font-mono text-sm">{record.newValue}</TableCell>
+                            <TableCell className="text-sm">
+                              {record.changePercent && (
+                                <span className={parseFloat(record.changePercent) > 0 ? 'text-green-500' : 'text-red-500'}>
+                                  {parseFloat(record.changePercent) > 0 ? '+' : ''}{record.changePercent}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {record.source === 'auto_optimal' ? '自动优化' :
+                                 record.source === 'auto_dayparting' ? '分时优化' :
+                                 record.source === 'auto_placement' ? '广告位优化' :
+                                 record.source === 'manual' ? '手动' :
+                                 record.source === 'batch_campaign' ? '批量操作' :
+                                 record.source || '未知'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={record.status === 'applied' ? 'default' : record.status === 'failed' ? 'destructive' : 'secondary'}>
+                                {record.status === 'applied' ? '已应用' :
+                                 record.status === 'pending' ? '待执行' :
+                                 record.status === 'failed' ? '失败' :
+                                 record.status === 'rolled_back' ? '已回滚' : record.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>暂无变更历史记录</p>
+                    <p className="text-sm mt-2">当系统执行出价调整、定向修改等操作时，变更记录将显示在此处</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

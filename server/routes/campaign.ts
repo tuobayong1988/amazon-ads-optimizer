@@ -561,4 +561,107 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
       const updated = await updateAllCampaignRecommendations(input.accountId);
       return { updated };
     }),
+
+  // v381: 获取广告活动变更历史（对应Amazon后台的History tab）
+  getChangeHistory: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ ctx, input }: any) => {
+      try {
+        // 获取campaign信息以确定 Amazon campaignId
+        const campaign = await db.getCampaignById(input.campaignId);
+        if (!campaign) {
+          return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+        }
+        const amazonCampaignId = campaign.campaignId;
+        const accountId = campaign.accountId;
+        
+        if (!accountId) {
+          return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+        }
+
+        // 并行获取出价调整历史和预算调整历史
+        const { getBidAdjustmentHistory } = await import('../db/bidAdjustment');
+        const { getDb } = await import('../db/connection');
+        const dbConn = await getDb();
+        
+        const [bidHistory, budgetRecords] = await Promise.all([
+          getBidAdjustmentHistory({
+            accountId,
+            campaignId: Number(amazonCampaignId) || undefined,
+            page: input.page,
+            pageSize: input.pageSize,
+          }),
+          dbConn ? dbConn.select().from(
+            (await import('../../drizzle/schema')).budgetHistory
+          ).where(
+            and(
+              eq((await import('../../drizzle/schema')).budgetHistory.campaignId, amazonCampaignId),
+            )
+          ).orderBy(desc((await import('../../drizzle/schema')).budgetHistory.createdAt))
+          .limit(input.pageSize) : [],
+        ]);
+
+        // 合并并按时间排序
+        const allRecords: any[] = [];
+        
+        // 出价调整记录
+        for (const record of (bidHistory.records || [])) {
+          allRecords.push({
+            id: `bid_${record.id}`,
+            type: 'bid_adjustment',
+            typeLabel: '出价调整',
+            target: record.keywordText || `Keyword #${record.keywordId}`,
+            matchType: record.matchType,
+            previousValue: `$${record.previousBid}`,
+            newValue: `$${record.newBid}`,
+            changePercent: record.bidChangePercent ? `${record.bidChangePercent}%` : null,
+            reason: record.adjustmentReason,
+            source: record.adjustmentType,
+            status: record.status,
+            appliedBy: record.appliedBy,
+            timestamp: record.appliedAt,
+          });
+        }
+        
+        // 预算调整记录
+        for (const record of (budgetRecords || [])) {
+          allRecords.push({
+            id: `budget_${record.id}`,
+            type: 'budget_adjustment',
+            typeLabel: '预算调整',
+            target: '日预算',
+            matchType: null,
+            previousValue: `$${record.previousBudget}`,
+            newValue: `$${record.newBudget}`,
+            changePercent: record.changePercent ? `${record.changePercent}%` : null,
+            reason: record.reason,
+            source: record.source,
+            status: 'applied',
+            appliedBy: null,
+            timestamp: record.createdAt,
+          });
+        }
+        
+        // 按时间降序排列
+        allRecords.sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        });
+        
+        return {
+          records: allRecords.slice(0, input.pageSize),
+          total: allRecords.length,
+          page: input.page,
+          pageSize: input.pageSize,
+        };
+      } catch (error: any) {
+        log.error('Failed to get campaign change history:', error);
+        return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
+      }
+    }),
 });
