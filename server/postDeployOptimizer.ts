@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 392,
+    description: 'v392: [系统资源监控+DB连接池扩容+前端组件级代码分割] — (1)添加/api/monitoring/system-resources端点,实时监控CPU/内存/DB连接数/事件循环延迟 (2)DB_POOL_SIZE从40增加到60,提升多租户并发能力 (3)Dashboard图表区域提取为DashboardCharts懒加载组件,减少首屏bundle大小 (4)系统健康页面新增系统资源监控标签页',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 391,
     description: 'v391: [N+1查询消除+批量汇总优化+同步吞吐量提升] — (1)P1-updateCampaignPerformanceSummary重写为批量GROUP BY汇总,SQL查询从数百次减少到4次 (2)P1-processReportData预加载campaigns到内存Map,消除数千次逐条DB查询 (3)P1-syncBidAdjustmentsToAmazon改为批量IN查询解析Amazon ID (4)P2-Full同步间隔6小时缩短到2小时,每周期最大账号从40增加到100 (5)P2-500租户完整同步从6.2天缩短到20小时',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

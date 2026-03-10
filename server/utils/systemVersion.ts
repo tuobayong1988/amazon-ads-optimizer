@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 391;  // v391: N+1查询消除、批量GROUP BY汇总、内存Map匹配、Full同步吞吐量提升
+export const SYSTEM_VERSION = 392;  // v392: 系统资源监控、DB_POOL_SIZE增大、Dashboard图表懒加载

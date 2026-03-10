@@ -23,7 +23,11 @@ import {
   Zap,
   Clock,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Cpu,
+  HardDrive,
+  Database,
+  Server
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +47,10 @@ export default function HealthMonitor() {
   }, [globalAccountId]);
   
   // 获取健康度分析
+  const resourcesQuery = trpc.monitoring.getSystemResources.useQuery(undefined, {
+    refetchInterval: 30000, // 30秒自动刷新
+  }) as any;
+
   const healthQuery = trpc.adAutomation.analyzeCampaignHealth.useQuery({
     accountId: selectedAccountId,
   });
@@ -241,6 +249,10 @@ export default function HealthMonitor() {
             <TabsTrigger value="corrections" className="data-[state=active]:bg-gray-700">
               <Clock className="h-4 w-4 mr-2" />
               纠错复盘
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="data-[state=active]:bg-gray-700">
+              <Server className="h-4 w-4 mr-2" />
+              系统资源
             </TabsTrigger>
           </TabsList>
 
@@ -521,6 +533,183 @@ export default function HealthMonitor() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* 系统资源监控 */}
+          <TabsContent value="resources" className="space-y-4">
+            {resourcesQuery.isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1,2,3,4].map(i => (
+                  <Card key={i} className="bg-gray-900/50 border-gray-800">
+                    <CardHeader><Skeleton className="h-5 w-32 bg-gray-700" /></CardHeader>
+                    <CardContent><Skeleton className="h-24 w-full bg-gray-700" /></CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : resourcesQuery.data?.resources ? (
+              <div className="space-y-4">
+                {/* 告警 */}
+                {(resourcesQuery.data.resources.alerts?.length > 0) && (
+                  <Card className="bg-red-900/20 border-red-800">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="h-5 w-5 text-red-400" />
+                        <span className="text-red-400 font-semibold">系统告警</span>
+                      </div>
+                      {resourcesQuery.data.resources.alerts.map((alert: string, i: number) => (
+                        <p key={i} className="text-red-300 text-sm">{alert}</p>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* CPU */}
+                  <Card className="bg-gray-900/50 border-gray-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Cpu className="h-4 w-4 text-blue-400" />
+                        CPU 使用率
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold text-white mb-2">
+                        {resourcesQuery.data.resources.cpu.avgUsagePercent}%
+                      </div>
+                      <Progress 
+                        value={resourcesQuery.data.resources.cpu.avgUsagePercent} 
+                        className="h-2 mb-2" 
+                      />
+                      <p className="text-xs text-gray-400">
+                        {resourcesQuery.data.resources.cpu.cores} 核心 | {resourcesQuery.data.resources.cpu.model}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        负载: {resourcesQuery.data.resources.system.loadAvg1m} (1m) / {resourcesQuery.data.resources.system.loadAvg5m} (5m) / {resourcesQuery.data.resources.system.loadAvg15m} (15m)
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* 系统内存 */}
+                  <Card className="bg-gray-900/50 border-gray-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <HardDrive className="h-4 w-4 text-green-400" />
+                        系统内存
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold text-white mb-2">
+                        {resourcesQuery.data.resources.memory.system.usagePercent}%
+                      </div>
+                      <Progress 
+                        value={resourcesQuery.data.resources.memory.system.usagePercent} 
+                        className="h-2 mb-2" 
+                      />
+                      <p className="text-xs text-gray-400">
+                        已用: {resourcesQuery.data.resources.memory.system.usedMB}MB / 总计: {resourcesQuery.data.resources.memory.system.totalMB}MB
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        可用: {resourcesQuery.data.resources.memory.system.freeMB}MB
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Node.js 进程内存 */}
+                  <Card className="bg-gray-900/50 border-gray-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-yellow-400" />
+                        Node.js 进程内存
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold text-white mb-2">
+                        {resourcesQuery.data.resources.memory.process.heapUsagePercent}%
+                      </div>
+                      <Progress 
+                        value={resourcesQuery.data.resources.memory.process.heapUsagePercent} 
+                        className="h-2 mb-2" 
+                      />
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                        <span>RSS: {resourcesQuery.data.resources.memory.process.rssMB}MB</span>
+                        <span>堆已用: {resourcesQuery.data.resources.memory.process.heapUsedMB}MB</span>
+                        <span>堆总计: {resourcesQuery.data.resources.memory.process.heapTotalMB}MB</span>
+                        <span>外部: {resourcesQuery.data.resources.memory.process.externalMB}MB</span>
+                      </div>
+                      {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          V8堆上限: {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB}MB
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* 数据库连接池 */}
+                  <Card className="bg-gray-900/50 border-gray-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Database className="h-4 w-4 text-purple-400" />
+                        数据库连接池
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`inline-block w-2 h-2 rounded-full ${resourcesQuery.data.resources.database.poolExists ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="text-sm text-white">
+                          {resourcesQuery.data.resources.database.poolExists ? '连接池正常' : '连接池异常'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+                        <span>配置上限: {resourcesQuery.data.resources.database.poolConfigured}</span>
+                        <span>已创建: {resourcesQuery.data.resources.database.poolCreated}</span>
+                        <span>健康检查失败: {resourcesQuery.data.resources.database.healthChecksFailed}</span>
+                        <span>连接池重建: {resourcesQuery.data.resources.database.poolRebuilds}</span>
+                        <span>借出连接: {resourcesQuery.data.resources.database.directConnBorrowed}</span>
+                        <span>归还连接: {resourcesQuery.data.resources.database.directConnReturned}</span>
+                      </div>
+                      {resourcesQuery.data.resources.database.leakedConnections > 0 && (
+                        <p className="text-xs text-red-400 mt-1">
+                          疑似泄漏: {resourcesQuery.data.resources.database.leakedConnections} 个连接
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 系统信息 */}
+                <Card className="bg-gray-900/50 border-gray-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">系统信息</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-gray-400">
+                      <div>
+                        <span className="text-gray-500">平台</span>
+                        <p className="text-white">{resourcesQuery.data.resources.system.platform} / {resourcesQuery.data.resources.system.arch}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Node.js</span>
+                        <p className="text-white">{resourcesQuery.data.resources.system.nodeVersion}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">运行时间</span>
+                        <p className="text-white">{resourcesQuery.data.resources.system.uptimeHours} 小时</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">数据更新</span>
+                        <p className="text-white">{new Date(resourcesQuery.data.resources.timestamp).toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <Card className="bg-gray-900/50 border-gray-800">
+                <CardContent className="pt-6 text-center text-gray-400">
+                  暂无系统资源数据
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
