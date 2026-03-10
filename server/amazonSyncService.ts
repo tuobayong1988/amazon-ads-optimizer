@@ -727,11 +727,29 @@ export class AmazonSyncService {
     return results;
   }
 
-  /**
-   * 同步搜索词数据
-   * 使用Report API v3获取客户搜索词和绩效数据
-   */
-  async syncSearchTerms(days: number = 90): Promise<number> {
+}
+
+/**
+ * v383: 搜索词批量UPSERT辅助函数
+ * 批量INSERT搜索词数据，失败时回退到逐条插入
+ */
+async function flushSearchTermBatch(db: any, batch: any[]): Promise<void> {
+  if (batch.length === 0) return;
+  try {
+    await db.insert(searchTerms).values(batch);
+  } catch (insertErr: unknown) {
+    log.warn(`[v383] 搜索词批量INSERT失败，回退到逐条模式: ${(insertErr as Error).message}`);
+    for (const row of batch) {
+      try {
+        await db.insert(searchTerms).values(row);
+      } catch (singleErr: unknown) {
+        log.debug(`[v383] 搜索词单条INSERT失败: ${(singleErr as Error).message}`);
+      }
+    }
+  }
+}
+
+AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncService, days: number = 90): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
 
@@ -847,13 +865,16 @@ export class AmazonSyncService {
 
       let synced = 0;
       let skipped = 0;
+      const BATCH_SIZE = 500;
+      let upsertBatch: any[] = [];
+      const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       for (const row of (reportData as any[])) {
-        // 查找对应的campaign（从Map查找，O(1)）
+        // 查找对应的campaign（从Ma查找，O(1)）
         const campaign = campaignMap.get(String(row.campaignId));
         if (!campaign) { skipped++; continue; }
 
-        // 查找对应的adGroup（从Map查找，O(1)）
+        // 查找对应的adGroup（从Ma查找，O(1)）
         const adGroup = adGroupMap.get(String(row.adGroupId));
         if (!adGroup) { skipped++; continue; }
 
@@ -867,7 +888,7 @@ export class AmazonSyncService {
         const keywordType = (row.keywordType || row.matchType || '').toLowerCase();
         const isProductTarget = keywordType === 'targeting';
         
-        // 尝试关联到本地投放词记录（从Map查找，O(1)）
+        // 尝试关联到本地投放词记录（从Ma查找，O(1)）
         let searchTermTargetId: number | null = null;
         let resolvedMatchType = keywordType;
         if (!isProductTarget) {
@@ -893,6 +914,10 @@ export class AmazonSyncService {
         const sourceTargetType = isProductTarget ? 'product_target' : 'keyword';
         const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
 
+        // v383: 使用每行的具体日期（Amazon报告使timeUnit=DAILY，每行都有date字段）
+        // 而不是使用整个请求范围的startDate/endDate
+        const rowDate = row.date || startDate;
+
         const searchTermData = {
           accountId: this.accountId,
           campaignId: (campaign as Record<string, any>).campaignId,
@@ -912,32 +937,35 @@ export class AmazonSyncService {
           searchTermCtr: impressions > 0 ? String(clicks / impressions) : null,
           searchTermCvr: clicks > 0 ? String(orders / clicks) : null,
           searchTermCpc: clicks > 0 ? String(cost / clicks) : null,
-          reportStartDate: startDate,
-          reportEndDate: endDate,
+          // v383: reportStartDate和reportEndDate都使用行级别的具体日期
+          reportStartDate: rowDate,
+          reportEndDate: rowDate,
           sourceMatchType: sourceMatchType,
           sourceTargetType: sourceTargetType,
           searchTermType: searchTermType,
           searchTermUnitsOrdered: unitsOrdered,
-          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          updatedAt: nowStr,
         };
 
-        // 检查是否已存在（从Map查找，O(1)）
-        // v353修复: 使用Amazon campaignId构建key (与existingMap中存储的campaignId一致)
-        const existingKey = `${(campaign as Record<string, any>).campaignId}:${adGroup.id}:${searchTermText.toLowerCase()}`;
-        const existingId = existingMap.get(existingKey);
+        // v383: 收集到批量数组，后续统一执行UPSERT
+        upsertBatch.push({
+          ...searchTermData,
+          createdAt: nowStr,
+        });
 
-        if (existingId) {
-          await db
-            .update(searchTerms)
-            .set(searchTermData)
-            .where(eq(searchTerms.id, existingId));
-        } else {
-          await db.insert(searchTerms).values({
-            ...searchTermData,
-            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-          });
+        // v383: 每500条执行一次批量UPSERT
+        if (upsertBatch.length >= BATCH_SIZE) {
+          await flushSearchTermBatch(db, upsertBatch);
+          synced += upsertBatch.length;
+          upsertBatch = [];
         }
-        synced++;
+      }
+
+      // v383: flush剩余的批量数据
+      if (upsertBatch.length > 0) {
+        await flushSearchTermBatch(db, upsertBatch);
+        synced += upsertBatch.length;
+        upsertBatch = [];
       }
 
       log.info(`v196: 搜索词同步完成: 同步=${synced}, 跳过=${skipped} (无匹配campaign/adGroup)`);
@@ -946,13 +974,13 @@ export class AmazonSyncService {
       log.error('v196: 同步搜索词失败:', error);
       return 0;
     }
-  }
+  };
 
-  /**
-   * 同步SP自动定向数据
-   * 获取自动广告的匹配组数据（紧密匹配、宽泛匹配、同类商品、关联商品）
-   */
-  async syncAutoTargeting(days: number = 90): Promise<number> {
+/**
+ * 同步SP自动定向数据
+ * 获取自动广告的匹配组数据（紧密匹配、宽泛匹配、同类商品、关联商品）
+ */
+AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncService, days: number = 90): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
     try {
@@ -1084,13 +1112,13 @@ export class AmazonSyncService {
       log.error('同步自动定向失败:', error);
       return 0;
     }
-  }
+  };
 
-  /**
-   * 完整同步所有广告数据
-   * 包括广告活动、广告组、投放词、搜索词、位置绩效
-   */
-  async syncAllAdData(days: number = 90): Promise<{
+/**
+ * 完整同步所有广告数据
+ * 包括广告活动、广告组、投放词、搜索词、位置绩效
+ */
+AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncService, days: number = 90): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -1205,15 +1233,14 @@ export class AmazonSyncService {
     }
 
     return results;
-  }
+  };
 
-  /**
-   * 仅同步绩效数据（低频同步）
-   * 用于获取历史绩效数据
-   * 
-   * 重要：默认14天归因回溯，确保数据与亚马逊后台一致
-   */
-  async syncPerformanceOnly(days: number = 90): Promise<{
+/**
+ * 仅同步绩效数据（低频同步）
+ * 用于获取历史绩效数据
+ * 重要：默认14天归因回溯，确保数据与亚马逊后台一致
+ */
+AmazonSyncService.prototype.syncPerformanceOnly = async function(this: AmazonSyncService, days: number = 90): Promise<{
     performance: number;
     keywordPerf: number;
     targetPerf: number;
@@ -1249,13 +1276,13 @@ export class AmazonSyncService {
       log.error('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
     }
     return results;
-  }
+  };
 
-  /**
-   * 解析SB广告组中的素材ID为实际URL
-   * 查找所有有assetId但没有对应URL的广告组，调用Creative Asset Library API解析
-   */
-  async syncAssetUrls(): Promise<number> {
+/**
+ * 解析SB广告组中的素材ID为实际URL
+ * 查找所有有assetId但没有对应URL的广告组，调用Creative Asset Library API解析
+ */
+AmazonSyncService.prototype.syncAssetUrls = async function(this: AmazonSyncService): Promise<number> {
     const db = await getDb();
     if (!db) return 0;
 
@@ -1343,13 +1370,12 @@ export class AmazonSyncService {
         }
       }
 
-      return updated;
+       return updated;
     } catch (error: unknown) {
       log.error('syncAssetUrls失败:', (error as Error).message);
       throw error;
     }
-  }
-}
+  };
 
 // v223: 注册 SyncService 工厂函数，打破循环依赖
 registerSyncServiceFactory((credentials, accountId, userId, marketplace) =>

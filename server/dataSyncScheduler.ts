@@ -155,14 +155,22 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
   // v371: 启动Leader选举 - 确保多实例环境下只有一个实例执行调度任务
   log.info('[DataSyncScheduler] v371: 启动Leader选举...');
   await startLeaderElection({
-    onBecomeLeader: () => {
-      log.info('[DataSyncScheduler] v374: 当选为Leader，启动同步和优化调度器');
-      logSystem('DataSyncScheduler', 'v374: 当选Leader，启动调度器');
+    onBecomeLeader: async () => {
+      log.info('[DataSyncScheduler] v383: 当选为Leader，启动同步、优化和自愈调度器');
+      logSystem('DataSyncScheduler', 'v383: 当选Leader，启动所有调度器');
       // Leader负责启动实际的调度任务
       startSchedulerTasks(defaultIntervalMs);
       // v374: 优化调度器也由Leader控制，确保单实例执行
       startOptimizationScheduler();
       log.info('[DataSyncScheduler] v374: 优化调度器已由Leader启动');
+      // v383: 自愈调度器也由Leader启动，避免非Leader实例显示"已停止"
+      try {
+        const { startSelfHealing } = await import('./services/selfHealingScheduler');
+        startSelfHealing();
+        log.info('[DataSyncScheduler] v383: 自愈调度器已由Leader启动');
+      } catch (healErr: unknown) {
+        log.error(`[DataSyncScheduler] v383: 自愈调度器启动失败: ${(healErr as Error).message}`);
+      }
     },
     onLoseLeadership: () => {
       log.warn('[DataSyncScheduler] v371: 失去Leadership，停止同步和优化调度器');
@@ -357,15 +365,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     }
   }, 5 * 60 * 1000);
   
-  // v359: 启动独立自愈调度器（与主同步流程完全解耦）
-  try {
-    // @ts-ignore
-    const { startSelfHealing } = await import('./services/selfHealingScheduler');
-    startSelfHealing();
-    log.info('[DataSyncScheduler] v359: 独立自愈调度器已启动');
-  } catch (healErr: unknown) {
-    log.error(`[DataSyncScheduler] v359: 自愈调度器启动失败: ${(healErr as Error).message}`);
-  }
+  // v383: 自愈调度器已移至onBecomeLeader回调中启动，确保只在Leader实例上运行
   
   log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }

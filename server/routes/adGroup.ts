@@ -19,10 +19,12 @@ export const adGroupRouter = router({
       endDate: z.string().optional(),
     }))
     .query(async ({ ctx, input }: any) => {
-      // v382: 数据隔离
-      // v381: 修复ID混淆 — 前端传入本地自增ID，需要先查campaign获取Amazon campaignId
+      // v383: 强制数据隔离 - 验证campaign归属权
       const campaign = await db.getCampaignById(input.campaignId);
       if (!campaign) return [];
+      // v383: 通过campaign的accountId验证用户访问权限
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, (campaign as any).accountId);
       return db.getAdGroupsByCampaignId(campaign.campaignId);
     }),
   
@@ -175,6 +177,9 @@ export const adGroupRouter = router({
     }))
     .query(async ({ ctx, input }: any) => {
       try {
+        // v383: 强制数据隔离
+        const { verifyAdGroupAccess } = await import('../utils/accessControl');
+        await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
         const adGroup = await db.getAdGroupById(input.adGroupId);
         if (!adGroup) {
           return { records: [], total: 0, page: input.page, pageSize: input.pageSize };

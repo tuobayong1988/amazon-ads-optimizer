@@ -299,9 +299,9 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
  * 处理报告数据并存储到数据库
  */
 /**
- * v360: 批量UPSERT daily_performance 数据
+ * v383: 批量UPSERT daily_performance 数据
  * 使用 ON DUPLICATE KEY UPDATE 策略，依赖 uk_daily_perf 唯一约束 (accountId, campaignId, date, adType)
- * 同时通过原生SQL更新货币字段
+ * v383优化: 将货币字段合并到主UPSERT中，消除N+1查询问题（原每batch 500次额外UPDATE -> 0次）
  */
 async function flushDailyPerfBatch(
   db: any,
@@ -310,7 +310,19 @@ async function flushDailyPerfBatch(
 ): Promise<void> {
   if (batch.length === 0) return;
 
-  await db.insert(dailyPerformance).values(batch).onDuplicateKeyUpdate({
+  // v383: 将货币字段直接合并到batch数据中，一次UPSERT完成所有字段更新
+  const enrichedBatch = batch.map((row, i) => {
+    const cur = currencyBatch[i];
+    return {
+      ...row,
+      currency: cur?.currency || null,
+      exchangeRate: cur?.exchangeRate ? String(cur.exchangeRate) : null,
+      spendUsd: cur?.spendUsd || null,
+      salesUsd: cur?.salesUsd || null,
+    };
+  });
+
+  await db.insert(dailyPerformance).values(enrichedBatch).onDuplicateKeyUpdate({
     set: {
       impressions: sql`VALUES(${dailyPerformance.impressions})`,
       clicks: sql`VALUES(${dailyPerformance.clicks})`,
@@ -331,18 +343,13 @@ async function flushDailyPerfBatch(
       attributionWindow: sql`VALUES(${dailyPerformance.attributionWindow})`,
       isFinalized: sql`VALUES(${dailyPerformance.isFinalized})`,
       dataSource: sql`VALUES(${dailyPerformance.dataSource})`,
+      // v383: 货币字段合并到主UPSERT，消除N+1
+      currency: sql`VALUES(${dailyPerformance.currency})`,
+      exchangeRate: sql`VALUES(${dailyPerformance.exchangeRate})`,
+      spendUsd: sql`VALUES(${dailyPerformance.spendUsd})`,
+      salesUsd: sql`VALUES(${dailyPerformance.salesUsd})`,
     }
   });
-
-  // v360: P3-7 货币字段已纳入Drizzle schema，但仍使用独立UPDATE以避免影响主插入逻辑
-  // TODO: 后续版本可将货币字段合并到主插入的onDuplicateKeyUpdate中
-  for (let i = 0; i < batch.length; i++) {
-    const row = batch[i];
-    const cur = currencyBatch[i];
-    if (cur) {
-      await db.execute(sql`UPDATE daily_performance SET currency = ${cur.currency}, exchange_rate = ${cur.exchangeRate}, spend_usd = ${cur.spendUsd}, sales_usd = ${cur.salesUsd} WHERE accountId = ${row.accountId} AND campaignId = ${row.campaignId} AND DATE(date) = ${row.date} AND ad_type = ${row.adType}`);
-    }
-  }
 }
 
 AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncService, db: DbInstance, reportData: unknown[], adType: string): Promise<number> {
