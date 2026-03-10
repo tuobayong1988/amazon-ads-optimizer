@@ -16,18 +16,19 @@ import { BarChart3, Calendar, CalendarDays, Check, ChevronRight, Clock, Gift, Li
 import { toast } from "sonner";
 import { safeGetTime, safeParseDate, safeToLocaleDateString } from '../lib/safeDate';
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 type RecommendationStatus = "pending" | "applied" | "skipped" | "expired";
 
 export default function SeasonalBudget() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("recommendations");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+const [activeTab, setActiveTab] = useState("recommendations");
   const [marketplace, setMarketplace] = useState("US");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取季节性建议
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取季节性建议
   const { data: recommendationsData, isLoading: recommendationsLoading, refetch: refetchRecommendations } = trpc.seasonalBudget.getRecommendations.useQuery({
     accountId: accountId || undefined,
   });

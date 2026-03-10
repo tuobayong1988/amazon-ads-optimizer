@@ -84,9 +84,10 @@ interface DynamicConcurrencyState {
 }
 
 const concurrencyState: DynamicConcurrencyState = {
-  currentConcurrency: parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '10', 10),
+  // v399: 默认并发从10→15，与unifiedSyncEngine保持一致
+  currentConcurrency: parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10),
   minConcurrency: 3,
-  maxConcurrency: parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '10', 10),
+  maxConcurrency: parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10),
   recentThrottleCount: 0,
   recentSuccessCount: 0,
   lastAdjustTime: new Date(),

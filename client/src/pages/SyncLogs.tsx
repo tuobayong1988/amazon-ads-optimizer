@@ -30,6 +30,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { safeParseDate } from '../lib/safeDate';
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 type LogLevel = 'all' | 'info' | 'warning' | 'error' | 'success';
 type LogType = 'all' | 'campaign' | 'adGroup' | 'keyword' | 'productTarget' | 'performance' | 'negativeKeyword';
 
@@ -38,17 +39,15 @@ export default function SyncLogs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<LogLevel>("all");
   const [typeFilter, setTypeFilter] = useState<LogType>("all");
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [page, setPage] = useState(1);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const pageSize = 50;
 
-  // 获取用户的所有账户
-  const { data: accounts } = trpc.adAccount.list.useQuery(
-    undefined,
-    { enabled: !!user?.id }
-  );
+  // v399: accounts 已由 useGlobalAccountId Hook 提供，无需重复查询
 
   // 获取同步历史记录
   const { data: syncHistoryData, isLoading: logsLoading, refetch: refetchLogs } = trpc.amazonApi.getSyncHistory.useQuery(

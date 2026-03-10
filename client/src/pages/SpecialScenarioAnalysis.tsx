@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   AlertTriangle,
   TrendingUp,
@@ -60,8 +61,10 @@ import {
 } from "lucide-react";
 
 export default function SpecialScenarioAnalysis() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [activeTab, setActiveTab] = useState("overview");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [targetAcos, setTargetAcos] = useState("25");
   const [profitMargin, setProfitMargin] = useState("30");
@@ -69,10 +72,9 @@ export default function SpecialScenarioAnalysis() {
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取综合分析结果
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取综合分析结果
   const { data: analysisResult, isLoading: analysisLoading, refetch: refetchAnalysis } = 
     trpc.specialScenario.runFullAnalysis.useQuery(
       { 

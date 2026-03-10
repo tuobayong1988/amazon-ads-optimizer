@@ -73,6 +73,7 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { safeGetTime, safeParseDate, safeToISODateString, safeToISOString, safeToLocaleDateString, safeToLocaleString } from '../lib/safeDate';
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -396,8 +397,6 @@ const filterConfigs = [
 
 export default function Campaigns() {
   const isMobile = useIsMobile();
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  
   // 使用GlobalAccountSelector的选择
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
@@ -585,7 +584,7 @@ export default function Campaigns() {
   }, [visibleColumns]);
 
   // Fetch accounts
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
+  // v399: accounts 已由 useGlobalAccountId Hook 提供
   
   // 使用GlobalAccountSelector的选择查找对应的accountId
   const accountId = useMemo(() => {

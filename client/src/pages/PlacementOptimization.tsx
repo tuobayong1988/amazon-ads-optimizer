@@ -39,6 +39,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 // 位置类型映射
 const PLACEMENT_LABELS: Record<string, { name: string; icon: React.ReactNode; description: string }> = {
   top_of_search: { 
@@ -76,8 +77,10 @@ function formatCurrency(value: number): string {
 }
 
 export default function PlacementOptimization() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [analysisDialogOpen, setAnalysisDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -95,8 +98,6 @@ export default function PlacementOptimization() {
   const [adjustmentStep, setAdjustmentStep] = useState(10);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  
   // 获取广告活动列表
   const { data: campaigns } = trpc.campaign.list.useQuery(
     { accountId: selectedAccountId! },

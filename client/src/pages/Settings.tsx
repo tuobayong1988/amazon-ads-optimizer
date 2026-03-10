@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { 
   Settings as SettingsIcon, 
   Building2, 
@@ -26,13 +27,15 @@ import {
 } from "lucide-react";
 
 export default function Settings() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const { resetOnboarding, savedProgress } = useOnboarding();
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const { resetOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading, refetch } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-  // @ts-ignore
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// @ts-ignore
   const selectedAccount = accounts?.find(a => a.id === accountId);
 
   // Update account mutation

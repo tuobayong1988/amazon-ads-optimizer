@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   Clock,
   Calendar,
@@ -65,8 +66,10 @@ function getMultiplierColor(multiplier: number): string {
 }
 
 export default function DaypartingStrategy() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   
@@ -86,8 +89,6 @@ export default function DaypartingStrategy() {
   });
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  
   // 获取广告活动列表
   const { data: campaigns } = trpc.campaign.list.useQuery(
     { accountId: selectedAccountId! },

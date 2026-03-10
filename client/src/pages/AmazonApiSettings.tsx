@@ -3,7 +3,7 @@ import { safeToLocaleString } from "@/lib/safeDate";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import DashboardLayout from "@/components/DashboardLayout";
-import { useCurrentAccountId, setCurrentAccountId } from "@/components/AccountSwitcher";
+// v399: removed old AccountSwitcher import
 import { ApiHealthMonitor } from "@/components/ApiHealthMonitor";
 import { DualTrackSyncPanel } from "@/components/DualTrackSyncPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,7 @@ import {
   Eye,
   TrendingUp
 } from "lucide-react";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,23 +117,10 @@ const initialFormData: AccountFormData = {
 export default function AmazonApiSettings() {
   const { user, loading: authLoading } = useAuth();
   const { canViewTechnicalDetails } = useUserRole();
-  const globalAccountId = useCurrentAccountId();
-  const [selectedAccountId, setSelectedAccountIdLocal] = useState<number | null>(null);
-  
-  // 同步全局账号ID到本地状态
-  useEffect(() => {
-    if (globalAccountId && globalAccountId !== selectedAccountId) {
-      setSelectedAccountIdLocal(globalAccountId);
-    }
-  }, [globalAccountId]);
-  
-  // 设置账号ID时同时更新全局和本地状态
-  const setSelectedAccountId = (id: number | null) => {
-    setSelectedAccountIdLocal(id);
-    if (id) {
-      setCurrentAccountId(id);
-    }
-  };
+  // v399: 使用全局店铺选择器
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  // v399: 保留setSelectedAccountId为no-op，因为下游代码仍在调用
+  const setSelectedAccountId = (_id: number | null) => {};
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountFormData & { id: number } | null>(null);
@@ -275,9 +263,7 @@ export default function AmazonApiSettings() {
   );
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery(undefined, {
-    enabled: !!user,
-  });
+  // v399: accounts/accountsLoading 已由 useGlobalAccountId Hook 提供
 
   // Fetch account stats
   const { data: accountStats } = trpc.adAccount.getStats.useQuery(undefined, {

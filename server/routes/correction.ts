@@ -340,25 +340,32 @@ export const autoCorrectionRouter = router({
   // v177: 监控仪表盘 - 获取全面的纠错状态概览
   // v364: 修复多租户数据泄露 - 添加account_id过滤和缓存隔离
   getDashboard: protectedProcedure.query(async ({ ctx }) => {
-    // v364: 获取当前用户关联的账户ID列表用于数据隔离
+    // v399: 获取当前用户关联的账户ID列表用于数据隔离
     const dbInstance = await db.getDb();
     if (!dbInstance) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '数据库连接失败' });
     
-    // 获取当前用户的所有账户ID
-    const userAccounts = await dbInstance.execute(
-      sql`SELECT id FROM ad_accounts WHERE userId = ${ctx.user.id}`
-    ) as any;
-    const accountIds = (userAccounts?.[0] || []).map((a: any) => a.id);
+    const isAdmin = ctx.user.role === 'admin';
     
-    // v364: 缓存按用户隔离，避免跨租户数据泄露
+    // v399: admin用户可以查看所有账户数据，普通用户只能看自己的
+    let accountIds: number[] = [];
+    if (!isAdmin) {
+      const userAccounts = await dbInstance.execute(
+        sql`SELECT id FROM ad_accounts WHERE userId = ${ctx.user.id}`
+      ) as any;
+      accountIds = (userAccounts?.[0] || []).map((a: any) => a.id);
+    }
+    
+    // v399: 缓存按用户隔离，避免跨租户数据泄露
     const cacheKey = `correction.getDashboard:user:${ctx.user.id}`;
     const cached = apiCache.get<any>(cacheKey);
     if (cached) return cached;
     
-    // 构建accountId过滤条件
-    const accountFilter = accountIds.length > 0 
-      ? sql`account_id IN (${sql.join(accountIds.map((id: number) => sql`${id}`), sql`, `)})` 
-      : sql`1=0`;
+    // v399: admin用户不加过滤条件，普通用户按accountId过滤
+    const accountFilter = isAdmin 
+      ? sql`1=1`
+      : (accountIds.length > 0 
+        ? sql`account_id IN (${sql.join(accountIds.map((id: number) => sql`${id}`), sql`, `)})` 
+        : sql`1=0`);
     
     // 1. 获取最近扫描状态
     const scanStatus = getScanStatus();

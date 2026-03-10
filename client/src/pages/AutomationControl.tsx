@@ -59,6 +59,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 // 执行类型配置
 const executionTypes = [
   { key: 'bid_adjustment', label: '竞价调整', icon: DollarSign, color: 'text-blue-500' },
@@ -78,17 +79,18 @@ const automationModes = [
 ];
 
 export default function AutomationControl() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [activeTab, setActiveTab] = useState("overview");
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [emergencyReason, setEmergencyReason] = useState("");
   const [isRunningCycle, setIsRunningCycle] = useState(false);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取自动化配置
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取自动化配置
   const { data: config, refetch: refetchConfig } = trpc.automation.getConfig.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }

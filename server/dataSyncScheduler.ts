@@ -552,8 +552,8 @@ async function processQueue(): Promise<void> {
   isProcessingQueue = true;
 
   // v215优化: 账户级并行同步，同一账户内串行
-  // v366: 从环境变量读取并发数，默认10，支持动态调整
-  const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '10', 10);
+  // v399: 默认并发从10→15，与unifiedSyncEngine/syncPriorityScheduler保持一致
+  const MAX_CONCURRENT_ACCOUNTS = parseInt(process.env.MAX_CONCURRENT_ACCOUNTS || '15', 10);
   const accountGroups = new Map<number, QueuedRequest[]>();
   
   // 按账户分组

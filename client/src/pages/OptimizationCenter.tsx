@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   Select,
   SelectContent,
@@ -89,16 +90,17 @@ const executionModes = [
 ];
 
 export default function OptimizationCenter() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("overview");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [activeTab, setActiveTab] = useState("overview");
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [selectedDecisions, setSelectedDecisions] = useState<string[]>([]);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取优化摘要
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取优化摘要
   const { data: summary, refetch: refetchSummary } = trpc.unifiedOptimization.getSummary.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }

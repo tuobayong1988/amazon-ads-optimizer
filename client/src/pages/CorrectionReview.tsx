@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import { 
   FileSearch, 
   Play, 
@@ -54,10 +55,11 @@ export default function CorrectionReview() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [periodDays, setPeriodDays] = useState("14");
 
-  const { data: adAccounts } = trpc.adAccount.list.useQuery() as any;
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-
-  const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
+  const adAccounts = accounts; // v399: 使用全局Hook提供的accounts
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
     accountId: selectedAccountId || undefined,
   });
 

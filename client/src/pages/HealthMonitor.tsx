@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { useCurrentAccountId } from "@/components/AccountSwitcher";
+// v399: removed old AccountSwitcher import
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,20 +31,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function HealthMonitor() {
-  const globalAccountId = useCurrentAccountId();
-  const [selectedAccountId, setSelectedAccountId] = useState<number>(globalAccountId || 1);
+  // v399: 使用全局店铺选择器
+  const { accountId: _globalAccountId, accounts: _accounts, isLoading: _accountsLoading } = useGlobalAccountId();
+  const selectedAccountId = _globalAccountId || 1;
   const [activeTab, setActiveTab] = useState("overview");
 
   // 获取广告账号列表
-  const accountsQuery = trpc.adAccount.list.useQuery() as any;
+  const accountsQuery = { data: accounts }; // v399: 使用全局Hook提供的accounts
 
-  // v369.6: 全局账户切换时自动同步
-  useEffect(() => {
-    if (globalAccountId && globalAccountId !== selectedAccountId) {
-      setSelectedAccountId(globalAccountId);
-    }
-  }, [globalAccountId]);
+  // v399: 全局选择器自动处理账户切换
   
   // 获取健康度分析
   const resourcesQuery = trpc.monitoring.getSystemResources.useQuery(undefined, {
@@ -116,7 +113,7 @@ export default function HealthMonitor() {
           <div className="flex items-center gap-3">
             <Select
               value={selectedAccountId.toString()}
-              onValueChange={(v) => setSelectedAccountId(parseInt(v))}
+              onValueChange={() => {}} // v399: 由全局选择器控制
             >
               <SelectTrigger className="w-[200px] bg-gray-800 border-gray-700">
                 <SelectValue placeholder="选择广告账号" />

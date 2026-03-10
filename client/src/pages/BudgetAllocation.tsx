@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { safeToLocaleString } from '../lib/safeDate';
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 import {
   DollarSign,
   TrendingUp,
@@ -76,8 +77,10 @@ const PERIOD_TYPE_LABELS: Record<string, string> = {
 export default function BudgetAllocation() {
   const [activeTab, setActiveTab] = useState("allocate");
   const [totalBudget, setTotalBudget] = useState<number>(1000);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [prioritizeHighRoas, setPrioritizeHighRoas] = useState(true);
   const [prioritizeNewProducts, setPrioritizeNewProducts] = useState(false);
   const [minCampaignBudget, setMinCampaignBudget] = useState<number>(10);
   const [maxCampaignBudget, setMaxCampaignBudget] = useState<number>(300);
@@ -100,8 +103,6 @@ export default function BudgetAllocation() {
   });
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  
   // 获取分配历史
   const { data: allocationHistory, refetch: refetchHistory } = trpc.budgetAllocation.getAllocationHistory.useQuery({
     accountId: selectedAccountId ?? undefined,

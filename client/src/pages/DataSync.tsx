@@ -21,21 +21,23 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { safeGetTime, safeToLocaleString } from '../lib/safeDate';
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 type SyncType = "campaigns" | "keywords" | "performance" | "all";
 type SyncStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
 
 export default function DataSync() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("tiered");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [activeTab, setActiveTab] = useState("tiered");
   const [syncType, setSyncType] = useState<SyncType>("all");
   const [statusFilter, setStatusFilter] = useState<SyncStatus | "all">("all");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取同步任务列表
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取同步任务列表
   const { data: jobsData, isLoading: jobsLoading, refetch: refetchJobs } = trpc.dataSync.getJobs.useQuery({
     accountId: accountId || undefined,
     status: statusFilter === "all" ? undefined : statusFilter,

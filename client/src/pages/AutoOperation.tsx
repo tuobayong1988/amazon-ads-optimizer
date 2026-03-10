@@ -34,6 +34,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 // 运营步骤配置
 const OPERATION_STEPS = [
   { key: 'data_sync', name: '数据同步', icon: Database, description: '从Amazon API获取最新广告数据' },
@@ -62,12 +63,12 @@ function formatDateTime(date: Date | string | null): string {
 }
 
 export default function AutoOperation() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [isExecuting, setIsExecuting] = useState(false);
   
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  
   // 获取自动运营配置
   const { data: config, refetch: refetchConfig } = trpc.autoOperation.getConfig.useQuery(
     { accountId: selectedAccountId! },

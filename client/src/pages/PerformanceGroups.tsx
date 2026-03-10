@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 // 绩效组最优出价点显示组件（带一键采纳按钮）
 function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: { 
   groupId: number; 
@@ -244,18 +245,18 @@ function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: {
 }
 
 export default function PerformanceGroups() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState<number | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
   const [, setLocation] = useLocation();
 
   // Fetch accounts
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // Fetch performance groups
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// Fetch performance groups
   const { data: performanceGroups, isLoading, refetch } = trpc.performanceGroup.list.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }

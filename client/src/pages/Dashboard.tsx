@@ -44,6 +44,7 @@ import { CalendarIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { getCurrencySymbolByCode } from "@/utils/currency";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 // 全局变量用于存储刷新函数
 declare global {
   interface Window {
@@ -330,8 +331,9 @@ const getDateRange = (preset: DatePreset, marketplace?: string): { start: Date; 
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   
   // 区域对比时间范围状态
@@ -363,11 +365,10 @@ export default function Dashboard() {
   const { showOnboarding, completeOnboarding, skipOnboarding, pauseOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery() as any;
-
   // Use first account if none selected
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-  // v103: Get current account's marketplace for timezone-aware date calculation
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// v103: Get current account's marketplace for timezone-aware date calculation
   // @ts-ignore
   const currentMarketplace = accounts?.find(a => a.id === accountId)?.marketplace || 'US';
 

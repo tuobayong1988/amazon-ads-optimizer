@@ -23,6 +23,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { format } from "date-fns";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 type ValidationStatus = 'idle' | 'validating' | 'completed' | 'error';
 
 interface ValidationResult {
@@ -36,16 +37,15 @@ interface ValidationResult {
 
 export default function DataValidation() {
   const { user } = useAuth();
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // 获取用户的所有账户
-  const { data: accounts } = trpc.adAccount.list.useQuery(
-    undefined,
-    { enabled: !!user?.id }
-  );
+  // v399: accounts 已由 useGlobalAccountId Hook 提供，无需重复查询
 
   // 获取本地数据统计
   const { data: localStats, refetch: refetchLocalStats } = trpc.amazonApi.getLocalDataStats.useQuery(

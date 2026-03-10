@@ -34,14 +34,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function ApiSecurityCenter() {
   const { user } = useAuth();
   const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>();
   const [activeTab, setActiveTab] = useState('overview');
   
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  
   // 获取操作日志
   const { data: operationLogs, refetch: refetchLogs } = trpc.apiSecurity.getOperationLogs.useQuery({
     accountId: selectedAccountId,

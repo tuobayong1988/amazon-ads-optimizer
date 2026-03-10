@@ -15,17 +15,18 @@ import { Progress } from "@/components/ui/progress";
 import { BarChart3, Calendar, ChevronRight, Clock, LineChart, RefreshCw, Target, TrendingDown, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 type TrackingStatus = "tracking" | "completed" | "cancelled";
 
 export default function BudgetTracking() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+const [statusFilter, setStatusFilter] = useState<TrackingStatus | "all">("all");
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-  const accountId = selectedAccountId || accounts?.[0]?.id;
-
-  // 获取追踪列表
+  // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
+  const accountId = selectedAccountId;
+// 获取追踪列表
   const { data: trackingsData, isLoading, refetch } = trpc.budgetTracking.getTrackings.useQuery({
     accountId: selectedAccountId || undefined,
     status: statusFilter === "all" ? undefined : statusFilter,

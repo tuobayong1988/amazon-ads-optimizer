@@ -20,17 +20,18 @@ import {
 } from 'lucide-react';
 import ABTestCharts from '@/components/ABTestCharts';
 
+import { useGlobalAccountId } from "@/hooks/useGlobalAccountId";
 export default function ABTest() {
   const { user } = useAuth();
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  // v399: 使用全局店铺选择器替代本地状态
+  const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
+const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [selectedTestId, setSelectedTestId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery() as any;
-
   // 获取A/B测试列表
   const { data: tests, refetch: refetchTests } = trpc.abTest.list.useQuery(
     { accountId: selectedAccountId! },
