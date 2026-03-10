@@ -256,7 +256,7 @@ AmazonSyncService.prototype.syncSbAdGroups = async function(this: AmazonSyncServ
     const sbAdGroupIds = apiAdGroups.map(ag => String(ag.adGroupId));
     const existingSbAdGroupRows = sbAdGroupIds.length > 0
       ? await db.select().from(adGroups)
-          .where(inArray(adGroups.adGroupId, sbAdGroupIds))
+          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbAdGroupIds)))
       : [];
     const existingSbAdGroupMap = new Map(existingSbAdGroupRows.map(r => [`${r.campaignId}:${r.adGroupId}`, r]));
 
@@ -319,12 +319,12 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
     // v363: 批量预查询所有相关adGroup和keyword（消除N+1查询）
     const sbKwAdGroupIds = [...new Set(apiKeywords.map(k => String(k.adGroupId)))];
     const sbKwAdGroupRows = sbKwAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbKwAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbKwAdGroupIds)))
       : [];
     const sbKwAdGroupMap = new Map(sbKwAdGroupRows.map(r => [r.adGroupId, r]));
     const sbKwIds = apiKeywords.map(k => String(k.keywordId));
     const existingSbKwRows = sbKwIds.length > 0
-      ? await db.select().from(keywords).where(inArray(keywords.keywordId, sbKwIds))
+      ? await db.select().from(keywords).where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, sbKwIds)))
       : [];
     const existingSbKwMap = new Map(existingSbKwRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
 
@@ -397,12 +397,12 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
     // v363: 批量预查询所有相关adGroup和productTarget（消除N+1查询）
     const sbTgtAdGroupIds = [...new Set(apiTargets.map(t => String(t.adGroupId)))];
     const sbTgtAdGroupRows = sbTgtAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbTgtAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbTgtAdGroupIds)))
       : [];
     const sbTgtAdGroupMap = new Map(sbTgtAdGroupRows.map(r => [r.adGroupId, r]));
     const sbTgtIds = apiTargets.map(t => String(t.targetId));
     const existingSbTgtRows = sbTgtIds.length > 0
-      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sbTgtIds))
+      ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sbTgtIds)))
       : [];
     const existingSbTgtMap = new Map(existingSbTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
@@ -591,15 +591,13 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
 
       if (!campaign) continue;
 
-      // 查找对应的adGroup
+      // v387: 查找对应的adGroup（添加accountId过滤）
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(row.adGroupId)))
+        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(row.adGroupId))))
         .limit(1);
-
       if (!adGroup) continue;
-
       // 检查是否已存在
       const [existing] = await db
         .select()
@@ -771,16 +769,14 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     let synced = 0;
 
     for (const row of (reportData as any[])) {
-      // 查找对应的adGroup
+       // v387: 查找对应的adGroup（添加accountId过滤）
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(row.adGroupId)))
+        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(row.adGroupId))))
         .limit(1);
-
       if (!adGroup) continue;
-
-      // SB主要是关键词定向
+      // SB主要是关键词定向向
       if (row.keywordId) {
         // 检查关键词是否已存在
         const [existing] = await db
@@ -868,7 +864,7 @@ AmazonSyncService.prototype.syncSbAds = async function(this: AmazonSyncService):
     // v363: 批量预查询所有相关adGroup（消除N+1查询）
     const sbAdAdGroupIds = [...new Set(apiAds.map(a => String(a.adGroupId)))];
     const sbAdAdGroupRows = sbAdAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbAdAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbAdAdGroupIds)))
       : [];
     const sbAdAdGroupMap = new Map(sbAdAdGroupRows.map(r => [r.adGroupId, r]));
 
@@ -939,7 +935,7 @@ AmazonSyncService.prototype.syncSbNegativeKeywords = async function(this: Amazon
     const sbNegCampaignMap = new Map(sbNegCampaignRows.map(r => [r.campaignId, r]));
     const sbNegAdGroupIds = [...new Set(sbNegatives.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
     const sbNegAdGroupRows = sbNegAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbNegAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbNegAdGroupIds)))
       : [];
     const sbNegAdGroupMap = new Map(sbNegAdGroupRows.map(r => [r.adGroupId, r]));
 
@@ -1029,7 +1025,7 @@ AmazonSyncService.prototype.syncSbNegativeTargets = async function(this: AmazonS
     const sbNegTgtCampaignMap = new Map(sbNegTgtCampaignRows.map(r => [r.campaignId, r]));
     const sbNegTgtAdGroupIds = [...new Set(sbNegTargets.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
     const sbNegTgtAdGroupRows = sbNegTgtAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sbNegTgtAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbNegTgtAdGroupIds)))
       : [];
     const sbNegTgtAdGroupMap = new Map(sbNegTgtAdGroupRows.map(r => [r.adGroupId, r]));
 

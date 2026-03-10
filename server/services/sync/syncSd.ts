@@ -233,7 +233,7 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
     const sdCampaignMap = new Map(sdCampaignRows.map(r => [r.campaignId, r]));
     const sdAdGroupIds = apiAdGroups.map(ag => String(ag.adGroupId));
     const existingSdAdGroupRows = sdAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdAdGroupIds)))
       : [];
     const existingSdAdGroupMap = new Map(existingSdAdGroupRows.map(r => [`${r.campaignId}:${r.adGroupId}`, r]));
 
@@ -299,12 +299,12 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
     // v363: 批量预查询所有相关adGroup（消除N+1查询）
     const sdTgtAdGroupIds = [...new Set(apiTargets.map(t => String(t.adGroupId)))];
     const sdTgtAdGroupRows = sdTgtAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdTgtAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdTgtAdGroupIds)))
       : [];
     const sdTgtAdGroupMap = new Map(sdTgtAdGroupRows.map(r => [r.adGroupId, r]));
     const sdTgtIds = apiTargets.map(t => String(t.targetId));
     const existingSdTgtRows = sdTgtIds.length > 0
-      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sdTgtIds))
+      ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sdTgtIds)))
       : [];
     const existingSdTgtMap = new Map(existingSdTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
@@ -473,12 +473,12 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     // v363: 批量预查询所有相关adGroup和productTarget（消除N+1查询）
     const sdRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
     const sdRptAdGroupRows = sdRptAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdRptAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdRptAdGroupIds)))
       : [];
     const sdRptAdGroupMap = new Map(sdRptAdGroupRows.map(r => [r.adGroupId, r]));
     const sdRptTgtIds = (reportData as any[]).map(r => String(r.targetId));
     const existingSdRptTgtRows = sdRptTgtIds.length > 0
-      ? await db.select().from(productTargets).where(inArray(productTargets.targetId, sdRptTgtIds))
+      ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sdRptTgtIds)))
       : [];
     const existingSdRptTgtMap = new Map(existingSdRptTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
 
@@ -586,7 +586,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
     
     const sdNegAdGroupIds = [...new Set(sdNegTargets.filter(n => n.adGroupId).map(n => String(n.adGroupId)))];
     const sdNegAdGroupRows = sdNegAdGroupIds.length > 0
-      ? await db.select().from(adGroups).where(inArray(adGroups.adGroupId, sdNegAdGroupIds))
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdNegAdGroupIds)))
       : [];
     const sdNegAdGroupMap = new Map(sdNegAdGroupRows.map(r => [r.adGroupId, r]));
     

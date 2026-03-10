@@ -251,23 +251,23 @@ export async function runUnifiedOptimizationAnalysis(
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   
-  // 获取需要分析的广告活动
+  // v387: 获取需要分析的广告活动（所有查询添加accountId过滤，确保数据隔离）
   let targetCampaigns;
   if (options.campaignIds && options.campaignIds.length > 0) {
     targetCampaigns = await db
       .select()
       .from(campaigns)
-      .where(sql`${campaigns.id} IN (${options.campaignIds.join(',')})`);
+      .where(and(eq(campaigns.accountId, accountId), sql`${campaigns.id} IN (${options.campaignIds.join(',')})`));
   } else if (options.performanceGroupIds && options.performanceGroupIds.length > 0) {
     targetCampaigns = await db
       .select()
       .from(campaigns)
-      .where(sql`${campaigns.performanceGroupId} IN (${options.performanceGroupIds.join(',')})`);
+      .where(and(eq(campaigns.accountId, accountId), sql`${campaigns.performanceGroupId} IN (${options.performanceGroupIds.join(',')})`));
   } else {
     targetCampaigns = await db
       .select()
       .from(campaigns)
-      .where(eq(campaigns.campaignStatus, 'enabled'))
+      .where(and(eq(campaigns.accountId, accountId), eq(campaigns.campaignStatus, 'enabled')))
       .limit(100);
   }
   

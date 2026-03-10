@@ -317,12 +317,13 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(this: AmazonSyncServ
 
       if (!campaign) continue;
 
-      // 检查是否已存在
+      // v387: 检查是否已存在（添加accountId过滤）
       const [existing] = await db
         .select()
         .from(adGroups)
         .where(
           and(
+            eq(adGroups.accountId, this.accountId),
             eq(adGroups.campaignId, String(campaign.campaignId)),
             eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
           )
@@ -385,15 +386,15 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     const apiKeywordAdGroupIds = [...new Set(apiKeywords.map(ak => String(ak.adGroupId)))];
     const adGroupRows = apiKeywordAdGroupIds.length > 0
       ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
-          .where(inArray(adGroups.adGroupId, apiKeywordAdGroupIds))
+          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, apiKeywordAdGroupIds)))
       : [];
     const adGroupIdMap = new Map(adGroupRows.map(r => [r.adGroupId, r.id]));
     const adGroupFullMap = new Map(adGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
-    // 步骤2: 批量查询所有已存在的keyword
+    // v387: 批量查询所有已存在的keyword（添加accountId过滤）
     const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
     const existingKeywordRows = apiKeywordIds.length > 0
       ? await db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
-          .where(inArray(keywords.keywordId, apiKeywordIds))
+          .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, apiKeywordIds)))
       : [];
     const existingKeywordMap = new Map(existingKeywordRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
     const allExistingKeywordIds = existingKeywordRows.map(r => r.id);
@@ -487,14 +488,14 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     const apiTargetAdGroupIds = [...new Set(apiTargets.map(at => String(at.adGroupId)))];
     const targetAdGroupRows = apiTargetAdGroupIds.length > 0
       ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups)
-          .where(inArray(adGroups.adGroupId, apiTargetAdGroupIds))
+          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, apiTargetAdGroupIds)))
       : [];
-    const targetAdGroupFullMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
     const targetAdGroupIdMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, r.id]));
+    const targetAdGroupFullMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
     const apiTargetIds = apiTargets.map(at => String(at.targetId));
     const existingTargetRows = apiTargetIds.length > 0
       ? await db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.adGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
-          .where(inArray(productTargets.targetId, apiTargetIds))
+          .where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, apiTargetIds)))
       : [];
     const existingTargetMap = new Map(existingTargetRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
     const allExistingTargetIds = existingTargetRows.map(r => r.id);
@@ -606,12 +607,13 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       // Amazon API返回的state可能是大写，需要转换为小写
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
-      // 检查是否已存在
+      // v387: 检查是否已存在（添加accountId过滤）
       const [existing] = await db
         .select()
         .from(productTargets)
         .where(
           and(
+            eq(productTargets.accountId, this.accountId),
             eq(productTargets.adGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
@@ -764,7 +766,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(neg.adGroupId))))
         .limit(1);
       if (!adGroup) continue;
       const [campaign] = await db
@@ -895,7 +897,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
       const [adGroup] = await db
         .select()
         .from(adGroups)
-        .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(neg.adGroupId))))
         .limit(1);
       if (!adGroup) continue;
       const [campaign] = await db

@@ -741,19 +741,19 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     log.info(`v339: 共获取到 ${reportData.length} 条关键词绩效数据（${batches}批合并）`);
     log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
     
-    // ==================== v196: 批量预加载本地数据，避免N+1查询 ====================
-    // 1. 预加载所有adGroups的Amazon ID -> 本地ID映射
-    const allAdGroups = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups);
+    // ==================== v387: 批量预加载本地数据 - 按accountId过滤，修复数据隔离漏洞 ====================
+    // 1. 预加载当前账户的adGroups的Amazon ID -> 本地ID映射（v387: 添加accountId过滤，避免加载所有租户数据）
+    const allAdGroups = await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(eq(adGroups.accountId, this.accountId));
     const adGroupAmazonToLocal = new Map<string, number>();
     for (const ag of allAdGroups) {
       if (ag.adGroupId) adGroupAmazonToLocal.set(String(ag.adGroupId), ag.id);
     }
     
-    // 2. 预加载所有keywords，建立多维索引
+    // 2. 预加载当前账户的keywords，建立多维索引（v387: 添加accountId过滤）
     const allKeywords = await db.select({
       id: keywords.id, keywordId: keywords.keywordId, keywordText: keywords.keywordText,
       matchType: keywords.matchType, adGroupId: keywords.adGroupId
-    }).from(keywords);
+    }).from(keywords).where(eq(keywords.accountId, this.accountId));
     
     const kwByKeywordId = new Map<string, typeof allKeywords[0]>();
     // 复合键: adGroupId_keywordText_matchType
@@ -776,11 +776,11 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
     }
     
-    // 3. 预加载所有product_targets，建立多维索引
+    // 3. 预加载当前账户的product_targets，建立多维索引（v387: 添加accountId过滤）
     const allTargets = await db.select({
       id: productTargets.id, targetId: productTargets.targetId,
       targetExpression: productTargets.targetExpression, adGroupId: productTargets.adGroupId
-    }).from(productTargets);
+    }).from(productTargets).where(eq(productTargets.accountId, this.accountId));
     
     const ptByTargetId = new Map<string, typeof allTargets[0]>();
     const ptByExpression = new Map<string, typeof allTargets[0]>();
@@ -790,7 +790,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       if (pt.targetExpression) ptByExpression.set(pt.targetExpression.toLowerCase(), pt);
     }
     
-    log.info(`v196: 预加载完成 - ${allKeywords.length}个关键词, ${allTargets.length}个商品投放, ${allAdGroups.length}个广告组`);
+    log.info(`v387: 预加载完成(accountId=${this.accountId}) - ${allKeywords.length}个关键词, ${allTargets.length}个商品投放, ${allAdGroups.length}个广告组`);
     
     // ==================== v196: 四层匹配策略 ====================
     let synced = 0;
@@ -889,22 +889,50 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       }
     }
     
-    // ==================== v196: 批量写入数据库 ====================
+    // ==================== v387: 批量写入数据库 - 使用分批批量更新替代逐条UPDATE ====================
     let dbWritten = 0;
-    for (const upd of kwUpdates) {
+    const BATCH_SIZE = 100;
+    
+    // v387: 分批更新keywords，每批100条
+    for (let i = 0; i < kwUpdates.length; i += BATCH_SIZE) {
+      const batch = kwUpdates.slice(i, i + BATCH_SIZE);
       try {
-        await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
-        dbWritten++;
-      } catch (e: unknown) {
-        log.error(`v196: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
+        await Promise.all(batch.map(upd => 
+          db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id))
+        ));
+        dbWritten += batch.length;
+      } catch (batchError: unknown) {
+        // 批量失败时回退到逐条更新
+        log.warn(`v387: keyword批量更新失败，回退到逐条更新: ${(batchError as Error).message}`);
+        for (const upd of batch) {
+          try {
+            await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
+            dbWritten++;
+          } catch (e: unknown) {
+            log.error(`v387: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
+          }
+        }
       }
     }
-    for (const upd of ptUpdates) {
+    
+    // v387: 分批更新product_targets，每批100条
+    for (let i = 0; i < ptUpdates.length; i += BATCH_SIZE) {
+      const batch = ptUpdates.slice(i, i + BATCH_SIZE);
       try {
-        await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
-        dbWritten++;
-      } catch (e: unknown) {
-        log.error(`v196: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
+        await Promise.all(batch.map(upd => 
+          db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id))
+        ));
+        dbWritten += batch.length;
+      } catch (batchError: unknown) {
+        log.warn(`v387: product_target批量更新失败，回退到逐条更新: ${(batchError as Error).message}`);
+        for (const upd of batch) {
+          try {
+            await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
+            dbWritten++;
+          } catch (e: unknown) {
+            log.error(`v387: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
+          }
+        }
       }
     }
     
@@ -992,10 +1020,12 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
       LEFT JOIN (
         SELECT DISTINCT accountId, campaignId, DATE(date) AS dt
         FROM hourly_performance
+        WHERE accountId = ${this.accountId}
       ) hp ON dp.accountId = hp.accountId 
         AND dp.campaignId = hp.campaignId 
         AND DATE(dp.date) = hp.dt
-      WHERE DATE(dp.date) >= ${startDate}
+      WHERE dp.accountId = ${this.accountId}
+        AND DATE(dp.date) >= ${startDate}
         AND DATE(dp.date) <= ${endDate}
         AND (dp.impressions > 0 OR dp.clicks > 0)
         AND hp.dt IS NULL
