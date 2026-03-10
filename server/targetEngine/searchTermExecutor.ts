@@ -788,9 +788,11 @@ export async function executeSearchTermAnalysis(
                 // v168: 增强去重检查
                 const { keywords } = await import('../../drizzle/schema');
                 const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+                // v387: 添加accountId过滤确保数据隔离
                 const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId, matchType: keywords.matchType })
                   .from(keywords)
                   .where(andOp(
+                    eqOp(keywords.accountId, config.accountId),
                     eqOp(keywords.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
                     eqOp(keywords.keywordText, decision.targetValue)
                   ))
