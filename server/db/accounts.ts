@@ -139,18 +139,16 @@ export async function getPerformanceGroupsByAccountId(accountId: number) {
       return [];
     }
     
-    // 先尝试获取所有记录看看
-    const allRecords = await db.select().from(performanceGroups);
-    log.debug('[db.getPerformanceGroupsByAccountId] all records count:', allRecords.length);
-    
+    // v398: 使用SQL WHERE子句替代内存过滤，避免500租户场景下加载全表数据
     // 如果accountId为0或未定义，返回所有优化目标
     if (!accountId || accountId === 0) {
-      log.debug('[db.getPerformanceGroupsByAccountId] accountId is 0, returning all');
+      const allRecords = await db.select().from(performanceGroups);
+      log.debug('[db.getPerformanceGroupsByAccountId] accountId is 0, returning all:', allRecords.length);
       return allRecords;
     }
     
-    // 过滤指定accountId的记录
-    const result = allRecords.filter(r => r.accountId === accountId);
+    // 使用SQL WHERE过滤，避免将全表数据加载到内存
+    const result = await db.select().from(performanceGroups).where(eq(performanceGroups.accountId, accountId));
     log.debug('[db.getPerformanceGroupsByAccountId] filtered result count:', result.length);
     return result;
   } catch (error) {
