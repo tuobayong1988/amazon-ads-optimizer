@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 396;  // v396: 否定词同步campaignType过滤（SB/SD跳过SP API）、优化同步引擎类型安全
+export const SYSTEM_VERSION = 397;  // v397: 堆内存使用率告警修复 — 全局统一使用v8.heap_size_limit替代heapTotal计算堆内存使用率

@@ -639,6 +639,7 @@ export default function HealthMonitor() {
                       {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB && (
                         <p className="text-xs text-gray-500 mt-1">
                           V8堆上限: {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB}MB
+                          （已用 {resourcesQuery.data.resources.memory.process.heapUsedMB}MB / {resourcesQuery.data.resources.memory.nodeMaxOldSpaceMB}MB）
                         </p>
                       )}
                     </CardContent>

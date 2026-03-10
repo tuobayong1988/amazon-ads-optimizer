@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import os from 'os';
+import v8 from 'v8';
 import { router, protectedProcedure } from '../_core/trpc';
 import { generateMonitoringReport, runMonitoringCheck } from '../optimizationMonitoringService';
 import { getSystemHealthMetrics } from '../systemHealthMetricsService';
@@ -265,8 +266,10 @@ export const monitoringRouter = router({
 
         // Node.js进程内存
         const processMemory = process.memoryUsage();
+        const heapStats = v8.getHeapStatistics();
         const heapUsedMB = Math.round(processMemory.heapUsed / 1024 / 1024 * 10) / 10;
         const heapTotalMB = Math.round(processMemory.heapTotal / 1024 / 1024 * 10) / 10;
+        const heapSizeLimitMB = Math.round(heapStats.heap_size_limit / 1024 / 1024);
         const rssMB = Math.round(processMemory.rss / 1024 / 1024 * 10) / 10;
         const externalMB = Math.round(processMemory.external / 1024 / 1024 * 10) / 10;
 
@@ -307,9 +310,9 @@ export const monitoringRouter = router({
                 heapUsedMB,
                 heapTotalMB,
                 externalMB,
-                heapUsagePercent: Math.round((processMemory.heapUsed / processMemory.heapTotal) * 1000) / 10,
+                heapUsagePercent: Math.round((processMemory.heapUsed / heapStats.heap_size_limit) * 1000) / 10,
               },
-              nodeMaxOldSpaceMB: maxOldSpaceSize ? parseInt(maxOldSpaceSize.split('=')[1]) : null,
+              nodeMaxOldSpaceMB: heapSizeLimitMB,
             },
             database: {
               poolConfigured: dbPoolSize,
@@ -339,7 +342,9 @@ export const monitoringRouter = router({
         // 生成告警
         if (avgCpuUsage > 80) result.resources.alerts.push(`CPU使用率过高: ${avgCpuUsage}%`);
         if (memUsagePercent > 85) result.resources.alerts.push(`系统内存使用率过高: ${memUsagePercent}%`);
-        if (processMemory.heapUsed / processMemory.heapTotal > 0.9) result.resources.alerts.push(`Node.js堆内存使用率过高: ${Math.round(processMemory.heapUsed / processMemory.heapTotal * 100)}%`);
+        // v397: 使用v8.heap_size_limit替代heapTotal计算堆内存使用率，消除V8动态收缩heapTotal导致的误报
+        const heapUsageRatio = processMemory.heapUsed / heapStats.heap_size_limit;
+        if (heapUsageRatio > 0.85) result.resources.alerts.push(`Node.js堆内存使用率过高: ${Math.round(heapUsageRatio * 100)}% (${heapUsedMB}MB / ${heapSizeLimitMB}MB)`);
         if (poolStats.leakedConnections > 3) result.resources.alerts.push(`检测到${poolStats.leakedConnections}个可能泄漏的数据库连接`);
         if (poolStats.healthChecksFailed > 10) result.resources.alerts.push(`数据库健康检查失败${poolStats.healthChecksFailed}次`);
 

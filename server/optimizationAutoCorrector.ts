@@ -33,6 +33,7 @@ import * as amazonApiHelper from './services/amazonApiHelper';
 import { sanitizeAndValidateKeyword, isProductTargetingCampaign } from './utils/keywordValidator';
 import { createModuleLogger } from './utils/logger';
 import { recordAudit, auditSystemAction } from './services/auditLogService';
+import v8 from 'v8';
 
 const log = createModuleLogger('AutoCorrector');
 
@@ -3581,11 +3582,12 @@ export function startAutoCorrector(): void {
     : 4 * 60 * 60 * 1000;
   correctionInterval = setInterval(async () => {
     try {
-      // v329: 内存预算检查 - 纠错扫描是非关键任务，内存紧张时跳过
+      // v397: 使用v8.heap_size_limit替代heapTotal计算堆内存使用率，消除V8动态收缩heapTotal导致的误报
       const mem = process.memoryUsage();
-      const heapUtil = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+      const heapSizeLimit = v8.getHeapStatistics().heap_size_limit;
+      const heapUtil = Math.round((mem.heapUsed / heapSizeLimit) * 100);
       if (heapUtil > 80) {
-        log.warn(`[AutoCorrector] v329: 内存紧张(${heapUtil}%)，跳过本次纠错扫描`);
+        log.warn(`[AutoCorrector] v397: 内存紧张(${heapUtil}%, ${Math.round(mem.heapUsed/1024/1024)}MB/${Math.round(heapSizeLimit/1024/1024)}MB)，跳过本次纠错扫描`);
         if (typeof global.gc === 'function') global.gc();
         return;
       }

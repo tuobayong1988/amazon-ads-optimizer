@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 397,
+    description: 'v397: [堆内存使用率告警误报修复] — (1)全局统一使用v8.getHeapStatistics().heap_size_limit替代process.memoryUsage().heapTotal计算堆内存使用率,消除V8动态收缩heapTotal导致的虚高97%告警 (2)monitoring.ts系统资源API:heapUsagePercent改用heap_size_limit计算,告警阈值从90%调整为85% (3)ops.ts运维诊断API:evaluateAlerts和/status端点的heapUsagePct改用heap_size_limit (4)optimizationAutoCorrector.ts定时纠错扫描内存检查改用heap_size_limit (5)前端HealthMonitor.tsx增加堆上限明细显示',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
     version: 396,
     description: 'v396: [否定词同步campaignType安全过滤] — (1)P1-optimizationSyncEngine否定词同步增加campaignType过滤,SB/SD类型campaign自动跳过SP否定词API,避免"parent program type must be Sponsored Products"错误和无限重试 (2)P1-automationExecutionEngine否定词同步同样增加campaignType检查,SB/SD类型记录优化日志但不调用API (3)修复否定词回填时同时获取campaignType字段',
     affectedModules: ['keyword', 'searchterm'],
