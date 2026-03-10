@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Activity, 
   AlertTriangle, 
@@ -144,7 +145,26 @@ export default function AutoCorrectionDashboard() {
           </div>
         </div>
         
-        {/* 顶部统计卡片 */}
+        {/* 顶部统计卡片 - v390: 添加loading骨架屏 */}
+        {dashboardQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="bg-gray-900 border-gray-800">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-16 bg-gray-700" />
+                      <Skeleton className="h-8 w-24 bg-gray-700" />
+                    </div>
+                    <Skeleton className="h-10 w-10 rounded-full bg-gray-700" />
+                  </div>
+                  <Skeleton className="h-2 w-full mt-3 bg-gray-700" />
+                  <Skeleton className="h-3 w-20 mt-2 bg-gray-700" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-gray-900 border-gray-800">
             <CardContent className="pt-6">
@@ -203,6 +223,7 @@ export default function AutoCorrectionDashboard() {
             </CardContent>
           </Card>
         </div>
+        )}
         
         {/* 标签页 */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -213,8 +234,27 @@ export default function AutoCorrectionDashboard() {
             <TabsTrigger value="recent">最近纠错</TabsTrigger>
           </TabsList>
           
-          {/* 概览标签 */}
+          {/* 概览标签 - v390: 添加loading状态 */}
           <TabsContent value="overview" className="space-y-4">
+            {dashboardQuery.isLoading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {[1, 2].map((i) => (
+                  <Card key={i} className="bg-gray-900 border-gray-800">
+                    <CardHeader>
+                      <Skeleton className="h-5 w-32 bg-gray-700" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div key={j} className="flex justify-between">
+                          <Skeleton className="h-4 w-20 bg-gray-700" />
+                          <Skeleton className="h-4 w-16 bg-gray-700" />
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* 最近扫描结果 */}
               <Card className="bg-gray-900 border-gray-800">
@@ -389,6 +429,7 @@ export default function AutoCorrectionDashboard() {
                 </CardContent>
               </Card>
             </div>
+            )}
             
             {/* 7天趋势 */}
             {dashboard?.trendData && (dashboard.trendData as any[]).length > 0 && (

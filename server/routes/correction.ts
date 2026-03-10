@@ -365,67 +365,66 @@ export const autoCorrectionRouter = router({
     const lastScan = getLastScanResult();
     const config = getAutoCorrectorConfig();
     
-    // 2. 获取事件状态统计 - v364: 添加account_id过滤
-    // @ts-ignore
-    const [statusStats] = await dbInstance.execute(
-      sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} GROUP BY api_sync_status`
-    ) as unknown;
-    
-    // 3. 获取按操作类型的统计 - v364: 添加account_id过滤
-    // @ts-ignore
-    const [actionStats] = await dbInstance.execute(
-      sql`SELECT action_type, api_sync_status, COUNT(*) as count 
-          FROM optimization_events 
-          WHERE ${accountFilter}
-          GROUP BY action_type, api_sync_status 
-          ORDER BY action_type, api_sync_status`
-    ) as unknown;
-    
-    // 4. 获取最近7天的纠错活动趋势 - v364: 添加account_id过滤
-    // @ts-ignore
-    const [trendData] = await dbInstance.execute(
-      sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
-             SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
-             SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
-          FROM optimization_events 
-          WHERE ${accountFilter} AND api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-          GROUP BY DATE(api_synced_at)
-          ORDER BY date DESC`
-    ) as unknown;
-    
-    // 5. 获取待处理的关键词创建重试统计 - v364: 添加account_id过滤
-    // @ts-ignore
-    const [harvestRetryStats] = await dbInstance.execute(
-      sql`SELECT COUNT(*) as total,
-             SUM(CASE WHEN action_detail LIKE '%code=ERROR%' THEN 1 ELSE 0 END) as retryable
-          FROM optimization_events 
-          WHERE ${accountFilter}
-            AND action_type = 'keyword_create' 
-            AND api_sync_status = 'not_applicable'
-            AND keyword_id IS NULL`
-    ) as unknown;
-    
-    // 6. 获取否定关键词状态统计 - v364: 添加account_id过滤
-    // @ts-ignore
-    const [negKeywordStats] = await dbInstance.execute(
-      sql`SELECT api_sync_status, COUNT(*) as count 
-          FROM optimization_events 
-          WHERE ${accountFilter} AND action_type = 'negative_keyword_add'
-          GROUP BY api_sync_status`
-    ) as unknown;
-    
-    // 7. 获取最近的纠错活动日志（最近20条） - v364: 添加account_id过滤
-    // @ts-ignore
-    const [recentCorrections] = await dbInstance.execute(
-      sql`SELECT id, action_type, api_sync_status, action_detail,
-             COALESCE(api_sync_detail, '{}') as api_sync_detail,
-             campaign_name, ad_group_name, keyword_text,
-             created_at, api_synced_at
-          FROM optimization_events
-          WHERE ${accountFilter} AND api_sync_status IN ('synced', 'failed', 'permanently_failed')
-          ORDER BY created_at DESC
-          LIMIT 20`
-    ) as unknown;
+    // v390: 将串6个串行SQL查询改为Promise.all并行执行，大幅提升响应速度
+    const [
+      [statusStats],
+      [actionStats],
+      [trendData],
+      [harvestRetryStats],
+      [negKeywordStats],
+      [recentCorrections],
+    ] = await Promise.all([
+      // 2. 获取事件状态统计
+      dbInstance.execute(
+        sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events WHERE ${accountFilter} GROUP BY api_sync_status`
+      ) as any,
+      // 3. 获取按操作类型的统计
+      dbInstance.execute(
+        sql`SELECT action_type, api_sync_status, COUNT(*) as count 
+            FROM optimization_events 
+            WHERE ${accountFilter}
+            GROUP BY action_type, api_sync_status 
+            ORDER BY action_type, api_sync_status`
+      ) as any,
+      // 4. 获取最近7天的纠错活动趋势
+      dbInstance.execute(
+        sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
+               SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+               SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
+            FROM optimization_events 
+            WHERE ${accountFilter} AND api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            GROUP BY DATE(api_synced_at)
+            ORDER BY date DESC`
+      ) as any,
+      // 5. 获取待处理的关键词创建重试统计
+      dbInstance.execute(
+        sql`SELECT COUNT(*) as total,
+               SUM(CASE WHEN action_detail LIKE '%code=ERROR%' THEN 1 ELSE 0 END) as retryable
+            FROM optimization_events 
+            WHERE ${accountFilter}
+              AND action_type = 'keyword_create' 
+              AND api_sync_status = 'not_applicable'
+              AND keyword_id IS NULL`
+      ) as any,
+      // 6. 获取否定关键词状态统计
+      dbInstance.execute(
+        sql`SELECT api_sync_status, COUNT(*) as count 
+            FROM optimization_events 
+            WHERE ${accountFilter} AND action_type = 'negative_keyword_add'
+            GROUP BY api_sync_status`
+      ) as any,
+      // 7. 获取最近的纠错活动日志（最近20条）
+      dbInstance.execute(
+        sql`SELECT id, action_type, api_sync_status, action_detail,
+               COALESCE(api_sync_detail, '{}') as api_sync_detail,
+               campaign_name, ad_group_name, keyword_text,
+               created_at, api_synced_at
+            FROM optimization_events
+            WHERE ${accountFilter} AND api_sync_status IN ('synced', 'failed', 'permanently_failed')
+            ORDER BY created_at DESC
+            LIMIT 20`
+      ) as any,
+    ]);
     
     const result = {
       scanStatus,

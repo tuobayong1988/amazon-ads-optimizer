@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 390,
+    description: 'v390: [前端骨架屏优化+后端API并行查询+健康分析缓存+性能索引] — (1)P2-纠错监控页面添加完整loading骨架屏,解决数据加载时的空白闪烁问题 (2)P2-系统健康监控页面添加loading骨架屏,优化用户体验 (3)P3-getDashboard的6个串行SQL查询改为Promise.all并行执行,提升响应速度约60-70% (4)P3-analyzeCampaignHealth结果缓存120秒,避免重复计算 (5)P3-getHealthAlerts复用健康分析缓存,消除重复数据库查询 (6)P3-添加6个复合索引覆盖optimization_events和daily_performance表高频查询',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands'],
+  },
+  {
     version: 389,
     description: 'v389: [EB实例升级+内存优化+SD否定定位同步注册] — (1)P1-EB实例从 t3.small(2GB)升级到 t3.medium(4GB),支持200-500租户规模 (2)P1-Node.js堆内存限制从1400MB提升到3072MB,充分利用t3.medium内存 (3)P1-SD否定商品定位同步步骤已确认注册到SYNC_STEPS (4)P2-DB_POOL_SIZE从25提升到40,提升并发处理能力 (5)P2-纠错监控页面功能验证通过,94.4%同步率正常',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
@@ -1725,6 +1731,20 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       }
     } catch (migrationErr: unknown) {
       log.error(`[PostDeployOptimizer] v372: 扩展索引迁移失败: ${(migrationErr as Error).message}`);
+    }
+  }
+
+  // v390: 性能优化索引 - 为纠错监控和健康分析的高频查询添加复合索引
+  if (versionsToApply.some(v => v.version >= 390)) {
+    try {
+      const { runV390PerformanceIndexes } = await import('./migrations/v390_performance_indexes');
+      const database = await getDb();
+      if (database) {
+        await runV390PerformanceIndexes(database);
+        log.info(`[PostDeployOptimizer] v390: 性能优化索引创建完成`);
+      }
+    } catch (migrationErr: unknown) {
+      log.error(`[PostDeployOptimizer] v390: 性能优化索引迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 

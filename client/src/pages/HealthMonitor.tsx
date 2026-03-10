@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Activity, 
@@ -136,7 +137,24 @@ export default function HealthMonitor() {
           </div>
         </div>
 
-        {/* 概览卡片 */}
+        {/* 概览卡片 - v390: 添加loading骨架屏 */}
+        {healthQuery.isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="bg-gray-900 border-gray-800">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20 bg-gray-700" />
+                      <Skeleton className="h-8 w-16 bg-gray-700" />
+                    </div>
+                    <Skeleton className="h-12 w-12 rounded-full bg-gray-700" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-green-900/30 to-gray-900 border-green-500/20">
             <CardContent className="pt-6">
@@ -202,6 +220,7 @@ export default function HealthMonitor() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* 标签页 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

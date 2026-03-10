@@ -9,6 +9,7 @@ import * as db from "../db";
 import * as adAutomation from '../adAutomation';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
+import { apiCache } from '../services/apiCacheService';
 
 
 // ==================== Ad Automation Router ====================
@@ -256,6 +257,7 @@ export const adAutomationRouter = router({
     }),
 
   // ==================== 广告活动健康度监控 ====================
+  // v390: 添加缓存层，避免重复计算健康分数
   analyzeCampaignHealth: protectedProcedure
     .input(z.object({
       accountId: z.number(),
@@ -269,6 +271,12 @@ export const adAutomationRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      // v390: 缓存健康分析结果 120秒
+      const cacheKey = `health.analyze:${ctx.user.id}:${input.accountId}`;
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
       const campaigns = await db.getCampaignHealthMetrics(input.accountId);
       const healthScores = adAutomation.analyzeCampaignHealth(campaigns, {
         acosWarning: input.acosWarning,
@@ -285,7 +293,7 @@ export const adAutomationRouter = router({
       const healthyCount = healthScores.filter(h => h.status === 'healthy').length;
       const totalAlerts = healthScores.reduce((sum: any, h: any) => sum + h.alerts.length, 0);
       
-      return {
+      const result = {
         totalCampaigns: healthScores.length,
         criticalCount,
         warningCount,
@@ -296,9 +304,11 @@ export const adAutomationRouter = router({
           : 0,
         campaigns: healthScores,
       };
+      apiCache.set(cacheKey, result, 120 * 1000);
+      return result;
     }),
 
-  // 获取健康预警列表
+  // v390: 优化getHealthAlerts，复用analyzeCampaignHealth的缓存结果
   getHealthAlerts: protectedProcedure
     .input(z.object({
       accountId: z.number(),
@@ -306,25 +316,32 @@ export const adAutomationRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const campaigns = await db.getCampaignHealthMetrics(input.accountId);
-      const healthScores = adAutomation.analyzeCampaignHealth(campaigns);
       
-      let allAlerts = healthScores.flatMap(h => h.alerts);
+      // v390: 复用缓存的健康分析结果，避免重复查询和计算
+      const healthCacheKey = `health.analyze:${ctx.user.id}:${input.accountId}`;
+      let healthResult = apiCache.get<any>(healthCacheKey);
+      
+      if (!healthResult) {
+        const campaigns = await db.getCampaignHealthMetrics(input.accountId);
+        const healthScores = adAutomation.analyzeCampaignHealth(campaigns);
+        healthResult = { campaigns: healthScores };
+      }
+      
+      let allAlerts = (healthResult.campaigns || []).flatMap((h: any) => h.alerts || []);
       
       if (input.severity !== 'all') {
-        allAlerts = allAlerts.filter(a => a.severity === input.severity);
+        allAlerts = allAlerts.filter((a: any) => a.severity === input.severity);
       }
       
       // 按严重程度排序
-      const severityOrder = { critical: 0, warning: 1, info: 2 };
-      // @ts-ignore
-      allAlerts.sort((a: any, b: any) => severityOrder[a.severity] - severityOrder[b.severity]);
+      const severityOrder: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+      allAlerts.sort((a: any, b: any) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3));
       
       return {
         totalAlerts: allAlerts.length,
-        criticalCount: allAlerts.filter(a => a.severity === 'critical').length,
-        warningCount: allAlerts.filter(a => a.severity === 'warning').length,
-        infoCount: allAlerts.filter(a => a.severity === 'info').length,
+        criticalCount: allAlerts.filter((a: any) => a.severity === 'critical').length,
+        warningCount: allAlerts.filter((a: any) => a.severity === 'warning').length,
+        infoCount: allAlerts.filter((a: any) => a.severity === 'info').length,
         alerts: allAlerts,
       };
     }),

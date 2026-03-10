@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 389;  // v389: EB实例升级t3.small→t3.medium(4GB)、Node.js内存限制3072MB、DB连接池40、SD否定定位同步注册、纠错监控验证通过
+export const SYSTEM_VERSION = 390;  // v390: 前端骨架屏优化、getDashboard并行查询、健康分析缓存、性能索引优化
