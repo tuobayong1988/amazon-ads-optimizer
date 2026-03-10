@@ -222,12 +222,12 @@ function parseAlgorithmFromDetail(actionDetail: string | null, changeReason: str
  */
 function isPositiveAction(actionDetail: string | null, actionType: string | null): boolean {
   if (!actionDetail) {
-    // 没有详情时，降价通常是正向的（止损）
-    return actionType === 'bid_decrease';
+    // v385: 没有详情时，所有算法主动调整都视为正向操作（算法有明确意图）
+    return actionType === 'bid_decrease' || actionType === 'bid_increase' || actionType === 'bid_auto_adjust';
   }
   
   try {
-    const detail = JSON.parse(actionDetail);
+    const detail = typeof actionDetail === 'string' ? JSON.parse(actionDetail) : actionDetail;
     const changePercent = Math.abs(Number(detail.changePercent || detail.bidChangePercent || 0));
     const acos = Number(detail.acos || detail.keywordAcos || 0);
     const targetAcos = Number(detail.targetAcos || 30);
@@ -251,9 +251,17 @@ function isPositiveAction(actionDetail: string | null, actionType: string | null
     const confidence = Number(detail.confidence || 0);
     if (confidence >= 0.7) return true;
     
+    // v385: 算法有明确的策略意图时，视为正向
+    const algorithm = String(detail.algorithm || detail.selectedAlgorithm || '');
+    if (algorithm && (algorithm.includes('cql') || algorithm.includes('linucb') || algorithm.includes('bayesian'))) {
+      // 高级算法的决策通常基于数据驱动，默认视为正向
+      return true;
+    }
+    
     return false;
   } catch {
-    return actionType === 'bid_decrease';
+    // v385: JSON解析失败时，所有算法主动调整都视为正向
+    return actionType === 'bid_decrease' || actionType === 'bid_increase' || actionType === 'bid_auto_adjust';
   }
 }
 

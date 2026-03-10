@@ -1081,7 +1081,16 @@ export function calculateGoalProgress(
   // 计算加权总分
   let totalScore = dimensions.reduce((sum: any, d: any) => sum + d.weighted, 0);
   
-  // v164: 应用数据置信度修正（低置信度时总分向50分靠拢）
+  // v385: 核心指标严重偏离惩罚机制
+  // 当核心指标达成度很低时，其他维度不应过度补偿总分
+  if (coreMetric.score < 50) {
+    // 核心指标低于50分时，对总分施加惩罚系数
+    // 核心指标得0分 -> 惩罚系数0.6，30分 -> 0.75，50分 -> 1.0
+    const penaltyFactor = 0.6 + (coreMetric.score / 50) * 0.4;
+    totalScore = Math.round(totalScore * penaltyFactor);
+  }
+  
+  // v164: 应用数据置信度修正（低置信度时总分吆50分靠拢）
   if (confidenceMultiplier < 1.0) {
     totalScore = Math.round(50 + (totalScore - 50) * confidenceMultiplier);
   }

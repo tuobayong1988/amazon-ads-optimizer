@@ -445,10 +445,30 @@ export const analyticsRouter = router({
         };
       }
       
+      // v385: 批量查询所有账户的绩效数据（消除N+1查询问题）
+      const accountIds = (accounts as any[]).map((a: any) => a.id);
+      const summaryMap = new Map<number, any>();
+      
+      if (accountIds.length > 0) {
+        // 并行查询所有账户（最多并行5个）
+        const batchSize = 5;
+        for (let i = 0; i < accountIds.length; i += batchSize) {
+          const batch = accountIds.slice(i, i + batchSize);
+          const results = await Promise.all(
+            batch.map(async (id: number) => {
+              const summary = await db.getPerformanceSummary(id, startDate, endDate);
+              return { id, summary };
+            })
+          );
+          for (const { id, summary } of results) {
+            if (summary) summaryMap.set(id, summary);
+          }
+        }
+      }
+      
       // 汇总每个账号的数据到对应区域
       for (const account of (accounts as any[])) {
-        // 确定账号所属区域
-        let accountRegion = 'NA'; // 默认北美
+        let accountRegion = 'NA';
         for (const [regionId, regionInfo] of Object.entries(REGIONS)) {
           if (regionInfo.marketplaces.includes(account.marketplace)) {
             accountRegion = regionId;
@@ -456,9 +476,7 @@ export const analyticsRouter = router({
           }
         }
         
-        // 获取账号的性能数据
-        const summary = await db.getPerformanceSummary(account.id, startDate, endDate);
-        
+        const summary = summaryMap.get(account.id);
         if (summary) {
           const sales = parseFloat(summary.totalSales || '0');
           const spend = parseFloat(summary.totalSpend || '0');
@@ -473,7 +491,6 @@ export const analyticsRouter = router({
           regionData[accountRegion].totalClicks += clicks;
           regionData[accountRegion].totalImpressions += impressions;
           
-          // 添加站点到列表（去重）
           if (!regionData[accountRegion].marketplaces.includes(account.marketplace)) {
             regionData[accountRegion].marketplaces.push(account.marketplace);
           }

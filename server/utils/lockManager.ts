@@ -40,7 +40,9 @@ const MAX_LOCK_TIMEOUT_MS = 30 * 60 * 1000;
  */
 export function getModuleLockGroup(specificModules?: string[]): string {
   if (!specificModules || specificModules.length === 0) return 'all';
-  if (specificModules.includes('bid') || specificModules.includes('keyword')) return 'bid';
+  // v385: 将keyword从bid锁组分离，减少锁冲突
+  if (specificModules.includes('bid')) return 'bid';
+  if (specificModules.includes('keyword')) return 'keyword';
   if (specificModules.includes('dayparting') || specificModules.includes('multidim')) return 'dayparting';
   if (specificModules.includes('dayparting_budget')) return 'dayparting_budget';
   if (specificModules.includes('placement')) return 'placement';
@@ -114,30 +116,13 @@ export async function acquireAccountOptimizationLock(
   const group = moduleGroup || 'all';
   const lockKey = `${accountId}:${group}`;
   
-  // 第一层：内存锁（快速路径）
+  // v385: 单实例模式，仅使用内存锁，移除分布式锁开销（每次占用一个数据库连接）
   if (!acquireMemoryLock(lockKey, lockedBy, options)) {
     return false;
   }
   recordLockEvent(lockKey, 'acquired', lockedBy, 0);
-  
-  // 第二层：数据库分布式锁（跨实例保护）
-  try {
-    const distLockName = `opt_${accountId}_${group}`;
-    const acquired = await acquireDistributedLock(distLockName, 3);
-    if (!acquired) {
-      // 数据库锁获取失败（另一个实例持有），回滚内存锁
-      log.warn(`[LockManager] ${lockKey} 数据库分布式锁被其他实例持有，回滚内存锁 (${lockedBy})`);
-      releaseMemoryLock(lockKey);
-      recordLockEvent(lockKey, 'dist_lock_failed', lockedBy, 0);
-      return false;
-    }
-    log.debug(`[LockManager] ${lockKey} 混合锁获取成功 (内存+数据库) by ${lockedBy}`);
-    return true;
-  } catch (error) {
-    // 数据库锁获取异常时，降级为仅内存锁（单实例仍然安全）
-    log.warn(`[LockManager] ${lockKey} 数据库锁获取异常，降级为内存锁模式: ${(error as Error).message}`);
-    return true;
-  }
+  log.debug(`[LockManager] ${lockKey} 内存锁获取成功 by ${lockedBy}`);
+  return true;
 }
 
 /**
@@ -153,16 +138,8 @@ export async function releaseAccountOptimizationLock(accountId: number, moduleGr
     recordLockEvent(lockKey, 'released', accountModuleLocks[lockKey].lockedBy, holdTime);
   }
   
-  // 释放内存锁
+  // v385: 单实例模式，仅释放内存锁
   releaseMemoryLock(lockKey);
-  
-  // 释放数据库分布式锁
-  try {
-    const distLockName = `opt_${accountId}_${group}`;
-    await releaseDistributedLock(distLockName);
-  } catch (error) {
-    log.warn(`[LockManager] ${lockKey} 数据库锁释放异常: ${(error as Error).message}`);
-  }
 }
 
 /**

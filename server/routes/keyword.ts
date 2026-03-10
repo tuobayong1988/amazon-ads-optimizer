@@ -78,7 +78,9 @@ export const keywordRouter = router({
       status: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      // v382: 数据隔离
+      // v385: 数据隔离 - 验证关键词归属
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      await verifyKeywordAccess(ctx.user.id, input.id);
       const { id, ...data } = input;
       await db.updateKeyword(id, data);
       return { success: true };
@@ -92,6 +94,11 @@ export const keywordRouter = router({
       bidValue: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // v385: 数据隔离 - 批量验证关键词归属
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      for (const kid of input.ids) {
+        await verifyKeywordAccess(ctx.user.id, kid);
+      }
       const results = [];
       for (const id of input.ids) {
         const keyword = await db.getKeywordById(id);
@@ -216,7 +223,11 @@ export const keywordRouter = router({
       status: z.enum(["enabled", "paused"]),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      // v382: 数据隔离
+      // v385: 数据隔离 - 批量验证关键词归属
+      const { verifyKeywordAccess } = await import('../utils/accessControl');
+      for (const kid of input.ids) {
+        await verifyKeywordAccess(ctx.user.id, kid);
+      }
       // v159: 先更新本地数据库
       let updated = 0;
       for (const id of input.ids) {

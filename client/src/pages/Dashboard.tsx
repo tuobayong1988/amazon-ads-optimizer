@@ -421,7 +421,7 @@ export default function Dashboard() {
   // 获取归因调整后的近期数据
   const { data: attributionData } = trpc.specialScenario.getAttributionAdjustedData.useQuery(
     { accountId: accountId!, days: 7 },
-    { enabled: !!accountId }
+    { enabled: !!accountId, staleTime: 10 * 60 * 1000 } // v385: 10分钟缓存，减少首屏请求
   );
 
   // 计算归因调整后的KPI汇总
@@ -461,13 +461,13 @@ export default function Dashboard() {
   // v260: 获取系统健康核心指标（回滚率 + 算法激活率）
   const { data: healthMetrics } = trpc.monitoring.getHealthMetrics.useQuery(
     { accountId: accountId!, days: 7 },
-    { enabled: !!accountId, refetchInterval: 5 * 60 * 1000 } // 每5分钟自动刷新
+    { enabled: !!accountId, staleTime: 10 * 60 * 1000, refetchInterval: 10 * 60 * 1000 } // v385: 降低刷新频率
   );
 
   // v261: 获取部署后纠错报告
   const { data: deployCorrectionReport } = trpc.monitoring.getDeployCorrectionReport.useQuery(
     undefined,
-    { refetchInterval: 10 * 60 * 1000 } // 每10分钟自动刷新
+    { staleTime: 30 * 60 * 1000, refetchInterval: 30 * 60 * 1000 } // v385: 30分钟缓存，降低频率
   );
   
   // (kpiDateRange 已移动到上方使用前)
@@ -530,7 +530,7 @@ export default function Dashboard() {
       startDate: regionDateRange.startDate,
       endDate: regionDateRange.endDate,
     },
-    { enabled: !!user?.id }
+    { enabled: !!user?.id, staleTime: 10 * 60 * 1000 } // v385: 10分钟缓存
   );
 
   // ✅ 获取真实趋势数据 - 与日期选择器联动
