@@ -23,11 +23,15 @@ export const campaignRouter = router({
       marketplace: z.string().optional(),
       timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
     }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
       // v361: 数据隔离修复 - 必须提供accountId，不允许查询全部广告活动
       if (!input.accountId) {
         return [];
       }
+      
+      // v376: P1数据隔离修复 - 验证当前用户有权访问该accountId
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       
       // v122h: 使用站点时区计算正确的日期范围
       let startDate = input.startDate;
@@ -61,7 +65,10 @@ export const campaignRouter = router({
   // v361: 数据隔离修复 - accountId改为必填
   listUnassigned: protectedProcedure
     .input(z.object({ accountId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v376: P1数据隔离修复 - 验证当前用户有权访问该accountId
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, input.accountId);
       return db.getUnassignedCampaigns(input.accountId);
     }),
   

@@ -18,7 +18,10 @@ const log = createModuleLogger('Route_keyword');
 export const keywordRouter = router({
   list: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
-    .query(async ({ input }: any) => {
+    .query(async ({ ctx, input }: any) => {
+      // v376: P1数据隔离修复 - 验证当前用户有权访问该adGroupId
+      const { verifyAdGroupAccess } = await import('../utils/accessControl');
+      await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       return db.getKeywordsByAdGroupId(input.adGroupId);
     }),
   

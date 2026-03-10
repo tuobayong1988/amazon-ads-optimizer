@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 376,
+    description: 'v376: [数据隔离强化与评分算法优化] — (1)P1-campaign.list/listUnassigned数据隔离:增加verifyAccountAccess校验,防止跨租户查询广告活动 (2)P1-keyword.list数据隔离:增加verifyAdGroupAccess校验,防止跨租户查询关键词 (3)P1-内存泄漏修复:autoOperationService.logStore增加MAX_LOG_STORE_SIZE=10000限制,防止无限增长导致OOM (4)P2-评分算法核心指标权重提升:所有策略模板coreMetric权重从14-30%提升至30-45%,确保ACoS/ROAS偏离时评分真实反映问题严重性 (5)P2-同步时间范围扩展:SP类型同步从90天扩展到95天,充分利用Amazon API最大支持范围',
+    affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],
+    correctionActions: ['revalidate_pending_commands', 'audit_synced_commands'],
+  },
+  {
     version: 375,
     description: 'v375: [审计日志完善与操作可追溯性增强] — (1)P2-修复审计日志显示"未知用户":系统自动操作(userId=0)现在正确显示为"系统自动优化",同时修复后端统计查询和前端显示的fallback逻辑 (2)P2-新增否定关键词/否定ASIN审计日志:优化同步引擎执行否定词操作后记录完整审计跟踪 (3)P2-新增搜索词收割审计日志:新关键词添加操作可完整追溯 (4)P2-新增位置倾斜/分时调整审计日志:所有优化操作类型均有完整审计记录',
     affectedModules: ['bid', 'budget', 'keyword', 'searchterm', 'placement', 'dayparting'],

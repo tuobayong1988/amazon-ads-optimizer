@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 375;  // v375: 审计日志完善(修复未知用户显示、新增否定词/收割/位置倾斜/分时审计日志)
+export const SYSTEM_VERSION = 376;  // v376: 数据隔离强化(campaign.list/keyword.list权限校验)、内存泄漏修复(logStore限制)、评分算法优化、同步95天扩展

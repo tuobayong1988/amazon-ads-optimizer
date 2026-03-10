@@ -1035,7 +1035,7 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
         targets: (syncResult.stepResults['sp_product_targets']?.synced || 0) +
           (syncResult.stepResults['sb_product_targets']?.synced || 0) +
           (syncResult.stepResults['sd_product_targets']?.synced || 0),
-        performance: (syncResult.stepResults['performance_90d']?.synced || 0),
+        performance: (syncResult.stepResults['performance_95d']?.synced || 0),
         spCampaigns: syncResult.stepResults['sp_campaigns']?.synced || 0,
         sbCampaigns: syncResult.stepResults['sb_campaigns']?.synced || 0,
         sdCampaigns: syncResult.stepResults['sd_campaigns']?.synced || 0,

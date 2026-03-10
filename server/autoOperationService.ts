@@ -74,6 +74,8 @@ interface OperationResult {
 // 内存存储（实际生产环境应使用数据库）
 const configStore = new Map<number, AutoOperationConfig>();
 const logStore: AutoOperationLog[] = [];
+// v376: P1内存泄漏修复 - 限制logStore最大长度，防止无限增长导致OOM
+const MAX_LOG_STORE_SIZE = 10000;
 
 /**
  * 自动运营服务
@@ -140,6 +142,10 @@ export const autoOperationService = {
       errorMessage: null,
     };
     logStore.push(log);
+    // v376: P1内存泄漏修复 - 当日志数组超过最大长度时，移除最旧的日志条目
+    while (logStore.length > MAX_LOG_STORE_SIZE) {
+      logStore.shift();
+    }
     
     try {
       // 步骤1: 数据同步

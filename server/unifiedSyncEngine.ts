@@ -734,7 +734,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncSearchTerms(90); // v337.2: SP搜索词扩展到90天（SP最大95天）
+        const synced = await service.syncSearchTerms(95); // v376: SP搜索词扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -760,7 +760,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncPlacementPerformance(90); // v337.2: SP广告位绩效扩展到90天
+        const synced = await service.syncPlacementPerformance(95); // v376: SP广告位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -786,7 +786,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncAutoTargeting(90); // v337.2: SP自动定向扩展到90天
+        const synced = await service.syncAutoTargeting(95); // v376: SP自动定向扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -799,7 +799,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncSdTargeting(90); // v337.2: SD定向扩展到90天
+        const synced = await service.syncSdTargeting(95); // v376: SD定向扩展到95天
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -847,12 +847,12 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
-    id: 'performance_90d',
-    name: '90天绩效回溯',
+    id: 'performance_95d',
+    name: '95天绩效回溯',
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncPerformanceData(90); // v337.2: 绩效数据扩展到90天
+        const synced = await service.syncPerformanceData(95); // v376: 绩效数据扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -865,7 +865,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncKeywordPerformanceData(90); // v337.2: 关键词绩效扩展到90天
+        const synced = await service.syncKeywordPerformanceData(95); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -878,7 +878,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncProductTargetPerformanceData(90); // v337.2: 定位绩效扩展到90天
+        const synced = await service.syncProductTargetPerformanceData(95); // v376: 定位绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -891,7 +891,7 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'full',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncAdGroupPerformanceData(90); // v337.2: 广告组绩效扩展到90天
+        const synced = await service.syncAdGroupPerformanceData(95); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1741,7 +1741,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
             // @ts-ignore
             safeNum(accountResult.stepResults['performance_7d']?.synced) +
             // @ts-ignore
-            safeNum(accountResult.stepResults['performance_90d']?.synced),
+            safeNum(accountResult.stepResults['performance_95d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(
             (total: number, step: any) => total + safeNum(step?.synced), 0
