@@ -1,6 +1,9 @@
 /**
  * M2 竞品库引擎服务
  * 竞品发现 → TRS评分(白盒化) → 评论分析 → 场景矩阵 → 用户语言库
+ * 
+ * v2.0 更新：集成 Oxylabs Amazon Scraper API 作为真实数据源，
+ * 替代原有的 Gemini AI 模拟数据。当 Oxylabs 不可用时，自动回退到 Gemini。
  */
 import { DbInstance, getDb } from '../../db';
 import {
@@ -9,6 +12,12 @@ import {
 } from '../../../drizzle/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { geminiStructuredOutput } from '../gemini';
+import {
+  discoverCompetitors,
+  fetchProductDetailsBatch,
+  checkServiceHealth,
+  type DiscoveredCompetitor,
+} from '../oxylabs';
 
 export class M2CompetitorService {
 
@@ -23,8 +32,7 @@ export class M2CompetitorService {
 
     try {
       const conditions = [eq(prelaunchCompetitors.projectId, input.projectId)];
-      // @ts-ignore
-      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as unknown));
+      if (input.tier) conditions.push(eq(prelaunchCompetitors.tier, input.tier as any));
 
       const page = input.page ?? 1;
       const pageSize = input.pageSize ?? 30;
@@ -121,10 +129,55 @@ export class M2CompetitorService {
           .limit(10);
 
         if (keywords.length > 0) {
-          const kwList = keywords.map((k: Record<string, any>) => k.keyword).join(', ');
-          const discovered = await geminiStructuredOutput<Record<string, any>[]>('',
-            `Given these Amazon search keywords: ${kwList}
-            
+          const kwList = keywords.map((k: Record<string, any>) => k.keyword);
+
+          // 优先使用 Oxylabs 真实数据源
+          const oxylabsHealth = await checkServiceHealth();
+
+          if (oxylabsHealth.available) {
+            // ─── Oxylabs 真实数据路径 ───────────────────────────────
+            console.log('[M2] Using Oxylabs real data source for competitor discovery');
+
+            const discovered = await discoverCompetitors(kwList, {
+              maxCompetitors: 25,
+              fetchProductDetail: true,
+            });
+
+            asins = discovered.map(d => d.asin);
+
+            // 写入竞品基础数据（真实数据）
+            for (const comp of discovered) {
+              await db.insert(prelaunchCompetitors).values({
+                projectId,
+                asin: comp.asin,
+                title: comp.title,
+                brand: comp.brand,
+                price: String(comp.price || 0),
+                rating: String(comp.rating || 0),
+                reviewCount: comp.reviewCount || 0,
+                bsr: comp.bsr || 0,
+                dataSource: 'oxylabs_discovery',
+                rawData: JSON.stringify({
+                  searchData: comp.rawSearchData,
+                  productData: comp.rawProductData,
+                  imageUrl: comp.imageUrl,
+                  isSponsored: comp.isSponsored,
+                  position: comp.position,
+                  salesVolume: comp.salesVolume,
+                }),
+              });
+            }
+
+            console.log(`[M2] Oxylabs discovery complete: ${discovered.length} competitors found`);
+
+          } else {
+            // ─── Gemini 回退路径（保留原有逻辑作为降级方案）─────────
+            console.warn(`[M2] Oxylabs unavailable (${oxylabsHealth.message}), falling back to Gemini`);
+
+            const kwJoined = kwList.join(', ');
+            const discovered = await geminiStructuredOutput<Record<string, any>[]>('',
+              `Given these Amazon search keywords: ${kwJoined}
+              
 Identify 15-25 competitor ASINs that would appear in search results. For each, provide:
 - asin: Amazon ASIN (10-char alphanumeric, start with B0)
 - title: product title
@@ -136,20 +189,56 @@ Identify 15-25 competitor ASINs that would appear in search results. For each, p
 
 Return JSON array.`, { temperature: 0.3 });
 
-          asins = discovered.map((d: Record<string, any>) => d.asin);
+            asins = discovered.map((d: Record<string, any>) => d.asin);
 
-          // 写入竞品基础数据
-          for (const comp of (discovered as any[])) {
+            // 写入竞品基础数据（Gemini模拟数据）
+            for (const comp of (discovered as any[])) {
+              await db.insert(prelaunchCompetitors).values({
+                projectId,
+                asin: comp.asin,
+                title: comp.title,
+                brand: comp.brand,
+                price: String(comp.estimatedPrice || 0),
+                rating: String(comp.estimatedRating || 0),
+                reviewCount: comp.estimatedReviewCount || 0,
+                bsr: comp.estimatedBsr || 0,
+                dataSource: 'gemini_discovery',
+              });
+            }
+          }
+        }
+      } else if (competitorAsins && competitorAsins.length > 0) {
+        // ─── 用户手动指定 ASIN 的路径 ──────────────────────────────
+        // 使用 Oxylabs 获取这些 ASIN 的真实产品详情
+        const oxylabsHealth = await checkServiceHealth();
+
+        if (oxylabsHealth.available) {
+          console.log(`[M2] Fetching details for ${competitorAsins.length} user-specified ASINs via Oxylabs`);
+
+          const detailsMap = await fetchProductDetailsBatch(competitorAsins);
+
+          for (const asin of competitorAsins) {
+            const detail = detailsMap.get(asin);
             await db.insert(prelaunchCompetitors).values({
               projectId,
-              asin: comp.asin,
-              title: comp.title,
-              brand: comp.brand,
-              price: String(comp.estimatedPrice || 0),
-              rating: String(comp.estimatedRating || 0),
-              reviewCount: comp.estimatedReviewCount || 0,
-              bsr: comp.estimatedBsr || 0,
-              dataSource: 'gemini_discovery',
+              asin,
+              title: detail?.title || '',
+              brand: detail?.brand || detail?.manufacturer || '',
+              price: String(detail?.price || 0),
+              rating: String(detail?.rating || 0),
+              reviewCount: detail?.reviews_count || 0,
+              bsr: detail?.sales_rank?.[0]?.rank || 0,
+              dataSource: detail ? 'oxylabs_manual' : 'manual_no_data',
+              rawData: detail ? JSON.stringify(detail) : null,
+            });
+          }
+        } else {
+          // 无 Oxylabs 时，仅写入 ASIN，不填充数据
+          for (const asin of competitorAsins) {
+            await db.insert(prelaunchCompetitors).values({
+              projectId,
+              asin,
+              dataSource: 'manual_no_data',
             });
           }
         }
@@ -187,6 +276,7 @@ Return JSON array.`, { temperature: 0.3 });
           t1Count: competitors.filter((c: Record<string, any>) => c.tier === 'T1_head').length,
           t2Count: competitors.filter((c: Record<string, any>) => c.tier === 'T2_waist').length,
           t3Count: competitors.filter((c: Record<string, any>) => c.tier === 'T3_niche').length,
+          dataSource: (competitors[0] as any)?.dataSource || 'unknown',
         },
       };
     } catch (error: unknown) {
