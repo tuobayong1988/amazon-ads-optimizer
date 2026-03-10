@@ -278,7 +278,7 @@ export const monitoringRouter = router({
         const uptimeHours = Math.round(uptimeSeconds / 3600 * 10) / 10;
 
         // 系统负载
-        const loadAvg = os.loadaverage();
+        const loadAvg = os.loadavg();
 
         // 环境变量配置
         const dbPoolSize = parseInt(process.env.DB_POOL_SIZE || '25', 10);
