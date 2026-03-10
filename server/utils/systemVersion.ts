@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 380;  // v380: P2命令确认机制增强+心跳探测优化+P3数据完整性修复+动态超时+RL冷启动加速
+export const SYSTEM_VERSION = 381;  // v381: 严格对齐Amazon后台层级结构 - Campaign/AdGroup详情页面重构+ID混淆修复
