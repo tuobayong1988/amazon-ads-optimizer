@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 400;  // v400: 全面优化修复 - 修复CorrectionReview页面崩溃、AutoOptimizationDashboard加载失败、N+1查询性能问题、数据库连接池优化、多租户并发控制增强
+export const SYSTEM_VERSION = 401;  // v401: 深度性能优化 - SQL索引优化(DATE()→范围查询)、SP自动定向N+1修复、RDS升级db.t4g.medium/50GB、目标达成度统一七维度评分

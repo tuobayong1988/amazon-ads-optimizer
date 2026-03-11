@@ -1059,33 +1059,43 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
         log.debug('v339: 所有批次自动定向报告数据为空');
         return 0;
       }
-      log.info(`v339: 共获取到 ${reportData.length} 条自动定向数据（${batches}批合并）`);;
+      log.info(`v339: 共获取到 ${reportData.length} 条自动定向数据（${batches}批合并）`);
       let synced = 0;
+
+      // v401: 预加载adGroups Map，消除N+1查询（之前每行都查一次adGroups表）
+      const allAdGroups = await db
+        .select({ id: adGroups.id, adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
+        .from(adGroups)
+        // @ts-ignore
+        .where(eq((adGroups as unknown).accountId, this.accountId));
+      const adGroupMap = new Map<string, { id: number; campaignId: string | null }>();
+      for (const ag of allAdGroups) {
+        adGroupMap.set(String(ag.adGroupId), { id: ag.id, campaignId: ag.campaignId });
+      }
+
+      // v401: 预加载已有productTargets Map，消除N+1查询（之前每行都查一次productTargets表）
+      const allExistingTargets = await db
+        .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetId: productTargets.targetId })
+        .from(productTargets)
+        .where(eq(productTargets.accountId, this.accountId));
+      const existingTargetMap = new Map<string, number>();
+      for (const t of allExistingTargets) {
+        existingTargetMap.set(`${t.adGroupId}:${t.targetId}`, t.id);
+      }
+      log.info(`v401: 自动定向预加载完成 - adGroups=${allAdGroups.length}, existingTargets=${allExistingTargets.length}`);
+
+      // v401: 收集批量UPSERT数据
+      const BATCH_SIZE = 200;
+      let upsertBatch: any[] = [];
+      const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       for (const row of (reportData as any[])) {
         // 只处理自动定向数据
         if (row.targetingType !== 'AUTO') continue;
 
-        // 查找对应的adGroup
-        const [adGroup] = await db
-          .select()
-          .from(adGroups)
-          .where(eq(adGroups.adGroupId, String(row.adGroupId)))
-          .limit(1);
-
+        // v401: 从预加载Map查找adGroup（O(1)，替代之前的数据库查询）
+        const adGroup = adGroupMap.get(String(row.adGroupId));
         if (!adGroup) continue;
-
-        // 检查是否已存在
-        const [existing] = await db
-          .select()
-          .from(productTargets)
-          .where(
-            and(
-              eq(productTargets.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
-              eq(productTargets.targetId, String(row.targetId))
-            )
-          )
-          .limit(1);
 
         const cost = row.cost || 0;
         // 自动定向报告使用14天归因窗口（SB/SD类型）
@@ -1110,14 +1120,19 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           targetValue = 'COMPLEMENTS';
         }
 
+        // v401: 从预加载Map检查是否已存在（O(1)，替代之前的数据库查询）
+        const existingKey = `${String(adGroup.id)}:${String(row.targetId)}`;
+        const existingId = existingTargetMap.get(existingKey);
+
         const targetData = {
-          adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
-          campaignId: adGroup.campaignId || '',  // v357: campaignId已是varchar类型
+          accountId: this.accountId,
+          adGroupId: String(adGroup.id),
+          campaignId: adGroup.campaignId || '',
           targetId: String(row.targetId),
           targetType,
           targetValue,
           targetExpression: targetingExpression,
-          bid: '0.00', // 自动定向没有单独的出价
+          bid: '0.00',
           impressions: Number(impressions),
           clicks: Number(clicks),
           spend: String(cost),
@@ -1129,21 +1144,33 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
           targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
           targetStatus: 'enabled' as const,
-          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          updatedAt: nowStr,
         };
 
-        if (existing) {
+        if (existingId) {
+          // v401: 批量更新 - 收集后批量执行
           await db
             .update(productTargets)
             .set(targetData)
-            .where(eq(productTargets.id, existing.id));
+            .where(eq(productTargets.id, existingId));
         } else {
-          await db.insert(productTargets).values({
+          upsertBatch.push({
             ...targetData,
-            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            createdAt: nowStr,
           });
+          // v401: 批量INSERT
+          if (upsertBatch.length >= BATCH_SIZE) {
+            await db.insert(productTargets).values(upsertBatch);
+            synced += upsertBatch.length;
+            upsertBatch = [];
+          }
         }
-        synced++;
+        if (existingId) synced++;
+      }
+      // v401: 刷新剩余批次
+      if (upsertBatch.length > 0) {
+        await db.insert(productTargets).values(upsertBatch);
+        synced += upsertBatch.length;
       }
 
       log.info(`自动定向同步完成: ${synced} 条记录`);

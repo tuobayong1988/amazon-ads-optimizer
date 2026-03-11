@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 401,
+    description: 'v401: [深度性能优化+基础设施升级] — (1)P0-SQL索引优化: 将高频查询中的DATE()函数包裹改为范围查询,允许MySQL使用idx_daily_perf_campaign_date等索引(db-performance-trend/budgetTracking/budgetAlert/optimization.getTrends) (2)P0-SP自动定向同步N+1修复: syncAutoTargeting循环内的adGroup查询改为预加载Map+批量UPSERT (3)P1-RDS升级: db.t4g.small→db.t4g.medium(4GB RAM)+存储从20GB→50GB+IOPS升至3000 (4)P1-keywordPlacementHourlyPerformance表索引从PLAIN INDEX改为UNIQUE约束,防止并发重复数据 (5)P1-Dashboard目标达成度统一使用后端七维度评分而非前端简单比值 (6)P2-optimizationLogs表添加account_id+status+created_at复合索引优化getMetrics查询',
+    affectedModules: ['sync', 'optimization', 'frontend', 'infrastructure'],
+    correctionActions: ['revalidate_sync_performance', 'run_schema_migration'],
+  },
+  {
     version: 400,
     description: 'v400: [全面优化修复] — (1)P0-修复CorrectionReview页面崩溃: 变量声明顺序错误导致TDZ错误,accounts在useGlobalAccountId之后使用 (2)P0-修复AutoOptimizationDashboard永久加载: 添加DashboardLayout包裹+错误状态处理+重试按钮+骨架屏优化 (3)P1-修复广告位绩效同步N+1查询: 预加载campaigns映射替代循环内逐条查询+移除冗余existing检查 (4)P1-修复广告组绩效同步N+1查询: SP/SB/SD广告组循环内查询改为预加载Map查找 (5)P1-优化SQL查询: campaigns查询从SELECT*改为只查必要字段',
     affectedModules: ['sync', 'optimization', 'frontend'],

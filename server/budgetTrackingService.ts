@@ -113,9 +113,10 @@ async function calculatePeriodMetrics(
 
   const startDateStr = startDate.toISOString().split('T')[0];
   const endDateStr = endDate.toISOString().split('T')[0];
+  // v401: 优化WHERE条件 - 避免DATE()函数包裹以利用索引
   const conditions = [
-    sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
-    sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`,
+    sql`${dailyPerformance.date} >= ${startDateStr}`,
+    sql`${dailyPerformance.date} < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)`,
   ];
 
   const performance = await db

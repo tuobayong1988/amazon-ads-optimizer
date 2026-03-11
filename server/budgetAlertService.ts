@@ -84,7 +84,8 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
   const results: ConsumptionAnalysis[] = [];
   for (const campaign of (activeCampaigns as any[])) {
     const todayStr = today.toISOString().split('T')[0];
-    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
+    // v401: 优化DATE()为范围查询以利用索引
+    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`${dailyPerformance.date} >= ${todayStr}`, sql`${dailyPerformance.date} < DATE_ADD(${todayStr}, INTERVAL 1 DAY)`)).limit(1);
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
     const currentSpend = todayPerformance[0]?.spend ? Number(todayPerformance[0].spend) : 0;
     const expectedSpend = (dailyBudget / 24) * hoursElapsed;

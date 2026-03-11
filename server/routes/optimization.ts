@@ -126,11 +126,12 @@ export const optimizationRouter = router({
         if (userAccountIds.length === 0) return [];
         const accountFilter = sqlTag`account_id IN (${sqlTag.raw(userAccountIds.join(','))})`;
         
+        // v401: 优化WHERE中的DATE()为范围查询以利用idx_optlog_account_status_created索引
         const rows = await dbInstance.select({
           date: sqlTag<string>`DATE(created_at)`,
           actions: sqlTag<number>`COUNT(*)`,
         }).from(optimizationLogs)
-          .where(sqlTag`DATE(created_at) >= ${startStr} AND ${accountFilter}`)
+          .where(sqlTag`created_at >= ${startStr} AND ${accountFilter}`)
           .groupBy(sqlTag`DATE(created_at)`)
           .orderBy(sqlTag`DATE(created_at)`);
         

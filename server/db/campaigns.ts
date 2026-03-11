@@ -38,8 +38,9 @@ export async function getCampaignsWithPerformance(
   // 获取广告活动基本信息
   const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   
-  // 获取时间范围内的绩效数据汇总
+  // v401: 获取时间范围内的绩效数据汇总
   // ✅ 只汇总campaign级别的记录，排除账户级汇总记录
+  // v401: 优化查询 - 避免DATE()函数包裹以利用idx_daily_perf_account_date索引
   const perfData = await db.select({
     campaignId: dailyPerformance.campaignId,
     totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
@@ -52,13 +53,14 @@ export async function getCampaignsWithPerformance(
     .where(and(
       eq(dailyPerformance.accountId, accountId),
       sql`${dailyPerformance.campaignId} IS NOT NULL`,
-      sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
-      sql`DATE(${dailyPerformance.date}) <= ${endDate}`
+      sql`${dailyPerformance.date} >= ${startDate}`,
+      sql`${dailyPerformance.date} < DATE_ADD(${endDate}, INTERVAL 1 DAY)`
     ))
     .groupBy(dailyPerformance.campaignId);
   
   // v122h: 单独查询今日数据（站点本地时间的今天）
   const effectiveTodayDate = todayDate || endDate;
+  // v401: 优化今日数据查询 - 避免DATE()函数包裹以利用索引
   const todayPerfData = await db.select({
     campaignId: dailyPerformance.campaignId,
     todayImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
@@ -71,7 +73,8 @@ export async function getCampaignsWithPerformance(
     .where(and(
       eq(dailyPerformance.accountId, accountId),
       sql`${dailyPerformance.campaignId} IS NOT NULL`,
-      sql`DATE(${dailyPerformance.date}) = ${effectiveTodayDate}`
+      sql`${dailyPerformance.date} >= ${effectiveTodayDate}`,
+      sql`${dailyPerformance.date} < DATE_ADD(${effectiveTodayDate}, INTERVAL 1 DAY)`
     ))
     .groupBy(dailyPerformance.campaignId);
   
