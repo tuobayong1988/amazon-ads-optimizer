@@ -713,8 +713,15 @@ export default function Campaigns() {
         // 使用轮询检查同步状态
         const checkSyncStatus = async () => {
           try {
+            // v407.1: 必须携带Authorization header
+            const syncToken = localStorage.getItem('authToken');
+            const syncHeaders: Record<string, string> = {};
+            if (syncToken) {
+              syncHeaders['Authorization'] = `Bearer ${syncToken}`;
+            }
             const response = await fetch(`/api/trpc/amazonApi.getSyncJobById?input=${encodeURIComponent(JSON.stringify({ json: { jobId: data.jobId } }))}`, {
               credentials: 'include',
+              headers: syncHeaders,
             });
             const result = await response.json();
             const job = result.result?.data?.json;

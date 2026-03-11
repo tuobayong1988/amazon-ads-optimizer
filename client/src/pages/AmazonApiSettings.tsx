@@ -959,9 +959,14 @@ export default function AmazonApiSettings() {
     // 稍后在授权回调中会自动为所有站点创建账号
     try {
       // 调用授权端点
+      const authToken = localStorage.getItem('authToken');
       const result = await fetch('/api/trpc/auth.getAuthorizationUrl', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+        },
+        credentials: 'include',
         body: JSON.stringify({}),
       }).then(r => r.json());
       
@@ -1062,8 +1067,15 @@ export default function AmazonApiSettings() {
   }> => {
     for (let i = 0; i < maxAttempts; i++) {
       try {
+        // v407.1: 必须携带Authorization header，否则protectedProcedure返回401
+        const token = localStorage.getItem('authToken');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
         const response = await fetch(`/api/trpc/amazonApi.getSyncJobById?input=${encodeURIComponent(JSON.stringify({ json: { jobId } }))}`, {
           credentials: 'include',
+          headers,
         });
         const result = await response.json();
         const job = result.result?.data?.json;
