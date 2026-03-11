@@ -158,26 +158,28 @@ function PerformanceGroupCard({ group }: { group: any }) {
     'maximize_conversions': '转化最大化'
   };
 
-  // v187: 基于真实数据计算目标达成度
-  // 如果group包含实际ACoS/ROAS和目标值，计算真实达成度
+  // v400: 统一使用后端七维度评分算法的目标达成度
+  // 优先使用后端 goalProgress 字段（七维度加权评分），回退到简单比值计算
   const progress = useMemo(() => {
+    // v400: 优先使用后端返回的七维度评分结果
+    if (group.goalProgress != null && group.goalProgress > 0) {
+      return Math.min(100, Math.round(group.goalProgress));
+    }
+    
+    // 回退：后端未返回评分时使用简单比值计算
     if (!group.targetValue || group.targetValue <= 0) return 0;
     
     if (group.optimizationGoal === 'target_acos') {
-      // ACoS目标：实际ACoS越接近目标越好，低于目标=100%
       const actualAcos = group.actualAcos || group.acos;
       if (!actualAcos || actualAcos <= 0) return 0;
       if (actualAcos <= group.targetValue) return 100;
-      // 进度 = 目标值 / 实际值 * 100
       return Math.min(100, Math.round((group.targetValue / actualAcos) * 100));
     } else if (group.optimizationGoal === 'target_roas') {
-      // ROAS目标：实际ROAS越接近目标越好
       const actualRoas = group.actualRoas || group.roas;
       if (!actualRoas || actualRoas <= 0) return 0;
       if (actualRoas >= group.targetValue) return 100;
       return Math.min(100, Math.round((actualRoas / group.targetValue) * 100));
     } else if (group.optimizationGoal === 'daily_budget') {
-      // 预算目标：实际花费接近目标预算
       const actualSpend = group.actualSpend || group.spend;
       if (!actualSpend) return 0;
       return Math.min(100, Math.round((actualSpend / group.targetValue) * 100));

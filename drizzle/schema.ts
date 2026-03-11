@@ -3470,9 +3470,9 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
   index("idx_opt_log_campaign").on(table.campaignId),
   index("idx_opt_log_created_at").on(table.createdAt),
   // v379: 复合索引 - 解决SelfEvolution模块30天范围查询超时问题
-  index("idx_opt_log_pg_cat_created").on(table.performanceGroupId, table.logCategory, table.createdAt),
-  // v379: 复合索引 - 支持按账户维度的分类时间范围查询
-  index("idx_opt_log_account_cat_created").on(table.accountId, table.logCategory, table.createdAt),
+   index("idx_opt_log_account_cat_created").on(table.accountId, table.logCategory, table.createdAt),
+  // v400: 复合索引 - 优化AutoOptimizationDashboard的getMetrics查询
+  index("idx_opt_log_account_status_created").on(table.accountId, table.status, table.createdAt),
 ]);
 
 // 优化日志类型导出
@@ -3657,7 +3657,7 @@ export const keywordPlacementHourlyPerformance = mysqlTable("keyword_placement_h
   index("idx_kph_target_placement").on(table.targetId, table.placement, table.date),
   index("idx_kph_day_hour").on(table.dayOfWeek, table.hour),
   index("idx_kph_placement_date").on(table.placement, table.date),
-  index("idx_kph_unique_combo").on(table.accountId, table.campaignId, table.keywordId, table.targetId, table.placement, table.date, table.hour),
+  unique("uk_kph_unique_combo").on(table.accountId, table.campaignId, table.keywordId, table.targetId, table.placement, table.date, table.hour),
 ]);
 
 /**
