@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 406;  // v406: 同步引擎全面修复 - 进度更新await、手动同步优先级、nightly PST时区、僵尸任务快速清理
+export const SYSTEM_VERSION = 407;  // v407: 前后端进度一致性修复 - API返回totalSteps/currentStepIndex、前端动态步骤进度条、真实进度百分比

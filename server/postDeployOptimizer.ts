@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 407,
+    description: 'v407: [前后端进度一致性修复] — (1)P0-API增强: getSyncJobById返回currentStepIndex和totalSteps,前端可精确显示第X/Y步 (2)P0-前端进度修复: 整体进度条从站点级计算改为综合步骤级计算,直接使用后端progressPercent (3)P0-动态步骤进度条: 从硬编码17格改为根据totalSteps动态生成,支持31步全量同步 (4)P1-步骤名称显示: 直接显示后端返回的步骤名,不再依赖硬编码映射表',
+    // @ts-ignore
+    affectedModules: ['sync', 'frontend'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 406,
     description: 'v406: [同步引擎全面修复] — (1)P0-进度更新await: syncAccount中onProgress回调添加await,确保DB写入完成后再继续,修复前端进度永远卡在初始状态的bug (2)P0-手动同步优先级: 新增isManual标记,手动全量同步不再被自动同步阻塞,强制释放自动同步锁 (3)P0-nightly PST时区: 夜间同步从服务器本地时间改为PST凌晨2点(UTC 10:00) (4)P1-僵尸任务清理: cleanupStaleJobs阈值从30分钟缩短到10分钟 (5)P1-锁释放修复: syncAll路由中锁释放移入finally块,确保整个同步期间持有锁 (6)P1-Job状态初始化: 同步启动时立即将job状态更新为running',
     // @ts-ignore

@@ -1047,6 +1047,8 @@ export const amazonApiRouter = router({
         status: job.status,
         progressPercent: job.progressPercent || 0,
         currentStep: job.currentStep,
+        currentStepIndex: job.currentStepIndex || 0,
+        totalSteps: job.totalSteps || 0,
         errorMessage: job.errorMessage,
         spCampaigns: job.spCampaigns || 0,
         sbCampaigns: job.sbCampaigns || 0,
