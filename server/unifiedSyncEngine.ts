@@ -1231,6 +1231,21 @@ export async function syncAccount(
 
       log.info(`[UnifiedSync] 账户 ${account.accountId} 执行步骤 [${i + 1}/${steps.length}]: ${step.name}`);
 
+      // v405: 检查系统是否正在关闭（SIGTERM），提前保存进度并优雅退出
+      try {
+        const { isShuttingDown } = await import('./deployLifecycleManager');
+        if (isShuttingDown()) {
+          const shutdownMsg = `账户${account.accountId} 同步被系统关闭中断，已完成${i}/${steps.length}步骤`;
+          log.warn(`[UnifiedSync] v405: ${shutdownMsg}`);
+          result.errors.push(shutdownMsg);
+          // 保存已完成的步骤信息到checkpoint，便于恢复
+          result.stepResults['_interrupted'] = { success: false, synced: 0, errors: [shutdownMsg] };
+          break;
+        }
+      } catch (e) {
+        // isShuttingDown检查失败不影响同步继续
+      }
+
       // v340: 单账户同步超时保护
       const elapsed = Date.now() - startTime.getTime();
       if (elapsed > SYNC_TIMEOUT_MS) {

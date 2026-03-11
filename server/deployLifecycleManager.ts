@@ -751,14 +751,15 @@ export async function orchestrateStartup(server: any): Promise<void> {
         `);
       }
       
-      // v336: 3.5d - 主动触发完整同步（而不仅仅是清理）
-      // 确保部署后立即恢复数据同步，不等待定时器
-      log.info(`[LifecycleManager] v336: 步骤3.5d - 主动触发完整数据同步...`);
+      // v405: 3.5d - 部署后触发轻量级同步（high层级），避免与用户手动同步冲突
+      // v336原始设计: full层级同步，但这会导致CPU飙升触发Auto Scaling频繁伸缩
+      // v405改进: 使用high层级（仅同步campaigns和当日绩效），full/nightly由定时器调度
+      log.info(`[LifecycleManager] v405: 步骤3.5d - 部署后轻量级数据同步(high层级)...`);
       setTimeout(async () => {
         try {
           const { syncAllAccounts } = await import('./unifiedSyncEngine');
-          const syncResult: any = await syncAllAccounts('full');
-          log.info(`[LifecycleManager] v336: 部署后完整同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
+          const syncResult: any = await syncAllAccounts('high');
+          log.info(`[LifecycleManager] v405: 部署后轻量级同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
           
           // 同步完成后触发优化
           if (syncResult.successfulAccounts > 0) {
@@ -787,7 +788,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
             VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
           `);
         } catch (syncErr: unknown) {
-          log.error(`[LifecycleManager] v336: 部署后完整同步失败: ${(syncErr as Error).message}`);
+          log.error(`[LifecycleManager] v405: 部署后轻量级同步失败: ${(syncErr as Error).message}`);
         }
       }, 15 * 1000); // 延迟15秒，给系统时间完成初始化
     }

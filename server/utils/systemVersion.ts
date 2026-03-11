@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 404;  // v404: 统一手动/自动同步代码路径，手动同步调用unifiedSyncEngine执行所有步骤（含nightly层级）
+export const SYSTEM_VERSION = 405;  // v405: Auto Scaling稳定性修复 + 同步任务SIGTERM保护 + 部署后轻量级同步(high层级替代full)

@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 405,
+    description: 'v405: [Auto Scaling稳定性+同步SIGTERM保护] — (1)P0-Auto Scaling修复: Scale Down Cooldown从360s增加到900s,评估周期从1个(5min)增加到3个(15min),防止同步期间实例被终止 (2)P0-SIGTERM保护: syncAccount步骤循环中检查isShuttingDown,提前保存进度并优雅退出 (3)P1-部署后同步降级: deployLifecycleManager步骤3.5d从full层级改为high层级,避免CPU飙升触发伸缩 (4)P2-ebextensions配置: 新增04_autoscaling.config,固化Cooldown和滚动更新策略',
+    // @ts-ignore
+    affectedModules: ['sync', 'infrastructure'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 404,
     description: 'v404: [统一同步代码路径] — (1)P0-手动同步统一: amazonApi.syncAll路由从500+行硬编码重构为调用unifiedSyncEngine.triggerManualFullSync,手动/自动同步共用同一代码路径 (2)P0-全量同步覆盖所有步骤: 手动全量同步现在执行所有SYNC_STEPS(含nightly层级),确保keyword_performance/target_performance/ad_group_performance不被遗漏 (3)P0-specificSteps修复: syncAccount中specificSteps现在从SYNC_STEPS全集过滤而非getStepsForTier结果,支持跨层级执行',
     // @ts-ignore
