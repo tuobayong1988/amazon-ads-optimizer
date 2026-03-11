@@ -981,7 +981,9 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
     const cutoffTime = new Date(Date.now() - maxRunningMinutes * 60 * 1000);
     const cutoffStr = cutoffTime.toISOString().slice(0, 19).replace('T', ' ');
 
-    // 查找所有卡死的running任务
+    // v408: 使用updated_at替代startedAt判断任务是否卡死
+    // 原因：全量同步可能需要45-90分钟，但每个步骤完成时都会更新updated_at
+    // 如果updated_at长时间未更新，说明任务真的卡死了（而不是正在正常执行长步骤）
     const staleJobs = await db.select({
       id: dataSyncJobs.id,
       accountId: dataSyncJobs.accountId,
@@ -990,7 +992,7 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
     }).from(dataSyncJobs)
       .where(and(
         eq(dataSyncJobs.status, 'running'),
-        sql`${dataSyncJobs.startedAt} < ${cutoffStr}`
+        sql`${dataSyncJobs.updatedAt} < ${cutoffStr}`
       ));
 
     if (staleJobs.length === 0) {
@@ -1008,7 +1010,7 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
       })
       .where(and(
         eq(dataSyncJobs.status, 'running'),
-        sql`${dataSyncJobs.startedAt} < ${cutoffStr}`
+        sql`${dataSyncJobs.updatedAt} < ${cutoffStr}`
       ));
 
     // 记录清理日志

@@ -289,22 +289,21 @@ async function persistShutdownState(): Promise<void> {
       log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${(e as Error).message}`);
     }
     
-    // 3a-2: v335 重置 data_sync_jobs 中 running 状态的任务
-    // 这是之前遗漏的关键步骤 — 不重置会导致部署后同步任务永久卡死
+    // 3a-2: v409 修复: shutdown时不再无条件杀死running同步任务
+    // 原因: 在单实例环境中，shutdown后新实例的startup cleanup (dataSyncScheduler) 会基于updated_at阈值正确清理卡死任务
+    // 无条件清理会导致正在正常运行的同步任务被误杀（心跳正常但被标记为failed）
     try {
-      const syncResetNote = `v${SYSTEM_VERSION}-shutdown: interrupted by ${shutdownState.shutdownReason} at ${new Date().toISOString()}`;
-      const syncResetResult = await database.execute(sql`
-        UPDATE data_sync_jobs 
-        SET status = 'failed', 
-            completedAt = NOW(),
-            errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${syncResetNote}, ']')
-        WHERE status = 'running'
+      const syncResetNote = `v${SYSTEM_VERSION}-shutdown: ${shutdownState.shutdownReason} at ${new Date().toISOString()}`;
+      // v409: 只记录日志，不再无条件标记为failed
+      // 如果任务真的卡死，dataSyncScheduler的启动清理（30分钟阈值）和定期清理（60分钟阈值）会处理
+      const runningJobs = await database.execute(sql`
+        SELECT id, account_id as accountId, current_step FROM data_sync_jobs WHERE status = 'running'
       `);
-      const syncAffected = (syncResetResult as Record<string, any>[])?.[0]?.affectedRows || 0;
-      if (syncAffected > 0) {
-        log.info(`[LifecycleManager]   ✓ 已将 ${syncAffected} 个running的数据同步任务标记为failed（部署中断）`);
+      const runningCount = (runningJobs as any[])?.[0]?.length || (Array.isArray(runningJobs) ? (runningJobs as any[]).filter((r: any) => r.id).length : 0);
+      if (runningCount > 0) {
+        log.info(`[LifecycleManager] v409: shutdown时发现 ${runningCount} 个running同步任务，不再无条件标记为failed，由startup cleanup基于updated_at阈值处理`);
       } else {
-        log.debug('[LifecycleManager]   ✓ 无running的数据同步任务需要重置');
+        log.debug('[LifecycleManager] v409: shutdown时无running的数据同步任务');
       }
       
       // 同时取消pending状态的同步任务（部署后会重新调度）
@@ -697,18 +696,34 @@ export async function orchestrateStartup(server: any): Promise<void> {
     log.info('[LifecycleManager] v335: 步骤3.5 - 数据同步任务恢复...');
     const database = await getDb();
     if (database) {
-      // 3.5a: 清理所有卡死的running任务（部署中断导致）
+      // 3.5a: v409 修复: 只清理updated_at超过5分钟的running任务（而非无条件清理所有）
+      // 原因: 心跳每3分钟更新一次updated_at，5分钟无更新说明任务真的卡死了
+      // 这避免了服务器重启时误杀刚刚还在正常运行的同步任务
       const staleCleanNote = `v${SYSTEM_VERSION}-startup: cleaned stale running job`;
+      const staleThresholdMinutes = 5; // 心跳间隔3分钟，5分钟无更新即判定为卡死
       const staleResult = await database.execute(sql`
         UPDATE data_sync_jobs 
         SET status = 'failed', 
             completedAt = NOW(),
             errorMessage = CONCAT(COALESCE(errorMessage, ''), ' [', ${staleCleanNote}, ']')
         WHERE status = 'running'
+          AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
       `);
       const staleCleaned = (staleResult as Record<string, any>[])?.[0]?.affectedRows || 0;
+      
+      // 同时检查是否有还在正常运行的任务（心跳正常）
+      const activeJobs = await database.execute(sql`
+        SELECT id, current_step, updated_at FROM data_sync_jobs 
+        WHERE status = 'running'
+          AND updated_at >= DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
+      `);
+      const activeCount = (activeJobs as any[])?.[0]?.length || (Array.isArray(activeJobs) ? (activeJobs as any[]).filter((r: any) => r.id).length : 0);
+      
       if (staleCleaned > 0) {
-        log.info(`[LifecycleManager] v335:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务`);
+        log.info(`[LifecycleManager] v409:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务（updated_at超过${staleThresholdMinutes}分钟未更新）`);
+      }
+      if (activeCount > 0) {
+        log.info(`[LifecycleManager] v409:   ℹ 发现 ${activeCount} 个心跳正常的running任务，保留不清理`);
       }
       
       // 3.5b: 检查最后成功同步时间，如果超过2小时未同步则记录告警

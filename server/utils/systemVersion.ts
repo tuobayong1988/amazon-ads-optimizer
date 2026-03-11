@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 407;  // v407: 前后端进度一致性修复 - API返回totalSteps/currentStepIndex、前端动态步骤进度条、真实进度百分比
+export const SYSTEM_VERSION = 409;  // v409: 修复startup/shutdown无条件清理running任务的bug - shutdown不再杀死running任务、startup添加5分钟updated_at阈值检查

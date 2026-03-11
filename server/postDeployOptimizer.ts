@@ -77,6 +77,20 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 409,
+    description: 'v409: [Startup/Shutdown清理机制修复] — (1)P0-Shutdown不再无条件杀死running同步任务: 之前SIGTERM时无条件将所有running任务标记为failed,导致正常运行的同步被误杀;现在只记录日志,由startup cleanup基于updated_at阈值处理 (2)P0-Startup cleanup添加5分钟阈值: 之前无条件清理所有running任务,现在只清理updated_at超过5分钟的任务(心跳间隔3分钟,5分钟无更新才判定为卡死) (3)P1-保护心跳正常的任务: startup时如果发现心跳正常的running任务,记录日志但不清理',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
+    version: 408,
+    description: 'v408: [心跳机制+僵尸清理修复] — (1)P0-心跳机制: 步骤执行期间每3分钟通过onProgress更新updated_at,防止长步骤(如当日绩效需等待Amazon报告生成15分钟)被误判为卡死 (2)P0-僵尸判定基准修复: cleanupStaleJobs从startedAt改为updated_at判断,只有长时间无更新才判定为卡死(而非启动时间超过阈值) (3)P1-清理阈值调整: 启动清理30分钟+定期清理60分钟(从startedAt的10/30分钟恢复为updated_at的合理阈值) (4)P2-异常安全: catch块中也清除心跳定时器防止内存泄漏',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 407,
     description: 'v407: [前后端进度一致性修复] — (1)P0-API增强: getSyncJobById返回currentStepIndex和totalSteps,前端可精确显示第X/Y步 (2)P0-前端进度修复: 整体进度条从站点级计算改为综合步骤级计算,直接使用后端progressPercent (3)P0-动态步骤进度条: 从硬编码17格改为根据totalSteps动态生成,支持31步全量同步 (4)P1-步骤名称显示: 直接显示后端返回的步骤名,不再依赖硬编码映射表',
     // @ts-ignore

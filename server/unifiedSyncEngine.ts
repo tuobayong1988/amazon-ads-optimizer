@@ -1283,7 +1283,28 @@ export async function syncAccount(
       try {
         // v220: 记录API调用（每个步骤通常包含1-3个API调用）
         rateController.recordApiCall();
+        
+        // v408: 心跳机制 - 在步骤执行期间每3分钟更新updated_at，防止被僵尸任务清理机制误杀
+        let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+        if (options?.onProgress) {
+          heartbeatTimer = setInterval(async () => {
+            try {
+              await options.onProgress!(step.name, i, steps.length);
+              log.debug(`[UnifiedSync] v408: 心跳更新 - 账户${account.accountId} 步骤[${i+1}/${steps.length}]: ${step.name}`);
+            } catch (hbErr) {
+              // 心跳失败不影响同步继续
+            }
+          }, 3 * 60 * 1000); // 每3分钟发送一次心跳
+        }
+        
         const stepResult = await step.execute(syncService, context);
+        
+        // v408: 清除心跳定时器
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+        
         result.stepResults[step.id] = stepResult;
 
         // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
@@ -1316,6 +1337,11 @@ export async function syncAccount(
         };
 
       } catch (error: unknown) {
+        // v408: 异常时也清除心跳定时器
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
         // 步骤级错误隔离：单步失败不影响后续步骤
         result.failedSteps++;
         context.failedSteps.push(step.id);

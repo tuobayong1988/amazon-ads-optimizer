@@ -210,7 +210,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      const staleResult = await cleanupStaleJobs(10); // v406: 超过10分钟的running任务（从vv335的30分钟缩短，更快清理SIGTERM残留）
+      const staleResult = await cleanupStaleJobs(30); // v408: 恢复30分钟阈值（基于updated_at而非startedAt，30分钟无更新才判定为卡死）
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -319,7 +319,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
-      const result = await cleanupStaleJobs(30); // v335: 缩短到30分钟
+      const result = await cleanupStaleJobs(60); // v408: 增加到60分钟（基于updated_at，60分钟无更新才判定为卡死）
       if (result.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
       }
