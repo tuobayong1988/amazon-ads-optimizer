@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 400,
+    description: 'v400: [全面优化修复] — (1)P0-修复CorrectionReview页面崩溃: 变量声明顺序错误导致TDZ错误,accounts在useGlobalAccountId之后使用 (2)P0-修复AutoOptimizationDashboard永久加载: 添加DashboardLayout包裹+错误状态处理+重试按钮+骨架屏优化 (3)P1-修复广告位绩效同步N+1查询: 预加载campaigns映射替代循环内逐条查询+移除冗余existing检查 (4)P1-修复广告组绩效同步N+1查询: SP/SB/SD广告组循环内查询改为预加载Map查找 (5)P1-优化SQL查询: campaigns查询从SELECT*改为只查必要字段',
+    affectedModules: ['sync', 'optimization', 'frontend'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 397,
     description: 'v397: [堆内存使用率告警误报修复] — (1)全局统一使用v8.getHeapStatistics().heap_size_limit替代process.memoryUsage().heapTotal计算堆内存使用率,消除V8动态收缩heapTotal导致的虚高97%告警 (2)monitoring.ts系统资源API:heapUsagePercent改用heap_size_limit计算,告警阈值从90%调整为85% (3)ops.ts运维诊断API:evaluateAlerts和/status端点的heapUsagePct改用heap_size_limit (4)optimizationAutoCorrector.ts定时纠错扫描内存检查改用heap_size_limit (5)前端HealthMonitor.tsx增加堆上限明细显示',
     affectedModules: [],

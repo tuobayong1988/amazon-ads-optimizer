@@ -55,9 +55,9 @@ export default function CorrectionReview() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [periodDays, setPeriodDays] = useState("14");
 
-  const adAccounts = accounts; // v399: 使用全局Hook提供的accounts
   // v399: 使用全局店铺选择器替代本地状态
   const { accountId: selectedAccountId, accounts, isLoading: accountsLoading } = useGlobalAccountId();
+  const adAccounts = accounts; // v399-fix3: 修复变量声明顺序，accounts必须在useGlobalAccountId之后使用
   const setSelectedAccountId = (_: any) => {}; // v399: 由全局选择器控制，本地setter为no-op
 const { data: sessions, isLoading: sessionsLoading, refetch: refetchSessions } = trpc.correction.listSessions.useQuery({
     accountId: selectedAccountId || undefined,

@@ -1,25 +1,28 @@
 import React from 'react';
+import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, CheckCircle, AlertCircle, Clock, RefreshCw } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 
 export default function AutoOptimizationDashboard() {
   // v378: 修复trpc调用方式 — 使用正确的react-query hooks而非vanilla client
-  const { data: metrics, isLoading: metricsLoading } = trpc.optimization.getMetrics.useQuery(
+  // v399-fix3: 添加错误处理和超时配置，修复永久加载问题
+  const { data: metrics, isLoading: metricsLoading, isError: metricsError, refetch: refetchMetrics } = trpc.optimization.getMetrics.useQuery(
     undefined,
-    { refetchInterval: 30000 }
+    { refetchInterval: 60000, retry: 2, retryDelay: 3000 }
   );
-
-  const { data: recentActions, isLoading: actionsLoading } = trpc.optimization.getRecentActions.useQuery(
+  const { data: recentActions, isLoading: actionsLoading, isError: actionsError, refetch: refetchActions } = trpc.optimization.getRecentActions.useQuery(
     { limit: 10 },
-    { refetchInterval: 30000 }
+    { refetchInterval: 60000, retry: 2, retryDelay: 3000 }
   );
-
-  const { data: trends, isLoading: trendsLoading } = trpc.optimization.getTrends.useQuery(
-    { days: 7 }
+  const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends } = trpc.optimization.getTrends.useQuery(
+    { days: 7 },
+    { retry: 2, retryDelay: 3000 }
   );
 
   const getActionTypeLabel = (type: string): string => {
@@ -68,16 +71,50 @@ export default function AutoOptimizationDashboard() {
     }
   };
 
-  const isLoading = metricsLoading || actionsLoading || trendsLoading;
+  const isLoading = metricsLoading && actionsLoading && trendsLoading;
+  const hasError = metricsError || actionsError || trendsError;
 
+  // v399-fix3: 改进加载状态 - 只有全部查询都在loading时才显示全屏骨架屏
+  // 部分数据加载完成时就渲染已有数据
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-600">加载优化仪表板中...</p>
+      <DashboardLayout>
+        <div className="space-y-6 p-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">广告活动自动优化仪表板</h1>
+            <p className="text-muted-foreground mt-2">实时监控系统自动执行的优化动作和效果</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => (
+              <Card key={i}><CardHeader className="pb-3"><Skeleton className="h-4 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-16" /></CardContent></Card>
+            ))}
+          </div>
+          <Skeleton className="h-64 w-full" />
         </div>
-      </div>
+      </DashboardLayout>
+    );
+  }
+
+  // v399-fix3: 添加错误状态处理
+  if (hasError && !metrics && !recentActions && !trends) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 p-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">广告活动自动优化仪表板</h1>
+            <p className="text-muted-foreground mt-2">实时监控系统自动执行的优化动作和效果</p>
+          </div>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>数据加载失败，请稍后重试。</span>
+              <Button variant="outline" size="sm" onClick={() => { refetchMetrics(); refetchActions(); refetchTrends(); }}>
+                <RefreshCw className="h-4 w-4 mr-1" /> 重试
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
     );
   }
 
@@ -86,6 +123,7 @@ export default function AutoOptimizationDashboard() {
   const safeTrends = (trends || []) as any[];
 
   return (
+    <DashboardLayout>
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">广告活动自动优化仪表板</h1>
@@ -274,5 +312,6 @@ export default function AutoOptimizationDashboard() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

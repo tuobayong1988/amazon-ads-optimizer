@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 397;  // v397: 堆内存使用率告警修复 — 全局统一使用v8.heap_size_limit替代heapTotal计算堆内存使用率
+export const SYSTEM_VERSION = 400;  // v400: 全面优化修复 - 修复CorrectionReview页面崩溃、AutoOptimizationDashboard加载失败、N+1查询性能问题、数据库连接池优化、多租户并发控制增强

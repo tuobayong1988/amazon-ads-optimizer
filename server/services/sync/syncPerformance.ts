@@ -1197,9 +1197,9 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步广告组绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
-    // 获取该账户下所有广告活动
+    // v399-fix3: 只查必要字段，避免加载大量不必要的数据
     const accountCampaigns = await db
-      .select()
+      .select({ id: campaigns.id, campaignId: campaigns.campaignId, campaignType: campaigns.campaignType })
       .from(campaigns)
       .where(eq(campaigns.accountId, this.accountId));
 
@@ -1207,6 +1207,17 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
     const spCampaigns = accountCampaigns.filter(c => c.campaignType === 'sp_auto' || c.campaignType === 'sp_manual');
     const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
+
+    // v399-fix3: 预加载adGroups映射，避免SP/SB/SD循环内的N+1查询问题
+    const allAdGroups = await db
+      .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+      .from(adGroups)
+      .where(eq(adGroups.accountId, this.accountId));
+    const adGroupMap = new Map<string, { id: number; adGroupId: string }>();
+    for (const ag of allAdGroups) {
+      adGroupMap.set(String(ag.adGroupId), ag);
+    }
+    log.info(`v399-fix3: 预加载 ${allAdGroups.length} 个adGroups用于广告组绩效匹配`);
 
     // v339: 通用分批报告请求函数
     // v395: 添加groupByKey参数，用于SUMMARY模式分批数据的自动聚合
@@ -1270,12 +1281,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
         if (spData && spData.length > 0) {
           for (const row of (spData as any[])) {
             const adGroupId = String(row.adGroupId);
-            // 查找对应的广告组
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
+            // v399-fix3: 使用预加载的Map查找，避免N+1查询
+            const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
             const cost = row.cost || 0;
@@ -1319,11 +1326,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           let sbSynced = 0;
           for (const row of (sbData as any[])) {
             const adGroupId = String(row.adGroupId);
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
+            // v399-fix3: 使用预加载的Map查找，避免N+1查询
+            const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
             const cost = row.cost || 0;
@@ -1374,11 +1378,8 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           let sdSynced = 0;
           for (const row of (sdData as any[])) {
             const adGroupId = String(row.adGroupId);
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
+            // v399-fix3: 使用预加载的Map查找，避免N+1查询
+            const adGroup = adGroupMap.get(adGroupId);
             if (!adGroup) continue;
 
             const cost = row.cost || 0;
@@ -1493,18 +1494,20 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     }
     let synced = 0;
 
+    // v399-fix3: 预加载campaigns映射，避免N+1查询问题（从 SELECT * 改为只查必要字段）
+    const allCampaigns = await db
+      .select({ id: campaigns.id, campaignId: campaigns.campaignId })
+      .from(campaigns)
+      .where(eq(campaigns.accountId, this.accountId));
+    const campaignMap = new Map<string, { id: number; campaignId: string }>();
+    for (const c of allCampaigns) {
+      campaignMap.set(String(c.campaignId), c);
+    }
+    log.info(`v399-fix3: 预加载 ${allCampaigns.length} 个campaigns用于广告位绩效匹配`);
+
     for (const row of (reportData as any[])) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, this.accountId),
-            eq(campaigns.campaignId, String(row.campaignId))
-          )
-        )
-        .limit(1);
+      // v399-fix3: 使用预加载的Map查找，避免每条数据都查询数据库
+      const campaign = campaignMap.get(String(row.campaignId));
 
       if (!campaign) continue;
 
@@ -1555,20 +1558,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       // v337.1: 修复误导性变量名 localCampaignId → amazonCampaignId
       const amazonCampaignId = String(campaign.campaignId);
       
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(placementPerformance)
-        .where(
-          and(
-            eq(placementPerformance.campaignId, amazonCampaignId),
-            eq(placementPerformance.accountId, this.accountId),
-            eq(placementPerformance.placement, placement),
-            eq(placementPerformance.date, reportDate)
-          )
-        )
-        .limit(1);
-
+      // v399-fix3: 移除冗余的existing检查，已有UPSERT(onDuplicateKeyUpdate)保证覆盖式回填
       const cost = row.cost || 0;
       // SP广告位置报告使用7天归因窗口（与SP其他报告一致）
       const sales = row.sales7d || row.sales14d || 0;
