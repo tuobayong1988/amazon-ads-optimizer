@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 403;  // v403: 数据隔离安全加固、nightly同步层级(关键词/定位/广告组绩效)、策略管理错误处理、品牌重命名PPCOPT
+export const SYSTEM_VERSION = 404;  // v404: 统一手动/自动同步代码路径，手动同步调用unifiedSyncEngine执行所有步骤（含nightly层级）

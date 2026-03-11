@@ -802,7 +802,7 @@ export const amazonApiRouter = router({
       return profiles;
     }),
 
-  // Sync all data from Amazon (async mode - returns jobId immediately)
+  // v404: Sync all data from Amazon - 统一使用unifiedSyncEngine，手动/自动同步共用同一代码路径
   syncAll: protectedProcedure
     .input(z.object({ 
       accountId: z.number(),
@@ -846,7 +846,6 @@ export const amazonApiRouter = router({
 
       // 获取账号的站点信息
       const account = await db.getAdAccountById(input.accountId);
-      const marketplace = account?.marketplace || 'US';
 
       // v361: 记录手动同步触发审计日志
       recordAudit({
@@ -858,454 +857,58 @@ export const amazonApiRouter = router({
         entityName: account?.accountName || `Account ${input.accountId}`,
         source: 'api',
         result: 'success',
-        metadata: { isIncremental: input.isIncremental, jobId },
+        metadata: { isIncremental: input.isIncremental, jobId, engine: 'unifiedSyncEngine' },
       });
       
-      // 异步执行同步任务，立即返回jobId
+      // v404: 异步执行同步任务 - 统一调用unifiedSyncEngine
       const runSyncAsync = async () => {
-        const startTime = Date.now();
-        
-        // 获取上次成功同步时间（用于增量同步）
-        const lastSyncTime = input.isIncremental 
-          ? await db.getLastSuccessfulSync(input.accountId)
-          : null;
-
-        const syncService = await AmazonSyncService.createFromCredentials(
-          {
-            clientId: credentials.clientId,
-            clientSecret: credentials.clientSecret,
-            refreshToken: credentials.refreshToken,
-            profileId: credentials.profileId,
-            region: credentials.region as 'NA' | 'EU' | 'FE',
-          },
-          input.accountId,
-          ctx.user.id,
-          marketplace
-        );
-
-        // 带重试的执行函数
-        const executeWithRetry = async <T>(
-          fn: () => Promise<T>,
-          stepName: string,
-          maxRetries: number = input.maxRetries
-        ): Promise<T> => {
-          let lastError: Error | null = null;
-          for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-              return await fn();
-            } catch (error: unknown) {
-              // @ts-ignore
-              lastError = error;
-              log.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, (error as Error).message);
-              if (attempt < maxRetries) {
-                const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              }
-            }
-          }
-          throw lastError;
-        };
-
-        let totalRetries = 0;
-        let results: Record<string, any>[] = {
-          // @ts-ignore
-          campaigns: 0,
-          spCampaigns: 0,
-          sbCampaigns: 0,
-          sdCampaigns: 0,
-          adGroups: 0,
-          keywords: 0,
-          targets: 0,
-          performance: 0,
-          skipped: 0,
-        };
-
-        const changeSummary = {
-          campaignsCreated: 0,
-          campaignsUpdated: 0,
-          campaignsDeleted: 0,
-          adGroupsCreated: 0,
-          adGroupsUpdated: 0,
-          adGroupsDeleted: 0,
-          keywordsCreated: 0,
-          keywordsUpdated: 0,
-          keywordsDeleted: 0,
-          targetsCreated: 0,
-          targetsUpdated: 0,
-          targetsDeleted: 0,
-          conflictsDetected: 0,
-          conflictsResolved: 0,
-        };
-
-        const totalSteps = 17; // v217: 完整同步流程17个步骤
-        let currentStepIndex = 0;
-
-        const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
-          if (!jobId) return;
-          const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
-          await db.updateSyncJob(jobId, {
-            currentStep: stepName,
-            totalSteps,
-            currentStepIndex: stepIndex,
-            progressPercent,
-            siteProgress: {
-              currentStep: stepName,
-              stepIndex,
-              totalSteps,
-              progressPercent,
-              results: stepResults || results,
-            },
-          });
-        };
-
         try {
-          // 首先获取profile信息，包括时区和货币
-          await updateProgress('获取账户信息', currentStepIndex);
-          try {
-            const profiles = await (syncService as any).client.getProfiles();
-            // @ts-ignore
-            const matchingProfile = profiles.find(p => p.profileId.toString() === credentials.profileId);
-            if (matchingProfile) {
-              // 存储timezone和currencyCode到数据库
-              await db.updateAmazonApiCredentialsTimezone(
-                input.accountId,
-                matchingProfile.timezone,
-                matchingProfile.currencyCode
-              );
-              log.info(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
-            }
-          } catch (profileError: unknown) {
-            log.error('[同步] 获取profile信息失败:', (profileError as Error).message);
-            // 不影响后续同步
-          }
-          currentStepIndex++;
-
-          // SP广告活动
-          await updateProgress('SP广告活动', currentStepIndex);
-          const spResult = await executeWithRetry(
-            () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
-            'SP广告同步'
-          );
-          // @ts-ignore
-          results.spCampaigns = spResult.synced;
-          // @ts-ignore
-          results.skipped += spResult.skipped || 0;
-          changeSummary.campaignsCreated += spResult.created || 0;
-          changeSummary.campaignsUpdated += spResult.updated || 0;
-          changeSummary.conflictsDetected += spResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SB广告活动
-          await updateProgress('SB广告活动', currentStepIndex);
-          const sbResult = await executeWithRetry(
-            () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
-            'SB广告同步'
-          );
-          // @ts-ignore
-          results.sbCampaigns = sbResult.synced;
-          // @ts-ignore
-          results.skipped += sbResult.skipped || 0;
-          changeSummary.campaignsCreated += sbResult.created || 0;
-          changeSummary.campaignsUpdated += sbResult.updated || 0;
-          changeSummary.conflictsDetected += sbResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SD广告活动
-          await updateProgress('SD广告活动', currentStepIndex);
-          const sdResult = await executeWithRetry(
-            () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
-            'SD广告同步'
-          );
-          // @ts-ignore
-          results.sdCampaigns = sdResult.synced;
-          // @ts-ignore
-          results.skipped += sdResult.skipped || 0;
-          changeSummary.campaignsCreated += sdResult.created || 0;
-          changeSummary.campaignsUpdated += sdResult.updated || 0;
-          changeSummary.conflictsDetected += sdResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SP广告组
-          await updateProgress('SP广告组', currentStepIndex);
-          const adGroupsResult = await executeWithRetry(
-            () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
-            'SP广告组同步'
-          );
-          // @ts-ignore
-          results.adGroups = adGroupsResult.synced;
-          // @ts-ignore
-          results.skipped += adGroupsResult.skipped || 0;
-          changeSummary.adGroupsCreated += adGroupsResult.created || 0;
-          changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
-          changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SB广告组
-          await updateProgress('SB广告组', currentStepIndex);
-          try {
-            const sbAdGroupsResult = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncSbAdGroups(),
-              'SB广告组同步'
-            );
-            // @ts-ignore
-            results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as Record<string, any>[]).synced) || 0;
-          } catch (e: unknown) {
-            log.error('[SB广告组同步] 失败:', (e as Error).message);
-          }
-          currentStepIndex++;
-
-          // SD广告组
-          await updateProgress('SD广告组', currentStepIndex);
-          try {
-            const sdAdGroupsResult = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncSdAdGroups(),
-              'SD广告组同步'
-            );
-            // @ts-ignore
-            results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as Record<string, any>[]).synced) || 0;
-          } catch (e: unknown) {
-            log.error('[SD广告组同步] 失败:', (e as Error).message);
-          }
-          currentStepIndex++;
-
-          // SP关键词
-          await updateProgress('SP关键词', currentStepIndex);
-          const keywordsResult = await executeWithRetry(
-            () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
-            'SP关键词同步'
-          );
-          // @ts-ignore
-          results.keywords = keywordsResult.synced;
-          // @ts-ignore
-          results.skipped += keywordsResult.skipped || 0;
-          changeSummary.keywordsCreated += keywordsResult.created || 0;
-          changeSummary.keywordsUpdated += keywordsResult.updated || 0;
-          changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SB关键词
-          await updateProgress('SB关键词', currentStepIndex);
-          try {
-            const sbKeywordsResult = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncSbKeywords(),
-              'SB关键词同步'
-            );
-            // @ts-ignore
-            results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as Record<string, any>[]).synced) || 0;
-          } catch (e: unknown) {
-            log.error('[SB关键词同步] 失败:', (e as Error).message);
-          }
-          currentStepIndex++;
-
-          // SP商品定位
-          await updateProgress('SP商品定位', currentStepIndex);
-          const targetsResult = await executeWithRetry(
-            () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
-            'SP商品定位同步'
-          );
-          // @ts-ignore
-          results.targets = targetsResult.synced;
-          // @ts-ignore
-          results.skipped += targetsResult.skipped || 0;
-          changeSummary.targetsCreated += targetsResult.created || 0;
-          changeSummary.targetsUpdated += targetsResult.updated || 0;
-          changeSummary.conflictsDetected += targetsResult.conflicts || 0;
-          currentStepIndex++;
-
-          // SB商品定位
-          await updateProgress('SB商品定位', currentStepIndex);
-          try {
-            const sbTargetsResult = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncSbProductTargets(),
-              'SB商品定位同步'
-            );
-            // @ts-ignore
-            results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as Record<string, any>[]).synced) || 0;
-          } catch (e: unknown) {
-            log.error('[SB商品定位同步] 失败:', (e as Error).message);
-          }
-          currentStepIndex++;
-
-          // SD商品定位
-          await updateProgress('SD商品定位', currentStepIndex);
-          try {
-            const sdTargetsResult = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncSdProductTargets(),
-              'SD商品定位同步'
-            );
-            // @ts-ignore
-            results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as Record<string, any>[]).synced) || 0;
-          } catch (e: unknown) {
-            log.error('[SD商品定位同步] 失败:', (e as Error).message);
-          }
-          currentStepIndex++;
-
-          // @ts-ignore
-          results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
-
-          // 绩效数据
-          const isFirstSync = !credentials.lastSyncAt;
-          const performanceDays = isFirstSync ? 60 : 30;
+          const { triggerManualFullSync } = await import('../unifiedSyncEngine');
           
-          await updateProgress('绩效数据', currentStepIndex);
-          try {
-            log.info(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
-            const performanceCount = await executeWithRetry(
-              // @ts-ignore
-              () => syncService.syncPerformanceData(performanceDays),
-              '绩效数据同步'
-            );
-            // @ts-ignore
-            results.performance = performanceCount;
-            log.info(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
-          } catch (error: unknown) {
-            log.error('[绩效数据同步] 失败:', (error as Error).message);
-            // @ts-ignore
-            results.performance = 0;
-            // @ts-ignore
-            results.performanceError = (error as Error).message;
-          }
-
-          // 搜索词数据同步
-          currentStepIndex++;
-          await updateProgress('搜索词', currentStepIndex);
-          try {
-            log.info('[搜索词同步] 开始同步搜索词数据...');
-            const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
-            // @ts-ignore
-            results.searchTerms = searchTermsCount;
-            log.info(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
-          } catch (error: unknown) {
-            log.error('[搜索词同步] 失败:', (error as Error).message);
-            // @ts-ignore
-            results.searchTerms = 0;
-          }
-
-          // 否定关键词同步
-          currentStepIndex++;
-          await updateProgress('否定关键词', currentStepIndex);
-          try {
-            log.info('[否定关键词同步] 开始同步SP否定关键词...');
-            const negKwResult = await syncService.syncSpNegativeKeywords();
-            // @ts-ignore
-            results.negativeKeywords = (negKwResult.synced || 0);
-            // @ts-ignore
-            log.info(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
-          } catch (error: unknown) {
-            log.error('[否定关键词同步] 失败:', (error as Error).message);
-            // @ts-ignore
-            results.negativeKeywords = 0;
-          }
-          try {
-            const sbNegKwResult = await syncService.syncSbNegativeKeywords();
-            // @ts-ignore
-            results.negativeKeywords += (sbNegKwResult.synced || 0);
-          } catch (e: unknown) {
-            log.error('[SB否定关键词同步] 失败:', (e as Error).message);
-          }
-
-          // 否定商品定位同步
-          currentStepIndex++;
-          await updateProgress('否定商品定位', currentStepIndex);
-          try {
-            log.info('[否定商品定位同步] 开始同步SP否定商品定位...');
-            const negTargetResult = await syncService.syncSpNegativeProductTargets();
-            // @ts-ignore
-            results.negativeTargets = (negTargetResult.synced || 0);
-            // @ts-ignore
-            log.info(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
-          } catch (error: unknown) {
-            log.error('[否定商品定位同步] 失败:', (error as Error).message);
-            // @ts-ignore
-            results.negativeTargets = 0;
-          }
-          try {
-            const sbNegTargetResult = await syncService.syncSbNegativeTargets();
-            // @ts-ignore
-            results.negativeTargets += (sbNegTargetResult.synced || 0);
-          } catch (e: unknown) {
-            log.error('[SB否定商品定位同步] 失败:', (e as Error).message);
-          }
-
-          // 广告位置绩效同步
-          currentStepIndex++;
-          await updateProgress('广告位置绩效', currentStepIndex);
-          try {
-            log.info('[位置绩效同步] 开始同步广告位置绩效...');
-            const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
-            // @ts-ignore
-            results.placements = placementsCount;
-            log.info(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
-          } catch (error: unknown) {
-            log.error('[位置绩效同步] 失败:', (error as Error).message);
-            // @ts-ignore
-            results.placements = 0;
-          }
-
-          // 保存变更摘要
-          if (jobId) {
-            await db.upsertSyncChangeSummary({
-              syncJobId: jobId,
-              accountId: input.accountId,
+          log.info(`[v404-同步] 账号 ${input.accountId} 手动全量同步开始，使用unifiedSyncEngine统一代码路径`);
+          
+          const result = await triggerManualFullSync(
+            input.accountId,
+            undefined, // onProgress回调由triggerManualFullSync内部处理
+            {
+              jobId,
               userId: ctx.user.id,
-              ...changeSummary,
-            });
-          }
+            }
+          );
 
-          // 更新同步任务记录为完成
-          const durationMs = Date.now() - startTime;
-          if (jobId) {
+          if (!result) {
+            log.error(`[v404-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
             await db.updateSyncJob(jobId, {
-              status: 'completed',
-              // @ts-ignore
-              recordsSynced: results.campaigns + results.adGroups + results.keywords + results.targets,
-              // @ts-ignore
-              recordsSkipped: results.skipped,
-              durationMs,
-              retryCount: totalRetries,
-              // @ts-ignore
-              spCampaigns: results.spCampaigns,
-              // @ts-ignore
-              sbCampaigns: results.sbCampaigns,
-              // @ts-ignore
-              sdCampaigns: results.sdCampaigns,
-              // @ts-ignore
-              adGroupsSynced: results.adGroups,
-              // @ts-ignore
-              keywordsSynced: results.keywords,
-              // @ts-ignore
-              targetsSynced: results.targets,
+              status: 'failed',
+              errorMessage: '账户不可用，无法执行同步',
             });
+            return;
           }
 
           // 更新最后同步时间
-          await db.updateAmazonApiCredentials(input.accountId, {
-            lastSyncAt: new Date().toISOString(),
-          });
+          if (result.success) {
+            await db.updateAmazonApiCredentials(input.accountId, {
+              lastSyncAt: new Date().toISOString(),
+            });
+          }
 
-          log.info(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
+          log.info(`[v404-同步] 账号 ${input.accountId} 同步${result.success ? '完成' : '部分失败'}，耗时 ${result.durationMs}ms，成功 ${result.completedSteps}/${result.totalSteps} 步骤`);
         } catch (error: unknown) {
-          // 更新同步任务记录为失败
-          log.error(`[同步失败] 账号 ${input.accountId}:`, (error as Error).message);
-          if (jobId) {
+          log.error(`[v404-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
+          try {
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: (error as Error).message,
-              durationMs: Date.now() - startTime,
-              retryCount: totalRetries,
             });
+          } catch (dbErr) {
+            log.error(`[v404-同步] 更新失败状态异常:`, dbErr);
           }
         }
       };
 
       // 异步执行同步任务，不等待完成
       runSyncAsync().catch(err => {
-        log.error(`[同步异常] 账号 ${input.accountId}:`, err);
+        log.error(`[v404-同步异常] 账号 ${input.accountId}:`, err);
       }).finally(() => {
         // ✅ 始终释放同步锁，无论成功或失败
         // @ts-ignore
@@ -1317,7 +920,7 @@ export const amazonApiRouter = router({
       return {
         jobId,
         status: 'started',
-        message: '同步任务已启动，请通过轮询获取进度',
+        message: 'v404: 同步任务已启动（统一引擎），请通过轮询获取进度',
         accountId: input.accountId,
       };
     }),

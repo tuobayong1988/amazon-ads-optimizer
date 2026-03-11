@@ -1148,10 +1148,12 @@ export async function syncAccount(
     );
 
     // 确定要执行的步骤
-    let steps = getStepsForTier(tier);
-    
+    // v404: 当传入specificSteps时，从所有SYNC_STEPS中过滤（支持手动全量同步跨层级执行）
+    let steps: SyncStep[];
     if (options?.specificSteps) {
-      steps = steps.filter(s => options.specificSteps!.includes(s.id));
+      steps = SYNC_STEPS.filter(s => options.specificSteps!.includes(s.id));
+    } else {
+      steps = getStepsForTier(tier);
     }
     if (options?.skipSteps) {
       steps = steps.filter(s => !options.skipSteps!.includes(s.id));
@@ -1806,10 +1808,15 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
 
 /**
  * 手动触发单账户完整同步（供前端调用）
+ * v404: 重构 - 手动全量同步执行所有步骤（包括nightly层级），并支持jobId进度更新
  */
 export async function triggerManualFullSync(
   accountId: number,
-  onProgress?: (step: string, index: number, total: number) => void
+  onProgress?: (step: string, index: number, total: number) => void,
+  options?: {
+    jobId?: number;  // v404: 传入jobId用于更新data_sync_jobs进度
+    userId?: number; // v404: 传入userId用于审计
+  }
 ): Promise<AccountSyncResult | null> {
   const accounts = await discoverSyncableAccounts();
   const account = accounts.find(a => a.accountId === accountId);
@@ -1819,7 +1826,80 @@ export async function triggerManualFullSync(
     return null;
   }
 
-  return syncAccount(account, 'full', { onProgress });
+  // v404: 手动全量同步执行ALL步骤（包括nightly层级的keyword_performance等）
+  // 使用full层级 + 显式包含nightly步骤
+  const allSteps = SYNC_STEPS.map(s => s.id); // 所有步骤ID
+  const fullSteps = getStepsForTier('full').map(s => s.id);
+  const nightlySteps = getStepsForTier('nightly').map(s => s.id);
+  const combinedStepIds = [...new Set([...fullSteps, ...nightlySteps])];
+  // 按SYNC_STEPS原始顺序排列
+  const orderedStepIds = allSteps.filter(id => combinedStepIds.includes(id));
+
+  // v404: 包装onProgress以同时更新data_sync_jobs
+  const wrappedOnProgress = async (step: string, index: number, total: number) => {
+    // 调用原始回调
+    if (onProgress) {
+      onProgress(step, index, total);
+    }
+    // 更新data_sync_jobs进度
+    if (options?.jobId) {
+      try {
+        const { updateSyncJob } = await import('./db/syncJobs');
+        const progressPercent = Math.round(((index + 1) / total) * 100);
+        await updateSyncJob(options.jobId, {
+          currentStep: step,
+          totalSteps: total,
+          currentStepIndex: index,
+          progressPercent,
+        });
+      } catch (e: unknown) {
+        log.debug(`[UnifiedSync] v404: 更新手动同步进度失败: ${(e as Error).message}`);
+      }
+    }
+  };
+
+  log.info(`[UnifiedSync] v404: 手动全量同步账户 ${accountId}，执行 ${orderedStepIds.length} 个步骤（含nightly层级）`);
+
+  // 使用full层级但通过specificSteps指定所有步骤
+  const result = await syncAccount(account, 'full', {
+    specificSteps: orderedStepIds,
+    onProgress: wrappedOnProgress,
+  });
+
+  // v404: 同步完成后更新data_sync_jobs最终状态
+  if (options?.jobId && result) {
+    try {
+      const { updateSyncJob } = await import('./db/syncJobs');
+      const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+      await updateSyncJob(options.jobId, {
+        status: result.success ? 'completed' : 'failed',
+        errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+        durationMs: result.durationMs,
+        recordsSynced: result.totalSynced,
+        spCampaigns: safeNum(result.stepResults['sp_campaigns']?.synced),
+        sbCampaigns: safeNum(result.stepResults['sb_campaigns']?.synced),
+        sdCampaigns: safeNum(result.stepResults['sd_campaigns']?.synced),
+        adGroupsSynced: safeNum(result.stepResults['sp_ad_groups']?.synced) +
+          safeNum(result.stepResults['sb_ad_groups']?.synced) +
+          safeNum(result.stepResults['sd_ad_groups']?.synced),
+        keywordsSynced: safeNum(result.stepResults['sp_keywords']?.synced) +
+          safeNum(result.stepResults['sb_keywords']?.synced),
+        targetsSynced: safeNum(result.stepResults['sp_product_targets']?.synced) +
+          safeNum(result.stepResults['sb_product_targets']?.synced) +
+          safeNum(result.stepResults['sd_product_targets']?.synced),
+        totalSteps: result.totalSteps,
+        currentStepIndex: result.totalSteps,
+        currentStep: result.success ? '完成' : '失败',
+        progressPercent: result.success ? 100 : Math.round(
+          (result.completedSteps / Math.max(result.totalSteps, 1)) * 100
+        ),
+      });
+    } catch (e: unknown) {
+      log.warn(`[UnifiedSync] v404: 更新手动同步最终状态失败: ${(e as Error).message}`);
+    }
+  }
+
+  return result;
 }
 
 /**

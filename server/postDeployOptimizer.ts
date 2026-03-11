@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 404,
+    description: 'v404: [统一同步代码路径] — (1)P0-手动同步统一: amazonApi.syncAll路由从500+行硬编码重构为调用unifiedSyncEngine.triggerManualFullSync,手动/自动同步共用同一代码路径 (2)P0-全量同步覆盖所有步骤: 手动全量同步现在执行所有SYNC_STEPS(含nightly层级),确保keyword_performance/target_performance/ad_group_performance不被遗漏 (3)P0-specificSteps修复: syncAccount中specificSteps现在从SYNC_STEPS全集过滤而非getStepsForTier结果,支持跨层级执行',
+    // @ts-ignore
+    affectedModules: ['sync', 'api'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 403,
     description: 'v403: [数据隔离安全加固+nightly同步层级+前端优化+品牌重命名] — (1)P0-数据隔离: smartCampaign路由新增4个verifyAccountAccess中间件,堆塞越权访问漏洞 (2)P1-承载能力: EB环境变量DB_POOL_SIZE=100/NODE_OPTIONS=3072MB/MAX_CONCURRENT_ACCOUNTS=15 (3)P2-nightly同步层级: 将keyword_performance/target_performance/ad_group_performance从full迁移到nightly层级,每日凌晨2点执行,超时4小时,解决full层级超时问题 (4)P3-策略管理页面: 增加isError状态处理和重新加载按钮 (5)P3-品牌重命名: 全局替换Amazon Ads Optimizer为PPCOPT,移除页脚版权信息',
     // @ts-ignore
