@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 406,
+    description: 'v406: [同步引擎全面修复] — (1)P0-进度更新await: syncAccount中onProgress回调添加await,确保DB写入完成后再继续,修复前端进度永远卡在初始状态的bug (2)P0-手动同步优先级: 新增isManual标记,手动全量同步不再被自动同步阻塞,强制释放自动同步锁 (3)P0-nightly PST时区: 夜间同步从服务器本地时间改为PST凌晨2点(UTC 10:00) (4)P1-僵尸任务清理: cleanupStaleJobs阈值从30分钟缩短到10分钟 (5)P1-锁释放修复: syncAll路由中锁释放移入finally块,确保整个同步期间持有锁 (6)P1-Job状态初始化: 同步启动时立即将job状态更新为running',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 405,
     description: 'v405: [Auto Scaling稳定性+同步SIGTERM保护] — (1)P0-Auto Scaling修复: Scale Down Cooldown从360s增加到900s,评估周期从1个(5min)增加到3个(15min),防止同步期间实例被终止 (2)P0-SIGTERM保护: syncAccount步骤循环中检查isShuttingDown,提前保存进度并优雅退出 (3)P1-部署后同步降级: deployLifecycleManager步骤3.5d从full层级改为high层级,避免CPU飙升触发伸缩 (4)P2-ebextensions配置: 新增04_autoscaling.config,固化Cooldown和滚动更新策略',
     // @ts-ignore

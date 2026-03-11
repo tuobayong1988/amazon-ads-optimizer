@@ -210,7 +210,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      const staleResult = await cleanupStaleJobs(30); // v335: 超过30分钟的running任务
+      const staleResult = await cleanupStaleJobs(10); // v406: 超过10分钟的running任务（从vv335的30分钟缩短，更快清理SIGTERM残留）
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -244,27 +244,29 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
-
-  // v403: 夜间同步：计算距离下一个凌昨2点的毫秒数，然后启动定时器
+  // v406: 夜间同步：计算距离下一个 PST 凌晨2点的毫秒数
+  // 服务器运行在UTC，但广告数据以PST时区为准，所以nightly同步应在PST凌晨2点执行
+  // PST = UTC-8，所以PST 2:00 AM = UTC 10:00 AM
   const nightlyDelayMs = (() => {
     const now = new Date();
-    const next2am = new Date(now);
-    next2am.setHours(2, 0, 0, 0);
-    if (next2am.getTime() <= now.getTime()) {
-      next2am.setDate(next2am.getDate() + 1);
+    // 计算下一个UTC 10:00 (= PST 2:00 AM)
+    const nextNightly = new Date(now);
+    nextNightly.setUTCHours(10, 0, 0, 0);
+    if (nextNightly.getTime() <= now.getTime()) {
+      nextNightly.setDate(nextNightly.getDate() + 1);
     }
-    return next2am.getTime() - now.getTime();
+    return nextNightly.getTime() - now.getTime();
   })();
   setTimeout(() => {
-    log.info('[DataSyncScheduler] v403: 夜间同步首次执行（凌昨2点）...');
+    log.info('[DataSyncScheduler] v406: 夜间同步首次执行（PST凌晨2点 = UTC 10:00）...');
     executeUnifiedSync('nightly' as any);
     // 启动每24小时循环
     schedulerIntervals.nightly = setInterval(async () => {
-      log.info('[DataSyncScheduler] v403: 夜间同步定时执行...');
+      log.info('[DataSyncScheduler] v406: 夜间同步定时执行（PST凌晨2点）...');
       await executeUnifiedSync('nightly' as any);
     }, 24 * 60 * 60 * 1000);
   }, nightlyDelayMs);
-  log.info(`[DataSyncScheduler] v403: 夜间同步已调度，首次执行将在 ${Math.round(nightlyDelayMs / 1000 / 60)} 分钟后（凌昨2点）`);
+  log.info(`[DataSyncScheduler] v406: 夜间同步已调度，首次执行将在 ${Math.round(nightlyDelayMs / 1000 / 60)} 分钟后（PST凌晨2点 = UTC 10:00）`);
 
   // v336: 缩短启动后首次同步延迟（v335的2分钟→30秒，5分钟→60秒）
   // 部署后尽快恢复数据同步，减少数据空窗期

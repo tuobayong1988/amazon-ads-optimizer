@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 405;  // v405: Auto Scaling稳定性修复 + 同步任务SIGTERM保护 + 部署后轻量级同步(high层级替代full)
+export const SYSTEM_VERSION = 406;  // v406: 同步引擎全面修复 - 进度更新await、手动同步优先级、nightly PST时区、僵尸任务快速清理

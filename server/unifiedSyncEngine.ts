@@ -1044,7 +1044,8 @@ export async function syncAccount(
   options?: {
     specificSteps?: string[];  // 只执行指定步骤（用于确认同步）
     skipSteps?: string[];      // 跳过指定步骤
-    onProgress?: (step: string, index: number, total: number) => void;
+    onProgress?: (step: string, index: number, total: number) => void | Promise<void>;
+    isManual?: boolean;        // v406: 手动同步标记，拥有最高优先级
   }
 ): Promise<AccountSyncResult> {
   const startTime = new Date();
@@ -1120,8 +1121,15 @@ export async function syncAccount(
       return result;
     }
     
-    // v222: 当前是full层，但有其他层级在运行，跳过等下一轮
+    // v406: 手动全量同步（通过options.isManual标记）拥有最高优先级
+    // 手动同步不会被任何自动同步阻塞，而是等待自动同步超时后强制执行
     if (tier === 'full' && existingTier !== 'full') {
+      if (options?.isManual) {
+        // v406: 手动同步遇到自动同步在运行时，强制释放自动同步的锁
+        log.warn(`[UnifiedSync] v406: 手动全量同步优先 - 强制释放账户 ${account.accountId} 的${existingTier}层自动同步锁`);
+        activeSyncs.delete(existingKey);
+        continue;
+      }
       log.info(`[UnifiedSync] v222: 账户 ${account.accountId} 有${existingTier}层同步在运行，full层跳过等下一轮`);
       result.errors.push(`${existingTier}层同步在运行，full层等下一轮`);
       return result;
@@ -1224,9 +1232,13 @@ export async function syncAccount(
         runningEntry.step = step.name;
       }
 
-      // 进度回调
+      // v406: 进度回调 - await以确保DB写入完成（修复进度丢失bug）
       if (options?.onProgress) {
-        options.onProgress(step.name, i, steps.length);
+        try {
+          await options.onProgress(step.name, i, steps.length);
+        } catch (progressErr: unknown) {
+          log.debug(`[UnifiedSync] v406: 进度回调失败: ${(progressErr as Error).message}`);
+        }
       }
 
       log.info(`[UnifiedSync] 账户 ${account.accountId} 执行步骤 [${i + 1}/${steps.length}]: ${step.name}`);
@@ -1875,10 +1887,11 @@ export async function triggerManualFullSync(
 
   log.info(`[UnifiedSync] v404: 手动全量同步账户 ${accountId}，执行 ${orderedStepIds.length} 个步骤（含nightly层级）`);
 
-  // 使用full层级但通过specificSteps指定所有步骤
+  // v406: 使用full层级+isManual标记，确保手动同步不会被自动同步阻塞
   const result = await syncAccount(account, 'full', {
     specificSteps: orderedStepIds,
     onProgress: wrappedOnProgress,
+    isManual: true,
   });
 
   // v404: 同步完成后更新data_sync_jobs最终状态

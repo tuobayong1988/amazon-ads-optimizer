@@ -860,12 +860,19 @@ export const amazonApiRouter = router({
         metadata: { isIncremental: input.isIncremental, jobId, engine: 'unifiedSyncEngine' },
       });
       
-      // v404: 异步执行同步任务 - 统一调用unifiedSyncEngine
+      // v406: 异步执行同步任务 - 统一调用unifiedSyncEngine
+      // 先将job状态更新为running
+      await db.updateSyncJob(jobId, {
+        status: 'running',
+        currentStep: '初始化',
+        progressPercent: 0,
+      });
+
       const runSyncAsync = async () => {
         try {
           const { triggerManualFullSync } = await import('../unifiedSyncEngine');
           
-          log.info(`[v404-同步] 账号 ${input.accountId} 手动全量同步开始，使用unifiedSyncEngine统一代码路径`);
+          log.info(`[v406-同步] 账号 ${input.accountId} 手动全量同步开始，使用unifiedSyncEngine统一代码路径`);
           
           const result = await triggerManualFullSync(
             input.accountId,
@@ -877,7 +884,7 @@ export const amazonApiRouter = router({
           );
 
           if (!result) {
-            log.error(`[v404-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
+            log.error(`[v406-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: '账户不可用，无法执行同步',
@@ -892,28 +899,28 @@ export const amazonApiRouter = router({
             });
           }
 
-          log.info(`[v404-同步] 账号 ${input.accountId} 同步${result.success ? '完成' : '部分失败'}，耗时 ${result.durationMs}ms，成功 ${result.completedSteps}/${result.totalSteps} 步骤`);
+          log.info(`[v406-同步] 账号 ${input.accountId} 同步${result.success ? '完成' : '部分失败'}，耗时 ${result.durationMs}ms，成功 ${result.completedSteps}/${result.totalSteps} 步骤`);
         } catch (error: unknown) {
-          log.error(`[v404-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
+          log.error(`[v406-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
           try {
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: (error as Error).message,
             });
           } catch (dbErr) {
-            log.error(`[v404-同步] 更新失败状态异常:`, dbErr);
+            log.error(`[v406-同步] 更新失败状态异常:`, dbErr);
           }
+        } finally {
+          // v406: 在同步完成后才释放锁（移到此处，确保锁在整个同步期间持有）
+          // @ts-ignore
+          await releaseSyncLock(input.accountId, 'all', lockId);
+          log.info(`[v406-同步锁] 账号 ${input.accountId} 同步锁已释放`);
         }
       };
 
       // 异步执行同步任务，不等待完成
       runSyncAsync().catch(err => {
-        log.error(`[v404-同步异常] 账号 ${input.accountId}:`, err);
-      }).finally(() => {
-        // ✅ 始终释放同步锁，无论成功或失败
-        // @ts-ignore
-        releaseSyncLock(input.accountId, 'all', lockId);
-        log.info(`[同步锁] 账号 ${input.accountId} 同步锁已释放`);
+        log.error(`[v406-同步异常] 账号 ${input.accountId}:`, err);
       });
 
       // 立即返回jobId，前端通过轮询获取进度

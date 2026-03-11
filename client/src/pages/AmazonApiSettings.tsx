@@ -1298,7 +1298,7 @@ export default function AmazonApiSettings() {
   };
   
   // 并行同步的并发控制数（默认最多同时同步3个站点）
-  const MAX_CONCURRENT_SYNCS = 3;
+  const MAX_CONCURRENT_SYNCS = 1; // v406: 改为串行执行，避免Amazon API并发压力和同步互斥冲突
 
   // 并行执行任务的辅助函数，控制并发数
   const executeWithConcurrencyLimit = async <T,>(
@@ -1373,7 +1373,7 @@ export default function AmazonApiSettings() {
     setSyncProgress({
       step: 'sp',
       progress: 5,
-      current: `正在并行同步 ${storeSites.length} 个站点的数据（最多${MAX_CONCURRENT_SYNCS}个并行）...`,
+      current: `正在串行同步 ${storeSites.length} 个站点的数据...`,
       results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
       siteStatuses: initialSiteStatuses,
       failedSites: [],
@@ -1397,7 +1397,7 @@ export default function AmazonApiSettings() {
           setSyncProgress(prev => ({
             ...prev,
             siteStatuses: [...currentSiteStatuses],
-            current: `正在并行同步: ${currentSiteStatuses.filter(s => s.status === 'syncing').map(s => s.name).join(', ')}`,
+            current: `正在同步: ${currentSiteStatuses.filter(s => s.status === 'syncing').map(s => s.name).join(', ')}`,
           }));
 
           try {
@@ -1531,8 +1531,8 @@ export default function AmazonApiSettings() {
         step: hasFailures ? 'error' : 'complete',
         progress: hasFailures ? 95 : 100,
         current: hasFailures 
-          ? `并行同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
-          : `并行同步完成！已同步 ${storeSites.length} 个站点`,
+          ? `同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
+          : `同步完成！已同步 ${storeSites.length} 个站点`,
         results: totalResults,
         siteStatuses: currentSiteStatuses,
         failedSites: failedSites,
@@ -1542,9 +1542,9 @@ export default function AmazonApiSettings() {
       });
 
       if (hasFailures) {
-        toast(`并行同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
+        toast(`同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
       } else {
-        toast.success(`已并行同步 ${storeSites.length} 个站点的数据`);
+        toast.success(`已同步 ${storeSites.length} 个站点的数据`);
       }
 
       // 如果没有失败，10秒后重置进度
