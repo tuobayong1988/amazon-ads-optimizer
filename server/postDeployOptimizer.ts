@@ -84,6 +84,13 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['revalidate_sync_performance'],
   },
   {
+    version: 412,
+    description: 'v412: [字段映射修复] — 修复Drizzle mysql2返回格式[rows,fields]的解析问题,确保并发检查和任务接管日志正确显示任务ID、账户、进度等信息',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 411,
     description: 'v411: [三项优化] — (1)P0-Stale cleanup阈值调优: 启动清理30分钟→10分钟,定期清理60分钟→15分钟,与v410并发检查窗口一致,避免僵尸任务长时间阻塞调度器 (2)P0-任务接管机制: 服务器重启后新实例读取中断任务的断点信息,对于步骤较多(>=10步)且已完成超过3步的任务,触发full同步接管恢复 (3)P1-并发控制日志增强: 添加跳过计数器、心跳时间、进度百分比,恢复执行时输出之前跳过次数',
     // @ts-ignore

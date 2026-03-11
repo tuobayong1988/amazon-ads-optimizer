@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 411;  // v411: 三项优化 - (1)stale cleanup阈值调优 (2)任务接管机制 (3)并发控制日志增强
+export const SYSTEM_VERSION = 412;  // v412: 修复Drizzle mysql2返回格式[rows,fields]的字段映射问题，确保并发检查和任务接管日志正确显示

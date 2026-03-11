@@ -500,7 +500,8 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
               AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
             ORDER BY id`
       );
-      const runningRows = (runningJobs as any).rows || runningJobs;
+      // Drizzle mysql2返回 [rows, fields]，取第一个元素
+      const runningRows = Array.isArray(runningJobs) ? (runningJobs as any[])[0] : ((runningJobs as any).rows || runningJobs);
       if (runningRows && runningRows.length > 0) {
         // v411: 增强日志 - 添加心跳时间、进度百分比、预计完成时间
         const jobSummary = runningRows.map((j: any) => {

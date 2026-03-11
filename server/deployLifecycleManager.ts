@@ -709,7 +709,8 @@ export async function orchestrateStartup(server: any): Promise<void> {
         WHERE status = 'running'
           AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
       `);
-      const interruptedRows = (interruptedJobsResult as any).rows || interruptedJobsResult;
+      // Drizzle mysql2返回 [rows, fields]，取第一个元素
+      const interruptedRows = Array.isArray(interruptedJobsResult) ? (interruptedJobsResult as any[])[0] : ((interruptedJobsResult as any).rows || interruptedJobsResult);
       const interruptedJobs: Array<{id: number, accountId: number, syncType: string, currentStep: string, currentStepIndex: number, totalSteps: number}> = [];
       if (Array.isArray(interruptedRows)) {
         for (const row of interruptedRows) {
