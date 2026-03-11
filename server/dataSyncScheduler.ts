@@ -210,7 +210,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   (async () => {
     try {
       const { cleanupStaleJobs, cleanupOrphanedPendingJobs } = await import('./dataSyncService');
-      const staleResult = await cleanupStaleJobs(30); // v408: 恢复30分钟阈值（基于updated_at而非startedAt，30分钟无更新才判定为卡死）
+      const staleResult = await cleanupStaleJobs(10); // v411: 启动清理10分钟阈值（与v410并发检查窗口一致，心跳3分钟间隔，10分钟无更新确定卡死）
       const orphanResult = await cleanupOrphanedPendingJobs(60); // 超过1小时的pending任务
       if (staleResult.cleaned > 0 || orphanResult.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v335: 启动清理完成 - 卡死任务: ${staleResult.cleaned}个 (${staleResult.jobIds.join(',')}), 孤儿任务: ${orphanResult.cleaned}个`);
@@ -276,13 +276,55 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
     log.info('[DataSyncScheduler] v336: 启动后首次高频同步完成');
   }, 30 * 1000);
   
-  // v336: 启动后60秒执行完整同步（v335的5分钟→60秒）
+  // v411: 启动后60秒检查是否有中断的同步任务需要接管恢复
   setTimeout(async () => {
-    log.info('[DataSyncScheduler] v336: 启动后首次完整同步（60秒延迟，确保部署后数据完整性）...');
-    const result = await executeUnifiedSync('full');
-    log.info('[DataSyncScheduler] v336: 启动后完整同步已完成');
+    // v411: 任务接管机制 - 检查是否有被中断的同步任务需要从断点恢复
+    const interruptedJobs = (global as any).__interrupted_sync_jobs as Array<{
+      id: number; accountId: number; syncType: string; 
+      currentStep: string; currentStepIndex: number; totalSteps: number;
+    }> | undefined;
     
-    // v336: 同步完成后验证结果
+    if (interruptedJobs && interruptedJobs.length > 0) {
+      log.info(`[DataSyncScheduler] v411: 发现 ${interruptedJobs.length} 个中断任务需要接管恢复`);
+      
+      for (const job of interruptedJobs) {
+        // 只接管full和nightly类型的任务（这些任务步骤多、耗时长，从断点恢复有意义）
+        // high/medium任务步骤少，直接重新执行即可
+        if (job.totalSteps >= 10 && job.currentStepIndex > 3) {
+          log.info(`[DataSyncScheduler] v411: 接管Job${job.id}(账户${job.accountId}) - 从步骤${job.currentStepIndex}/${job.totalSteps}恢复执行（跳过已完成的前${job.currentStepIndex}步）`);
+          
+          try {
+            const { syncAllAccounts, SYNC_STEPS } = await import('./unifiedSyncEngine');
+            // 获取从断点开始的步骤ID列表
+            const allStepIds = SYNC_STEPS.map((s: any) => s.id);
+            const remainingStepIds = allStepIds.slice(job.currentStepIndex);
+            
+            if (remainingStepIds.length > 0) {
+              log.info(`[DataSyncScheduler] v411: 为账户${job.accountId}恢复执行剩余${remainingStepIds.length}个步骤`);
+              // 使用syncAllAccounts触发full同步，它会为所有账户执行完整同步
+              // 这比仅恢复单个账户更安全，因为其他账户也可能需要同步
+              const syncResult: any = await syncAllAccounts('full');
+              log.info(`[DataSyncScheduler] v411: 任务接管同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
+            }
+          } catch (resumeErr: unknown) {
+            log.error(`[DataSyncScheduler] v411: 任务接管失败: ${(resumeErr as Error).message}`);
+          }
+          break; // 一次只接管一个任务，避免并发冲突
+        } else {
+          log.info(`[DataSyncScheduler] v411: Job${job.id}(账户${job.accountId})步骤较少(${job.currentStepIndex}/${job.totalSteps})，将通过常规调度重新执行`);
+        }
+      }
+      
+      // 清理全局变量
+      delete (global as any).__interrupted_sync_jobs;
+    } else {
+      // 无中断任务，执行常规的启动后完整同步
+      log.info('[DataSyncScheduler] v411: 无中断任务，执行常规启动后完整同步（60秒延迟）...');
+      const result = await executeUnifiedSync('full');
+      log.info('[DataSyncScheduler] v411: 启动后完整同步已完成');
+    }
+    
+    // 同步完成后验证结果
     try {
       await verifySyncHealth();
     } catch (verifyErr: unknown) {
@@ -319,7 +361,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   monitoringIntervals.push(setInterval(async () => {
     try {
       const { cleanupStaleJobs } = await import('./dataSyncService');
-      const result = await cleanupStaleJobs(60); // v408: 增加到60分钟（基于updated_at，60分钟无更新才判定为卡死）
+      const result = await cleanupStaleJobs(15); // v411: 定期清理15分钟阈值（心跳3分钟间隔，15分钟无更新确定卡死，避免僵尸任务长时间阻塞调度器）
       if (result.cleaned > 0) {
         log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
       }
@@ -424,6 +466,14 @@ const tierRunningState: Record<string, boolean> = {
   nightly: false,
 };
 
+// v411: 调度器跳过计数器 - 追踪每个层级因并发控制而跳过的次数
+const schedulerSkipCount: Record<string, number> = {
+  high: 0,
+  medium: 0,
+  full: 0,
+  nightly: 0,
+};
+
 /**
  * v222: 基于统一同步引擎的分层同步执行（含智能协调）
  * 自动发现所有活跃账户，无需依赖 data_sync_schedules 表
@@ -443,7 +493,8 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
     if (database) {
       const runningJobs = await database.execute(
         sql`SELECT id, accountId, syncType, current_step, current_step_index, total_steps,
-                   TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes
+                   TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
+                   TIMESTAMPDIFF(SECOND, updated_at, NOW()) as seconds_since_heartbeat
             FROM data_sync_jobs
             WHERE status = 'running'
               AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
@@ -451,16 +502,31 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
       );
       const runningRows = (runningJobs as any).rows || runningJobs;
       if (runningRows && runningRows.length > 0) {
-        const jobSummary = runningRows.map((j: any) => 
-          `Job${j.id}(账户${j.accountId},步骤${j.current_step_index}/${j.total_steps},${j.running_minutes}分钟)`
-        ).join(', ');
-        log.info(`[DataSyncScheduler] v410: ${tier}层跳过 - 数据库中有${runningRows.length}个running任务: ${jobSummary}`);
-        logSync('DataSyncScheduler', `v410: ${tier}层跳过-有running任务`, { 
+        // v411: 增强日志 - 添加心跳时间、进度百分比、预计完成时间
+        const jobSummary = runningRows.map((j: any) => {
+          const progress = j.total_steps > 0 ? Math.round((j.current_step_index / j.total_steps) * 100) : 0;
+          const heartbeatAge = j.seconds_since_heartbeat || 0;
+          return `Job${j.id}(账户${j.accountId},${j.current_step}[${j.current_step_index}/${j.total_steps}]=${progress}%,运行${j.running_minutes}分钟,心跳${heartbeatAge}秒前)`;
+        }).join(', ');
+        
+        // v411: 统计跳过次数
+        schedulerSkipCount[tier] = (schedulerSkipCount[tier] || 0) + 1;
+        const skipCount = schedulerSkipCount[tier];
+        
+        log.info(`[DataSyncScheduler] v411: ${tier}层跳过(第${skipCount}次) - 数据库中有${runningRows.length}个running任务: ${jobSummary}`);
+        logSync('DataSyncScheduler', `v411: ${tier}层跳过`, { 
           tier, 
+          skipCount,
           runningCount: runningRows.length, 
           runningJobs: jobSummary 
         });
         return;
+      } else {
+        // v411: running任务清空，重置跳过计数器
+        if (schedulerSkipCount[tier] > 0) {
+          log.info(`[DataSyncScheduler] v411: ${tier}层恢复执行（之前跳过了${schedulerSkipCount[tier]}次）`);
+          schedulerSkipCount[tier] = 0;
+        }
       }
     }
   } catch (dbCheckErr: unknown) {

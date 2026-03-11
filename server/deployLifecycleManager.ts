@@ -701,6 +701,32 @@ export async function orchestrateStartup(server: any): Promise<void> {
       // 这避免了服务器重启时误杀刚刚还在正常运行的同步任务
       const staleCleanNote = `v${SYSTEM_VERSION}-startup: cleaned stale running job`;
       const staleThresholdMinutes = 5; // 心跳间隔3分钟，5分钟无更新即判定为卡死
+      
+      // v411: 任务接管机制 - 先查询即将被清理的任务的断点信息，供调度器启动后从断点恢复
+      const interruptedJobsResult = await database.execute(sql`
+        SELECT id, accountId, syncType, current_step, current_step_index, total_steps
+        FROM data_sync_jobs 
+        WHERE status = 'running'
+          AND updated_at < DATE_SUB(NOW(), INTERVAL ${staleThresholdMinutes} MINUTE)
+      `);
+      const interruptedRows = (interruptedJobsResult as any).rows || interruptedJobsResult;
+      const interruptedJobs: Array<{id: number, accountId: number, syncType: string, currentStep: string, currentStepIndex: number, totalSteps: number}> = [];
+      if (Array.isArray(interruptedRows)) {
+        for (const row of interruptedRows) {
+          if (row && row.id) {
+            interruptedJobs.push({
+              id: row.id,
+              accountId: row.accountId,
+              syncType: row.syncType,
+              currentStep: row.current_step,
+              currentStepIndex: row.current_step_index || 0,
+              totalSteps: row.total_steps || 0,
+            });
+          }
+        }
+      }
+      
+      // 执行清理
       const staleResult = await database.execute(sql`
         UPDATE data_sync_jobs 
         SET status = 'failed', 
@@ -711,6 +737,12 @@ export async function orchestrateStartup(server: any): Promise<void> {
       `);
       const staleCleaned = (staleResult as Record<string, any>[])?.[0]?.affectedRows || 0;
       
+      // v411: 将断点信息存入全局变量，供调度器启动后读取
+      if (interruptedJobs.length > 0) {
+        (global as any).__interrupted_sync_jobs = interruptedJobs;
+        log.info(`[LifecycleManager] v411:   ℹ 记录了 ${interruptedJobs.length} 个中断任务的断点信息: ${interruptedJobs.map(j => `Job${j.id}(账户${j.accountId},步骤${j.currentStepIndex}/${j.totalSteps})`).join(', ')}`);
+      }
+      
       // 同时检查是否有还在正常运行的任务（心跳正常）
       const activeJobs = await database.execute(sql`
         SELECT id, current_step, updated_at FROM data_sync_jobs 
@@ -720,10 +752,10 @@ export async function orchestrateStartup(server: any): Promise<void> {
       const activeCount = (activeJobs as any[])?.[0]?.length || (Array.isArray(activeJobs) ? (activeJobs as any[]).filter((r: any) => r.id).length : 0);
       
       if (staleCleaned > 0) {
-        log.info(`[LifecycleManager] v409:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务（updated_at超过${staleThresholdMinutes}分钟未更新）`);
+        log.info(`[LifecycleManager] v411:   ✓ 清理了 ${staleCleaned} 个卡死的数据同步任务（updated_at超过${staleThresholdMinutes}分钟未更新）`);
       }
       if (activeCount > 0) {
-        log.info(`[LifecycleManager] v409:   ℹ 发现 ${activeCount} 个心跳正常的running任务，保留不清理`);
+        log.info(`[LifecycleManager] v411:   ℹ 发现 ${activeCount} 个心跳正常的running任务，保留不清理`);
       }
       
       // 3.5b: 检查最后成功同步时间，如果超过2小时未同步则记录告警

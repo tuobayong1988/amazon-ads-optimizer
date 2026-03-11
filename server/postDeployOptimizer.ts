@@ -84,6 +84,20 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['revalidate_sync_performance'],
   },
   {
+    version: 411,
+    description: 'v411: [三项优化] — (1)P0-Stale cleanup阈值调优: 启动清理30分钟→10分钟,定期清理60分钟→15分钟,与v410并发检查窗口一致,避免僵尸任务长时间阻塞调度器 (2)P0-任务接管机制: 服务器重启后新实例读取中断任务的断点信息,对于步骤较多(>=10步)且已完成超过3步的任务,触发full同步接管恢复 (3)P1-并发控制日志增强: 添加跳过计数器、心跳时间、进度百分比,恢复执行时输出之前跳过次数',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
+    version: 410,
+    description: 'v410: [调度器全局并发控制] — 数据库级别检查running任务,避免调度器在全量同步运行时创建新任务导致API限流',
+    // @ts-ignore
+    affectedModules: ['scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 409,
     description: 'v409: [Startup/Shutdown清理机制修复] — (1)P0-Shutdown不再无条件杀死running同步任务: 之前SIGTERM时无条件将所有running任务标记为failed,导致正常运行的同步被误杀;现在只记录日志,由startup cleanup基于updated_at阈值处理 (2)P0-Startup cleanup添加5分钟阈值: 之前无条件清理所有running任务,现在只清理updated_at超过5分钟的任务(心跳间隔3分钟,5分钟无更新才判定为卡死) (3)P1-保护心跳正常的任务: startup时如果发现心跳正常的running任务,记录日志但不清理',
     // @ts-ignore

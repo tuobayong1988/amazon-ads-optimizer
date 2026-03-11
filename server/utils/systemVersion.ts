@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 410;  // v410: 调度器全局并发控制 - 数据库级别检查running任务，避免调度器在全量同步运行时创建新任务导致API限流
+export const SYSTEM_VERSION = 411;  // v411: 三项优化 - (1)stale cleanup阈值调优 (2)任务接管机制 (3)并发控制日志增强
