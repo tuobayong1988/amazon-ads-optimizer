@@ -130,37 +130,20 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 
   let totalSynced = 0;
 
-  // v215优化: 并行请求SP/SB/SD报告 + 智能重试
-  const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<Record<string, any>[] | null> => {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
-        const reportId = await requestFn();
-        log.info(`[${name}] 报告请求成功, reportId: ${reportId}`);
-        const data = await service.client.waitAndDownloadReport(reportId, 900000);
-        log.info(`[${name}] 报告下载完成, 数据条数: ${data?.length || 0}`);
-        return data;
-      } catch (err: unknown) {
-        const isRetryable = !(err as Error).message?.includes('401') && !(err as Error).message?.includes('403') && !(err as Error).message?.includes('not enabled');
-        if (attempt < maxRetries && isRetryable) {
-          const delay = attempt * 5000; // 5s, 10s, 15s
-          log.warn(`[${name}] 尝试${attempt}失败: ${(err as Error).message}, ${delay/1000}秒后重试...`);
-          await new Promise(r => setTimeout(r, delay));
-        } else {
-          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${(err as Error).message}`);
-          return null;
-        }
-      }
-    }
-    return null;
-  };
-
-  // 并行请求三种报告
-  const [spData, sbData, sdData] = await Promise.all([
-    retryReport('SP', () => service.client.requestSpCampaignReport(startDateStr, endDateStr)),
-    retryReport('SB', () => service.client.requestSbCampaignReport(startDateStr, endDateStr)),
-    retryReport('SD', () => service.client.requestSdCampaignReport(startDateStr, endDateStr)),
-  ]);
+  // v413: 批量提交SP/SB/SD报告 + 统一轮询（替代旧的retryReport+Promise.all模式）
+  const reportRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [
+    { name: `SP绩效(${startDateStr}~${endDateStr})`, requestFn: () => service.client.requestSpCampaignReport(startDateStr, endDateStr) },
+    { name: `SB绩效(${startDateStr}~${endDateStr})`, requestFn: () => service.client.requestSbCampaignReport(startDateStr, endDateStr) },
+    { name: `SD绩效(${startDateStr}~${endDateStr})`, requestFn: () => service.client.requestSdCampaignReport(startDateStr, endDateStr) },
+  ];
+  log.info(`[v413] 绩效报告批量提交: ${startDateStr} - ${endDateStr}`);
+  const results = await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000);
+  const spData = results[0]?.data || null;
+  const sbData = results[1]?.data || null;
+  const sdData = results[2]?.data || null;
+  if (results[0]?.error) log.error(`[SP] 报告同步失败: ${results[0].error}`);
+  if (results[1]?.error) log.error(`[SB] 报告同步失败: ${results[1].error}`);
+  if (results[2]?.error) log.error(`[SD] 报告同步失败: ${results[2].error}`);
 
   // 串行处理数据（避免数据库并发冲突）
   if (spData && spData.length > 0) {

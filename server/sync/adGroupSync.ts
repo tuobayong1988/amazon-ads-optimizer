@@ -385,58 +385,67 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
-    // 1. SP广告组报告（7天归因）
+    // v413: 批量提交SP/SB/SD广告组报告 + 统一轮询
+    const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(service.marketplace, 7);
+    const reportRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
     if (spCampaigns.length > 0) {
-      try {
-        const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(service.marketplace, 7);
-        const spReportId = await service.client.requestSpAdGroupReport(spStart, spEnd);
-        const spData = await service.client.waitAndDownloadReport(spReportId);
-        if (spData && spData.length > 0) {
-          for (const row of (spData as any[])) {
-            const adGroupId = String(row.adGroupId);
-            // 查找对应的广告组
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
-            if (!adGroup) continue;
-
-            const cost = row.cost || 0;
-            const sales = row.sales7d || 0;
-            const orders = row.purchases7d || 0;
-            const impressions = row.impressions || 0;
-            const clicks = row.clicks || 0;
-
-            await db
-              .update(adGroups)
-              .set({
-                impressions,
-                clicks,
-                spend: String(cost),
-                sales: String(sales),
-                orders,
-                ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-              })
-              .where(eq(adGroups.id, adGroup.id));
-            synced++;
-          }
-          log.info(`SP广告组绩效同步: ${synced} 条记录`);
+      reportRequests.push({ name: 'SP广告组', requestFn: () => service.client.requestSpAdGroupReport(spStart, spEnd) });
+    }
+    if (sbCampaigns.length > 0) {
+      reportRequests.push({ name: 'SB广告组', requestFn: () => service.client.requestSbAdGroupReport(startDate, endDate) });
+    }
+    if (sdCampaigns.length > 0) {
+      reportRequests.push({ name: 'SD广告组', requestFn: () => service.client.requestSdAdGroupReport(startDate, endDate) });
+    }
+    
+    log.info(`[v413] 广告组报告批量提交: ${reportRequests.map(r => r.name).join(', ')}`);
+    const reportResults = reportRequests.length > 0
+      ? await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000)
+      : [];
+    
+    // 处理SP报告结果
+    let resultIdx = 0;
+    if (spCampaigns.length > 0) {
+      const spResult = reportResults[resultIdx++];
+      if (spResult?.data && spResult.data.length > 0) {
+        for (const row of (spResult.data as any[])) {
+          const adGroupId = String(row.adGroupId);
+          const [adGroup] = await db
+            .select()
+            .from(adGroups)
+            .where(eq(adGroups.adGroupId, adGroupId))
+            .limit(1);
+          if (!adGroup) continue;
+          const cost = row.cost || 0;
+          const sales = row.sales7d || 0;
+          const orders = row.purchases7d || 0;
+          const impressions = row.impressions || 0;
+          const clicks = row.clicks || 0;
+          await db
+            .update(adGroups)
+            .set({
+              impressions, clicks,
+              spend: String(cost), sales: String(sales), orders,
+              ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+              cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+              acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+              roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+              cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+            })
+            .where(eq(adGroups.id, adGroup.id));
+          synced++;
         }
-      } catch (error) {
-        log.error('SP广告组绩效同步失败:', error);
+        log.info(`SP广告组绩效同步: ${synced} 条记录`);
+      } else if (spResult?.error) {
+        log.error('SP广告组绩效同步失败:', spResult.error);
       }
     }
 
-    // 2. SB广告组报告（14天归因）
+    // 处理SB报告结果
     if (sbCampaigns.length > 0) {
-      try {
-        const sbReportId = await service.client.requestSbAdGroupReport(startDate, endDate);
-        const sbData = await service.client.waitAndDownloadReport(sbReportId);
+      const sbResult = reportResults[resultIdx++];
+      if (sbResult?.data && sbResult.data.length > 0) {
+        const sbData = sbResult.data;
         if (sbData && sbData.length > 0) {
           let sbSynced = 0;
           for (const row of (sbData as any[])) {
@@ -480,16 +489,16 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
           synced += sbSynced;
           log.info(`SB广告组绩效同步: ${sbSynced} 条记录`);
         }
-      } catch (error) {
-        log.error('SB广告组绩效同步失败:', error);
+      } else if (sbResult?.error) {
+        log.error('SB广告组绩效同步失败:', sbResult.error);
       }
     }
 
-    // 3. SD广告组报告（14天归因 + 浏览归因）
+    // 处理SD报告结果
     if (sdCampaigns.length > 0) {
-      try {
-        const sdReportId = await service.client.requestSdAdGroupReport(startDate, endDate);
-        const sdData = await service.client.waitAndDownloadReport(sdReportId);
+      const sdResult = reportResults[resultIdx++];
+      if (sdResult?.data && sdResult.data.length > 0) {
+        const sdData = sdResult.data;
         if (sdData && sdData.length > 0) {
           let sdSynced = 0;
           for (const row of (sdData as any[])) {
@@ -537,8 +546,8 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
           synced += sdSynced;
           log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
         }
-      } catch (error) {
-        log.error('SD广告组绩效同步失败:', error);
+      } else if (sdResult?.error) {
+        log.error('SD广告组绩效同步失败:', sdResult.error);
       }
     }
 

@@ -311,7 +311,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     
     // v242: 报告下载阶段 - 使用重试包装器
     const reportData = await withRetry(
-      () => service.client.waitAndDownloadReport(reportId, 900000),
+      () => service.client.waitAndDownloadReport(reportId, 300000), // v413: 15分钟→5分钟
       `SP关键词报告下载(reportId=${reportId})`,
       1, 10000
     );

@@ -543,26 +543,39 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
+    // v413: 批量提交+统一轮询模式（替代串行循环）
     let allReportData: any[] = [];
-    for (let batch = 0; batch < batches; batch++) {
-      const endDateObj = new Date(rangeEndDate);
-      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-      const startDateObj = new Date(endDateObj);
-      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-      const batchStartDate = startDateObj.toISOString().split('T')[0];
-      const batchEndDate = endDateObj.toISOString().split('T')[0];
-      log.info(`v339: SB搜索词第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+    if (batches === 1) {
       try {
-        const reportId = await this.client.requestSbSearchTermReport(batchStartDate, batchEndDate);
-        const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
-        if (batchData && batchData.length > 0) {
-          allReportData = allReportData.concat(batchData);
-          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        const reportId = await this.client.requestSbSearchTermReport(rangeStartDate, rangeEndDate);
+        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        if (data && data.length > 0) allReportData = data;
+      } catch (e: unknown) {
+        log.error(`v413: SB搜索词报告请求失败:`, (e as Error).message);
+      }
+    } else {
+      const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+      for (let batch = 0; batch < batches; batch++) {
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const bStart = startDateObj.toISOString().split('T')[0];
+        const bEnd = endDateObj.toISOString().split('T')[0];
+        batchRequests.push({
+          name: `SB搜索词第${batch + 1}/${batches}批(${bStart}~${bEnd})`,
+          requestFn: () => this.client.requestSbSearchTermReport(bStart, bEnd),
+        });
+      }
+      log.info(`[v413] SB搜索词: ${batches}批次批量提交开始`);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      for (const result of results) {
+        if (result.data && result.data.length > 0) {
+          allReportData = allReportData.concat(result.data);
+        } else if (result.error) {
+          log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
-        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: unknown) {
-        log.error(`v339: SB搜索词第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -738,26 +751,39 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
+    // v413: 批量提交+统一轮询模式（替代串行循环）
     let allReportData: any[] = [];
-    for (let batch = 0; batch < batches; batch++) {
-      const endDateObj = new Date(rangeEndDate);
-      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-      const startDateObj = new Date(endDateObj);
-      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-      const batchStartDate = startDateObj.toISOString().split('T')[0];
-      const batchEndDate = endDateObj.toISOString().split('T')[0];
-      log.info(`v339: SB定向第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+    if (batches === 1) {
       try {
-        const reportId = await this.client.requestSbTargetingReport(batchStartDate, batchEndDate);
-        const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
-        if (batchData && batchData.length > 0) {
-          allReportData = allReportData.concat(batchData);
-          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        const reportId = await this.client.requestSbTargetingReport(rangeStartDate, rangeEndDate);
+        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        if (data && data.length > 0) allReportData = data;
+      } catch (e: unknown) {
+        log.error(`v413: SB定向报告请求失败:`, (e as Error).message);
+      }
+    } else {
+      const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+      for (let batch = 0; batch < batches; batch++) {
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const bStart = startDateObj.toISOString().split('T')[0];
+        const bEnd = endDateObj.toISOString().split('T')[0];
+        batchRequests.push({
+          name: `SB定向第${batch + 1}/${batches}批(${bStart}~${bEnd})`,
+          requestFn: () => this.client.requestSbTargetingReport(bStart, bEnd),
+        });
+      }
+      log.info(`[v413] SB定向: ${batches}批次批量提交开始`);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      for (const result of results) {
+        if (result.data && result.data.length > 0) {
+          allReportData = allReportData.concat(result.data);
+        } else if (result.error) {
+          log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
-        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: unknown) {
-        log.error(`v339: SB定向第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 
@@ -1112,26 +1138,39 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
     const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
     log.info(`v339: 开始同步SB广告位绩效: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
+    // v413: 批量提交+统一轮询模式（替代串行循环）
     let allReportData: any[] = [];
-    for (let batch = 0; batch < batches; batch++) {
-      const endDateObj = new Date(rangeEndDate);
-      endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-      const startDateObj = new Date(endDateObj);
-      const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-      startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-      const batchStartDate = startDateObj.toISOString().split('T')[0];
-      const batchEndDate = endDateObj.toISOString().split('T')[0];
-      log.info(`v339: SB广告位第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+    if (batches === 1) {
       try {
-        const reportId = await this.client.requestSbCampaignPlacementReport(batchStartDate, batchEndDate);
-        const batchData = await this.client.waitAndDownloadReport(reportId);
-        if (batchData && batchData.length > 0) {
-          allReportData = allReportData.concat(batchData);
-          log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+        const reportId = await this.client.requestSbCampaignPlacementReport(rangeStartDate, rangeEndDate);
+        const data = await this.client.waitAndDownloadReport(reportId);
+        if (data && data.length > 0) allReportData = data;
+      } catch (e: unknown) {
+        log.error(`v413: SB广告位报告请求失败:`, (e as Error).message);
+      }
+    } else {
+      const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+      for (let batch = 0; batch < batches; batch++) {
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        const startDateObj = new Date(endDateObj);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+        const bStart = startDateObj.toISOString().split('T')[0];
+        const bEnd = endDateObj.toISOString().split('T')[0];
+        batchRequests.push({
+          name: `SB广告位第${batch + 1}/${batches}批(${bStart}~${bEnd})`,
+          requestFn: () => this.client.requestSbCampaignPlacementReport(bStart, bEnd),
+        });
+      }
+      log.info(`[v413] SB广告位: ${batches}批次批量提交开始`);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      for (const result of results) {
+        if (result.data && result.data.length > 0) {
+          allReportData = allReportData.concat(result.data);
+        } else if (result.error) {
+          log.warn(`[v413] ${result.name}失败: ${result.error}`);
         }
-        if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (batchError: unknown) {
-        log.error(`v339: SB广告位第${batch + 1}批请求失败:`, (batchError as Error).message);
       }
     }
 

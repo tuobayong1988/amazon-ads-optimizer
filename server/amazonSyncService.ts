@@ -849,33 +849,39 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
       log.info(`v339: 开始同步SP搜索词数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
       log.info(`v339: 总范围: ${rangeStartDate} - ${rangeEndDate}`);
 
-      // v339: 分批请求报告，合并所有批次的数据
+      // v413: 批量提交+统一轮询模式（替代串行循环）
       let allReportData: any[] = [];
-      for (let batch = 0; batch < batches; batch++) {
-        const endDateObj = new Date(rangeEndDate);
-        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-        const startDateObj = new Date(endDateObj);
-        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-        const batchStartDate = startDateObj.toISOString().split('T')[0];
-        const batchEndDate = endDateObj.toISOString().split('T')[0];
-        log.info(`v339: SP搜索词第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+      if (batches === 1) {
         try {
-          const reportId = await this.client.requestSpSearchTermReport(batchStartDate, batchEndDate);
-          const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
-          if (reportData && reportData.length > 0) {
-            allReportData = allReportData.concat(reportData);
-            log.info(`v339: 第${batch + 1}批获取到 ${reportData.length} 条数据`);
-          } else {
-            log.debug(`v339: 第${batch + 1}批数据为空`);
+          const reportId = await this.client.requestSpSearchTermReport(rangeStartDate, rangeEndDate);
+          const data = await this.client.waitAndDownloadReport(reportId, 300000);
+          if (data && data.length > 0) allReportData = data;
+        } catch (e: unknown) {
+          log.error(`v413: SP搜索词报告请求失败:`, (e as Error).message);
+        }
+      } else {
+        const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+        for (let batch = 0; batch < batches; batch++) {
+          const endDateObj = new Date(rangeEndDate);
+          endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+          const startDateObj = new Date(endDateObj);
+          const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+          startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+          const bStart = startDateObj.toISOString().split('T')[0];
+          const bEnd = endDateObj.toISOString().split('T')[0];
+          batchRequests.push({
+            name: `SP搜索词第${batch + 1}/${batches}批(${bStart}~${bEnd})`,
+            requestFn: () => this.client.requestSpSearchTermReport(bStart, bEnd),
+          });
+        }
+        log.info(`[v413] SP搜索词: ${batches}批次批量提交开始`);
+        const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+        for (const result of results) {
+          if (result.data && result.data.length > 0) {
+            allReportData = allReportData.concat(result.data);
+          } else if (result.error) {
+            log.warn(`[v413] ${result.name}失败: ${result.error}`);
           }
-          // 批次之间延迟，避免触发API速率限制
-          if (batch < batches - 1) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        } catch (batchError: unknown) {
-          log.error(`v339: SP搜索词第${batch + 1}批请求失败:`, (batchError as Error).message);
-          // 继续下一批，不中断整个同步
         }
       }
 
@@ -1078,26 +1084,39 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
       const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
       log.info(`v339: 开始同步SP自动定向数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
 
+      // v413: 批量提交+统一轮询模式（替代串行循环）
       let allReportData: any[] = [];
-      for (let batch = 0; batch < batches; batch++) {
-        const endDateObj = new Date(rangeEndDate);
-        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
-        const startDateObj = new Date(endDateObj);
-        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
-        const batchStartDate = startDateObj.toISOString().split('T')[0];
-        const batchEndDate = endDateObj.toISOString().split('T')[0];
-        log.info(`v339: SP自动定向第${batch + 1}/${batches}批: ${batchStartDate} - ${batchEndDate} (共${daysInBatch}天)`);
+      if (batches === 1) {
         try {
-          const reportId = await this.client.requestSpAutoTargetingReport(batchStartDate, batchEndDate);
-          const batchData = await this.client.waitAndDownloadReport(reportId, 300000);
-          if (batchData && batchData.length > 0) {
-            allReportData = allReportData.concat(batchData);
-            log.info(`v339: 第${batch + 1}批获取到 ${batchData.length} 条数据`);
+          const reportId = await this.client.requestSpAutoTargetingReport(rangeStartDate, rangeEndDate);
+          const data = await this.client.waitAndDownloadReport(reportId, 300000);
+          if (data && data.length > 0) allReportData = data;
+        } catch (e: unknown) {
+          log.error(`v413: SP自动定向报告请求失败:`, (e as Error).message);
+        }
+      } else {
+        const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
+        for (let batch = 0; batch < batches; batch++) {
+          const endDateObj = new Date(rangeEndDate);
+          endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+          const startDateObj = new Date(endDateObj);
+          const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+          startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
+          const bStart = startDateObj.toISOString().split('T')[0];
+          const bEnd = endDateObj.toISOString().split('T')[0];
+          batchRequests.push({
+            name: `SP自动定向第${batch + 1}/${batches}批(${bStart}~${bEnd})`,
+            requestFn: () => this.client.requestSpAutoTargetingReport(bStart, bEnd),
+          });
+        }
+        log.info(`[v413] SP自动定向: ${batches}批次批量提交开始`);
+        const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+        for (const result of results) {
+          if (result.data && result.data.length > 0) {
+            allReportData = allReportData.concat(result.data);
+          } else if (result.error) {
+            log.warn(`[v413] ${result.name}失败: ${result.error}`);
           }
-          if (batch < batches - 1) await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (batchError: unknown) {
-          log.error(`v339: SP自动定向第${batch + 1}批请求失败:`, (batchError as Error).message);
         }
       }
 

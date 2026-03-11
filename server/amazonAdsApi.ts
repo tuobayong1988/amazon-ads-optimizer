@@ -3408,34 +3408,62 @@ export class AmazonAdsApiClient {
 
   /**
    * 等待报告完成并下载
+   * v413: 智能退避优化 — 指数退避轮询(5s→10s→20s→30s) + 缩短默认超时(15分钟→5分钟) + 连续PENDING检测
    */
-  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 900000): Promise<Record<string, any>[]> {
+  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, any>[]> {
     const startTime = Date.now();
-    log.info(`[Amazon API] 开始等待报告完成: ${reportId}`);
+    let pollCount = 0;
+    // v413: 指数退避轮询间隔：5s → 10s → 20s → 30s(封顶)
+    const getPollInterval = (count: number): number => {
+      const intervals = [5000, 10000, 20000, 30000];
+      return intervals[Math.min(count, intervals.length - 1)];
+    };
+    
+    log.info(`[Amazon API] v413: 开始等待报告完成: ${reportId}, 超时=${Math.round(maxWaitMs / 1000)}秒`);
     
     while (Date.now() - startTime < maxWaitMs) {
-      const status = await this.getReportStatus(reportId);
-      log.info(`[Amazon API] 报告状态: ${status.status}, url: ${status.url ? '有' : '无'}`);
-      
-      if (status.status === 'COMPLETED' && status.url) {
-        log.info(`[Amazon API] 报告已完成，开始下载...`);
-        const data = await this.downloadReport(status.url);
-        log.info(`[Amazon API] 报告下载完成，数据条数: ${data?.length || 0}`);
-        return data;
+      try {
+        const status = await this.getReportStatus(reportId);
+        
+        if (status.status === 'COMPLETED' && status.url) {
+          const waitSec = Math.round((Date.now() - startTime) / 1000);
+          log.info(`[Amazon API] v413: 报告已完成，等待${waitSec}秒，轮询${pollCount}次，开始下载...`);
+          const data = await this.downloadReport(status.url);
+          log.info(`[Amazon API] v413: 报告下载完成，数据条数: ${data?.length || 0}`);
+          return data;
+        }
+        
+        if (status.status === 'FAILED') {
+          const failReason = status.failureReason || 'unknown';
+          log.error(`[Amazon API] v413: 报告生成失败: ${failReason}`);
+          throw new Error(`Report generation failed: ${failReason}`);
+        }
+        
+        // v413: 指数退避轮询
+        const interval = getPollInterval(pollCount);
+        pollCount++;
+        const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+        // v413: 减少日志刷屏 — 前3次每次记录，之后每5次记录一次
+        if (pollCount <= 3 || pollCount % 5 === 0) {
+          log.info(`[Amazon API] v413: 报告${reportId.slice(-8)} PENDING, 已等${elapsedSec}秒, 轮询#${pollCount}, 下次${interval / 1000}秒后`);
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+      } catch (pollErr: unknown) {
+        // v413: 轮询过程中的网络错误不立即抛出，而是等待后重试
+        const errMsg = (pollErr as Error).message || '';
+        if (errMsg.includes('Report generation failed')) {
+          throw pollErr; // 报告确认失败，直接抛出
+        }
+        pollCount++;
+        const interval = getPollInterval(pollCount);
+        log.warn(`[Amazon API] v413: 轮询报告状态失败(#${pollCount}): ${errMsg}，${interval / 1000}秒后重试`);
+        await new Promise(resolve => setTimeout(resolve, interval));
       }
-      
-      if (status.status === 'FAILED') {
-        log.error(`[Amazon API] 报告生成失败`);
-        throw new Error('Report generation failed');
-      }
-      
-      // 等待5秒后重试
-      log.info(`[Amazon API] 报告未完成，等待5秒后重试...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
     }
     
-    log.error(`[Amazon API] 报告生成超时`);
-    throw new Error('Report generation timeout');
+    const totalSec = Math.round((Date.now() - startTime) / 1000);
+    log.error(`[Amazon API] v413: 报告生成超时 - reportId=${reportId}, 等待${totalSec}秒, 轮询${pollCount}次`);
+    throw new Error(`Report generation timeout after ${totalSec}s (${pollCount} polls)`);
   }
 
   // ==================== Sponsored Brands API ====================
@@ -4578,45 +4606,59 @@ export class AmazonAdsApiClient {
 
   /**
    * 等待并下载V2报告
+   * v413: 智能退避优化 — 指数退避轮询 + 减少日志刷屏
    */
   async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, any>[]> {
     const startTime = Date.now();
-    const pollInterval = 3000; // 3秒轮询一次
+    let pollCount = 0;
+    // v413: 指数退避轮询间隔：3s → 6s → 15s → 30s(封顶)
+    const getPollInterval = (count: number): number => {
+      const intervals = [3000, 6000, 15000, 30000];
+      return intervals[Math.min(count, intervals.length - 1)];
+    };
     
     while (Date.now() - startTime < maxWaitMs) {
       try {
         const status = await this.getReportStatusV2(reportId);
         
         if (status.status === 'SUCCESS' && status.location) {
-          log.info('[Amazon API V2] 报告已完成，开始下载...');
+          const waitSec = Math.round((Date.now() - startTime) / 1000);
+          log.info(`[Amazon API V2] v413: 报告已完成，等待${waitSec}秒，开始下载...`);
           
-          // 下载报告（V2报告是gzip压缩的）
           const reportResponse = await this.axiosInstance.get(status.location, {
             responseType: 'arraybuffer',
             headers: { 'Accept-Encoding': 'gzip' },
           });
           
-          // 解压gzip
           const zlib = await import('zlib');
           const decompressed = zlib.gunzipSync(Buffer.from(reportResponse.data));
           const reportData = JSON.parse(decompressed.toString('utf-8'));
           
-          log.info(`[Amazon API V2] 报告下载完成，共 ${Array.isArray(reportData) ? reportData.length : 0} 条记录`);
+          log.info(`[Amazon API V2] v413: 报告下载完成，共 ${Array.isArray(reportData) ? reportData.length : 0} 条记录`);
           return Array.isArray(reportData) ? reportData : [];
         } else if (status.status === 'FAILURE') {
-          log.error('[Amazon API V2] 报告生成失败');
+          log.error('[Amazon API V2] v413: 报告生成失败');
           return [];
         }
         
-        // 等待后继续轮询
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        // v413: 指数退避轮询
+        const interval = getPollInterval(pollCount);
+        pollCount++;
+        if (pollCount <= 3 || pollCount % 5 === 0) {
+          const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+          log.info(`[Amazon API V2] v413: 报告${reportId.slice(-8)} PENDING, 已等${elapsedSec}秒, 轮询#${pollCount}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
       } catch (error: unknown) {
-        log.error('[Amazon API V2] 轮询报告状态失败:', (error as Error).message);
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        pollCount++;
+        const interval = getPollInterval(pollCount);
+        log.error(`[Amazon API V2] v413: 轮询失败(#${pollCount}): ${(error as Error).message}，${interval / 1000}秒后重试`);
+        await new Promise(resolve => setTimeout(resolve, interval));
       }
     }
     
-    log.error('[Amazon API V2] 报告等待超时');
+    const totalSec = Math.round((Date.now() - startTime) / 1000);
+    log.error(`[Amazon API V2] v413: 报告等待超时 - 等待${totalSec}秒, 轮询${pollCount}次`);
     return [];
   }
 
@@ -5149,6 +5191,163 @@ export class AmazonAdsApiClient {
       'Amazon-Advertising-API-Scope': this.credentials.profileId,
       'Content-Type': 'application/json',
     };
+  }
+
+  /**
+   * v413: 批量提交报告请求并统一轮询等待
+   * 解决串行等待问题：将“提交→等待→下载”的串行模式改为“批量提交→统一轮询→逐个下载”
+   * 
+   * @param reportRequests 报告请求数组，每个包含 name 和 requestFn
+   * @param maxWaitMs 整体最大等待时间（默认5分钟）
+   * @param submitDelayMs 提交间隔（默认2秒，避免触发限流）
+   * @returns 每个报告的结果数组，顺序与输入一致
+   */
+  async submitAndWaitMultipleReports(
+    reportRequests: Array<{
+      name: string;
+      requestFn: () => Promise<string>;
+    }>,
+    maxWaitMs: number = 300000,
+    submitDelayMs: number = 2000
+  ): Promise<Array<{ name: string; data: Record<string, any>[] | null; error?: string }>> {
+    const startTime = Date.now();
+    const results: Array<{ name: string; data: Record<string, any>[] | null; error?: string }> = [];
+    
+    // 第一阶段：批量提交所有报告请求
+    interface PendingReport {
+      name: string;
+      reportId: string;
+      index: number;
+      completed: boolean;
+      data: Record<string, any>[] | null;
+      error?: string;
+    }
+    const pendingReports: PendingReport[] = [];
+    
+    log.info(`[Amazon API] v413: 批量提交${reportRequests.length}个报告请求...`);
+    
+    for (let i = 0; i < reportRequests.length; i++) {
+      const req = reportRequests[i];
+      try {
+        const reportId = await req.requestFn();
+        pendingReports.push({
+          name: req.name,
+          reportId,
+          index: i,
+          completed: false,
+          data: null,
+        });
+        log.info(`[Amazon API] v413: 报告提交成功 [${i + 1}/${reportRequests.length}]: ${req.name} -> ${reportId}`);
+        
+        // 提交间隔，避免触发限流
+        if (i < reportRequests.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, submitDelayMs));
+        }
+      } catch (submitErr: unknown) {
+        log.error(`[Amazon API] v413: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}`);
+        results[i] = { name: req.name, data: null, error: (submitErr as Error).message };
+      }
+    }
+    
+    if (pendingReports.length === 0) {
+      log.warn(`[Amazon API] v413: 所有报告提交失败，跳过轮询`);
+      // 填充未设置的结果
+      for (let i = 0; i < reportRequests.length; i++) {
+        if (!results[i]) results[i] = { name: reportRequests[i].name, data: null, error: 'submit_failed' };
+      }
+      return results;
+    }
+    
+    const submitDuration = Math.round((Date.now() - startTime) / 1000);
+    log.info(`[Amazon API] v413: 批量提交完成 - ${pendingReports.length}/${reportRequests.length}成功, 耗时${submitDuration}秒, 开始统一轮询...`);
+    
+    // 第二阶段：统一轮询所有报告状态
+    let pollRound = 0;
+    const getPollInterval = (round: number): number => {
+      const intervals = [5000, 10000, 15000, 20000, 30000];
+      return intervals[Math.min(round, intervals.length - 1)];
+    };
+    
+    while (Date.now() - startTime < maxWaitMs) {
+      const incomplete = pendingReports.filter(r => !r.completed);
+      if (incomplete.length === 0) break;
+      
+      // 轮询每个未完成的报告
+      for (const report of incomplete) {
+        try {
+          const status = await this.getReportStatus(report.reportId);
+          
+          if (status.status === 'COMPLETED' && status.url) {
+            // 立即下载
+            const data = await this.downloadReport(status.url);
+            report.completed = true;
+            report.data = data;
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            log.info(`[Amazon API] v413: 报告完成并下载 [${report.name}]: ${data?.length || 0}条, 耗时${elapsed}秒`);
+          } else if (status.status === 'FAILED') {
+            report.completed = true;
+            report.error = status.failureReason || 'Report generation failed';
+            log.error(`[Amazon API] v413: 报告失败 [${report.name}]: ${report.error}`);
+          }
+          // PENDING状态继续等待
+        } catch (pollErr: unknown) {
+          log.warn(`[Amazon API] v413: 轮询失败 [${report.name}]: ${(pollErr as Error).message}`);
+          // 不标记为完成，下轮继续试
+        }
+        
+        // 报告间稍作延迟，避免过快访问
+        if (incomplete.indexOf(report) < incomplete.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      const completedCount = pendingReports.filter(r => r.completed).length;
+      const remaining = pendingReports.length - completedCount;
+      
+      if (remaining > 0) {
+        pollRound++;
+        const interval = getPollInterval(pollRound);
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        
+        if (pollRound <= 3 || pollRound % 3 === 0) {
+          log.info(`[Amazon API] v413: 轮询第${pollRound}轮 - ${completedCount}/${pendingReports.length}完成, 剩余${remaining}个, 已等${elapsed}秒, 下次${interval / 1000}秒后`);
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+      }
+    }
+    
+    // 第三阶段：汇总结果
+    const totalSec = Math.round((Date.now() - startTime) / 1000);
+    const completedCount = pendingReports.filter(r => r.completed && r.data).length;
+    const failedCount = pendingReports.filter(r => r.completed && r.error).length;
+    const timeoutCount = pendingReports.filter(r => !r.completed).length;
+    
+    // 将超时的报告标记为失败
+    for (const report of pendingReports) {
+      if (!report.completed) {
+        report.completed = true;
+        report.error = `Report generation timeout after ${totalSec}s`;
+        log.warn(`[Amazon API] v413: 报告超时 [${report.name}]: reportId=${report.reportId}`);
+      }
+    }
+    
+    log.info(`[Amazon API] v413: 批量报告完成 - 成功${completedCount}, 失败${failedCount}, 超时${timeoutCount}, 总耗时${totalSec}秒`);
+    
+    // 按原始顺序组装结果
+    for (const report of pendingReports) {
+      results[report.index] = {
+        name: report.name,
+        data: report.data,
+        error: report.error,
+      };
+    }
+    
+    // 填充未设置的结果（提交失败的）
+    for (let i = 0; i < reportRequests.length; i++) {
+      if (!results[i]) results[i] = { name: reportRequests[i].name, data: null, error: 'unknown' };
+    }
+    
+    return results;
   }
 }
 // ==================== Amazon Marketing Stream (AMS) Types ====================

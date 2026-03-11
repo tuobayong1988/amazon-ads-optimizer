@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 412;  // v412: 修复Drizzle mysql2返回格式[rows,fields]的字段映射问题，确保并发检查和任务接管日志正确显示
+export const SYSTEM_VERSION = 413;  // v413: 报告请求智能退避+异步化优化 — 解决Amazon API PENDING导致同步阻塞问题
