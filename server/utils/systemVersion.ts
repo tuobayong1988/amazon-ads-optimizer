@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 409;  // v409: 修复startup/shutdown无条件清理running任务的bug - shutdown不再杀死running任务、startup添加5分钟updated_at阈值检查
+export const SYSTEM_VERSION = 410;  // v410: 调度器全局并发控制 - 数据库级别检查running任务，避免调度器在全量同步运行时创建新任务导致API限流

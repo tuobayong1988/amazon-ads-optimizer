@@ -435,7 +435,40 @@ const tierRunningState: Record<string, boolean> = {
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   // v384: 单实例模式，无需Leader检查，直接执行同步
-  // v222: 智能协调 - 检查是否应该跳过当前层级
+  // v410: 数据库级别的全局并发检查 - 检查是否有任何running状态的同步任务
+  // 解决问题：手动触发的全量同步不会设置tierRunningState，导致调度器仍然会创建新任务
+  // 通过查询数据库中的running任务，确保不会与任何正在运行的同步产生API冲突
+  try {
+    const database = await db.getDb();
+    if (database) {
+      const runningJobs = await database.execute(
+        sql`SELECT id, accountId, syncType, current_step, current_step_index, total_steps,
+                   TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes
+            FROM data_sync_jobs
+            WHERE status = 'running'
+              AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+            ORDER BY id`
+      );
+      const runningRows = (runningJobs as any).rows || runningJobs;
+      if (runningRows && runningRows.length > 0) {
+        const jobSummary = runningRows.map((j: any) => 
+          `Job${j.id}(账户${j.accountId},步骤${j.current_step_index}/${j.total_steps},${j.running_minutes}分钟)`
+        ).join(', ');
+        log.info(`[DataSyncScheduler] v410: ${tier}层跳过 - 数据库中有${runningRows.length}个running任务: ${jobSummary}`);
+        logSync('DataSyncScheduler', `v410: ${tier}层跳过-有running任务`, { 
+          tier, 
+          runningCount: runningRows.length, 
+          runningJobs: jobSummary 
+        });
+        return;
+      }
+    }
+  } catch (dbCheckErr: unknown) {
+    // 数据库检查失败时，回退到内存级别检查，不阻塞同步执行
+    log.warn(`[DataSyncScheduler] v410: 数据库并发检查失败，回退到内存检查: ${(dbCheckErr as Error).message}`);
+  }
+
+  // v222: 智能协调 - 内存级别检查（作为数据库检查的补充）
   if (tier === 'high') {
     if (tierRunningState.full) {
       log.info(`[DataSyncScheduler] v222: high层跳过 - full层正在运行（full已包含high步骤）`);

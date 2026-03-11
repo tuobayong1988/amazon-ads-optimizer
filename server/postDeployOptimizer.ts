@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 410,
+    description: 'v410: [调度器全局并发控制] — (1)P0-数据库级别并发检查: executeUnifiedSync在执行前查询data_sync_jobs表中是否有running状态且心跳正常(近10分钟内更新)的任务,如果存在则跳过本次调度 (2)P0-解决手动/自动同步冲突: 之前手动触发的全量同步不会设置tierRunningState内存变量,导致调度器仍然会创建新任务,现在通过数据库查询彻底解决 (3)P1-避免API限流: 多个同步任务并发请求Amazon API会触发429/425限流,单任务运行确保最优API利用率 (4)P2-容错回退: 数据库检查失败时回退到内存级别tierRunningState检查,不阻塞正常同步',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 409,
     description: 'v409: [Startup/Shutdown清理机制修复] — (1)P0-Shutdown不再无条件杀死running同步任务: 之前SIGTERM时无条件将所有running任务标记为failed,导致正常运行的同步被误杀;现在只记录日志,由startup cleanup基于updated_at阈值处理 (2)P0-Startup cleanup添加5分钟阈值: 之前无条件清理所有running任务,现在只清理updated_at超过5分钟的任务(心跳间隔3分钟,5分钟无更新才判定为卡死) (3)P1-保护心跳正常的任务: startup时如果发现心跳正常的running任务,记录日志但不清理',
     // @ts-ignore
