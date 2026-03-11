@@ -119,8 +119,8 @@ export async function getDb() {
   
   if (!_db) {
     try {
-      // v373: 连接池优化 - 适配500租户规模
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || '25', 10);
+      // v402: 连接池优化 - 适配500租户规模，默认100连接
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || '100', 10);
       const poolIdleTimeout = parseInt(process.env.DB_IDLE_TIMEOUT || '300000', 10);
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,

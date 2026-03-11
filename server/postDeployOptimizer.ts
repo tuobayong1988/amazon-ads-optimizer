@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 402,
+    description: 'v402: [后端分页+同步分解+连接池+前端优化] \u2014 (1)P1-后端分页API: campaigns.listPaginated新端点,支持服务端分页/排序/筛选/搜索,返回状态统计和类型统计 (2)P1-前端Campaigns页面改造: 切换到服务端分页模式,高级筛选时回退到全量模式 (3)P2-同步子任务分解: syncAll新增layers参数支持按层执行,Layer级别错误隔离,失败不影响后续层 (4)P3-连接池优化: DB_POOL_SIZE默认值从25提升到100 (5)P3-前端代码分割: SmartInsights/QuickActions懒加载,导出功能动态import,Campaigns chunk减少7%',
+    // @ts-ignore
+    affectedModules: ['sync', 'frontend', 'infrastructure'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 401,
     description: 'v401: [深度性能优化+基础设施升级] — (1)P0-SQL索引优化: 将高频查询中的DATE()函数包裹改为范围查询,允许MySQL使用idx_daily_perf_campaign_date等索引(db-performance-trend/budgetTracking/budgetAlert/optimization.getTrends) (2)P0-SP自动定向同步N+1修复: syncAutoTargeting循环内的adGroup查询改为预加载Map+批量UPSERT (3)P1-RDS升级: db.t4g.small→db.t4g.medium(4GB RAM)+存储从20GB→50GB+IOPS升至3000 (4)P1-keywordPlacementHourlyPerformance表索引从PLAIN INDEX改为UNIQUE约束,防止并发重复数据 (5)P1-Dashboard目标达成度统一使用后端七维度评分而非前端简单比值 (6)P2-optimizationLogs表添加account_id+status+created_at复合索引优化getMetrics查询',
     affectedModules: ['sync', 'optimization', 'frontend', 'infrastructure'],

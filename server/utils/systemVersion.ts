@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 401;  // v401: 深度性能优化 - SQL索引优化(DATE()→范围查询)、SP自动定向N+1修复、RDS升级db.t4g.medium/50GB、目标达成度统一七维度评分
+export const SYSTEM_VERSION = 402;  // v402: 后端分页API、大账户同步子任务分解、连接池优化(100)、前端代码分割懒加载

@@ -295,12 +295,17 @@ export class AmazonSyncService {
   }
 
   /**
-   * v382: 完整同步所有数据（三阶段同步策略）
+   * v402: 完整同步所有数据（三阶段同步策略 + 子任务分解）
    * - init模式: 新账号初始化，同步API支持的最长时间范围（SP 90天/SB 60天/SD 90天）
    * - daily模式: 日常增量，只同步近14天数据（归因期内可能变化的数据），大幅减少API调用
    * - recovery模式: 自愈恢复（宕机/数据异常），同步90天全量数据
+   * 
+   * v402增强:
+   * - 支持按广告类型分解同步（layers参数）
+   * - 每个Layer独立错误隔离，失败不影响后续层
+   * - 支持重试失败的子任务（retryFailedLayers）
    */
-  async syncAll(options?: { performanceDays?: number; syncMode?: 'init' | 'daily' | 'recovery' }): Promise<{
+  async syncAll(options?: { performanceDays?: number; syncMode?: 'init' | 'daily' | 'recovery'; layers?: number[]; retryFailedLayers?: boolean }): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -392,12 +397,34 @@ export class AmazonSyncService {
       return null;
     };
 
+    // v402: 子任务分解支持 - 允许指定只执行某些层
+    const targetLayers = options?.layers || [0, 1, 2, 3, 4, 5]; // 默认执行所有层
+    const layerResults: Record<number, { success: boolean; error?: string }> = {};
+    
+    // v402: Layer级别隔离包装器 - 每个Layer独立捕获异常
+    const runLayer = async (layerId: number, layerName: string, fn: () => Promise<void>): Promise<void> => {
+      if (!targetLayers.includes(layerId)) {
+        log.info(`[syncAll] v402: 跳过 Layer ${layerId} (${layerName}) - 不在目标层列表中`);
+        return;
+      }
+      const layerStart = Date.now();
+      try {
+        await fn();
+        layerResults[layerId] = { success: true };
+        log.info(`[syncAll] v402: Layer ${layerId} (${layerName}) 完成，耗时${Date.now() - layerStart}ms`);
+      } catch (layerErr: unknown) {
+        const errMsg = (layerErr as Error).message || 'unknown';
+        layerResults[layerId] = { success: false, error: errMsg };
+        log.error(`[syncAll] v402: Layer ${layerId} (${layerName}) 失败: ${errMsg}，继续执行后续层`);
+      }
+    };
+
     // v359/v360: DAG并行调度 - 按层级依赖关系并行执行同步步骤
     // v360增强: 层间转换延迟 + 并发限制 + 失败层降级
-    // 原来: 33步全部串行，总耗时 = sum(所有步骤耗时)
-    // 现在: 按层级并行，总耗时 = sum(max(每层最慢步骤)) + 层间延迟
+    // v402增强: Layer级别隔离 + 子任务分解 + 重试支持
     
     // ==================== Layer 0: 广告活动（SP/SB/SD并行） ====================
+    await runLayer(0, '广告活动同步', async () => {
     log.info(`[syncAll] v359: Layer 0 - 广告活动同步 (3个并行)`);
     const [spResult, sbResult, sdResult] = await Promise.allSettled([
       // @ts-ignore
@@ -423,8 +450,10 @@ export class AmazonSyncService {
     
     // v360: 层间转换延迟
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    }); // end Layer 0
     
     // ==================== Layer 1: 广告组（SP/SB/SD并行） ====================
+    await runLayer(1, '广告组同步', async () => {
     log.info(`[syncAll] v359: Layer 1 - 广告组同步 (3个并行)`);
     const [spAdGroupResult, sbAdGroupResult, sdAdGroupResult] = await Promise.allSettled([
       // @ts-ignore
@@ -447,8 +476,10 @@ export class AmazonSyncService {
     
     // v360: 层间转换延迟
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    }); // end Layer 1
     
     // ==================== Layer 2: 关键词+商品定位+广告素材（6个并行） ====================
+    await runLayer(2, '关键词/商品定位/素材同步', async () => {
     log.info(`[syncAll] v359: Layer 2 - 关键词/商品定位/素材同步 (6个并行)`);
     const [spKeywordResult, sbKeywordResult, spTargetResult, sbTargetResult, sdTargetResult, sbAdsResult] = await Promise.allSettled([
       // @ts-ignore
@@ -483,8 +514,10 @@ export class AmazonSyncService {
     
     // v360: 层间转换延迟
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    }); // end Layer 2
     
     // ==================== Layer 3: 否定词+搜索词+广告位绩效（8个并行） ====================
+    await runLayer(3, '否定词/搜索词/广告位绩效同步', async () => {
     log.info(`[syncAll] v382: Layer 3 - 否定词/搜索词/广告位绩效同步 (9个并行)`);
     await Promise.allSettled([
       // @ts-ignore
@@ -508,8 +541,10 @@ export class AmazonSyncService {
 
     // v360: 层间转换延迟
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    }); // end Layer 3
     
     // ==================== Layer 4: 定向报告+素材URL（4个并行） ====================
+    await runLayer(4, '定向报告/素材URL同步', async () => {
     log.info(`[syncAll] v359: Layer 4 - 定向报告/素材URL同步 (4个并行)`);
     await Promise.allSettled([
       runStep(`SP自动定向(${spDays}天)`, () => this.syncAutoTargeting(spDays)),
@@ -522,11 +557,13 @@ export class AmazonSyncService {
 
     // v360: 层间转换延迟
     await new Promise(resolve => setTimeout(resolve, LAYER_TRANSITION_DELAY_MS));
+    }); // end Layer 4
     
     // ==================== Layer 5: 绩效数据（4个并行） ====================
     // v366: 默认同步天数从14天扩展到90天，充分利用Amazon API支持的最大范围
     // v382: performanceDays优先使用显式传入的值，否则根据syncMode决定
     const performanceDays = options?.performanceDays || (isFullSync ? parseInt(process.env.SYNC_PERFORMANCE_DAYS || '90', 10) : DAILY_SYNC_DAYS);
+    await runLayer(5, '绩效数据同步', async () => {
     log.info(`[syncAll] v359: Layer 5 - 绩效数据同步 (4个并行, ${performanceDays}天)`);
     const [perfResult, _kwPerfResult, _ptPerfResult, _agPerfResult] = await Promise.allSettled([
       // @ts-ignore
@@ -540,6 +577,13 @@ export class AmazonSyncService {
     ]);
     if (perfResult.status === 'fulfilled' && perfResult.value !== null) {
       results.performance += typeof perfResult.value === 'number' ? perfResult.value : (perfResult.value as Record<string, any>)?.synced as number || 0;
+    }
+    }); // end Layer 5
+
+    // v402: 子任务分解汇总
+    const failedLayers = Object.entries(layerResults).filter(([_, r]) => !r.success).map(([id, r]) => `Layer${id}(${r.error})`);
+    if (failedLayers.length > 0) {
+      log.warn(`[syncAll] v402: 账户${this.accountId} 有${failedLayers.length}个层失败: ${failedLayers.join(', ')}`);
     }
 
     // v340: 同步完成汇总报告
@@ -571,6 +615,9 @@ export class AmazonSyncService {
           totalSynced,
           durationMs: totalDurationMs,
           failedStepNames,
+          // v402: 子任务分解信息
+          layerResults,
+          targetLayers,
         },
       });
     } catch (auditErr: unknown) {

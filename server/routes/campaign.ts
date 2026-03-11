@@ -69,6 +69,89 @@ export const campaignRouter = router({
       return db.getCampaignsByAccountId(input.accountId);
     }),
 
+  // v402: 后端分页版本的广告活动列表
+  listPaginated: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      marketplace: z.string().optional(),
+      timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
+      // 分页参数
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(25),
+      // 排序参数
+      sortField: z.string().optional(),
+      sortDirection: z.enum(['asc', 'desc']).optional().default('desc'),
+      // 基础筛选参数
+      search: z.string().optional(),
+      campaignType: z.string().optional(),
+      campaignStatus: z.string().optional(),
+      optimizationStatus: z.string().optional(),
+      // 是否使用服务端分页
+      serverPagination: z.boolean().optional().default(true),
+    }))
+    .query(async ({ ctx, input }: any) => {
+      if (!input.accountId) {
+        return { data: [], total: 0, filteredTotal: 0, page: 1, pageSize: 25, totalPages: 0, statusCounts: { enabled: 0, paused: 0, archived: 0, managed: 0, unmanaged: 0 }, typeCounts: {} };
+      }
+      
+      // v376: P1数据隔离修复
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      // 使用站点时区计算正确的日期范围
+      let startDate = input.startDate;
+      let endDate = input.endDate;
+      let todayDate: string | undefined;
+      
+      if (input.marketplace && input.timeRange && input.timeRange !== 'custom') {
+        const { calculateDateRangeByMarketplace, getMarketplaceLocalDate } = await import('../../shared/timezone');
+        const dateRange = calculateDateRangeByMarketplace(input.marketplace, input.timeRange);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+        todayDate = getMarketplaceLocalDate(input.marketplace);
+      } else if (input.marketplace) {
+        const { getMarketplaceLocalDate } = await import('../../shared/timezone');
+        todayDate = getMarketplaceLocalDate(input.marketplace);
+      }
+      
+      if (!startDate || !endDate) {
+        return { data: [], total: 0, filteredTotal: 0, page: 1, pageSize: 25, totalPages: 0, statusCounts: { enabled: 0, paused: 0, archived: 0, managed: 0, unmanaged: 0 }, typeCounts: {} };
+      }
+      
+      // v402: 使用分页版本的查询
+      const cacheKey = apiCache.generateKey('campaign.listPaginated', ctx.user.id, {
+        accountId: input.accountId, startDate, endDate, todayDate,
+        page: input.page, pageSize: input.pageSize,
+        sortField: input.sortField, sortDirection: input.sortDirection,
+        search: input.search, campaignType: input.campaignType,
+        campaignStatus: input.campaignStatus, optimizationStatus: input.optimizationStatus,
+        serverPagination: input.serverPagination,
+      });
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
+      const result = await db.getCampaignsWithPerformancePaginated({
+        accountId: input.accountId,
+        startDate,
+        endDate,
+        todayDate,
+        page: input.page,
+        pageSize: input.pageSize,
+        sortField: input.sortField,
+        sortDirection: input.sortDirection,
+        search: input.search,
+        campaignType: input.campaignType,
+        campaignStatus: input.campaignStatus,
+        optimizationStatus: input.optimizationStatus,
+        serverPagination: input.serverPagination,
+      });
+      
+      apiCache.set(cacheKey, result, 2 * 60 * 1000); // 2分钟缓存
+      return result;
+    }),
+
   // 获取未分配到绩效组的广告活动
   // v361: 数据隔离修复 - accountId改为必填
   listUnassigned: protectedProcedure

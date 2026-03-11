@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
-import { SmartInsights } from "@/components/SmartInsights";
+// v402: SmartInsights改为懒加载，非首屏组件
+const SmartInsights = lazy(() => import("@/components/SmartInsights").then(m => ({ default: m.SmartInsights })));
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -9,7 +10,8 @@ import { MobileBottomSpacer } from "@/components/MobileBottomNav";
 import { FloatingActionButton, FloatingAction, commonActions } from "@/components/FloatingActionButton";
 import { useUrlFilters, serializers } from "@/hooks/useUrlFilters";
 import { useFilterPresets, FilterPreset } from "@/hooks/useFilterPresets";
-import { exportToCSV, exportToExcel, ExportColumn } from "@/utils/exportTable";
+// v402: 导出功能改为动态导入，减小首屏包体积
+import type { ExportColumn } from "@/utils/exportTable";
 import { Pagination, usePagination } from "@/components/Pagination";
 import { useResizableColumns, ResizeHandle, PinButton } from "@/components/ResizableTable";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -25,7 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { QuickActions } from "@/components/QuickActions";
+// v402: QuickActions改为懒加载，只在表格渲染时需要
+const QuickActions = lazy(() => import("@/components/QuickActions").then(m => ({ default: m.QuickActions })));
 import { trpc } from "@/lib/trpc";
 import { getCurrencySymbol } from "@/utils/currency";
 import { toast } from "sonner";
@@ -448,13 +451,13 @@ export default function Campaigns() {
   const pageSize = parseInt(filters.pageSize) || 25;
   
   // 筛选条件设置函数
-  const setSearchTerm = (v: string) => setFilter('search', v);
+  const setSearchTerm = (v: string) => setFilters({ search: v, page: '1' });
   const setStoreFilter = (v: string) => setFilter('store', v);
   const setMarketplaceFilter = (v: string) => setFilter('marketplace', v);
-  const setTypeFilter = (v: string) => setFilter('type', v);
-  const setBillingTypeFilter = (v: string) => setFilter('billing', v);
-  const setRunningStatusFilter = (v: string) => setFilter('status', v);
-  const setOptimizationStatusFilter = (v: string) => setFilter('optimization', v);
+  const setTypeFilter = (v: string) => setFilters({ type: v, page: '1' });
+  const setBillingTypeFilter = (v: string) => setFilters({ billing: v, page: '1' });
+  const setRunningStatusFilter = (v: string) => setFilters({ status: v, page: '1' });
+  const setOptimizationStatusFilter = (v: string) => setFilters({ optimization: v, page: '1' });
   const setSortField = (v: SortField | null) => setFilter('sort', v || '');
   const setSortDirection = (v: SortDirection) => setFilter('order', v);
   const setCurrentPage = (v: number) => setFilter('page', String(v));
@@ -623,18 +626,64 @@ export default function Campaigns() {
     };
   }, [timeRangeValue]);
 
-  // Fetch campaigns with performance data
-  // v122h: 传递marketplace和timeRange给后端，由后端根据站点时区计算正确的日期范围
-  const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery(
+  // v402: 后端分页版本的数据获取
+  // 当有高级筛选时回退到全量模式，否则使用服务端分页
+  const useServerPagination = !hasAdvancedFilters;
+  
+  // v402: 排序字段映射（前端字段名 -> 后端字段名）
+  const backendSortField = useMemo(() => {
+    if (!sortField) return undefined;
+    const sortMap: Record<string, string> = {
+      'campaignName': 'campaignName',
+      'campaignType': 'campaignType',
+      'status': 'status',
+      'dailyBudget': 'dailyBudget',
+      'startDate': 'startDate',
+      'costType': 'costType',
+      'campaignGoal': 'campaignGoal',
+      'adFormat': 'adFormat',
+      'impressions': 'impressions',
+      'clicks': 'clicks',
+      'totalSpend': 'totalSpend',
+      'totalSales': 'totalSales',
+      'acos': 'acos',
+      'roas': 'roas',
+      'ctr': 'ctr',
+      'cvr': 'cvr',
+      'cpc': 'cpc',
+      'dailySpend': 'dailySpend',
+      'dailySales': 'dailySales',
+    };
+    return sortMap[sortField] || undefined;
+  }, [sortField]);
+  
+  const { data: paginatedResponse, isLoading, refetch } = trpc.campaign.listPaginated.useQuery(
     { 
-      accountId: accountId, 
+      accountId: accountId!, 
       marketplace: currentMarketplace || undefined,
       timeRange: (timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset) as any,
       startDate: timeRangeValue.preset === 'custom' ? dateRange.startDate : undefined,
       endDate: timeRangeValue.preset === 'custom' ? dateRange.endDate : undefined,
+      // v402: 分页参数
+      page: useServerPagination ? currentPage : 1,
+      pageSize: useServerPagination ? pageSize : 10000, // 全量模式时获取所有数据
+      sortField: useServerPagination ? backendSortField : undefined,
+      sortDirection: useServerPagination ? sortDirection : undefined,
+      search: useServerPagination ? debouncedSearchTerm || undefined : undefined,
+      campaignType: useServerPagination ? (typeFilter !== 'all' ? typeFilter : undefined) : undefined,
+      campaignStatus: useServerPagination ? (runningStatusFilter !== 'all' ? runningStatusFilter : undefined) : undefined,
+      optimizationStatus: useServerPagination ? (optimizationStatusFilter !== 'all' ? optimizationStatusFilter : undefined) : undefined,
+      serverPagination: useServerPagination,
     },
-    { enabled: !!accountId, staleTime: 2 * 60 * 1000 } // v386: 2分钟缓存
+    { enabled: !!accountId, staleTime: 2 * 60 * 1000, keepPreviousData: true } // v386: 2分钟缓存
   );
+  
+  // v402: 从分页响应中提取数据
+  const campaigns = paginatedResponse?.data || [];
+  const serverTotal = paginatedResponse?.total || 0;
+  const serverFilteredTotal = paginatedResponse?.filteredTotal || 0;
+  const serverStatusCounts = paginatedResponse?.statusCounts;
+  const serverTypeCounts = paginatedResponse?.typeCounts;
 
   // Fetch performance groups for assignment
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
@@ -644,22 +693,6 @@ export default function Campaigns() {
 
   // Update campaign mutation - v221: 添加乐观更新，用户操作后立即显示预期结果
   const updateCampaign = trpc.campaign.update.useMutation({
-    onMutate: async (variables) => {
-      // 乐观更新：立即在本地更新UI
-      if (campaigns && Array.isArray(campaigns)) {
-        const updatedCampaigns = campaigns.map((c: any) => {
-          if (c.id === variables.id) {
-            const updated = { ...c };
-            if (variables.campaignStatus) updated.campaignStatus = variables.campaignStatus;
-            if (variables.dailyBudget) updated.dailyBudget = variables.dailyBudget;
-            return updated;
-          }
-          return c;
-        });
-        // 保存到临时状态用于回滚
-        return { previousCampaigns: campaigns };
-      }
-    },
     onSuccess: () => {
       toast.success("广告活动已更新");
       // 延迟2秒后refetch，给后端确认同步时间
@@ -856,8 +889,17 @@ export default function Campaigns() {
     });
   }, [campaigns, debouncedSearchTerm, storeFilter, marketplaceFilter, filteredAccountIds, typeFilter, billingTypeFilter, runningStatusFilter, optimizationStatusFilter, filters.impMin, filters.impMax, filters.clickMin, filters.clickMax, filters.spendMin, filters.spendMax, filters.orderMin, filters.orderMax, filters.acosMin, filters.acosMax, filters.roasMin, filters.roasMax, filters.cpcMin, filters.cpcMax, filters.budgetMin, filters.budgetMax]);
 
-  // 计算各状态数量
+  // v402: 使用服务端返回的状态统计（基于全量数据，不受分页影响）
   const statusCounts = useMemo(() => {
+    if (serverStatusCounts) {
+      return {
+        enabled: serverStatusCounts.enabled || 0,
+        paused: serverStatusCounts.paused || 0,
+        managed: serverStatusCounts.managed || 0,
+        unmanaged: serverStatusCounts.unmanaged || 0,
+      };
+    }
+    // 回退：从当前数据计算
     if (!campaigns) return { enabled: 0, paused: 0, managed: 0, unmanaged: 0 };
     return campaigns.reduce((acc: any, campaign: any) => {
       if (campaign.campaignStatus === 'enabled') acc.enabled++;
@@ -866,7 +908,7 @@ export default function Campaigns() {
       else acc.unmanaged++;
       return acc;
     }, { enabled: 0, paused: 0, managed: 0, unmanaged: 0 });
-  }, [campaigns]);
+  }, [serverStatusCounts, campaigns]);
 
   // 批量操作：加入绩效组
   const batchAssignToGroup = trpc.performanceGroup.batchAssignCampaigns.useMutation({
@@ -1031,8 +1073,8 @@ export default function Campaigns() {
     });
   }, [filteredCampaigns, sortField, sortDirection, performanceGroups]);
 
-  // 分页数据计算
-  const totalItems = sortedCampaigns.length;
+  // v402: 分页数据计算 - 服务端分页模式 vs 前端分页模式
+  const totalItems = useServerPagination ? serverFilteredTotal : sortedCampaigns.length;
   const totalPages = Math.ceil(totalItems / pageSize);
   const validCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
   
@@ -1043,12 +1085,19 @@ export default function Campaigns() {
     }
   }, [validCurrentPage, currentPage, totalPages]);
   
-  // 当前页的数据
+  // v402: 当前页的数据
+  // 服务端分页模式：后端已分页，直接使用sortedCampaigns（即后端返回的当前页数据）
+  // 前端分页模式：前端分页，从全量数据中截取
   const paginatedCampaigns = useMemo(() => {
+    if (useServerPagination) {
+      // 服务端已分页，直接使用
+      return sortedCampaigns;
+    }
+    // 前端分页模式
     const start = (validCurrentPage - 1) * pageSize;
     const end = start + pageSize;
     return sortedCampaigns.slice(start, end);
-  }, [sortedCampaigns, validCurrentPage, pageSize]);
+  }, [sortedCampaigns, validCurrentPage, pageSize, useServerPagination]);
 
   // 虚拟滚动配置 - 用于当前页数据优化
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1061,11 +1110,15 @@ export default function Campaigns() {
     overscan: 10, // 预渲染10行
   });
 
-  // 计算各类型数量
-  const typeCounts = campaigns?.reduce((acc: any, campaign: any) => {
-    acc[campaign.campaignType] = (acc[campaign.campaignType] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>) || {};
+  // v402: 使用服务端返回的类型统计
+  const typeCounts = useMemo(() => {
+    if (serverTypeCounts) return serverTypeCounts;
+    // 回退：从当前数据计算
+    return campaigns?.reduce((acc: any, campaign: any) => {
+      acc[campaign.campaignType] = (acc[campaign.campaignType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
+  }, [serverTypeCounts, campaigns]);
 
   const getCampaignTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
@@ -1128,7 +1181,7 @@ export default function Campaigns() {
   };
 
   // 导出数据函数
-  const handleExport = useCallback((format: 'csv' | 'excel') => {
+  const handleExport = useCallback(async (format: 'csv' | 'excel') => {
     if (!sortedCampaigns || sortedCampaigns.length === 0) {
       toast.error('没有可导出的数据');
       return;
@@ -1214,6 +1267,8 @@ export default function Campaigns() {
       
       const filename = `广告活动_${safeToISODateString(new Date())}`;
       
+      // v402: 动态导入导出工具，减小首屏包体积
+      const { exportToCSV, exportToExcel } = await import("@/utils/exportTable");
       if (format === 'csv') {
         exportToCSV({ filename, columns: exportColumns, data: exportData });
       } else {
@@ -2034,7 +2089,7 @@ export default function Campaigns() {
                 <span className="text-sm text-muted-foreground">广告类型:</span>
                 {campaignTypes.map((type: any) => {
                   const count = type.value === "all" 
-                    ? campaigns?.length || 0 
+                    ? serverTotal || 0 
                     : typeCounts[type.value] || 0;
                   const isActive = typeFilter === type.value;
                   const Icon = type.icon;
@@ -2079,7 +2134,7 @@ export default function Campaigns() {
                   <div className="flex gap-1">
                     {runningStatusOptions.map((option: any) => {
                       const count = option.value === "all" 
-                        ? campaigns?.length || 0 
+                        ? serverTotal || 0 
                         : option.value === "enabled" ? statusCounts.enabled : statusCounts.paused;
                       return (
                         <Button
@@ -2103,7 +2158,7 @@ export default function Campaigns() {
                   <div className="flex gap-1">
                     {optimizationStatusOptions.map((option: any) => {
                       const count = option.value === "all" 
-                        ? campaigns?.length || 0 
+                        ? serverTotal || 0 
                         : option.value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
                       return (
                         <Button
@@ -2471,7 +2526,7 @@ export default function Campaigns() {
                   {typeFilter === "all" ? "全部广告活动" : getCampaignTypeLabel(typeFilter) + " 广告活动"}
                 </CardTitle>
                 <CardDescription>
-                  共 {sortedCampaigns.length} 个广告活动
+                  共 {totalItems} 个广告活动（总计 {serverTotal} 个）
                   {sortField && (
                     <span className="ml-2 text-primary">
                       · 按{columns.find(c => c.key === sortField)?.label}
