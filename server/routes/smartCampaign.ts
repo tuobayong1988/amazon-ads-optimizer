@@ -138,6 +138,10 @@ export const smartCampaignRouter = router({
     .query(async ({ ctx, input }: any) => {
       const { campaignId, goal, daysOfHistory } = input;
 
+      // v403: 数据隔离验证 - 验证campaign是否属于当前用户
+      const { verifyCampaignAccess } = await import('../utils/accessControl');
+      await verifyCampaignAccess(ctx.user.id, parseInt(campaignId, 10));
+
       // 获取广告活动信息
       const campaign = await db.getCampaignById(parseInt(campaignId, 10));
       if (!campaign) {
@@ -193,6 +197,10 @@ export const smartCampaignRouter = router({
     )
     .query(async ({ ctx, input }: any) => {
       const { performanceGroupId, goal, daysOfHistory } = input;
+
+      // v403: 数据隔离验证 - 验证performanceGroup是否属于当前用户
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, parseInt(performanceGroupId, 10));
 
       // 获取绩效组下的所有广告活动
       const groupCampaigns = await db.getCampaignsByPerformanceGroupId(parseInt(performanceGroupId, 10));
@@ -250,6 +258,10 @@ export const smartCampaignRouter = router({
     .mutation(async ({ ctx, input }: any) => {
       const { campaignId, action, value, dryRun } = input;
 
+      // v403: 数据隔离验证 - 验证campaign是否属于当前用户
+      const { verifyCampaignAccess } = await import('../utils/accessControl');
+      await verifyCampaignAccess(ctx.user.id, parseInt(campaignId, 10));
+
       const executor = new AutoExecutionEngine();
       const decision = {
         campaignId,
@@ -286,8 +298,12 @@ export const smartCampaignRouter = router({
       })
     )
     // @ts-ignore
-    .mutation(async ({ input }): Promise<{ summary: unknown; results: Record<string, any>[] }> => {
+    .mutation(async ({ ctx, input }): Promise<{ summary: unknown; results: Record<string, any>[] }> => {
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
+
+      // v403: 数据隔离验证 - 验证performanceGroup是否属于当前用户
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, parseInt(performanceGroupId, 10));
 
       // 先获取优化建议
       // @ts-ignore

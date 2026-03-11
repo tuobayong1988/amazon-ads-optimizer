@@ -17,7 +17,7 @@ import {
 const ONBOARDING_STEPS = [
   {
     id: 'welcome',
-    title: '欢迎使用 Amazon Ads Optimizer',
+    title: '欢迎使用 PPCOPT',
     description: '这是一个智能广告优化系统，帮助您自动管理和优化Amazon广告投放。让我们花1分钟快速了解核心功能。',
     icon: Sparkles,
     iconColor: 'text-amber-400',

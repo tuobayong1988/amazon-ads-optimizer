@@ -94,7 +94,7 @@ import { formatInTimeZone } from "date-fns-tz";
 // 营销页面组件（未登录时显示）
 function MarketingPage() {
   useEffect(() => {
-    document.title = "NextGen-GTO 博弈论驱动的亚马逊广告智能优化 - Amazon Ads Optimizer";
+    document.title = "NextGen-GTO 博弈论驱动的亚马逊广告智能优化 - PPCOPT";
   }, []);
 
   // 算法工作原理数据 - v237: NextGen-GTO五步流程
@@ -287,7 +287,7 @@ function MarketingPage() {
             <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
               <Zap className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">Amazon Ads Optimizer</span>
+            <span className="text-xl font-bold">PPCOPT</span>
           </div>
           <Button asChild>
             <a href={getLoginUrl()}>登录</a>
@@ -729,10 +729,10 @@ function MarketingPage() {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <Zap className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-semibold">Amazon Ads Optimizer</span>
+              <span className="font-semibold">PPCOPT</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2026 Amazon Ads Optimizer. 博弈论驱动的亚马逊广告智能优化。
+              © 2026 PPCOPT. 博弈论驱动的亚马逊广告智能优化。
             </p>
           </div>
         </div>

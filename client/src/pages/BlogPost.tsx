@@ -98,7 +98,7 @@ export default function BlogPost() {
     <PublicLayout>
     <div className="min-h-screen">
       <PageMeta
-        title={`${post.title} | Amazon Ads Optimizer 博客`}
+        title={`${post.title} | PPCOPT 博客`}
         description={post.excerpt}
         canonicalPath={`/blog/${post.slug}`}
       />

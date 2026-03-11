@@ -376,7 +376,7 @@ export function getHealthHistory(): HealthSnapshot[] {
 // ==================== 类型定义 ====================
 
 /** 同步层级 */
-export type SyncTier = 'high' | 'medium' | 'full' | 'confirmation';
+export type SyncTier = 'high' | 'medium' | 'full' | 'nightly' | 'confirmation';
 
 /** 可同步账户（自动发现的） */
 export interface SyncableAccount {
@@ -876,7 +876,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'keyword_performance',
     name: '关键词绩效',
-    tier: 'full',
+    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const synced = await service.syncKeywordPerformanceData(95); // v376: 关键词绩效扩展到95天（SP API最大支持范围）
@@ -889,7 +889,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'target_performance',
     name: '定位绩效',
-    tier: 'full',
+    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const synced = await service.syncProductTargetPerformanceData(95); // v376: 定位绩效扩展到95天（SP API最大支持范围）
@@ -902,7 +902,7 @@ const SYNC_STEPS: SyncStep[] = [
   {
     id: 'ad_group_performance',
     name: '广告组绩效',
-    tier: 'full',
+    tier: 'nightly', // v403: 从 full 迁移到 nightly，避免 full 层级超时
     execute: async (service, ctx) => {
       try {
         const synced = await service.syncAdGroupPerformanceData(95); // v376: 广告组绩效扩展到95天（SP API最大支持范围）
@@ -922,6 +922,7 @@ const TIER_HIERARCHY: Record<SyncTier, SyncTier[]> = {
   high: ['high'],                    // 高频：只执行high专有步骤
   medium: ['medium'],                // 中频：只执行medium专有步骤（不再重复high层）
   full: ['high', 'medium', 'full'],  // 完整：执行所有层级步骤
+  nightly: ['nightly'],              // v403: 夜间层级：耗时最长的绩效报表（关键词/定位/广告组绩效）
   confirmation: ['high', 'medium'],   // v380: 确认同步覆盖high+medium层，确保ad_groups/keywords/targets变更能被确认
 };
 
@@ -929,8 +930,8 @@ const TIER_HIERARCHY: Record<SyncTier, SyncTier[]> = {
 
 const engineStatus: EngineStatus = {
   isRunning: false,
-  lastSyncTime: { high: null, medium: null, full: null, confirmation: null },
-  nextSyncTime: { high: null, medium: null, full: null, confirmation: null },
+  lastSyncTime: { high: null, medium: null, full: null, nightly: null, confirmation: null },
+  nextSyncTime: { high: null, medium: null, full: null, nightly: null, confirmation: null },
   totalSyncsCompleted: 0,
   totalSyncsFailed: 0,
   currentlyRunning: [],
@@ -1165,9 +1166,11 @@ export async function syncAccount(
     const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
     const LARGE_ACCOUNT_STEP_DELAY_MS = 3000; // 大账户步骤间额外延迟3秒
     const BASE_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 基础超时45分钟
+    // v403: nightly层级超时4小时，其他层级保持原有动态超时
+    const NIGHTLY_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4小时
     // v380: 动态超时 - 大账户根据广告活动数量动态调整
     // 1000以下: 45分钟, 1000-3000: 60分钟, 3000-5000: 75分钟, 5000+: 90分钟
-    let SYNC_TIMEOUT_MS = BASE_SYNC_TIMEOUT_MS;
+    let SYNC_TIMEOUT_MS = tier === 'nightly' ? NIGHTLY_TIMEOUT_MS : BASE_SYNC_TIMEOUT_MS;
     try {
       const database = await db.getDb();
       if (database) {
@@ -1178,8 +1181,8 @@ export async function syncAccount(
           .where(eq(campaignsTable.accountId, account.accountId));
         campaignCount = countResult[0]?.count || 0;
         isLargeAccount = campaignCount >= LARGE_ACCOUNT_THRESHOLD;
-        if (isLargeAccount) {
-          // v380: 动态超时计算
+        if (isLargeAccount && tier !== 'nightly') {
+          // v380: 动态超时计算（v403: nightly层级保持固定4小时超时）
           if (campaignCount >= 5000) {
             SYNC_TIMEOUT_MS = 90 * 60 * 1000;
           } else if (campaignCount >= 3000) {

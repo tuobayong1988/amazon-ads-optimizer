@@ -26,7 +26,7 @@ export function PageMeta({
 }: PageMetaProps) {
   const baseUrl = import.meta.env.VITE_APP_URL || "";
   const defaultOgImage = `${baseUrl}/og-image.jpg`;
-  const fullTitle = `${title} | Amazon Ads Optimizer`;
+  const fullTitle = `${title} | PPCOPT`;
 
   useEffect(() => {
     // 更新页面标题
@@ -87,7 +87,7 @@ export function PageMeta({
 
     // 清理函数 - 恢复默认标题
     return () => {
-      document.title = "亚马逊广告智能优化工具 | 自动竞价与ACoS优化 - Amazon Ads Optimizer";
+      document.title = "亚马逊广告智能优化工具 | 自动竞价与ACoS优化 - PPCOPT";
     };
   }, [title, description, keywords, ogImage, canonicalPath, fullTitle, baseUrl, defaultOgImage]);
 
@@ -140,7 +140,7 @@ export const PAGE_META_CONFIG = {
   },
   settings: {
     title: "系统设置",
-    description: "配置账户设置、API连接、通知偏好和系统参数，管理您的Amazon Ads Optimizer使用体验。",
+    description: "配置账户设置、API连接、通知偏好和系统参数，管理您的PPCOPT使用体验。",
     keywords: "系统设置,账户配置,API连接,通知设置",
     canonicalPath: "/settings"
   }

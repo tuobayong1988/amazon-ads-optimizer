@@ -87,7 +87,7 @@ export default function Blog() {
     <PublicLayout>
     <div className="min-h-screen">
       <PageMeta
-        title="博客 - 亚马逊广告优化知识库 | Amazon Ads Optimizer"
+        title="博客 - 亚马逊广告优化知识库 | PPCOPT"
         description="探索亚马逊广告优化的最新策略、算法解析和成功案例，帮助您提升广告效果和ROI。"
         canonicalPath="/blog"
       />

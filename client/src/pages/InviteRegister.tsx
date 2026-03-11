@@ -120,7 +120,7 @@ export default function InviteRegister() {
           </div>
           <CardTitle className="text-2xl text-white">注册账号</CardTitle>
           <CardDescription className="text-gray-400">
-            使用邀请码注册 Amazon Ads Optimizer
+            使用邀请码注册 PPCOPT
           </CardDescription>
         </CardHeader>
         <CardContent>

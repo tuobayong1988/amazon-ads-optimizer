@@ -51,7 +51,7 @@ export default function LocalLogin() {
             </div>
           </div>
           <CardTitle className="text-2xl text-white">登录</CardTitle>
-          <CardDescription className="text-gray-400">登录 Amazon Ads Optimizer</CardDescription>
+          <CardDescription className="text-gray-400">登录 PPCOPT</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

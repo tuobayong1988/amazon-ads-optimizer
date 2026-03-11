@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 403,
+    description: 'v403: [数据隔离安全加固+nightly同步层级+前端优化+品牌重命名] — (1)P0-数据隔离: smartCampaign路由新增4个verifyAccountAccess中间件,堆塞越权访问漏洞 (2)P1-承载能力: EB环境变量DB_POOL_SIZE=100/NODE_OPTIONS=3072MB/MAX_CONCURRENT_ACCOUNTS=15 (3)P2-nightly同步层级: 将keyword_performance/target_performance/ad_group_performance从full迁移到nightly层级,每日凌晨2点执行,超时4小时,解决full层级超时问题 (4)P3-策略管理页面: 增加isError状态处理和重新加载按钮 (5)P3-品牌重命名: 全局替换Amazon Ads Optimizer为PPCOPT,移除页脚版权信息',
+    // @ts-ignore
+    affectedModules: ['sync', 'frontend', 'security', 'infrastructure'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 402,
     description: 'v402: [后端分页+同步分解+连接池+前端优化] \u2014 (1)P1-后端分页API: campaigns.listPaginated新端点,支持服务端分页/排序/筛选/搜索,返回状态统计和类型统计 (2)P1-前端Campaigns页面改造: 切换到服务端分页模式,高级筛选时回退到全量模式 (3)P2-同步子任务分解: syncAll新增layers参数支持按层执行,Layer级别错误隔离,失败不影响后续层 (4)P3-连接池优化: DB_POOL_SIZE默认值从25提升到100 (5)P3-前端代码分割: SmartInsights/QuickActions懒加载,导出功能动态import,Campaigns chunk减少7%',
     // @ts-ignore

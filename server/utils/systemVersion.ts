@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 402;  // v402: 后端分页API、大账户同步子任务分解、连接池优化(100)、前端代码分割懒加载
+export const SYSTEM_VERSION = 403;  // v403: 数据隔离安全加固、nightly同步层级(关键词/定位/广告组绩效)、策略管理错误处理、品牌重命名PPCOPT

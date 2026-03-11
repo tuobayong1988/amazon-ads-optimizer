@@ -340,11 +340,24 @@ export default function StrategyCenter() {
             </Link>
           </div>
 
-          {performanceGroupsQuery.isLoading ? (
+          {performanceGroupsQuery.isLoading && !performanceGroupsQuery.isError ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground">加载优化目标...</span>
             </div>
+          ) : performanceGroupsQuery.isError ? (
+            <Card className="border-dashed border-red-500/30">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Target className="h-12 w-12 text-red-400 mb-4" />
+                <p className="text-lg font-medium mb-2">加载失败</p>
+                <p className="text-muted-foreground text-center mb-4">
+                  无法加载优化目标数据，请稍后重试
+                </p>
+                <Button variant="outline" onClick={() => performanceGroupsQuery.refetch()}>
+                  重新加载
+                </Button>
+              </CardContent>
+            </Card>
           ) : groups.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-12">

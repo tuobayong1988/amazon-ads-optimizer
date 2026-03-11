@@ -27,7 +27,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold tracking-tight">PPC Optimizer</span>
+            <span className="text-lg font-bold tracking-tight">PPCOPT</span>
           </Link>
 
           {/* 桌面端导航链接 */}
@@ -109,95 +109,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       </main>
 
       {/* 底部公司信息 */}
-      <footer className="border-t border-border/50 bg-card/30">
-        {/* 上部：多列信息 */}
-        <div className="container py-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-            {/* 品牌信息 */}
-            <div className="lg:col-span-1">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <span className="text-lg font-bold">PPC Optimizer</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                博弈论驱动的亚马逊广告智能优化系统，融合机器学习与GTO策略的双层12引擎架构，为跨境电商卖家提供全自动广告优化服务。
-              </p>
-            </div>
-
-            {/* 产品 */}
-            <div>
-              <h4 className="font-semibold mb-4">产品</h4>
-              <ul className="space-y-3">
-                <li>
-                  <Link href="/how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    优化逻辑
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    博客
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    联系我们
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* 支持的广告类型 */}
-            <div>
-              <h4 className="font-semibold mb-4">支持的广告类型</h4>
-              <ul className="space-y-3">
-                <li className="text-sm text-muted-foreground">Sponsored Products (SP)</li>
-                <li className="text-sm text-muted-foreground">Sponsored Brands (SB)</li>
-                <li className="text-sm text-muted-foreground">Sponsored Display (SD)</li>
-              </ul>
-            </div>
-
-            {/* 公司信息 */}
-            <div>
-              <h4 className="font-semibold mb-4">公司信息</h4>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-2.5">
-                  <Building2 className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Shenzhen Yipin Mingxuan Technology Co., Ltd.</p>
-                    <p className="text-sm text-muted-foreground">深圳一品名轩科技有限公司</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    深圳市龙岗区坂田街道岗头社区新围仔五和大道4004号名筑大厦608
-                  </p>
-                </li>
-                <li className="flex items-center gap-2.5">
-                  <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <a href="mailto:vip@ppcopt.com" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                    vip@ppcopt.com
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* 下部：版权信息 */}
-        <div className="border-t border-border/50">
-          <div className="container py-6 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Shenzhen Yipin Mingxuan Technology Co., Ltd. All rights reserved.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              深圳一品名轩科技有限公司 版权所有
-            </p>
-          </div>
-        </div>
-      </footer>
+<footer></footer>
     </div>
   );
 }

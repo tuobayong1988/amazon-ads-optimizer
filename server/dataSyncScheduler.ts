@@ -34,7 +34,7 @@ import {
 const log = createModuleLogger('Scheduler');
 
 // 同步层级定义
-export type SyncTier = 'high' | 'medium' | 'low' | 'full';
+export type SyncTier = 'high' | 'medium' | 'low' | 'full' | 'nightly';
 
 // 同步层级配置
 const SYNC_TIER_CONFIG: Record<SyncTier, {
@@ -61,6 +61,11 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     intervalMs: 2 * 60 * 60 * 1000, // v391: 2小时（从6小时缩短，配合批量查询优化，确保500租户规模下每天可完成一轮完整同步）
     description: 'v391: 完整同步 - 所有数据（SP 90天/SB 60天/SD 90天），每周期最多100个账号',
     syncTypes: ['all'],
+  },
+  nightly: {
+    intervalMs: 24 * 60 * 60 * 1000, // v403: 24小时（每日凌晨执行一次）
+    description: 'v403: 夜间同步 - 耗时最长的关键词/定位/广告组绩效报表，超时时间4小时',
+    syncTypes: ['keyword_performance', 'target_performance', 'ad_group_performance'],
   },
 };
 
@@ -91,14 +96,17 @@ let schedulerStatus: SchedulerStatus = {
     medium: null,
     low: null,
     full: null,
+    nightly: null,
   },
 };
 
-let schedulerIntervals: Record<SyncTier, NodeJS.Timeout | null> = {
+let schedulerIntervals: Record<string, NodeJS.Timeout | null> = {
   high: null,
   medium: null,
   low: null,
   full: null,
+  nightly: null,
+  confirmation: null,
 };
 
 // v361: 监控和辅助定时器的引用，确保可以在停止时清理
@@ -236,7 +244,28 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
-  
+
+  // v403: 夜间同步：计算距离下一个凌昨2点的毫秒数，然后启动定时器
+  const nightlyDelayMs = (() => {
+    const now = new Date();
+    const next2am = new Date(now);
+    next2am.setHours(2, 0, 0, 0);
+    if (next2am.getTime() <= now.getTime()) {
+      next2am.setDate(next2am.getDate() + 1);
+    }
+    return next2am.getTime() - now.getTime();
+  })();
+  setTimeout(() => {
+    log.info('[DataSyncScheduler] v403: 夜间同步首次执行（凌昨2点）...');
+    executeUnifiedSync('nightly' as any);
+    // 启动每24小时循环
+    schedulerIntervals.nightly = setInterval(async () => {
+      log.info('[DataSyncScheduler] v403: 夜间同步定时执行...');
+      await executeUnifiedSync('nightly' as any);
+    }, 24 * 60 * 60 * 1000);
+  }, nightlyDelayMs);
+  log.info(`[DataSyncScheduler] v403: 夜间同步已调度，首次执行将在 ${Math.round(nightlyDelayMs / 1000 / 60)} 分钟后（凌昨2点）`);
+
   // v336: 缩短启动后首次同步延迟（v335的2分钟→30秒，5分钟→60秒）
   // 部署后尽快恢复数据同步，减少数据空窗期
   setTimeout(async () => {
@@ -390,6 +419,7 @@ const tierRunningState: Record<string, boolean> = {
   high: false,
   medium: false,
   full: false,
+  nightly: false,
 };
 
 /**
