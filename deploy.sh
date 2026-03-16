@@ -18,7 +18,7 @@
 # 6. 包含 Procfile 和 package.json
 # 7. 不包含 package-lock.json（会导致npm install冲突）
 # 8. 不包含 node_modules/（EB会自动安装）
-# 9. 不包含源代码（client/ server/ shared/）
+# 9. 包含 server/ 和 shared/ 源代码（Procfile使用tsx直接运行TypeScript）
 # 10. dist/index.js 中的 SYSTEM_VERSION 必须与目标版本号一致
 # =============================================================================
 
@@ -161,12 +161,16 @@ echo "[5/8] 创建部署包..."
 rm -f "$ZIP_FILE"
 
 # 使用明确的包含列表（而非排除列表）
+# 注意: Procfile使用tsx直接运行TypeScript源代码，因此必须包含server/和shared/目录
 zip -r "$ZIP_FILE" \
     .npmrc \
     package.json \
     pnpm-lock.yaml \
     Procfile \
+    tsconfig.json \
     dist/ \
+    server/ \
+    shared/ \
     drizzle/ \
     .ebextensions/ \
     .platform/ \
@@ -174,6 +178,8 @@ zip -r "$ZIP_FILE" \
     -x "dist/public/blog/*" \
     -x "dist/public/og-image.png" \
     -x "drizzle/schema.ts.bak" \
+    -x "server/**/*.test.ts" \
+    -x "server/**/*.spec.ts" \
     2>&1 | tail -3
 
 echo "  ✓ 部署包: $ZIP_FILE ($(du -h $ZIP_FILE | cut -f1))"
@@ -207,7 +213,7 @@ done
 
 # ==================== 步骤 7: 上传到S3 ====================
 echo "[7/8] 上传到S3..."
-S3_BUCKET="elasticbeanstalk-us-east-1-558948636368"
+S3_BUCKET="elasticbeanstalk-us-east-1-408336117167"
 S3_KEY="amazon-ads-optimizer/${VERSION_LABEL}.zip"
 aws s3 cp "$ZIP_FILE" "s3://${S3_BUCKET}/${S3_KEY}" 2>&1 | tail -1
 echo "  ✓ 上传完成: s3://${S3_BUCKET}/${S3_KEY}"
