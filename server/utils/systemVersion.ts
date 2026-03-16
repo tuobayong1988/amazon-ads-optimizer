@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 420;  // v420: P0/P1系统审计修复 - 数据同步模块字段映射和ID类型一致性
+export const SYSTEM_VERSION = 421;  // v421: 严格代码审查 + 端到端测试 + ID管理策略
