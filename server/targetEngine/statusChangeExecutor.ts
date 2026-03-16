@@ -293,7 +293,7 @@ export async function executeKeywordStatusChanges(
                 try {
                   postOptVerifier.scheduleKeywordStatusVerification(
                     config.accountId,
-                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: keyword.internalAdGroupId || undefined }]  // v421: 使用internalAdGroupId(int)
                   );
                 // @ts-ignore
                 } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
@@ -352,7 +352,7 @@ export async function executeKeywordStatusChanges(
                 try {
                   postOptVerifier.scheduleKeywordStatusVerification(
                     config.accountId,
-                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: Number(keyword.adGroupId) || undefined }]  // v357: adGroupId转为number
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: keyword.internalAdGroupId || undefined }]  // v421: 使用internalAdGroupId(int)
                   );
                 // @ts-ignore
                 } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }

@@ -307,7 +307,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
     const existingSdTgtRows = sdTgtIds.length > 0
       ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sdTgtIds)))
       : [];
-    const existingSdTgtMap = new Map(existingSdTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
+    const existingSdTgtMap = new Map(existingSdTgtRows.map(r => [`${r.internalAdGroupId}:${r.targetId}`, r]));  // v421: 使用internalAdGroupId
 
     for (const apiTarget of apiTargets) {
       // v363: 使用批量预查询结果
@@ -494,7 +494,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     const existingSdRptTgtRows = sdRptTgtIds.length > 0
       ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sdRptTgtIds)))
       : [];
-    const existingSdRptTgtMap = new Map(existingSdRptTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
+    const existingSdRptTgtMap = new Map(existingSdRptTgtRows.map(r => [`${r.internalAdGroupId}:${r.targetId}`, r]));  // v421: 使用internalAdGroupId
 
     for (const row of (reportData as any[])) {
       // v363: 使用批量预查询结果

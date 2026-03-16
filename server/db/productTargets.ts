@@ -33,7 +33,8 @@ export async function getProductTargetsByAdGroupIds(adGroupIds: (number | string
   const db = await getDb();
   if (!db || adGroupIds.length === 0) return [];
   
-  return db.select().from(productTargets).where(inArray(productTargets.internalAdGroupId, adGroupIds.map(id => String(id))));
+  // v421: internalAdGroupId是int类型，直接使用Number转换
+  return db.select().from(productTargets).where(inArray(productTargets.internalAdGroupId, adGroupIds.map(id => Number(id))));
 }
 
 export async function getProductTargetById(id: number) {

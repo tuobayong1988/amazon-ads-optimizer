@@ -62,8 +62,8 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   if (adGroupsList.length === 0) return [];
   
-  // v357: adGroupId现在是varchar类型，需要转换为string数组
-  const adGroupIds = adGroupsList.map(ag => String(ag.id));
+  // v421: internalAdGroupId是int类型，直接使用int数组
+  const adGroupIds = adGroupsList.map(ag => ag.id);
   const allKeywords = await db.select().from(keywords).where(inArray(keywords.internalAdGroupId, adGroupIds));
   
   return allKeywords;

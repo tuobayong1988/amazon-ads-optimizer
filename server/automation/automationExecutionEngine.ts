@@ -487,7 +487,7 @@ export async function executeOptimization(
         let bidAdGroupId = 0;
         const keyword = await db.getKeywordById(targetId);
         if (keyword) {
-          const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
+          const adGroup = keyword.internalAdGroupId ? await db.getAdGroupById(keyword.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
           if (adGroup) {
             bidAdGroupId = adGroup.id;
             bidCampaignId = adGroup.campaignId; // Amazon varchar ID
@@ -531,7 +531,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: bidCampaignId,
-          adGroupId: bidAdGroupId,
+          internalAdGroupId: bidAdGroupId,  // v421: 使用internalAdGroupId
           logTargetType: 'keyword',
           targetId,
           targetName,
@@ -587,7 +587,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: String(targetId),
-          adGroupId: 0,
+          internalAdGroupId: 0,  // v421: 使用internalAdGroupId
           logTargetType: 'campaign_budget',
           targetId,
           targetName: targetName || `Campaign ${targetId}`,
@@ -610,7 +610,7 @@ export async function executeOptimization(
         let ptAdGroupId = 0;
         const productTarget = await db.getProductTargetById(targetId);
         if (productTarget) {
-          const ptAdGroup = await db.getAdGroupById(Number(productTarget.adGroupId));  // v357: adGroupId现在是string类型
+          const ptAdGroup = productTarget.internalAdGroupId ? await db.getAdGroupById(productTarget.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
           if (ptAdGroup) {
             ptAdGroupId = ptAdGroup.id;
             ptCampaignId = ptAdGroup.campaignId; // Amazon varchar ID
@@ -654,7 +654,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: ptCampaignId,
-          adGroupId: ptAdGroupId,
+          internalAdGroupId: ptAdGroupId,  // v421: 使用internalAdGroupId
           logTargetType: 'product_target',
           targetId,
           targetName,
@@ -718,7 +718,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: String(targetId),
-          adGroupId: 0,
+          internalAdGroupId: 0,  // v421: 使用internalAdGroupId
           logTargetType: 'placement',
           targetId,
           targetName: targetName || `Campaign ${targetId} Placement`,
@@ -775,7 +775,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: String(targetId),
-          adGroupId: 0,
+          internalAdGroupId: 0,  // v421: 使用internalAdGroupId
           logTargetType: 'campaign_budget',
           targetId,
           targetName: targetName || `Campaign ${targetId} Dayparting`,
@@ -803,7 +803,7 @@ export async function executeOptimization(
         let negAccountId = accountId;
         
         if (negKeyword) {
-          const negAdGroup = await db.getAdGroupById(Number(negKeyword.adGroupId));  // v357: adGroupId现在是string类型
+          const negAdGroup = negKeyword.internalAdGroupId ? await db.getAdGroupById(negKeyword.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
           if (negAdGroup) {
             negCampaignId = negAdGroup.campaignId;
             const negCampaign = await db.getCampaignByAmazonCampaignId(negAdGroup.campaignId);
@@ -850,7 +850,7 @@ export async function executeOptimization(
           await db.createBiddingLog({
             accountId,
             campaignId: 'UNRESOLVED',
-            adGroupId: 0,
+            internalAdGroupId: 0,  // v421: 使用internalAdGroupId
             logTargetType: 'negative_keyword',
             targetId,
             targetName: targetName || '',
@@ -898,7 +898,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: String(negCampaignId),
-          adGroupId: 0,
+          internalAdGroupId: 0,  // v421: 使用internalAdGroupId
           logTargetType: 'negative_keyword',
           targetId,
           targetName: targetName || 'Negative Keyword',
@@ -985,7 +985,7 @@ export async function executeOptimization(
               await db.createKeyword({
                 accountId: accountId,  // v357: 包含accountId
                 campaignId: harvestAmazonCampaignId || String(harvestCampaignId),  // v357: 包含Amazon campaignId
-                adGroupId: String(harvestAdGroupId),  // v400-fix: BUG-A3修复 - 使用正确的内部adGroupId，不再fallback到targetId(keyword ID)
+                internalAdGroupId: harvestAdGroupId,  // v421: 使用internalAdGroupId(int)
                 keywordId: validKeywordId,  // v357: 使用API返回的Amazon keywordId
                 keywordText: targetName || '',
                 matchType: 'exact',
@@ -1002,7 +1002,7 @@ export async function executeOptimization(
         await db.createBiddingLog({
           accountId,
           campaignId: String(harvestCampaignId),
-          adGroupId: harvestAdGroupId,
+          internalAdGroupId: harvestAdGroupId,  // v421: 使用internalAdGroupId
           logTargetType: 'search_term_harvest',
           targetId,
           targetName: targetName || 'Search Term Harvest',
@@ -1673,7 +1673,7 @@ export async function runKeywordMigrationTask(accountId: number): Promise<{
               // 添加到精准层（使用现有的关键词添加逻辑）
               // 注意：KeywordMigrationSuggestion没有suggestedBid字段，使用默认值
               const newKeyword = {
-                adGroupId: targetAdGroupId,
+                internalAdGroupId: targetAdGroupId,  // v421: 使用internalAdGroupId
                 keywordText: suggestion.searchTerm,
                 matchType: 'exact' as const,
                 keywordStatus: 'enabled' as const,

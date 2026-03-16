@@ -327,7 +327,7 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
     const existingSbKwRows = sbKwIds.length > 0
       ? await db.select().from(keywords).where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, sbKwIds)))
       : [];
-    const existingSbKwMap = new Map(existingSbKwRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
+    const existingSbKwMap = new Map(existingSbKwRows.map(r => [`${r.internalAdGroupId}:${r.keywordId}`, r]));  // v421: 使用internalAdGroupId
 
     for (const apiKeyword of apiKeywords) {
       // v363: 使用批量预查询结果
@@ -405,7 +405,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
     const existingSbTgtRows = sbTgtIds.length > 0
       ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sbTgtIds)))
       : [];
-    const existingSbTgtMap = new Map(existingSbTgtRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
+    const existingSbTgtMap = new Map(existingSbTgtRows.map(r => [`${r.internalAdGroupId}:${r.targetId}`, r]));  // v421: 使用internalAdGroupId
 
     for (const apiTarget of apiTargets) {
       // v363: 使用批量预查询结果

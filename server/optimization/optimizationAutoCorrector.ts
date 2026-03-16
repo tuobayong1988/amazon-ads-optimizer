@@ -1646,7 +1646,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     const negKeywordsToSync: Array<{
       eventId: number;
       campaignId: number;
-      adGroupId?: number;
+      internalAdGroupId?: number;  // v421: 使用internalAdGroupId
       keywordText: string;
       matchType: 'negativeExact' | 'negativePhrase';
       level: 'campaign' | 'adgroup';
@@ -1702,7 +1702,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         const nkEntry: Record<string, any> = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
-          adGroupId: amazonAdGroupId || undefined,  // v201: 保持字符串避免精度丢失
+          internalAdGroupId: amazonAdGroupId || undefined,  // v421: 使用internalAdGroupId
           keywordText: searchTerm,
           matchType: normalizedMatchType,
           level: amazonAdGroupId ? 'adgroup' : 'campaign',
@@ -2765,7 +2765,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
           accountId,
           keywordsToSync.map(k => ({
             localKeywordId: k.localKeywordId,
-            adGroupId: k.internalAdGroupId,
+            adGroupId: k.adGroupId,  // v421: 这里是Amazon adGroupId，传给Amazon API
             campaignId: k.campaignId,
             keywordText: k.keywordText,
             matchType: k.matchType,

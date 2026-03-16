@@ -290,7 +290,7 @@ export const optimizationRouter = router({
           if (result.targetType === "keyword") {
             const keyword = await db.getKeywordById(result.targetId);
             if (keyword) {
-              const adGroup = await db.getAdGroupById(Number(keyword.adGroupId));  // v357: adGroupId现在是string类型
+              const adGroup = keyword.internalAdGroupId ? await db.getAdGroupById(keyword.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
               if (adGroup) {
                 adGroupId = adGroup.id;
                 // @ts-ignore
@@ -303,7 +303,7 @@ export const optimizationRouter = router({
           } else {
             const target = await db.getProductTargetById(result.targetId);
             if (target) {
-              const adGroup = await db.getAdGroupById(Number(target.adGroupId));  // v357: adGroupId现在是string类型
+              const adGroup = target.internalAdGroupId ? await db.getAdGroupById(target.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
               if (adGroup) {
                 adGroupId = adGroup.id;
                 // @ts-ignore
@@ -350,7 +350,7 @@ export const optimizationRouter = router({
             accountId: group.accountId,
             // @ts-ignore
             campaignId: campaignId as string,
-            adGroupId,
+            internalAdGroupId: adGroupId || 0,  // v421: 使用internalAdGroupId
             logTargetType: result.targetType,
             targetId: result.targetId,
             targetName,

@@ -213,12 +213,12 @@ export async function identifyHarvestCandidates(
         );
         
         // 7. 获取源广告组信息
-        const sourceAdGroup = await db.getAdGroupById(Number(st.adGroupId));  // v357: adGroupId现在是string类型
+        const sourceAdGroup = st.internalAdGroupId ? await db.getAdGroupById(st.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
         if (!sourceAdGroup) continue;
         
         candidates.push({
           searchTerm: st.searchTerm,
-          sourceAdGroupId: Number(st.adGroupId),  // v357: 转为number
+          sourceAdGroupId: st.internalAdGroupId,  // v421: internalAdGroupId已经是int
           sourceCampaignId: sourceCampaign.id,
           sourceAmazonAdGroupId: sourceAdGroup.adGroupId,
           sourceAmazonCampaignId: sourceCampaign.campaignId,
@@ -382,7 +382,7 @@ export async function harvestSearchTermAtomic(
     const localKeywordId = await db.createKeyword({
       accountId: accountId,
       campaignId: String(candidate.targetAmazonCampaignId),  // v357: 使用Amazon Campaign ID
-      adGroupId: String(candidate.targetAdGroupId),  // v357: adGroupId现在是string类型
+      internalAdGroupId: candidate.targetAdGroupId,  // v421: 使用internalAdGroupId(int)
       keywordId: amazonKeywordId,  // v357: 已验证的Amazon keywordId
       keywordText: candidate.searchTerm,
       matchType: 'exact',
@@ -405,7 +405,7 @@ export async function harvestSearchTermAtomic(
     await db.createBiddingLog({
       accountId,
       campaignId: String(candidate.targetAmazonCampaignId),  // v357: 使用Amazon Campaign ID
-      adGroupId: candidate.targetAdGroupId,
+      internalAdGroupId: candidate.targetAdGroupId,  // v421: 使用internalAdGroupId
       logTargetType: 'keyword',
       targetId: localKeywordId,
       targetName: candidate.searchTerm,

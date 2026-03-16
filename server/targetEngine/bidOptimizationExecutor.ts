@@ -431,7 +431,7 @@ export async function executeBidOptimization(
           details.push({
             keywordId: nextGenResult.targetId,
             amazonKeywordId: keyword?.keywordId || '', // v255: 传入真正的Amazon keyword ID，修复PostOptVerifier验证失败
-            adGroupId: keyword?.adGroupId, // v255: 传入adGroupId用于PostOptVerifier精确回查
+            adGroupId: keyword?.internalAdGroupId, // v421: 使用internalAdGroupId(int)用于PostOptVerifier精确回查
             keywordText: keyword?.keywordText || `关键词 ${nextGenResult.targetId}`,
             localCampaignId: campaignLocalId,
             amazonCampaignId: campaignAmazonId,

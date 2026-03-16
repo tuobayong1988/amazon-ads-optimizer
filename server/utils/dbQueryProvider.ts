@@ -23,14 +23,14 @@ export interface AdGroupRecord {
 // v357: adGroupId和campaignId字段类型修复为string，与数据库实际varchar(64)一致
 export interface KeywordRecord {
   id: number;
-  adGroupId: string | null;
+  internalAdGroupId: number | null;  // v421: 使用internalAdGroupId(int)
   campaignId: string | null;
   [key: string]: unknown;
 }
 
 export interface ProductTargetRecord {
   id: number;
-  adGroupId: string | null;
+  internalAdGroupId: number | null;  // v421: 使用internalAdGroupId(int)
   campaignId: string | null;
   [key: string]: unknown;
 }
