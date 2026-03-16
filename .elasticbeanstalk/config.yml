@@ -1,12 +1,12 @@
 branch-defaults:
   main:
-    environment: amzorbit-prod
+    environment: amazon-ads-env-prod
 environment-defaults:
-  amzorbit-prod:
+  amazon-ads-env-prod:
     branch: null
     repository: null
 global:
-  application_name: amzorbit
+  application_name: amazon-ads-optimizer
   default_ec2_keyname: null
   default_platform: Node.js 20
   default_region: us-east-1

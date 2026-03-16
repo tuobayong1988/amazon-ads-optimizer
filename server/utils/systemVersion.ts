@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 422;  // v422: 新RDS数据库迁移 + tsx直接运行源代码 + 连接池优化
+export const SYSTEM_VERSION = 424;  // v424: 全面修复数据同步 - Placement/BidAdjustments/BudgetRules/性能优化/锁机制
