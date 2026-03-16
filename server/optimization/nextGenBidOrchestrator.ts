@@ -198,7 +198,7 @@ async function isInCooldownPeriod(
     const db = await getDb();
     if (!db) return { inCooldown: false, reason: '', recentAdjustments: 0 };
     
-    const { optimizationEvents } = await import('../drizzle/schema');
+    const { optimizationEvents } = await import('../../drizzle/schema');
     const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp } = await import('drizzle-orm');
     
     // 查询24小时内的出价调整次数和最近一次调整时间
@@ -297,7 +297,7 @@ async function checkCircuitBreaker(
     const db = await getDb();
     if (!db) return { tripped: false, reason: '', guardrailInfo: {} };
     
-    const { optimizationEvents } = await import('../drizzle/schema');
+    const { optimizationEvents } = await import('../../drizzle/schema');
     const { and: andOp, eq: eqOp, gte: gteOp, sql: sqlOp, desc: descOp } = await import('drizzle-orm');
     
     // 查询7天内的所有出价调整事件

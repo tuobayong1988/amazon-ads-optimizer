@@ -3,11 +3,11 @@
  * 
  * 所有函数实现已按业务领域拆分到子模块中。
  * 此文件作为兼容层，re-export所有子模块的函数，
- * 确保现有的 import { xxx } from './db' 不需要修改。
+ * 确保现有的 import { xxx } from '.' 不需要修改。
  * 
  * 新代码建议直接从子模块导入：
- * import { getDb } from './db/connection'
- * import { getCampaignById } from './db/campaigns'
+ * import { getDb } from './connection'
+ * import { getCampaignById } from './campaigns'
  */
 
 export * from './connection';

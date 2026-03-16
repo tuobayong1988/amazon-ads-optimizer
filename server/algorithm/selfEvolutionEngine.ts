@@ -627,7 +627,7 @@ export async function generateAutoCorrections(
       try {
         const causalDb = await getDb();
         if (causalDb && assessment.entityId) {
-          const { causalInferenceResults } = await import('../drizzle/schema');
+          const { causalInferenceResults } = await import('../../drizzle/schema');
           const { eq: eqOp, gte: gteOp, and: andOp } = await import('drizzle-orm');
           const recentDate = new Date();
           recentDate.setDate(recentDate.getDate() - 14);

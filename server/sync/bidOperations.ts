@@ -68,7 +68,7 @@ export async function applyBidAdjustment(service: SyncContext,
         // v141: 即时回填机制 - 尝试通过Amazon API查找并回填keywordId
         log.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试即时回填...`);
         try {
-          const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
+          const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
           // 获取accountId: 通过adGroup -> campaign -> accountId
           const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.internalAdGroupId)).limit(1);
           if (ag) {
@@ -99,7 +99,7 @@ export async function applyBidAdjustment(service: SyncContext,
       adGroupId = kw.internalAdGroupId;
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
-      const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
+      const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');
       resolvedCampaignId = await safeCampaignIdForInsert({
         campaignId,
         targetLocalId: targetId,
@@ -136,7 +136,7 @@ export async function applyBidAdjustment(service: SyncContext,
         // v141: 即时回填机制 - 尝试通过Amazon API查找并回填targetId
         log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
         try {
-          const { resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
+          const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
           const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.internalAdGroupId)).limit(1);
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
@@ -166,7 +166,7 @@ export async function applyBidAdjustment(service: SyncContext,
       adGroupId = pt.internalAdGroupId;
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
-      const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
+      const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');
       resolvedCampaignId = await safeCampaignIdForInsert({
         campaignId,
         targetLocalId: targetId,

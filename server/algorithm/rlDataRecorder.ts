@@ -676,7 +676,7 @@ export async function backfillRewards(accountId: number): Promise<number> {
         // 这解决了冷启动场景：新关键词尚无绩效数据，但已有优化事件记录
         if (dataSource === 'none' || (rewardImpressions === 0 && rewardClicks === 0 && rewardSpend === 0)) {
           try {
-            const { optimizationEvents } = await import('../drizzle/schema');
+            const { optimizationEvents } = await import('../../drizzle/schema');
             const entityConditions = [
               eq(optimizationEvents.accountId, log.accountId),
               sql`${optimizationEvents.eventCategory} = 'bid_adjustment'`,
@@ -847,7 +847,7 @@ export async function recordBidPerformanceHistory(params: {
   }
   try {
     const db = await getDbInstance();
-    const { bidPerformanceHistory } = await import('../drizzle/schema');
+    const { bidPerformanceHistory } = await import('../../drizzle/schema');
     
     const today = new Date().toISOString().split('T')[0];
     const currentHour = new Date().getHours();
@@ -937,7 +937,7 @@ export async function batchRecordBidPerformanceHistory(records: Array<{
 export async function backfillBidPerformanceResults(): Promise<{ updated: number; skipped: number }> {
   try {
     const db = await getDbInstance();
-    const { bidPerformanceHistory, keywords, productTargets } = await import('../drizzle/schema');
+    const { bidPerformanceHistory, keywords, productTargets } = await import('../../drizzle/schema');
     
     // 查找最近7天内尚未回填绩效数据的记录（impressions仍为0且记录时间超过24小时）
     const staleRecords = await db.select({

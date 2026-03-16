@@ -467,7 +467,7 @@ export const autoOperationService = {
     
     try {
       // v167: 正确的做法是查找该账户下的所有优化目标，然后通过optimizationTargetEngine执行
-      const { getEnabledOptimizationTargets, executeOptimizationTarget } = await import('./optimizationTargetEngine');
+      const { getEnabledOptimizationTargets, executeOptimizationTarget } = await import('../optimization/optimizationTargetEngine');
       const allTargets = await getEnabledOptimizationTargets();
       const accountTargets = allTargets.filter(t => t.accountId === accountId);
       

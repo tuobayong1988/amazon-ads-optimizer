@@ -313,7 +313,7 @@ export class CommandConfirmationService {
       log.info(`[CommandConfirmation] 执行确认: ${request.id}, 重试=${request.retryCount}/${request.maxRetries}`);
       
       // 调用原有的确认同步逻辑
-      const { confirmationSync } = await import('../unifiedSyncEngine');
+      const { confirmationSync } = await import('../sync/unifiedSyncEngine');
       const syncResult: any = await confirmationSync(
         request.accountId,
         request.affectedEntities as ('campaigns' | 'keywords' | 'targets' | 'budgets' | 'ad_groups')[],

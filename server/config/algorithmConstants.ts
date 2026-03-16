@@ -5,7 +5,7 @@
  * 每个常量都附带业务背景说明，便于理解和调整。
  * 
  * 使用方式：
- * import { BID_CONSTANTS, PERFORMANCE_THRESHOLDS } from './config/algorithmConstants';
+ * import { BID_CONSTANTS, PERFORMANCE_THRESHOLDS } from './algorithmConstants';
  */
 
 // ==================== 竞价算法常量 ====================

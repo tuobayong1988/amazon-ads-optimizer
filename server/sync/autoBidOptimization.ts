@@ -38,9 +38,9 @@ export async function runAutoBidOptimization(
 
   // v230: 尝试使用NextGen算法
   try {
-    const { batchCalculateNextGenBids } = await import('../nextGenBidOrchestrator');
+    const { batchCalculateNextGenBids } = await import('../optimization/nextGenBidOrchestrator');
     // @ts-ignore
-    const { buildContextFeatures } = await import('../contextualFeatureService') as unknown;
+    const { buildContextFeatures } = await import('../analytics/contextualFeatureService') as unknown;
     
     const batchItems = keywordsToOptimize.map(kw => ({
       keywordId: kw.id,

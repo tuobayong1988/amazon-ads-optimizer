@@ -478,8 +478,8 @@ async function checkAlgorithmHealth(
 async function checkVersionConsistency(alerts: MonitoringAlert[]): Promise<void> {
   try {
     // 检查SYSTEM_VERSION是否与预期一致
-    const { SYSTEM_VERSION } = await import('./postDeployOptimizer');
-    const { SYSTEM_VERSION: UTIL_VERSION } = await import('./utils/systemVersion');
+    const { SYSTEM_VERSION } = await import('../postDeployOptimizer');
+    const { SYSTEM_VERSION: UTIL_VERSION } = await import('../utils/systemVersion');
 
     if (Number(SYSTEM_VERSION) !== Number(UTIL_VERSION)) {
       alerts.push({

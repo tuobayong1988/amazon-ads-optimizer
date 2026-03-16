@@ -490,7 +490,7 @@ const MAX_MODEL_CACHE_SIZE = 10;
 async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
   try {
     const db = await getDbInstance();
-    const { cqlModels } = await import('../drizzle/schema');
+    const { cqlModels } = await import('../../drizzle/schema');
     
     const rows = await db.select().from(cqlModels)
       .where(eq(cqlModels.accountId, accountId))
@@ -527,7 +527,7 @@ async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
 async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> {
   try {
     const db = await getDbInstance();
-    const { cqlModels } = await import('../drizzle/schema');
+    const { cqlModels } = await import('../../drizzle/schema');
     
     const weightsJson = JSON.stringify(model.weights);
     

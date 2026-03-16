@@ -204,7 +204,7 @@ async function executeAutoOptimizationForTarget(
   
   try {
     // 动态导入优化引擎（避免循环依赖）
-    const optimizationTargetEngine = await import('./optimizationTargetEngine');
+    const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
     
     // 根据恶化程度决定优化模块
     const maxSeverity = Math.min(...deterioratingCampaigns.map(c => c.healthScore));

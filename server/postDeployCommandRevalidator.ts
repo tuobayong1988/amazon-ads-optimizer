@@ -663,7 +663,7 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
   
   try {
     // 获取所有活跃优化目标
-    const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+    const { getEnabledOptimizationTargets } = await import('./optimization/optimizationTargetEngine');
     const targets = await getEnabledOptimizationTargets();
     
     if (targets.length === 0) {
@@ -820,7 +820,7 @@ export async function revalidateTarget(targetId: number): Promise<RevalidationRe
   const startTime = Date.now();
   
   try {
-    const { getOptimizationTargetConfig } = await import('./optimizationTargetEngine');
+    const { getOptimizationTargetConfig } = await import('./optimization/optimizationTargetEngine');
     const config = await getOptimizationTargetConfig(targetId);
     
     if (!config) {

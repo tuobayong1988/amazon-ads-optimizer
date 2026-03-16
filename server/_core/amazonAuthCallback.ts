@@ -259,7 +259,7 @@ export function registerAmazonAuthCallbackRoutes(app: Express) {
         // 异步触发，不阻塞重定向
         (async () => {
           try {
-            const { triggerImmediateSync } = await import('../dataSyncScheduler');
+            const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
             for (const accountId of updatedAccountIds) {
               try {
                 await triggerImmediateSync(accountId, `v342: OAuth回调后自动同步 (accountId=${accountId})`);

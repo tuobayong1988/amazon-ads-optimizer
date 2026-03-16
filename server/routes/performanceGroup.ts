@@ -221,7 +221,7 @@ export const performanceGroupRouter = router({
             // v235: 获取NextGen算法效能数据
             let algorithmData: AlgorithmEfficacyData | undefined;
             try {
-              const { getAlgorithmEfficacyForTarget } = await import('../algorithmEfficacyService');
+              const { getAlgorithmEfficacyForTarget } = await import('../algorithm/algorithmEfficacyService');
               algorithmData = await getAlgorithmEfficacyForTarget(group.id);
             } catch (algErr) {
               // 算法效能数据获取失败不影响主流程
@@ -363,7 +363,7 @@ export const performanceGroupRouter = router({
       
       // v122h: 创建优化目标后立即触发首次优化
       try {
-        const { triggerInitialOptimization } = await import('../optimizationScheduler');
+        const { triggerInitialOptimization } = await import('../optimization/optimizationScheduler');
         // 异步执行，不阻塞API响应
         triggerInitialOptimization(id, { triggeredBy: 'create' }).catch(err => {
           log.error(`[Router] 创建优化目标后触发首次优化失败:`, err);
@@ -401,7 +401,7 @@ export const performanceGroupRouter = router({
       // v122h: 状态变更时触发调度器事件
       if (data.status) {
         try {
-          const { onTargetStatusChanged } = await import('../optimizationScheduler');
+          const { onTargetStatusChanged } = await import('../optimization/optimizationScheduler');
           onTargetStatusChanged(id, data.status as 'active' | 'paused' | 'archived').catch(err => {
             log.error(`[Router] 状态变更触发失败:`, err);
           });
@@ -449,7 +449,7 @@ export const performanceGroupRouter = router({
       
       // v122h: 批量分配后立即触发优化
       try {
-        const { onCampaignsAdded } = await import('../optimizationScheduler');
+        const { onCampaignsAdded } = await import('../optimization/optimizationScheduler');
         onCampaignsAdded(input.performanceGroupId, input.campaignIds).catch(err => {
           log.error(`[Router] 批量分配后触发优化失败:`, err);
         });
@@ -641,7 +641,7 @@ export const performanceGroupRouter = router({
       
       // v122h: 添加广告活动后立即触发优化
       try {
-        const { onCampaignsAdded } = await import('../optimizationScheduler');
+        const { onCampaignsAdded } = await import('../optimization/optimizationScheduler');
         onCampaignsAdded(input.groupId, input.campaignIds).catch(err => {
           log.error(`[Router] 添加广告活动后触发优化失败:`, err);
         });

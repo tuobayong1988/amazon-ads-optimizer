@@ -193,7 +193,7 @@ export async function triggerColdStartForAllAccounts(
   
   try {
     // 发现所有可同步账户
-    const { discoverSyncableAccounts } = await import('./unifiedSyncEngine');
+    const { discoverSyncableAccounts } = await import('../sync/unifiedSyncEngine');
     const accounts = await discoverSyncableAccounts();
     result.total = accounts.length;
     
@@ -385,7 +385,7 @@ async function executeFullSync(
     }
     
     // 使用AmazonSyncService执行全量同步
-    const { AmazonSyncService } = await import('./amazonSyncService');
+    const { AmazonSyncService } = await import('../sync/amazonSyncService');
     const account = await db.getAdAccountById(accountId);
     if (!account) {
       throw new Error(`账户 ${accountId} 不存在`);
@@ -452,7 +452,7 @@ async function executeHistoricalOptimization(
   // === 2a: Ngram分析（全局级别，基于历史数据） ===
   try {
     log.info(`[ColdStart] 2a: 执行Ngram分析 (${historicalDays}天)...`);
-    const { generateNegativeKeywordSuggestions } = await import('./ngramAnalysis');
+    const { generateNegativeKeywordSuggestions } = await import('../analytics/ngramAnalysis');
     const suggestions = await generateNegativeKeywordSuggestions(accountId, undefined, historicalDays);
     
     if (suggestions.length > 0) {
@@ -473,7 +473,7 @@ async function executeHistoricalOptimization(
   // === 2b: 搜索词收割（基于历史数据中的高转化搜索词） ===
   try {
     log.info(`[ColdStart] 2b: 执行搜索词收割...`);
-    const searchTermHarvester = await import('./searchTermHarvester');
+    const searchTermHarvester = await import('../automation/searchTermHarvester');
     const harvestResult = await searchTermHarvester.batchHarvestSearchTerms(accountId);
     result.keywordsHarvested = harvestResult.summary.success;
     log.info(`[ColdStart] 搜索词收割完成: 候选=${harvestResult.summary.total}, 成功=${harvestResult.summary.success}`);

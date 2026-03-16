@@ -496,7 +496,7 @@ export async function executeOptimization(
               try {
                 const credentials = await db.getAmazonApiCredentials(campaign.accountId);
                 if (credentials && keyword.keywordId) {
-                  const { AmazonSyncService: SyncSvc } = await import('./amazonSyncService');
+                  const { AmazonSyncService: SyncSvc } = await import('../sync/amazonSyncService');
                   const accountInfo = await db.getAdAccountById(campaign.accountId);
                   const svc = await SyncSvc.createFromCredentials(
                     {
@@ -554,7 +554,7 @@ export async function executeOptimization(
           try {
             const budgetCredentials = await db.getAmazonApiCredentials(budgetCampaign.accountId);
             if (budgetCredentials) {
-              const { AmazonSyncService: BudgetSyncSvc } = await import('./amazonSyncService');
+              const { AmazonSyncService: BudgetSyncSvc } = await import('../sync/amazonSyncService');
               const budgetAccountInfo = await db.getAdAccountById(budgetCampaign.accountId);
               const budgetSvc = await BudgetSyncSvc.createFromCredentials(
                 {
@@ -619,7 +619,7 @@ export async function executeOptimization(
               try {
                 const ptCredentials = await db.getAmazonApiCredentials(ptCampaign.accountId);
                 if (ptCredentials) {
-                  const { AmazonSyncService: PtSyncSvc } = await import('./amazonSyncService');
+                  const { AmazonSyncService: PtSyncSvc } = await import('../sync/amazonSyncService');
                   const ptAccountInfo = await db.getAdAccountById(ptCampaign.accountId);
                   const ptSvc = await PtSyncSvc.createFromCredentials(
                     {
@@ -677,7 +677,7 @@ export async function executeOptimization(
           try {
             const placementCredentials = await db.getAmazonApiCredentials(placementCampaign.accountId);
             if (placementCredentials) {
-              const { AmazonSyncService: PlSyncSvc } = await import('./amazonSyncService');
+              const { AmazonSyncService: PlSyncSvc } = await import('../sync/amazonSyncService');
               const plAccountInfo = await db.getAdAccountById(placementCampaign.accountId);
               const plSvc = await PlSyncSvc.createFromCredentials(
                 {
@@ -743,7 +743,7 @@ export async function executeOptimization(
           try {
             const dpCredentials = await db.getAmazonApiCredentials(dpCampaign.accountId);
             if (dpCredentials) {
-              const { AmazonSyncService: DpSyncSvc } = await import('./amazonSyncService');
+              const { AmazonSyncService: DpSyncSvc } = await import('../sync/amazonSyncService');
               const dpAccountInfo = await db.getAdAccountById(dpCampaign.accountId);
               const dpSvc = await DpSyncSvc.createFromCredentials(
                 {

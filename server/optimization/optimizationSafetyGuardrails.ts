@@ -362,7 +362,7 @@ export async function checkEmergencyBrake(
     // v230: 检查最近是否有优化操作，用于因果归因
     let hasRecentOptimization = false;
     try {
-      const { optimizationLogs } = await import('../drizzle/schema');
+      const { optimizationLogs } = await import('../../drizzle/schema');
       const dbInstance = await db.getDb();
       if (dbInstance) {
         const recentOps = await dbInstance.select({ id: optimizationLogs.id })

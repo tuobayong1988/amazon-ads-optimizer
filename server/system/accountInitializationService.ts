@@ -166,7 +166,7 @@ export async function initializeAccount(params: {
       
       // v338: 全量同步完成后触发智能冷启动
       try {
-        const { triggerColdStart } = await import('./coldStartService');
+        const { triggerColdStart } = await import('../optimization/coldStartService');
         const coldStartResult = await triggerColdStart(accountId, {
           reason: 'new_account',
           skipSync: true,

@@ -615,7 +615,7 @@ export class AmazonSyncService {
     
     // v361: 记录数据同步审计日志
     try {
-      const { recordAudit } = await import('./services/auditLogService');
+      const { recordAudit } = await import('../system/auditLogService');
       recordAudit({
         action: 'sync.full_sync',
         accountId: this.accountId,

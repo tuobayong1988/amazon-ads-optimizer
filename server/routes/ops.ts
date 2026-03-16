@@ -1211,7 +1211,7 @@ router.post('/force-sync', async (req: Request, res: Response) => {
       return res.status(400).json({ error: '缺少accountId参数' });
     }
 
-    const { syncAccount, discoverSyncableAccounts } = await import('../unifiedSyncEngine');
+    const { syncAccount, discoverSyncableAccounts } = await import('../sync/unifiedSyncEngine');
     
     // 发现所有可同步账户，找到目标账户
     const accounts = await discoverSyncableAccounts();

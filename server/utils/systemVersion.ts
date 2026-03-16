@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 421;  // v421: 严格代码审查 + 端到端测试 + ID管理策略
+export const SYSTEM_VERSION = 422;  // v422: 新RDS数据库迁移 + tsx直接运行源代码 + 连接池优化

@@ -119,13 +119,10 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // In production (bundled with esbuild), __dirname works correctly
-  // In development, use import.meta.dirname
+  // v422: 统一使用项目根目录下的dist/public
+  // 无论是esbuild打包模式还是tsx直接运行模式，都使用相同的路径
   const baseDir = typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname;
-  const distPath =
-    process.env.NODE_ENV === "development"
-      ? path.resolve(baseDir, "../..", "dist", "public")
-      : path.resolve(baseDir, "public");
+  const distPath = path.resolve(baseDir, "../..", "dist", "public");
   if (!fs.existsSync(distPath)) {
     log.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`

@@ -290,7 +290,7 @@ export class SelfHealingScheduler {
       if (task.level === 'repair' || task.level === 'emergency') {
         // v360: 检查主同步是否正在进行，避免自愈修复与主同步冲突
         try {
-          const { isSyncRunning } = await import('../dataSyncScheduler');
+          const { isSyncRunning } = await import('../sync/dataSyncScheduler');
           if (typeof isSyncRunning === 'function' && isSyncRunning()) {
             log.info(`[SelfHealingScheduler] v360: 主同步正在进行，延迟任务${task.id}执行`);
             return { success: true, issuesFound: 0, issuesFixed: 0, details: 'v360: 主同步进行中，延迟执行' };

@@ -47,11 +47,11 @@ const workerStatus: WorkerStatus = {
  * 用法（在dataSyncScheduler.ts中）:
  * ```
  * // 旧代码:
- * const { syncAllAccounts } = await import('../../services/sync/unifiedSyncEngine');
+ * const { syncAllAccounts } = await import('../unifiedSyncEngine');
  * const batchResult = await syncAllAccounts(tier as unknown);
  * 
  * // 新代码:
- * const { executeShardSync } = await import('../../services/sync/services/sync/shardWorker');
+ * const { executeShardSync } = await import('../../services/sync/shardWorker');
  * const shardResult = await executeShardSync(tier, 'scheduler');
  * ```
  */

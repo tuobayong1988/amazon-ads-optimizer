@@ -174,7 +174,7 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
   
   // 启动自愈调度器
   try {
-    const { startSelfHealing } = await import('./services/selfHealingScheduler');
+    const { startSelfHealing } = await import('../services/selfHealingScheduler');
     startSelfHealing();
     log.info('[DataSyncScheduler] v384: 自愈调度器已启动');
   } catch (healErr: unknown) {
@@ -374,7 +374,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v361: SLO监控 - 每10分钟采集一次SLO指标
   monitoringIntervals.push(setInterval(async () => {
     try {
-      const { getSLOMetrics } = await import('./services/sync/sloMonitor');
+      const { getSLOMetrics } = await import('../services/sync/sloMonitor');
       const metrics = await getSLOMetrics();
       if (metrics.overallStatus === 'unhealthy') {
         log.error(`[DataSyncScheduler] v358.1: SLO健康度异常! score=${metrics.overallScore}, ` +
@@ -395,7 +395,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v361: 数据完整性检查器 - 每4小时全量检查
   monitoringIntervals.push(setInterval(async () => {
     try {
-      const { checkAllAccountsIntegrity, executeAutoRepair } = await import('./services/sync/dataIntegrityChecker');
+      const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../services/sync/dataIntegrityChecker');
       log.info('[DataSyncScheduler] v358.1: 开始数据完整性定期检查...');
       const checkResult = await checkAllAccountsIntegrity(14);
       log.info(`[DataSyncScheduler] v358.1: 完整性检查完成 - 总计=${checkResult.totalAccounts}, ` +
@@ -421,7 +421,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
   // v358.1: 启动后延迟5分钟执行一次完整性检查（确保部署后立即检查）
   setTimeout(async () => {
     try {
-      const { checkAllAccountsIntegrity } = await import('./services/sync/dataIntegrityChecker');
+      const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
       log.info('[DataSyncScheduler] v358.1: 部署后首次完整性检查...');
       const checkResult = await checkAllAccountsIntegrity(14);
       log.info(`[DataSyncScheduler] v358.1: 部署后首次检查完成 - 总计=${checkResult.totalAccounts}, ` +
@@ -584,7 +584,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
       for (const accountResult of batchResult.accountResults) {
         if (!accountResult.success) continue;
         try {
-          const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+          const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
           await triggerAccountOptimizations(accountResult.accountId, 'unified_sync_complete');
           log.info(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发完成`);
         } catch (optErr: unknown) {
@@ -804,7 +804,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   try {
     const database = await db.getDb();
     if (database) {
-      const { dataSyncJobs } = await import('../drizzle/schema');
+      const { dataSyncJobs } = await import('../../drizzle/schema');
       await database.insert(dataSyncJobs).values({
         userId: 1, // 系统自动同步
         accountId: accountId,
@@ -844,7 +844,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   if (tier === 'medium' || tier === 'full' || tier === 'low') {
     try {
       log.info(`[DataSyncScheduler] v196: ${tier}层同步完成，触发账号 ${accountId} 的优化目标执行...`);
-      const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+      const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
       await triggerAccountOptimizations(accountId);
       log.info(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
       logOptimization('DataSyncScheduler', `账号${accountId}优化目标执行完成`, { accountId, tier });
@@ -1017,7 +1017,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 
   // ✅ 数据同步完成后，自动更新策略模板推荐
   try {
-    const { updateAllCampaignRecommendations } = await import('./strategyRecommendationService');
+    const { updateAllCampaignRecommendations } = await import('../analytics/strategyRecommendationService');
     const recUpdated = await updateAllCampaignRecommendations(schedule.accountId);
     log.info(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐已更新: ${recUpdated} 个广告活动`);
   } catch (recError: unknown) {
@@ -1047,7 +1047,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
   // ✅ v151: 统一优化入口 - 数据同步完成后，通过optimizationScheduler触发该账户下所有活跃优化目标的执行
   // 废弃原有的automationExecutionEngine账户级优化，改为基于优化目标的精准触发
   try {
-    const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+    const { triggerAccountOptimizations } = await import('../optimization/optimizationScheduler');
     const triggerResult = await triggerAccountOptimizations(schedule.accountId, 'data_sync_complete');
     log.info(`[DataSyncScheduler] v151: 账号 ${schedule.accountId} 优化目标触发完成:`, {
       triggeredTargets: triggerResult.triggeredCount,
@@ -1060,7 +1060,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 
   // ✅ v152: 数据同步完成后，自动执行效果追踪（追踪之前优化的7/14/30天效果）
   try {
-    const { runEffectTracking } = await import('./algorithmEvolutionEngine');
+    const { runEffectTracking } = await import('../algorithm/algorithmEvolutionEngine');
     const trackingResult = await runEffectTracking();
     log.info(`[DataSyncScheduler] v152: 效果追踪完成: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
   } catch (trackError: unknown) {
@@ -1089,7 +1089,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     }
     
     if (!evoSet.has(lastEvolutionKey)) {
-      const { runGlobalEvolution } = await import('./algorithmEvolutionEngine');
+      const { runGlobalEvolution } = await import('../algorithm/algorithmEvolutionEngine');
       const evolutionResult = await runGlobalEvolution();
       evoSet.add(lastEvolutionKey);
       log.info(`[DataSyncScheduler] v360: 算法进化完成(12h周期): 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
@@ -1579,7 +1579,7 @@ export async function startOptimizationScheduler(): Promise<void> {
   // 优先从 module_execution_times JSON字段恢复各模块独立的执行时间
   // 回退方案：使用 last_optimization_at 作为所有模块的基准时间
   try {
-    const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+    const { getEnabledOptimizationTargets } = await import('../optimization/optimizationTargetEngine');
     const targets = await getEnabledOptimizationTargets();
     const dbInstance = await db.getDb();
     let restoredFromJson = 0;
@@ -1789,8 +1789,8 @@ export async function startOptimizationScheduler(): Promise<void> {
     const localHour = getLocalHour(now, 'US');
     if (localHour === 3 && shouldExecuteThisHour('ab_test_metrics')) {
       try {
-        const abTestService = await import('./abTestService');
-        const db = await import('./db');
+        const abTestService = await import('../analytics/abTestService');
+        const db = await import('../db');
         // 获取所有活跃账户
         const accounts = await db.getAdAccounts();
         for (const account of (accounts as any[])) {
@@ -1833,7 +1833,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     if (localHour === 4 && shouldExecuteThisHour('data_cleanup')) {
       try {
         log.info('[DataCleanup] v350: 开始自动数据清理...');
-        const { getDirectConnection } = await import('./db');
+        const { getDirectConnection } = await import('../db');
         const conn = await getDirectConnection(120_000);
         try {
           const RETENTION_DAYS = 30;
@@ -1939,14 +1939,14 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   
   try {
     // 直接导入优化目标引擎
-    const { executeAllEnabledTargets, getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+    const { executeAllEnabledTargets, getEnabledOptimizationTargets } = await import('../optimization/optimizationTargetEngine');
     
     switch (taskType) {
       // ==================== 日内节奏监控（每30分钟）====================
       case 'intraday_pacing': {
         log.info(`[OptimizationScheduler] 执行日内节奏监控`);
         try {
-          const { checkAllCampaignsPacing, applyIntradayAdjustment } = await import('./services/intradayPacingService');
+          const { checkAllCampaignsPacing, applyIntradayAdjustment } = await import('../services/intradayPacingService');
           const targets = await getEnabledOptimizationTargets();
           const checkedAccountIds = new Set<number>();
           
@@ -2086,7 +2086,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
             
             try {
-              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const { executeOptimizationTarget } = await import('../optimization/optimizationTargetEngine');
               const result = await executeOptimizationTarget(target.id, {
                 dryRun: false,
                 specificModules: ['bid', 'keyword', 'coordination'],
@@ -2125,7 +2125,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
             
             try {
-              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const { executeOptimizationTarget } = await import('../optimization/optimizationTargetEngine');
               const result = await executeOptimizationTarget(target.id, {
                 dryRun: false,
                 specificModules: ['placement'],
@@ -2164,7 +2164,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
             
             try {
-              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const { executeOptimizationTarget } = await import('../optimization/optimizationTargetEngine');
               const result = await executeOptimizationTarget(target.id, {
                 dryRun: false,
                 specificModules: ['searchterm'],
@@ -2203,7 +2203,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
             
             try {
-              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const { executeOptimizationTarget } = await import('../optimization/optimizationTargetEngine');
               const result = await executeOptimizationTarget(target.id, {
                 dryRun: false,
                 specificModules: ['budget'],
@@ -2220,7 +2220,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           
           // v267 P3-2: 执行边际效益驱动的预算自动执行
           try {
-            const { checkAndExecutePendingTasks } = await import('./budgetAutoExecutionService');
+            const { checkAndExecutePendingTasks } = await import('../budget/budgetAutoExecutionService');
             const autoExecResult = await checkAndExecutePendingTasks();
             log.info(`[OptimizationScheduler] v267: 预算自动执行完成: 执行=${autoExecResult.executed}, 失败=${autoExecResult.failed}, 错误数=${autoExecResult.errors.length}`);
           } catch (autoExecErr: unknown) {
@@ -2286,7 +2286,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           
           // v230: 回填bidPerformanceHistory中的绩效数据
           try {
-            const { backfillBidPerformanceResults } = await import('./rlDataRecorder');
+            const { backfillBidPerformanceResults } = await import('../algorithm/rlDataRecorder');
             const backfillResult = await backfillBidPerformanceResults();
             log.info(`[OptimizationScheduler] v230: bidPerformanceHistory回填完成: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
           } catch (bErr: unknown) {
@@ -2397,8 +2397,8 @@ async function verifySyncHealth(): Promise<void> {
     
     // 连续失败超过阈值，记录告警事件
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-      const { optimizationEvents } = await import('../drizzle/schema');
-      const { SYSTEM_VERSION } = await import('./utils/systemVersion');
+      const { optimizationEvents } = await import('../../drizzle/schema');
+      const { SYSTEM_VERSION } = await import('../utils/systemVersion');
       
       const alertDetail = JSON.stringify({
         type: 'sync_health_alert',

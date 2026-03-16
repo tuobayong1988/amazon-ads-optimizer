@@ -424,7 +424,7 @@ export class AmazonAdsApiClient {
     
     // 记录到数据库 anomaly_alert_logs 表
     try {
-      const { getDb } = await import('./db');
+      const { getDb } = await import('../db');
       const dbInstance = await getDb();
       if (dbInstance) {
         const { sql } = await import('drizzle-orm');
@@ -456,7 +456,7 @@ export class AmazonAdsApiClient {
     
     // 发送实时通知
     try {
-      const { sendNotification } = await import('./notificationService');
+      const { sendNotification } = await import('../system/notificationService');
       await sendNotification({
         userId: 0, // 系统级告警
         type: 'alert',

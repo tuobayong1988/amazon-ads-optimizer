@@ -121,7 +121,7 @@ export async function triggerInitialOptimization(
     if (!db) throw new Error('数据库连接失败');
     
     // 获取优化目标下的所有广告活动
-    const campaignsData = await import('./db').then(m => m.getCampaignsByPerformanceGroupId(targetId));
+    const campaignsData = await import('../db').then(m => m.getCampaignsByPerformanceGroupId(targetId));
     
     if (campaignsData.length === 0) {
       result.errors.push('优化目标下没有广告活动，跳过首次优化');
@@ -468,7 +468,7 @@ export async function startOptimizationScheduler(): Promise<{
     for (const target of activeTargets) {
       try {
         // 检查是否有广告活动
-        const campaigns = await import('./db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
+        const campaigns = await import('../db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
         if (campaigns.length === 0) {
           log.info(`跳过无广告活动的优化目标: ${target.name} (id=${target.id})`);
           continue;
@@ -687,7 +687,7 @@ export async function triggerAccountOptimizations(
         }
         
         // 检查是否有广告活动
-        const campaigns = await import('./db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
+        const campaigns = await import('../db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
         if (campaigns.length === 0) {
           result.skippedCount++;
           result.details.push({

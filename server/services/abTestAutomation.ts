@@ -214,7 +214,7 @@ export class ABTestAutomationScheduler {
    */
   private async checkActiveExperiments(): Promise<void> {
     try {
-      const { checkAndCompleteExpiredExperiments } = await import('../abTestIntegration');
+      const { checkAndCompleteExpiredExperiments } = await import('../analytics/abTestIntegration');
       const completedCount = await checkAndCompleteExpiredExperiments();
       
       if (completedCount > 0) {
@@ -237,7 +237,7 @@ export class ABTestAutomationScheduler {
    */
   private async evaluateExperiment(planId: string, execution: ExperimentExecution): Promise<void> {
     try {
-      const { analyzeABTestResults } = await import('../abTestService');
+      const { analyzeABTestResults } = await import('../analytics/abTestService');
       const analysis = await analyzeABTestResults(execution.testId) as any;
       
       if (!analysis) return;
@@ -420,7 +420,7 @@ export class ABTestAutomationScheduler {
         }
         
         // 创建实验
-        const { createAlgorithmExperiment } = await import('../abTestIntegration');
+        const { createAlgorithmExperiment } = await import('../analytics/abTestIntegration');
         const result = await createAlgorithmExperiment({
           name: plan.name,
           description: plan.description,
@@ -480,7 +480,7 @@ export class ABTestAutomationScheduler {
       
       for (const test of tests as Record<string, any>[]) {
         try {
-          const { recordExperimentDailyMetrics } = await import('../abTestIntegration');
+          const { recordExperimentDailyMetrics } = await import('../analytics/abTestIntegration');
           await recordExperimentDailyMetrics(Number(test.accountId));
         } catch (err: unknown) {
           log.warn(`[ABTestAutomation] 收集实验${test.id}指标失败: ${(err as Error).message}`);

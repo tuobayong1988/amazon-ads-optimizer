@@ -35,7 +35,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
       return new Date((account as unknown).lastSyncAt);
     }
     // 备用：从同步日志表查询
-    const { getEngineStatus } = await import('../unifiedSyncEngine');
+    const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
     const status = getEngineStatus();
     // @ts-ignore
     if ((status as string).lastSyncResults) {

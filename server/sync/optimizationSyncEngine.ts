@@ -278,7 +278,7 @@ export async function executeBatchSync(options?: {
   // v221: 记录优化操作到审计日志，修复审计日志页面显示0次出价调整的问题
   if (result.synced > 0) {
     try {
-      const { logAudit } = await import('./auditService');
+      const { logAudit } = await import('../system/auditService');
       for (const [accountId, accountTasks] of accountGroups) {
         const bidTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'bid_adjustment');
         const statusTasks = accountTasks.filter((t: Record<string, any>) => t.task_type === 'campaign_status' || t.task_type === 'keyword_status');
@@ -403,7 +403,7 @@ export async function executeBatchSync(options?: {
       }
       
       // v359: 使用可靠确认服务替代fire-and-forget模式
-      const { submitReliableConfirmation } = await import('./services/commandConfirmationService');
+      const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
       for (const [accountId, entities] of affectedAccounts) {
         const entityArray = Array.from(entities) as ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[];
         // 根据任务类型确定操作类型
@@ -548,7 +548,7 @@ async function executeBatchByType(
       if (noIdTasks.length > 0) {
         log.debug(`[SyncEngine] v141: ${noIdTasks.length}条任务缺少Amazon ID，尝试即时回填...`);
         try {
-          const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
+          const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
           for (const t of noIdTasks) {
             try {
               let resolvedId: string | null = null;
@@ -769,7 +769,7 @@ async function executeBatchByType(
       // v141: 对无Amazon ID的任务使用即时回填机制
       if (noIdTasks.length > 0) {
         try {
-          const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
+          const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
           for (const t of noIdTasks) {
             try {
               const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);

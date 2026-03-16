@@ -1004,7 +1004,7 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
       return [];
     }
 
-    const { adAccounts, amazonApiCredentials } = await import('../drizzle/schema');
+    const { adAccounts, amazonApiCredentials } = await import('../../drizzle/schema');
 
     // 联表查询：获取所有有API凭证且状态为active的账户
     const results = await database
@@ -1027,7 +1027,7 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
 
     // v348: 解密凭证 - discoverSyncableAccounts直接JOIN查询绕过了getAmazonApiCredential的safeDecrypt
     // V345加密凭证后，必须在此处解密，否则Token刷新会使用加密格式的凭证导致401
-    const { safeDecrypt } = await import('./utils/cryptoService');
+    const { safeDecrypt } = await import('../utils/cryptoService');
 
     // 过滤：只保留有效的账户（有clientId, clientSecret, refreshToken, profileId）
     const syncable = results
@@ -1226,7 +1226,7 @@ export async function syncAccount(
     try {
       const database = await db.getDb();
       if (database) {
-        const { campaigns: campaignsTable } = await import('../drizzle/schema');
+        const { campaigns: campaignsTable } = await import('../../drizzle/schema');
         const countResult = await database
           .select({ count: sql<number>`COUNT(*)` })
           .from(campaignsTable)
@@ -1287,7 +1287,7 @@ export async function syncAccount(
 
       // v405: 检查系统是否正在关闭（SIGTERM），提前保存进度并优雅退出
       try {
-        const { isShuttingDown } = await import('./deployLifecycleManager');
+        const { isShuttingDown } = await import('../deployLifecycleManager');
         if (isShuttingDown()) {
           const shutdownMsg = `账户${account.accountId} 同步被系统关闭中断，已完成${i}/${steps.length}步骤`;
           log.warn(`[UnifiedSync] v405: ${shutdownMsg}`);
@@ -1555,7 +1555,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   // v373: 同步优先级调度 - 为每个账号计算优先级评分，滚动窗口模式
   let accounts = allAccounts;
   try {
-    const { calculateAccountPriorities, getMaxAccountsForTier } = await import('./services/syncPriorityScheduler');
+    const { calculateAccountPriorities, getMaxAccountsForTier } = await import('../services/syncPriorityScheduler');
     const prioritized = await calculateAccountPriorities(
       allAccounts.map(a => ({ ...a, priorityScore: 0, priorityReasons: [] }))
     );
@@ -1580,7 +1580,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   let PARALLEL_USERS: number;
   let ACCOUNT_DELAY_MS: number;
   try {
-    const { getCurrentConcurrency, getCurrentBatchDelay } = await import('./services/syncPriorityScheduler');
+    const { getCurrentConcurrency, getCurrentBatchDelay } = await import('../services/syncPriorityScheduler');
     PARALLEL_USERS = Math.min(getCurrentConcurrency(), 10);
     ACCOUNT_DELAY_MS = Math.max(getCurrentBatchDelay(), 1000);
     log.info(`[UnifiedSync] [v373] 动态并发: ${PARALLEL_USERS}用户并行, 批次延迟${ACCOUNT_DELAY_MS}ms`);
@@ -1820,7 +1820,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
     const database = await db.getDb();
     if (!database) return;
 
-    const { dataSyncJobs } = await import('../drizzle/schema');
+    const { dataSyncJobs } = await import('../../drizzle/schema');
 
     for (const accountResult of batchResult.accountResults) {
       if (accountResult.errors.some(e => 
@@ -1939,7 +1939,7 @@ export async function triggerManualFullSync(
     // 更新data_sync_jobs进度
     if (options?.jobId) {
       try {
-        const { updateSyncJob } = await import('./db/syncJobs');
+        const { updateSyncJob } = await import('../db/syncJobs');
         const progressPercent = Math.round(((index + 1) / total) * 100);
         await updateSyncJob(options.jobId, {
           currentStep: step,
@@ -1965,7 +1965,7 @@ export async function triggerManualFullSync(
   // v404: 同步完成后更新data_sync_jobs最终状态
   if (options?.jobId && result) {
     try {
-      const { updateSyncJob } = await import('./db/syncJobs');
+      const { updateSyncJob } = await import('../db/syncJobs');
       const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v) ? v : 0);
       await updateSyncJob(options.jobId, {
         status: result.success ? 'completed' : 'failed',

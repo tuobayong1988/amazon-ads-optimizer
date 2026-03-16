@@ -832,7 +832,7 @@ async function sendScheduleFailureAlert(
     if (!schedule) return;
 
     // 使用通知服务发送告警
-    const { notifyOwner } = await import("./_core/notification");
+    const { notifyOwner } = await import("../_core/notification");
     
     const syncTypeNames: Record<string, string> = {
       campaigns: "广告活动",

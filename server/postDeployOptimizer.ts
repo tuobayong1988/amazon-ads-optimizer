@@ -1128,7 +1128,7 @@ async function reoptimizeTarget(
             // 重建多维度组合分析
             log.debug(`[PostDeployOptimizer] [${config.name}] 重建多维度组合分析...`);
             try {
-              const { analyzeCampaignCombos } = await import('./multiDimComboAnalyzer');
+              const { analyzeCampaignCombos } = await import('./optimization/multiDimComboAnalyzer');
               const database = await getDb();
               if (!database) break;
               const campaignsList = await db.getCampaignsByAccountId(config.accountId);
@@ -1448,7 +1448,7 @@ async function reoptimizeTarget(
             // v344: 触发全量数据重新同步
             log.info(`[PostDeployOptimizer] [${config.name}] v344: 触发全量数据重新同步 (账户${config.accountId})...`);
             try {
-              const { triggerColdStart } = await import('./coldStartService');
+              const { triggerColdStart } = await import('./optimization/coldStartService');
               await triggerColdStart(config.accountId, {
                 reason: 'version_upgrade',
                 force: true,
@@ -1468,7 +1468,7 @@ async function reoptimizeTarget(
             // v344: 触发冷启动流程
             log.info(`[PostDeployOptimizer] [${config.name}] v344: 触发冷启动 (账户${config.accountId})...`);
             try {
-              const { triggerColdStart } = await import('./coldStartService');
+              const { triggerColdStart } = await import('./optimization/coldStartService');
               await triggerColdStart(config.accountId, {
                 reason: 'version_upgrade',
                 force: true,
@@ -1602,7 +1602,7 @@ async function reoptimizeTarget(
     
     // v241: 更新模块执行时间，避免后续定时任务因使用旧的数据库恢复时间而被跳过
     try {
-      const { recordModuleExecution } = await import('./dataSyncScheduler');
+      const { recordModuleExecution } = await import('./sync/dataSyncScheduler');
       for (const mod of modulesExecuted) {
         // 将PostDeploy执行的模块名称映射到调度器的模块名称
         const moduleMapping: Record<string, string> = {

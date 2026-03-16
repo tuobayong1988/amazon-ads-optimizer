@@ -242,7 +242,7 @@ export const amazonApiRouter = router({
         
         // v336: 初始化完成后触发事件驱动同步，确保新授权账户立即纳入定时同步体系
         try {
-          const { triggerImmediateSync } = await import('../dataSyncScheduler');
+          const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
           await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
         } catch (syncErr: unknown) {
           log.error(`[v336] 事件驱动同步触发失败:`, (syncErr as Error).message);
@@ -254,7 +254,7 @@ export const amazonApiRouter = router({
         // 需要用新token重新同步以恢复数据完整性
         if (isCredentialRefresh) {
           try {
-            const { triggerColdStart } = await import('../coldStartService');
+            const { triggerColdStart } = await import('../optimization/coldStartService');
             const coldStartResult = await triggerColdStart(input.accountId, {
               reason: 'credential_refresh',
               skipSync: false, // v360: 凭证刷新后必须重新同步数据
@@ -561,7 +561,7 @@ export const amazonApiRouter = router({
         
         // v336: 批量初始化完成后触发事件驱动同步
         try {
-          const { triggerImmediateSync } = await import('../dataSyncScheduler');
+          const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
           const accountIds = initResults.map((r: Record<string, any>) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: unknown) {
@@ -570,7 +570,7 @@ export const amazonApiRouter = router({
         
         // v338: 批量初始化完成后，为每个新站点触发智能冷启动
         try {
-          const { triggerColdStart } = await import('../coldStartService');
+          const { triggerColdStart } = await import('../optimization/coldStartService');
           for (const initResult of initResults) {
             try {
               const coldStartResult = await triggerColdStart(initResult.accountId, {
@@ -870,7 +870,7 @@ export const amazonApiRouter = router({
 
       const runSyncAsync = async () => {
         try {
-          const { triggerManualFullSync } = await import('../unifiedSyncEngine');
+          const { triggerManualFullSync } = await import('../sync/unifiedSyncEngine');
           
           log.info(`[v406-同步] 账号 ${input.accountId} 手动全量同步开始，使用unifiedSyncEngine统一代码路径`);
           
@@ -2147,7 +2147,7 @@ export const amazonApiRouter = router({
                 
                 // v336: 初始化完成后触发事件驱动同步
                 try {
-                  const { triggerImmediateSync } = await import('../dataSyncScheduler');
+                  const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
                   await triggerImmediateSync(accountId, `BatchAuth初始化完成后同步 (accountId=${accountId}, marketplace=${profile.countryCode})`);
                 } catch (syncErr: unknown) {
                   log.error(`[v336] BatchAuth事件驱动同步触发失败:`, (syncErr as Error).message);

@@ -91,7 +91,7 @@ async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null
       return new Date((account as unknown).lastSyncAt);
     }
     // 备用：从同步日志表查询
-    const { getEngineStatus } = await import('./unifiedSyncEngine');
+    const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
     const status = getEngineStatus();
     // @ts-ignore
     if ((status as string).lastSyncResults) {
@@ -424,7 +424,7 @@ export async function executeOptimizationTarget(
         log.warn(`[OptimizationTarget] ${criticalMsg}`);
         result.warnings.push(criticalMsg);
         try {
-          const { syncAllAccounts } = await import('./unifiedSyncEngine');
+          const { syncAllAccounts } = await import('../sync/unifiedSyncEngine');
           await syncAllAccounts('high');
           log.info(`[OptimizationTarget] v221: 紧急同步完成，继续执行优化`);
         } catch (syncErr: unknown) {
@@ -770,7 +770,7 @@ export async function executeOptimizationTarget(
     
     // v272 P0-1: 集成权重自学习 — 基于执行结果自动调整评分权重
     try {
-      const { getEffectiveWeights } = await import('./weightAutoTuningService');
+      const { getEffectiveWeights } = await import('../algorithm/weightAutoTuningService');
       if (config.strategyTemplateId) {
         const currentWeights = getEffectiveWeights(config.strategyTemplateId, {
           coreMetric: 20, trend: 16, budgetEfficiency: 11,
@@ -786,7 +786,7 @@ export async function executeOptimizationTarget(
     
     // v272 P0-1: 集成算法可观测性 — 记录执行摘要指标
     try {
-      const { recordMetric } = await import('./algorithmObservabilityService');
+      const { recordMetric } = await import('../algorithm/algorithmObservabilityService');
       recordMetric('optimization_execution', {
         targetId: config.id,
         accountId: config.accountId,
@@ -800,7 +800,7 @@ export async function executeOptimizationTarget(
     
     // v137: 将失败的同步任务入队到重试队列
     try {
-      const { enqueueTasks } = await import('./optimizationSyncEngine');
+      const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
       const { randomUUID } = await import('crypto');
       const failedTasks: any[] = [];
       const batchId = randomUUID();
@@ -1086,7 +1086,7 @@ export async function executeOptimizationTarget(
     if (affectedEntities.length > 0) {
       const uniqueEntities = [...new Set(affectedEntities)];
       // v359: 使用可靠确认服务替代fire-and-forget模式
-      const { submitReliableConfirmation } = await import('./services/commandConfirmationService');
+      const { submitReliableConfirmation } = await import('../services/commandConfirmationService');
       const entityArray = uniqueEntities as ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[];
       const hasKeywords = entityArray.includes('keywords');
       const hasBudgets = entityArray.includes('budgets');

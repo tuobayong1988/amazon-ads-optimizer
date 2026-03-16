@@ -649,7 +649,7 @@ export async function executeBidOptimization(
             
             // v230: 记录出价-绩效历史数据到 bidPerformanceHistory 表，为Sigmoid曲线拟合提供训练数据
             try {
-              const { batchRecordBidPerformanceHistory } = await import('../rlDataRecorder');
+              const { batchRecordBidPerformanceHistory } = await import('../algorithm/rlDataRecorder');
               const bidPerfRecords = syncedDetails.map(d => ({
                 accountId: config.accountId,
                 campaignId: String(d.amazonCampaignId || d.localCampaignId),

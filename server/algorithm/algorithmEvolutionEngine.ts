@@ -275,7 +275,7 @@ async function getEventPerformanceData(
     
     if (event.keywordId) {
       // 关键词级别：从keywords表获取聚合数据
-      const { keywords } = await import('../drizzle/schema');
+      const { keywords } = await import('../../drizzle/schema');
       // @ts-ignore
       const kwData = await db.select()
         .from(keywords)
@@ -294,7 +294,7 @@ async function getEventPerformanceData(
       }
     } else if (event.campaignId) {
       // 广告活动级别
-      const { campaigns } = await import('../drizzle/schema');
+      const { campaigns } = await import('../../drizzle/schema');
       // @ts-ignore
       const campData = await db.select()
         .from(campaigns)

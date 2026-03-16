@@ -473,7 +473,7 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
   // v336: 获取同步健康状态并包含在心跳中
   let syncHealth = { consecutiveFailures: 0, lastSyncTime: null as Date | null, isRunning: false };
   try {
-    const { getSyncHealthStatus } = await import('./dataSyncScheduler');
+    const { getSyncHealthStatus } = await import('./sync/dataSyncScheduler');
     syncHealth = getSyncHealthStatus();
   } catch (e) { log.debug(`[LifecycleManager] 调度器可能未启动: ${(e as Error).message}`); }
   
@@ -663,7 +663,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
 export async function flushPendingTasks(): Promise<void> {
   try {
     // @ts-ignore
-    const { processSyncQueue } = await import('./optimizationSyncEngine') as unknown;
+    const { processSyncQueue } = await import('./sync/optimizationSyncEngine') as unknown;
     if (typeof processSyncQueue === 'function') {
       log.info('[LifecycleManager] 触发同步引擎处理pending任务...');
       const result = await processSyncQueue({});
@@ -814,7 +814,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       log.info(`[LifecycleManager] v405: 步骤3.5d - 部署后轻量级数据同步(high层级)...`);
       setTimeout(async () => {
         try {
-          const { syncAllAccounts } = await import('./unifiedSyncEngine');
+          const { syncAllAccounts } = await import('./sync/unifiedSyncEngine');
           const syncResult: any = await syncAllAccounts('high');
           log.info(`[LifecycleManager] v405: 部署后轻量级同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
           
@@ -823,7 +823,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
             for (const accountResult of syncResult.accountResults) {
               if (!accountResult.success) continue;
               try {
-                const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+                const { triggerAccountOptimizations } = await import('./optimization/optimizationScheduler');
                 await triggerAccountOptimizations(accountResult.accountId, 'deploy_recovery_sync');
               } catch (optErr: unknown) {
                 log.warn(`[LifecycleManager] v336: 部署后优化触发失败 (accountId=${accountResult.accountId}): ${(optErr as Error).message}`);
@@ -886,7 +886,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       let corrResult: Record<string, any> = { totalIssuesFound: 0, totalCorrected: 0, totalFailed: 0 };
       try {
         log.info('[LifecycleManager] v329: 运行API执行级纠错（确保同步一致性）...');
-        const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+        const { runAutoCorrection } = await import('./optimization/optimizationAutoCorrector');
         corrResult = await runAutoCorrection();
         log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
       } catch (corrErr: unknown) {
@@ -899,7 +899,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
           log.info('[LifecycleManager] v329: 启动部署后效果验证（等待60秒让Amazon处理指令）...');
           await new Promise(resolve => setTimeout(resolve, 60 * 1000));
           
-          const { runAutoCorrection: runVerify } = await import('./optimizationAutoCorrector');
+          const { runAutoCorrection: runVerify } = await import('./optimization/optimizationAutoCorrector');
           const verifyResult = await runVerify();
           const newIssues = verifyResult.totalIssuesFound;
           const newCorrected = verifyResult.totalCorrected;
@@ -936,7 +936,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       // 步骤4e: v338 版本升级场景的智能冷启动
       try {
         log.info('[LifecycleManager] v338: 检测是否需要执行智能冷启动...');
-        const { triggerColdStartForAllAccounts } = await import('./coldStartService');
+        const { triggerColdStartForAllAccounts } = await import('./optimization/coldStartService');
         const coldStartResult = await triggerColdStartForAllAccounts('version_upgrade', {
           skipSync: false, // 版本升级场景需要重新同步数据
           historicalDays: 90,
@@ -984,7 +984,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       // 步骤4f: v239 运行系统监控检查
       try {
         log.info('[LifecycleManager] 运行系统监控检查...');
-        const { runMonitoringCheck, formatMonitoringReport } = await import('./optimizationMonitoringService');
+        const { runMonitoringCheck, formatMonitoringReport } = await import('./optimization/optimizationMonitoringService');
         const database = await getDb();
         if (database) {
           // 获取所有团队ID进行监控
