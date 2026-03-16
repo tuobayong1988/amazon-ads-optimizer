@@ -3,7 +3,7 @@
  */
 import { z } from 'zod';
 import { router, protectedProcedure } from '../_core/trpc';
-import { scanAccountHealth } from '../intelligentRecommendationEngine';
+import { scanAccountHealth } from '../analytics/intelligentRecommendationEngine';
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
 import { verifyAccountAccess } from '../utils/accessControl';

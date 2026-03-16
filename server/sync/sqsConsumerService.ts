@@ -1,0 +1,1070 @@
+/**
+ * SQS消费者服务 - 从Amazon Marketing Stream队列读取实时广告数据
+ * 
+ * 支持的队列类型 (共9个):
+ * - SP: sp-traffic, sp-conversion, budget-usage
+ * - SB: sb-traffic, sb-conversion, sb-budget-usage
+ * - SD: sd-traffic, sd-conversion, sd-budget-usage
+ * 
+ * 多租户架构:
+ * - 所有租户共享同一组SQS队列
+ * - 根据消息中的 advertiser_id 和 marketplace_id 路由到对应租户
+ */
+
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
+import axios from 'axios';
+import * as db from '../db';
+import { createModuleLogger } from '../utils/logger';
+import { logSync, logSyncWarn, logSyncError, logSystem, logOpsError } from '../utils/opsLogger';
+const log = createModuleLogger('SQSConsumer');
+
+// SQS队列配置
+export interface SQSQueueConfig {
+  name: string;
+  url: string;
+  arn: string;
+  adType: 'SP' | 'SB' | 'SD';
+  dataType: 'traffic' | 'conversion' | 'budget';
+}
+
+// AMS消息结构 - 根据Amazon Marketing Stream实际格式定义
+// 参考: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/data-guide
+
+// sp-traffic消息格式
+export interface AmsTrafficMessage {
+  // 标识字段
+  advertiser_id: string;  // 广告主ID
+  marketplace_id: string; // 市场ID (ATVPDKIKX0DER=US, A2EUQ1WTGCTBG2=CA, A1AM78C64UM0Y8=MX)
+  dataset_id: string;     // 数据集ID (sp-traffic)
+  idempotency_id: string; // 幂等性ID
+  
+  // 广告层级字段
+  campaign_id?: string;
+  ad_group_id?: string;
+  ad_id?: string;
+  keyword_id?: string;
+  target_id?: string;
+  
+  // v183: 广告位维度
+  campaign_placement_type?: string;  // TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+  
+  // 流量指标
+  impressions?: number;
+  clicks?: number;
+  cost?: number;  // 单位: 美元
+  
+  // 时间字段
+  event_hour?: string;  // ISO 8601格式
+  update_time?: string;
+}
+
+// sp-conversion消息格式
+export interface AmsConversionMessage {
+  // 标识字段
+  advertiser_id: string;
+  marketplace_id: string;
+  dataset_id: string;
+  idempotency_id: string;
+  
+  // 广告层级字段
+  campaign_id?: string;
+  ad_group_id?: string;
+  ad_id?: string;
+  keyword_id?: string;
+  target_id?: string;
+  
+  // v183: 广告位维度
+  campaign_placement_type?: string;  // TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+  
+  // 转化指标 - 1天归因
+  attributed_conversions_1d?: number;
+  attributed_sales_1d?: number;
+  attributed_sales_1d_same_sku?: number;
+  
+  // 转化指标 - 7天归因
+  attributed_conversions_7d?: number;
+  attributed_sales_7d?: number;
+  attributed_sales_7d_same_sku?: number;
+  units_sold_7d?: number;
+  purchases_7d?: number;
+  
+  // 转化指标 - 14天归因
+  attributed_conversions_14d?: number;
+  attributed_sales_14d?: number;
+  attributed_sales_14d_same_sku?: number;
+  units_sold_14d?: number;
+  purchases_14d?: number;
+  purchases_14d_same_sku?: number;
+  
+  // 转化指标 - 30天归因
+  multi_touch_units_sold_30d?: number;
+  
+  // SB特有字段
+  sales?: number;
+  purchases?: number;
+  
+  // 时间字段
+  event_hour?: string;
+  update_time?: string;
+}
+
+// budget-usage消息格式
+export interface AmsBudgetMessage {
+  // 标识字段
+  advertiser_id: string;
+  marketplace_id: string;
+  dataset_id: string;
+  idempotency_id: string;
+  
+  // 广告层级字段
+  campaign_id?: string;
+  
+  // 预算指标
+  budget?: number;
+  budget_usage?: number;
+  budget_usage_percentage?: number;
+  
+  // 时间字段
+  event_hour?: string;
+  update_time?: string;
+}
+
+// 消费者状态
+export interface ConsumerStatus {
+  queueName: string;
+  isRunning: boolean;
+  messagesProcessed: number;
+  lastProcessedAt: string | null;
+  errors: number;
+  adType: string;
+  dataType: string;
+}
+
+// SQS消费者服务类
+export class SQSConsumerService {
+  private sqsClient: SQSClient;
+  private queues: SQSQueueConfig[] = [];
+  private isRunning: boolean = false;
+  private pollIntervalMs: number = 5000; // 5秒轮询间隔
+  private maxMessagesPerPoll: number = 10;
+  private consumerStatuses: Map<string, ConsumerStatus> = new Map();
+  private pollTimers: Map<string, NodeJS.Timeout> = new Map();
+
+  constructor() {
+    // 初始化SQS客户端
+    // 当环境变量中配置了AWS凭证时使用显式凭证，否则使用IAM角色的默认凭证链
+    const sqsConfig: Record<string, unknown> = {
+      region: process.env.AWS_REGION || 'us-east-1',
+    };
+    if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+      sqsConfig.credentials = {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      };
+      log.info('[SQS Consumer] 使用显式AWS凭证初始化SQS客户端');
+    } else {
+      log.info('[SQS Consumer] 使用IAM角色默认凭证链初始化SQS客户端');
+    }
+    this.sqsClient = new SQSClient(sqsConfig);
+
+    // 从环境变量加载队列配置
+    this.loadAllQueueConfigs();
+  }
+
+  /**
+   * 从环境变量加载所有9个SQS队列配置
+   * 
+   * 环境变量格式:
+   * - SP队列: AWS_SQS_QUEUE_TRAFFIC_URL, AWS_SQS_QUEUE_CONVERSION_URL, AWS_SQS_QUEUE_BUDGET_URL
+   * - SB队列: AWS_SQS_QUEUE_SB_TRAFFIC_URL, AWS_SQS_QUEUE_SB_CONVERSION_URL, AWS_SQS_QUEUE_SB_BUDGET_URL
+   * - SD队列: AWS_SQS_QUEUE_SD_TRAFFIC_URL, AWS_SQS_QUEUE_SD_CONVERSION_URL, AWS_SQS_QUEUE_SD_BUDGET_URL
+   */
+  private loadAllQueueConfigs(): void {
+    // SP队列配置
+    const spTrafficUrl = process.env.AWS_SQS_QUEUE_TRAFFIC_URL;
+    const spConversionUrl = process.env.AWS_SQS_QUEUE_CONVERSION_URL;
+    const spBudgetUrl = process.env.AWS_SQS_QUEUE_BUDGET_URL;
+    
+    // SB队列配置
+    const sbTrafficUrl = process.env.AWS_SQS_QUEUE_SB_TRAFFIC_URL;
+    const sbConversionUrl = process.env.AWS_SQS_QUEUE_SB_CONVERSION_URL;
+    const sbBudgetUrl = process.env.AWS_SQS_QUEUE_SB_BUDGET_URL;
+    
+    // SD队列配置
+    const sdTrafficUrl = process.env.AWS_SQS_QUEUE_SD_TRAFFIC_URL;
+    const sdConversionUrl = process.env.AWS_SQS_QUEUE_SD_CONVERSION_URL;
+    const sdBudgetUrl = process.env.AWS_SQS_QUEUE_SD_BUDGET_URL;
+    
+    // SP队列
+    if (spTrafficUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sp-traffic-IngressQueue',
+        url: spTrafficUrl,
+        arn: this.urlToArn(spTrafficUrl),
+        adType: 'SP',
+        dataType: 'traffic',
+      });
+    }
+    
+    if (spConversionUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sp-conversion-IngressQueue',
+        url: spConversionUrl,
+        arn: this.urlToArn(spConversionUrl),
+        adType: 'SP',
+        dataType: 'conversion',
+      });
+    }
+    
+    if (spBudgetUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-budget-usage-IngressQueue',
+        url: spBudgetUrl,
+        arn: this.urlToArn(spBudgetUrl),
+        adType: 'SP',
+        dataType: 'budget',
+      });
+    }
+    
+    // SB队列
+    if (sbTrafficUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sb-traffic-IngressQueue',
+        url: sbTrafficUrl,
+        arn: this.urlToArn(sbTrafficUrl),
+        adType: 'SB',
+        dataType: 'traffic',
+      });
+    }
+    
+    if (sbConversionUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sb-conversion-IngressQueue',
+        url: sbConversionUrl,
+        arn: this.urlToArn(sbConversionUrl),
+        adType: 'SB',
+        dataType: 'conversion',
+      });
+    }
+    
+    if (sbBudgetUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sb-budget-usage-IngressQueue',
+        url: sbBudgetUrl,
+        arn: this.urlToArn(sbBudgetUrl),
+        adType: 'SB',
+        dataType: 'budget',
+      });
+    }
+    
+    // SD队列
+    if (sdTrafficUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sd-traffic-IngressQueue',
+        url: sdTrafficUrl,
+        arn: this.urlToArn(sdTrafficUrl),
+        adType: 'SD',
+        dataType: 'traffic',
+      });
+    }
+    
+    if (sdConversionUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sd-conversion-IngressQueue',
+        url: sdConversionUrl,
+        arn: this.urlToArn(sdConversionUrl),
+        adType: 'SD',
+        dataType: 'conversion',
+      });
+    }
+    
+    if (sdBudgetUrl) {
+      this.queues.push({
+        name: 'AmzStream-NA-sd-budget-usage-IngressQueue',
+        url: sdBudgetUrl,
+        arn: this.urlToArn(sdBudgetUrl),
+        adType: 'SD',
+        dataType: 'budget',
+      });
+    }
+
+    // 记录加载结果
+    if (this.queues.length === 0) {
+      log.info('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
+      log.debug('[SQS Consumer] 如需启用AMS实时数据流，请配置以下环境变量:');
+      log.debug('  SP队列:');
+      log.debug('    - AWS_SQS_QUEUE_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_BUDGET_URL');
+      log.debug('  SB队列:');
+      log.debug('    - AWS_SQS_QUEUE_SB_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_SB_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_SB_BUDGET_URL');
+      log.debug('  SD队列:');
+      log.debug('    - AWS_SQS_QUEUE_SD_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_SD_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_SD_BUDGET_URL');
+    } else {
+      log.info(`[SQS Consumer] 已加载 ${this.queues.length} 个队列配置:`);
+      this.queues.forEach(q => log.debug(`  - ${q.name}: ${q.adType} ${q.dataType}`));
+    }
+  }
+
+  /**
+   * 将SQS URL转换为ARN
+   */
+  private urlToArn(url: string): string {
+    // URL格式: https://sqs.{region}.amazonaws.com/{accountId}/{queueName}
+    // 或: https://queue.amazonaws.com/{accountId}/{queueName}
+    let match = url.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
+    if (match) {
+      const [, region, accountId, queueName] = match;
+      return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+    }
+    
+    // 处理 queue.amazonaws.com 格式
+    match = url.match(/queue\.amazonaws\.com\/(\d+)\/(.+)/);
+    if (match) {
+      const [, accountId, queueName] = match;
+      const region = process.env.AWS_REGION || 'us-east-1';
+      return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+    }
+    
+    return url;
+  }
+
+  /**
+   * 手动添加队列配置
+   */
+  addQueue(config: SQSQueueConfig): void {
+    // 检查是否已存在
+    const existing = this.queues.find(q => q.url === config.url);
+    if (!existing) {
+      this.queues.push(config);
+      log.debug(`[SQS Consumer] 添加队列: ${config.name} (${config.adType} ${config.dataType})`);
+    }
+  }
+
+  /**
+   * 启动所有队列的消费者
+   */
+  async start(): Promise<void> {
+    if (this.isRunning) {
+      log.debug('[SQS Consumer] 消费者已在运行中');
+      return;
+    }
+
+    if (this.queues.length === 0) {
+      log.info('[SQS Consumer] 没有配置任何队列，跳过启动');
+      return;
+    }
+
+    this.isRunning = true;
+    log.info(`[SQS Consumer] 启动消费者，监听 ${this.queues.length} 个队列...`);
+    logSystem('SQSConsumer', `启动消费者，监听 ${this.queues.length} 个队列`, {
+      queues: this.queues.map(q => ({ name: q.name, adType: q.adType, dataType: q.dataType })),
+    });
+
+    // 为每个队列启动轮询
+    for (const queue of this.queues) {
+      this.consumerStatuses.set(queue.name, {
+        queueName: queue.name,
+        isRunning: true,
+        messagesProcessed: 0,
+        lastProcessedAt: null,
+        errors: 0,
+        adType: queue.adType,
+        dataType: queue.dataType,
+      });
+      
+      this.startPolling(queue);
+    }
+  }
+
+  /**
+   * 停止所有消费者
+   */
+  stop(): void {
+    this.isRunning = false;
+    
+    // 清除所有轮询定时器
+    for (const [queueName, timer] of this.pollTimers) {
+      clearTimeout(timer);
+      const status = this.consumerStatuses.get(queueName);
+      if (status) {
+        status.isRunning = false;
+      }
+    }
+    this.pollTimers.clear();
+    
+    log.debug('[SQS Consumer] 所有消费者已停止');
+    logSystem('SQSConsumer', '所有消费者已停止');
+  }
+
+  /**
+   * 启动单个队列的轮询
+   */
+  private async startPolling(queue: SQSQueueConfig): Promise<void> {
+    const poll = async () => {
+      if (!this.isRunning) return;
+
+      try {
+        await this.pollQueue(queue);
+      } catch (error: unknown) {
+        const errMsg = (error as Error).message || 'Unknown error';
+        const errName = (error as any).name || 'Error';
+        const statusCode = (error as any).$metadata?.httpStatusCode || (error as any).statusCode || '';
+        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
+        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, errorName: errName, statusCode, error: errMsg });
+        const status = this.consumerStatuses.get(queue.name);
+        if (status) {
+          status.errors++;
+        }
+      }
+
+      // 继续下一次轮询
+      if (this.isRunning) {
+        const timer = setTimeout(() => poll(), this.pollIntervalMs);
+        this.pollTimers.set(queue.name, timer);
+      }
+    };
+
+    // 开始轮询
+    poll();
+  }
+
+  /**
+   * 轮询单个队列
+   */
+  private async pollQueue(queue: SQSQueueConfig): Promise<void> {
+    const command = new ReceiveMessageCommand({
+      QueueUrl: queue.url,
+      MaxNumberOfMessages: this.maxMessagesPerPoll,
+      WaitTimeSeconds: 20, // 长轮询
+      MessageAttributeNames: ['All'],
+    });
+
+    const response = await this.sqsClient.send(command);
+    
+    if (!response.Messages || response.Messages.length === 0) {
+      return;
+    }
+
+    log.debug(`[SQS Consumer] 从 ${queue.name} 收到 ${response.Messages.length} 条消息`);
+
+    for (const message of response.Messages) {
+      try {
+        await this.processMessage(queue, message);
+        
+        // 删除已处理的消息
+        if (message.ReceiptHandle) {
+          await this.sqsClient.send(new DeleteMessageCommand({
+            QueueUrl: queue.url,
+            ReceiptHandle: message.ReceiptHandle,
+          }));
+        }
+
+        // 更新状态
+        const status = this.consumerStatuses.get(queue.name);
+        if (status) {
+          status.messagesProcessed++;
+          status.lastProcessedAt = new Date().toISOString();
+        }
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 处理消息失败:`, (error as Error).message);
+        logSyncError('SQSConsumer', `处理消息失败`, { queue: queue.name, error: (error as Error).message });
+        const status = this.consumerStatuses.get(queue.name);
+        if (status) {
+          status.errors++;
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理单条消息
+   */
+  private async processMessage(queue: SQSQueueConfig, message: any): Promise<void> {
+    if (!message.Body) {
+      log.warn('[SQS Consumer] 消息体为空');
+      return;
+    }
+
+    let body: Record<string, any>;
+    try {
+      body = JSON.parse(message.Body);
+    } catch (e) {
+      log.error('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
+      logSyncError('SQSConsumer', 'JSON解析失败', { preview: message.Body.substring(0, 200) });
+      return;
+    }
+    
+    // 处理SNS订阅确认消息
+    if (body.Type === 'SubscriptionConfirmation') {
+      await this.handleSubscriptionConfirmation(body);
+      return;
+    }
+    
+    // 解析SNS通知中的实际数据
+    let amsData = body;
+    if (body.Type === 'Notification' && body.Message) {
+      try {
+        amsData = JSON.parse(body.Message);
+      } catch (e) {
+        log.error('[SQS Consumer] 解析SNS消息内容失败');
+        return;
+      }
+    }
+    
+    // 调试日志：打印消息结构
+    log.debug(`[SQS Consumer] 收到${queue.adType} ${queue.dataType}消息，结构:`, JSON.stringify(amsData).substring(0, 500));
+    
+    // 根据数据类型路由到不同的处理器
+    switch (queue.dataType) {
+      case 'traffic':
+        // @ts-ignore
+        await this.processTrafficMessage(amsData, queue.adType);
+        break;
+      case 'conversion':
+        // @ts-ignore
+        await this.processConversionMessage(amsData, queue.adType);
+        break;
+      case 'budget':
+        // @ts-ignore
+        await this.processBudgetMessage(amsData, queue.adType);
+        break;
+      default:
+        log.warn(`[SQS Consumer] 未知数据类型: ${queue.dataType}`);
+    }
+  }
+
+  /**
+   * 处理SNS订阅确认消息
+   */
+  private async handleSubscriptionConfirmation(body: Record<string, any>): Promise<void> {
+    const subscribeUrl = body.SubscribeURL;
+    const topicArn = body.TopicArn;
+    
+    log.debug(`[SQS Consumer] 收到SNS订阅确认请求: TopicArn=${topicArn}`);
+    
+    if (subscribeUrl) {
+      try {
+        const response = await axios.get(subscribeUrl, {
+          timeout: 30000,
+          headers: { 'User-Agent': 'AmazonAdsOptimizer/1.0' },
+        });
+        
+        if (response.status === 200) {
+          log.info(`[SQS Consumer] SNS订阅确认成功: TopicArn=${topicArn}`);
+        } else {
+          log.error(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
+        }
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] SNS订阅确认请求失败:`, (error as Error).message);
+      }
+    }
+  }
+
+  // 市场ID到国家代码的映射
+  private marketplaceIdToCountry: Record<string, string> = {
+    'ATVPDKIKX0DER': 'US',  // 美国
+    'A2EUQ1WTGCTBG2': 'CA', // 加拿大
+    'A1AM78C64UM0Y8': 'MX', // 墨西哥
+    'A1PA6795UKMFR9': 'DE', // 德国
+    'A1RKKUPIHCS9HS': 'ES', // 西班牙
+    'A13V1IB3VIYBER': 'FR', // 法国
+    'A1F83G8C2ARO7P': 'UK', // 英国
+    'APJ6JRA9NG5V4': 'IT',  // 意大利
+    'A1805IZSGTT6HS': 'NL', // 荷兰
+    'A1C3SOZRARQ6R3': 'PL', // 波兰
+    'A2NODRKZP88ZB9': 'SE', // 瑞典
+    'A33AVAJ2PDY3EV': 'TR', // 土耳其
+    'A21TJRUUN4KGV': 'IN',  // 印度
+    'A19VAU5U5O7RUS': 'SG', // 新加坡
+    'A39IBJ37TRP1C6': 'AU', // 澳大利亚
+    'A1VC38T7YXB528': 'JP', // 日本
+  };
+
+  /**
+   * 处理流量消息（展示、点击、花费）
+   */
+  private async processTrafficMessage(data: AmsTrafficMessage, adType: string): Promise<void> {
+    const impressions = data.impressions || 0;
+    const clicks = data.clicks || 0;
+    // AMS的cost已经是美元单位，不需要转换
+    const cost = data.cost || 0;
+    const campaignId = data.campaign_id;
+    const eventHour = data.event_hour;
+    
+    log.info(`[SQS Consumer] 处理${adType}流量消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, impressions=${impressions}, clicks=${clicks}, cost=$${cost.toFixed(4)}`);
+    
+    // 根据advertiser_id和marketplace_id查找对应的账户
+    const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
+    if (!account) {
+      log.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
+      return;
+    }
+
+    // 从 event_hour 提取日期
+    const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
+
+    // 尝试将Amazon的campaignId映射到本地数据库ID
+    let localCampaignId: number | null = null;
+    if (campaignId) {
+      try {
+        const dbModule = await import('../db');
+        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
+        if (campaign) localCampaignId = campaign.id;
+      } catch (e) {
+        // 映射失败不影响账户级别数据写入
+      }
+    }
+
+    // 更新数据库
+    try {
+      await db.upsertDailyPerformanceFromAms({
+        accountId: account.id,
+        date: date,
+        impressions: impressions,
+        clicks: clicks,
+        cost: cost,
+        adType: adType,
+        campaignId: localCampaignId,
+      });
+      log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, (error as Error).message);
+    }
+    
+    // v183: 写入交叉维度绩效表 (keyword × placement × hour)
+    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+      try {
+        await this.upsertKeywordPlacementHourlyData({
+          accountId: account.id,
+          campaignId: localCampaignId,
+          amazonAdGroupId: data.ad_group_id || null,
+          amazonKeywordId: data.keyword_id || null,
+          amazonTargetId: data.target_id || null,
+          placement: this.mapPlacementType(data.campaign_placement_type),
+          date,
+          eventHour: eventHour || '',
+          impressions,
+          clicks,
+          spend: cost,
+          sales: 0,
+          orders: 0,
+          dataType: 'traffic',
+        });
+      } catch (err: unknown) {
+        log.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * 处理转化消息（销售、订单）
+   */
+  private async processConversionMessage(data: AmsConversionMessage, adType: string): Promise<void> {
+    // 根据广告类型选择正确的字段
+    let sales = 0;
+    let orders = 0;
+    
+    if (adType === 'SP' || adType === 'SD') {
+      // SP和SD使用14天归因窗口
+      sales = data.attributed_sales_14d || data.attributed_sales_7d || 0;
+      orders = data.attributed_conversions_14d || data.attributed_conversions_7d || data.purchases_14d || data.purchases_7d || 0;
+    } else if (adType === 'SB') {
+      // SB可能使用不同的字段名
+      sales = data.sales || data.attributed_sales_14d || data.attributed_sales_7d || 0;
+      orders = data.purchases || data.attributed_conversions_14d || data.attributed_conversions_7d || 0;
+    }
+    
+    const campaignId = data.campaign_id;
+    const eventHour = data.event_hour;
+    
+    log.info(`[SQS Consumer] 处理${adType}转化消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, sales=$${sales.toFixed(4)}, orders=${orders}`);
+    
+    // 根据advertiser_id和marketplace_id查找对应的账户
+    const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
+    if (!account) {
+      log.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
+      return;
+    }
+
+    // 从 event_hour 提取日期
+    const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
+
+    // 尝试将Amazon的campaignId映射到本地数据库ID
+    let localCampaignId: number | null = null;
+    if (campaignId) {
+      try {
+        const dbModule = await import('../db');
+        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
+        if (campaign) localCampaignId = campaign.id;
+      } catch (e) {
+        // 映射失败不影响账户级别数据写入
+      }
+    }
+
+    // 更新数据库
+    try {
+      await db.updateDailyPerformanceConversion({
+        accountId: account.id,
+        date: date,
+        sales: sales,
+        orders: orders,
+        adType: adType,
+        campaignId: localCampaignId,
+      });
+      log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, (error as Error).message);
+    }
+    
+    // v183: 写入交叉维度绩效表 (转化数据)
+    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+      try {
+        await this.upsertKeywordPlacementHourlyData({
+          accountId: account.id,
+          campaignId: localCampaignId,
+          amazonAdGroupId: data.ad_group_id || null,
+          amazonKeywordId: data.keyword_id || null,
+          amazonTargetId: data.target_id || null,
+          placement: this.mapPlacementType(data.campaign_placement_type),
+          date,
+          eventHour: eventHour || '',
+          impressions: 0,
+          clicks: 0,
+          spend: 0,
+          sales,
+          orders,
+          dataType: 'conversion',
+        });
+      } catch (err: unknown) {
+        log.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * 处理预算消息
+   */
+  private async processBudgetMessage(data: AmsBudgetMessage, adType: string): Promise<void> {
+    const budget = data.budget || 0;
+    const budgetUsage = data.budget_usage || 0;
+    const budgetPercentage = data.budget_usage_percentage || 0;
+    const campaignId = data.campaign_id;
+    
+    log.info(`[SQS Consumer] 处理${adType}预算消息: advertiser_id=${data.advertiser_id}, campaignId=${campaignId}, budget=${budget}, usage=${budgetUsage}, percentage=${budgetPercentage}%`);
+    
+    // 预算数据是快照(Snapshot)，不是累加
+    // 直接覆盖数据库中的值
+    
+    if (campaignId) {
+      try {
+        // 更新广告活动的预算使用情况
+        await db.updateCampaignBudgetUsage(campaignId, {
+          budgetUsage: budgetUsage,
+          budgetUsagePercentage: budgetPercentage,
+          lastBudgetUpdateAt: new Date().toISOString(),
+        });
+        log.info(`[SQS Consumer] ${adType}预算状态已更新: campaignId=${campaignId}`);
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 更新${adType}预算状态失败:`, (error as Error).message);
+      }
+    }
+    
+    // 预算告警逻辑
+    if (budgetPercentage > 80) {
+      log.warn(`[SQS Consumer] 预算告警: campaignId=${campaignId} 已使用 ${budgetPercentage}%`);
+      // TODO: 发送预算告警通知
+    }
+  }
+
+  /**
+   * 根据advertiser_id和marketplace_id查找账户
+   * 
+   * 多租户路由逻辑:
+   * 1. 将marketplace_id转换为国家代码
+   * 2. 在数据库中查找匹配的账户
+   */
+  private async findAccountByAdvertiserId(advertiserId: string, marketplaceId: string): Promise<{ id: number } | null> {
+    try {
+      const accounts = await db.getAdAccounts();
+      const country = this.marketplaceIdToCountry[marketplaceId];
+      
+      // 策略1：优先通过profileId精确匹配（支持多店铺同站点）
+      // Amazon AMS的advertiser_id通常对应adAccounts表的profileId
+      let account = accounts.find(a => a.profileId === advertiserId);
+      
+      // 策略2：通过accountId匹配（部分店铺的accountId就是advertiser_id）
+      if (!account) {
+        account = accounts.find(a => a.accountId === advertiserId);
+      }
+      
+      // 策略3：回退到marketplace+country匹配（单店铺场景）
+      if (!account && country) {
+        account = accounts.find(a => a.marketplace === country);
+      }
+      
+      if (account) {
+        log.debug(`[SQS Consumer] 找到匹配账户: id=${account.id}, marketplace=${account.marketplace}, profileId=${account.profileId}`);
+      } else {
+        log.warn(`[SQS Consumer] 未找到匹配账户: advertiserId=${advertiserId}, country=${country}`);
+      }
+      
+      return account ? { id: account.id } : null;
+    } catch (error: unknown) {
+      log.error(`[SQS Consumer] 查找账户失败:`, (error as Error).message);
+      return null;
+    }
+  }
+
+  /**
+   * 获取所有消费者状态
+   */
+  getStatus(): ConsumerStatus[] {
+    return Array.from(this.consumerStatuses.values());
+  }
+
+  /**
+   * 获取队列统计信息
+   */
+  async getQueueStats(): Promise<Array<{
+    name: string;
+    adType: string;
+    dataType: string;
+    messagesAvailable: number;
+    messagesInFlight: number;
+  }>> {
+    const stats = [];
+    
+    for (const queue of this.queues) {
+      try {
+        const command = new GetQueueAttributesCommand({
+          QueueUrl: queue.url,
+          AttributeNames: ['ApproximateNumberOfMessages', 'ApproximateNumberOfMessagesNotVisible'],
+        });
+        
+        const response = await this.sqsClient.send(command);
+        
+        stats.push({
+          name: queue.name,
+          adType: queue.adType,
+          dataType: queue.dataType,
+          messagesAvailable: parseInt(response.Attributes?.ApproximateNumberOfMessages || '0'),
+          messagesInFlight: parseInt(response.Attributes?.ApproximateNumberOfMessagesNotVisible || '0'),
+        });
+      } catch (error: unknown) {
+        log.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, (error as Error).message);
+        stats.push({
+          name: queue.name,
+          adType: queue.adType,
+          dataType: queue.dataType,
+          messagesAvailable: -1,
+          messagesInFlight: -1,
+        });
+      }
+    }
+    
+    return stats;
+  }
+  
+  /**
+   * 获取已配置的队列数量
+   */
+  getQueueCount(): number {
+    return this.queues.length;
+  }
+  
+  /**
+   * 检查消费者是否正在运行
+   */
+  isConsumerRunning(): boolean {
+    return this.isRunning;
+  }
+
+  // ==================== v183: 交叉维度数据写入 ====================
+
+  /**
+   * 将AMS的placement类型映射到我们的枚举值
+   * AMS使用: TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+   * 我们使用: top_of_search, product_page, rest_of_search
+   */
+  private mapPlacementType(amsPlacement?: string): 'top_of_search' | 'product_page' | 'rest_of_search' {
+    if (!amsPlacement) return 'rest_of_search';
+    const upper = amsPlacement.toUpperCase();
+    if (upper === 'TOP_OF_SEARCH' || upper.includes('TOP')) return 'top_of_search';
+    if (upper === 'DETAIL_PAGE' || upper.includes('DETAIL') || upper.includes('PRODUCT')) return 'product_page';
+    return 'rest_of_search';
+  }
+
+  /**
+   * 写入或更新交叉维度绩效数据
+   * 使用覆盖写入逻辑（与AMS的快照模式一致）
+   */
+  private async upsertKeywordPlacementHourlyData(params: {
+    accountId: number;
+    campaignId: number;
+    amazonAdGroupId: string | null;
+    amazonKeywordId: string | null;
+    amazonTargetId: string | null;
+    placement: 'top_of_search' | 'product_page' | 'rest_of_search';
+    date: string;
+    eventHour: string;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    dataType: 'traffic' | 'conversion';
+  }): Promise<void> {
+    const { keywordPlacementHourlyPerformance } = await import('../../drizzle/schema');
+    const { getDb } = await import('../db');
+    const { eq, and, sql } = await import('drizzle-orm');
+    
+    const dbConn = await getDb();
+    if (!dbConn) return;
+
+    // 从 event_hour 提取小时数
+    let hour = 0;
+    if (params.eventHour) {
+      const match = params.eventHour.match(/T(\d{2})/);
+      if (match) hour = parseInt(match[1]);
+    }
+
+    // 计算星期几
+    const dateObj = new Date(params.date + 'T00:00:00');
+    const dayOfWeek = dateObj.getDay();
+
+    // 尝试将Amazon ID映射到本地数据库ID
+    let localKeywordId: number | null = null;
+    let localTargetId: number | null = null;
+    let localAdGroupId: number | null = null;
+
+    const dbModule = await import('../db');
+    
+    if (params.amazonKeywordId) {
+      try {
+        // 通过Amazon keyword_id查找本地keyword
+        const result = await dbConn.select({ id: (await import('../../drizzle/schema')).keywords.id })
+          .from((await import('../../drizzle/schema')).keywords)
+          .where(eq((await import('../../drizzle/schema')).keywords.keywordId, params.amazonKeywordId))
+          .limit(1);
+        if (result[0]) localKeywordId = result[0].id;
+      } catch (e: unknown) { log.debug(`关键词ID映射失败: ${(e as Error).message}`); /* 映射失败不影响写入 */ }
+    }
+
+    if (params.amazonTargetId) {
+      try {
+        const result = await dbConn.select({ id: (await import('../../drizzle/schema')).productTargets.id })
+          .from((await import('../../drizzle/schema')).productTargets)
+          .where(eq((await import('../../drizzle/schema')).productTargets.targetId, params.amazonTargetId))
+          .limit(1);
+        if (result[0]) localTargetId = result[0].id;
+      } catch (e: unknown) { log.debug(`目标ID映射失败: ${(e as Error).message}`); /* 映射失败不影响写入 */ }
+    }
+
+    // 如果无法映射到本地ID，跳过写入
+    if (!localKeywordId && !localTargetId) {
+      return;
+    }
+
+    // 查找已有记录
+    const existing = await dbConn.select()
+      .from(keywordPlacementHourlyPerformance)
+      .where(and(
+        eq(keywordPlacementHourlyPerformance.accountId, params.accountId),
+        eq(keywordPlacementHourlyPerformance.campaignId, String(params.campaignId)),
+        localKeywordId ? eq(keywordPlacementHourlyPerformance.keywordId, localKeywordId) : sql`${keywordPlacementHourlyPerformance.keywordId} IS NULL`,
+        localTargetId ? eq(keywordPlacementHourlyPerformance.targetId, localTargetId) : sql`${keywordPlacementHourlyPerformance.targetId} IS NULL`,
+        eq(keywordPlacementHourlyPerformance.placement, params.placement),
+        eq(keywordPlacementHourlyPerformance.date, params.date),
+        eq(keywordPlacementHourlyPerformance.hour, hour),
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // 更新已有记录（覆盖写入）
+      const updateData: Record<string, any> = {};
+      if (params.dataType === 'traffic') {
+        updateData.impressions = params.impressions;
+        updateData.clicks = params.clicks;
+        updateData.spend = String(params.spend);
+      } else {
+        updateData.sales = String(params.sales);
+        updateData.orders = params.orders;
+      }
+      // 重新计算派生指标
+      const row = existing[0] as any;
+      const totalSpend = params.dataType === 'traffic' ? params.spend : parseFloat(String(row.spend || '0'));
+      const totalSales = params.dataType === 'conversion' ? params.sales : parseFloat(String(row.sales || '0'));
+      const totalClicks = params.dataType === 'traffic' ? params.clicks : (row.clicks || 0);
+      const totalOrders = params.dataType === 'conversion' ? params.orders : (row.orders || 0);
+      
+      if (totalSpend > 0 && totalSales > 0) {
+        updateData.acos = String((totalSpend / totalSales * 100).toFixed(4));
+        updateData.roas = String((totalSales / totalSpend).toFixed(2));
+      }
+      if (totalClicks > 0) {
+        updateData.ctr = String(((row.impressions || 0) > 0 ? totalClicks / (row.impressions || 1) : 0).toFixed(6));
+        updateData.cvr = String((totalOrders / totalClicks).toFixed(6));
+        updateData.cpc = String((totalSpend / totalClicks).toFixed(4));
+      }
+
+      await dbConn.update(keywordPlacementHourlyPerformance)
+        .set(updateData)
+        .where(eq(keywordPlacementHourlyPerformance.id, existing[0].id));
+    } else {
+      // 插入新记录
+      // @ts-ignore
+      await dbConn.insert(keywordPlacementHourlyPerformance).values({
+        accountId: params.accountId,
+        campaignId: params.campaignId,
+        adGroupId: localAdGroupId,
+        keywordId: localKeywordId,
+        targetId: localTargetId,
+        placement: params.placement,
+        date: params.date,
+        hour,
+        dayOfWeek,
+        impressions: params.impressions,
+        clicks: params.clicks,
+        spend: String(params.spend),
+        sales: String(params.sales),
+        orders: params.orders,
+        dataSource: 'ams',
+      } as Record<string, any>);
+    }
+  }
+}
+
+// 单例实例
+let sqsConsumerInstance: SQSConsumerService | null = null;
+
+/**
+ * 获取SQS消费者服务实例
+ */
+export function getSQSConsumer(): SQSConsumerService {
+  if (!sqsConsumerInstance) {
+    sqsConsumerInstance = new SQSConsumerService();
+  }
+  return sqsConsumerInstance;
+}
+
+/**
+ * 启动SQS消费者
+ */
+export async function startSQSConsumer(): Promise<void> {
+  const consumer = getSQSConsumer();
+  await consumer.start();
+}
+
+/**
+ * 停止SQS消费者
+ */
+export function stopSQSConsumer(): void {
+  if (sqsConsumerInstance) {
+    sqsConsumerInstance.stop();
+  }
+}

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { identifyProductLifecycle, mergeStrategies, detectStrategyConflicts } from '../../server/layeredOptimization/strategyOrchestrator';
 import { collectOptimizationActions, detectConflicts, resolveConflictsAndCreatePlan } from '../../server/layeredOptimization/executionEngine';
 import { createExperiment, getExperimentResult, calculateRequiredSampleSize } from '../../server/abTesting/experimentService';
-import { STRATEGY_TEMPLATES } from '../../server/strategyRecommendationService';
+import { STRATEGY_TEMPLATES } from '../../server/analytics/strategyRecommendationService';
 
 describe('分层优化架构测试', () => {
   it('应该正确识别产品生命周期阶段', async () => {

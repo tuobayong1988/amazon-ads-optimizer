@@ -1,7 +1,7 @@
 /**
  * 测试脚本：直接调用Amazon SB API查看返回的数据结构
  */
-import { AmazonAdsApiClient } from '../server/amazonAdsApi';
+import { AmazonAdsApiClient } from '../server/sync/amazonAdsApi';
 import { getDb } from '../server/db';
 import { adAccounts, amazonApiCredentials } from '../drizzle/schema';
 import { eq, and } from 'drizzle-orm';

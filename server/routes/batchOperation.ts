@@ -6,9 +6,9 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import { AmazonSyncService } from '../amazonSyncService';
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
-import * as batchOperationService from '../batchOperationService';
+import * as batchOperationService from '../automation/batchOperationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 

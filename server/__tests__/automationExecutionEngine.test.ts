@@ -66,7 +66,7 @@ import {
   resumeAutomation,
   DEFAULT_SAFETY_BOUNDARY,
   DEFAULT_AUTOMATION_CONFIG,
-} from '../automationExecutionEngine';
+} from '../automation/automationExecutionEngine';
 
 describe('AutomationExecutionEngine', () => {
   beforeEach(() => {

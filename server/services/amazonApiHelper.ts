@@ -9,7 +9,7 @@
  * - 增强 syncBidAdjustmentsToAmazon: 更详细的错误日志和API同步状态追踪
  * - 增强 applyBidAdjustment 的错误处理
  */
-import { AmazonSyncService } from '../amazonSyncService';
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
 // v359: 分端点限流服务

@@ -12,13 +12,13 @@ import {
   executeNegativeKeywords,
   getNgramAnalysisSummary,
   generateNgramAnalysisReport,
-} from "./ngramAnalysis";
+} from "./analytics/ngramAnalysis";
 import {
   generateMigrationSuggestions,
   detectTrafficConflicts,
   executeTrafficIsolation,
   getMigrationSummary,
-} from "./trafficMigration";
+} from "./system/trafficMigration";
 import { getDb } from "./db";
 // 审核历史表暂未创建
 import { eq, and, inArray, sql } from "drizzle-orm";

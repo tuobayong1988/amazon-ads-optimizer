@@ -6,10 +6,10 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import * as causalInferenceEngine from '../causalInferenceEngine';
-import * as keywordGraphService from '../keywordGraphService';
+import * as causalInferenceEngine from '../algorithm/causalInferenceEngine';
+import * as keywordGraphService from '../analytics/keywordGraphService';
 import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
-import { ensureNextGenTables } from '../nextGenMigration';
+import { ensureNextGenTables } from '../optimization/nextGenMigration';
 import { getDb } from '../db';
 import { verifyAccountAccess } from '../utils/accessControl';
 import { causalInferenceResults, cqlModels, optimizationEvents } from '../../drizzle/schema';

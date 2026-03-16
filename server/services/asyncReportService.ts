@@ -12,7 +12,7 @@
 import { getDb } from '../db';
 import { reportJobs, amazonApiCredentials, amsPerformanceData, campaigns } from '../../drizzle/schema';
 import { eq, and, inArray, sql, isNull, or } from 'drizzle-orm';
-import { AmazonAdsApiClient } from '../amazonAdsApi';
+import { AmazonAdsApiClient } from '../sync/amazonAdsApi';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('AsyncReport');

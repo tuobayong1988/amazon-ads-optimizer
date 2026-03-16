@@ -299,7 +299,7 @@ export const campaignRouter = router({
       }
       
       // 记录审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       const changes: string[] = [];
       if (input.campaignName) changes.push(`名称: ${input.campaignName}`);
       if (input.maxBid) changes.push(`最高出价: $${input.maxBid}`);
@@ -550,7 +550,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   generateAIAnalysis: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { generateAIAnalysisWithSuggestions } = await import("../aiOptimizationService");
+      const { generateAIAnalysisWithSuggestions } = await import("../optimization/aiOptimizationService");
       return generateAIAnalysisWithSuggestions(input.campaignId);
     }),
   
@@ -591,7 +591,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
       aiSummary: z.string(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { executeOptimizationSuggestions } = await import("../aiOptimizationService");
+      const { executeOptimizationSuggestions } = await import("../optimization/aiOptimizationService");
       
       // 获取广告活动信息
       const campaign = await db.getCampaignById(input.campaignId);
@@ -609,7 +609,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
       );
       
       // 记录AI优化执行审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       await logAudit({
         userId: ctx.user.id,
         userName: ctx.user.name || undefined,
@@ -651,7 +651,7 @@ ${topKeywords.map((k: any, i: any) => `${i + 1}. "${k.keywordText}" - 销售额:
   updateStrategyRecommendations: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { updateAllCampaignRecommendations } = await import('../strategyRecommendationService');
+      const { updateAllCampaignRecommendations } = await import('../analytics/strategyRecommendationService');
       const updated = await updateAllCampaignRecommendations(input.accountId);
       return { updated };
     }),

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { generateSimulatedTrendData, calculateTrendSummary } from './_helpers';
 import * as db from "../db";
-import * as bidOptimizer from "../bidOptimizer";
+import * as bidOptimizer from "../optimization/bidOptimizer";
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 
@@ -53,7 +53,7 @@ export const keywordRouter = router({
       await db.updateKeywordBid(input.id, input.bid);
       
       // 记录审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       await logAudit({
         userId: ctx.user.id,
         userName: ctx.user.name || undefined,
@@ -136,7 +136,7 @@ export const keywordRouter = router({
       
       // 记录批量出价调整审计日志
       if (results.length > 0) {
-        const { logAudit } = await import("../auditService");
+        const { logAudit } = await import("../system/auditService");
         const bidTypeDesc: Record<string, string> = {
           fixed: `固定出价$${input.bidValue}`,
           increase_percent: `提高${input.bidValue}%`,

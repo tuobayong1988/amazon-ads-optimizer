@@ -5,11 +5,11 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import * as algorithmOptimizationService from '../algorithmOptimizationService';
-import * as algorithmEffectService from '../algorithmEffectService';
-import * as holidayConfigService from '../holidayConfigService';
-import * as algorithmEvolutionEngine from '../algorithmEvolutionEngine';
-import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimizationAutoCorrector';
+import * as algorithmOptimizationService from '../algorithm/algorithmOptimizationService';
+import * as algorithmEffectService from '../algorithm/algorithmEffectService';
+import * as holidayConfigService from '../system/holidayConfigService';
+import * as algorithmEvolutionEngine from '../algorithm/algorithmEvolutionEngine';
+import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimization/optimizationAutoCorrector';
 import { apiCache } from '../services/apiCacheService';
 import { verifyAccountAccess } from '../utils/accessControl';
 

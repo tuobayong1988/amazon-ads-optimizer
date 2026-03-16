@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 416,
+    description: 'v416: [后端代码结构重构] — (1)P0-server根目录重组: 将114个文件按功能域归类到28个子目录(api/、sync/、scheduler/、optimization/、budget/、analytics/、system/、config/、automation/等) (2)P0-更新601个import路径: 自动化脚本处理所有静态import和动态import的路径更新 (3)P1-清理70+顶层杂散文件: 历史报告/调试脚本/图表归档到docs/archive/ (4)P2-项目文档体系: 新增docs/development/下架构说明、模块说明、开发指南',
+    // @ts-ignore
+    affectedModules: ['infrastructure'],
+    correctionActions: [],
+  },
+  {
     version: 415,
     description: 'v415: [建议竞价同步+数据同步全面审计] — (1)P0-新增SP建议竞价同步: 在syncSp.ts中新增syncSpBidRecommendations方法,按adGroup分组批量调用Amazon SP Bid Recommendations API,将suggestedBid写入keywords和productTargets表 (2)P0-新增SYNC_STEP: sp_bid_recommendations步骤(full tier),在每次完整同步时自动获取建议竞价 (3)P1-前端展示建议竞价: 在AdGroupDetail的关键词和商品定位表格中添加建议竞价列,黄色表示建议竞价高于当前出价,绿色表示低于或等于 (4)P2-数据同步模块全面审计: 确认所有31个SYNC_STEPS覆盖SP/SB/SD所有层级',
     // @ts-ignore
@@ -1075,7 +1082,7 @@ async function reoptimizeTarget(
   
   try {
     // 获取优化目标配置
-    const { getOptimizationTargetConfig, executeOptimizationTarget } = await import('./optimizationTargetEngine');
+    const { getOptimizationTargetConfig, executeOptimizationTarget } = await import('./optimization/optimizationTargetEngine');
     const config = await getOptimizationTargetConfig(targetId);
     
     if (!config) {
@@ -1915,7 +1922,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   }
 
   // 5. 获取所有活跃优化目标（恢复后重新获取）
-  const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+  const { getEnabledOptimizationTargets } = await import('./optimization/optimizationTargetEngine');
   const targets = await getEnabledOptimizationTargets();
   
   if (targets.length === 0) {
@@ -2056,7 +2063,7 @@ export async function forceReoptimize(
   
   log.info(`[PostDeployOptimizer] 手动触发重优化, 模块: ${affectedModules.join(',')}, 目标: ${targetId || 'all'}`);
   
-  const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+  const { getEnabledOptimizationTargets } = await import('./optimization/optimizationTargetEngine');
   let targets = await getEnabledOptimizationTargets();
   
   if (targetId) {

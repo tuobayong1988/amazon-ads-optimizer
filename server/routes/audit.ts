@@ -26,7 +26,7 @@ export const auditRouter = router({
       filterUserId: z.number().optional(), // 管理员筛选特定用户
     }))
     .query(async ({ ctx, input }) => {
-      const { getAuditLogs } = await import("../auditService");
+      const { getAuditLogs } = await import("../system/auditService");
       // 管理员可以查看所有用户的日志
       const isAdmin = ctx.user.role === 'admin';
       const userId = isAdmin && input.viewAll ? (input.filterUserId || undefined) : ctx.user.id;
@@ -40,7 +40,7 @@ export const auditRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }: any) => {
-      const { getAuditLogById } = await import("../auditService");
+      const { getAuditLogById } = await import("../system/auditService");
       const log = await getAuditLogById(input.id);
       // v370.4: 验证审计日志归属（管理员可查看所有）
       if (log && log.userId !== ctx.user.id && ctx.user.role !== 'admin') {
@@ -53,7 +53,7 @@ export const auditRouter = router({
   userStats: protectedProcedure
     .input(z.object({ days: z.number().default(30), viewAll: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
-      const { getUserAuditStats } = await import("../auditService");
+      const { getUserAuditStats } = await import("../system/auditService");
       const isAdmin = ctx.user.role === 'admin';
       // 管理员默认查看所有用户的汇总统计，普通用户只看自己的
       const userId = (isAdmin && input.viewAll !== false) ? undefined : ctx.user.id;
@@ -64,7 +64,7 @@ export const auditRouter = router({
   accountStats: protectedProcedure
     .input(z.object({ accountId: z.number(), days: z.number().default(30) }))
     .query(async ({ ctx, input }: any) => {
-      const { getAccountAuditStats } = await import("../auditService");
+      const { getAccountAuditStats } = await import("../system/auditService");
       return getAccountAuditStats(input.accountId, input.days);
     }),
 
@@ -77,7 +77,7 @@ export const auditRouter = router({
       endDate: z.date().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { exportAuditLogsToCSV } = await import("../auditService");
+      const { exportAuditLogsToCSV } = await import("../system/auditService");
       const csv = await exportAuditLogsToCSV({
         ...input,
         userId: ctx.user.id,
@@ -88,7 +88,7 @@ export const auditRouter = router({
   // 获取操作类型和描述
   // v360: P3-2安全加固 - 操作类型元数据也需要认证
   getActionTypes: protectedProcedure.query(async () => {
-    const { ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS } = await import("../auditService");
+    const { ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS } = await import("../system/auditService");
     return {
       categories: ACTION_CATEGORIES,
       actionDescriptions: ACTION_DESCRIPTIONS,

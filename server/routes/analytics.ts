@@ -6,7 +6,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as advancedAnalyticsService from '../advancedAnalyticsService';
+import * as advancedAnalyticsService from '../analytics/advancedAnalyticsService';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
 import { apiCache } from '../services/apiCacheService';

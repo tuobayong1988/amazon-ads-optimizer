@@ -37,19 +37,19 @@ import {
   type ImpressionCurveParams,
   type CTRCurveParams,
   type ConversionParams
-} from "./marketCurveService";
+} from "./optimization/marketCurveService";
 
 import {
   predictKeywordPerformance,
   type KeywordFeatures,
   type PredictionResult
-} from "./decisionTreeService";
+} from "./algorithm/decisionTreeService";
 
 import {
   calculateEfficiencyScore,
   type PlacementType,
   type PlacementEfficiencyScore
-} from "./placementOptimizationService";
+} from "./optimization/placementOptimizationService";
 
 // ==================== 类型定义 ====================
 

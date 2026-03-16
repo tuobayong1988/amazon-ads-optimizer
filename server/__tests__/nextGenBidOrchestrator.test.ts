@@ -110,7 +110,7 @@ import {
   calculateNextGenBid,
   type SafetyConfig,
   type NextGenBidResult,
-} from '../nextGenBidOrchestrator';
+} from '../optimization/nextGenBidOrchestrator';
 
 describe('NextGenBidOrchestrator', () => {
   beforeEach(() => {

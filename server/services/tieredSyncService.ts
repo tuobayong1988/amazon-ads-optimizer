@@ -18,7 +18,7 @@
 import { getDb } from '../db';
 import { reportJobs, adAccounts } from '../../drizzle/schema';
 import { eq, and, sql, gte, lte, inArray } from 'drizzle-orm';
-import { AmazonAdsApiClient } from '../amazonAdsApi';
+import { AmazonAdsApiClient } from '../sync/amazonAdsApi';
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('TieredSync');
 

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 415;  // v415: 新增SP建议竞价(Suggested Bid)同步模块，前端展示建议竞价列，完整审计并修复数据同步模块
+export const SYSTEM_VERSION = 416;  // v416: 后端代码结构重构 - server根目录114文件按功能域归类到28个子目录，清理70+杂散文件

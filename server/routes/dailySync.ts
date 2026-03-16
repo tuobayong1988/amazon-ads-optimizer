@@ -3,7 +3,7 @@
  */
 import { router, protectedProcedure } from '../_core/trpc';
 import { z } from 'zod';
-import * as dailySyncTask from '../daily-sync-task';
+import * as dailySyncTask from '../sync/daily-sync-task';
 import * as db from '../db';
 import { verifyAccountAccess } from '../utils/accessControl';
 

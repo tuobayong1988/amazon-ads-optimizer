@@ -40,8 +40,8 @@ import { eq, and, sql, inArray, desc, gte, or } from 'drizzle-orm';
 import { createModuleLogger } from './utils/logger';
 import { SYSTEM_VERSION } from './utils/systemVersion';
 import { recordAudit, auditSystemAction } from './services/auditLogService';
-import { SAFETY_LIMITS, applyBidSafetyBoundary } from './safetyBoundary';
-import { DEFAULT_MAX_BID_CPC, DEFAULT_MIN_BID, MAX_BID_CHANGE_PERCENT } from './bidOptimizer';
+import { SAFETY_LIMITS, applyBidSafetyBoundary } from './optimization/safetyBoundary';
+import { DEFAULT_MAX_BID_CPC, DEFAULT_MIN_BID, MAX_BID_CHANGE_PERCENT } from './optimization/bidOptimizer';
 
 const log = createModuleLogger('CmdRevalidator');
 

@@ -6,8 +6,8 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import * as abTestService from '../abTestService';
-import * as abTestIntegration from '../abTestIntegration';
+import * as abTestService from '../analytics/abTestService';
+import * as abTestIntegration from '../analytics/abTestIntegration';
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm';
 import { getDb } from '../db';
 import { abTests, abTestVariants, abTestDailyMetrics, abTestResults } from '../../drizzle/schema';

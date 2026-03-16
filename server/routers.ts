@@ -71,7 +71,7 @@ import { reviewRouter } from './reviewRouter';
 import { mlOptimizationRouter } from './routes/mlOptimization';
 import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
-import { debugSyncRouter } from './debug-sync';
+import { debugSyncRouter } from './_debug/debug-sync';
 import { devRouter } from './routes/dev';
 import { monitoringRouter } from './routes/monitoring';
 import { intelligentRecommendationRouter } from './routes/intelligentRecommendation';
@@ -109,7 +109,7 @@ export const appRouter = router({
         organizationName: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { registerWithInviteCode } = await import('./localAuthService');
+        const { registerWithInviteCode } = await import('./system/localAuthService');
         const ipAddress = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
         const userAgent = ctx.req.headers['user-agent'];
         return registerWithInviteCode(input, ipAddress, userAgent);
@@ -121,7 +121,7 @@ export const appRouter = router({
         password: z.string().min(1),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { loginLocalUser } = await import('./localAuthService');
+        const { loginLocalUser } = await import('./system/localAuthService');
         const ipAddress = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
         const userAgent = ctx.req.headers['user-agent'];
         return loginLocalUser(input, ipAddress, userAgent);
@@ -130,7 +130,7 @@ export const appRouter = router({
     verifyToken: publicProcedure
       .input(z.object({ token: z.string() }))
       .query(async ({ input }: any) => {
-        const { verifyToken } = await import('./localAuthService');
+        const { verifyToken } = await import('./system/localAuthService');
         return verifyToken(input.token);
       }),
     // 修改密码
@@ -140,7 +140,7 @@ export const appRouter = router({
         newPassword: z.string().min(6),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { changePassword } = await import('./localAuthService');
+        const { changePassword } = await import('./system/localAuthService');
         return changePassword(ctx.user.id, input.oldPassword, input.newPassword);
       }),
   }),

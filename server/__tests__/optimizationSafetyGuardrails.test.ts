@@ -10,7 +10,7 @@ import {
   applyBudgetGuardrail,
   applyPlacementGuardrail,
   SAFETY_LIMITS,
-} from '../optimizationSafetyGuardrails';
+} from '../optimization/optimizationSafetyGuardrails';
 
 // ============================================================
 // 竞价安全护栏测试

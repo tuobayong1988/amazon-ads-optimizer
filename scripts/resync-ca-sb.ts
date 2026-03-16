@@ -4,7 +4,7 @@
 import { getDb } from '../server/db';
 import { campaigns, adAccounts } from '../drizzle/schema';
 import { eq, and } from 'drizzle-orm';
-import { AmazonAdsApiClient } from '../server/amazonAdsApi';
+import { AmazonAdsApiClient } from '../server/sync/amazonAdsApi';
 
 async function main() {
   const db = await getDb();

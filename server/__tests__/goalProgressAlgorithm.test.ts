@@ -11,7 +11,7 @@ import {
   type TimeWeightedMetrics,
   type MultiWindowTrendData,
   type AlgorithmEfficacyData,
-} from '../goalProgressAlgorithm';
+} from '../algorithm/goalProgressAlgorithm';
 
 // ==================== 辅助工厂函数 ====================
 

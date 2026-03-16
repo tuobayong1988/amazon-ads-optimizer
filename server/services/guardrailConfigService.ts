@@ -13,7 +13,7 @@
  */
 
 import { createModuleLogger } from '../utils/logger';
-import { SAFETY_LIMITS } from '../optimizationSafetyGuardrails';
+import { SAFETY_LIMITS } from '../optimization/optimizationSafetyGuardrails';
 
 const log = createModuleLogger('GuardrailConfigService');
 

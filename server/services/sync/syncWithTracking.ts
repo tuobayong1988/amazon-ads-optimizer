@@ -9,7 +9,7 @@ import { eq, and } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { campaigns, adGroups, keywords, productTargets } from '../../../drizzle/schema';
 import { createModuleLogger } from '../../utils/logger';
-import { AmazonSyncService } from '../../amazonSyncService';
+import { AmazonSyncService } from '../../sync/amazonSyncService';
 import { detectConflict, getRecentlyOptimizedKeywordIds, getRecentlyOptimizedCampaignIds, SYNC_PROTECTION_CONFIG, createSyncProtectionStats, logSyncProtectionSummary } from './syncHelpers';
 import {
   createSyncChangeRecordsBatch,

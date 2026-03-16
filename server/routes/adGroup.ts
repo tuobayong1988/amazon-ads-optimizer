@@ -73,7 +73,7 @@ export const adGroupRouter = router({
       await db.updateAdGroupDefaultBid(input.id, input.defaultBid);
       
       // 记录审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       await logAudit({
         userId: ctx.user.id,
         userName: ctx.user.name || undefined,
@@ -150,7 +150,7 @@ export const adGroupRouter = router({
       await db.updateAdGroupStatus(input.id, input.status);
       
       // 记录审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       await logAudit({
         userId: ctx.user.id,
         userName: ctx.user.name || undefined,

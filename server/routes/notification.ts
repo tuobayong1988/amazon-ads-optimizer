@@ -6,7 +6,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as notificationService from '../notificationService';
+import * as notificationService from '../system/notificationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 
@@ -98,7 +98,7 @@ export const collaborationRouter = router({
       pageSize: z.number().default(20),
     }))
     .query(async ({ ctx, input }) => {
-      const { getUserNotifications } = await import("../collaborationNotificationService");
+      const { getUserNotifications } = await import("../system/collaborationNotificationService");
       return getUserNotifications({
         userId: ctx.user.id,
         ...input,
@@ -107,7 +107,7 @@ export const collaborationRouter = router({
 
   // 获取通知统计
   stats: protectedProcedure.query(async ({ ctx }: any) => {
-    const { getNotificationStats } = await import("../collaborationNotificationService");
+    const { getNotificationStats } = await import("../system/collaborationNotificationService");
     return getNotificationStats(ctx.user.id);
   }),
 
@@ -115,20 +115,20 @@ export const collaborationRouter = router({
   markAsRead: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { markNotificationAsRead } = await import("../collaborationNotificationService");
+      const { markNotificationAsRead } = await import("../system/collaborationNotificationService");
       return markNotificationAsRead(input.id);
     }),
 
   // 标记所有通知为已读
   markAllAsRead: protectedProcedure.mutation(async ({ ctx }: any) => {
-    const { markAllNotificationsAsRead } = await import("../collaborationNotificationService");
+    const { markAllNotificationsAsRead } = await import("../system/collaborationNotificationService");
     const count = await markAllNotificationsAsRead(ctx.user.id);
     return { count };
   }),
 
   // 获取用户通知偏好设置
   getPreferences: protectedProcedure.query(async ({ ctx }: any) => {
-    const { getUserNotificationPreferences } = await import("../collaborationNotificationService");
+    const { getUserNotificationPreferences } = await import("../system/collaborationNotificationService");
     return getUserNotificationPreferences(ctx.user.id);
   }),
 
@@ -153,7 +153,7 @@ export const collaborationRouter = router({
       timezone: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { updateUserNotificationPreferences } = await import("../collaborationNotificationService");
+      const { updateUserNotificationPreferences } = await import("../system/collaborationNotificationService");
       // 将boolean转换为number
       const convertedInput = {
         ...input,
@@ -177,7 +177,7 @@ export const collaborationRouter = router({
 
   // 获取重要操作类型列表
   getImportantActions: protectedProcedure.query(async () => {
-    const { IMPORTANT_ACTIONS, ACTION_PRIORITY, ACTION_NOTIFICATION_TEMPLATES } = await import("../collaborationNotificationService");
+    const { IMPORTANT_ACTIONS, ACTION_PRIORITY, ACTION_NOTIFICATION_TEMPLATES } = await import("../system/collaborationNotificationService");
     return {
       importantActions: IMPORTANT_ACTIONS,
       actionPriority: ACTION_PRIORITY,

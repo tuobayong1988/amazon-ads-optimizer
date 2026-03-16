@@ -13,7 +13,7 @@ import {
   getChangeLog,
   exportConfig,
   importConfig,
-} from '../systemConfigService';
+} from '../system/systemConfigService';
 
 describe('SystemConfigService', () => {
   beforeEach(() => {

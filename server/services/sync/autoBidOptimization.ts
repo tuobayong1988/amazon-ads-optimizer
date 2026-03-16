@@ -8,9 +8,9 @@
 import { eq, and } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { keywords, adGroups, campaigns } from '../../../drizzle/schema';
-import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from '../../bidOptimizer';
+import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from '../../optimization/bidOptimizer';
 import { createModuleLogger } from '../../utils/logger';
-import type { AmazonSyncService } from '../../amazonSyncService';
+import type { AmazonSyncService } from '../../sync/amazonSyncService';
 
 const log = createModuleLogger('AutoBidOpt');
 

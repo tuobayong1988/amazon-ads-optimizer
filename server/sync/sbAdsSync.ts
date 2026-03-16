@@ -18,7 +18,7 @@ import {
   optimizationEvents,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
-import type { AmazonAdsApiClient } from '../amazonAdsApi';
+import type { AmazonAdsApiClient } from './amazonAdsApi';
 
 /** 同步服务上下文 - 从AmazonSyncService传入 */
 export interface SyncContext {

@@ -5,7 +5,7 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import * as daypartingService from '../daypartingService';
+import * as daypartingService from '../budget/daypartingService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
 

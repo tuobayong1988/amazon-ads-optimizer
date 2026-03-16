@@ -6,9 +6,9 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as unifiedOptimizationEngine from '../unifiedOptimizationEngine';
-import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData, type TimeWeightedMetrics, type MultiWindowTrendData, type AlgorithmEfficacyData } from '../goalProgressAlgorithm';
-import * as advancedAnalyticsService from '../advancedAnalyticsService';
+import * as unifiedOptimizationEngine from '../optimization/unifiedOptimizationEngine';
+import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData, type TimeWeightedMetrics, type MultiWindowTrendData, type AlgorithmEfficacyData } from '../algorithm/goalProgressAlgorithm';
+import * as advancedAnalyticsService from '../analytics/advancedAnalyticsService';
 import { syncCampaignStatusToAmazon } from '../services/amazonApiHelper';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { bidAdjustmentHistory } from '../../drizzle/schema';
@@ -727,7 +727,7 @@ export const performanceGroupRouter = router({
     .query(async ({ ctx, input }: any) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
-      const optimizationTargetEngine = await import('../optimizationTargetEngine');
+      const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
       return optimizationTargetEngine.getOptimizationTargetSummary(input.targetId);
     }),
   
@@ -740,7 +740,7 @@ export const performanceGroupRouter = router({
     .query(async ({ ctx, input }: any) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
-      const optimizationTargetEngine = await import('../optimizationTargetEngine');
+      const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
       return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
         dryRun: true,
         forceExecution: true,
@@ -757,7 +757,7 @@ export const performanceGroupRouter = router({
     .mutation(async ({ ctx, input }: any) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
-      const optimizationTargetEngine = await import('../optimizationTargetEngine');
+      const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
       return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
         dryRun: false,
         specificModules: input.specificModules,
@@ -771,7 +771,7 @@ export const performanceGroupRouter = router({
       dryRun: z.boolean().optional().default(false),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const optimizationTargetEngine = await import('../optimizationTargetEngine');
+      const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
       return optimizationTargetEngine.executeAllEnabledTargets(input.accountId, {
         dryRun: input.dryRun,
       });
@@ -813,7 +813,7 @@ export const performanceGroupRouter = router({
       optimizationTargetId: z.number().optional(),
     }))
     .query(async ({ ctx, input }: any) => {
-      const syncEngine = await import('../optimizationSyncEngine');
+      const syncEngine = await import('../sync/optimizationSyncEngine');
       if (input.batchId) {
         return syncEngine.getBatchStatus(input.batchId);
       }
@@ -827,7 +827,7 @@ export const performanceGroupRouter = router({
       accountId: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const syncEngine = await import('../optimizationSyncEngine');
+      const syncEngine = await import('../sync/optimizationSyncEngine');
       return syncEngine.executeBatchSync({
         batchId: input.batchId,
         accountId: input.accountId,
@@ -1063,11 +1063,11 @@ export const performanceGroupRouter = router({
     }))
     .mutation(async ({ ctx, input }: any) => {
       if (input.period) {
-        const { runEffectTrackingTask } = await import('../effectTrackingScheduler');
+        const { runEffectTrackingTask } = await import('../scheduler/effectTrackingScheduler');
         const periodMap: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30 };
         return runEffectTrackingTask(periodMap[input.period] || 7);
       } else {
-        const { runAllTrackingTasks } = await import('../effectTrackingScheduler');
+        const { runAllTrackingTasks } = await import('../scheduler/effectTrackingScheduler');
         return runAllTrackingTasks();
       }
     }),

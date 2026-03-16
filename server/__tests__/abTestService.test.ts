@@ -9,7 +9,7 @@ import {
   normalCDF,
   splitCampaignsIntoGroups,
   determineWinner,
-} from '../abTestService';
+} from '../analytics/abTestService';
 
 // ==================== 1. 正态分布CDF ====================
 

@@ -10,7 +10,7 @@ import {
   applyBudgetGuardrail,
   applyPlacementGuardrail,
   SAFETY_LIMITS,
-} from '../optimizationSafetyGuardrails';
+} from '../optimization/optimizationSafetyGuardrails';
 
 // ============================================================
 // 出价优化端到端流程测试

@@ -13,7 +13,7 @@
 
 import { DbInstance, getDb } from '../db';
 import { sql } from 'drizzle-orm';
-import { getSQSConsumer } from '../sqsConsumerService';
+import { getSQSConsumer } from '../sync/sqsConsumerService';
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('DualTrackSync');
 

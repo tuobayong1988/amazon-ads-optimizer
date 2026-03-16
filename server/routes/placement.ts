@@ -6,13 +6,13 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as marginalBenefitService from '../marginalBenefitAnalysisService';
-import * as placementService from '../placementOptimizationService';
+import * as marginalBenefitService from '../optimization/marginalBenefitAnalysisService';
+import * as placementService from '../optimization/placementOptimizationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { bidAdjustmentHistory } from '../../drizzle/schema';
 import * as advancedPlacementService from '../advancedPlacementService';
-import * as marketCurveService from '../marketCurveService';
-import * as decisionTreeService from '../decisionTreeService';
+import * as marketCurveService from '../optimization/marketCurveService';
+import * as decisionTreeService from '../algorithm/decisionTreeService';
 import { createModuleLogger } from '../utils/logger';
 import { verifyAccountAccess } from '../utils/accessControl';
 
@@ -1076,21 +1076,21 @@ export const placementRouter = router({
       period: z.number().default(7), // 7, 14, 或 30 天
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const { runEffectTrackingTask } = await import('../effectTrackingScheduler');
+      const { runEffectTrackingTask } = await import('../scheduler/effectTrackingScheduler');
       return runEffectTrackingTask(input.period);
     }),
 
   // 运行所有效果追踪任务
   runAllTrackingTasks: protectedProcedure
     .mutation(async () => {
-      const { runAllTrackingTasks } = await import('../effectTrackingScheduler');
+      const { runAllTrackingTasks } = await import('../scheduler/effectTrackingScheduler');
       return runAllTrackingTasks();
     }),
 
   // 获取效果追踪统计摘要
   getTrackingStatsSummary: protectedProcedure
     .query(async () => {
-      const { getTrackingStatsSummary } = await import('../effectTrackingScheduler');
+      const { getTrackingStatsSummary } = await import('../scheduler/effectTrackingScheduler');
       return getTrackingStatsSummary();
     }),
 
@@ -1300,7 +1300,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { calculateMarginalBenefit } = await import('../marginalBenefitAnalysisService');
+      const { calculateMarginalBenefit } = await import('../optimization/marginalBenefitAnalysisService');
       return calculateMarginalBenefit(
         input.campaignId,
         input.accountId,
@@ -1331,7 +1331,7 @@ export const placementRouter = router({
       }).optional(),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const { optimizeTrafficAllocation } = await import('../marginalBenefitAnalysisService');
+      const { optimizeTrafficAllocation } = await import('../optimization/marginalBenefitAnalysisService');
       return optimizeTrafficAllocation(
         input.campaignId,
         input.accountId,
@@ -1351,7 +1351,7 @@ export const placementRouter = router({
     }))
     .mutation(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { createBatchAnalysis, executeBatchAnalysis } = await import('../marginalBenefitBatchService');
+      const { createBatchAnalysis, executeBatchAnalysis } = await import('../optimization/marginalBenefitBatchService');
       
       const analysisId = await createBatchAnalysis({
         accountId: input.accountId,
@@ -1380,7 +1380,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { getBatchAnalysisHistory } = await import('../marginalBenefitBatchService');
+      const { getBatchAnalysisHistory } = await import('../optimization/marginalBenefitBatchService');
       return getBatchAnalysisHistory(input.accountId, input.limit);
     }),
 
@@ -1388,7 +1388,7 @@ export const placementRouter = router({
   getBatchAnalysisDetail: protectedProcedure
     .input(z.object({ analysisId: z.number() }))
     .query(async ({ ctx, input }: any) => {
-      const { getBatchAnalysisDetail } = await import('../marginalBenefitBatchService');
+      const { getBatchAnalysisDetail } = await import('../optimization/marginalBenefitBatchService');
       return getBatchAnalysisDetail(input.analysisId);
     }),
 
@@ -1407,7 +1407,7 @@ export const placementRouter = router({
       note: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }: any) => {
-      const { applyOptimization } = await import('../marginalBenefitBatchService');
+      const { applyOptimization } = await import('../optimization/marginalBenefitBatchService');
       return applyOptimization({
         ...input,
         userId: ctx.user.id,
@@ -1430,7 +1430,7 @@ export const placementRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }: any) => {
-      const { batchApplyOptimization } = await import('../marginalBenefitBatchService');
+      const { batchApplyOptimization } = await import('../optimization/marginalBenefitBatchService');
       return batchApplyOptimization(input.accountId, ctx.user.id, input.applications);
     }),
 
@@ -1438,7 +1438,7 @@ export const placementRouter = router({
   rollbackApplication: protectedProcedure
     .input(z.object({ applicationId: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { rollbackApplication } = await import('../marginalBenefitBatchService');
+      const { rollbackApplication } = await import('../optimization/marginalBenefitBatchService');
       return rollbackApplication(input.applicationId);
     }),
 
@@ -1451,7 +1451,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { getApplicationHistory } = await import('../marginalBenefitBatchService');
+      const { getApplicationHistory } = await import('../optimization/marginalBenefitBatchService');
       return getApplicationHistory(input.accountId, input.campaignId, input.limit);
     }),
 
@@ -1465,7 +1465,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { getHistoryTrend } = await import('../marginalBenefitHistoryService');
+      const { getHistoryTrend } = await import('../optimization/marginalBenefitHistoryService');
       return getHistoryTrend(input.accountId, input.campaignId, input.days);
     }),
 
@@ -1478,7 +1478,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { analyzeSeasonalPatterns } = await import('../marginalBenefitHistoryService');
+      const { analyzeSeasonalPatterns } = await import('../optimization/marginalBenefitHistoryService');
       return analyzeSeasonalPatterns(input.accountId, input.campaignId, input.period);
     }),
 
@@ -1494,7 +1494,7 @@ export const placementRouter = router({
     }))
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
-      const { comparePeriods } = await import('../marginalBenefitHistoryService');
+      const { comparePeriods } = await import('../optimization/marginalBenefitHistoryService');
       return comparePeriods(
         input.accountId,
         input.campaignId,
@@ -1518,7 +1518,7 @@ export const placementRouter = router({
         calculateMarginalBenefit, 
         optimizeTrafficAllocation, 
         generateMarginalBenefitReport 
-      } = await import('../marginalBenefitAnalysisService');
+      } = await import('../optimization/marginalBenefitAnalysisService');
       
       // 获取当前设置
       const currentSettings = await placementService.getCampaignPlacementSettings(

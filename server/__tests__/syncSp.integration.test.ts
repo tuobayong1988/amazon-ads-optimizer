@@ -170,7 +170,7 @@ function createMockSpProductTarget(overrides: Partial<any> = {}): any {
 
 // ==================== 导入被测模块 ====================
 
-import { AmazonSyncService } from '../amazonSyncService';
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import '../services/sync/syncSp';
 import '../services/sync/bidOperations';
 

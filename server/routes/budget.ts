@@ -6,11 +6,11 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { verifyAccountAccess } from '../utils/accessControl';
-import * as intelligentBudgetAllocationService from '../intelligentBudgetAllocationService';
-import * as budgetAutoExecutionService from '../budgetAutoExecutionService';
-import * as budgetAlertService from "../budgetAlertService";
-import * as budgetTrackingService from "../budgetTrackingService";
-import * as seasonalBudgetService from "../seasonalBudgetService";
+import * as intelligentBudgetAllocationService from '../budget/intelligentBudgetAllocationService';
+import * as budgetAutoExecutionService from '../budget/budgetAutoExecutionService';
+import * as budgetAlertService from "../budget/budgetAlertService";
+import * as budgetTrackingService from "../budget/budgetTrackingService";
+import * as seasonalBudgetService from "../budget/seasonalBudgetService";
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 
@@ -29,7 +29,7 @@ export const budgetAllocationRouter = router({
       targetAcos: z.number().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { generateBudgetAllocation } = await import("../budgetAllocationService");
+      const { generateBudgetAllocation } = await import("../budget/budgetAllocationService");
       return generateBudgetAllocation(ctx.user.id, input.accountId, input.totalBudget, {
         prioritizeHighRoas: input.prioritizeHighRoas,
         prioritizeNewProducts: input.prioritizeNewProducts,
@@ -50,7 +50,7 @@ export const budgetAllocationRouter = router({
       result: z.unknown(), // AllocationResult
     }))
     .mutation(async ({ ctx, input }) => {
-      const { saveBudgetAllocation } = await import("../budgetAllocationService");
+      const { saveBudgetAllocation } = await import("../budget/budgetAllocationService");
       const allocationId = await saveBudgetAllocation(
         ctx.user.id,
         input.accountId,
@@ -69,7 +69,7 @@ export const budgetAllocationRouter = router({
       allocationId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { applyBudgetAllocation } = await import("../budgetAllocationService");
+      const { applyBudgetAllocation } = await import("../budget/budgetAllocationService");
       return applyBudgetAllocation(input.allocationId, ctx.user.id);
     }),
 
@@ -80,7 +80,7 @@ export const budgetAllocationRouter = router({
       limit: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { getBudgetAllocationHistory } = await import("../budgetAllocationService");
+      const { getBudgetAllocationHistory } = await import("../budget/budgetAllocationService");
       return getBudgetAllocationHistory(ctx.user.id, input.accountId, input.limit);
     }),
 
@@ -94,7 +94,7 @@ export const budgetAllocationRouter = router({
       limit: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { getBudgetHistory } = await import("../budgetAllocationService");
+      const { getBudgetHistory } = await import("../budget/budgetAllocationService");
       return getBudgetHistory(ctx.user.id, input);
     }),
 
@@ -114,7 +114,7 @@ export const budgetAllocationRouter = router({
       prioritizeNewProducts: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { createBudgetGoal } = await import("../budgetAllocationService");
+      const { createBudgetGoal } = await import("../budget/budgetAllocationService");
       const goalId = await createBudgetGoal(ctx.user.id, input);
       return { goalId };
     }),
@@ -125,7 +125,7 @@ export const budgetAllocationRouter = router({
       accountId: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { getBudgetGoals } = await import("../budgetAllocationService");
+      const { getBudgetGoals } = await import("../budget/budgetAllocationService");
       return getBudgetGoals(ctx.user.id, input.accountId);
     }),
 
@@ -139,7 +139,7 @@ export const budgetAllocationRouter = router({
     }))
     .mutation(async ({ ctx, input }: any) => {
       // v382: 数据隔离 - 验证goalId归属权
-      const { updateBudgetGoal } = await import("../budgetAllocationService");
+      const { updateBudgetGoal } = await import("../budget/budgetAllocationService");
       await updateBudgetGoal(input.goalId, {
         targetValue: input.targetValue,
         totalBudget: input.totalBudget,
@@ -155,7 +155,7 @@ export const budgetAllocationRouter = router({
     }))
     .mutation(async ({ ctx, input }: any) => {
       // v382: 数据隔离
-      const { deleteBudgetGoal } = await import("../budgetAllocationService");
+      const { deleteBudgetGoal } = await import("../budget/budgetAllocationService");
       await deleteBudgetGoal(input.goalId);
       return { success: true };
     }),

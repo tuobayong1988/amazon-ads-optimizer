@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('AmazonAuth');
-import { AmazonAdsApiClient, DEFAULT_REDIRECT_URI } from "../amazonAdsApi";
+import { AmazonAdsApiClient, DEFAULT_REDIRECT_URI } from "../sync/amazonAdsApi";
 import * as db from "../db";
 
 /**

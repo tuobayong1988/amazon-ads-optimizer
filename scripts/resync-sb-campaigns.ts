@@ -1,7 +1,7 @@
 /**
  * 强制重新同步SB广告活动数据，修复预算字段
  */
-import { AmazonAdsApiClient } from '../server/amazonAdsApi';
+import { AmazonAdsApiClient } from '../server/sync/amazonAdsApi';
 import { getDb } from '../server/db';
 import { campaigns, adAccounts, amazonApiCredentials } from '../drizzle/schema';
 import { eq, and } from 'drizzle-orm';

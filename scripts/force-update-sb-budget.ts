@@ -5,7 +5,7 @@
 import { getDb } from '../server/db';
 import { campaigns, adAccounts, amazonApiCredentials } from '../drizzle/schema';
 import { eq, and } from 'drizzle-orm';
-import { AmazonAdsApiClient, MARKETPLACE_TO_REGION } from '../server/amazonAdsApi';
+import { AmazonAdsApiClient, MARKETPLACE_TO_REGION } from '../server/sync/amazonAdsApi';
 
 async function forceUpdateSbBudgets() {
   const db = await getDb();

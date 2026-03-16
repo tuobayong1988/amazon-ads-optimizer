@@ -34,8 +34,8 @@
 import { getDb } from './db';
 import { optimizationEvents } from '../drizzle/schema';
 import { sql, eq, and, desc } from 'drizzle-orm';
-import { stopDataSyncScheduler, stopOptimizationScheduler } from './dataSyncScheduler';
-import { stopSQSConsumer } from './sqsConsumerService';
+import { stopDataSyncScheduler, stopOptimizationScheduler } from './sync/dataSyncScheduler';
+import { stopSQSConsumer } from './sync/sqsConsumerService';
 import { SYSTEM_VERSION } from './utils/systemVersion';
 import { reportJobScheduler } from './services/reportJobScheduler';
 import { createModuleLogger } from './utils/logger';

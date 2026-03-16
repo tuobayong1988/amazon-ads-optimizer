@@ -28,7 +28,7 @@ import {
   type ShardDefinition,
   type ShardResult,
 } from './shardManager';
-import { discoverSyncableAccounts, getStepsForTier, syncAccount } from '../../unifiedSyncEngine';
+import { discoverSyncableAccounts, getStepsForTier, syncAccount } from '../../sync/unifiedSyncEngine';
 import { randomUUID } from 'crypto';
 
 const log = createModuleLogger('shardSyncOrchestrator');

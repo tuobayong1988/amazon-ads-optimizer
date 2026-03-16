@@ -2,7 +2,7 @@
  * v360: 统一预算分配入口
  * 将budgetPortfolioOptimizer作为底层算法引擎，结合intelligentBudgetAllocationService的多维度评分
  */
-export { optimizeBudgetPortfolio } from '../budgetPortfolioOptimizer';
+export { optimizeBudgetPortfolio } from '../budget/budgetPortfolioOptimizer';
 
 /**
  * 账号初始化服务

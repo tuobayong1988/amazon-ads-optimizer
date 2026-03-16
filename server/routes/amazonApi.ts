@@ -6,11 +6,11 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from '../amazonAdsApi';
-import { AmazonSyncService } from '../amazonSyncService';
+import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from '../sync/amazonAdsApi';
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
 import '../services/sync/syncWithTracking'; // 注册 WithTracking prototype 方法
-import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sqsConsumerService';
+import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sync/sqsConsumerService';
 import { accountInitializationService } from '../services/accountInitializationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
@@ -219,7 +219,7 @@ export const amazonApiRouter = router({
       const accountInfo = await db.getAdAccountById(input.accountId);
       const marketplace = accountInfo?.marketplace || 'US';
       
-      const { initializeAccount } = await import('../accountInitializationService');
+      const { initializeAccount } = await import('../system/accountInitializationService');
       
       // 异步执行初始化，不阻塞返回
       const initPromise = initializeAccount({
@@ -536,7 +536,7 @@ export const amazonApiRouter = router({
 
       // ✅ 为所有成功创建的账号执行完整初始化（全量同步 + 定时调度 + AMS订阅）
       const successfulAccounts = results.filter(r => r.success);
-      const { initializeMultipleAccounts } = await import('../accountInitializationService');
+      const { initializeMultipleAccounts } = await import('../system/accountInitializationService');
       
       // 异步执行初始化，不阻塞返回
       initializeMultipleAccounts(
@@ -819,7 +819,7 @@ export const amazonApiRouter = router({
       }
 
       // ✅ 幂等性保护：检查是否已有同步任务在进行
-      const { isSyncLocked, acquireSyncLock, releaseSyncLock } = await import('../syncIdempotencyService');
+      const { isSyncLocked, acquireSyncLock, releaseSyncLock } = await import('../sync/syncIdempotencyService');
       if (isSyncLocked(input.accountId, 'all')) {
         throw new TRPCError({
           code: 'CONFLICT',
@@ -2128,7 +2128,7 @@ export const amazonApiRouter = router({
               });
               
               // 6. ✅ 异步启动完整初始化（全量同步 + 定时调度 + AMS订阅）
-              const { initializeAccount } = await import('../accountInitializationService');
+              const { initializeAccount } = await import('../system/accountInitializationService');
               initializeAccount({
                 accountId,
                 userId: ctx.user.id,

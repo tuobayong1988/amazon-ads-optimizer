@@ -7,9 +7,9 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
 import * as db from "../db";
-import * as correctionService from '../correctionService';
-import * as autoRollbackService from '../autoRollbackService';
-import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimizationAutoCorrector';
+import * as correctionService from '../automation/correctionService';
+import * as autoRollbackService from '../automation/autoRollbackService';
+import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from '../optimization/optimizationAutoCorrector';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { apiCache } from '../services/apiCacheService';
 

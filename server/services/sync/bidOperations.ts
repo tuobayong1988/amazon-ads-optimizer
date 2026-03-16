@@ -20,10 +20,10 @@ import {
   optimizationEvents,
 } from '../../../drizzle/schema';
 import { createModuleLogger } from '../../utils/logger';
-import type { AmazonAdsApiClient, SpCampaign } from '../../amazonAdsApi';
+import type { AmazonAdsApiClient, SpCampaign } from '../../sync/amazonAdsApi';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from '../../utils/timezone';
 import { getExchangeRateByMarketplace } from '../exchangeRateService';
-import { AmazonSyncService } from '../../amazonSyncService';
+import { AmazonSyncService } from '../../sync/amazonSyncService';
 import {
   SYNC_PROTECTION_CONFIG,
   createSyncProtectionStats,
@@ -32,8 +32,8 @@ import {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
-import { calculateBidAdjustment } from '../../bidOptimizer';
-import type { OptimizationTarget, PerformanceGroupConfig } from '../../bidOptimizer';
+import { calculateBidAdjustment } from '../../optimization/bidOptimizer';
+import type { OptimizationTarget, PerformanceGroupConfig } from '../../optimization/bidOptimizer';
 
 const log = createModuleLogger('bidOperations');
 

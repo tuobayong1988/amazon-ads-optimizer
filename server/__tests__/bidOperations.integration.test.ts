@@ -118,7 +118,7 @@ vi.mock('../services/amazonIdResolver', () => ({
 
 // ==================== 导入被测模块 ====================
 
-import { AmazonSyncService } from '../amazonSyncService';
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import '../services/sync/bidOperations';
 
 // ==================== 测试套件 ====================

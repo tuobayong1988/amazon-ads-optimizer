@@ -127,7 +127,7 @@ import {
   executeOptimizationTarget,
   type OptimizationTargetConfig,
   type OptimizationExecutionResult,
-} from '../optimizationTargetEngine';
+} from '../optimization/optimizationTargetEngine';
 
 describe('OptimizationTargetEngine', () => {
   beforeEach(() => {

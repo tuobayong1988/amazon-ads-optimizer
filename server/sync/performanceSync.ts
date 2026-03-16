@@ -18,7 +18,7 @@ import {
   optimizationEvents,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
-import type { AmazonAdsApiClient } from '../amazonAdsApi';
+import type { AmazonAdsApiClient } from './amazonAdsApi';
 import { getExchangeRateByMarketplace } from '../services/exchangeRateService';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate } from '../utils/timezone';
 

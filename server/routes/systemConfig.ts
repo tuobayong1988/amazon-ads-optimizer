@@ -13,7 +13,7 @@ export const systemConfigRouter = router({
    */
   getAllConfig: protectedProcedure
     .query(async () => {
-      const { getAllConfig } = await import('../systemConfigService');
+      const { getAllConfig } = await import('../system/systemConfigService');
       return { success: true, config: getAllConfig() };
     }),
 
@@ -23,7 +23,7 @@ export const systemConfigRouter = router({
   getConfigByCategory: protectedProcedure
     .input(z.object({ category: z.string() }))
     .query(async ({ ctx, input }: any) => {
-      const { getAllConfig } = await import('../systemConfigService');
+      const { getAllConfig } = await import('../system/systemConfigService');
       return { success: true, config: getAllConfig(input.category) };
     }),
 
@@ -37,7 +37,7 @@ export const systemConfigRouter = router({
       reason: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { updateConfig } = await import('../systemConfigService');
+      const { updateConfig } = await import('../system/systemConfigService');
       const success = updateConfig(
         input.key,
         input.value,
@@ -53,7 +53,7 @@ export const systemConfigRouter = router({
   getChangeHistory: protectedProcedure
     .input(z.object({ limit: z.number().optional() }))
     .query(async ({ ctx, input }: any) => {
-      const { getChangeLog } = await import('../systemConfigService');
+      const { getChangeLog } = await import('../system/systemConfigService');
       return { success: true, history: getChangeLog(input.limit || 50) };
     }),
 
@@ -63,7 +63,7 @@ export const systemConfigRouter = router({
   getAlgorithmDashboard: protectedProcedure
     .input(z.object({ period: z.enum(['1h', '24h', '7d']).optional() }))
     .query(async ({ ctx, input }: any) => {
-      const { generateDashboardMetrics } = await import('../algorithmObservabilityService');
+      const { generateDashboardMetrics } = await import('../algorithm/algorithmObservabilityService');
       return { success: true, metrics: generateDashboardMetrics(input.period || '24h') };
     }),
 
@@ -77,7 +77,7 @@ export const systemConfigRouter = router({
       limit: z.number().optional(),
     }))
     .query(async ({ ctx, input }: any) => {
-      const { getRecentDecisionTraces } = await import('../algorithmObservabilityService');
+      const { getRecentDecisionTraces } = await import('../algorithm/algorithmObservabilityService');
       return {
         success: true,
         traces: getRecentDecisionTraces(input.limit || 50, { accountId: input.accountId, algorithm: input.algorithm }),
@@ -93,7 +93,7 @@ export const systemConfigRouter = router({
       limit: z.number().optional(),
     }))
     .query(async ({ ctx, input }: any) => {
-      const { getMetrics } = await import('../algorithmObservabilityService');
+      const { getMetrics } = await import('../algorithm/algorithmObservabilityService');
       return { success: true, metrics: getMetrics(input.type, input.limit || 100) };
     }),
 
@@ -103,7 +103,7 @@ export const systemConfigRouter = router({
   getWeightTuningStatus: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string().optional() }))
     .query(async ({ ctx, input }: any) => {
-      const { getTuningHistory, getEffectiveWeights } = await import('../weightAutoTuningService');
+      const { getTuningHistory, getEffectiveWeights } = await import('../algorithm/weightAutoTuningService');
       const history = getTuningHistory(input.strategyTemplateId);
       const defaultWeights = {
         coreMetric: 20, trend: 16, budgetEfficiency: 11,
@@ -121,7 +121,7 @@ export const systemConfigRouter = router({
   rollbackWeights: protectedProcedure
     .input(z.object({ strategyTemplateId: z.string() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { rollbackWeights } = await import('../weightAutoTuningService');
+      const { rollbackWeights } = await import('../algorithm/weightAutoTuningService');
       const success = rollbackWeights(input.strategyTemplateId);
       return { success };
     }),

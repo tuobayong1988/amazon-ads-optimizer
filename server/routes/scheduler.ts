@@ -6,7 +6,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as schedulerService from '../schedulerService';
+import * as schedulerService from '../scheduler/schedulerService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 

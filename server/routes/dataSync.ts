@@ -6,7 +6,7 @@ import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
-import * as dataSyncService from "../dataSyncService";
+import * as dataSyncService from "../sync/dataSyncService";
 import { asyncReportService } from '../services/asyncReportService';
 import { reportJobScheduler } from '../services/reportJobScheduler';
 import { accountInitializationService } from '../services/accountInitializationService';
@@ -33,7 +33,7 @@ export const dataSyncRouter = router({
       if (!jobId) return { success: false, message: "创建任务失败" };
       
       // 记录审计日志
-      const { logAudit } = await import("../auditService");
+      const { logAudit } = await import("../system/auditService");
       const syncTypeDesc: Record<string, string> = {
         campaigns: "广告活动",
         keywords: "关键词",

@@ -10,7 +10,7 @@ import {
   rollbackWeights,
   getTuningHistory,
   getDefaultTuningConfig,
-} from '../weightAutoTuningService';
+} from '../algorithm/weightAutoTuningService';
 
 describe('WeightAutoTuningService', () => {
   const defaultWeights: Record<string, number> = {

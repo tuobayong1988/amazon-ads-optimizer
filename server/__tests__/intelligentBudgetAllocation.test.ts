@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as intelligentBudgetAllocationService from '../intelligentBudgetAllocationService';
+import * as intelligentBudgetAllocationService from '../budget/intelligentBudgetAllocationService';
 
 describe('智能预算分配服务', () => {
   describe('多维度评分系统', () => {

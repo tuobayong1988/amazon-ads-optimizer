@@ -407,8 +407,8 @@ export const inviteCodeRouter = router({
       note: z.string().max(255).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { createInviteCode } = await import('../inviteCodeService');
-      const { createAuditLog } = await import('../auditLogService');
+      const { createInviteCode } = await import('../system/inviteCodeService');
+      const { createAuditLog } = await import('../system/auditLogService');
       
       const result = await createInviteCode({
         createdBy: ctx.user.id,
@@ -443,7 +443,7 @@ export const inviteCodeRouter = router({
       note: z.string().max(255).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { createInviteCodesBatch } = await import('../inviteCodeService');
+      const { createInviteCodesBatch } = await import('../system/inviteCodeService');
       return createInviteCodesBatch({
         createdBy: ctx.user.id,
         organizationId: (ctx.user as Record<string, any>).organizationId || 1,
@@ -458,19 +458,19 @@ export const inviteCodeRouter = router({
   validate: protectedProcedure
     .input(z.object({ code: z.string() }))
     .query(async ({ ctx, input }: any) => {
-      const { validateInviteCode } = await import('../inviteCodeService');
+      const { validateInviteCode } = await import('../system/inviteCodeService');
       return validateInviteCode(input.code);
     }),
 
   // 获取邀请码列表
   list: protectedProcedure.query(async ({ ctx }: any) => {
-    const { getInviteCodes } = await import('../inviteCodeService');
+    const { getInviteCodes } = await import('../system/inviteCodeService');
     return getInviteCodes(ctx.user.id);
   }),
 
   // 获取邀请码统计
   stats: protectedProcedure.query(async ({ ctx }: any) => {
-    const { getInviteCodeStats } = await import('../inviteCodeService');
+    const { getInviteCodeStats } = await import('../system/inviteCodeService');
     return getInviteCodeStats(ctx.user.id);
   }),
 
@@ -478,7 +478,7 @@ export const inviteCodeRouter = router({
   disable: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { disableInviteCode } = await import('../inviteCodeService');
+      const { disableInviteCode } = await import('../system/inviteCodeService');
       return disableInviteCode(input.id);
     }),
 
@@ -486,7 +486,7 @@ export const inviteCodeRouter = router({
   enable: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { enableInviteCode } = await import('../inviteCodeService');
+      const { enableInviteCode } = await import('../system/inviteCodeService');
       return enableInviteCode(input.id);
     }),
 
@@ -494,7 +494,7 @@ export const inviteCodeRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }: any) => {
-      const { deleteInviteCode } = await import('../inviteCodeService');
+      const { deleteInviteCode } = await import('../system/inviteCodeService');
       return deleteInviteCode(input.id);
     }),
 });

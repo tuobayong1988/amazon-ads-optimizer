@@ -5,7 +5,7 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import * as apiSecurityService from '../apiSecurityService';
+import * as apiSecurityService from '../system/apiSecurityService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 

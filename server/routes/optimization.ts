@@ -7,11 +7,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
 import * as db from "../db";
-import * as bidOptimizer from "../bidOptimizer";
-import { AmazonSyncService } from '../amazonSyncService';
+import * as bidOptimizer from "../optimization/bidOptimizer";
+import { AmazonSyncService } from '../sync/amazonSyncService';
 import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
-import * as unifiedOptimizationEngine from '../unifiedOptimizationEngine';
-import * as nextGenOrchestrator from '../nextGenBidOrchestrator';
+import * as unifiedOptimizationEngine from '../optimization/unifiedOptimizationEngine';
+import * as nextGenOrchestrator from '../optimization/nextGenBidOrchestrator';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 

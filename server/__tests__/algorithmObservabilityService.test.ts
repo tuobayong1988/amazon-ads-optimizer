@@ -8,7 +8,7 @@ import {
   getRecentDecisionTraces,
   cleanupOldTraces,
   type AlgorithmDecisionTrace,
-} from '../algorithmObservabilityService';
+} from '../algorithm/algorithmObservabilityService';
 
 function createMockTrace(overrides: Partial<AlgorithmDecisionTrace> = {}): AlgorithmDecisionTrace {
   return {
