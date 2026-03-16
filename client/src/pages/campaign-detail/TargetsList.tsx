@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, Pause, Play, Target, TrendingUp } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
-import { formatAutoTargetingExpression } from '../CampaignDetail';
+import { formatAutoTargetingExpression } from '../campaigns/CampaignDetail';
 
 export function TargetsList({ campaignId }: { campaignId: number }) {
   const utils = trpc.useUtils();
