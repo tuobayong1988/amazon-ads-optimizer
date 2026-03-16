@@ -361,7 +361,7 @@ export const monitoringRouter = router({
   getSLOMetrics: protectedProcedure
     .query(async () => {
       try {
-        const { getSLOMetrics } = await import('../services/sync/sloMonitor');
+        const { getSLOMetrics } = await import('../sync/infrastructure/sloMonitor');
         const metrics = await getSLOMetrics();
         return { success: true, error: null, metrics };
       } catch (e: unknown) {
@@ -376,7 +376,7 @@ export const monitoringRouter = router({
     .input(z.object({ days: z.number().min(1).max(30).optional() }).optional())
     .query(async ({ ctx, input }: any) => {
       try {
-        const { getSLOTrend } = await import('../services/sync/sloMonitor');
+        const { getSLOTrend } = await import('../sync/infrastructure/sloMonitor');
         const trend = await getSLOTrend(input?.days || 7);
         return { success: true, error: null, trend };
       } catch (e: unknown) {
@@ -391,7 +391,7 @@ export const monitoringRouter = router({
     .input(z.object({ daysToCheck: z.number().min(1).max(90).optional() }).optional())
     .query(async ({ ctx, input }: any) => {
       try {
-        const { checkAllAccountsIntegrity } = await import('../services/sync/dataIntegrityChecker');
+        const { checkAllAccountsIntegrity } = await import('../sync/infrastructure/dataIntegrityChecker');
         const report = await checkAllAccountsIntegrity(input?.daysToCheck || 14);
         return { success: true, error: null, report };
       } catch (e: unknown) {
@@ -405,7 +405,7 @@ export const monitoringRouter = router({
   triggerIntegrityCheck: protectedProcedure
     .mutation(async () => {
       try {
-        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../services/sync/dataIntegrityChecker');
+        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../sync/infrastructure/dataIntegrityChecker');
         const checkResult = await checkAllAccountsIntegrity(14);
         const repairResults: Array<{ accountId: number; repaired: boolean; actionsExecuted: number; errors: string[] }> = [];
         

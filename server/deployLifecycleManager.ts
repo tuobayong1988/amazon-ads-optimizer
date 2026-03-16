@@ -36,6 +36,7 @@ import { optimizationEvents } from '../drizzle/schema';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { stopDataSyncScheduler, stopOptimizationScheduler } from './sync/dataSyncScheduler';
 import { stopSQSConsumer } from './sync/sqsConsumerService';
+import { stopEffectTrackingScheduler } from './scheduler/effectTrackingScheduler';
 import { SYSTEM_VERSION } from './utils/systemVersion';
 import { reportJobScheduler } from './services/reportJobScheduler';
 import { createModuleLogger } from './utils/logger';
@@ -220,6 +221,14 @@ async function stopNewTaskAcceptance(): Promise<void> {
       log.debug('[LifecycleManager]   ✓ 优化调度器已停止');
     } catch (e: unknown) {
       log.warn(`[LifecycleManager]   ⚠ 停止优化调度器失败: ${(e as Error).message}`);
+    }
+    
+    // v417: 停止效果追踪调度器
+    try {
+      stopEffectTrackingScheduler();
+      log.debug('[LifecycleManager]   ✓ 效果追踪调度器已停止');
+    } catch (e: unknown) {
+      log.warn(`[LifecycleManager]   ⚠ 停止效果追踪调度器失败: ${(e as Error).message}`);
     }
     
   } catch (error: unknown) {

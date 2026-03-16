@@ -8,8 +8,8 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from '../sync/amazonAdsApi';
 import { AmazonSyncService } from '../sync/amazonSyncService';
-import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
-import '../services/sync/syncWithTracking'; // 注册 WithTracking prototype 方法
+import { runAutoBidOptimization } from '../sync/autoBidOptimization';
+import '../sync/syncWithTracking'; // 注册 WithTracking prototype 方法
 import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sync/sqsConsumerService';
 import { accountInitializationService } from '../services/accountInitializationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
@@ -1538,7 +1538,7 @@ export const amazonApiRouter = router({
   getDualTrackStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ ctx, input }: any) => {
-      const { getDualTrackStatus } = await import('../services/dualTrackSyncService');
+      const { getDualTrackStatus } = await import('../sync/scheduling/dualTrackSyncService');
       return getDualTrackStatus(input.accountId);
     }),
   
@@ -1546,7 +1546,7 @@ export const amazonApiRouter = router({
   getDataSourceStats: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ ctx, input }: any) => {
-      const { getDataSourceStats } = await import('../services/dualTrackSyncService');
+      const { getDataSourceStats } = await import('../sync/scheduling/dualTrackSyncService');
       return getDataSourceStats(input.accountId);
     }),
   
@@ -1558,7 +1558,7 @@ export const amazonApiRouter = router({
       endDate: z.string(),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const { runConsistencyCheck } = await import('../services/dualTrackSyncService');
+      const { runConsistencyCheck } = await import('../sync/scheduling/dualTrackSyncService');
       return runConsistencyCheck(input.accountId, input.startDate, input.endDate);
     }),
   
@@ -1571,7 +1571,7 @@ export const amazonApiRouter = router({
       priority: z.enum(['realtime', 'historical', 'reporting']).optional().default('historical'),
     }))
     .query(async ({ ctx, input }: any) => {
-      const { getMergedPerformanceData } = await import('../services/dualTrackSyncService');
+      const { getMergedPerformanceData } = await import('../sync/scheduling/dualTrackSyncService');
       return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
     }),
 
@@ -1586,7 +1586,7 @@ export const amazonApiRouter = router({
       campaignIds: z.array(z.string()).optional(),
     }))
     .query(async ({ ctx, input }: any) => {
-      const { getSmartMergedData } = await import('../services/enhancedDualTrackService');
+      const { getSmartMergedData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getSmartMergedData(input.accountId, input.startDate, input.endDate, {
         purpose: input.purpose,
         includeToday: input.includeToday,
@@ -1603,7 +1603,7 @@ export const amazonApiRouter = router({
       granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily'),
     }))
     .query(async ({ ctx, input }: any) => {
-      const { getTimelineAggregatedData } = await import('../services/enhancedDualTrackService');
+      const { getTimelineAggregatedData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getTimelineAggregatedData(input.accountId, input.startDate, input.endDate, input.granularity);
     }),
 
@@ -1611,7 +1611,7 @@ export const amazonApiRouter = router({
   getRealtimeDashboardData: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ ctx, input }: any) => {
-      const { getRealtimeDashboardData } = await import('../services/enhancedDualTrackService');
+      const { getRealtimeDashboardData } = await import('../sync/scheduling/enhancedDualTrackService');
       return getRealtimeDashboardData(input.accountId);
     }),
 
@@ -1622,7 +1622,7 @@ export const amazonApiRouter = router({
       date: z.string(),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      const { checkAndBackfillData } = await import('../services/enhancedDualTrackService');
+      const { checkAndBackfillData } = await import('../sync/scheduling/enhancedDualTrackService');
       return checkAndBackfillData(input.accountId, input.date);
     }),
 
@@ -2245,5 +2245,121 @@ export const amazonApiRouter = router({
         totalAccounts: accounts.length,
         authorizedAccounts: accounts.filter(a => a.connectionStatus === 'connected').length,
       };
+    }),
+
+  // v417: 实现前端AmazonApiAuthStatus页面所需的getAllAuthStatus接口
+  getAllAuthStatus: protectedProcedure
+    .query(async ({ ctx }: any) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const accountStatuses = [];
+      let activeCount = 0;
+      let expiringCount = 0;
+      let expiredCount = 0;
+
+      for (const account of (accounts as any[])) {
+        const credentials = await db.getAmazonApiCredentials(account.id);
+        
+        let status: 'active' | 'expired' | 'expiring_soon' | 'unknown' = 'unknown';
+        let tokenExpiresAt: string | null = null;
+        let daysUntilExpiry: number | null = null;
+        let tokenExpired = false;
+        
+        if (credentials) {
+          if (credentials.tokenExpiresAt) {
+            tokenExpiresAt = credentials.tokenExpiresAt;
+            const expiresDate = new Date(credentials.tokenExpiresAt);
+            const now = new Date();
+            const diffMs = expiresDate.getTime() - now.getTime();
+            daysUntilExpiry = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffMs <= 0) {
+              status = 'expired';
+              tokenExpired = true;
+              expiredCount++;
+            } else if (daysUntilExpiry <= 7) {
+              status = 'expiring_soon';
+              expiringCount++;
+            } else {
+              status = 'active';
+              activeCount++;
+            }
+          } else {
+            // 没有过期时间记录，尝试通过API验证
+            try {
+              const client = new AmazonAdsApiClient({
+                clientId: credentials.clientId,
+                clientSecret: credentials.clientSecret,
+                refreshToken: credentials.refreshToken,
+                profileId: credentials.profileId,
+                region: credentials.region as 'NA' | 'EU' | 'FE',
+              });
+              await client.getProfiles();
+              status = 'active';
+              activeCount++;
+            } catch {
+              status = 'expired';
+              tokenExpired = true;
+              expiredCount++;
+            }
+          }
+        }
+
+        accountStatuses.push({
+          accountId: account.id,
+          accountName: account.accountName || `Account ${account.id}`,
+          profileId: account.profileId || '',
+          marketplace: account.marketplace || '',
+          tokenExpiresAt,
+          tokenExpired,
+          daysUntilExpiry,
+          lastRefreshAt: credentials?.updatedAt || null,
+          authScope: ['advertising::campaign_management'],
+          status,
+        });
+      }
+
+      return {
+        accounts: accountStatuses,
+        totalAccounts: accountStatuses.length,
+        activeAccounts: activeCount,
+        expiringAccounts: expiringCount,
+        expiredAccounts: expiredCount,
+      };
+    }),
+
+  // v417: 实现前端AmazonApiAuthStatus页面所需的refreshToken接口
+  refreshToken: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }: any) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: '未找到该账号的API凭证',
+        });
+      }
+
+      try {
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        });
+
+        // 调用getProfiles来触发token刷新
+        await client.getProfiles();
+
+        return {
+          success: true,
+          message: 'Token刷新成功',
+        };
+      } catch (error: unknown) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Token刷新失败: ${(error as Error).message}`,
+        });
+      }
     }),
 });

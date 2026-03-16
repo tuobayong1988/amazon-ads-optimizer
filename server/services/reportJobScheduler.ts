@@ -8,7 +8,7 @@
  * 4. 定期清理过期任务
  */
 
-import { asyncReportService } from './asyncReportService';
+import { asyncReportService } from '../sync/scheduling/asyncReportService';
 import { createModuleLogger } from '../utils/logger';
 import { logSync, logSyncError, logSystem } from '../utils/opsLogger';
 

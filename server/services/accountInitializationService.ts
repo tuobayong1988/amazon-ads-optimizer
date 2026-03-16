@@ -19,7 +19,7 @@ export { optimizeBudgetPortfolio } from '../budget/budgetPortfolioOptimizer';
 import { getDb } from '../db';
 import { adAccounts, accountInitializationProgress, reportJobs } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { AsyncReportService } from './asyncReportService';
+import { AsyncReportService } from '../sync/scheduling/asyncReportService';
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('AccountInitialization');
 

@@ -7,7 +7,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { AmazonSyncService } from '../sync/amazonSyncService';
-import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
+import { runAutoBidOptimization } from '../sync/autoBidOptimization';
 import * as batchOperationService from '../automation/batchOperationService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';

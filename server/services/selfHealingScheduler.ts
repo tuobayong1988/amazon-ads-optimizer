@@ -627,7 +627,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
     disableOnConsecutiveFailures: 5,
     execute: async () => {
       try {
-        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('./sync/dataIntegrityChecker');
+        const { checkAllAccountsIntegrity, executeAutoRepair } = await import('../sync/infrastructure/dataIntegrityChecker');
         
         const checkResult = await checkAllAccountsIntegrity(14);
         const unhealthyResults = checkResult.results.filter(r => r.needsRepair);

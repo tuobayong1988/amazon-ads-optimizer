@@ -7,11 +7,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import * as dataSyncService from "../sync/dataSyncService";
-import { asyncReportService } from '../services/asyncReportService';
+import { asyncReportService } from '../sync/scheduling/asyncReportService';
 import { reportJobScheduler } from '../services/reportJobScheduler';
 import { accountInitializationService } from '../services/accountInitializationService';
-import { smartSyncService } from '../services/smartSyncService';
-import { tieredSyncService } from '../services/tieredSyncService';
+import { smartSyncService } from '../sync/scheduling/smartSyncService';
+import { tieredSyncService } from '../sync/scheduling/tieredSyncService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 

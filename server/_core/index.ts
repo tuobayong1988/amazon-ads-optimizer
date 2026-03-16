@@ -28,8 +28,9 @@ import { runPrelaunchDbMigration } from '../prelaunchDbMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
+import { startEffectTrackingScheduler } from '../scheduler/effectTrackingScheduler';
 // v224: 加载 AmazonSyncService 的 prototype 扩展子模块
-import '../services/sync/init';
+import '../sync/init';
 import { getDb } from '../db';
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -306,6 +307,9 @@ async function startServer() {
     // v267 P2-3: 启动统一可观测性服务
     startObservabilityService();
     log.info('[Observability] v267: 统一可观测性服务已启动 - 指标收集/告警/健康摘要');
+    // v417: 启动效果追踪调度器（每1小时执行一次）
+    startEffectTrackingScheduler(60 * 60 * 1000);
+    log.info('[EffectTrackingScheduler] v417: 效果追踪调度器已启动，间隔: 1小时');
 
     // 启动异步报告任务调度器
     reportJobScheduler.start();

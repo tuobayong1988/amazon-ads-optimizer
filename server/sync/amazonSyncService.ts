@@ -35,7 +35,7 @@ import {
 import { OptimizationTarget, PerformanceGroupConfig } from '../optimization/bidOptimizer';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from '../utils/timezone';
 import { getExchangeRateByMarketplace } from '../services/exchangeRateService';
-import { registerSyncServiceFactory } from '../services/syncServiceProvider';
+import { registerSyncServiceFactory } from './scheduling/syncServiceProvider';
 
 // API凭证存储接口
 interface StoredApiCredentials {

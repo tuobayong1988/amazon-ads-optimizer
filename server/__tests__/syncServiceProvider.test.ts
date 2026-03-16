@@ -3,7 +3,7 @@ import {
   registerSyncServiceFactory,
   isSyncServiceFactoryRegistered,
   getAmazonSyncService,
-} from '../services/syncServiceProvider';
+} from '../sync/scheduling/syncServiceProvider';
 
 // Mock db module
 vi.mock('../db', () => ({

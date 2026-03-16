@@ -15,7 +15,7 @@ const log = createModuleLogger('SyncIdempotencyService');
  */
 
 import * as db from '../db';
-import { acquireLock, releaseLock, renewLock } from '../services/sync/shardManager';
+import { acquireLock, releaseLock, renewLock } from './infrastructure/shardManager';
 import { randomUUID } from 'crypto';
 
 // ==================== 锁模式配置 ====================

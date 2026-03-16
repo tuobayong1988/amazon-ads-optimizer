@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 416;  // v416: 后端代码结构重构 - server根目录114文件按功能域归类到28个子目录，清理70+杂散文件
+export const SYSTEM_VERSION = 417;  // v417: 信息孤岛审计与修复 + 架构优化

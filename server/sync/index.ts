@@ -13,3 +13,18 @@ export { syncPerformanceData, generateMockPerformanceData, generateHourlyFromDai
 export { applyBidAdjustment, applyBatchBidAdjustments } from './bidOperations';
 export { syncAutoTargeting, syncSdTargeting, syncSbTargeting } from './targetingSync';
 export { syncSbAds, syncAssetUrls } from './sbAdsSync';
+
+// v417: 从 services/sync/ 整合的模块
+export { runAutoBidOptimization } from './autoBidOptimization';
+export {
+  SYNC_PROTECTION_CONFIG,
+  hasRecentSyncedOptimization,
+  getRecentlyOptimizedKeywordIds,
+  getRecentlyOptimizedCampaignIds,
+  detectConflict,
+} from './syncHelpers';
+
+// v417: 从 services/ 整合的调度模块
+export { asyncReportService } from './scheduling/asyncReportService';
+export { tieredSyncService } from './scheduling/tieredSyncService';
+export { smartSyncService } from './scheduling/smartSyncService';

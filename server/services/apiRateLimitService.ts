@@ -469,7 +469,7 @@ export class ApiRateLimitService {
     
     // v374: 联动动态并发控制 - 将API层限流事件传递到同步调度层
     try {
-      const { recordThrottleEvent } = require('./syncPriorityScheduler');
+      const { recordThrottleEvent } = require('../sync/scheduling/syncPriorityScheduler');
       recordThrottleEvent();
     } catch (_) { /* 不影响主流程 */ }
     

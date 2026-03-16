@@ -14,7 +14,7 @@ import { createModuleLogger } from '../utils/logger';
 // v360: 集成统一限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from '../services/apiRateLimitService';
 // v374: 集成动态并发控制反馈回路
-import { recordThrottleEvent, recordSuccessEvent } from '../services/syncPriorityScheduler';
+import { recordThrottleEvent, recordSuccessEvent } from './scheduling/syncPriorityScheduler';
 
 const log = createModuleLogger('AmazonAPI');
 

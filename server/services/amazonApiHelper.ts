@@ -15,7 +15,7 @@ import { createModuleLogger } from '../utils/logger';
 // v359: 分端点限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './apiRateLimitService';
 // v223: getAmazonSyncService 从 syncServiceProvider re-export
-import { getAmazonSyncService as _getAmazonSyncService } from './syncServiceProvider';
+import { getAmazonSyncService as _getAmazonSyncService } from '../sync/scheduling/syncServiceProvider';
 
 // v223: 类型安全的包装器
 export async function getAmazonSyncService(accountId: number): Promise<AmazonSyncService | null> {

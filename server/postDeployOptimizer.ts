@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 417,
+    description: 'v417: [信息孤岛审计与修复 + 架构优化] — (1)P0-实现缺失API: 新增amazonApi.getAllAuthStatus和amazonApi.refreshToken两个tRPC路由,修复前端AmazonApiAuthStatus页面的断裂链路 (2)P0-启动effectTrackingScheduler: 在系统启动时调用startEffectTrackingScheduler(每1小时),并在deployLifecycleManager中添加优雅停止逻辑 (3)P1-清理死代码: 删除services/effectTrackingScheduler.ts(664行)、services/amazonApiTypes.ts(53行)、sync/performanceSyncOptimizer.ts(252行) (4)P2-架构优化: sync目录整合(services/sync→sync/)、bidOptimizer.ts拆分为5个功能模块、前端pages按功能域重组到12个子目录',
+    // @ts-ignore
+    affectedModules: ['sync', 'optimization', 'frontend', 'infrastructure'],
+    correctionActions: [],
+  },
+  {
     version: 416,
     description: 'v416: [后端代码结构重构] — (1)P0-server根目录重组: 将114个文件按功能域归类到28个子目录(api/、sync/、scheduler/、optimization/、budget/、analytics/、system/、config/、automation/等) (2)P0-更新601个import路径: 自动化脚本处理所有静态import和动态import的路径更新 (3)P1-清理70+顶层杂散文件: 历史报告/调试脚本/图表归档到docs/archive/ (4)P2-项目文档体系: 新增docs/development/下架构说明、模块说明、开发指南',
     // @ts-ignore

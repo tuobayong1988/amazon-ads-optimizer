@@ -8,85 +8,85 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { lazy, Suspense } from "react";
 
 // v394: Home页面也改为lazy loading，减小初始包体积
-const Home = lazy(() => import("./pages/Home"));
+const Home = lazy(() => import("./pages/marketing/Home"));
 
 // 懒加载页面 - 按使用频率分组
 // 高频页面
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Campaigns = lazy(() => import("./pages/Campaigns"));
-const CampaignDetail = lazy(() => import("./pages/CampaignDetail"));
-const AnalyticsInsights = lazy(() => import("./pages/AnalyticsInsights"));
-const StrategyCenter = lazy(() => import("./pages/StrategyCenter"));
+const Dashboard = lazy(() => import("./pages/analytics/Dashboard"));
+const Campaigns = lazy(() => import("./pages/campaigns/Campaigns"));
+const CampaignDetail = lazy(() => import("./pages/campaigns/CampaignDetail"));
+const AnalyticsInsights = lazy(() => import("./pages/analytics/AnalyticsInsights"));
+const StrategyCenter = lazy(() => import("./pages/analytics/StrategyCenter"));
 
 // 中频页面
-const PerformanceGroups = lazy(() => import("./pages/PerformanceGroups"));
-const PerformanceGroupDetail = lazy(() => import("./pages/PerformanceGroupDetail"));
-const OptimizationTargets = lazy(() => import("./pages/OptimizationTargets"));
-const Settings = lazy(() => import("./pages/Settings"));
-const AmazonApiSettings = lazy(() => import("./pages/AmazonApiSettings"));
-const AdAutomation = lazy(() => import("./pages/AdAutomation"));
-const HealthMonitor = lazy(() => import("./pages/HealthMonitor"));
-const OptimizationCenter = lazy(() => import("./pages/OptimizationCenter"));
+const PerformanceGroups = lazy(() => import("./pages/campaigns/PerformanceGroups"));
+const PerformanceGroupDetail = lazy(() => import("./pages/campaigns/PerformanceGroupDetail"));
+const OptimizationTargets = lazy(() => import("./pages/optimization/OptimizationTargets"));
+const Settings = lazy(() => import("./pages/settings/Settings"));
+const AmazonApiSettings = lazy(() => import("./pages/settings/AmazonApiSettings"));
+const AdAutomation = lazy(() => import("./pages/automation/AdAutomation"));
+const HealthMonitor = lazy(() => import("./pages/monitoring/HealthMonitor"));
+const OptimizationCenter = lazy(() => import("./pages/optimization/OptimizationCenter"));
 
 // 低频页面
-const AdGroupDetail = lazy(() => import("./pages/AdGroupDetail"));
-const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
-const Scheduler = lazy(() => import("./pages/Scheduler"));
-const BatchOperations = lazy(() => import("./pages/BatchOperations"));
-const CorrectionReview = lazy(() => import("./pages/CorrectionReview"));
-const AccountsSummary = lazy(() => import("./pages/AccountsSummary"));
-const TeamManagement = lazy(() => import("./pages/TeamManagement"));
-const EmailReports = lazy(() => import("./pages/EmailReports"));
-const AuditLogs = lazy(() => import("./pages/AuditLogs"));
-const CollaborationNotifications = lazy(() => import("./pages/CollaborationNotifications"));
-const BudgetAlerts = lazy(() => import("./pages/BudgetAlerts"));
-const BudgetTracking = lazy(() => import("./pages/BudgetTracking"));
-const SeasonalBudget = lazy(() => import("./pages/SeasonalBudget"));
-const DataSync = lazy(() => import("./pages/DataSync"));
-const DaypartingStrategy = lazy(() => import("./pages/DaypartingStrategy"));
-const AIOptimizationHistory = lazy(() => import("./pages/AIOptimizationHistory"));
-const PlacementOptimization = lazy(() => import("./pages/PlacementOptimization"));
-const AdvancedPlacementOptimization = lazy(() => import("./pages/AdvancedPlacementOptimization"));
-const AutoRollbackSettings = lazy(() => import("./pages/AutoRollbackSettings"));
-const AlgorithmOptimization = lazy(() => import("./pages/AlgorithmOptimization"));
-const IntelligentBudgetAllocation = lazy(() => import("./pages/IntelligentBudgetAllocation"));
-const ABTest = lazy(() => import("./pages/ABTest"));
-const BudgetAutoExecution = lazy(() => import("./pages/BudgetAutoExecution"));
-const ApiSecurityCenter = lazy(() => import("./pages/ApiSecurityCenter"));
-const SpecialScenarioAnalysis = lazy(() => import("./pages/SpecialScenarioAnalysis"));
-const AutomationControl = lazy(() => import("./pages/AutomationControl"));
-const AutoOperation = lazy(() => import("./pages/AutoOperation"));
-const MonitoringCenter = lazy(() => import("./pages/MonitoringCenter"));
-const OptimizationEngine = lazy(() => import("./pages/OptimizationEngine"));
-const SyncLogs = lazy(() => import("./pages/SyncLogs"));
-const DataValidation = lazy(() => import("./pages/DataValidation"));
-const InviteRegister = lazy(() => import("./pages/InviteRegister"));
-const AlgorithmEffectDashboard = lazy(() => import("./pages/AlgorithmEffectDashboard"));
-const InviteCodeManagement = lazy(() => import("./pages/InviteCodeManagement"));
-const LocalLogin = lazy(() => import("./pages/LocalLogin"));
-const Blog = lazy(() => import("./pages/Blog"));
-const BlogPost = lazy(() => import("./pages/BlogPost"));
-const LandingPage = lazy(() => import("./pages/LandingPage"));
-const HowItWorks = lazy(() => import("./pages/HowItWorks"));
-const Contact = lazy(() => import("./pages/Contact"));
-const SellerOnboarding = lazy(() => import("./pages/SellerOnboarding"));
-const BatchAuthorization = lazy(() => import("./pages/BatchAuthorization"));
-const HolidayCalendarManagement = lazy(() => import("./pages/HolidayCalendarManagement"));
-const AmazonApiAuthStatus = lazy(() => import("./pages/AmazonApiAuthStatus"));
-const AutoOptimizationDashboard = lazy(() => import("./pages/AutoOptimizationDashboard"));
-const AdvancedAnalyticsDashboard = lazy(() => import("./pages/AdvancedAnalyticsDashboard"));
-const AutoCorrectionDashboard = lazy(() => import("./pages/AutoCorrectionDashboard"));
-const DataHealthDashboard = lazy(() => import("./pages/DataHealthDashboard")); // v359
+const AdGroupDetail = lazy(() => import("./pages/campaigns/AdGroupDetail"));
+const NotificationSettings = lazy(() => import("./pages/settings/NotificationSettings"));
+const Scheduler = lazy(() => import("./pages/automation/Scheduler"));
+const BatchOperations = lazy(() => import("./pages/automation/BatchOperations"));
+const CorrectionReview = lazy(() => import("./pages/correction/CorrectionReview"));
+const AccountsSummary = lazy(() => import("./pages/data/AccountsSummary"));
+const TeamManagement = lazy(() => import("./pages/settings/TeamManagement"));
+const EmailReports = lazy(() => import("./pages/settings/EmailReports"));
+const AuditLogs = lazy(() => import("./pages/settings/AuditLogs"));
+const CollaborationNotifications = lazy(() => import("./pages/settings/CollaborationNotifications"));
+const BudgetAlerts = lazy(() => import("./pages/budget/BudgetAlerts"));
+const BudgetTracking = lazy(() => import("./pages/budget/BudgetTracking"));
+const SeasonalBudget = lazy(() => import("./pages/budget/SeasonalBudget"));
+const DataSync = lazy(() => import("./pages/data/DataSync"));
+const DaypartingStrategy = lazy(() => import("./pages/automation/DaypartingStrategy"));
+const AIOptimizationHistory = lazy(() => import("./pages/optimization/AIOptimizationHistory"));
+const PlacementOptimization = lazy(() => import("./pages/optimization/PlacementOptimization"));
+const AdvancedPlacementOptimization = lazy(() => import("./pages/optimization/AdvancedPlacementOptimization"));
+const AutoRollbackSettings = lazy(() => import("./pages/correction/AutoRollbackSettings"));
+const AlgorithmOptimization = lazy(() => import("./pages/optimization/AlgorithmOptimization"));
+const IntelligentBudgetAllocation = lazy(() => import("./pages/budget/IntelligentBudgetAllocation"));
+const ABTest = lazy(() => import("./pages/optimization/ABTest"));
+const BudgetAutoExecution = lazy(() => import("./pages/budget/BudgetAutoExecution"));
+const ApiSecurityCenter = lazy(() => import("./pages/settings/ApiSecurityCenter"));
+const SpecialScenarioAnalysis = lazy(() => import("./pages/optimization/SpecialScenarioAnalysis"));
+const AutomationControl = lazy(() => import("./pages/automation/AutomationControl"));
+const AutoOperation = lazy(() => import("./pages/automation/AutoOperation"));
+const MonitoringCenter = lazy(() => import("./pages/monitoring/MonitoringCenter"));
+const OptimizationEngine = lazy(() => import("./pages/optimization/OptimizationEngine"));
+const SyncLogs = lazy(() => import("./pages/data/SyncLogs"));
+const DataValidation = lazy(() => import("./pages/data/DataValidation"));
+const InviteRegister = lazy(() => import("./pages/auth/InviteRegister"));
+const AlgorithmEffectDashboard = lazy(() => import("./pages/optimization/AlgorithmEffectDashboard"));
+const InviteCodeManagement = lazy(() => import("./pages/settings/InviteCodeManagement"));
+const LocalLogin = lazy(() => import("./pages/auth/LocalLogin"));
+const Blog = lazy(() => import("./pages/marketing/Blog"));
+const BlogPost = lazy(() => import("./pages/marketing/BlogPost"));
+const LandingPage = lazy(() => import("./pages/marketing/LandingPage"));
+const HowItWorks = lazy(() => import("./pages/marketing/HowItWorks"));
+const Contact = lazy(() => import("./pages/marketing/Contact"));
+const SellerOnboarding = lazy(() => import("./pages/auth/SellerOnboarding"));
+const BatchAuthorization = lazy(() => import("./pages/auth/BatchAuthorization"));
+const HolidayCalendarManagement = lazy(() => import("./pages/automation/HolidayCalendarManagement"));
+const AmazonApiAuthStatus = lazy(() => import("./pages/auth/AmazonApiAuthStatus"));
+const AutoOptimizationDashboard = lazy(() => import("./pages/optimization/AutoOptimizationDashboard"));
+const AdvancedAnalyticsDashboard = lazy(() => import("./pages/analytics/AdvancedAnalyticsDashboard"));
+const AutoCorrectionDashboard = lazy(() => import("./pages/correction/AutoCorrectionDashboard"));
+const DataHealthDashboard = lazy(() => import("./pages/analytics/DataHealthDashboard")); // v359
 
 // 预发布引擎页面（仅admin可见）
-const PrelaunchDashboard = lazy(() => import("./pages/PrelaunchDashboard"));
-const PrelaunchM1Keywords = lazy(() => import("./pages/PrelaunchM1Keywords"));
-const PrelaunchM2Competitors = lazy(() => import("./pages/PrelaunchM2Competitors"));
-const PrelaunchM3Persona = lazy(() => import("./pages/PrelaunchM3Persona"));
-const PrelaunchM4XCopy = lazy(() => import("./pages/PrelaunchM4XCopy"));
-const PrelaunchM5Visual = lazy(() => import("./pages/PrelaunchM5Visual"));
-const PrelaunchM6Video = lazy(() => import("./pages/PrelaunchM6Video"));
-const PrelaunchM7AdFramework = lazy(() => import("./pages/PrelaunchM7AdFramework"));
+const PrelaunchDashboard = lazy(() => import("./pages/prelaunch/PrelaunchDashboard"));
+const PrelaunchM1Keywords = lazy(() => import("./pages/prelaunch/PrelaunchM1Keywords"));
+const PrelaunchM2Competitors = lazy(() => import("./pages/prelaunch/PrelaunchM2Competitors"));
+const PrelaunchM3Persona = lazy(() => import("./pages/prelaunch/PrelaunchM3Persona"));
+const PrelaunchM4XCopy = lazy(() => import("./pages/prelaunch/PrelaunchM4XCopy"));
+const PrelaunchM5Visual = lazy(() => import("./pages/prelaunch/PrelaunchM5Visual"));
+const PrelaunchM6Video = lazy(() => import("./pages/prelaunch/PrelaunchM6Video"));
+const PrelaunchM7AdFramework = lazy(() => import("./pages/prelaunch/PrelaunchM7AdFramework"));
 
 // 加载中组件
 function PageLoading() {

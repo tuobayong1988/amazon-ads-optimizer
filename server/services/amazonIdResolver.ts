@@ -19,7 +19,7 @@
  */
 
 // v223: 从 syncServiceProvider 导入，避免循环依赖
-import { getAmazonSyncService } from './syncServiceProvider';
+import { getAmazonSyncService } from '../sync/scheduling/syncServiceProvider';
 import * as db from '../db'; // v350: 统一使用连接池
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from '../utils/keywordValidator';
 import { createModuleLogger } from '../utils/logger';

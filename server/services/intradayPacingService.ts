@@ -13,7 +13,7 @@
 
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
-import { getRealtimeSpendForGuard } from './dualTrackSyncService';
+import { getRealtimeSpendForGuard } from '../sync/scheduling/dualTrackSyncService';
 import { getLocalHour, getAccountMarketplace } from '../algorithm/algorithmUtils';
 import { createModuleLogger } from '../utils/logger';
 const log = createModuleLogger('IntradayPacing');

@@ -4,7 +4,7 @@ import {
   createSyncProtectionStats,
   detectConflict,
   SyncProtectionStats,
-} from '../services/sync/syncHelpers';
+} from '../sync/syncHelpers';
 
 describe('syncHelpers', () => {
   describe('SYNC_PROTECTION_CONFIG', () => {

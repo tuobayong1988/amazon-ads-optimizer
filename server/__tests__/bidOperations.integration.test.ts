@@ -86,7 +86,7 @@ vi.mock('../services/exchangeRateService', () => ({
   getExchangeRateByMarketplace: vi.fn().mockResolvedValue({ currency: 'USD', rate: 1.0 }),
 }));
 
-vi.mock('../services/sync/syncHelpers', () => ({
+vi.mock('../sync/syncHelpers', () => ({
   SYNC_PROTECTION_CONFIG: {
     BID_PROTECTION_HOURS: 24,
     BUDGET_PROTECTION_HOURS: 24,
@@ -119,7 +119,7 @@ vi.mock('../services/amazonIdResolver', () => ({
 // ==================== 导入被测模块 ====================
 
 import { AmazonSyncService } from '../sync/amazonSyncService';
-import '../services/sync/bidOperations';
+import '../sync/syncBidOperations';
 
 // ==================== 测试套件 ====================
 

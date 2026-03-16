@@ -14,10 +14,10 @@ export {
   getRecentlyOptimizedKeywordIds,
   getRecentlyOptimizedCampaignIds,
   detectConflict,
-} from './syncHelpers';
+} from '../../sync/syncHelpers';
 
 // 导出自动出价优化
-export { runAutoBidOptimization } from './autoBidOptimization';
+export { runAutoBidOptimization } from '../../sync/autoBidOptimization';
 
 // 导入 syncWithTracking 以注册 prototype 方法
-import './syncWithTracking';
+import '../../sync/syncWithTracking';

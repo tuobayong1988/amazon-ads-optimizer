@@ -104,7 +104,7 @@ vi.mock('../services/exchangeRateService', () => ({
   getExchangeRateByMarketplace: vi.fn().mockResolvedValue({ currency: 'USD', rate: 1.0 }),
 }));
 
-vi.mock('../services/sync/syncHelpers', () => ({
+vi.mock('../sync/syncHelpers', () => ({
   SYNC_PROTECTION_CONFIG: {
     BID_PROTECTION_HOURS: 24,
     BUDGET_PROTECTION_HOURS: 24,
@@ -154,13 +154,13 @@ vi.mock('../contextualFeatureService', () => ({
   }),
 }));
 
-vi.mock('../services/syncServiceProvider', () => ({
+vi.mock('../sync/scheduling/syncServiceProvider', () => ({
   getAmazonSyncService: vi.fn().mockResolvedValue(null),
 }));
 
 // ==================== 导入被测模块 ====================
 
-import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
+import { runAutoBidOptimization } from '../sync/autoBidOptimization';
 
 // ==================== 测试辅助 ====================
 

@@ -88,7 +88,7 @@ vi.mock('../services/exchangeRateService', () => ({
   getExchangeRateByMarketplace: vi.fn().mockResolvedValue({ currency: 'USD', rate: 1.0 }),
 }));
 
-vi.mock('../services/sync/syncHelpers', () => ({
+vi.mock('../sync/syncHelpers', () => ({
   SYNC_PROTECTION_CONFIG: {
     BID_PROTECTION_HOURS: 24,
     BUDGET_PROTECTION_HOURS: 24,
@@ -171,8 +171,8 @@ function createMockSpProductTarget(overrides: Partial<any> = {}): any {
 // ==================== 导入被测模块 ====================
 
 import { AmazonSyncService } from '../sync/amazonSyncService';
-import '../services/sync/syncSp';
-import '../services/sync/bidOperations';
+import '../sync/syncSp';
+import '../sync/syncBidOperations';
 
 // ==================== 测试套件 ====================
 
@@ -278,7 +278,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
     });
 
     it('应在预算保护生效时保留本地预算', async () => {
-      const { getRecentlyOptimizedCampaignIds } = await import('../services/sync/syncHelpers');
+      const { getRecentlyOptimizedCampaignIds } = await import('../sync/syncHelpers');
       (getRecentlyOptimizedCampaignIds as any).mockResolvedValue(new Set([1]));
 
       const mockCampaign = createMockSpCampaign({ dailyBudget: 30 });
@@ -404,7 +404,7 @@ describe('syncSp 集成测试（纯 Mock，不触及真实数据）', () => {
     });
 
     it('应在出价保护生效时保留本地出价', async () => {
-      const { getRecentlyOptimizedKeywordIds } = await import('../services/sync/syncHelpers');
+      const { getRecentlyOptimizedKeywordIds } = await import('../sync/syncHelpers');
       (getRecentlyOptimizedKeywordIds as any).mockResolvedValue(new Set([10]));
 
       const mockKeyword = createMockSpKeyword({ bid: 0.80 });
