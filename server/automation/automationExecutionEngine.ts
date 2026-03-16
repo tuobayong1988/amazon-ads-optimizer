@@ -844,10 +844,28 @@ export async function executeOptimization(
         const negWords = (targetName || '').trim().split(/\s+/);
         const negMatchType = negWords.length <= 2 ? 'negativePhrase' : 'negativeExact';
         
+        // v400-fix: BUG-A6修复 - 如果无法解析到Amazon campaignId，不应传入内部keyword ID作为campaignId
+        if (!negCampaignId) {
+          log.error(`[AutoExec] v400-fix: 无法解析否定词的Amazon campaignId, keyword=${targetId}, 跳过API调用`);
+          await db.createBiddingLog({
+            accountId,
+            campaignId: 'UNRESOLVED',
+            adGroupId: 0,
+            logTargetType: 'negative_keyword',
+            targetId,
+            targetName: targetName || '',
+            actionType: 'add',
+            previousBid: '',
+            newBid: '',
+            reason: `[API❌] v400-fix: keyword ${targetId} 无法解析到对应的Amazon campaignId，跳过否定词创建`,
+          });
+          break;
+        }
+        
         try {
           // 通过amazonApiHelper同步否定词到Amazon
           const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(negAccountId, [{
-            campaignId: negCampaignId || String(targetId),
+            campaignId: String(negCampaignId),  // v400-fix: BUG-A6修复 - 仅使用已验证的Amazon campaignId
             keywordText: targetName || '',
             matchType: negMatchType as 'negativeExact' | 'negativePhrase',
             level: 'campaign',
@@ -916,6 +934,22 @@ export async function executeOptimization(
         if (harvestCampaign) {
           harvestCampaignId = harvestCampaign.campaignId || '';
           harvestAmazonCampaignId = String(harvestCampaign.campaignId || '');
+          
+          // v400-fix: BUG-A3修复 - 从Campaign获取第一个AdGroup，解决harvestAmazonAdGroupId从未被赋值的问题
+          try {
+            const harvestAdGroups = await db.getAdGroupsByCampaignId(harvestCampaign.campaignId);
+            if (harvestAdGroups && harvestAdGroups.length > 0) {
+              // 优先选择enabled状态的adGroup
+              const enabledAg = harvestAdGroups.find((ag: any) => ag.adGroupStatus === 'enabled') || harvestAdGroups[0];
+              harvestAdGroupId = enabledAg.id;  // 本地内部ID
+              harvestAmazonAdGroupId = String(enabledAg.adGroupId || '');  // Amazon adGroupId
+              log.info(`[AutoExec] v400-fix: 搜索词收割解析到adGroup: localId=${harvestAdGroupId}, amazonAdGroupId=${harvestAmazonAdGroupId}`);
+            } else {
+              log.warn(`[AutoExec] v400-fix: Campaign ${harvestCampaign.campaignId} 下未找到任何adGroup`);
+            }
+          } catch (agErr: unknown) {
+            log.warn(`[AutoExec] v400-fix: 获取Campaign下的adGroup失败: ${(agErr as Error).message}`);
+          }
         }
         
         try {
@@ -951,7 +985,7 @@ export async function executeOptimization(
               await db.createKeyword({
                 accountId: accountId,  // v357: 包含accountId
                 campaignId: harvestAmazonCampaignId || String(harvestCampaignId),  // v357: 包含Amazon campaignId
-                adGroupId: String(harvestAdGroupId || targetId),  // v357: adGroupId现在是string类型
+                adGroupId: String(harvestAdGroupId),  // v400-fix: BUG-A3修复 - 使用正确的内部adGroupId，不再fallback到targetId(keyword ID)
                 keywordId: validKeywordId,  // v357: 使用API返回的Amazon keywordId
                 keywordText: targetName || '',
                 matchType: 'exact',

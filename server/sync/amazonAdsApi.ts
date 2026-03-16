@@ -2698,7 +2698,7 @@ export class AmazonAdsApiClient {
             'unitsSold'                          // Excel: unitsSold - 14天单位总数
           ],
           // v230: SD报告不支持filters参数（会导致400错误），已移除
-          reportTypeId: 'sdMatchedTarget',
+          reportTypeId: 'sdTargeting',  // v400-fix: BUG-A1修复 - Amazon API不支持'sdMatchedTarget'，正确值为'sdTargeting'+groupBy['matchedTarget']
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -2904,7 +2904,7 @@ export class AmazonAdsApiClient {
         endDate,
         configuration: {
           adProduct: 'SPONSORED_BRANDS',
-          groupBy: ['campaign', 'placement'],
+          groupBy: ['campaignPlacement'],  // v400-fix: BUG-A2修复 - Amazon标准groupBy是['campaignPlacement']而不是['campaign', 'placement']
           columns: [
             // 基础信息 - 根据Excel文档SB Campaign Placement sheet
             'date',
@@ -2957,7 +2957,7 @@ export class AmazonAdsApiClient {
               values: ['ARCHIVED', 'ENABLED', 'PAUSED']
             }
           ],
-          reportTypeId: 'sbCampaigns',
+          reportTypeId: 'sbCampaignPlacement',  // v400-fix: BUG-A2修复 - 正确的reportTypeId是'sbCampaignPlacement'而不是'sbCampaigns'
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
         },
