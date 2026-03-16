@@ -543,11 +543,28 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       ) NOT NULL
     `), 'optimization_logs.action_type_expand', results);
 
-    log.info(`v369.5: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ==================== v418: ID体系一致性重构 ====================
+    // 将存储内部adGroup ID的varchar列重命名为internalAdGroupId(int)
+    // 使用CHANGE COLUMN同时完成重命名和类型变更
+    // 注意：MySQL CHANGE COLUMN是幂等安全的（如果列已经是目标名称则会报错，被safeDDL捕获）
+    const v418Tables = [
+      'keywords', 'product_targets', 'search_terms', 'negative_keywords',
+      'bidding_logs', 'hourly_performance', 'sd_audiences',
+      'optimization_events', 'keyword_placement_hourly_performance',
+      'contextual_features', 'rl_training_logs'
+    ];
+    for (const tableName of v418Tables) {
+      // 先尝试CHANGE COLUMN（从varchar ad_group_id到int internal_ad_group_id）
+      await safeDDL(database, sql.raw(`
+        ALTER TABLE \`${tableName}\` CHANGE COLUMN \`ad_group_id\` \`internal_ad_group_id\` INT NULL
+      `), `${tableName}.ad_group_id→internal_ad_group_id`, results);
+    }
+
+    log.info(`v418: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {
-    log.error(`v349: 数据库自动迁移异常: ${(error as Error).message}`);
+    log.error(`v418: 数据库自动迁移异常: ${(error as Error).message}`);
     return { success: false, results: [`迁移异常: ${(error as Error).message}`] };
   }
 }

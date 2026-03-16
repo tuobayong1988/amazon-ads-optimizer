@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 417;  // v417: 信息孤岛审计与修复 + 架构优化
+export const SYSTEM_VERSION = 418;  // v418: ID体系一致性重构 + 集中式ID解析服务 + API参数预检验证层

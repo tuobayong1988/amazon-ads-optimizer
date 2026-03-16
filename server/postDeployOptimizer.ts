@@ -77,6 +77,18 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 418,
+    description: 'v418: [ID体系一致性重构 + 集中式ID解析 + API验证层] — (1)P0-BUG修复: 修复SD匹配目标报告错误的reportTypeId(sdMatchedTarget→sdTargeting), SB广告位报告配置错误(reportTypeId+groupBy), 搜索词收割harvestAmazonAdGroupId未赋值, 否定关键词campaignId回退使用内部ID (2)P0-模式重构: keywords/productTargets/searchTerms/negativeKeywords等11张表的adGroupId(varchar)重命名为internalAdGroupId(int),统一ID类型消除隐式类型转换 (3)P1-集中式ID解析服务: 新增EntityIdResolver统一处理内部ID↔Amazon ID转换,带缓存和批量解析 (4)P1-API参数预检验证层: 新增AmazonApiValidator基于官方Postman集合验证reportTypeId/groupBy/columns/ID格式',
+    // @ts-ignore
+    affectedModules: ['sync', 'optimization', 'schema', 'utils'],
+    correctionActions: [
+      'ALTER TABLE keywords CHANGE COLUMN ad_group_id internal_ad_group_id INT',
+      'ALTER TABLE product_targets CHANGE COLUMN ad_group_id internal_ad_group_id INT',
+      'ALTER TABLE search_terms CHANGE COLUMN ad_group_id internal_ad_group_id INT',
+      'ALTER TABLE negative_keywords CHANGE COLUMN ad_group_id internal_ad_group_id INT',
+    ],
+  },
+  {
     version: 417,
     description: 'v417: [信息孤岛审计与修复 + 架构优化] — (1)P0-实现缺失API: 新增amazonApi.getAllAuthStatus和amazonApi.refreshToken两个tRPC路由,修复前端AmazonApiAuthStatus页面的断裂链路 (2)P0-启动effectTrackingScheduler: 在系统启动时调用startEffectTrackingScheduler(每1小时),并在deployLifecycleManager中添加优雅停止逻辑 (3)P1-清理死代码: 删除services/effectTrackingScheduler.ts(664行)、services/amazonApiTypes.ts(53行)、sync/performanceSyncOptimizer.ts(252行) (4)P2-架构优化: sync目录整合(services/sync→sync/)、bidOptimizer.ts拆分为5个功能模块、前端pages按功能域重组到12个子目录',
     // @ts-ignore
