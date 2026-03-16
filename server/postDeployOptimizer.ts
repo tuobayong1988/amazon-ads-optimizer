@@ -77,6 +77,20 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 415,
+    description: 'v415: [建议竞价同步+数据同步全面审计] — (1)P0-新增SP建议竞价同步: 在syncSp.ts中新增syncSpBidRecommendations方法,按adGroup分组批量调用Amazon SP Bid Recommendations API,将suggestedBid写入keywords和productTargets表 (2)P0-新增SYNC_STEP: sp_bid_recommendations步骤(full tier),在每次完整同步时自动获取建议竞价 (3)P1-前端展示建议竞价: 在AdGroupDetail的关键词和商品定位表格中添加建议竞价列,黄色表示建议竞价高于当前出价,绿色表示低于或等于 (4)P2-数据同步模块全面审计: 确认所有31个SYNC_STEPS覆盖SP/SB/SD所有层级',
+    // @ts-ignore
+    affectedModules: ['sync', 'frontend'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
+    version: 414,
+    description: 'v414: [源码干净构建] — (1)P0-移除外挂BullMQ补丁: 清除v484-v490的所有运行时注入代码,恢复纯净源码架构 (2)P0-修SB adGroupId映射: 修复42849个SB keywords和3498个product targets的adGroupId今Amazon ID映射到内部DB ID (3)P1-消除Worker队列冲突: 移除v490独立的ads-account-sync-queue,解决与原始队列的Ay锁冲突问题',
+    // @ts-ignore
+    affectedModules: ['sync', 'scheduler'],
+    correctionActions: ['revalidate_sync_performance'],
+  },
+  {
     version: 410,
     description: 'v410: [调度器全局并发控制] — (1)P0-数据库级别并发检查: executeUnifiedSync在执行前查询data_sync_jobs表中是否有running状态且心跳正常(近10分钟内更新)的任务,如果存在则跳过本次调度 (2)P0-解决手动/自动同步冲突: 之前手动触发的全量同步不会设置tierRunningState内存变量,导致调度器仍然会创建新任务,现在通过数据库查询彻底解决 (3)P1-避免API限流: 多个同步任务并发请求Amazon API会触发429/425限流,单任务运行确保最优API利用率 (4)P2-容错回退: 数据库检查失败时回退到内存级别tierRunningState检查,不阻塞正常同步',
     // @ts-ignore

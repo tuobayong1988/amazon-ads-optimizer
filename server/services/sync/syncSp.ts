@@ -45,6 +45,7 @@ declare module '../../amazonSyncService' {
     syncSpProductTargets(...args: unknown[]): unknown;
     syncSpNegativeKeywords(...args: unknown[]): unknown;
     syncSpNegativeProductTargets(...args: unknown[]): unknown;
+    syncSpBidRecommendations(...args: unknown[]): unknown;
   }
 }
 
@@ -953,3 +954,228 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
   }
 };
 
+
+/**
+ * v414: 同步SP关键词和商品定位的建议竞价(Suggested Bid)
+ * 
+ * 按adGroup分组，批量调用Amazon SP Bid Recommendations API，
+ * 将建议竞价写入keywords.suggestedBid和productTargets.suggestedBid。
+ * 
+ * 这对于新投放词/ASIN的冷启动阶段竞价优化具有重要参考价值。
+ * 
+ * API限制：
+ * - /sp/keywords/bidRecommendations: 按adGroupId + keywords数组请求
+ * - /sp/targets/bidRecommendations: 按adGroupId + expressions数组请求
+ * - 每个请求最多100个关键词/定向
+ */
+AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0 };
+
+  let keywordBidsUpdated = 0;
+  let targetBidsUpdated = 0;
+  let errors = 0;
+
+  try {
+    // ========== 第一部分：SP关键词建议竞价 ==========
+    log.info('[v414] ========== 开始同步SP关键词建议竞价 ==========');
+
+    // 查询所有SP关键词，按adGroup分组
+    // 只查询enabled状态的关键词（paused/archived不需要建议竞价）
+    const spKeywordRows = await db.select({
+      id: keywords.id,
+      adGroupId: keywords.adGroupId,
+      keywordText: keywords.keywordText,
+      matchType: keywords.matchType,
+    }).from(keywords)
+      .innerJoin(adGroups, eq(keywords.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
+      .where(and(
+        eq(keywords.accountId, this.accountId),
+        eq(campaigns.campaignType, 'sponsoredProducts'),
+        eq(keywords.keywordStatus, 'enabled'),
+      ));
+
+    log.info(`[v414] 查询到 ${spKeywordRows.length} 个SP关键词需要获取建议竞价`);
+
+    // 按adGroupId分组
+    const kwByAdGroup = new Map<string, Array<{ id: number; keywordText: string; matchType: string }>>();
+    for (const row of spKeywordRows) {
+      const agId = row.adGroupId || '';
+      if (!kwByAdGroup.has(agId)) kwByAdGroup.set(agId, []);
+      kwByAdGroup.get(agId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType });
+    }
+
+    // 查询adGroup的Amazon adGroupId映射（API需要Amazon adGroupId，不是内部DB id）
+    const internalAdGroupIds = [...kwByAdGroup.keys()].map(id => parseInt(id)).filter(id => !isNaN(id));
+    const adGroupMappingRows = internalAdGroupIds.length > 0
+      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups)
+          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.id, internalAdGroupIds)))
+      : [];
+    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [String(r.id), r.adGroupId]));
+
+    // 按adGroup批量请求建议竞价
+    for (const [internalAgId, kwList] of kwByAdGroup) {
+      const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
+      if (!amazonAgId) {
+        log.debug(`[v414] adGroup ${internalAgId} 无Amazon adGroupId映射，跳过`);
+        continue;
+      }
+
+      try {
+        // 每批最多100个关键词
+        const batchSize = 100;
+        for (let i = 0; i < kwList.length; i += batchSize) {
+          const batch = kwList.slice(i, i + batchSize);
+          const apiKeywords = batch.map(kw => ({
+            keyword: kw.keywordText,
+            matchType: kw.matchType.toUpperCase(),
+          }));
+
+          const recommendations = await this.client.getKeywordBidRecommendations(amazonAgId, apiKeywords);
+
+          // 匹配建议竞价并更新数据库
+          if (recommendations && recommendations.length > 0) {
+            // 建立keyword+matchType到suggestedBid的映射
+            const recMap = new Map<string, number>();
+            for (const rec of recommendations) {
+              if (rec.keyword && rec.suggestedBid) {
+                recMap.set(`${rec.keyword.toLowerCase()}:${(rec as any).matchType?.toLowerCase() || ''}`, rec.suggestedBid);
+                // 也用不带matchType的key作为fallback
+                recMap.set(rec.keyword.toLowerCase(), rec.suggestedBid);
+              }
+            }
+
+            for (const kw of batch) {
+              const suggestedBid = recMap.get(`${kw.keywordText.toLowerCase()}:${kw.matchType.toLowerCase()}`)
+                || recMap.get(kw.keywordText.toLowerCase());
+              if (suggestedBid && suggestedBid > 0) {
+                await db.update(keywords)
+                  .set({ suggestedBid: String(suggestedBid) })
+                  .where(eq(keywords.id, kw.id));
+                keywordBidsUpdated++;
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        // 单个adGroup失败不影响其他adGroup
+        errors++;
+        const errMsg = (err as Error).message || 'unknown';
+        log.warn(`[v414] adGroup ${internalAgId} 关键词建议竞价获取失败: ${errMsg}`);
+      }
+    }
+
+    log.info(`[v414] SP关键词建议竞价同步完成: ${keywordBidsUpdated} 个关键词已更新`);
+
+    // ========== 第二部分：SP商品定位建议竞价 ==========
+    log.info('[v414] ========== 开始同步SP商品定位建议竞价 ==========');
+
+    // 查询所有SP商品定位，按adGroup分组
+    const spTargetRows = await db.select({
+      id: productTargets.id,
+      adGroupId: productTargets.adGroupId,
+      targetExpression: productTargets.targetExpression,
+      targetType: productTargets.targetType,
+      targetValue: productTargets.targetValue,
+    }).from(productTargets)
+      .innerJoin(adGroups, eq(productTargets.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
+      .where(and(
+        eq(productTargets.accountId, this.accountId),
+        eq(campaigns.campaignType, 'sponsoredProducts'),
+        eq(productTargets.targetStatus, 'enabled'),
+      ));
+
+    log.info(`[v414] 查询到 ${spTargetRows.length} 个SP商品定位需要获取建议竞价`);
+
+    // 按adGroupId分组
+    const tgtByAdGroup = new Map<string, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string }>>();
+    for (const row of spTargetRows) {
+      const agId = row.adGroupId || '';
+      if (!tgtByAdGroup.has(agId)) tgtByAdGroup.set(agId, []);
+      tgtByAdGroup.get(agId)!.push({
+        id: row.id,
+        targetExpression: row.targetExpression,
+        targetType: row.targetType,
+        targetValue: row.targetValue,
+      });
+    }
+
+    // 按adGroup批量请求建议竞价
+    for (const [internalAgId, tgtList] of tgtByAdGroup) {
+      const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
+      if (!amazonAgId) continue;
+
+      try {
+        const batchSize = 100;
+        for (let i = 0; i < tgtList.length; i += batchSize) {
+          const batch = tgtList.slice(i, i + batchSize);
+
+          // 构建expressions数组 - 从targetExpression JSON解析
+          const expressions: Array<{ type: string; value?: string }> = [];
+          const exprToTargetMap = new Map<number, typeof batch[0]>();
+
+          for (let j = 0; j < batch.length; j++) {
+            const tgt = batch[j];
+            let expr: Array<{ type: string; value?: string }> = [];
+
+            if (tgt.targetExpression) {
+              try {
+                expr = JSON.parse(tgt.targetExpression);
+              } catch {
+                // 如果解析失败，根据targetType构建expression
+                if (tgt.targetType === 'asin') {
+                  expr = [{ type: 'asinSameAs', value: tgt.targetValue }];
+                } else {
+                  expr = [{ type: 'asinCategorySameAs', value: tgt.targetValue }];
+                }
+              }
+            } else {
+              if (tgt.targetType === 'asin') {
+                expr = [{ type: 'asinSameAs', value: tgt.targetValue }];
+              } else {
+                expr = [{ type: 'asinCategorySameAs', value: tgt.targetValue }];
+              }
+            }
+
+            if (expr.length > 0) {
+              expressions.push(...expr);
+              exprToTargetMap.set(expressions.length - 1, tgt);
+            }
+          }
+
+          if (expressions.length === 0) continue;
+
+          const recommendations = await this.client.getTargetBidRecommendations(amazonAgId, expressions);
+
+          // 更新建议竞价
+          if (recommendations && recommendations.length > 0) {
+            // 对于targets，按顺序匹配（API返回顺序与请求顺序一致）
+            for (let j = 0; j < Math.min(recommendations.length, batch.length); j++) {
+              const rec = recommendations[j];
+              if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
+                await db.update(productTargets)
+                  .set({ suggestedBid: String(rec.suggestedBid) })
+                  .where(eq(productTargets.id, batch[j].id));
+                targetBidsUpdated++;
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        errors++;
+        const errMsg = (err as Error).message || 'unknown';
+        log.warn(`[v414] adGroup ${internalAgId} 商品定位建议竞价获取失败: ${errMsg}`);
+      }
+    }
+
+    log.info(`[v414] SP商品定位建议竞价同步完成: ${targetBidsUpdated} 个定位已更新`);
+    log.info(`[v414] ========== 建议竞价同步总结: 关键词=${keywordBidsUpdated}, 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
+
+    return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
+  } catch (error) {
+    log.error('[v414] Error syncing SP bid recommendations:', error);
+    return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
+  }
+};

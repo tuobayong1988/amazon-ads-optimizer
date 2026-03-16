@@ -611,6 +611,7 @@ export default function AdGroupDetail() {
                             <TableHead>匹配类型</TableHead>
                             <TableHead>状态</TableHead>
                             <TableHead className="text-right">出价</TableHead>
+                            <TableHead className="text-right">建议竞价</TableHead>
                             <TableHead className="text-right">花费</TableHead>
                             <TableHead className="text-right">销售额</TableHead>
                             <TableHead className="text-right">曝光</TableHead>
@@ -640,6 +641,15 @@ export default function AdGroupDetail() {
                                 <TableCell>{getMatchTypeBadge(keyword.matchType || "broad")}</TableCell>
                                 <TableCell>{getStatusBadge(keyword.keywordStatus || "enabled")}</TableCell>
                                 <TableCell className="text-right">${keyword.bid || "0.00"}</TableCell>
+                                <TableCell className="text-right">
+                                  {keyword.suggestedBid ? (
+                                    <span className={parseFloat(keyword.suggestedBid) > parseFloat(keyword.bid || "0") ? "text-yellow-400" : "text-green-400"}>
+                                      ${parseFloat(keyword.suggestedBid).toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right">${kwSpend.toFixed(2)}</TableCell>
                                 <TableCell className="text-right text-green-400">${kwSales.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">{kwImpressions.toLocaleString()}</TableCell>
@@ -681,6 +691,7 @@ export default function AdGroupDetail() {
                             <TableHead>类型</TableHead>
                             <TableHead>状态</TableHead>
                             <TableHead className="text-right">出价</TableHead>
+                            <TableHead className="text-right">建议竞价</TableHead>
                             <TableHead className="text-right">花费</TableHead>
                             <TableHead className="text-right">销售额</TableHead>
                             <TableHead className="text-right">曝光</TableHead>
@@ -716,6 +727,15 @@ export default function AdGroupDetail() {
                                 </TableCell>
                                 <TableCell>{getStatusBadge(target.targetStatus || "enabled")}</TableCell>
                                 <TableCell className="text-right">${target.bid || "0.00"}</TableCell>
+                                <TableCell className="text-right">
+                                  {target.suggestedBid ? (
+                                    <span className={parseFloat(target.suggestedBid) > parseFloat(target.bid || "0") ? "text-yellow-400" : "text-green-400"}>
+                                      ${parseFloat(target.suggestedBid).toFixed(2)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
                                 <TableCell className="text-right text-green-400">${tSales.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">{tImpressions.toLocaleString()}</TableCell>

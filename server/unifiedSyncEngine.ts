@@ -861,6 +861,20 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
+    id: 'sp_bid_recommendations',
+    name: 'SP建议竞价',
+    tier: 'full',
+    execute: async (service, ctx) => {
+      try {
+        const result = await service.syncSpBidRecommendations();
+        const synced = typeof result === 'number' ? result : (result as any).synced || 0;
+        return { success: true, synced, errors: [] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
+      }
+    },
+  },
+  {
     id: 'performance_95d',
     name: '95天绩效回溯',
     tier: 'full',

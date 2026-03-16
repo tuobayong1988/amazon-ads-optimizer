@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 413;  // v413: 报告请求智能退避+异步化优化 — 解决Amazon API PENDING导致同步阻塞问题
+export const SYSTEM_VERSION = 415;  // v415: 新增SP建议竞价(Suggested Bid)同步模块，前端展示建议竞价列，完整审计并修复数据同步模块
