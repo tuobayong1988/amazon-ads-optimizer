@@ -71,14 +71,14 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     // ========== 阶段3: 统计最终缺失数 ==========
     const [remainingKws] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM keywords k
-       INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+       INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND k.keywordId IS NULL`,
       [accountId]
     );
     const [remainingPts] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM product_targets pt
-       INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+       INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND pt.targetId IS NULL`,
       [accountId]
@@ -120,9 +120,9 @@ async function resolveKeywordIds(
 ): Promise<void> {
   // 查询该账号下所有缺少keywordId的关键词
   const [missingKws] = await conn.execute(
-    `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid, k.keywordStatus
+    `SELECT k.id, k.internal_ad_group_id, k.keywordText, k.matchType, k.bid, k.keywordStatus
      FROM keywords k
-     INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+     INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND k.keywordId IS NULL`,
     [accountId]
@@ -158,7 +158,7 @@ async function resolveKeywordIds(
     try {
       // 获取Amazon adGroupId
       const [agRows] = await conn.execute(
-        'SELECT id, adGroupId FROM ad_groups WHERE id = ? LIMIT 1',
+        'SELECT id, adGroupId as adGroupId FROM ad_groups WHERE id = ? LIMIT 1',
         [adGroupLocalId]
       );
       if (!agRows[0] || !agRows[0].adGroupId) {
@@ -359,7 +359,7 @@ async function resolveKeywordIds(
                   
                   // 先检查本地是否已有有效记录
                   const [existing] = await conn.execute(
-                    `SELECT id, keywordId FROM keywords WHERE adGroupId = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
+                    `SELECT id, keywordId FROM keywords WHERE internal_ad_group_id = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
                     [original.adGroupId, original.keywordText, original.matchType]
                   );
                   if (existing.length > 0) {
@@ -445,9 +445,9 @@ async function resolveProductTargetIds(
 ): Promise<void> {
   // 查询该账号下所有缺少targetId的product_targets
   const [missingPts] = await conn.execute(
-    `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
+    `SELECT pt.id, pt.internal_ad_group_id, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
      FROM product_targets pt
-     INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+     INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND pt.targetId IS NULL`,
     [accountId]
@@ -464,9 +464,9 @@ async function resolveProductTargetIds(
   // 按adGroupId分组
   const ptGroupedByAdGroup = new Map<number, Record<string, any>[]>();
   for (const pt of missingPts) {
-    const group = ptGroupedByAdGroup.get(pt.adGroupId) || [];
+    const group = ptGroupedByAdGroup.get(pt.internal_ad_group_id) || [];
     group.push(pt);
-    ptGroupedByAdGroup.set(pt.adGroupId, group);
+    ptGroupedByAdGroup.set(pt.internal_ad_group_id, group);
   }
 
   const syncService = await getAmazonSyncService(accountId);
@@ -480,7 +480,7 @@ async function resolveProductTargetIds(
     try {
       // 获取Amazon adGroupId
       const [agRows] = await conn.execute(
-        'SELECT id, adGroupId FROM ad_groups WHERE id = ? LIMIT 1',
+        'SELECT id, adGroupId as adGroupId FROM ad_groups WHERE id = ? LIMIT 1',
         [adGroupLocalId]
       );
       if (!agRows[0] || !agRows[0].adGroupId) {
@@ -552,8 +552,8 @@ async function resolveProductTargetIds(
         } else {
           // 检查是否有重复记录
           const [existing] = await conn.execute(
-            `SELECT id FROM product_targets WHERE adGroupId = ? AND targetValue = ? AND targetId IS NOT NULL LIMIT 1`,
-            [pt.adGroupId, pt.targetValue || '']
+            `SELECT id FROM product_targets WHERE internal_ad_group_id = ? AND targetValue = ? AND targetId IS NOT NULL LIMIT 1`,
+            [pt.internal_ad_group_id, pt.targetValue || '']
           );
           if (existing.length > 0) {
             await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
@@ -586,10 +586,10 @@ export async function resolveKeywordIdOnDemand(
 
     // 获取关键词信息
     const [kwRows] = await conn.execute(
-      `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid, k.keywordStatus,
+      `SELECT k.id, k.internal_ad_group_id, k.keywordText, k.matchType, k.bid, k.keywordStatus,
               ag.adGroupId AS amazonAdGroupId, c.campaignId AS amazonCampaignId
        FROM keywords k
-       INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+       INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE k.id = ? AND k.keywordId IS NULL`,
       [keywordLocalId]
@@ -749,10 +749,10 @@ export async function resolveProductTargetIdOnDemand(
     conn = await db.getDirectConnection();
 
     const [ptRows] = await conn.execute(
-      `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue,
+      `SELECT pt.id, pt.internal_ad_group_id, pt.targetExpression, pt.targetValue,
               ag.adGroupId AS amazonAdGroupId
        FROM product_targets pt
-       INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+       INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE pt.id = ? AND pt.targetId IS NULL`,
       [ptLocalId]
