@@ -138,6 +138,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
         placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
         placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        placementRestBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementRestOfSearch'),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -201,20 +202,26 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           }
         }
         
-        // v165: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
+        // v165+v423: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
         const localTopPlacement = existing.placementTopSearchBidAdjustment || 0;
         // @ts-ignore
         const apiTopPlacement = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement = existing.placementProductPageBidAdjustment || 0;
         // @ts-ignore
         const apiProductPlacement = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
-        const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement;
+        // v423: 增加restOfSearch位置保护
+        const localRestPlacement = (existing as any).placementRestBidAdjustment || 0;
+        // @ts-ignore
+        const apiRestPlacement = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
+        const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement || localRestPlacement !== apiRestPlacement;
         if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
-          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%`);
+          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%, localRest=${localRestPlacement}%, apiRest=${apiRestPlacement}%`);
           // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
           // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
+          // @ts-ignore
+          delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
 

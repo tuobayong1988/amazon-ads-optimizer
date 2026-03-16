@@ -579,16 +579,26 @@ async function verifyPlacementAdjustments(
   try {
     const amazonCampaigns = await (syncService as any).client.listSpCampaigns();
     
-    // 构建Amazon campaignId到位置倾斜的映射
-    const amazonPlacementMap = new Map<string, { topOfSearch: number; productPage: number }>();
+    // v423: 构建Amazon campaignId到位置倾斜的映射，支持API v3的dynamicBidding.placementBidding结构
+    const amazonPlacementMap = new Map<string, { topOfSearch: number; productPage: number; restOfSearch: number }>();
     for (const campaign of (amazonCampaigns as any[])) {
-      const adjustments = campaign.bidding?.adjustments || [];
-      let topOfSearch = 0, productPage = 0;
-      for (const adj of adjustments) {
-        if (adj.predicate === 'placementTop') topOfSearch = adj.percentage;
-        if (adj.predicate === 'placementProductPage') productPage = adj.percentage;
+      let topOfSearch = 0, productPage = 0, restOfSearch = 0;
+      // v423: 优先从API v3的dynamicBidding.placementBidding获取
+      if (campaign.dynamicBidding?.placementBidding?.length > 0) {
+        for (const adj of campaign.dynamicBidding.placementBidding) {
+          if (adj.placement === 'PLACEMENT_TOP') topOfSearch = adj.percentage;
+          if (adj.placement === 'PLACEMENT_PRODUCT_PAGE') productPage = adj.percentage;
+          if (adj.placement === 'PLACEMENT_REST_OF_SEARCH') restOfSearch = adj.percentage;
+        }
+      } else {
+        // 兼容旧版API的bidding.adjustments
+        const adjustments = campaign.bidding?.adjustments || [];
+        for (const adj of adjustments) {
+          if (adj.predicate === 'placementTop') topOfSearch = adj.percentage;
+          if (adj.predicate === 'placementProductPage') productPage = adj.percentage;
+        }
       }
-      amazonPlacementMap.set(String(campaign.campaignId), { topOfSearch, productPage });
+      amazonPlacementMap.set(String(campaign.campaignId), { topOfSearch, productPage, restOfSearch });
     }
     
     for (const item of items) {

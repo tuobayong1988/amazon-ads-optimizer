@@ -492,10 +492,22 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
         }
       }
 
-      // 获取竞价策略
-      const biddingStrategy = (apiCampaign as Record<string, any>).dynamicBidding?.strategy || 
-                             (apiCampaign as Record<string, any>).bidding?.strategy || 
-                             'legacyForSales';
+      // v423: 获取竞价策略 - API v3返回大写格式(MANUAL/LEGACY_FOR_SALES/AUTO_FOR_SALES)，需要映射到数据库枚举值
+      const rawStrategy = (apiCampaign as Record<string, any>).dynamicBidding?.strategy || 
+                         (apiCampaign as Record<string, any>).bidding?.strategy || 
+                         'LEGACY_FOR_SALES';
+      const strategyMap: Record<string, string> = {
+        'MANUAL': 'manual',
+        'LEGACY_FOR_SALES': 'legacyForSales',
+        'AUTO_FOR_SALES': 'autoForSales',
+        'RULE_BASED': 'ruleBasedBidding',
+        // 兼容旧格式（小写直传）
+        'manual': 'manual',
+        'legacyForSales': 'legacyForSales',
+        'autoForSales': 'autoForSales',
+        'ruleBasedBidding': 'ruleBasedBidding',
+      };
+      const biddingStrategy = strategyMap[rawStrategy] || 'legacyForSales';
 
       // 获取组合信息
       const portfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
@@ -513,6 +525,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
         endDate: endDateValue,
         placementTopSearchBidAdjustment: service.getPlacementMultiplier(apiCampaign, 'placementTop'),
         placementProductPageBidAdjustment: service.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        placementRestBidAdjustment: service.getPlacementMultiplier(apiCampaign, 'placementRestOfSearch'),
         biddingStrategy: biddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
         portfolioId: portfolioId,
         costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SP广告都是CPC
@@ -576,16 +589,20 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
           }
         }
 
-        // v165: 位置倾斜比例保护逻辑
+        // v165+v423: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
         const apiTopPlacement1 = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
         const apiProductPlacement1 = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
-        const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
+        // v423: 增加restOfSearch位置保护
+        const localRestPlacement1 = (existing as any).placementRestBidAdjustment || 0;
+        const apiRestPlacement1 = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
+        const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1 || localRestPlacement1 !== apiRestPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
-          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
+          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%, localRest=${localRestPlacement1}%, apiRest=${apiRestPlacement1}%`);
           delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
           delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
+          delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         

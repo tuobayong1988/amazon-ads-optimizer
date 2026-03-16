@@ -285,10 +285,34 @@ export async function applyBatchBidAdjustments(service: SyncContext,
 
 /**
  * 获取展示位置调整系数
+ * v423: 支持Amazon SP API v3的dynamicBidding.placementBidding结构
+ * API v3返回: { dynamicBidding: { placementBidding: [{ placement: 'PLACEMENT_TOP', percentage: 19 }] } }
+ * 旧版API返回: { bidding: { adjustments: [{ predicate: 'placementTop', percentage: 19 }] } }
+ * 
+ * placement参数映射:
+ *   'placementTop' -> 'PLACEMENT_TOP'
+ *   'placementProductPage' -> 'PLACEMENT_PRODUCT_PAGE'
+ *   'placementRestOfSearch' -> 'PLACEMENT_REST_OF_SEARCH'
  */
 export function getPlacementMultiplier(campaign: Record<string, any>, placement: string): number {
+  // v423: 优先从API v3的dynamicBidding.placementBidding中获取
+  if (campaign.dynamicBidding?.placementBidding?.length > 0) {
+    // 将旧的predicate名称映射到API v3的placement名称
+    const placementMap: Record<string, string> = {
+      'placementTop': 'PLACEMENT_TOP',
+      'placementProductPage': 'PLACEMENT_PRODUCT_PAGE',
+      'placementRestOfSearch': 'PLACEMENT_REST_OF_SEARCH',
+    };
+    const v3Placement = placementMap[placement] || placement;
+    const adjustment = campaign.dynamicBidding.placementBidding.find(
+      (a: any) => a.placement === v3Placement
+    );
+    return adjustment ? Number(adjustment.percentage) : 0;
+  }
+  
+  // 兼容旧版API的bidding.adjustments结构
   const adjustment = campaign.bidding?.adjustments?.find(
-    a => a.predicate === placement
+    (a: any) => a.predicate === placement
   );
   return adjustment ? Number(adjustment.percentage) : 0;
 }

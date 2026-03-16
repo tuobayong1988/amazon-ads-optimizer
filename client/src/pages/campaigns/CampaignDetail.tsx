@@ -827,7 +827,7 @@ export default function CampaignDetail() {
                     <CardDescription>关键词/商品定向设置</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground">最高出价</p>
                         <p className="font-medium">${campaign.maxBid || "N/A"}</p>
@@ -839,6 +839,10 @@ export default function CampaignDetail() {
                       <div>
                         <p className="text-sm text-muted-foreground">商品页出价调整</p>
                         <p className="font-medium">{campaign.placementProductPageBidAdjustment || 0}%</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">其他位置出价调整</p>
+                        <p className="font-medium">{campaign.placementRestBidAdjustment || 0}%</p>
                       </div>
                     </div>
                   </CardContent>

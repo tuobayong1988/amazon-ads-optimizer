@@ -1074,13 +1074,16 @@ async function executeBatchByType(
           }
           
           if (amazonCampaignId) {
+            // v423: 使用API v3的dynamicBidding.placementBidding格式
+            const v3PlacementType = placementType === 'top_of_search' ? 'PLACEMENT_TOP' 
+              : placementType === 'rest_of_search' ? 'PLACEMENT_REST_OF_SEARCH'
+              : 'PLACEMENT_PRODUCT_PAGE';
             await (syncService as any).client.updateSpCampaign(
               String(amazonCampaignId),
               {
-                bidding: {
-                  strategy: 'LEGACY_FOR_SALES',
-                  adjustments: [{
-                    predicate: placementType === 'top_of_search' ? 'placementTop' : 'placementProductPage',
+                dynamicBidding: {
+                  placementBidding: [{
+                    placement: v3PlacementType,
                     percentage: Math.round(multiplier * 100),
                   }]
                 }

@@ -346,9 +346,9 @@ export function logHealthSnapshot(): void {
     }
   }
 
-  // v221 僵尸条目清理：清除运行超过30分钟的activeSyncs条目
+  // v221+v424 僵尸条目清理：清除运行超过45分钟的activeSyncs条目
   const now = new Date();
-  const ZOMBIE_THRESHOLD_MS = 30 * 60 * 1000; // 30分钟
+  const ZOMBIE_THRESHOLD_MS = 45 * 60 * 1000; // v424: 从30分钟增加到45分钟，与锁超时保持一致
   let zombiesCleaned = 0;
   for (const [key, sync] of activeSyncs.entries()) {
     if (now.getTime() - sync.startTime.getTime() > ZOMBIE_THRESHOLD_MS) {
@@ -362,7 +362,7 @@ export function logHealthSnapshot(): void {
       const key = `${r.accountId}:${r.tier}`;
       return activeSyncs.has(key);
     });
-    log.warn(`[HealthMonitor] 已清理 ${zombiesCleaned} 个僵尸同步条目（运行超过30分钟）`);
+    log.warn(`[HealthMonitor] v424: 已清理 ${zombiesCleaned} 个僵尸同步条目（运行超过45分钟）`);
   }
 }
 
@@ -903,6 +903,19 @@ const SYNC_STEPS: SyncStep[] = [
     },
   },
   {
+    id: 'sp_budget_rules',
+    name: 'SP预算规则',
+    tier: 'full',
+    execute: async (service, ctx) => {
+      try {
+        const synced = await service.syncSpBudgetRules();
+        return { success: true, synced, errors: [] };
+      } catch (e: unknown) {
+        return { success: false, synced: 0, errors: [(e as Error).message] };
+      }
+    },
+  },
+  {
     id: 'performance_95d',
     name: '95天绩效回溯',
     tier: 'full',
@@ -1116,7 +1129,7 @@ export async function syncAccount(
   // 3. medium层运行时 → high层跳过（减少API并发压力）
   // 4. high层运行时 → medium层正常执行（步骤不重叠）
   // 5. full层请求时有其他层级运行 → 跳过（等下一轮）
-  // 6. 超时保护：30分钟后强制释放
+  // 6. 超时保护：45分钟后强制释放（v424）
   const lockKey = `${account.accountId}:${tier}`;
   const accountLocks = Array.from(activeSyncs.entries())
     .filter(([key]) => key.startsWith(`${account.accountId}:`));
@@ -1128,9 +1141,10 @@ export async function syncAccount(
     const existingTier = existingKey.split(':')[1];
     const runningMinutes = (Date.now() - existing.startTime.getTime()) / 60000;
     
-    // 超时保护：30分钟后强制释放
-    if (runningMinutes >= 30) {
-      log.warn(`[UnifiedSync] 账户 ${account.accountId} 的${existingTier}层同步已超时（${runningMinutes.toFixed(1)}分钟），强制释放`);
+    // v424: 超时保护从30分钟增加到45分钟，以覆盖大账户全量同步场景
+    // 与syncIdempotencyService的LOCK_TIMEOUT_MS保持一致
+    if (runningMinutes >= 45) {
+      log.warn(`[UnifiedSync] v424: 账户 ${account.accountId} 的${existingTier}层同步已超时（${runningMinutes.toFixed(1)}分钟），强制释放`);
       activeSyncs.delete(existingKey);
       continue;
     }

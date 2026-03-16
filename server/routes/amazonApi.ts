@@ -818,12 +818,21 @@ export const amazonApiRouter = router({
         });
       }
 
-      // ✅ 幂等性保护：检查是否已有同步任务在进行
+      // ✅ v424: 统一幂等性保护 - 同时检查syncIdempotencyService和unifiedSyncEngine两层锁
       const { isSyncLocked, acquireSyncLock, releaseSyncLock } = await import('../sync/syncIdempotencyService');
+      const { isAccountSyncing } = await import('../sync/unifiedSyncEngine');
+      
+      // v424: 检查两层锁状态
       if (isSyncLocked(input.accountId, 'all')) {
         throw new TRPCError({
           code: 'CONFLICT',
-          message: '该账号已有同步任务在进行中，请等待当前同步完成后再试',
+          message: '该账号已有同步任务在进行中（幂等锁），请等待当前同步完成后再试',
+        });
+      }
+      if (isAccountSyncing(input.accountId)) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: '该账号已有同步任务在进行中（引擎锁），请等待当前同步完成后再试',
         });
       }
       

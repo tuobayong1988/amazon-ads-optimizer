@@ -758,7 +758,7 @@ export async function syncBudgetAdjustmentToAmazon(
 
 /**
  * 同步位置倾斜调整到 Amazon
- * 通过 updateSpCampaign API 更新 Campaign 的 bidding.adjustments
+ * v423: 使用API v3的dynamicBidding.placementBidding格式
  */
 export async function syncPlacementAdjustmentToAmazon(
   accountId: number,
@@ -771,14 +771,18 @@ export async function syncPlacementAdjustmentToAmazon(
   if (!syncService) return false;
   
   try {
-    // v189: 使用withRetry包装API调用
+    // v423: 使用API v3的dynamicBidding.placementBidding格式
     await withRetry(async () => {
+      const placementBidding: Array<{ placement: string; percentage: number }> = [];
+      if (Math.round(topOfSearchPercent) > 0) {
+        placementBidding.push({ placement: 'PLACEMENT_TOP', percentage: Math.round(topOfSearchPercent) });
+      }
+      if (Math.round(productPagePercent) > 0) {
+        placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(productPagePercent) });
+      }
       await (syncService as any).client.updateSpCampaign(String(campaignId), {
-        bidding: {
-          adjustments: [
-            { predicate: 'placementTop', percentage: Math.round(topOfSearchPercent) },
-            { predicate: 'placementProductPage', percentage: Math.round(productPagePercent) },
-          ],
+        dynamicBidding: {
+          placementBidding,
         },
       } as Record<string, any>);
     }, { label: `位置倾斜同步 Campaign ${campaignId}`, accountId });

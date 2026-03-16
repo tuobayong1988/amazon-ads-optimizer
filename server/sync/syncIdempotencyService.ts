@@ -47,7 +47,9 @@ interface SyncLock {
 }
 
 const syncLocks = new Map<string, SyncLock>();
-const LOCK_TIMEOUT_MS = 30 * 60 * 1000;
+// v424: 锁超时从30分钟增加到45分钟，以覆盖大账户（如90023）全量同步的场景
+// 与unifiedSyncEngine的activeSyncs超时保持一致
+const LOCK_TIMEOUT_MS = 45 * 60 * 1000;
 
 function getLockKey(accountId: number, syncType: string = 'all'): string {
   return `sync:${accountId}:${syncType}`;

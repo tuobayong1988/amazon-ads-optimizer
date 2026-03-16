@@ -1315,6 +1315,12 @@ export const campaigns = mysqlTable("campaigns", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	dailyBudget: decimal({ precision: 10, scale: 2 }),
+	/** v424: 有效预算（包含budget rules调整后的实际预算） */
+	effectiveBudget: decimal("effective_budget", { precision: 10, scale: 2 }),
+	/** v424: 是否有budget rules */
+	hasBudgetRules: tinyint("has_budget_rules").default(0),
+	/** v424: budget rules数量 */
+	budgetRulesCount: int("budget_rules_count").default(0),
 	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
 	unitsOrdered: int("units_ordered").default(0),
 	averageOrderValue: decimal("average_order_value", { precision: 10, scale: 2 }),
@@ -4459,3 +4465,79 @@ export const accountNegativeKeywords = mysqlTable("account_negative_keywords", {
 ]);
 export type AccountNegativeKeyword = InferSelectModel<typeof accountNegativeKeywords>;
 export type InsertAccountNegativeKeyword = InferInsertModel<typeof accountNegativeKeywords>;
+
+
+// ==================== v410: Amazon Budget Rules 同步表 ====================
+export const campaignBudgetRules = mysqlTable("campaign_budget_rules", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	/** Amazon Budget Rule ID */
+	ruleId: varchar("rule_id", { length: 128 }).notNull(),
+	/** 规则名称 */
+	ruleName: varchar("rule_name", { length: 500 }),
+	/** 规则类型: SCHEDULE / PERFORMANCE */
+	ruleType: mysqlEnum("rule_type", ['SCHEDULE', 'PERFORMANCE']).notNull(),
+	/** 规则状态: ACTIVE / PAUSED / EXPIRED */
+	ruleStatus: varchar("rule_status", { length: 20 }).default('ACTIVE'),
+	/** 广告类型: sp / sb / sd */
+	adType: mysqlEnum("ad_type", ['sp', 'sb', 'sd']).default('sp'),
+	/** 预算增加方式（目前只有PERCENT） */
+	budgetIncreaseType: varchar("budget_increase_type", { length: 20 }).default('PERCENT'),
+	/** 预算增加值（百分比） */
+	budgetIncreaseValue: decimal("budget_increase_value", { precision: 10, scale: 2 }),
+	/** 周期类型: DAILY */
+	recurrenceType: varchar("recurrence_type", { length: 20 }),
+	/** 周期-星期几（JSON数组，如 ["MONDAY","FRIDAY"]） */
+	recurrenceDaysOfWeek: json("recurrence_days_of_week"),
+	/** 日期范围-开始日期 (YYYYMMDD) */
+	durationStartDate: varchar("duration_start_date", { length: 8 }),
+	/** 日期范围-结束日期 (YYYYMMDD) */
+	durationEndDate: varchar("duration_end_date", { length: 8 }),
+	/** 事件类型规则-事件ID */
+	eventId: varchar("event_id", { length: 128 }),
+	/** 事件类型规则-事件名称 */
+	eventName: varchar("event_name", { length: 255 }),
+	/** 绩效条件-指标名称: ACOS / CTR / CVR / ROAS */
+	performanceMetricName: varchar("performance_metric_name", { length: 20 }),
+	/** 绩效条件-比较运算符 */
+	performanceComparisonOperator: varchar("performance_comparison_operator", { length: 30 }),
+	/** 绩效条件-阈值 */
+	performanceThreshold: decimal("performance_threshold", { precision: 10, scale: 2 }),
+	/** 关联的campaign IDs（JSON数组） */
+	associatedCampaignIds: json("associated_campaign_ids"),
+	/** Amazon创建日期 */
+	amazonCreatedDate: varchar("amazon_created_date", { length: 20 }),
+	/** Amazon最后更新日期 */
+	amazonLastUpdatedDate: varchar("amazon_last_updated_date", { length: 20 }),
+	/** 完整的原始JSON数据 */
+	rawData: json("raw_data"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	unique("uk_account_rule").on(table.accountId, table.ruleId),
+	index("idx_cbr_account").on(table.accountId),
+	index("idx_cbr_rule_type").on(table.ruleType),
+	index("idx_cbr_ad_type").on(table.adType),
+	index("idx_cbr_status").on(table.ruleStatus),
+]);
+export type CampaignBudgetRule = InferSelectModel<typeof campaignBudgetRules>;
+export type InsertCampaignBudgetRule = InferInsertModel<typeof campaignBudgetRules>;
+
+/** v410: Campaign与Budget Rule的关联表 */
+export const campaignBudgetRuleAssociations = mysqlTable("campaign_budget_rule_associations", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	/** campaigns表中的campaignId */
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+	/** budget_rules表中的ruleId */
+	ruleId: varchar("rule_id", { length: 128 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	unique("uk_campaign_rule").on(table.accountId, table.campaignId, table.ruleId),
+	index("idx_cbra_campaign").on(table.accountId, table.campaignId),
+	index("idx_cbra_rule").on(table.ruleId),
+]);
+export type CampaignBudgetRuleAssociation = InferSelectModel<typeof campaignBudgetRuleAssociations>;
+export type InsertCampaignBudgetRuleAssociation = InferInsertModel<typeof campaignBudgetRuleAssociations>;

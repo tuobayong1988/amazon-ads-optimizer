@@ -138,7 +138,7 @@ type ColumnKey =
   // 日期和预算
   'startDate' | 'endDate' | 'avgTimeInBudget' | 'budgetConverted' | 'dailyBudget' | 'costType' |
   // 曝光指标
-  'impressions' | 'topOfSearchImpressionShare' | 'topOfSearchBidAdjustment' |
+  'impressions' | 'topOfSearchImpressionShare' | 'topOfSearchBidAdjustment' | 'productPageBidAdjustment' | 'restBidAdjustment' |
   // 点击和花费指标
   'clicks' | 'ctr' | 'spendConverted' | 'dailySpend' | 'totalSpend' | 'cpcConverted' | 'cpc' |
   // 浏览指标
@@ -198,6 +198,8 @@ const columns: ColumnConfig[] = [
   { key: 'impressions', label: '曝光', minWidth: '90px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'topOfSearchImpressionShare', label: '搜索顶部曝光份额', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'topOfSearchBidAdjustment', label: '搜索顶部出价调整', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'productPageBidAdjustment', label: '商品页出价调整', minWidth: '120px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'restBidAdjustment', label: '其他位置出价调整', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 点击和花费指标 ===
   { key: 'clicks', label: '点击', minWidth: '80px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
@@ -1569,6 +1571,18 @@ export default function Campaigns() {
         return (
           <span className="text-sm tabular-nums">
             {(campaign as any).placementTopSearchBidAdjustment ? `${(campaign as any).placementTopSearchBidAdjustment}%` : '-'}
+          </span>
+        );
+      case 'productPageBidAdjustment':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).placementProductPageBidAdjustment ? `${(campaign as any).placementProductPageBidAdjustment}%` : '-'}
+          </span>
+        );
+      case 'restBidAdjustment':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).placementRestBidAdjustment ? `${(campaign as any).placementRestBidAdjustment}%` : '-'}
           </span>
         );
       case 'spendConverted':

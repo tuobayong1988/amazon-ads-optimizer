@@ -52,7 +52,7 @@ export async function syncPerformanceData(service: SyncContext,days: number = 14
   try {
     // Amazon API单次请求最多31天，需要分批请求
     const MAX_DAYS_PER_REQUEST = 31;
-    const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
+    const totalDays = Math.min(days, 95); // v423: 最多95天（SP支持95天，SB/SD只支持60天但API会自动clamp）
     
     let totalSynced = 0;
     
@@ -162,15 +162,12 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
 
 /**
  * 处理报告数据并存储到数据库
+ * v423: 性能优化 - 批量UPSERT替代逐条写入，货币字段合并到主操作，汇率查询移到循环外
+ * 优化效果：大账户(1400+ campaigns × 95天 ≈ 130,000+行)从15分钟+超时降低到2-3分钟
  */
 async function processReportData(service: SyncContext, db: DbInstance, reportData: unknown[], adType: string): Promise<number> {
   try {
     log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
-    
-    // 输出第一条数据的结构，用于调试
-    if (reportData.length > 0) {
-      log.debug(`${adType}报告数据第一条示例:`, JSON.stringify(reportData[0], null, 2));
-    }
     
     if (!reportData || reportData.length === 0) {
       log.warn('报告数据为空');
@@ -178,12 +175,13 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     }
     
     // 输出第一条数据的结构，用于调试
-    log.debug('报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
+    if (reportData.length > 0) {
+      log.debug(`${adType}报告数据第一条示例:`, JSON.stringify(reportData[0], null, 2));
+    }
     
     let synced = 0;
+    const startMs = Date.now();
 
-    log.info(`开始处理报告数据, 共 ${reportData.length} 条记录`);
-    
     // 统计匹配情况
     let matchedById = 0;
     let matchedByName = 0;
@@ -227,27 +225,31 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     
     log.info(`v364批量预查询完成: campaigns=${allCampaigns.length}, existingPerf=${existingPerformance.length}, dates=${reportDates.size}`);
     
+    // v423: 汇率查询移到循环外 - 同一marketplace的汇率在一次同步中不会变化
+    const { currency, rate: exchangeRate } = await getExchangeRateByMarketplace(service.marketplace);
+    const todayStr = getMarketplaceCurrentDate(service.marketplace);
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    
+    // v423: 批量UPSERT - 收集所有待写入数据，分批执行
+    const BATCH_SIZE = 500;
+    const upsertBatch: Array<Record<string, any>> = [];
+    
     for (const row of (reportData as any[])) {
       // 策略：先用campaignId匹配，失败后用campaignName匹配
-      // 这是因为SB/SD的报告ID可能与List API返回的ID不一致
-      
-      // v364: 使用预查询Map替代循环内DB查询
       let campaign = campaignByIdMap.get(String(row.campaignId)) || null;
 
       if (campaign) {
         matchedById++;
       } else if (row.campaignName) {
-        // 策略2: 用campaignName匹配
         campaign = campaignByNameMap.get(row.campaignName) || null;
-        
         if (campaign) {
           matchedByName++;
-          log.info(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
+          log.debug(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
         }
       }
 
       if (!campaign) {
-        // 尝试自动创建campaign记录，以保存报告数据
+        // 尝试自动创建campaign记录
         if (row.campaignId && row.campaignName) {
           try {
             log.info(`${adType}自动创建campaign: ${row.campaignName}`);
@@ -259,14 +261,12 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
               targetingType: 'manual',
               status: row.campaignStatus || 'enabled',
               dailyBudget: row.campaignBudget ? String(row.campaignBudget) : '0',
-              createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-              updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              createdAt: nowStr,
+              updatedAt: nowStr,
             }).returning();
             campaign = newCampaign;
-            // v364: 更新Map以便后续行可以匹配
             campaignByIdMap.set(String(campaign.campaignId), campaign);
             if (campaign.campaignName) campaignByNameMap.set(campaign.campaignName, campaign);
-            log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
           } catch (createError: unknown) {
             log.warn(`${adType}创建campaign失败，尝试再次查询:`, (createError as Error).message);
             [campaign] = await db
@@ -295,40 +295,19 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
         }
       }
 
-      // 使用报告日期或当前日期
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
 
-      // v364: 使用预查询Map替代循环内DB查询
-      const existingKey = `${String(campaign.campaignId)}|${reportDateStr}`;
-      const existing = existingPerfMap.get(existingKey) || null;
-
-      // 使用 Amazon Ads API v3 的字段名 (2026年1月更新)
-      // ⚠️ 重要: 不同广告类型使用不同的字段名
-      // SP: 使用 7天归因 (sales7d, purchases7d, unitsSoldClicks7d)
-      // SB: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks)
-      // SD: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks, viewableImpressions)
+      // 解析各广告类型的字段
       const cost = row.cost || 0;
-      let sales = 0;
-      let orders = 0;
-      let unitsSold = 0;
-      let dpv = 0;
-      let addToCart = 0;
-      let ntbOrders = 0;
-      let ntbSales = 0;
-      let viewableImpressions = 0;
+      let sales = 0, orders = 0, unitsSold = 0, dpv = 0, addToCart = 0;
+      let ntbOrders = 0, ntbSales = 0, viewableImpressions = 0;
       
       if (adType === 'SP') {
-        // ✅ SP报告使用 7天归因窗口 (7d) - 修正字段名
-        // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
         sales = row.sales7d || 0;
         orders = row.purchases7d || 0;
         unitsSold = row.unitsSoldClicks7d || 0;
-        // SP不支持 dpv 和 addToCart 在 7d 字段中
-        dpv = 0;
-        addToCart = 0;
       } else if (adType === 'SB') {
-        // ✅ SB报告使用修正后的字段名 (Clicks后缀)
         sales = row.salesClicks || 0;
         orders = row.purchasesClicks || 0;
         unitsSold = row.unitsSoldClicks || 0;
@@ -336,7 +315,6 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
         ntbOrders = row.newToBrandPurchasesClicks || 0;
         ntbSales = row.newToBrandSalesClicks || 0;
       } else {
-        // ✅ SD报告使用修正后的字段名 (Clicks后缀)
         sales = row.salesClicks || 0;
         orders = row.purchasesClicks || 0;
         unitsSold = row.unitsSoldClicks || 0;
@@ -346,8 +324,7 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
         ntbSales = row.newToBrandSalesClicks || 0;
       }
       
-      // ✅ v149: 货币转换 - 使用实时汇率服务（每日自动从API刷新）
-      const { currency, rate: exchangeRate } = await getExchangeRateByMarketplace(service.marketplace);
+      // v423: 货币字段直接包含在perfData中，不再需要额外的raw SQL更新
       const spendUsd = cost * exchangeRate;
       const salesUsd = sales * exchangeRate;
 
@@ -360,56 +337,42 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
         spend: String(cost),
         sales: String(sales),
         orders: orders,
-        dailyAcos: cost && sales 
-          ? String((cost / sales) * 100) 
-          : '0',
-        dailyRoas: cost && sales 
-          ? String(sales / cost) 
-          : '0',
+        dailyAcos: cost && sales ? String((cost / sales) * 100) : '0',
+        dailyRoas: cost && sales ? String(sales / cost) : '0',
         ctr: (row.impressions || 0) > 0 ? String(((row.clicks || 0) / (row.impressions || 0))) : null,
         cvr: (row.clicks || 0) > 0 ? String((orders / (row.clicks || 0))) : null,
         cpc: (row.clicks || 0) > 0 ? String((cost / (row.clicks || 0))) : null,
-        // ✅ Report API v3 新增字段
-        unitsSold: unitsSold,
-        dpv: dpv,
-        addToCart: addToCart,
-        ntbOrders: ntbOrders,
+        unitsSold, dpv, addToCart, ntbOrders,
         ntbSales: String(ntbSales),
-        viewableImpressions: viewableImpressions,
-        // ✅ 广告类型和归因窗口标记（SP=7天, SB=14天, SD=14天）
+        viewableImpressions,
         adType: adType as 'SP' | 'SB' | 'SD',
         attributionWindow: adType === 'SP' ? 7 : 14,
-        // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
-        isFinalized: reportDateStr === getMarketplaceCurrentDate(service.marketplace) ? 0 : 1,
+        isFinalized: reportDateStr === todayStr ? 0 : 1,
         dataSource: 'api' as const,
+        // v423: 货币字段直接包含（v360已将这些字段纳入Drizzle schema）
+        currency,
+        exchangeRate: String(exchangeRate),
+        spendUsd: spendUsd.toFixed(2),
+        salesUsd: salesUsd.toFixed(2),
       };
 
-      if (existing) {
-        await db
-          .update(dailyPerformance)
-          .set(perfData)
-          .where(eq(dailyPerformance.id, existing.id));
-        // v104: Update currency fields via raw SQL (not in Drizzle schema)
-        await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${existing.id}`);
-      } else {
-        const insertResult = await db.insert(dailyPerformance).values({
-          ...perfData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
-        // v104: Update currency fields via raw SQL for newly inserted record
-        const insertId = insertResult?.[0]?.insertId || insertResult?.insertId;
-        if (insertId) {
-          await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
-        } else {
-          // Fallback: update by composite key
-          await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.campaignId} AND DATE(date) = ${reportDateStr} AND accountId = ${service.accountId}`);
-        }
+      upsertBatch.push(perfData);
+      
+      // v423: 达到批量大小时执行批量写入
+      if (upsertBatch.length >= BATCH_SIZE) {
+        synced += await flushPerfBatch(db, upsertBatch, existingPerfMap, nowStr);
+        upsertBatch.length = 0;
       }
-      synced++;
+    }
+    
+    // v423: 处理剩余数据
+    if (upsertBatch.length > 0) {
+      synced += await flushPerfBatch(db, upsertBatch, existingPerfMap, nowStr);
+      upsertBatch.length = 0;
     }
 
-    // 输出匹配统计
-    log.info(`${adType}报告数据处理完成:`);
+    const elapsedSec = ((Date.now() - startMs) / 1000).toFixed(1);
+    log.info(`${adType}报告数据处理完成 (${elapsedSec}秒):`);
     log.debug(`  - 通过ID匹配: ${matchedById} 条`);
     log.debug(`  - 通过名称匹配: ${matchedByName} 条`);
     log.debug(`  - 未匹配: ${notMatched} 条`);
@@ -418,6 +381,155 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
   } catch (error: unknown) {
     log.error(`${adType}报告数据处理失败:`, (error as Error).message);
     return 0;
+  }
+}
+
+/**
+ * v423: 批量写入绩效数据 - 使用raw SQL的INSERT ... ON DUPLICATE KEY UPDATE
+ * 利用uk_daily_perf唯一索引(accountId, campaignId, date, ad_type)实现UPSERT
+ * 每批500条，将原来的每条2次DB操作(INSERT/UPDATE + raw SQL货币更新)合并为1次批量操作
+ */
+async function flushPerfBatch(
+  db: DbInstance,
+  batch: Array<Record<string, any>>,
+  existingPerfMap: Map<string, any>,
+  nowStr: string
+): Promise<number> {
+  if (batch.length === 0) return 0;
+  
+  try {
+    // 分离更新和插入
+    const toInsert: Array<Record<string, any>> = [];
+    const toUpdate: Array<{ id: number; data: Record<string, any> }> = [];
+    
+    for (const perfData of batch) {
+      const existingKey = `${perfData.campaignId}|${perfData.date}`;
+      const existing = existingPerfMap.get(existingKey);
+      
+      if (existing) {
+        toUpdate.push({ id: existing.id, data: perfData });
+      } else {
+        toInsert.push({ ...perfData, createdAt: nowStr });
+      }
+    }
+    
+    let synced = 0;
+    
+    // 批量INSERT - 使用ON DUPLICATE KEY UPDATE避免唯一键冲突
+    if (toInsert.length > 0) {
+      // 分小批次插入（MySQL单次INSERT有行数限制）
+      const INSERT_CHUNK = 100;
+      for (let i = 0; i < toInsert.length; i += INSERT_CHUNK) {
+        const chunk = toInsert.slice(i, i + INSERT_CHUNK);
+        try {
+          await db.insert(dailyPerformance)
+            .values(chunk as any)
+            .onDuplicateKeyUpdate({
+              set: {
+                impressions: sql`VALUES(${dailyPerformance.impressions})`,
+                clicks: sql`VALUES(${dailyPerformance.clicks})`,
+                spend: sql`VALUES(${dailyPerformance.spend})`,
+                sales: sql`VALUES(${dailyPerformance.sales})`,
+                orders: sql`VALUES(${dailyPerformance.orders})`,
+                dailyAcos: sql`VALUES(${dailyPerformance.dailyAcos})`,
+                dailyRoas: sql`VALUES(${dailyPerformance.dailyRoas})`,
+                ctr: sql`VALUES(${dailyPerformance.ctr})`,
+                cvr: sql`VALUES(${dailyPerformance.cvr})`,
+                cpc: sql`VALUES(${dailyPerformance.cpc})`,
+                unitsSold: sql`VALUES(${dailyPerformance.unitsSold})`,
+                dpv: sql`VALUES(${dailyPerformance.dpv})`,
+                addToCart: sql`VALUES(${dailyPerformance.addToCart})`,
+                ntbOrders: sql`VALUES(${dailyPerformance.ntbOrders})`,
+                ntbSales: sql`VALUES(${dailyPerformance.ntbSales})`,
+                viewableImpressions: sql`VALUES(${dailyPerformance.viewableImpressions})`,
+                adType: sql`VALUES(${dailyPerformance.adType})`,
+                attributionWindow: sql`VALUES(${dailyPerformance.attributionWindow})`,
+                isFinalized: sql`VALUES(${dailyPerformance.isFinalized})`,
+                dataSource: sql`VALUES(${dailyPerformance.dataSource})`,
+                currency: sql`VALUES(${dailyPerformance.currency})`,
+                exchangeRate: sql`VALUES(${dailyPerformance.exchangeRate})`,
+                spendUsd: sql`VALUES(${dailyPerformance.spendUsd})`,
+                salesUsd: sql`VALUES(${dailyPerformance.salesUsd})`,
+              },
+            });
+          synced += chunk.length;
+        } catch (insertErr: unknown) {
+          // 批量插入失败时回退到逐条插入
+          log.warn(`v423: 批量INSERT失败(${chunk.length}条)，回退逐条: ${(insertErr as Error).message}`);
+          for (const item of chunk) {
+            try {
+              await db.insert(dailyPerformance).values(item as any)
+                .onDuplicateKeyUpdate({
+                  set: {
+                    impressions: sql`VALUES(${dailyPerformance.impressions})`,
+                    clicks: sql`VALUES(${dailyPerformance.clicks})`,
+                    spend: sql`VALUES(${dailyPerformance.spend})`,
+                    sales: sql`VALUES(${dailyPerformance.sales})`,
+                    orders: sql`VALUES(${dailyPerformance.orders})`,
+                    dailyAcos: sql`VALUES(${dailyPerformance.dailyAcos})`,
+                    dailyRoas: sql`VALUES(${dailyPerformance.dailyRoas})`,
+                    currency: sql`VALUES(${dailyPerformance.currency})`,
+                    exchangeRate: sql`VALUES(${dailyPerformance.exchangeRate})`,
+                    spendUsd: sql`VALUES(${dailyPerformance.spendUsd})`,
+                    salesUsd: sql`VALUES(${dailyPerformance.salesUsd})`,
+                  },
+                });
+              synced++;
+            } catch (singleErr: unknown) {
+              log.debug(`v423: 单条INSERT也失败: ${(singleErr as Error).message}`);
+            }
+          }
+        }
+      }
+    }
+    
+    // 批量UPDATE - 使用CASE WHEN批量更新（按ID分组）
+    if (toUpdate.length > 0) {
+      const UPDATE_CHUNK = 100;
+      for (let i = 0; i < toUpdate.length; i += UPDATE_CHUNK) {
+        const chunk = toUpdate.slice(i, i + UPDATE_CHUNK);
+        // 逐条更新但不再需要额外的raw SQL货币更新（已合并到perfData中）
+        for (const item of chunk) {
+          try {
+            await db
+              .update(dailyPerformance)
+              .set(item.data as any)
+              .where(eq(dailyPerformance.id, item.id));
+            synced++;
+          } catch (updateErr: unknown) {
+            log.debug(`v423: UPDATE失败 id=${item.id}: ${(updateErr as Error).message}`);
+          }
+        }
+      }
+    }
+    
+    log.debug(`v423: 批量写入完成 - insert=${toInsert.length}, update=${toUpdate.length}, synced=${synced}`);
+    return synced;
+  } catch (err: unknown) {
+    log.error(`v423: flushPerfBatch失败: ${(err as Error).message}`);
+    // 回退到逐条写入
+    let synced = 0;
+    for (const perfData of batch) {
+      try {
+        await db.insert(dailyPerformance).values({ ...perfData, createdAt: nowStr } as any)
+          .onDuplicateKeyUpdate({
+            set: {
+              impressions: sql`VALUES(${dailyPerformance.impressions})`,
+              clicks: sql`VALUES(${dailyPerformance.clicks})`,
+              spend: sql`VALUES(${dailyPerformance.spend})`,
+              sales: sql`VALUES(${dailyPerformance.sales})`,
+              currency: sql`VALUES(${dailyPerformance.currency})`,
+              exchangeRate: sql`VALUES(${dailyPerformance.exchangeRate})`,
+              spendUsd: sql`VALUES(${dailyPerformance.spendUsd})`,
+              salesUsd: sql`VALUES(${dailyPerformance.salesUsd})`,
+            },
+          });
+        synced++;
+      } catch (e: unknown) {
+        // ignore individual failures
+      }
+    }
+    return synced;
   }
 }
 

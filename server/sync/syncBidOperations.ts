@@ -331,8 +331,24 @@ AmazonSyncService.prototype.applyBatchBidAdjustments = async function(this: Amaz
 
 /**
  * 获取展示位置调整系数
+ * v423: 支持Amazon SP API v3的dynamicBidding.placementBidding结构
  */
 AmazonSyncService.prototype.getPlacementMultiplier = function(this: AmazonSyncService, campaign: SpCampaign, placement: string): number {
+  const c = campaign as Record<string, any>;
+  // v423: 优先从API v3的dynamicBidding.placementBidding中获取
+  if (c.dynamicBidding?.placementBidding?.length > 0) {
+    const placementMap: Record<string, string> = {
+      'placementTop': 'PLACEMENT_TOP',
+      'placementProductPage': 'PLACEMENT_PRODUCT_PAGE',
+      'placementRestOfSearch': 'PLACEMENT_REST_OF_SEARCH',
+    };
+    const v3Placement = placementMap[placement] || placement;
+    const adjustment = c.dynamicBidding.placementBidding.find(
+      (a: any) => a.placement === v3Placement
+    );
+    return adjustment ? Number(adjustment.percentage) : 0;
+  }
+  // 兼容旧版API的bidding.adjustments结构
   const adjustment = campaign.bidding?.adjustments?.find(
     a => a.predicate === placement
   );

@@ -288,15 +288,26 @@ export class SelfHealingScheduler {
       // 修复级别的任务需要获取互斥锁
       let release: (() => void) | null = null;
       if (task.level === 'repair' || task.level === 'emergency') {
-        // v360: 检查主同步是否正在进行，避免自愈修复与主同步冲突
+        // v360+v424: 检查主同步是否正在进行，避免自愈修复与主同步冲突
+        // v424: 同时检查dataSyncScheduler和unifiedSyncEngine两个层面的同步状态
         try {
           const { isSyncRunning } = await import('../sync/dataSyncScheduler');
           if (typeof isSyncRunning === 'function' && isSyncRunning()) {
-            log.info(`[SelfHealingScheduler] v360: 主同步正在进行，延迟任务${task.id}执行`);
-            return { success: true, issuesFound: 0, issuesFixed: 0, details: 'v360: 主同步进行中，延迟执行' };
+            log.info(`[SelfHealingScheduler] v424: dataSyncScheduler同步正在进行，延迟任务${task.id}执行`);
+            return { success: true, issuesFound: 0, issuesFixed: 0, details: 'v424: dataSyncScheduler同步进行中，延迟执行' };
           }
         } catch {
           // isSyncRunning不可用时不影响正常流程
+        }
+        try {
+          const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
+          const engineStatus = getEngineStatus();
+          if (engineStatus.currentlyRunning && engineStatus.currentlyRunning.length > 0) {
+            log.info(`[SelfHealingScheduler] v424: unifiedSyncEngine有 ${engineStatus.currentlyRunning.length} 个活跃同步，延迟任务${task.id}执行`);
+            return { success: true, issuesFound: 0, issuesFixed: 0, details: 'v424: unifiedSyncEngine同步进行中，延迟执行' };
+          }
+        } catch {
+          // unifiedSyncEngine不可用时不影响正常流程
         }
         
         release = await this.repairMutex.tryAcquire(task.timeoutMs);

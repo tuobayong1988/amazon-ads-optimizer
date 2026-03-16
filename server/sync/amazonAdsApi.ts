@@ -87,6 +87,7 @@ export interface SpCampaign {
   startDate: string;
   endDate?: string;
   premiumBidAdjustment: boolean;
+  // v423: 旧版API结构（向后兼容）
   bidding?: {
     strategy: 'legacyForSales' | 'autoForSales' | 'manual';
     adjustments?: Array<{
@@ -94,6 +95,20 @@ export interface SpCampaign {
       percentage: number;
     }>;
   };
+  // v423: API v3实际返回的结构
+  dynamicBidding?: {
+    strategy: 'MANUAL' | 'LEGACY_FOR_SALES' | 'AUTO_FOR_SALES' | 'RULE_BASED';
+    placementBidding?: Array<{
+      placement: 'PLACEMENT_TOP' | 'PLACEMENT_PRODUCT_PAGE' | 'PLACEMENT_REST_OF_SEARCH';
+      percentage: number;
+    }>;
+  };
+  budget?: {
+    budget: number;
+    budgetType: string;
+  } | number;
+  portfolioId?: string;
+  extendedData?: Record<string, any>;
 }
 
 export interface SpAdGroup {
@@ -5408,6 +5423,85 @@ export class AmazonAdsApiClient {
     }
     
     return results;
+  }
+
+  // ==================== v424: SP Campaign Budget Rules API ====================
+
+  /**
+   * v424: 获取SP广告活动的Budget Rules
+   * 端点: GET /sp/campaigns/{campaignId}/budgetRules
+   * 参考: https://advertising.amazon.com/API/docs/en-us/sponsored-products/3-0/openapi/prod
+   */
+  async listSpCampaignBudgetRules(campaignId: string): Promise<Record<string, any>[]> {
+    try {
+      const response = await this.axiosInstance.get(
+        `/sp/campaigns/${campaignId}/budgetRules`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.spCampaignBudgetRules.v3+json',
+          },
+        }
+      );
+      
+      const rules = response.data?.associatedRules || response.data?.budgetRules || response.data || [];
+      log.debug(`[SP API] v424: Campaign ${campaignId} has ${Array.isArray(rules) ? rules.length : 0} budget rules`);
+      return Array.isArray(rules) ? rules : [];
+    } catch (error: unknown) {
+      // @ts-ignore
+      const statusCode = (error as Error & { response?: unknown }).response?.status;
+      if (statusCode === 404 || statusCode === 400) {
+        // 没有budget rules是正常情况
+        return [];
+      }
+      if (statusCode === 403) {
+        log.debug(`[SP API] v424: Budget Rules API access denied for campaign ${campaignId} (403)`);
+        return [];
+      }
+      log.warn(`[SP API] v424: Error fetching budget rules for campaign ${campaignId}: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * v424: 批量获取多个SP广告活动的Budget Rules
+   * 为避免API速率限制，使用串行调用+延迟
+   */
+  async listSpCampaignsBudgetRules(
+    campaignIds: string[],
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<Map<string, Record<string, any>[]>> {
+    const result = new Map<string, Record<string, any>[]>();
+    const batchSize = 5; // 每批处理5个广告活动
+    
+    for (let i = 0; i < campaignIds.length; i += batchSize) {
+      const batch = campaignIds.slice(i, i + batchSize);
+      
+      // 并行获取同一批次的budget rules
+      const batchResults = await Promise.allSettled(
+        batch.map(id => this.listSpCampaignBudgetRules(id))
+      );
+      
+      for (let j = 0; j < batch.length; j++) {
+        const batchResult = batchResults[j];
+        if (batchResult.status === 'fulfilled') {
+          result.set(batch[j], batchResult.value);
+        } else {
+          result.set(batch[j], []);
+        }
+      }
+      
+      if (onProgress) {
+        onProgress(Math.min(i + batchSize, campaignIds.length), campaignIds.length);
+      }
+      
+      // 批次间延迟，避免API速率限制
+      if (i + batchSize < campaignIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    return result;
   }
 }
 // ==================== Amazon Marketing Stream (AMS) Types ====================

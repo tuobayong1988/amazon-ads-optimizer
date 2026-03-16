@@ -18,6 +18,7 @@ import {
   searchTerms,
   negativeKeywords,
   optimizationEvents,
+  campaignBudgetRules,
 } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import type { AmazonAdsApiClient, SpCampaign } from './amazonAdsApi';
@@ -46,6 +47,7 @@ declare module '../../amazonSyncService' {
     syncSpNegativeKeywords(...args: unknown[]): unknown;
     syncSpNegativeProductTargets(...args: unknown[]): unknown;
     syncSpBidRecommendations(...args: unknown[]): unknown;
+    syncSpBudgetRules(...args: unknown[]): unknown;
   }
 }
 
@@ -177,10 +179,15 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         }
       }
 
-      // 获取竞价策略
-      const biddingStrategy = (apiCampaign as Record<string, any>).dynamicBidding?.strategy || 
-                             (apiCampaign as Record<string, any>).bidding?.strategy || 
-                             'legacyForSales';
+      // v423: 获取竞价策略 - API v3返回大写格式，需要映射到数据库枚举值
+      const rawStrategy = (apiCampaign as Record<string, any>).dynamicBidding?.strategy || 
+                         (apiCampaign as Record<string, any>).bidding?.strategy || 
+                         'LEGACY_FOR_SALES';
+      const strategyMap: Record<string, string> = {
+        'MANUAL': 'manual', 'LEGACY_FOR_SALES': 'legacyForSales', 'AUTO_FOR_SALES': 'autoForSales', 'RULE_BASED': 'ruleBasedBidding',
+        'manual': 'manual', 'legacyForSales': 'legacyForSales', 'autoForSales': 'autoForSales', 'ruleBasedBidding': 'ruleBasedBidding',
+      };
+      const biddingStrategy = strategyMap[rawStrategy] || 'legacyForSales';
 
       // 获取组合信息
       const portfolioId = (apiCampaign as Record<string, any>).portfolioId ? String((apiCampaign as Record<string, any>).portfolioId) : null;
@@ -198,6 +205,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         endDate: endDateValue,
         placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
         placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        placementRestBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementRestOfSearch'),
         biddingStrategy: biddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
         portfolioId: portfolioId,
         costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SP广告都是CPC
@@ -242,13 +250,19 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
         // @ts-ignore
         const apiProductPlacement1 = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
-        const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
+        // v423: 增加restOfSearch位置保护
+        const localRestPlacement1 = (existing as any).placementRestBidAdjustment || 0;
+        // @ts-ignore
+        const apiRestPlacement1 = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
+        const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1 || localRestPlacement1 !== apiRestPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
-          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
+          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%, localRest=${localRestPlacement1}%, apiRest=${apiRestPlacement1}%`);
           // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
           // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
+          // @ts-ignore
+          delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
@@ -1182,5 +1196,185 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
   } catch (error) {
     log.error('[v414] Error syncing SP bid recommendations:', error);
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
+  }
+};
+
+// ==================== v424: SP Budget Rules 同步 ====================
+
+/**
+ * v424: 同步SP广告活动的Budget Rules
+ * 
+ * 1. 获取所有SP campaigns的campaignId
+ * 2. 批量调用 GET /sp/campaigns/{campaignId}/budgetRules
+ * 3. 将budget rules写入campaign_budget_rules表
+ * 4. 更新campaigns表的has_budget_rules和budget_rules_count字段
+ */
+AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncService): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+
+  let totalRulesSynced = 0;
+
+  try {
+    log.info('[v424] ========== 开始同步SP Budget Rules ==========');
+
+    // 1. 获取所有SP campaigns
+    const spCampaigns = await db.select({
+      id: campaigns.id,
+      campaignId: campaigns.campaignId,
+    }).from(campaigns)
+      .where(and(
+        eq(campaigns.accountId, this.accountId),
+        sql`${campaigns.campaignType} IN ('sp_auto', 'sp_manual')`,
+        eq(campaigns.campaignStatus, 'enabled'),
+      ));
+
+    log.info(`[v424] 查询到 ${spCampaigns.length} 个启用的SP campaigns需要获取budget rules`);
+
+    if (spCampaigns.length === 0) {
+      return 0;
+    }
+
+    // 2. 批量获取budget rules
+    const campaignIds = spCampaigns.map(c => String(c.campaignId));
+    const budgetRulesMap = await this.apiClient.listSpCampaignsBudgetRules(
+      campaignIds,
+      (completed, total) => {
+        if (completed % 50 === 0 || completed === total) {
+          log.info(`[v424] Budget rules获取进度: ${completed}/${total}`);
+        }
+      }
+    );
+
+    // 3. 写入budget rules到数据库
+    const allRules: Array<{
+      campaignId: string;
+      rules: Record<string, any>[];
+    }> = [];
+
+    for (const [campaignId, rules] of budgetRulesMap.entries()) {
+      if (rules.length > 0) {
+        allRules.push({ campaignId, rules });
+      }
+    }
+
+    log.info(`[v424] 共 ${allRules.length} 个campaigns有budget rules`);
+
+    // 批量写入budget rules
+    for (const { campaignId, rules } of allRules) {
+      for (const rule of rules) {
+        try {
+          const ruleId = rule.ruleId || rule.budgetRuleId || '';
+          if (!ruleId) continue;
+
+          // 解析规则数据
+          const ruleData: Record<string, any> = {
+            accountId: this.accountId,
+            ruleId: String(ruleId),
+            ruleName: rule.name || rule.ruleName || null,
+            ruleType: rule.ruleType || 'SCHEDULE',
+            ruleStatus: rule.ruleState || rule.ruleStatus || 'ACTIVE',
+            adType: 'sp',
+            rawData: JSON.stringify(rule),
+          };
+
+          // 解析budget increase
+          if (rule.budget) {
+            ruleData.budgetIncreaseType = rule.budget.budgetIncreaseType || 'PERCENT';
+            ruleData.budgetIncreaseValue = rule.budget.budgetIncreaseValue || null;
+          }
+
+          // 解析recurrence
+          if (rule.recurrence) {
+            ruleData.recurrenceType = rule.recurrence.type || null;
+            ruleData.recurrenceDaysOfWeek = rule.recurrence.daysOfWeek 
+              ? JSON.stringify(rule.recurrence.daysOfWeek) 
+              : null;
+          }
+
+          // 解析duration
+          if (rule.duration) {
+            ruleData.durationStartDate = rule.duration.dateRange?.startDate || null;
+            ruleData.durationEndDate = rule.duration.dateRange?.endDate || null;
+            ruleData.eventId = rule.duration.eventTypeFilter?.eventId || null;
+            ruleData.eventName = rule.duration.eventTypeFilter?.eventName || null;
+          }
+
+          // 解析performance条件
+          if (rule.performanceMeasureCondition) {
+            ruleData.performanceMetricName = rule.performanceMeasureCondition.metricName || null;
+            ruleData.performanceComparisonOperator = rule.performanceMeasureCondition.comparisonOperator || null;
+            ruleData.performanceThreshold = rule.performanceMeasureCondition.threshold || null;
+          }
+
+          // 关联的campaign IDs
+          ruleData.associatedCampaignIds = JSON.stringify([campaignId]);
+
+          // Amazon日期
+          ruleData.amazonCreatedDate = rule.createdDate || null;
+          ruleData.amazonLastUpdatedDate = rule.lastUpdatedDate || null;
+
+          // UPSERT
+          await db.insert(campaignBudgetRules).values(ruleData)
+            .onDuplicateKeyUpdate({
+              set: {
+                ruleName: sql`VALUES(rule_name)`,
+                ruleStatus: sql`VALUES(rule_status)`,
+                budgetIncreaseType: sql`VALUES(budget_increase_type)`,
+                budgetIncreaseValue: sql`VALUES(budget_increase_value)`,
+                recurrenceType: sql`VALUES(recurrence_type)`,
+                recurrenceDaysOfWeek: sql`VALUES(recurrence_days_of_week)`,
+                durationStartDate: sql`VALUES(duration_start_date)`,
+                durationEndDate: sql`VALUES(duration_end_date)`,
+                eventId: sql`VALUES(event_id)`,
+                eventName: sql`VALUES(event_name)`,
+                performanceMetricName: sql`VALUES(performance_metric_name)`,
+                performanceComparisonOperator: sql`VALUES(performance_comparison_operator)`,
+                performanceThreshold: sql`VALUES(performance_threshold)`,
+                associatedCampaignIds: sql`VALUES(associated_campaign_ids)`,
+                amazonLastUpdatedDate: sql`VALUES(amazon_last_updated_date)`,
+                rawData: sql`VALUES(raw_data)`,
+              },
+            });
+
+          totalRulesSynced++;
+        } catch (err: unknown) {
+          log.warn(`[v424] Budget rule写入失败: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    // 4. 更新campaigns表的budget rules相关字段
+    log.info('[v424] 更新campaigns表的budget rules字段...');
+
+    // 先将所有SP campaigns的hasBudgetRules设为0
+    await db.update(campaigns)
+      .set({ 
+        hasBudgetRules: 0,
+        budgetRulesCount: 0,
+      })
+      .where(and(
+        eq(campaigns.accountId, this.accountId),
+        sql`${campaigns.campaignType} IN ('sp_auto', 'sp_manual')`,
+      ));
+
+    // 然后更新有budget rules的campaigns
+    for (const { campaignId, rules } of allRules) {
+      await db.update(campaigns)
+        .set({
+          hasBudgetRules: 1,
+          budgetRulesCount: rules.length,
+        })
+        .where(and(
+          eq(campaigns.accountId, this.accountId),
+          eq(campaigns.campaignId, campaignId),
+        ));
+    }
+
+    log.info(`[v424] ========== SP Budget Rules同步完成: ${totalRulesSynced} 条规则, ${allRules.length} 个campaigns有规则 ==========`);
+    return totalRulesSynced;
+  } catch (error) {
+    log.error('[v424] Error syncing SP budget rules:', error);
+    return totalRulesSynced;
   }
 };

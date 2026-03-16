@@ -2477,9 +2477,26 @@ export function getSyncHealthStatus(): { consecutiveFailures: number; lastSyncTi
   };
 }
 
-/** v360: 检查主同步是否正在进行，供自愈调度器协调使用 */
+/** v360+v424: 检查主同步是否正在进行，供自愈调度器协调使用
+ * v424: 同时检查dataSyncScheduler和unifiedSyncEngine两个层面的同步状态
+ */
 export function isSyncRunning(): boolean {
-  return schedulerStatus.isRunning || Object.values(executionLocks).some(v => v);
+  // 检查dataSyncScheduler层面
+  if (schedulerStatus.isRunning || Object.values(executionLocks).some(v => v)) {
+    return true;
+  }
+  // v424: 检查unifiedSyncEngine层面
+  try {
+    // 使用require避免循环依赖问题
+    const { getEngineStatus } = require('./unifiedSyncEngine');
+    const engineStatus = getEngineStatus();
+    if (engineStatus.currentlyRunning && engineStatus.currentlyRunning.length > 0) {
+      return true;
+    }
+  } catch {
+    // unifiedSyncEngine不可用时不影响
+  }
+  return false;
 }
 
 // 导出同步层级配置和优化调度配置供外部使用
