@@ -690,10 +690,8 @@ export default function CampaignDetail() {
             {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
               <TabsTrigger value="placements">广告位</TabsTrigger>
             )}
-            {/* SP广告独有: Negative keywords (Campaign级别) */}
-            {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
-              <TabsTrigger value="negatives">否定关键词</TabsTrigger>
-            )}
+            {/* v422: 所有广告类型都有Campaign级别否定定向 */}
+            <TabsTrigger value="negatives">否定定向</TabsTrigger>
             {/* SB广告独有: Bid adjustments */}
             {campaign.campaignType === "sb" && (
               <TabsTrigger value="bidadjustments">出价调整</TabsTrigger>
@@ -1314,12 +1312,18 @@ export default function CampaignDetail() {
             </Card>
           </TabsContent>
           
-          {/* SP广告 Campaign级别否定关键词 (Negative keywords) */}
+          {/* v422: 所有广告类型的Campaign级别否定定向 (Negative targeting) */}
           <TabsContent value="negatives" className="mt-4">
             <Card>
               <CardHeader>
-                <CardTitle>否定关键词</CardTitle>
-                <CardDescription>该广告活动的Campaign级别否定关键词（对应Amazon后台的Negative keywords）</CardDescription>
+                <CardTitle>否定定向</CardTitle>
+                <CardDescription>
+                  {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual")
+                    ? "该广告活动的Campaign级别否定关键词和否定商品定向（对应Amazon后台的Negative targeting）"
+                    : campaign.campaignType === "sb"
+                    ? "该品牌广告活动的Campaign级别否定关键词和否定商品定向（对应Amazon后台的Negative targeting）"
+                    : "该展示广告活动的Campaign级别否定商品定向（对应Amazon后台的Negative targeting）"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <NegativeKeywordsList campaignId={campaignId} />

@@ -6,8 +6,16 @@
 import React from "react";
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Ban } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
+
+function safeToLocaleDateString(dateStr: string | Date): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('zh-CN');
+  } catch {
+    return '-';
+  }
+}
 
 export function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
   const { data: negatives, isLoading } = trpc.campaign.getNegativeKeywords.useQuery(

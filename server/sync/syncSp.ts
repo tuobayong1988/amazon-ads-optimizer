@@ -992,27 +992,30 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(keywords.accountId, this.accountId),
-        eq(campaigns.campaignType, 'sponsoredProducts'),
+        // v422: 修复 - campaignType枚举值是'sp_auto'/'sp_manual'，不是'sponsoredProducts'
+        sql`${campaigns.campaignType} IN ('sp_auto', 'sp_manual')`,
         eq(keywords.keywordStatus, 'enabled'),
       ));
 
     log.info(`[v414] 查询到 ${spKeywordRows.length} 个SP关键词需要获取建议竞价`);
 
-    // 按adGroupId分组
-    const kwByAdGroup = new Map<string, Array<{ id: number; keywordText: string; matchType: string }>>();
+    // 按adGroupId分组 (v422: 修复Map key类型不匹配 - 统一使用number类型)
+    const kwByAdGroup = new Map<number, Array<{ id: number; keywordText: string; matchType: string }>>();
     for (const row of spKeywordRows) {
-      const agId = row.adGroupId || '';
+      const agId = Number(row.adGroupId) || 0;
+      if (agId === 0) continue; // 跳过无效的adGroupId
       if (!kwByAdGroup.has(agId)) kwByAdGroup.set(agId, []);
       kwByAdGroup.get(agId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType });
     }
 
     // 查询adGroup的Amazon adGroupId映射（API需要Amazon adGroupId，不是内部DB id）
-    const internalAdGroupIds = [...kwByAdGroup.keys()].map(id => parseInt(id)).filter(id => !isNaN(id));
+    const internalAdGroupIds = [...kwByAdGroup.keys()];
     const adGroupMappingRows = internalAdGroupIds.length > 0
       ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups)
           .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.id, internalAdGroupIds)))
       : [];
-    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [String(r.id), r.adGroupId]));
+    // v422: 统一使用number类型作为Map key，避免number/string不匹配导致查找失败
+    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [r.id, r.adGroupId]));
 
     // 按adGroup批量请求建议竞价
     for (const [internalAgId, kwList] of kwByAdGroup) {
@@ -1083,16 +1086,18 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),
-        eq(campaigns.campaignType, 'sponsoredProducts'),
+        // v422: 修复 - campaignType枚举值是'sp_auto'/'sp_manual'，不是'sponsoredProducts'
+        sql`${campaigns.campaignType} IN ('sp_auto', 'sp_manual')`,
         eq(productTargets.targetStatus, 'enabled'),
       ));
 
     log.info(`[v414] 查询到 ${spTargetRows.length} 个SP商品定位需要获取建议竞价`);
 
-    // 按adGroupId分组
-    const tgtByAdGroup = new Map<string, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string }>>();
+    // 按adGroupId分组 (v422: 修复Map key类型不匹配 - 统一使用number类型)
+    const tgtByAdGroup = new Map<number, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string }>>();
     for (const row of spTargetRows) {
-      const agId = row.adGroupId || '';
+      const agId = Number(row.adGroupId) || 0;
+      if (agId === 0) continue; // 跳过无效的adGroupId
       if (!tgtByAdGroup.has(agId)) tgtByAdGroup.set(agId, []);
       tgtByAdGroup.get(agId)!.push({
         id: row.id,

@@ -796,69 +796,92 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     log.info(`v339: 共获取到 ${reportData.length} 条SB定向数据（${batches}批合并）`);
     let synced = 0;
 
-    for (const row of (reportData as any[])) {
-       // v387: 查找对应的adGroup（添加accountId过滤）
-      const [adGroup] = await db
-        .select()
-        .from(adGroups)
-        .where(and(eq(adGroups.accountId, this.accountId), eq(adGroups.adGroupId, String(row.adGroupId))))
-        .limit(1);
-      if (!adGroup) continue;
-      // SB主要是关键词定向向
-      if (row.keywordId) {
-        // 检查关键词是否已存在
-        const [existing] = await db
-          .select()
-          .from(keywords)
-          .where(
-            and(
-              eq(keywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
-              eq(keywords.keywordId, String(row.keywordId))
-            )
-          )
-          .limit(1);
-
-        const cost = row.cost || 0;
-        const sales = row.salesClicks || 0;  // 修正字段名 (Clicks后缀)
-        const clicks = row.clicks || 0;
-        const impressions = row.impressions || 0;
-        const orders = row.purchasesClicks || 0;  // 修正字段名 (Clicks后缀)
-
-        const keywordData = {
-          internalAdGroupId: adGroup.id,  // v418: ID体系重构
-          accountId: this.accountId,
-          campaignId: adGroup.campaignId || '',  // v357
-          keywordId: String(row.keywordId),
-          keywordText: row.keyword || '',
-          matchType: (row.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
-          bid: '0.00',
-          impressions,
-          clicks,
-          spend: String(cost),
-          sales: String(sales),
-          orders,
-          keywordAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-          keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-          keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-          keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-          keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-          keywordStatus: 'enabled' as const,
-          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        };
-
-        if (existing) {
-          await db
-            .update(keywords)
-            .set(keywordData)
-            .where(eq(keywords.id, existing.id));
-        } else {
-          await db.insert(keywords).values({
-            ...keywordData,
-            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-          });
-        }
-        synced++;
+    // v422: 修复SB定向报告字段映射 - 报告中没有keywordId字段，只有targetingText和matchType
+    // 需要通过adGroupId+targetingText+matchType匹配已有关键词记录
+    // 批量预查询所有相关adGroup和keywords（消除N+1查询）
+    const sbRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
+    const sbRptAdGroupRows = sbRptAdGroupIds.length > 0
+      ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sbRptAdGroupIds)))
+      : [];
+    const sbRptAdGroupMap = new Map(sbRptAdGroupRows.map(r => [r.adGroupId, r]));
+    
+    // 预查询所有SB keywords（按internalAdGroupId）
+    const sbRptInternalAgIds = sbRptAdGroupRows.map(r => r.id);
+    const existingSbKwRows = sbRptInternalAgIds.length > 0
+      ? await db.select().from(keywords).where(and(
+          eq(keywords.accountId, this.accountId),
+          inArray(keywords.internalAdGroupId, sbRptInternalAgIds)
+        ))
+      : [];
+    // 构建多种匹配索引: keywordText+matchType 和 纯 keywordText
+    const existingSbKwByTextMatch = new Map<string, typeof existingSbKwRows[0]>();
+    const existingSbKwByText = new Map<string, typeof existingSbKwRows[0]>();
+    for (const r of existingSbKwRows) {
+      if (r.keywordText && r.matchType) {
+        existingSbKwByTextMatch.set(`${r.internalAdGroupId}:${r.keywordText.toLowerCase()}:${r.matchType.toLowerCase()}`, r);
       }
+      if (r.keywordText) {
+        existingSbKwByText.set(`${r.internalAdGroupId}:${r.keywordText.toLowerCase()}`, r);
+      }
+    }
+
+    for (const row of (reportData as any[])) {
+      const adGroup = sbRptAdGroupMap.get(String(row.adGroupId));
+      if (!adGroup) continue;
+
+      // v422: 修复字段名 - SB报告返回的是targetingText，不是keyword或keywordId
+      const targetingText = row.targetingText || '';
+      const matchType = (row.matchType || 'broad').toLowerCase();
+      
+      // 跳过空的targetingText
+      if (!targetingText) continue;
+
+      // v422: 通过targetingText+matchType匹配已有关键词记录
+      const existing = existingSbKwByTextMatch.get(`${adGroup.id}:${targetingText.toLowerCase()}:${matchType}`)
+        || existingSbKwByText.get(`${adGroup.id}:${targetingText.toLowerCase()}`)
+        || null;
+
+      const cost = row.cost || 0;
+      const sales = row.salesClicks || 0;
+      const clicks = row.clicks || 0;
+      const impressions = row.impressions || 0;
+      const orders = row.purchasesClicks || 0;
+
+      const keywordData = {
+        internalAdGroupId: adGroup.id,
+        accountId: this.accountId,
+        campaignId: adGroup.campaignId || '',
+        // v422: 如果匹配到已有记录，保留其keywordId；否则用targetingText作为临时标识
+        keywordId: existing?.keywordId || `text:${targetingText}`,
+        keywordText: targetingText,
+        matchType: matchType as 'broad' | 'phrase' | 'exact',
+        bid: existing?.bid || '0.00',  // 保留已有的bid
+        impressions,
+        clicks,
+        spend: String(cost),
+        sales: String(sales),
+        orders,
+        keywordAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+        keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+        keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+        keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+        keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+        keywordStatus: 'enabled' as const,
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      };
+
+      if (existing) {
+        await db
+          .update(keywords)
+          .set(keywordData)
+          .where(eq(keywords.id, existing.id));
+      } else {
+        await db.insert(keywords).values({
+          ...keywordData,
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        });
+      }
+      synced++;
     }
 
     log.info(`SB定向同步完成: ${synced} 条记录`);

@@ -484,23 +484,37 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     log.info(`v339: 共获取到 ${reportData.length} 条SD定向数据（${batches}批合并）`);
        let synced = 0;
 
-    // v363: 批量预查询所有相关adGroup和productTarget（消除N+1查询）
+    // v422: 修复SD定向报告字段映射 - 报告中没有targetId字段，只有targetingText
+    // 需要通过adGroupId+targetingText匹配已有记录（targetId由listSdTargets API同步）
     const sdRptAdGroupIds = [...new Set((reportData as any[]).map(r => String(r.adGroupId)))];
     const sdRptAdGroupRows = sdRptAdGroupIds.length > 0
       ? await db.select().from(adGroups).where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.adGroupId, sdRptAdGroupIds)))
       : [];
     const sdRptAdGroupMap = new Map(sdRptAdGroupRows.map(r => [r.adGroupId, r]));
-    const sdRptTgtIds = (reportData as any[]).map(r => String(r.targetId));
-    const existingSdRptTgtRows = sdRptTgtIds.length > 0
-      ? await db.select().from(productTargets).where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, sdRptTgtIds)))
+    
+    // v422: 预查询所有SD productTargets（按internalAdGroupId），用于通过targetExpression匹配
+    const sdRptInternalAgIds = sdRptAdGroupRows.map(r => r.id);
+    const existingSdRptTgtRows = sdRptInternalAgIds.length > 0
+      ? await db.select().from(productTargets).where(and(
+          eq(productTargets.accountId, this.accountId),
+          inArray(productTargets.internalAdGroupId, sdRptInternalAgIds)
+        ))
       : [];
-    const existingSdRptTgtMap = new Map(existingSdRptTgtRows.map(r => [`${r.internalAdGroupId}:${r.targetId}`, r]));  // v421: 使用internalAdGroupId
+    // v422: 构建多种匹配索引 - targetExpression和targetValue都可能匹配targetingText
+    const existingSdRptTgtByExpr = new Map<string, typeof existingSdRptTgtRows[0]>();
+    const existingSdRptTgtByValue = new Map<string, typeof existingSdRptTgtRows[0]>();
+    for (const r of existingSdRptTgtRows) {
+      if (r.targetExpression) {
+        existingSdRptTgtByExpr.set(`${r.internalAdGroupId}:${r.targetExpression}`, r);
+      }
+      if (r.targetValue) {
+        existingSdRptTgtByValue.set(`${r.internalAdGroupId}:${r.targetValue}`, r);
+      }
+    }
 
     for (const row of (reportData as any[])) {
-      // v363: 使用批量预查询结果
       const adGroup = sdRptAdGroupMap.get(String(row.adGroupId));
       if (!adGroup) continue;
-      const existing = existingSdRptTgtMap.get(`${String(adGroup.id)}:${String(row.targetId)}`) || null;
 
       // SD的销售额 - 使用修正后的字段名 (Clicks后缀)
       const clickSales = row.salesClicks || 0;
@@ -513,27 +527,33 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       const clicks = row.clicks || 0;
       const impressions = row.impressions || 0;
 
-      // 解析定向类型
-      const targetingExpression = row.targetingExpression || '';
+      // v422: 修复字段名 - SD报告返回的是targetingText，不是targetingExpression
+      const targetingText = row.targetingText || '';
       let targetType: 'asin' | 'category' = 'category';
-      let targetValue = targetingExpression;
+      let targetValue = targetingText;
       
       // SD定向类型可能是受众或商品
-      if (targetingExpression.includes('asin')) {
+      if (targetingText.includes('asin')) {
         targetType = 'asin';
         // 提取ASIN
-        const asinMatch = targetingExpression.match(/asin="([^"]+)"/);
+        const asinMatch = targetingText.match(/asin="([^"]+)"/);
         if (asinMatch) targetValue = asinMatch[1];
       }
 
-       const targetData = {
-        internalAdGroupId: adGroup.id,  // v418: ID体系重构
-        campaignId: adGroup.campaignId || '',  // v357
-        targetId: String(row.targetId),
+      // v422: 通过targetExpression或targetValue匹配已有记录
+      const existing = existingSdRptTgtByExpr.get(`${adGroup.id}:${targetingText}`)
+        || existingSdRptTgtByValue.get(`${adGroup.id}:${targetValue}`)
+        || null;
+
+      const targetData = {
+        internalAdGroupId: adGroup.id,
+        campaignId: adGroup.campaignId || '',
+        // v422: 如果匹配到已有记录，保留其targetId；否则用targetingText作为临时标识
+        targetId: existing?.targetId || `text:${targetingText}`,
         targetType,
         targetValue,
-        targetExpression: targetingExpression,
-        bid: '0.00',
+        targetExpression: targetingText,
+        bid: existing?.bid || '0.00',  // 保留已有的bid
         impressions,
         clicks,
         spend: String(cost),
@@ -717,13 +737,14 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
       return { synced: 0, skipped: 0 };
     }
 
-    // 查询adGroup的Amazon adGroupId映射
-    const internalAdGroupIds = [...new Set(sdTargetRows.map(r => parseInt(r.adGroupId || '0')).filter(id => !isNaN(id) && id > 0))];
+    // 查询adGroup的Amazon adGroupId映射 (v422: 修复Map key类型不匹配 - 统一使用number类型)
+    const internalAdGroupIds = [...new Set(sdTargetRows.map(r => Number(r.adGroupId) || 0).filter(id => id > 0))];
     const adGroupMappingRows = internalAdGroupIds.length > 0
       ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups)
           .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.id, internalAdGroupIds)))
       : [];
-    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [String(r.id), r.adGroupId]));
+    // v422: 统一使用number类型作为Map key
+    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [r.id, r.adGroupId]));
 
     // 按批次请求建议竞价（每批最多100个）
     const batchSize = 100;
@@ -737,7 +758,8 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
 
         for (const tgt of batch) {
           if (!tgt.targetId) continue;
-          const amazonAdGroupId = internalToAmazonAdGroupId.get(tgt.adGroupId || '');
+          // v422: 使用number类型key查找，与Map的key类型一致
+          const amazonAdGroupId = internalToAmazonAdGroupId.get(Number(tgt.adGroupId) || 0);
           if (!amazonAdGroupId) continue;
 
           clauseToTarget.set(targetingClauses.length, tgt);

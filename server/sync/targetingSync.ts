@@ -171,6 +171,8 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     log.debug(`获取到 ${reportData.length} 条SD定向数据`);
     let synced = 0;
 
+    // v422: 修复 - SD报告中没有targetId字段，只有targetingText
+    // 需要通过adGroupId+targetingText匹配已有记录
     for (const row of (reportData as any[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
@@ -181,49 +183,48 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
 
       if (!adGroup) continue;
 
-      // 检查是否已存在
-      const [existing] = await db
+      // v422: 修复字段名 - SD报告返回的是targetingText，不是targetingExpression
+      const targetingText = row.targetingText || '';
+
+      // v422: 通过targetExpression或targetValue匹配已有记录
+      let targetType: 'asin' | 'category' = 'category';
+      let targetValue = targetingText;
+      if (targetingText.includes('asin')) {
+        targetType = 'asin';
+        const asinMatch = targetingText.match(/asin="([^"]+)"/);
+        if (asinMatch) targetValue = asinMatch[1];
+      }
+
+      // v422: 通过targetExpression或targetValue查找已有记录
+      const existingRows = await db
         .select()
         .from(productTargets)
         .where(
           and(
             eq(productTargets.internalAdGroupId, adGroup.id),
-            eq(productTargets.targetId, String(row.targetId))
+            eq(productTargets.targetExpression, targetingText)
           )
         )
         .limit(1);
+      const existing = existingRows[0] || null;
 
-      // SD的销售额 - 使用修正后的字段名 (Clicks后缀)
       const clickSales = row.salesClicks || 0;
-      const viewSales = 0; // 浏览归因已合并到salesClicks字段
+      const viewSales = 0;
       const clickOrders = row.purchasesClicks || 0;
-      const viewOrders = 0; // 浏览归因已合并到purchasesClicks字段
+      const viewOrders = 0;
       const cost = row.cost || 0;
       const sales = clickSales + viewSales;
       const orders = clickOrders + viewOrders;
       const clicks = row.clicks || 0;
       const impressions = row.impressions || 0;
 
-      // 解析定向类型
-      const targetingExpression = row.targetingExpression || '';
-      let targetType: 'asin' | 'category' = 'category';
-      let targetValue = targetingExpression;
-      
-      // SD定向类型可能是受众或商品
-      if (targetingExpression.includes('asin')) {
-        targetType = 'asin';
-        // 提取ASIN
-        const asinMatch = targetingExpression.match(/asin="([^"]+)"/);
-        if (asinMatch) targetValue = asinMatch[1];
-      }
-
        const targetData = {
         internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
-        targetId: String(row.targetId),
+        targetId: existing?.targetId || `text:${targetingText}`,
         targetType,
         targetValue,
-        targetExpression: targetingExpression,
+        targetExpression: targetingText,
         bid: '0.00',
         impressions,
         clicks,
@@ -285,6 +286,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     log.debug(`获取到 ${reportData.length} 条SB定向数据`);
     let synced = 0;
 
+    // v422: 修复 - SB报告中没有keywordId字段，只有targetingText和matchType
     for (const row of (reportData as any[])) {
       // 查找对应的adGroup
       const [adGroup] = await db
@@ -295,33 +297,38 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
 
       if (!adGroup) continue;
 
-      // SB主要是关键词定向
-      if (row.keywordId) {
-        // 检查关键词是否已存在
-        const [existing] = await db
+      // v422: 修复字段名 - SB报告返回的是targetingText，不是keyword或keywordId
+      const targetingText = row.targetingText || '';
+      const matchType = (row.matchType || 'broad').toLowerCase();
+      if (!targetingText) continue;
+
+      {
+        // v422: 通过targetingText+matchType匹配已有关键词记录
+        const existingRows = await db
           .select()
           .from(keywords)
           .where(
             and(
               eq(keywords.internalAdGroupId, adGroup.id),
-              eq(keywords.keywordId, String(row.keywordId))
+              eq(keywords.keywordText, targetingText)
             )
           )
           .limit(1);
+        const existing = existingRows[0] || null;
 
         const cost = row.cost || 0;
-        const sales = row.salesClicks || 0;  // 修正字段名 (Clicks后缀)
+        const sales = row.salesClicks || 0;
         const clicks = row.clicks || 0;
         const impressions = row.impressions || 0;
-        const orders = row.purchasesClicks || 0;  // 修正字段名 (Clicks后缀)
+        const orders = row.purchasesClicks || 0;
 
         const keywordData = {
           internalAdGroupId: adGroup.id,
           accountId: service.accountId,
           campaignId: adGroup.campaignId,
-          keywordId: String(row.keywordId),
-          keywordText: row.keyword || '',
-          matchType: (row.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
+          keywordId: existing?.keywordId || `text:${targetingText}`,
+          keywordText: targetingText,
+          matchType: matchType as 'broad' | 'phrase' | 'exact',
           bid: '0.00',
           impressions,
           clicks,
@@ -349,7 +356,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
           });
         }
         synced++;
-      }
+      }  // v422: end block
     }
 
     log.info(`SB定向同步完成: ${synced} 条记录`);
