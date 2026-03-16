@@ -44,6 +44,7 @@ declare module '../../amazonSyncService' {
     syncSdProductTargets(...args: unknown[]): unknown;
     syncSdTargeting(...args: unknown[]): unknown;
     syncSdNegativeTargets(...args: unknown[]): unknown;
+    syncSdBidRecommendations(...args: unknown[]): unknown;
   }
 }
 
@@ -674,5 +675,127 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
   } catch (error: unknown) {
     log.error('SD否定产品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
+  }
+};
+
+/**
+ * v417: 同步SD投放对象的建议竞价
+ * 
+ * SD广告的建议竞价通过 POST /sd/targets/bid/recommendations 获取
+ * 传入 targetingClauses（targetId + adGroupId），最多100个
+ * 
+ * 建议竞价写入 productTargets.suggestedBid
+ */
+AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: AmazonSyncService): Promise<{ synced: number; skipped: number }> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0 };
+
+  let targetBidsUpdated = 0;
+  let errors = 0;
+
+  try {
+    log.info('[v417] ========== 开始同步SD投放对象建议竞价 ==========');
+
+    // 查询所有SD投放对象（enabled状态）
+    const sdTargetRows = await db.select({
+      id: productTargets.id,
+      targetId: productTargets.targetId,
+      adGroupId: productTargets.adGroupId,
+      campaignId: productTargets.campaignId,
+    }).from(productTargets)
+      .innerJoin(adGroups, eq(productTargets.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
+      .where(and(
+        eq(productTargets.accountId, this.accountId),
+        eq(campaigns.campaignType, 'sd'),
+        eq(productTargets.targetStatus, 'enabled'),
+      ));
+
+    log.info(`[v417] 查询到 ${sdTargetRows.length} 个SD投放对象需要获取建议竞价`);
+
+    if (sdTargetRows.length === 0) {
+      return { synced: 0, skipped: 0 };
+    }
+
+    // 查询adGroup的Amazon adGroupId映射
+    const internalAdGroupIds = [...new Set(sdTargetRows.map(r => parseInt(r.adGroupId || '0')).filter(id => !isNaN(id) && id > 0))];
+    const adGroupMappingRows = internalAdGroupIds.length > 0
+      ? await db.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups)
+          .where(and(eq(adGroups.accountId, this.accountId), inArray(adGroups.id, internalAdGroupIds)))
+      : [];
+    const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [String(r.id), r.adGroupId]));
+
+    // 按批次请求建议竞价（每批最多100个）
+    const batchSize = 100;
+    for (let i = 0; i < sdTargetRows.length; i += batchSize) {
+      const batch = sdTargetRows.slice(i, i + batchSize);
+
+      try {
+        // 构建targetingClauses
+        const targetingClauses: Array<{ targetId: string; adGroupId: string }> = [];
+        const clauseToTarget = new Map<number, typeof batch[0]>();
+
+        for (const tgt of batch) {
+          if (!tgt.targetId) continue;
+          const amazonAdGroupId = internalToAmazonAdGroupId.get(tgt.adGroupId || '');
+          if (!amazonAdGroupId) continue;
+
+          clauseToTarget.set(targetingClauses.length, tgt);
+          targetingClauses.push({
+            targetId: tgt.targetId,
+            adGroupId: amazonAdGroupId,
+          });
+        }
+
+        if (targetingClauses.length === 0) continue;
+
+        const recommendations = await this.client.getSdTargetBidRecommendations(targetingClauses);
+
+        if (recommendations && recommendations.length > 0) {
+          // 尝试按targetId匹配
+          const recByTargetId = new Map<string, number>();
+          for (const rec of recommendations) {
+            if (rec.targetId && rec.suggestedBid && rec.suggestedBid > 0) {
+              recByTargetId.set(rec.targetId, rec.suggestedBid);
+            }
+          }
+
+          for (const tgt of batch) {
+            if (!tgt.targetId) continue;
+            const suggestedBid = recByTargetId.get(tgt.targetId);
+            if (suggestedBid && suggestedBid > 0) {
+              await db.update(productTargets)
+                .set({ suggestedBid: String(suggestedBid) })
+                .where(eq(productTargets.id, tgt.id));
+              targetBidsUpdated++;
+            }
+          }
+
+          // 如果按targetId匹配不到，尝试按顺序匹配
+          if (targetBidsUpdated === 0 && recommendations.length > 0) {
+            const orderedTargets = [...clauseToTarget.entries()].sort((a, b) => a[0] - b[0]);
+            for (let j = 0; j < Math.min(recommendations.length, orderedTargets.length); j++) {
+              const rec = recommendations[j];
+              const tgt = orderedTargets[j][1];
+              if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
+                await db.update(productTargets)
+                  .set({ suggestedBid: String(rec.suggestedBid) })
+                  .where(eq(productTargets.id, tgt.id));
+                targetBidsUpdated++;
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        errors++;
+        log.warn(`[v417] SD投放对象建议竞价批次获取失败: ${(err as Error).message}`);
+      }
+    }
+
+    log.info(`[v417] ========== SD建议竞价同步总结: 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
+    return { synced: targetBidsUpdated, skipped: errors };
+  } catch (error) {
+    log.error('[v417] Error syncing SD bid recommendations:', error);
+    return { synced: targetBidsUpdated, skipped: errors };
   }
 };

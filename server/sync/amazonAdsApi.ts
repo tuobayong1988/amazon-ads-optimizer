@@ -4363,6 +4363,66 @@ export class AmazonAdsApiClient {
     return response.data.recommendations || [];
   }
 
+  /**
+   * 获取SB关键词出价建议
+   * 端点: POST /sb/recommendations/bids
+   * 支持关键词和商品定位两种类型
+   */
+  async getSbBidRecommendations(
+    campaignId: string,
+    keywords: Array<{ matchType: string; keyword: string }>
+  ): Promise<Array<{ keyword: string; matchType: string; suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
+    try {
+      const response = await this.axiosInstance.post('/sb/recommendations/bids', {
+        campaignId: String(campaignId),
+        keywords,
+      });
+      return response.data?.recommendations || response.data || [];
+    } catch (error: unknown) {
+      log.warn(`[SB] 获取关键词建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * 获取SB商品定位出价建议
+   * 端点: POST /sb/recommendations/bids (targets模式)
+   */
+  async getSbTargetBidRecommendations(
+    campaignId: string,
+    targets: Array<{ type: string; value?: string }>
+  ): Promise<Array<{ suggestedBid: number; rangeStart?: number; rangeEnd?: number }>> {
+    try {
+      const response = await this.axiosInstance.post('/sb/recommendations/bids', {
+        campaignId: String(campaignId),
+        targets,
+      });
+      return response.data?.recommendations || response.data || [];
+    } catch (error: unknown) {
+      log.warn(`[SB] 获取商品定位建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  /**
+   * 获取SD投放对象出价建议
+   * 端点: POST /sd/targets/bid/recommendations
+   * 支持最多100个targeting clauses
+   */
+  async getSdTargetBidRecommendations(
+    targetingClauses: Array<{ targetId: string; adGroupId: string }>
+  ): Promise<Array<{ targetId: string; suggestedBid: number; bidRangeLow?: number; bidRangeHigh?: number }>> {
+    try {
+      const response = await this.axiosInstance.post('/sd/targets/bid/recommendations', {
+        targetingClauses,
+      });
+      return response.data?.recommendations || response.data || [];
+    } catch (error: unknown) {
+      log.warn(`[SD] 获取投放对象建议竞价失败: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
   // ==================== Amazon Marketing Stream (AMS) Methods ====================
 
   /**
