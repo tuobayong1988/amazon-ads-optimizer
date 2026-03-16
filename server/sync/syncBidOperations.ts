@@ -83,7 +83,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         try {
           const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
           // 获取accountId: 通过adGroup -> campaign -> accountId
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(kw.adGroupId))).limit(1);  // v357: adGroupId现在是string类型
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(kw.internalAdGroupId))).limit(1);  // v357: adGroupId现在是string类型
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -109,7 +109,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       amazonId = kw.keywordId;
       oldBid = parseFloat(kw.bid);
       targetName = kw.keywordText;
-      adGroupId = Number(kw.adGroupId) || null;  // v357: adGroupId现在是string类型
+      adGroupId = Number(kw.internalAdGroupId) || null;  // v357: adGroupId现在是string类型
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');
@@ -117,7 +117,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         campaignId,
         targetLocalId: targetId,
         targetType: 'keyword',
-        adGroupId: Number(kw.adGroupId) || null,  // v357: adGroupId现在是string类型
+        adGroupId: Number(kw.internalAdGroupId) || null,  // v357: adGroupId现在是string类型
         caller: 'applyBidAdjustment:keyword',
       });
 
@@ -152,7 +152,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
         try {
           const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(pt.adGroupId))).limit(1);  // v357: adGroupId现在是string类型
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, Number(pt.internalAdGroupId))).limit(1);  // v357: adGroupId现在是string类型
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -178,7 +178,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       amazonId = pt.targetId;
       oldBid = parseFloat(pt.bid);
       targetName = pt.targetValue || 'Product Target';
-      adGroupId = Number(pt.adGroupId) || null;  // v357: adGroupId现在是string类型
+      adGroupId = Number(pt.internalAdGroupId) || null;  // v357: adGroupId现在是string类型
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('../utils/campaignIdResolver');
@@ -186,7 +186,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         campaignId,
         targetLocalId: targetId,
         targetType: 'product_target',
-        adGroupId: Number(pt.adGroupId) || null,  // v357: adGroupId现在是string类型
+        adGroupId: Number(pt.internalAdGroupId) || null,  // v357: adGroupId现在是string类型
         caller: 'applyBidAdjustment:product_target',
       });
 
@@ -220,7 +220,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       await db.insert(biddingLogs).values({
         accountId: this.accountId,
         campaignId: resolvedCampaignId,
-        adGroupId,
+        internalAdGroupId: adGroupId,  // v418: ID体系重构
         logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
         targetId,
         targetName,
@@ -243,7 +243,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       try {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
-        await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
+        await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
         log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
       } catch (rawSqlError: unknown) {
         log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${(rawSqlError as Error).message}`);
@@ -294,7 +294,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
       const errMsg = errorDetail.substring(0, 500);
-      await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
+      await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
         // v351: 同时检查server/sync/bidOperations.ts中的相同问题
     } catch (logErr: unknown) {
       log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${(logErr as Error).message}`);

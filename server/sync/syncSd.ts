@@ -384,7 +384,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
       const existing = existingSdTgtMap.get(`${String(adGroup.id)}:${String(apiTarget.targetId)}`) || null;
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       const targetData = {
-        adGroupId: String(adGroup.id),  // v357
+        internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v3577
         targetId: String(apiTarget.targetId),
         targetType,
@@ -527,7 +527,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
       }
 
        const targetData = {
-        adGroupId: String(adGroup.id),  // v357
+        internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v357
         targetId: String(row.targetId),
         targetType,
@@ -612,10 +612,10 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
       if (!campaign) continue;
       
       // SD否定定向仅在Ad Group级别
-      let adGroupLocalId: string | null = null;
+      let internalAdGroupId: number | null = null;  // v418: ID体系重构
       if (neg.adGroupId) {
         const adGroup = sdNegAdGroupMap.get(String(neg.adGroupId));
-        if (adGroup) adGroupLocalId = String(adGroup.id);
+        if (adGroup) internalAdGroupId = adGroup.id;
       }
       
       // 解析expression获取否定的ASIN或品牌
@@ -655,7 +655,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroupLocalId,
+          internalAdGroupId: internalAdGroupId,
           campaignType: 'sd',
           negativeScope: 'ad_group',
           negativeLevel: negLevel,
@@ -700,10 +700,10 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
     const sdTargetRows = await db.select({
       id: productTargets.id,
       targetId: productTargets.targetId,
-      adGroupId: productTargets.adGroupId,
+      adGroupId: productTargets.internalAdGroupId,
       campaignId: productTargets.campaignId,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),

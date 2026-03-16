@@ -797,7 +797,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // 2. 预加载当前账户的keywords，建立多维索引（v387: 添加accountId过滤）
     const allKeywords = await db.select({
       id: keywords.id, keywordId: keywords.keywordId, keywordText: keywords.keywordText,
-      matchType: keywords.matchType, adGroupId: keywords.adGroupId
+      matchType: keywords.matchType, adGroupId: keywords.internalAdGroupId
     }).from(keywords).where(eq(keywords.accountId, this.accountId));
     
     const kwByKeywordId = new Map<string, typeof allKeywords[0]>();
@@ -824,7 +824,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // 3. 预加载当前账户的product_targets，建立多维索引（v387: 添加accountId过滤）
     const allTargets = await db.select({
       id: productTargets.id, targetId: productTargets.targetId,
-      targetExpression: productTargets.targetExpression, adGroupId: productTargets.adGroupId
+      targetExpression: productTargets.targetExpression, adGroupId: productTargets.internalAdGroupId
     }).from(productTargets).where(eq(productTargets.accountId, this.accountId));
     
     const ptByTargetId = new Map<string, typeof allTargets[0]>();
@@ -1755,7 +1755,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
           // 从keywords表批量GROUP BY adGroupId汇总
           const keywordSummaries = await db
             .select({
-              adGroupId: keywords.adGroupId,
+              adGroupId: keywords.internalAdGroupId,
               totalImpressions: sql<number>`COALESCE(SUM(${keywords.impressions}), 0)`,
               totalClicks: sql<number>`COALESCE(SUM(${keywords.clicks}), 0)`,
               totalSpend: sql<string>`COALESCE(SUM(${keywords.spend}), 0)`,
@@ -1763,13 +1763,13 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
               totalOrders: sql<number>`COALESCE(SUM(${keywords.orders}), 0)`,
             })
             .from(keywords)
-            .where(sql`${keywords.adGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
-            .groupBy(keywords.adGroupId);
+            .where(sql`${keywords.internalAdGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
+            .groupBy(keywords.internalAdGroupId);
 
           // 从productTargets表批量GROUP BY adGroupId汇总
           const targetSummaries = await db
             .select({
-              adGroupId: productTargets.adGroupId,
+              adGroupId: productTargets.internalAdGroupId,
               totalImpressions: sql<number>`COALESCE(SUM(${productTargets.impressions}), 0)`,
               totalClicks: sql<number>`COALESCE(SUM(${productTargets.clicks}), 0)`,
               totalSpend: sql<string>`COALESCE(SUM(${productTargets.spend}), 0)`,
@@ -1777,8 +1777,8 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
               totalOrders: sql<number>`COALESCE(SUM(${productTargets.orders}), 0)`,
             })
             .from(productTargets)
-            .where(sql`${productTargets.adGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
-            .groupBy(productTargets.adGroupId);
+            .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(allAdGroupIds, sql`, `)})`)
+            .groupBy(productTargets.internalAdGroupId);
 
           // 构建adGroupId -> 汇总数据的Map
           const kwSummaryMap = new Map<number, typeof keywordSummaries[0]>();

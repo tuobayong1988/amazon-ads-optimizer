@@ -603,7 +603,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     actionType: (log as Record<string, unknown>).actionType === 'increase' ? 'bid_increase' as const : 
                 (log as Record<string, unknown>).actionType === 'decrease' ? 'bid_decrease' as const : 'bid_set' as const,
     campaignId: log.campaignId,
-    adGroupId: log.adGroupId,
+    internalAdGroupId: log.internalAdGroupId,
     keywordId: log.targetId,
     targetName: log.targetName,
     previousBid: log.previousBid,

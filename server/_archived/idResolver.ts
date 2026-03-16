@@ -313,7 +313,7 @@ export async function preloadKeywordIds(amazonCampaignId: string): Promise<numbe
       const kws = await db
         .select({ id: schema.keywords.id, keywordId: schema.keywords.keywordId })
         .from(schema.keywords)
-        .where(eq(schema.keywords.adGroupId, ag.id));
+        .where(eq(schema.keywords.internalAdGroupId, ag.id));
 
       for (const kw of kws) {
         if (kw.keywordId && isValidAmazonId(String(kw.keywordId))) {

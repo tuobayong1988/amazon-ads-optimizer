@@ -394,7 +394,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     // v387: 批量查询所有已存在的keyword（添加accountId过滤）
     const apiKeywordIds = apiKeywords.map(ak => String(ak.keywordId));
     const existingKeywordRows = apiKeywordIds.length > 0
-      ? await db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
+      ? await db.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, bid: keywords.bid, keywordText: keywords.keywordText }).from(keywords)
           .where(and(eq(keywords.accountId, this.accountId), inArray(keywords.keywordId, apiKeywordIds)))
       : [];
     const existingKeywordMap = new Map(existingKeywordRows.map(r => [`${r.adGroupId}:${r.keywordId}`, r]));
@@ -417,7 +417,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const keywordData: Record<string, any> = {
-        adGroupId: String(adGroup.id),  // v357
+        internalAdGroupId: adGroup.id,  // v418: ID体系重构
         accountId: this.accountId,
         campaignId: adGroup.campaignId || '',  // v357
         keywordId: String(apiKeyword.keywordId),
@@ -495,7 +495,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     const targetAdGroupFullMap = new Map(targetAdGroupRows.map(r => [r.adGroupId, { id: r.id, campaignId: r.campaignId }]));
     const apiTargetIds = apiTargets.map(at => String(at.targetId));
     const existingTargetRows = apiTargetIds.length > 0
-      ? await db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.adGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
+      ? await db.select({ id: productTargets.id, targetId: productTargets.targetId, adGroupId: productTargets.internalAdGroupId, bid: productTargets.bid, targetValue: productTargets.targetValue }).from(productTargets)
           .where(and(eq(productTargets.accountId, this.accountId), inArray(productTargets.targetId, apiTargetIds)))
       : [];
     const existingTargetMap = new Map(existingTargetRows.map(r => [`${r.adGroupId}:${r.targetId}`, r]));
@@ -615,7 +615,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         .where(
           and(
             eq(productTargets.accountId, this.accountId),
-            eq(productTargets.adGroupId, String(adGroup.id)),
+            eq(productTargets.internalAdGroupId, String(adGroup.id)),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -626,7 +626,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const targetData = {
-        adGroupId: String(adGroup.id),  // v357
+        internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
@@ -787,7 +787,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, String(adGroup.id)),
+            eq(negativeKeywords.internalAdGroupId, String(adGroup.id)),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeText, neg.keywordText || '')
           )
@@ -802,7 +802,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: String(adGroup.id),  // v357
+          internalAdGroupId: adGroup.id,  // v418: ID体系重构
           negativeLevel: 'ad_group',
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
@@ -918,7 +918,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, String(adGroup.id)),
+            eq(negativeKeywords.internalAdGroupId, String(adGroup.id)),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeType, 'product'),
             eq(negativeKeywords.negativeText, negativeText)
@@ -934,7 +934,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
         await db.insert(negativeKeywords).values({
           accountId: this.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: String(adGroup.id),  // v357
+          internalAdGroupId: adGroup.id,  // v418: ID体系重构
           negativeLevel: 'ad_group',
           negativeType: 'product',
           negativeText: negativeText,
@@ -984,11 +984,11 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     // 只查询enabled状态的关键词（paused/archived不需要建议竞价）
     const spKeywordRows = await db.select({
       id: keywords.id,
-      adGroupId: keywords.adGroupId,
+      adGroupId: keywords.internalAdGroupId,
       keywordText: keywords.keywordText,
       matchType: keywords.matchType,
     }).from(keywords)
-      .innerJoin(adGroups, eq(keywords.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(keywords.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(keywords.accountId, this.accountId),
@@ -1074,12 +1074,12 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     // 查询所有SP商品定位，按adGroup分组
     const spTargetRows = await db.select({
       id: productTargets.id,
-      adGroupId: productTargets.adGroupId,
+      adGroupId: productTargets.internalAdGroupId,
       targetExpression: productTargets.targetExpression,
       targetType: productTargets.targetType,
       targetValue: productTargets.targetValue,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.adGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),

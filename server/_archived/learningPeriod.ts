@@ -277,7 +277,7 @@ async function calculateDataSufficiencyMetrics(
     .from(keywords)
     .where(
       and(
-        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)}))`,
+        sql`${keywords.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)}))`,
         sql`${keywords.clicks} > 0`
       )
     );

@@ -587,7 +587,7 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
   const allKeywords = await db
     .select({
       id: keywords.id,
-      adGroupId: keywords.adGroupId,
+      adGroupId: keywords.internalAdGroupId,
       keywordText: keywords.keywordText,
       bid: keywords.bid
     })
@@ -609,14 +609,14 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
       // 构建市场曲线
       const model = await buildMarketCurveForKeyword(
         accountId,
-        String(kw.adGroupId), // 使用adGroupId作为campaignId的代理
+        String(kw.internalAdGroupId), // 使用adGroupId作为campaignId的代理
         kw.id
       );
       
       if (model) {
         await saveMarketCurveModel(
           accountId,
-          String(kw.adGroupId),
+          String(kw.internalAdGroupId),
           'keyword',
           String(kw.id),
           kw.keywordText,

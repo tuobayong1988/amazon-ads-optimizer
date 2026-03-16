@@ -361,7 +361,7 @@ async function analyzeBidAdjustments(campaign: Record<string, any>, costType: 'c
   const campaignKeywords = await db
     .select()
     .from(keywords)
-    .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
+    .where(sql`${keywords.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   
   for (const kw of (campaignKeywords as any[])) {
     const rawImpressions = Number(kw.impressions) || 0;
@@ -480,7 +480,7 @@ async function analyzeBidAdjustments(campaign: Record<string, any>, costType: 'c
   const campaignTargets = await db
     .select()
     .from(productTargets)
-    .where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
+    .where(sql`${productTargets.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   
   for (const pt of campaignTargets) {
     const rawImpressions = Number(pt.impressions) || 0;
@@ -665,7 +665,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       .select()
       .from(keywords)
       .where(and(
-        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
+        sql`${keywords.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${keywords.impressions} > 5000`,  // vCPM需要更多展示数据
         sql`${keywords.clicks} = 0`,           // 零点击表示展示完全无效
         sql`${keywords.orders} = 0`
@@ -708,7 +708,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       .select()
       .from(keywords)
       .where(and(
-        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
+        sql`${keywords.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${keywords.clicks} > 20`,
         sql`${keywords.orders} = 0`
       ))
@@ -751,7 +751,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       .select()
       .from(productTargets)
       .where(and(
-        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
+        sql`${productTargets.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${productTargets.impressions} > 5000`,
         sql`${productTargets.clicks} = 0`,
         sql`${productTargets.orders} = 0`
@@ -781,7 +781,7 @@ async function analyzeNegativeKeywords(campaign: Record<string, any>, costType: 
       .select()
       .from(productTargets)
       .where(and(
-        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
+        sql`${productTargets.internalAdGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${productTargets.clicks} > 20`,
         sql`${productTargets.orders} = 0`
       ))

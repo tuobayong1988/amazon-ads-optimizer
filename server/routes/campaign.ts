@@ -399,7 +399,7 @@ export const campaignRouter = router({
         id: t.id,
         accountId: t.accountId,
         campaignId: t.campaignId,
-        adGroupId: t.adGroupId,
+        adGroupId: t.internalAdGroupId,
         searchTerm: t.searchTerm,
         targetType: t.searchTermTargetType,     // keyword | product_target
         targetId: t.searchTermTargetId,

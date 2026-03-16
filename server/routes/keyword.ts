@@ -22,7 +22,7 @@ export const keywordRouter = router({
       // v376: P1数据隔离修复 - 验证当前用户有权访问该adGroupId
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
-      // v381: keywords.adGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
+      // v381: keywords.internalAdGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
       // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
       return db.getKeywordsByAdGroupId(input.adGroupId);
     }),
@@ -169,12 +169,12 @@ export const keywordRouter = router({
             
             const kwDetails = await dbInstance.select({
               kwId: keywordsTable.id,
-              adGroupId: keywordsTable.adGroupId,
+              adGroupId: keywordsTable.internalAdGroupId,
               campaignId: adGroups.campaignId,
               accountId: campaigns.accountId,
             })
             .from(keywordsTable)
-            .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
+            .innerJoin(adGroups, eq(keywordsTable.internalAdGroupId, adGroups.id))
             .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
             .where(inArray(keywordsTable.id, results.map(r => r.id)));
             
@@ -246,12 +246,12 @@ export const keywordRouter = router({
           // 查询关键词关联的accountId
           const kwDetails = await dbInstance.select({
             kwId: keywordsTable.id,
-            adGroupId: keywordsTable.adGroupId,
+            adGroupId: keywordsTable.internalAdGroupId,
             campaignId: adGroups.campaignId,
             accountId: campaigns.accountId,
           })
           .from(keywordsTable)
-          .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
+          .innerJoin(adGroups, eq(keywordsTable.internalAdGroupId, adGroups.id))
           .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
           .where(inArray(keywordsTable.id, input.ids));
           
@@ -397,7 +397,7 @@ export const keywordRouter = router({
           }
           
           const id = await db.createKeyword({
-            adGroupId: String(input.adGroupId),  // v357: adGroupId现在是varchar类型
+            internalAdGroupId: input.adGroupId,  // v357: adGroupId现在是varchar类型
             keywordText: kw.keywordText,
             matchType: kw.matchType,
             bid: kw.bid,
@@ -436,7 +436,7 @@ export const productTargetRouter = router({
     .input(z.object({ adGroupId: z.number() }))
     .query(async ({ ctx, input }: any) => {
       // v382: 数据隔离
-      // v381: productTargets.adGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
+      // v381: productTargets.internalAdGroupId存储的是本地自增ID（String类型），前端传入的也是本地ID
       // 所以直接使用input.adGroupId查询即可，不需要转换为Amazon adGroupId
       return db.getProductTargetsByAdGroupId(input.adGroupId);
     }),
@@ -524,12 +524,12 @@ export const productTargetRouter = router({
             
             const ptDetails = await dbInstance.select({
               ptId: productTargets.id,
-              adGroupId: productTargets.adGroupId,
+              adGroupId: productTargets.internalAdGroupId,
               campaignId: adGroups.campaignId,
               accountId: campaigns.accountId,
             })
             .from(productTargets)
-            .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+            .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
             .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
             .where(inArray(productTargets.id, results.map(r => r.id)));
             
@@ -587,12 +587,12 @@ export const productTargetRouter = router({
           
           const ptDetails = await dbInstance.select({
             ptId: productTargets.id,
-            adGroupId: productTargets.adGroupId,
+            adGroupId: productTargets.internalAdGroupId,
             campaignId: adGroups.campaignId,
             accountId: campaigns.accountId,
           })
           .from(productTargets)
-          .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+          .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
           .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
           .where(inArray(productTargets.id, input.ids));
           

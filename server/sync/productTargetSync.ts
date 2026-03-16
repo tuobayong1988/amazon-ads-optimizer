@@ -123,7 +123,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.internalAdGroupId, adGroup.id),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -133,7 +133,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
 
        const targetData = {
         accountId: service.accountId,  // v311: 添加缺失的accountId
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
         targetType,
@@ -270,7 +270,7 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.internalAdGroupId, adGroup.id),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -280,7 +280,7 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
 
       const targetData = {
         accountId: service.accountId,  // v311: 添加缺失的accountId
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
         targetType,
@@ -415,7 +415,7 @@ export async function syncSpNegativeProductTargets(service: SyncContext,): Promi
           and(
             eq(negativeKeywords.accountId, service.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, adGroup.id),
+            eq(negativeKeywords.internalAdGroupId, adGroup.id),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeType, 'product'),
             eq(negativeKeywords.negativeText, negativeText)
@@ -431,7 +431,7 @@ export async function syncSpNegativeProductTargets(service: SyncContext,): Promi
         await db.insert(negativeKeywords).values({
           accountId: service.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroup.id,
+          internalAdGroupId: adGroup.id,
           negativeLevel: 'ad_group',
           negativeType: 'product',
           negativeText: negativeText,
@@ -472,7 +472,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
         .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+        .where(and(eq(productTargets.internalAdGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
       if (ex) allExistingTargetIds.push(ex.id);
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -593,7 +593,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.internalAdGroupId, adGroup.id),
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -605,7 +605,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
 
       const targetData = {
         accountId: service.accountId,  // v311: 添加缺失的accountId
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',

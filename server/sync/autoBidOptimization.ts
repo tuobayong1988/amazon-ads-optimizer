@@ -25,7 +25,7 @@ export async function runAutoBidOptimization(
   const keywordsToOptimize = await db
     .select({ keyword: keywords })
     .from(keywords)
-    .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+    .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
     .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(and(
       eq(campaigns.accountId, accountId),

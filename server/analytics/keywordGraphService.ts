@@ -299,7 +299,7 @@ export async function discoverOpportunities(accountId: number): Promise<KeywordO
     const existingKeywords = await db.select({
       keywordText: keywords.keywordText,
     }).from(keywords)
-      .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+      .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),

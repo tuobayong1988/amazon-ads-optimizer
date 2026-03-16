@@ -70,7 +70,7 @@ export async function applyBidAdjustment(service: SyncContext,
         try {
           const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
           // 获取accountId: 通过adGroup -> campaign -> accountId
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.internalAdGroupId)).limit(1);
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -96,7 +96,7 @@ export async function applyBidAdjustment(service: SyncContext,
       amazonId = kw.keywordId;
       oldBid = parseFloat(kw.bid);
       targetName = kw.keywordText;
-      adGroupId = kw.adGroupId;
+      adGroupId = kw.internalAdGroupId;
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
@@ -104,7 +104,7 @@ export async function applyBidAdjustment(service: SyncContext,
         campaignId,
         targetLocalId: targetId,
         targetType: 'keyword',
-        adGroupId: kw.adGroupId,
+        adGroupId: kw.internalAdGroupId,
         caller: 'applyBidAdjustment:keyword',
       });
 
@@ -137,7 +137,7 @@ export async function applyBidAdjustment(service: SyncContext,
         log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
         try {
           const { resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
+          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.internalAdGroupId)).limit(1);
           if (ag) {
             const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
             if (camp) {
@@ -163,7 +163,7 @@ export async function applyBidAdjustment(service: SyncContext,
       amazonId = pt.targetId;
       oldBid = parseFloat(pt.bid);
       targetName = pt.targetValue || 'Product Target';
-      adGroupId = pt.adGroupId;
+      adGroupId = pt.internalAdGroupId;
       
       // v222: 使用统一解析器获取正确的 Amazon campaignId
       const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
@@ -171,7 +171,7 @@ export async function applyBidAdjustment(service: SyncContext,
         campaignId,
         targetLocalId: targetId,
         targetType: 'product_target',
-        adGroupId: pt.adGroupId,
+        adGroupId: pt.internalAdGroupId,
         caller: 'applyBidAdjustment:product_target',
       });
 
@@ -201,7 +201,7 @@ export async function applyBidAdjustment(service: SyncContext,
       await db.insert(biddingLogs).values({
         accountId: service.accountId,
         campaignId: resolvedCampaignId,
-        adGroupId,
+        internalAdGroupId: adGroupId,  // v418: ID体系重构
         logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
         targetId,
         targetName,
@@ -220,7 +220,7 @@ export async function applyBidAdjustment(service: SyncContext,
       try {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
-        await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
+        await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
         log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
       } catch (rawSqlError: unknown) {
         log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${(rawSqlError as Error).message}`);
@@ -240,7 +240,7 @@ export async function applyBidAdjustment(service: SyncContext,
       const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
       const errMsg = errorDetail.substring(0, 500);
-      await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, adGroupId, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
+      await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
     } catch (logErr: unknown) {
       log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${(logErr as Error).message}`);
     }

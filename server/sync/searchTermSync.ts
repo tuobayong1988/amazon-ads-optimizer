@@ -86,7 +86,7 @@ export async function syncSbSearchTerms(service: SyncContext,days: number = 14):
           and(
             eq(searchTerms.accountId, service.accountId),
             eq(searchTerms.campaignId, String(campaign.campaignId)),
-            eq(searchTerms.adGroupId, adGroup.id),
+            eq(searchTerms.internalAdGroupId, adGroup.id),
             eq(searchTerms.searchTerm, row.searchTerm || '')
           )
         )
@@ -113,7 +113,7 @@ export async function syncSbSearchTerms(service: SyncContext,days: number = 14):
           .from(keywords)
           .where(
             and(
-              eq(keywords.adGroupId, adGroup.id),
+              eq(keywords.internalAdGroupId, adGroup.id),
               eq(keywords.keywordText, targetingText)
             )
           )
@@ -129,7 +129,7 @@ export async function syncSbSearchTerms(service: SyncContext,days: number = 14):
           .from(productTargets)
           .where(
             and(
-              eq(productTargets.adGroupId, adGroup.id),
+              eq(productTargets.internalAdGroupId, adGroup.id),
               eq(productTargets.targetValue, targetingText)
             )
           )
@@ -152,7 +152,7 @@ export async function syncSbSearchTerms(service: SyncContext,days: number = 14):
       const searchTermData = {
         accountId: service.accountId,
         campaignId: campaign.campaignId,
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         searchTerm: searchTermText,
         searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
         searchTermTargetId,
@@ -247,7 +247,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
 
     // 3. 预加载keywords: adGroupId:keywordText -> keyword
     const allKeywords = await db
-      .select({ id: keywords.id, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
+      .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
       .from(keywords)
       // @ts-expect-error - property exists at runtime
       .where(eq(keywords.accountId, service.accountId));
@@ -259,7 +259,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
 
     // 4. 预加载productTargets: adGroupId:targetValue -> target
     const allTargets = await db
-      .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
+      .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
       .from(productTargets)
       // @ts-expect-error - property exists at runtime
       .where(eq(productTargets.accountId, service.accountId));
@@ -271,7 +271,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
 
     // 5. 预加载已有搜索词: accountId:campaignLocalId:adGroupLocalId:searchTerm -> existing
     const allSearchTerms = await db
-      .select({ id: searchTerms.id, campaignId: searchTerms.campaignId, adGroupId: searchTerms.adGroupId, searchTerm: searchTerms.searchTerm })
+      .select({ id: searchTerms.id, campaignId: searchTerms.campaignId, adGroupId: searchTerms.internalAdGroupId, searchTerm: searchTerms.searchTerm })
       .from(searchTerms)
       .where(eq(searchTerms.accountId, service.accountId));
     const existingMap = new Map<string, number>();
@@ -334,7 +334,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
         accountId: service.accountId,
         // @ts-expect-error - property exists at runtime
         campaignId: campaign.campaignId,
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         searchTerm: searchTermText,
         searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
         searchTermTargetId,

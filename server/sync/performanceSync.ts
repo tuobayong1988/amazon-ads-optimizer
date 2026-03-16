@@ -846,7 +846,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
               totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
             })
             .from(keywords)
-            .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
+            .where(sql`${keywords.internalAdGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
 
           const [targetSummary] = await db
             .select({
@@ -857,7 +857,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
               totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
             })
             .from(productTargets)
-            .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
+            .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(adGroupIds, sql`, `)})`);
 
           totalImpressions = (keywordSummary?.totalImpressions || 0) + (targetSummary?.totalImpressions || 0);
           totalClicks = (keywordSummary?.totalClicks || 0) + (targetSummary?.totalClicks || 0);

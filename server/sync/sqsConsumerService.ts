@@ -1021,7 +1021,7 @@ export class SQSConsumerService {
       await dbConn.insert(keywordPlacementHourlyPerformance).values({
         accountId: params.accountId,
         campaignId: params.campaignId,
-        adGroupId: localAdGroupId,
+        internalAdGroupId: localAdGroupId,  // v418: ID体系重构
         keywordId: localKeywordId,
         targetId: localTargetId,
         placement: params.placement,

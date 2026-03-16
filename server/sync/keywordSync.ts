@@ -126,7 +126,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
         .from(keywords)
         .where(
           and(
-            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.internalAdGroupId, adGroup.id),
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -136,7 +136,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
       const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const keywordData = {
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         accountId: service.accountId,
         campaignId: adGroup.campaignId,
         keywordId: String(apiKeyword.keywordId),
@@ -195,7 +195,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
         .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+        .where(and(eq(keywords.internalAdGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
       if (ex) allExistingKeywordIds.push(ex.id);
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -218,7 +218,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
         .from(keywords)
         .where(
           and(
-            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.internalAdGroupId, adGroup.id),
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -229,7 +229,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const keywordData: Record<string, any> = {
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         accountId: service.accountId,
         campaignId: adGroup.campaignId,
         keywordId: String(apiKeyword.keywordId),
@@ -335,7 +335,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     // 2. 预加载所有keywords，建立多维索引
     const allKeywords = await db.select({
       id: keywords.id, keywordId: keywords.keywordId, keywordText: keywords.keywordText,
-      matchType: keywords.matchType, adGroupId: keywords.adGroupId
+      matchType: keywords.matchType, adGroupId: keywords.internalAdGroupId
     }).from(keywords);
     
     const kwByKeywordId = new Map<string, typeof allKeywords[0]>();
@@ -348,11 +348,11 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     
     for (const kw of (allKeywords as any[])) {
       if (kw.keywordId) kwByKeywordId.set(kw.keywordId, kw);
-      if (kw.adGroupId && kw.keywordText && kw.matchType) {
-        kwByAdGroupTextMatch.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
+      if (kw.internalAdGroupId && kw.keywordText && kw.matchType) {
+        kwByAdGroupTextMatch.set(`${kw.internalAdGroupId}_${kw.keywordText.toLowerCase()}_${kw.matchType.toLowerCase()}`, kw);
       }
-      if (kw.adGroupId && kw.keywordText) {
-        kwByAdGroupText.set(`${kw.adGroupId}_${kw.keywordText.toLowerCase()}`, kw);
+      if (kw.internalAdGroupId && kw.keywordText) {
+        kwByAdGroupText.set(`${kw.internalAdGroupId}_${kw.keywordText.toLowerCase()}`, kw);
       }
       if (kw.keywordText) {
         kwByText.set(kw.keywordText.toLowerCase(), kw);
@@ -362,7 +362,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     // 3. 预加载所有product_targets，建立多维索引
     const allTargets = await db.select({
       id: productTargets.id, targetId: productTargets.targetId,
-      targetExpression: productTargets.targetExpression, adGroupId: productTargets.adGroupId
+      targetExpression: productTargets.targetExpression, adGroupId: productTargets.internalAdGroupId
     }).from(productTargets);
     
     const ptByTargetId = new Map<string, typeof allTargets[0]>();

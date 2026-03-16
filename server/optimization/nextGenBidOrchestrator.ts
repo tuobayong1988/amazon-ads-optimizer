@@ -1122,7 +1122,7 @@ export async function calculateNextGenBid(
         keywordId,
         targetId,
         campaignId: (target as Record<string, any>).amazonCampaignId || undefined,
-        adGroupId: (target as Record<string, any>).adGroupId || undefined,
+        adGroupId: (target as Record<string, any>).internalAdGroupId || undefined,
         bidBefore: target.currentBid,
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
@@ -1315,7 +1315,7 @@ export async function calculateNextGenBid(
       keywordId,
       targetId,
       campaignId: (target as Record<string, any>).amazonCampaignId || undefined,
-      adGroupId: (target as Record<string, any>).adGroupId || undefined,
+      adGroupId: (target as Record<string, any>).internalAdGroupId || undefined,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',

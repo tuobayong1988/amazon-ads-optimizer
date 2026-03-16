@@ -24,7 +24,7 @@ export async function getKeywordsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(keywords).where(eq(keywords.adGroupId, String(adGroupId)));
+  return db.select().from(keywords).where(eq(keywords.internalAdGroupId, Number(adGroupId)));
 }
 
 export async function getKeywordById(id: number) {
@@ -64,7 +64,7 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   // v357: adGroupId现在是varchar类型，需要转换为string数组
   const adGroupIds = adGroupsList.map(ag => String(ag.id));
-  const allKeywords = await db.select().from(keywords).where(inArray(keywords.adGroupId, adGroupIds));
+  const allKeywords = await db.select().from(keywords).where(inArray(keywords.internalAdGroupId, adGroupIds));
   
   return allKeywords;
 }

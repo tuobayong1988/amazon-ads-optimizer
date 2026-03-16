@@ -538,7 +538,7 @@ export const batchOperationRouter = router({
           await db.createBiddingLog({
             accountId: campaign?.accountId || 0,
             campaignId: adGroup?.campaignId ?? '0',
-            adGroupId: Number(keyword.adGroupId) || 0,  // v357: 转为number以匹配biddingLogs类型
+            internalAdGroupId: Number(keyword.internalAdGroupId) || 0,  // v357: 转为number以匹配biddingLogs类型
             logTargetType: 'keyword',
             targetId: adj.keywordId,
             targetName: keyword.keywordText || '',

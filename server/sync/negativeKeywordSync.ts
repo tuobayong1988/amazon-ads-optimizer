@@ -129,7 +129,7 @@ export async function syncSpNegativeKeywords(service: SyncContext,): Promise<{ s
           and(
             eq(negativeKeywords.accountId, service.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.adGroupId, adGroup.id),
+            eq(negativeKeywords.internalAdGroupId, adGroup.id),
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeText, neg.keywordText || '')
           )
@@ -144,7 +144,7 @@ export async function syncSpNegativeKeywords(service: SyncContext,): Promise<{ s
         await db.insert(negativeKeywords).values({
           accountId: service.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroup.id,
+          internalAdGroupId: adGroup.id,
           negativeLevel: 'ad_group',
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
@@ -236,7 +236,7 @@ export async function syncSbNegativeKeywords(service: SyncContext,): Promise<{ s
         await db.insert(negativeKeywords).values({
           accountId: service.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroupId,
+          internalAdGroupId: adGroupId,
           negativeLevel: negLevel,
           negativeType: 'keyword',
           negativeText: neg.keywordText || '',
@@ -326,7 +326,7 @@ export async function syncSbNegativeTargets(service: SyncContext,): Promise<{ sy
         await db.insert(negativeKeywords).values({
           accountId: service.accountId,
           campaignId: String(campaign.campaignId),
-          adGroupId: adGroupId,
+          internalAdGroupId: adGroupId,
           negativeLevel: negLevel,
           negativeType: 'product',
           negativeText: negativeText,

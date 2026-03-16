@@ -42,8 +42,8 @@ vi.mock('../db', () => ({
 vi.mock('../../drizzle/schema', () => ({
   campaigns: { id: 'campaigns.id', accountId: 'campaigns.accountId', campaignId: 'campaigns.campaignId' },
   adGroups: { id: 'adGroups.id', adGroupId: 'adGroups.adGroupId', campaignId: 'adGroups.campaignId' },
-  keywords: { id: 'keywords.id', adGroupId: 'keywords.adGroupId', keywordId: 'keywords.keywordId', bid: 'keywords.bid' },
-  productTargets: { id: 'productTargets.id', adGroupId: 'productTargets.adGroupId', targetId: 'productTargets.targetId', bid: 'productTargets.bid' },
+  keywords: { id: 'keywords.id', adGroupId: 'keywords.internalAdGroupId', keywordId: 'keywords.keywordId', bid: 'keywords.bid' },
+  productTargets: { id: 'productTargets.id', adGroupId: 'productTargets.internalAdGroupId', targetId: 'productTargets.targetId', bid: 'productTargets.bid' },
   dailyPerformance: {},
   hourlyPerformance: {},
   biddingLogs: {},

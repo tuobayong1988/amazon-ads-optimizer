@@ -362,7 +362,7 @@ async function auditAndCorrectHistoricalCommands(
     // 1. 查询近期synced的出价调整指令
     const syncedEvents = await database.execute(
       sql`SELECT oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
-                 oe.campaign_id, oe.campaign_name, oe.ad_group_id,
+                 oe.campaign_id, oe.campaign_name, oe.internal_ad_group_id,
                  oe.previous_bid, oe.new_bid, oe.previous_value, oe.new_value,
                  oe.created_at, oe.algorithm_version,
                  k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.status as keyword_status,
@@ -610,7 +610,7 @@ async function generateCorrectionCommand(
     sql`INSERT INTO optimization_events 
         (performance_group_id, performance_group_name, account_id, account_name,
          event_category, action_type, 
-         keyword_id, keyword_text, campaign_id, campaign_name, ad_group_id,
+         keyword_id, keyword_text, campaign_id, campaign_name, internal_ad_group_id,
          previous_bid, new_bid, previous_value, new_value,
          change_reason, algorithm_version, status, api_sync_status,
          action_detail)
@@ -620,7 +620,7 @@ async function generateCorrectionCommand(
           ${isBidCorrection ? originalRow.keyword_id : null}, 
           ${isBidCorrection ? originalRow.keyword_text : null},
           ${originalRow.campaign_id || null}, ${originalRow.campaign_name || null},
-          ${originalRow.ad_group_id || null},
+          ${originalRow.internal_ad_group_id || null},
           ${isBidCorrection ? String(currentValue) : null},
           ${isBidCorrection ? String(correctionValue) : null},
           ${!isBidCorrection ? String(currentValue) : null},

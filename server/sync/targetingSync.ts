@@ -73,7 +73,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.internalAdGroupId, adGroup.id),
             eq(productTargets.targetId, String(row.targetId))
           )
         )
@@ -103,7 +103,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
       }
 
       const targetData = {
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(row.targetId),
         targetType,
@@ -187,7 +187,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.internalAdGroupId, adGroup.id),
             eq(productTargets.targetId, String(row.targetId))
           )
         )
@@ -218,7 +218,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
       }
 
        const targetData = {
-        adGroupId: adGroup.id,
+        internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId,
         targetId: String(row.targetId),
         targetType,
@@ -303,7 +303,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
           .from(keywords)
           .where(
             and(
-              eq(keywords.adGroupId, adGroup.id),
+              eq(keywords.internalAdGroupId, adGroup.id),
               eq(keywords.keywordId, String(row.keywordId))
             )
           )
@@ -316,7 +316,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
         const orders = row.purchasesClicks || 0;  // 修正字段名 (Clicks后缀)
 
         const keywordData = {
-          adGroupId: adGroup.id,
+          internalAdGroupId: adGroup.id,
           accountId: service.accountId,
           campaignId: adGroup.campaignId,
           keywordId: String(row.keywordId),

@@ -15,7 +15,7 @@
  * 
  * 3. 跨表JOIN必须遵守以下规则：
  *    - adGroups.campaignId → campaigns.campaignId （Amazon ID对Amazon ID）
- *    - keywords.adGroupId  → adGroups.id          （本地ID对本地ID）
+ *    - keywords.internalAdGroupId  → adGroups.id          （本地ID对本地ID）
  *    - 绝不能 adGroups.campaignId → campaigns.id  （Amazon ID对本地ID = BUG）
  * 
  * 4. 调用Amazon API时，必须传Amazon ID（varchar字段的值）
@@ -189,7 +189,7 @@ export interface CampaignIds {
  * AdGroup双ID提取结果
  */
 export interface AdGroupIds {
-  /** 本地数据库自增ID（int），用于 keywords.adGroupId 等本地FK */
+  /** 本地数据库自增ID（int），用于 keywords.internalAdGroupId 等本地FK */
   localId: number;
   /** Amazon Ad Group ID（varchar），用于 Amazon API 调用 */
   amazonId: string;
@@ -410,7 +410,7 @@ export function ensureAmazonCampaignId(
 
 /**
  * 将任意类型的adGroupId参数转换为本地int ID
- * （keywords.adGroupId 和 productTargets.adGroupId 存的是本地int）
+ * （keywords.internalAdGroupId 和 productTargets.internalAdGroupId 存的是本地int）
  */
 export function ensureLocalAdGroupId(value: string | number): number {
   if (typeof value === 'number') return value;
@@ -471,36 +471,37 @@ export const ID_DICTIONARY = {
   'campaigns.accountId':    { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'accounts.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== adGroups =====
-  'adGroups.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'keywords.adGroupId, productTargets.adGroupId', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
+  'adGroups.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'keywords.internalAdGroupId, productTargets.internalAdGroupId', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
   'adGroups.adGroupId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls', guard: 'assertAmazonAdGroupId' },
   'adGroups.campaignId':    { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: '⚠️ campaigns.campaignId (NOT campaigns.id!)', apiUsage: 'N/A', guard: 'assertAmazonCampaignId' },
   
   // ===== keywords =====
   'keywords.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId, optimizationEvents.keyword_id', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
   'keywords.keywordId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls (bid updates, etc.)', guard: 'N/A (may be null for new keywords)' },
-  'keywords.adGroupId':     { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
+  'keywords.internalAdGroupId':     { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== productTargets =====
   'productTargets.id':      { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
   'productTargets.targetId':{ dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls', guard: 'N/A (may be null)' },
-  'productTargets.adGroupId':{ dbType: 'int',     meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
+  'productTargets.internalAdGroupId':{ dbType: 'int',     meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== negativeKeywords (v208: 已统一为Amazon ID) =====
   'negativeKeywords.id':    { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'N/A', apiUsage: 'N/A', guard: 'assertLocalId' },
   'negativeKeywords.amazonNegativeKeywordId': { dbType: 'varchar', meaning: 'AMAZON_ID', joinsWith: 'Amazon API', apiUsage: 'Use for Amazon API calls', guard: 'assertAmazonCampaignId' },
   'negativeKeywords.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
-  'negativeKeywords.adGroupId': { dbType: 'int',  meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
+  'negativeKeywords.internalAdGroupId': { dbType: 'int',  meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== biddingLogs (v208: 已统一为Amazon ID) =====
   'biddingLogs.campaignId': { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: 'campaigns.campaignId', apiUsage: 'N/A (log only)', guard: 'guardCampaignIdInsert' },
   'biddingLogs.targetId':   { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'keywords.id or productTargets.id', apiUsage: 'N/A (log only)', guard: 'assertLocalId' },
-  'biddingLogs.adGroupId':  { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A (log only)', guard: 'assertLocalId' },
+  'biddingLogs.internalAdGroupId':  { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A (log only)', guard: 'assertLocalId' },
   
   // ===== dailyPerformance =====
   'dailyPerformance.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
   
   // ===== searchTerms =====
   'searchTerms.campaignId': { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
+  'searchTerms.internalAdGroupId': { dbType: 'int',  meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== placementPerformance =====
   'placementPerformance.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },

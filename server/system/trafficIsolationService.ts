@@ -600,7 +600,7 @@ export async function identifyFunnelTiers(
     count: sql<number>`COUNT(*)`,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId))
   .groupBy(adGroups.campaignId, keywords.matchType);
@@ -691,7 +691,7 @@ export async function syncFunnelNegatives(
     keywordText: keywords.keywordText,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .where(and(
     inArray(adGroups.campaignId, tier1Campaigns),
     eq(keywords.keywordStatus, 'enabled')
@@ -702,7 +702,7 @@ export async function syncFunnelNegatives(
     keywordText: keywords.keywordText,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .where(and(
     inArray(adGroups.campaignId, tier2Campaigns),
     eq(keywords.keywordStatus, 'enabled')
@@ -837,7 +837,7 @@ export async function getKeywordMigrationSuggestions(
     keywordText: keywords.keywordText,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .where(inArray(adGroups.campaignId, tier1CampaignIds)) : [];
   
   const existingKeywordSet = new Set(existingExactKeywords.map((k: { keywordText: string }) => k.keywordText.toLowerCase()));

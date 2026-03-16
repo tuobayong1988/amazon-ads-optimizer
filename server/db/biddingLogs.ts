@@ -23,7 +23,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
     // @ts-ignore
     targetType: (log as unknown).logTargetType || 'keyword',
     // @ts-ignore
-    adGroupId: (log as unknown).adGroupId ? Number((log as unknown).adGroupId) : undefined,
+    adGroupId: (log as unknown).internalAdGroupId ? Number((log as unknown).internalAdGroupId) : undefined,
     caller: 'createBiddingLog',
   });
   // @ts-ignore

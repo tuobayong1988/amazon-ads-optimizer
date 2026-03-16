@@ -119,7 +119,7 @@ export async function analyzeSearchTermPerformance(
       st.search_term,
       st.campaign_id,
       c.campaign_name,
-      st.ad_group_id,
+      st.internal_ad_group_id,
       st.search_term_match_type as match_type,
       SUM(st.search_term_impressions) as impressions,
       SUM(st.search_term_clicks) as clicks,
@@ -138,7 +138,7 @@ export async function analyzeSearchTermPerformance(
     params.push(...campaignIds);
   }
   
-  query += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.ad_group_id, st.search_term_match_type`;
+  query += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.internal_ad_group_id, st.search_term_match_type`;
   
   const result = await db.execute(sql.raw(query));
   const rows = (result as any[])[0] || [];
@@ -160,7 +160,7 @@ export async function analyzeSearchTermPerformance(
       searchTerm: t.search_term,
       campaignId: t.campaign_id,
       campaignName: t.campaign_name,
-      adGroupId: t.ad_group_id,
+      adGroupId: t.internal_ad_group_id,
       matchType: t.match_type || 'unknown',
       impressions,
       clicks,
@@ -373,7 +373,7 @@ export async function executeTrafficIsolation(
       await db.insert(negativeKeywords).values({
         accountId,
         campaignId: isolation.campaignId,
-        adGroupId: isolation.adGroupId || null,
+        internalAdGroupId: isolation.adGroupId || null,
         negativeLevel: isolation.adGroupId ? 'ad_group' : 'campaign',
         negativeType: 'keyword',
         negativeText: isolation.searchTerm,

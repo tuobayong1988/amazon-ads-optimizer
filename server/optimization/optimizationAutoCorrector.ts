@@ -615,7 +615,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         pg.max_bid as max_bid
       FROM optimization_events oe
       JOIN keywords k ON oe.keyword_id = k.id
-      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
       JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
@@ -1504,7 +1504,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         
         // 检查本地关键词是否已有Amazon keywordId（可能已通过其他方式创建成功）
         const kwRows = await database
-          .select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid })
+          .select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid })
           .from(keywords)
           .where(eq(keywords.id, localKeywordId))
           .limit(1);
@@ -1529,7 +1529,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         const agRows = await database
           .select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
           .from(adGroups)
-          .where(eq(adGroups.id, kw.adGroupId))
+          .where(eq(adGroups.id, kw.internalAdGroupId))
           .limit(1);
         
         if (agRows.length === 0) {
@@ -1774,7 +1774,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
       accountId,
       toRetry.map(nk => ({
         campaignId: String(nk.campaignId),  // v356: 统一使用String类型传递Amazon ID
-        adGroupId: nk.adGroupId ? String(nk.adGroupId) : undefined,  // v356: 统一使用String类型
+        adGroupId: nk.internalAdGroupId ? String(nk.internalAdGroupId) : undefined,  // v356: 统一使用String类型
         keywordText: nk.keywordText,
         matchType: nk.matchType,
         level: nk.level,
@@ -1828,7 +1828,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         const negLevel = nk.level || 'campaign';
         const mapKey = negLevel === 'campaign' 
           ? `campaign:${nk.campaignId}:${nk.keywordText.toLowerCase()}`
-          : `adgroup:${nk.adGroupId}:${nk.keywordText.toLowerCase()}`;
+          : `adgroup:${nk.internalAdGroupId}:${nk.keywordText.toLowerCase()}`;
         const amazonNegId = syncResult.keywordIdMap?.get(mapKey);
         if (amazonNegId) {
           await database.execute(sql`
@@ -2322,7 +2322,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
         c.id as campaign_id,
         c.campaignName as campaign_name
       FROM keywords k
-      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
       JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
@@ -2394,7 +2394,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
         pg.name as pg_name,
         c.id as campaign_id
       FROM product_targets pt
-      JOIN ad_groups ag ON pt.adGroupId = ag.id
+      JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
       JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
@@ -2465,7 +2465,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
         c.campaignName as campaign_name,
         pg.name as pg_name
       FROM keywords k
-      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
       JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
@@ -2672,7 +2672,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
         const existingKws = await database
           .select({ keywordText: keywords.keywordText, keywordId: keywords.keywordId, matchType: keywords.matchType })
           .from(keywords)
-          .where(eq(keywords.adGroupId, localAdGroupId));
+          .where(eq(keywords.internalAdGroupId, localAdGroupId));
         
         const existingSet = new Set(existingKws.map((k: Record<string, any>) => k.keywordText?.toLowerCase()));
         
@@ -2731,7 +2731,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
             
             // 在本地数据库创建关键词记录 (v204: 使用清洗后的文本)
             const insertResult = await database.execute(sql`
-              INSERT INTO keywords (adGroupId, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
+              INSERT INTO keywords (internal_ad_group_id, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
               VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
             // @ts-ignore
@@ -2765,7 +2765,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
           accountId,
           keywordsToSync.map(k => ({
             localKeywordId: k.localKeywordId,
-            adGroupId: k.adGroupId,
+            adGroupId: k.internalAdGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
             matchType: k.matchType,
@@ -2999,7 +2999,7 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
   try {
     // 查找缺少amazon_negative_keyword_id的活跃否定词
     const [missingIdRows] = await database.execute(sql`
-      SELECT id, campaignId, adGroupId, negativeText, negativeMatchType, negativeLevel
+      SELECT id, campaignId, internal_ad_group_id as adGroupId, negativeText, negativeMatchType, negativeLevel
       FROM negative_keywords
       WHERE accountId = ${accountId}
         AND amazon_negative_keyword_id IS NULL
@@ -3163,7 +3163,7 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
       recentBidLogs = await database.execute(sql`
         SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
                bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
-               bl.campaignId as campaign_id, bl.adGroupId as ad_group_id
+               bl.campaignId as campaign_id, bl.internal_ad_group_id as ad_group_id
         FROM bidding_logs bl
         INNER JOIN (
           SELECT targetId, logTargetType, MAX(id) as max_id
@@ -3181,7 +3181,7 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
       recentBidLogs = await database.execute(sql`
         SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
                bl.previous_bid, bl.new_bid, bl.created_at,
-               bl.campaign_id, bl.ad_group_id
+               bl.campaign_id, bl.internal_ad_group_id
         FROM bidding_logs bl
         INNER JOIN (
           SELECT target_id, log_target_type, MAX(id) as max_id
@@ -3362,7 +3362,7 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
         oe.algorithm_version as last_algo_version,
         oe.created_at as last_optimized_at
       FROM keywords k
-      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+      INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
       INNER JOIN campaigns c ON ag.campaignId = c.campaignId AND c.accountId = ${accountId}
       INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       LEFT JOIN (
@@ -3864,10 +3864,10 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
     
     // 查找缺少Amazon targetId的product_targets记录
     const [missingTargets] = await database.execute(sql`
-      SELECT pt.id, pt.adGroupId, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
+      SELECT pt.id, pt.internal_ad_group_id, pt.targetType, pt.targetExpression, pt.bid, pt.targetStatus,
              ag.adGroupId as amazon_ad_group_id, ag.campaignId as amazon_campaign_id
       FROM product_targets pt
-      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+      INNER JOIN ad_groups ag ON pt.internal_ad_group_id = ag.id
       WHERE pt.accountId = ${accountId}
         AND (pt.targetId IS NULL OR pt.targetId = '' OR pt.targetId = '0')
         AND pt.targetStatus != 'archived'

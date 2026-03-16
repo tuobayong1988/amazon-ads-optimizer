@@ -848,7 +848,7 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: int(),
+	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
 	logTargetType: mysqlEnum(['keyword','product_target','placement','campaign_budget','negative_keyword','search_term_harvest']).notNull(),
 	targetId: int().notNull(),
 	targetName: varchar({ length: 500 }),
@@ -1802,7 +1802,7 @@ export const hourlyPerformance = mysqlTable("hourly_performance", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: int(),
+	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
 	keywordId: int(),
 	date: timestamp({ mode: 'string' }).notNull(),
 	hour: int().notNull(),
@@ -1918,10 +1918,10 @@ export const keywordPredictions = mysqlTable("keyword_predictions", {
 
 export const keywords = mysqlTable("keywords", {
 	id: int().autoincrement().notNull(),
-	// v357: 修复字段类型与数据库实际结构一致（数据库中campaignId和adGroupId是varchar(64)）
+	// v418: ID体系一致性重构 - internalAdGroupId存储adGroups.id(内部自增int)
 	accountId: int(),
 	campaignId: varchar({ length: 64 }),
-	adGroupId: varchar({ length: 64 }),
+	internalAdGroupId: int("internal_ad_group_id"),
 	keywordId: varchar({ length: 64 }),
 	keywordText: varchar({ length: 500 }).notNull(),
 	matchType: mysqlEnum(['broad','phrase','exact']).notNull(),
@@ -1953,7 +1953,7 @@ export const keywords = mysqlTable("keywords", {
 }, (table) => ({
 	idx_keywords_accountId: index('idx_keywords_accountId').on(table.accountId),
 	idx_keywords_campaignId: index('idx_keywords_campaignId').on(table.campaignId),
-	idx_keywords_adGroupId: index('idx_keywords_adGroupId').on(table.adGroupId),
+	idx_keywords_internalAdGroupId: index('idx_keywords_internal_ad_group_id').on(table.internalAdGroupId),
 	idx_keywords_account_campaign: index('idx_keywords_account_campaign').on(table.accountId, table.campaignId),
 	idx_keywords_keywordId: index('idx_keywords_keywordId').on(table.keywordId),
 }));
@@ -2087,7 +2087,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: varchar({ length: 64 }),  // v357: 修复为varchar以匹配数据库实际类型
+	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系一致性重构
 	// v2: 新增campaignType字段，记录来源广告活动类型（sp/sb/sd）
 	campaignType: mysqlEnum('campaignTypeNeg', ['sp','sb','sd']).default('sp'),
 	// v2: 新增negativeScope字段，明确否定层级（campaign/ad_group）
@@ -2305,10 +2305,10 @@ export const placementSettings = mysqlTable("placement_settings", {
 
 export const productTargets = mysqlTable("product_targets", {
 	id: int().autoincrement().notNull(),
-	// v357: 修复字段类型与数据库实际结构一致（数据库中campaignId和adGroupId是varchar(64)）
+	// v418: ID体系一致性重构 - internalAdGroupId存储adGroups.id(内部自增int)
 	accountId: int(),
 	campaignId: varchar({ length: 64 }),
-	adGroupId: varchar({ length: 64 }),
+	internalAdGroupId: int("internal_ad_group_id"),
 	targetId: varchar({ length: 64 }),
 	targetType: mysqlEnum(['asin','category']).notNull(),
 	targetValue: varchar({ length: 64 }).notNull(),
@@ -2432,7 +2432,7 @@ export const sdAudienceTargeting = mysqlTable("sd_audience_targeting", {
 export const sdAudiences = mysqlTable("sd_audiences", {
 	id: int().autoincrement().notNull(),
 	accountId: int("account_id").notNull(),
-	adGroupId: int("ad_group_id").notNull(),
+	internalAdGroupId: int("internal_ad_group_id").notNull(),  // v418: ID体系重构
 	audienceId: varchar("audience_id", { length: 64 }).notNull(),
 	audienceName: varchar("audience_name", { length: 500 }),
 	audienceType: mysqlEnum("audience_type", ['views','purchases','inMarket','lifestyle','custom']).notNull(),
@@ -2454,7 +2454,7 @@ export const sdAudiences = mysqlTable("sd_audiences", {
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
 },
 (table) => [
-	index("idx_ad_group_id").on(table.adGroupId),
+	index("idx_internal_ad_group_id").on(table.internalAdGroupId),
 	index("idx_audience_type").on(table.audienceType),
 	index("idx_state").on(table.state),
 ]);
@@ -2517,7 +2517,7 @@ export const searchTerms = mysqlTable("search_terms", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	adGroupId: varchar({ length: 64 }).notNull(),  // v357: 修复为varchar以匹配数据库实际类型
+	internalAdGroupId: int("internal_ad_group_id").notNull(),  // v418: ID体系一致性重构
 	searchTerm: varchar({ length: 500 }).notNull(),
 	searchTermTargetType: mysqlEnum(['keyword','product_target']).notNull(),
 	searchTermTargetId: int(),
@@ -2545,9 +2545,9 @@ export const searchTerms = mysqlTable("search_terms", {
 	idx_searchTerms_accountId: index('idx_searchTerms_accountId').on(table.accountId),
 	idx_searchTerms_account_campaign: index('idx_searchTerms_account_campaign').on(table.accountId, table.campaignId),
 	idx_searchTerms_campaignId: index('idx_searchTerms_campaignId').on(table.campaignId),
-	idx_searchTerms_adGroupId: index('idx_searchTerms_adGroupId').on(table.adGroupId),
+	idx_searchTerms_internalAdGroupId: index('idx_searchTerms_internal_ad_group_id').on(table.internalAdGroupId),
 	// v395: 唯一约束防止搜索词数据重复插入
-	uk_search_term: unique('uk_search_term').on(table.accountId, table.campaignId, table.adGroupId, table.searchTerm, table.reportStartDate),
+	uk_search_term: unique('uk_search_term').on(table.accountId, table.campaignId, table.internalAdGroupId, table.searchTerm, table.reportStartDate),
 }));
 
 export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recommendations", {
@@ -3533,7 +3533,7 @@ export const optimizationEvents = mysqlTable("optimization_events", {
   // === 广告活动/广告组信息 ===
   campaignId: int("campaign_id"),
   campaignName: varchar("campaign_name", { length: 500 }),
-  adGroupId: int("ad_group_id"),
+  internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
   adGroupName: varchar("ad_group_name", { length: 500 }),
   
   // === 关键词/投放目标信息 ===
@@ -3629,7 +3629,7 @@ export const keywordPlacementHourlyPerformance = mysqlTable("keyword_placement_h
   id: int().autoincrement().notNull(),
   accountId: int("account_id").notNull(),
   campaignId: varchar("campaign_id", { length: 64 }).notNull(),
-  adGroupId: int("ad_group_id"),
+  internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
   keywordId: int("keyword_id"),
   targetId: int("target_id"),
   placement: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']).notNull(),
@@ -3721,7 +3721,7 @@ export const contextualFeatures = mysqlTable("contextual_features", {
 	keywordId: int(),
 	targetId: int(),
 	campaignId: varchar({ length: 64 }),
-	adGroupId: int(),
+	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
 	snapshotDate: date("snapshot_date", { mode: 'string' }).notNull(),
 	hourOfDay: int("hour_of_day"),
 	dayOfWeek: int("day_of_week"),
@@ -3773,7 +3773,7 @@ export const rlTrainingLogs = mysqlTable("rl_training_logs", {
 	keywordId: int(),
 	targetId: int(),
 	campaignId: varchar({ length: 64 }),
-	adGroupId: int(),
+	internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
 	episodeId: varchar("episode_id", { length: 64 }),
 	stepIndex: int("step_index").default(0),
 	// State: 调整前的状态向量

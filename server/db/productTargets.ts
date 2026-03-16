@@ -23,7 +23,7 @@ export async function getProductTargetsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(productTargets).where(eq(productTargets.adGroupId, String(adGroupId)));
+  return db.select().from(productTargets).where(eq(productTargets.internalAdGroupId, Number(adGroupId)));
 }
 
 // v357: 批量获取多个广告组的商品定向 — adGroupId现在是varchar类型
@@ -33,7 +33,7 @@ export async function getProductTargetsByAdGroupIds(adGroupIds: (number | string
   const db = await getDb();
   if (!db || adGroupIds.length === 0) return [];
   
-  return db.select().from(productTargets).where(inArray(productTargets.adGroupId, adGroupIds.map(id => String(id))));
+  return db.select().from(productTargets).where(inArray(productTargets.internalAdGroupId, adGroupIds.map(id => String(id))));
 }
 
 export async function getProductTargetById(id: number) {

@@ -41,7 +41,7 @@ export async function runV395SearchTermsUnique(db: any): Promise<void> {
         GROUP BY accountId, campaignId, adGroupId, searchTerm, report_start_date
       ) t2 ON t1.accountId = t2.accountId 
         AND t1.campaignId = t2.campaignId 
-        AND t1.adGroupId = t2.adGroupId 
+        AND t1.internal_ad_group_id = t2.internal_ad_group_id 
         AND t1.searchTerm = t2.searchTerm 
         AND (t1.report_start_date = t2.report_start_date OR (t1.report_start_date IS NULL AND t2.report_start_date IS NULL))
       WHERE t1.id < t2.keep_id
@@ -78,7 +78,7 @@ export async function runV395SearchTermsUnique(db: any): Promise<void> {
           WHERE t1.id < t2.id
             AND t1.accountId = t2.accountId
             AND t1.campaignId = t2.campaignId
-            AND t1.adGroupId = t2.adGroupId
+            AND t1.internal_ad_group_id = t2.internal_ad_group_id
             AND LEFT(t1.searchTerm, 191) = LEFT(t2.searchTerm, 191)
             AND t1.report_start_date = t2.report_start_date
         `));

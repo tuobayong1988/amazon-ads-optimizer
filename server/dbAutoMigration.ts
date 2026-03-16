@@ -149,7 +149,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
         id INT NOT NULL AUTO_INCREMENT,
         account_id INT NOT NULL,
         campaign_id VARCHAR(64) NOT NULL,
-        ad_group_id INT,
+        internal_ad_group_id INT,
         keyword_id INT,
         target_id INT,
         placement ENUM('top_of_search', 'product_page', 'rest_of_search') NOT NULL,

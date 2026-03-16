@@ -920,7 +920,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
 
       // 3. 预加载keywords: adGroupId:keywordText -> keyword
       const allKeywords = await db
-        .select({ id: keywords.id, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
+        .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
         .from(keywords)
         // @ts-ignore
         .where(eq((keywords as unknown).accountId, this.accountId));
@@ -932,7 +932,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
 
       // 4. 预加载productTargets: adGroupId:targetValue -> target
       const allTargets = await db
-        .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
+        .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
         .from(productTargets)
         // @ts-ignore
         .where(eq((productTargets as unknown).accountId, this.accountId));
@@ -945,7 +945,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
       // 5. 预加载已有搜索词: amazonCampaignId:adGroupLocalId:searchTerm -> existing
       // v353修复: existingMap key统一使用Amazon campaignId (与写入时一致)
       const allSearchTerms = await db
-        .select({ id: searchTerms.id, campaignId: searchTerms.campaignId, adGroupId: searchTerms.adGroupId, searchTerm: searchTerms.searchTerm })
+        .select({ id: searchTerms.id, campaignId: searchTerms.campaignId, adGroupId: searchTerms.internalAdGroupId, searchTerm: searchTerms.searchTerm })
         .from(searchTerms)
         .where(eq(searchTerms.accountId, this.accountId));
       const existingMap = new Map<string, number>();
@@ -1014,7 +1014,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         const searchTermData = {
           accountId: this.accountId,
           campaignId: (campaign as Record<string, any>).campaignId,
-          adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
+          internalAdGroupId: adGroup.id,  // v418: ID体系重构
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
           searchTermTargetId,
@@ -1141,7 +1141,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
 
       // v401: 预加载已有productTargets Map，消除N+1查询（之前每行都查一次productTargets表）
       const allExistingTargets = await db
-        .select({ id: productTargets.id, adGroupId: productTargets.adGroupId, targetId: productTargets.targetId })
+        .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetId: productTargets.targetId })
         .from(productTargets)
         .where(eq(productTargets.accountId, this.accountId));
       const existingTargetMap = new Map<string, number>();
@@ -1192,7 +1192,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
 
         const targetData = {
           accountId: this.accountId,
-          adGroupId: String(adGroup.id),
+          internalAdGroupId: adGroup.id,  // v418: ID体系重构
           campaignId: adGroup.campaignId || '',
           targetId: String(row.targetId),
           targetType,

@@ -793,7 +793,7 @@ export async function executeSearchTermAnalysis(
                   .from(keywords)
                   .where(andOp(
                     eqOp(keywords.accountId, config.accountId),
-                    eqOp(keywords.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
+                    eqOp(keywords.internalAdGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
                     eqOp(keywords.keywordText, decision.targetValue)
                   ))
                   .limit(10);
@@ -821,7 +821,7 @@ export async function executeSearchTermAnalysis(
                   // v191: 使用算法建议的出价而非固定$0.50
                   // @ts-ignore
                   const insertResult = await dbInstance.insert(keywords).values({
-                    adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
+                    internalAdGroupId: adGroup.id,  // v418: ID体系重构
                     keywordText: decision.targetValue,
                     matchType: matchType as string,
                     bid: String(bid),
@@ -910,7 +910,7 @@ export async function executeSearchTermAnalysis(
                 const existingTargets = await dbInstance.select({ id: productTargets.id, targetId: productTargets.targetId })
                   .from(productTargets)
                   .where(andOp(
-                    eqOp(productTargets.adGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
+                    eqOp(productTargets.internalAdGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
                     eqOp(productTargets.targetValue, decision.targetValue)
                   ))
                   .limit(5);
@@ -923,7 +923,7 @@ export async function executeSearchTermAnalysis(
                   // 先写入本地DB
                   try {
                     const insertResult = await dbInstance.insert(productTargets).values({
-                      adGroupId: String(adGroup.id),  // v357: adGroupId现在是varchar类型
+                      internalAdGroupId: adGroup.id,  // v418: ID体系重构
                       targetType: 'asin',
                       targetValue: decision.targetValue,
                       bid: String(bid),

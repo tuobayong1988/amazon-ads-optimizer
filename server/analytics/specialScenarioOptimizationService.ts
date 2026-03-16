@@ -844,12 +844,12 @@ export async function analyzeBidEfficiency(
   // 获取关键词数据
   const keywordData = await db.select()
     .from(keywords)
-    .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+    .where(sql`${keywords.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
 
   // 获取商品定向数据
   const targetData = await db.select()
     .from(productTargets)
-    .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+    .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
 
   const analyses: BidEfficiencyAnalysis[] = [];
   let totalPotentialSavings = 0;

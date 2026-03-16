@@ -338,10 +338,10 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     // 获取所有活跃关键词（keywords没有accountId，需要通过adGroups→campaigns JOIN）
     const activeKeywords = await db.select({
       id: keywords.id,
-      adGroupId: keywords.adGroupId,
+      adGroupId: keywords.internalAdGroupId,
       campaignId: campaigns.campaignId,
     }).from(keywords)
-      .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+      .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),
@@ -352,10 +352,10 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     // 获取所有活跃定位（productTargets没有accountId，需要通过adGroups→campaigns JOIN）
     const activeTargets = await db.select({
       id: productTargets.id,
-      adGroupId: productTargets.adGroupId,
+      adGroupId: productTargets.internalAdGroupId,
       campaignId: campaigns.campaignId,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),
@@ -532,7 +532,7 @@ function parseCachedFeature(c: any): ContextFeatureVector {
     keywordId: c.keywordId ?? undefined,
     targetId: c.targetId ?? undefined,
     campaignId: c.campaignId ?? undefined,
-    adGroupId: c.adGroupId ?? undefined,
+    adGroupId: c.internalAdGroupId ?? undefined,
     hourOfDay: c.hourOfDay ?? new Date().getHours(),
     dayOfWeek: c.dayOfWeek ?? new Date().getDay(),
     isHoliday: c.isHoliday ?? 0,

@@ -33,14 +33,14 @@ export async function getCampaignDetailWithStats(amazonCampaignId: string) {
   let keywordList: Keyword[] = [];
   if (adGroupIds.length > 0) {
     keywordList = await db.select().from(keywords)
-      .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+      .where(sql`${keywords.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   }
   
   // 获取所有商品定向
   let productTargetList: ProductTarget[] = [];
   if (adGroupIds.length > 0) {
     productTargetList = await db.select().from(productTargets)
-      .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+      .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   }
   
   // 获取搜索词报告
@@ -184,21 +184,21 @@ export async function getCampaignTargets(amazonCampaignId: string) {
   
   // 获取所有关键词
   const keywordList = await db.select().from(keywords)
-    .where(sql`${keywords.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+    .where(sql`${keywords.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   
   // 获取所有商品定向
   const productTargetList = await db.select().from(productTargets)
-    .where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
+    .where(sql`${productTargets.internalAdGroupId} IN (${sql.join(adGroupIds.map(id => sql`${id}`), sql`, `)})`);
   
   // adGroupId现在是string类型，需要转换为number才能匹配map key
   const keywordsWithAdGroup = keywordList.map(k => ({
     ...k,
-    adGroupName: adGroupMap.get(Number(k.adGroupId)) || "未知广告组"
+    adGroupName: adGroupMap.get(Number(k.internalAdGroupId)) || "未知广告组"
   }));
   
   const productTargetsWithAdGroup = productTargetList.map(pt => ({
     ...pt,
-    adGroupName: adGroupMap.get(Number(pt.adGroupId)) || "未知广告组"
+    adGroupName: adGroupMap.get(Number(pt.internalAdGroupId)) || "未知广告组"
   }));
   
   return {

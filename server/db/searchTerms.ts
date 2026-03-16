@@ -25,7 +25,7 @@ export async function getSearchTermsForAnalysis(accountId: number, _days: number
     impressions: keywords.impressions,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
@@ -59,7 +59,7 @@ export async function getCampaignSearchTerms(accountId: number) {
     bid: keywords.bid,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
@@ -111,7 +111,7 @@ export async function getBidTargets(accountId: number) {
     orders: keywords.orders,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
@@ -129,7 +129,7 @@ export async function getBidTargets(accountId: number) {
     orders: productTargets.orders,
   })
   .from(productTargets)
-  .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
@@ -176,7 +176,7 @@ export async function getUniqueSearchTerms(accountId: number): Promise<string[]>
     searchTerm: keywords.keywordText,
   })
   .from(keywords)
-  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
   .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
@@ -548,7 +548,7 @@ export async function addNegativeKeyword(data: {
   await db.insert(negativeKeywords).values({
     accountId: 1, // 默认账号
     campaignId: data.campaignId,
-    adGroupId: data.adGroupId || null,
+    internalAdGroupId: data.adGroupId || null,
     negativeLevel: data.level || (data.adGroupId ? 'ad_group' : 'campaign'),
     negativeType: 'keyword',
     negativeText: data.keyword,
@@ -583,7 +583,7 @@ export async function getNegativeKeywordsByAdGroupId(adGroupId: number | string)
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(negativeKeywords).where(eq(negativeKeywords.adGroupId, String(adGroupId)));
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.internalAdGroupId, Number(adGroupId)));
 }
 
 // ==================== Notification Functions ====================
@@ -605,7 +605,7 @@ export async function getSearchTermsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(searchTerms).where(eq(searchTerms.adGroupId, String(adGroupId)));
+  return db.select().from(searchTerms).where(eq(searchTerms.internalAdGroupId, Number(adGroupId)));
 }
 
 export async function createSearchTerm(data: InsertSearchTerm) {

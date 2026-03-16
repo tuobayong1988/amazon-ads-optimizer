@@ -45,13 +45,13 @@ export async function getLocalDataStats(accountId: number) {
   
   const [keywordsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(keywords)
-    .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+    .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
     .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
   
   const [productTargetsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(productTargets)
-    .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+    .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
     .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
 
