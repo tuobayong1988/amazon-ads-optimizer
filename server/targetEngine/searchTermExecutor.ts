@@ -793,7 +793,7 @@ export async function executeSearchTermAnalysis(
                   .from(keywords)
                   .where(andOp(
                     eqOp(keywords.accountId, config.accountId),
-                    eqOp(keywords.internalAdGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
+                    eqOp(keywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
                     eqOp(keywords.keywordText, decision.targetValue)
                   ))
                   .limit(10);
@@ -910,7 +910,7 @@ export async function executeSearchTermAnalysis(
                 const existingTargets = await dbInstance.select({ id: productTargets.id, targetId: productTargets.targetId })
                   .from(productTargets)
                   .where(andOp(
-                    eqOp(productTargets.internalAdGroupId, String(adGroup.id)),  // v357: adGroupId现在是varchar类型
+                    eqOp(productTargets.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
                     eqOp(productTargets.targetValue, decision.targetValue)
                   ))
                   .limit(5);

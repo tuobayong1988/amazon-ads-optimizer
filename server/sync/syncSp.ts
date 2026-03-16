@@ -615,7 +615,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         .where(
           and(
             eq(productTargets.accountId, this.accountId),
-            eq(productTargets.internalAdGroupId, String(adGroup.id)),
+            eq(productTargets.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )
@@ -787,7 +787,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.internalAdGroupId, String(adGroup.id)),
+            eq(negativeKeywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeText, neg.keywordText || '')
           )
@@ -918,7 +918,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
           and(
             eq(negativeKeywords.accountId, this.accountId),
             eq(negativeKeywords.campaignId, String(campaign.campaignId)),
-            eq(negativeKeywords.internalAdGroupId, String(adGroup.id)),
+            eq(negativeKeywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
             eq(negativeKeywords.negativeLevel, 'ad_group'),
             eq(negativeKeywords.negativeType, 'product'),
             eq(negativeKeywords.negativeText, negativeText)
@@ -988,7 +988,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       keywordText: keywords.keywordText,
       matchType: keywords.matchType,
     }).from(keywords)
-      .innerJoin(adGroups, eq(keywords.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(keywords.accountId, this.accountId),
@@ -1079,7 +1079,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       targetType: productTargets.targetType,
       targetValue: productTargets.targetValue,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),

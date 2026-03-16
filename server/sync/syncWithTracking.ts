@@ -762,7 +762,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: keywords.id }).from(keywords)
-        .where(and(eq(keywords.internalAdGroupId, String(ag.id)), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+        .where(and(eq(keywords.internalAdGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);  // v420: 修复 int类型
       if (ex) allExKwIds.push(ex.id);
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExKwIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -786,7 +786,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         .from(keywords)
         .where(
           and(
-            eq(keywords.internalAdGroupId, String(adGroup.id)),
+            eq(keywords.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
             eq(keywords.keywordId, String(apiKeyword.keywordId))
           )
         )
@@ -938,7 +938,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
       if (!ag) continue;
       const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
-        .where(and(eq(productTargets.internalAdGroupId, String(ag.id)), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+        .where(and(eq(productTargets.internalAdGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);  // v420: 修复 int类型
       if (ex) allExTgtIds.push(ex.id);
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExTgtIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
@@ -962,7 +962,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         .from(productTargets)
         .where(
           and(
-            eq(productTargets.internalAdGroupId, String(adGroup.id)),
+            eq(productTargets.internalAdGroupId, adGroup.id),  // v420: 修复 - internalAdGroupId是int类型
             eq(productTargets.targetId, String(apiTarget.targetId))
           )
         )

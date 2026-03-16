@@ -580,6 +580,21 @@ export class AmazonSyncService {
     }
     }); // end Layer 5
 
+    // ==================== Layer 6: 建议竞价同步（3个并行） ====================
+    // v420: P0修复 - 将建议竞价同步纳入常规同步流程
+    // 建议竞价对冷启动阶段的竞价优化有非常强的参考价值
+    await runLayer(6, '建议竞价同步', async () => {
+    log.info(`[syncAll] v420: Layer 6 - 建议竞价同步 (3个并行)`);
+    await Promise.allSettled([
+      // @ts-ignore
+      runStep('SP建议竞价', () => this.syncSpBidRecommendations()),
+      // @ts-ignore
+      runStep('SB建议竞价', () => this.syncSbBidRecommendations()),
+      // @ts-ignore
+      runStep('SD建议竞价', () => this.syncSdBidRecommendations()),
+    ]);
+    }); // end Layer 6
+
     // v402: 子任务分解汇总
     const failedLayers = Object.entries(layerResults).filter(([_, r]) => !r.success).map(([id, r]) => `Layer${id}(${r.error})`);
     if (failedLayers.length > 0) {
@@ -902,9 +917,10 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
         .select({ id: campaigns.id, campaignId: campaigns.campaignId })
         .from(campaigns)
         .where(eq(campaigns.accountId, this.accountId));
-      const campaignMap = new Map<string, { id: number }>();
+      // v420: 修复 - Map value需要包含campaignId，否则后续访问campaign.campaignId会undefined
+      const campaignMap = new Map<string, { id: number; campaignId: string }>();
       for (const c of (allCampaigns as any[])) {
-        campaignMap.set(String(c.campaignId), { id: c.id });
+        campaignMap.set(String(c.campaignId), { id: c.id, campaignId: String(c.campaignId) });
       }
 
       // 2. 预加载adGroups: amazonAdGroupId -> localAdGroup
@@ -1156,22 +1172,27 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
       const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
       for (const row of (reportData as any[])) {
-        // 只处理自动定向数据
-        if (row.targetingType !== 'AUTO') continue;
+        // v420: P0修复 - SP自动定向报告字段映射修正
+        // 报告返回的字段名: keywordType, keyword, targeting, keywordId, sales7d, purchases7d
+        // 之前错误地使用了: targetingType, targetingExpression, targetId, sales14d, purchases14d
+        
+        // 只处理自动定向数据 - 报告字段是keywordType（不是targetingType）
+        const kwType = (row.keywordType || '').toUpperCase();
+        if (kwType !== 'TARGETING' && kwType !== 'AUTO') continue;
 
         // v401: 从预加载Map查找adGroup（O(1)，替代之前的数据库查询）
         const adGroup = adGroupMap.get(String(row.adGroupId));
         if (!adGroup) continue;
 
         const cost = row.cost || 0;
-        // 自动定向报告使用14天归因窗口（SB/SD类型）
-        const sales = row.sales14d || row.salesClicks14d || 0;
+        // v420: SP报告使用7天归因窗口（不是14天）
+        const sales = row.sales7d || row.sales14d || row.salesClicks14d || 0;
         const clicks = row.clicks || 0;
         const impressions = row.impressions || 0;
-        const orders = row.purchases14d || row.purchasesClicks14d || 0;
+        const orders = row.purchases7d || row.purchases14d || row.purchasesClicks14d || 0;
 
-        // 解析自动定向类型
-        const targetingExpression = row.targetingExpression || '';
+        // v420: 解析自动定向类型 - 报告字段是targeting（不是targetingExpression）
+        const targetingExpression = row.targeting || row.targetingExpression || '';
         let targetType: 'asin' | 'category' = 'category';
         let targetValue = targetingExpression;
         
@@ -1186,15 +1207,18 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           targetValue = 'COMPLEMENTS';
         }
 
+        // v420: 报告字段是keywordId（不是targetId）
+        const rowTargetId = row.keywordId || row.targetId || '';
+        
         // v401: 从预加载Map检查是否已存在（O(1)，替代之前的数据库查询）
-        const existingKey = `${String(adGroup.id)}:${String(row.targetId)}`;
+        const existingKey = `${String(adGroup.id)}:${String(rowTargetId)}`;
         const existingId = existingTargetMap.get(existingKey);
 
         const targetData = {
           accountId: this.accountId,
           internalAdGroupId: adGroup.id,  // v418: ID体系重构
           campaignId: adGroup.campaignId || '',
-          targetId: String(row.targetId),
+          targetId: String(rowTargetId),
           targetType,
           targetValue,
           targetExpression: targetingExpression,

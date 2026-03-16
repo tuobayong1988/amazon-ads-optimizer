@@ -703,7 +703,7 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
       adGroupId: productTargets.internalAdGroupId,
       campaignId: productTargets.campaignId,
     }).from(productTargets)
-      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, sql`CAST(${adGroups.id} AS CHAR)`))
+      .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(productTargets.accountId, this.accountId),

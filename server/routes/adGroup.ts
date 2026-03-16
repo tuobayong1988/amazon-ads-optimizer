@@ -105,34 +105,30 @@ export const adGroupRouter = router({
       return db.getCampaignByAmazonCampaignId(adGroup.campaignId);
     }),
   
-  // v381: 获取广告组的搜索词列表（Ad Group级别的Search terms tab）
+  // v420: 获取广告组的搜索词列表（Ad Group级别的Search terms tab）
+  // P0修复: searchTerms.internalAdGroupId存储的是内部自增ID，直接用input.adGroupId查询
   getSearchTerms: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
     .query(async ({ ctx, input }: any) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       
-      // 获取广告组信息，用其Amazon adGroupId查询搜索词
-      const adGroup = await db.getAdGroupById(input.adGroupId);
-      if (!adGroup) return [];
-      
-      // searchTerms表的adGroupId存储的是Amazon adGroupId (varchar)
-      return db.getSearchTermsByAdGroupId(adGroup.adGroupId);
+      // v420: searchTerms.internalAdGroupId存储的是adGroups.id（内部自增ID）
+      // 前端传入的input.adGroupId就是内部自增ID，直接使用即可
+      return db.getSearchTermsByAdGroupId(input.adGroupId);
     }),
   
-  // v381: 获取广告组的否定定向列表（Ad Group级别的Negative targeting tab）
+  // v420: 获取广告组的否定定向列表（Ad Group级别的Negative targeting tab）
+  // P0修复: negativeKeywords.internalAdGroupId存储的是内部自增ID，直接用input.adGroupId查询
   getNegativeTargeting: protectedProcedure
     .input(z.object({ adGroupId: z.number() }))
     .query(async ({ ctx, input }: any) => {
       const { verifyAdGroupAccess } = await import('../utils/accessControl');
       await verifyAdGroupAccess(ctx.user.id, input.adGroupId);
       
-      // 获取广告组信息，用其Amazon adGroupId查询否定词
-      const adGroup = await db.getAdGroupById(input.adGroupId);
-      if (!adGroup) return [];
-      
-      // negativeKeywords表的adGroupId存储的是Amazon adGroupId (varchar)
-      return db.getNegativeKeywordsByAdGroupId(adGroup.adGroupId);
+      // v420: negativeKeywords.internalAdGroupId存储的是adGroups.id（内部自增ID）
+      // 前端传入的input.adGroupId就是内部自增ID，直接使用即可
+      return db.getNegativeKeywordsByAdGroupId(input.adGroupId);
     }),
   
   // v370.4: 数据隔离 - 更新广告组状态
