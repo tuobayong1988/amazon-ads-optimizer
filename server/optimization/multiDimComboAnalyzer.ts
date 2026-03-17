@@ -520,7 +520,7 @@ export async function analyzeCampaignCombos(
 
     // v183.1: 追踪分类变化
     if (prevResult) {
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       result.previousCategory = prevResult.category as unknown;
       result.categoryChanged = result.comboCategory !== prevResult.category;
       if (result.categoryChanged) {
@@ -980,7 +980,7 @@ export async function persistAnalysisResults(
     const restOfSearch = combo.placementSummaries.find(p => p.placement === 'rest_of_search');
 
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(multiDimComboAnalysis).values({
         accountId,
         campaignId: combo.campaignId,

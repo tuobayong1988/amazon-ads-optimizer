@@ -38,7 +38,7 @@ export const intelligentRecommendationRouter = router({
           accountId: input.accountId,
           name: input.name,
           description: input.description || '',
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           optimizationGoal: input.optimizationGoal as unknown,
           targetAcos: input.targetAcos?.toString(),
           targetRoas: input.targetRoas?.toString(),
@@ -52,7 +52,7 @@ export const intelligentRecommendationRouter = router({
 
         try {
           const { triggerInitialOptimization } = await import('../optimization/optimizationScheduler');
-          // @ts-ignore
+          // @ts-expect-error - catch block error type
           triggerInitialOptimization(id, { triggeredBy: 'create' as unknown }).catch(err => {
             log.error(`[智能推荐] 触发首次优化失败:`, err);
           });

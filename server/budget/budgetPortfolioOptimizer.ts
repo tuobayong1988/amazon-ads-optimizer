@@ -113,7 +113,7 @@ async function estimateProfitCurve(
   const startDate = new Date(Date.now() - daysBack * 86400000).toISOString().split('T')[0];
   const endDate = new Date().toISOString().split('T')[0];
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const perfData = await db.select({
     totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
     totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
@@ -318,7 +318,7 @@ export async function optimizeBudgetPortfolio(
     };
     
     // 保存结果
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(budgetOptimizationResults).values({
       accountId,
       performanceGroupId: performanceGroupId || null,

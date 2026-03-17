@@ -29,7 +29,7 @@ export class PrelaunchProjectService {
 
     try {
       const conditions = [];
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       if (status) conditions.push(eq(prelaunchProjects.status, status as string));
       if (search) {
         conditions.push(
@@ -130,7 +130,7 @@ export class PrelaunchProjectService {
         status: 'draft',
       });
 
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const projectId = (result as Record<string, number>).insertId;
 
       // 返回创建的完整项目数据
@@ -213,25 +213,25 @@ export class PrelaunchProjectService {
    */
   private async getProjectModuleStats(db: DbInstance, projectId: number) {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [kwCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchKeywords).where(eq(prelaunchKeywords.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [compCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchCompetitors).where(eq(prelaunchCompetitors.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [personaCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchPersonas).where(eq(prelaunchPersonas.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [copyCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchCopyVersions).where(eq(prelaunchCopyVersions.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [visualCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchVisualBriefs).where(eq(prelaunchVisualBriefs.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [videoCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchVideoScripts).where(eq(prelaunchVideoScripts.projectId, projectId));
-      // @ts-ignore
+      // @ts-expect-error - Drizzle sql template type
       const [adCount] = await db.select({ count: sql<number>`COUNT(*)` })
         .from(prelaunchAdFrameworks).where(eq(prelaunchAdFrameworks.projectId, projectId));
 

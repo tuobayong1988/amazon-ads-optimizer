@@ -111,7 +111,7 @@ export async function executeBudgetAllocation(
       // v163: 应用渐进式预算调整
       let finalBudget = suggestion.suggestedBudget;
       const campaignPerf = budgetResult.suggestions.find(s => s.campaignId === suggestion.campaignId);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const twMetrics = (campaignPerf as unknown)?.timeWeightedMetrics;
       
       if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.50) {
@@ -135,7 +135,7 @@ export async function executeBudgetAllocation(
         changeAmount: finalBudget - suggestion.currentBudget,
         changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         expectedImpact: (suggestion as unknown).expectedRoasChange || 0,
         algorithmUsed: 'budget_allocator', // v335
         apiSyncStatus: 'pending',

@@ -54,55 +54,55 @@ async function checkDatabase() {
     return { dbStatus: 'error', reason: 'Database connection failed' };
   }
 
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const results: Record<string, any>[] = {};
 
   // AMS Data Check
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [amsResult] = await db.execute(sql`
       SELECT COUNT(*) as count, MAX(createdAt) as lastReceived 
       FROM ams_performance_data 
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
     `) as unknown;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     results.amsData = amsResult[0];
-  // @ts-ignore
+  // @ts-expect-error - error message access
   } catch (e: unknown) { results.amsData = { error: (e as Error).message }; }
 
   // API Report Jobs Check
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [reportResult] = await db.execute(sql`
       SELECT status, COUNT(*) as count
       FROM report_jobs
       WHERE createdAt >= NOW() - INTERVAL '24 hours'
       GROUP BY status
     `) as unknown;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     results.reportJobs = reportResult;
-  // @ts-ignore
+  // @ts-expect-error - error message access
   } catch (e: unknown) { results.reportJobs = { error: (e as Error).message }; }
 
   // Data Fusion Check
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [fusionResult] = await db.execute(sql`
       SELECT dataSource, COUNT(*) as count, MAX(date) as latestDate
       FROM daily_performance
       WHERE date >= CURRENT_DATE - INTERVAL '3 days'
       GROUP BY dataSource
     `) as unknown;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     results.dataFusion = fusionResult;
-  // @ts-ignore
+  // @ts-expect-error - error message access
   } catch (e: unknown) { results.dataFusion = { error: (e as Error).message }; }
 
   return { dbStatus: 'ok', ...results };
 }
 
 export const devRouter = router({
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   // v371: 开发工具仅管理员可访问
   verifySync: adminProcedure
     .query(async () => {

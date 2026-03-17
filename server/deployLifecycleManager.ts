@@ -107,7 +107,7 @@ export function registerGracefulShutdown(server: any): void {
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
     log.error(`[LifecycleManager] 未捕获异常: ${(error as Error).message}`);
-    // @ts-ignore
+    // @ts-expect-error - error stack access
     log.error(error.stack as unknown);
     await handleShutdown('uncaughtException');
   });
@@ -118,7 +118,7 @@ export function registerGracefulShutdown(server: any): void {
     const errorStack = reason instanceof Error ? reason.stack : undefined;
     log.error(`[LifecycleManager] 未处理的Promise拒绝: ${errorMessage}`);
     if (errorStack) {
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       log.error(errorStack as unknown);
     }
     // 记录但不关闭进程，避免因单个异步失败导致服务中断
@@ -662,7 +662,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
  */
 export async function flushPendingTasks(): Promise<void> {
   try {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const { processSyncQueue } = await import('./sync/optimizationSyncEngine') as unknown;
     if (typeof processSyncQueue === 'function') {
       log.info('[LifecycleManager] 触发同步引擎处理pending任务...');
@@ -1006,7 +1006,7 @@ export async function orchestrateStartup(server: any): Promise<void> {
       
     } catch (err: unknown) {
       log.error(`[LifecycleManager] 启动协调任务失败: ${(err as Error).message}`);
-      // @ts-ignore
+      // @ts-expect-error - error stack access
       log.error((err as Error).stack);
     }
   }, 30 * 1000);

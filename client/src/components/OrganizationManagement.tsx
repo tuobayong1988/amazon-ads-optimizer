@@ -57,7 +57,7 @@ export function OrganizationManagement() {
       setInviteEmail("");
       refetchMembers();
     },
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     onError: (error) => {
       toast.error(`邀请失败: ${error.message}`);
     },
@@ -69,7 +69,7 @@ export function OrganizationManagement() {
       toast.success("成员已移除");
       refetchMembers();
     },
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     onError: (error) => {
       toast.error(`移除失败: ${error.message}`);
     },

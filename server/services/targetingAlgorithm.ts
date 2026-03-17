@@ -289,8 +289,7 @@ function decideKeywordTargeting(
       campaignType: 'sp',  // v2: 来源广告类型
       reason: `高点击无转化: ${clicks}次点击, 0订单, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, 超过容忍线$${spendThreshold.toFixed(2)})`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -302,8 +301,7 @@ function decideKeywordTargeting(
       targetValue: cleanText,
       reason: `高点击无转化但花费未达客单价容忍线: ${clicks}次点击, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}, 容忍线$${spendThreshold.toFixed(2)}), 继续观察`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -315,8 +313,7 @@ function decideKeywordTargeting(
       targetValue: cleanText,
       reason: `中等点击无转化: ${clicks}次点击, 0订单, 花费$${spend.toFixed(2)}, 需要更多数据`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -340,10 +337,8 @@ function decideKeywordTargeting(
       reason: `[精确收割] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, ` +
               `数据成熟度=${dataMaturity}, 价值=${valueLevel}`,
       confidence: Math.min(0.95, 0.7 + orders / 20),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -365,10 +360,8 @@ function decideKeywordTargeting(
       reason: `[短语投放] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, ` +
               `数据成熟度=${dataMaturity}, 价值=${valueLevel}`,
       confidence: Math.min(0.90, 0.6 + orders / 15),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -390,10 +383,8 @@ function decideKeywordTargeting(
       reason: `[广泛探索] ${orders}单, ${clicks}次点击, CVR=${cvr.toFixed(1)}%, ` +
               `数据成熟度=${dataMaturity}, 价值=${valueLevel}`,
       confidence: Math.min(0.75, 0.4 + orders / 10),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -405,8 +396,7 @@ function decideKeywordTargeting(
       targetValue: cleanText,
       reason: `边际搜索词: ${orders}单, ACoS=${acos.toFixed(1)}%(目标${targetAcos}%), 暂不投放`,
       confidence: 0.6,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'marginal',
     };
   }
@@ -417,10 +407,8 @@ function decideKeywordTargeting(
     targetValue: cleanText,
     reason: `数据不足: ${clicks}次点击, ${orders}单, 需要更多数据`,
     confidence: 0.3,
-    // @ts-ignore
-    dataMaturityLevel: dataMaturity as string,
-    // @ts-ignore
-    valueLevel: valueLevel as string,
+    dataMaturityLevel: String(dataMaturity),
+    valueLevel: String(valueLevel),
   };
 }
 
@@ -476,8 +464,7 @@ function decideAsinTargetingV2(
       campaignType: normalizedCampaignType,
       reason: `[否定ASIN-${normalizedCampaignType.toUpperCase()}] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}, 层级=${negativeScope}`,
       confidence: Math.min(0.90, 0.5 + clicks / 50),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -490,8 +477,7 @@ function decideAsinTargetingV2(
       targetValue: searchTerm.trim(),
       reason: `高点击无转化ASIN但花费未达容忍线: ${clicks}次点击, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), 继续观察`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -510,10 +496,8 @@ function decideAsinTargetingV2(
       suggestedBid: optimalBid,
       reason: `[精确ASIN定向] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.90, 0.6 + orders / 15),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -531,10 +515,8 @@ function decideAsinTargetingV2(
       suggestedBid: optimalBid,
       reason: `[扩展ASIN定向] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.80, 0.5 + orders / 10),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -544,10 +526,8 @@ function decideAsinTargetingV2(
     targetValue: searchTerm.trim(),
     reason: `ASIN数据不足: ${clicks}次点击, ${orders}单`,
     confidence: 0.3,
-    // @ts-ignore
-    dataMaturityLevel: dataMaturity as string,
-    // @ts-ignore
-    valueLevel: valueLevel as string,
+    dataMaturityLevel: String(dataMaturity),
+    valueLevel: String(valueLevel),
   };
 }
 
@@ -594,8 +574,7 @@ function decideAutoTargetingAction(
       campaignType: 'sp',  // v2: 自动广告属于SP
       reason: `[自动广告] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -611,8 +590,7 @@ function decideAutoTargetingAction(
       campaignType: 'sp',  // v2
       reason: `[自动广告] 中等点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}${aov > 0 ? `(AOV=$${aov.toFixed(0)})` : ''}`,
       confidence: Math.min(0.85, 0.5 + clicks / 50),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -624,8 +602,7 @@ function decideAutoTargetingAction(
       targetValue: cleanText,
       reason: `[自动广告] 点击${clicks}次无转化但花费未达客单价容忍线: 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), 继续观察`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -636,10 +613,8 @@ function decideAutoTargetingAction(
     targetValue: cleanText,
     reason: `[自动广告] ${orders > 0 ? '有转化词等待手动收割' : '数据不足继续观察'}: ${clicks}点击, ${orders}单`,
     confidence: 0.5,
-    // @ts-ignore
-    dataMaturityLevel: dataMaturity as string,
-    // @ts-ignore
-    valueLevel: valueLevel as string,
+    dataMaturityLevel: String(dataMaturity),
+    valueLevel: String(valueLevel),
   };
 }
 
@@ -822,8 +797,7 @@ function decideSbKeywordTargeting(
       campaignType: 'sb',
       reason: `[SB否定关键词] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}, 层级=ad_group`,
       confidence: Math.min(0.95, 0.6 + clicks / 100),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -835,8 +809,7 @@ function decideSbKeywordTargeting(
       targetValue: cleanText,
       reason: `[SB] 高点击无转化但花费未达容忍线: ${clicks}次点击, 花费$${spend.toFixed(2)}(AOV=$${aov.toFixed(0)}), 继续观察`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -848,8 +821,7 @@ function decideSbKeywordTargeting(
       targetValue: cleanText,
       reason: `[SB] 中等点击无转化: ${clicks}次点击, 需要更多数据`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'unknown',
     };
   }
@@ -867,10 +839,8 @@ function decideSbKeywordTargeting(
       suggestedBid: optimalBid,
       reason: `[SB精确收割] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.95, 0.7 + orders / 20),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -887,10 +857,8 @@ function decideSbKeywordTargeting(
       suggestedBid: optimalBid,
       reason: `[SB短语投放] ${orders}单, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
       confidence: Math.min(0.90, 0.6 + orders / 15),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -907,10 +875,8 @@ function decideSbKeywordTargeting(
       suggestedBid: optimalBid,
       reason: `[SB广泛探索] ${orders}单, ${clicks}次点击`,
       confidence: Math.min(0.75, 0.4 + orders / 10),
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
-      // @ts-ignore
-      valueLevel: valueLevel as string,
+      dataMaturityLevel: String(dataMaturity),
+      valueLevel: String(valueLevel),
     };
   }
   
@@ -920,10 +886,8 @@ function decideSbKeywordTargeting(
     targetValue: cleanText,
     reason: `[SB] ${valueLevel === 'marginal' ? '边际搜索词' : '数据不足'}: ${clicks}次点击, ${orders}单`,
     confidence: 0.3,
-    // @ts-ignore
-    dataMaturityLevel: dataMaturity as string,
-    // @ts-ignore
-    valueLevel: valueLevel as string,
+    dataMaturityLevel: String(dataMaturity),
+    valueLevel: String(valueLevel),
   };
 }
 
@@ -956,8 +920,7 @@ function decideSdKeywordTargeting(
       targetValue: cleanText,
       reason: `[SD-无法否定关键词] 高点击无转化: ${clicks}次点击, 花费$${spend.toFixed(2)}, SD不支持否定关键词`,
       confidence: 0.5,
-      // @ts-ignore
-      dataMaturityLevel: dataMaturity as string,
+      dataMaturityLevel: String(dataMaturity),
       valueLevel: 'negative',
     };
   }
@@ -968,9 +931,7 @@ function decideSdKeywordTargeting(
     targetValue: cleanText,
     reason: `[SD] ${orders > 0 ? '有转化词' : '数据不足'}: ${clicks}次点击, ${orders}单, SD关键词仅支持监控`,
     confidence: 0.3,
-    // @ts-ignore
-    dataMaturityLevel: dataMaturity as string,
-    // @ts-ignore
-    valueLevel: valueLevel as string,
+    dataMaturityLevel: String(dataMaturity),
+    valueLevel: String(valueLevel),
   };
 }

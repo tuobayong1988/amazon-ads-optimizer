@@ -535,7 +535,7 @@ export async function saveBudgetAllocation(
 
   // 创建分配明细
   for (const rec of result.recommendations) {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(budgetAllocationItems).values({
       allocationId: Number(allocationId),
       campaignId: rec.campaignId,
@@ -619,7 +619,7 @@ export async function applyBudgetAllocation(
         .where(eq(campaigns.id, Number(item.campaignId)));
 
       // 记录预算调整历史
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(budgetHistory).values({
         userId,
         accountId: allocation.accountId,
@@ -718,22 +718,22 @@ export async function getBudgetHistory(
   let query = eq(budgetHistory.userId, userId);
 
   if (accountId) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     query = and(query, eq(budgetHistory.accountId, accountId)) as unknown;
   }
 
   if (campaignId) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     query = and(query, eq(budgetHistory.campaignId, String(campaignId))) as unknown;
   }
 
   if (startDate) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     query = and(query, gte(budgetHistory.createdAt, startDate.toISOString())) as unknown;
   }
 
   if (endDate) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     query = and(query, lte(budgetHistory.createdAt, endDate.toISOString())) as unknown;
   }
 
@@ -770,7 +770,7 @@ export async function createBudgetGoal(
   if (!db) throw new Error("Database not available");
 
   const [result] = await db.insert(budgetGoals).values({
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     userId,
     accountId: data.accountId,
     goalType: data.goalType as unknown,

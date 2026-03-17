@@ -87,7 +87,7 @@ export async function runV345PerformanceIndexMigration(): Promise<{
   for (const idx of INDEXES) {
     try {
       // 检查索引是否已存在
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       const [existingIndexes] = await db.execute(
         sql.raw(`SHOW INDEX FROM ${idx.table} WHERE Key_name = '${idx.name}'`)
       ) as unknown;

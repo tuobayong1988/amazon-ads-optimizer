@@ -211,7 +211,7 @@ async function persistEmergencyTask(
   try {
     const { sql } = await import('drizzle-orm');
     // 检查是否已有未处理的同类型任务
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [existing] = await dbInstance.execute(sql`
       SELECT id FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
@@ -363,7 +363,7 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
   
   try {
     const { sql } = await import('drizzle-orm');
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [statusStats] = await dbInstance.execute(
       sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
     ) as unknown;
@@ -621,7 +621,7 @@ export async function isAccountInEmergencyQueue(accountId: number): Promise<{ in
   
   try {
     const { sql } = await import('drizzle-orm');
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await dbInstance.execute(sql`
       SELECT actionType FROM emergency_optimization_queue
       WHERE accountId = ${accountId} AND processed = 0
@@ -667,7 +667,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
   
   try {
     const { sql } = await import('drizzle-orm');
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await dbInstance.execute(sql`
       SELECT accountId, actionType FROM emergency_optimization_queue
       WHERE processed = 0
@@ -817,7 +817,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
   try {
     const { sql } = await import('drizzle-orm');
     
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [recentRows] = await dbInstance.execute(sql`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
@@ -826,7 +826,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
         AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
     `) as unknown;
     
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [prevRows] = await dbInstance.execute(sql`
       SELECT SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
              SUM(CAST(sales AS DECIMAL(10,2))) as total_sales
@@ -921,13 +921,13 @@ export async function cleanupProcessedEntries(): Promise<void> {
   
   try {
     const { sql } = await import('drizzle-orm');
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [result] = await dbInstance.execute(sql`
       DELETE FROM emergency_optimization_queue
       WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `) as unknown;
     
-    // @ts-ignore
+    // @ts-expect-error - MySQL affectedRows
     const deleted = (result as unknown)?.affectedRows || 0;
     if (deleted > 0) {
       log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);

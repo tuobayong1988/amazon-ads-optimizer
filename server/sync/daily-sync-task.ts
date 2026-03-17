@@ -65,7 +65,7 @@ export async function syncCampaignDailyData(
   try {
     // 查找该广告活动的数据
     const campaignData = apiData.find(
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       (row: Record<string, any>) => row.campaignId?.toString() === campaignId
     );
     
@@ -76,7 +76,6 @@ export async function syncCampaignDailyData(
     
     // 使用db封装函数存储到数据库
     const record = buildPerformanceRecord(campaignData, campaignId, date);
-    // @ts-ignore
     await db.createDailyPerformance(record as Record<string, any>);
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
@@ -118,7 +117,6 @@ export async function syncAllCampaignsDailyData(
     for (const row of (spData as any[])) {
       try {
         const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
-        // @ts-ignore
         await db.createDailyPerformance(record as Record<string, any>);
         successCount++;
       } catch (error: unknown) {

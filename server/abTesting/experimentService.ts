@@ -176,7 +176,6 @@ export async function completeExperiment(experimentId: string): Promise<void> {
  */
 export async function getExperimentResult(experimentId: string): Promise<ExperimentResult> {
   // TODO: 从数据库获取实验配置
-  // @ts-ignore
   const experiment: Experiment = {} as Record<string, any>; // 临时
 
   const db = await getDb();

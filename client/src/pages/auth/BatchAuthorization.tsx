@@ -477,7 +477,7 @@ export default function BatchAuthorization() {
                   ) : (
                     regions.map((region: any) => {
                       const isSelected = selectedRegions.includes(region.code as RegionCode);
-                      // @ts-ignore
+                      // @ts-expect-error - error code check
                       const isAuthorized = authorizedRegions?.regions?.find(r => r.code === region.code)?.authorized;
                       
                       return (

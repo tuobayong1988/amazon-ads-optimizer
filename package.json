@@ -96,7 +96,8 @@
     "vaul": "^1.1.2",
     "wouter": "^3.9.0",
     "xlsx": "^0.18.5",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "@builder.io/vite-plugin-jsx-loc": "^0.1.1",

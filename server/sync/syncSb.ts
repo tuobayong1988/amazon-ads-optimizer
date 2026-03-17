@@ -209,7 +209,6 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         const localBudgetSb = parseFloat(existing.dailyBudget || '0');
         if (dailyBudget === 0 && localBudgetSb > 0) {
           log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).dailyBudget;
         }
         await db
@@ -368,9 +367,9 @@ AmazonSyncService.prototype.syncSbKeywords = async function(this: AmazonSyncServ
     return { synced, skipped };
   } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
-    // @ts-ignore
+    // @ts-expect-error - Axios error response access
     const statusCode = error?.response?.status || 'unknown';
-    // @ts-ignore
+    // @ts-expect-error - error message access
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
     log.error(`Error syncing SB keywords: HTTP ${statusCode} - ${errorMsg}`);
     if (statusCode === 404) {
@@ -515,9 +514,9 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
     return { synced, skipped };
   } catch (error: unknown) {
     // v332: 增强SB错误日志，记录详细的HTTP状态码和错误信息
-    // @ts-ignore
+    // @ts-expect-error - Axios error response access
     const statusCode = error?.response?.status || 'unknown';
-    // @ts-ignore
+    // @ts-expect-error - error message access
     const errorMsg = error?.response?.data?.message || error?.message || 'unknown error';
     log.error(`Error syncing SB product targets: HTTP ${statusCode} - ${errorMsg}`);
     if (statusCode === 404) {
@@ -602,7 +601,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const allAdGroups = await db
       .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
       .from(adGroups)
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       .where(eq((adGroups as unknown).accountId, this.accountId));
     const adGroupMap = new Map<string, { id: number }>();
     for (const ag of allAdGroups) {
@@ -612,7 +611,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const allKeywords = await db
       .select({ id: keywords.id, adGroupId: keywords.internalAdGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType })
       .from(keywords)
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       .where(eq((keywords as unknown).accountId, this.accountId));
     const keywordMap = new Map<string, { id: number; matchType: string | null }>();
     for (const kw of (allKeywords as any[])) {
@@ -623,7 +622,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     const allTargets = await db
       .select({ id: productTargets.id, adGroupId: productTargets.internalAdGroupId, targetValue: productTargets.targetValue, targetMatchType: productTargets.targetMatchType })
       .from(productTargets)
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       .where(eq((productTargets as unknown).accountId, this.accountId));
     const targetMap = new Map<string, { id: number; targetMatchType: string | null }>();
     for (const t of allTargets) {

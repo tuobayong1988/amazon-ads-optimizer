@@ -433,7 +433,7 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
       WHERE dp1.accountId = ${accountId}
     `);
 
-    // @ts-ignore
+    // @ts-expect-error - MySQL affectedRows
     const deletedCount = (result as unknown)?.affectedRows || 0;
     log.info(`[v358] 账户${accountId}去重完成: 删除${deletedCount}条重复记录`);
     return deletedCount;

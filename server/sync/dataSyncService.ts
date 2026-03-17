@@ -85,7 +85,7 @@ class RateLimiter {
         const result = await this.executeRequest(request);
         request.resolve(result);
       } catch (error) {
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         request.reject(error);
       }
       await this.delay(200);
@@ -309,7 +309,7 @@ async function syncPerformance(userId: number, accountId: number, account: any):
 async function logSyncActivity(jobId: number, operation: string, status: string, message: string, details?: any) {
   const db = await getDb();
   if (!db) return;
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   await db.insert(dataSyncLogs).values({
     jobId,
     operation,
@@ -365,7 +365,7 @@ export function getRateLimitStatus() {
 export async function recordApiRateLimit(accountId: number, apiType: string, requestCount: number, _limitReached: boolean) {
   const db = await getDb();
   if (!db) return;
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   await db.insert(apiRateLimits).values({
     accountId,
     apiType: apiType as unknown,
@@ -423,7 +423,6 @@ export async function createSyncSchedule(config: SyncScheduleConfig): Promise<nu
     VALUES (${config.userId}, ${config.accountId}, ${config.syncType}, ${config.frequency}, ${config.hour ?? 0}, ${config.dayOfWeek ?? null}, ${config.dayOfMonth ?? null}, ${config.isEnabled}, ${nextRunAt})
   `);
 
-  // @ts-ignore
   return (result as Record<string, any>[][])[0]?.insertId || null;
 }
 
@@ -477,7 +476,7 @@ export async function getSyncScheduleById(id: number, userId: number): Promise<S
     FROM sync_schedules WHERE id = ${id} AND user_id = ${userId}
   `);
   const rows = (result as Record<string, any>[][])[0];
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   return rows?.[0] || null;
 }
 
@@ -501,7 +500,6 @@ export async function getSyncSchedules(userId: number, accountId?: number): Prom
   }
   
   const result = await db.execute(query);
-  // @ts-ignore
   return (result as Record<string, any>[][])[0] || [];
 }
 
@@ -516,7 +514,6 @@ export async function getDueSchedules(): Promise<SyncScheduleConfig[]> {
     SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
     FROM sync_schedules WHERE is_enabled = true AND next_run_at <= ${now}
   `);
-  // @ts-ignore
   return (result as Record<string, any>[][])[0] || [];
 }
 
@@ -1050,7 +1047,7 @@ export async function cleanupOrphanedPendingJobs(maxPendingMinutes: number = 60)
         sql`${dataSyncJobs.createdAt} < ${cutoffStr}`
       ));
 
-    // @ts-ignore
+    // @ts-expect-error - MySQL affectedRows
     const cleaned = (result as Record<string, any>[][])[0]?.affectedRows || 0;
     if (cleaned > 0) {
       log.info(`[DataSync] v334: 清理了 ${cleaned} 个孤儿pending任务`);

@@ -247,7 +247,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         })
         .where(eq(dailyPerformance.id, existingCampaign.id));
     } else {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(dailyPerformance).values({
         accountId: data.accountId,
         campaignId: data.campaignId,
@@ -431,7 +431,7 @@ export async function deleteDailyPerformanceByDateRange(
       sql`DATE(${dailyPerformance.date}) <= ${endDate}`
     ));
   
-  // @ts-ignore
+  // @ts-expect-error - MySQL affectedRows
   return (result as Record<string, any>[][])[0]?.affectedRows || 0;
 }
 

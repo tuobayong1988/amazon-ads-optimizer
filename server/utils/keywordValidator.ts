@@ -238,7 +238,7 @@ export async function adGroupHasProductTargets(
       conn = await db.getDirectConnection();
       ownConn = true;
     }
-    // @ts-ignore
+    // @ts-expect-error - MySQL connection method
     const [rows] = await conn.execute(
       'SELECT COUNT(*) AS cnt FROM product_targets WHERE adGroupId = ? AND targetId IS NOT NULL LIMIT 1',
       [adGroupId]
@@ -249,7 +249,7 @@ export async function adGroupHasProductTargets(
     return false;
   } finally {
     if (ownConn && conn) {
-      // @ts-ignore
+      // @ts-expect-error - MySQL connection method
       try { conn.release(); } catch (_) {} // v350: 归还连接到池
     }
   }

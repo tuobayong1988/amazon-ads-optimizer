@@ -458,7 +458,7 @@ export async function analyzeBudgetDepletionRisk(
 
   // 按风险等级排序
   const riskOrder = { critical: 0, warning: 1, safe: 2 };
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   predictions.sort((a: any, b: any) => riskOrder[a.riskLevel] - riskOrder[b.riskLevel]);
 
   return predictions;

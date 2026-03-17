@@ -503,7 +503,7 @@ export async function acquireLock(
     return true;
   } catch (error: unknown) {
     // UNIQUE约束冲突说明锁已被持有
-    // @ts-ignore
+    // @ts-expect-error - MySQL error code check
     if (error.code === 'ER_DUP_ENTRY' || (error as Error).message?.includes('Duplicate')) {
       log.debug(`[v358] 锁已被占用: ${lockKey}`);
       return false;

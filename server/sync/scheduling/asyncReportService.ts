@@ -103,7 +103,7 @@ export class AsyncReportService {
       refreshToken: safeDecrypt(credentials.refreshToken as string),
     };
 
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     return new AmazonAdsApiClient(decryptedCreds as unknown);
   }
 
@@ -313,7 +313,7 @@ export class AsyncReportService {
         }
         
         // 如果payload中没有adType，尝试使用adProduct字段
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const adType = payload.adType || (job as unknown).adProduct;
 
         switch (adType) {
@@ -344,7 +344,7 @@ export class AsyncReportService {
         log.debug(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
       } catch (error: unknown) {
         const errorMessage = (error as Error).message || 'Unknown error';
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status || error.status;
         
         // 详细记录错误信息
@@ -736,8 +736,7 @@ export class AsyncReportService {
         )
       );
 
-    // @ts-ignore
-    return (result as unknown).rowsAffected || 0;
+    return (result as any).rowsAffected || 0;
   }
 }
 

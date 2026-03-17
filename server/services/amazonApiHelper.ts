@@ -41,10 +41,9 @@ async function withRetry<T>(
       } catch (_) { /* 限流服务异常不影响主流程 */ }
       return await fn();
     } catch (error: unknown) {
-      // @ts-ignore
       lastError = error;
       const isThrottle = (error as any).response?.status === 429 || (error as Error).message?.includes('请求过于频繁') || (error as Error).message?.includes('Too Many Requests');
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const isServerError = (error as Error & { response?: unknown }).response?.status >= 500;
       const isRetryable = isThrottle || isServerError || (error as Error & { code?: string }).code === 'ECONNRESET' || (error as Error & { code?: string }).code === 'ETIMEDOUT';
       
@@ -167,7 +166,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (!amazonKeywordId) {
         try {
           const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           amazonKeywordId = await resolveKeywordIdOnDemand(accountId, adj.keywordId) || undefined;
         } catch (resolveErr: unknown) {
           log.error(`[AmazonApiHelper] v391: 即时回填异常: ${(resolveErr as Error).message}`);
@@ -217,7 +216,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (!amazonTargetId) {
         try {
           const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           amazonTargetId = await resolveProductTargetIdOnDemand(accountId, actualId) || undefined;
         } catch (resolveErr: unknown) {
           log.error(`[AmazonApiHelper] v391: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
@@ -562,7 +561,7 @@ export async function syncNewKeywordsToAmazon(
         } else {
           result.failed++;
           const errorCode = created.code || 'UNKNOWN';
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           const errorDetail = (created as unknown).details || (created as unknown).description || '';
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
           log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
@@ -604,7 +603,7 @@ export async function syncNewKeywordsToAmazon(
         }
       }
       
-      // @ts-ignore
+      // @ts-expect-error - error code check
       log.info(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
     } catch (error: unknown) {
       // 单批失败不影响其他批次
@@ -612,11 +611,11 @@ export async function syncNewKeywordsToAmazon(
       result.failed += batchFailCount;
       const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${(error as Error).message}`;
       result.errors.push(errorMsg);
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       log.error(`[AmazonApiHelper] ❌ ${errorMsg}`, (error as Error & { response?: unknown }).response?.data || '');
       
       // 如果是限流错误，增加等待时间
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       if ((error as Error & { response?: unknown }).response?.status === 429) {
         const throttleWait = BATCH_DELAY_MS * 5;
         log.debug(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
@@ -682,7 +681,7 @@ export async function syncNewProductTargetsToAmazon(
       });
       
       // v350: 修复API调用路径 - 应通过syncService.client调用而非syncService
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       const apiResult: any = await (syncService.client as unknown).createSpProductTargets(apiTargets);
       
       for (let j = 0; j < apiResult.createdTargets.length; j++) {
@@ -883,9 +882,8 @@ export async function syncNegativeKeywordsToAmazon(
         ), { label: 'Campaign否定词创建', accountId });
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
-          // @ts-ignore
           const r = results[ri] as Record<string, any>;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
@@ -957,9 +955,8 @@ export async function syncNegativeKeywordsToAmazon(
           }))
         ), { label: 'AdGroup否定词创建', accountId });
         
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
-          // @ts-ignore
           const r = results[ri] as Record<string, any>;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
@@ -1036,7 +1033,7 @@ export async function syncNegativeProductTargetsToAmazon(
         }))
       ), { label: 'SP Campaign否定产品定向', accountId });
       
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       for (const r of apiResults) {
         if ((r as Record<string, any>).code === 'SUCCESS' || (r as Record<string, any>).targetId) {
           result.success++;
@@ -1063,7 +1060,7 @@ export async function syncNegativeProductTargetsToAmazon(
         }))
       ), { label: 'SP AdGroup否定产品定向', accountId });
       
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       for (const r of apiResults) {
         if ((r as Record<string, any>).code === 'SUCCESS' || (r as Record<string, any>).targetId) {
           result.success++;

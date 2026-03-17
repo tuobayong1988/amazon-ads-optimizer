@@ -141,7 +141,7 @@ export const daypartingRouter = router({
     .mutation(async ({ ctx, input }: any) => {
       await daypartingService.saveBudgetRules(
         input.strategyId,
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         input.rules.map(r => ({
           dayOfWeek: r.dayOfWeek,
           budgetMultiplier: r.budgetMultiplier.toString(),
@@ -166,7 +166,7 @@ export const daypartingRouter = router({
     .mutation(async ({ ctx, input }: any) => {
       await daypartingService.saveBidRules(
         input.strategyId,
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         input.rules.map(r => ({
           dayOfWeek: r.dayOfWeek,
           hour: r.hour,

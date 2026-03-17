@@ -330,7 +330,7 @@ function determineStage(
   score: number,
   group: unknown
 ): LearningStage {
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const createdAt = new Date(group.createdAt);
   const now = new Date();
   const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -441,7 +441,7 @@ function calculateAdjustmentFactor(
   }
   
   // 学习期：使用市场曲线（S曲线）计算调整因子
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const createdAt = new Date(group.createdAt);
   const now = new Date();
   const daysSinceCreation = Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -473,7 +473,7 @@ function calculateExpectedMatureDate(
     return null;
   }
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const createdAt = new Date(group.createdAt);
   const coldStartDuration = getAdjustedColdStartDuration(group);
   const learningDuration = getAdjustedLearningDuration(group);
@@ -571,7 +571,7 @@ export async function getAllLearningStatuses(accountId?: number): Promise<Learni
   let query = db.select().from(performanceGroups);
   
   if (accountId) {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     query = query.where(eq(performanceGroups.accountId, accountId)) as unknown;
   }
   

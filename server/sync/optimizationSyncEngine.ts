@@ -426,7 +426,7 @@ export async function executeBatchSync(options?: {
  * 按任务类型批量同步到Amazon
  */
 async function syncTasksByType(
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   conn: DbInstance,
   accountId: number,
   taskType: string,
@@ -491,7 +491,7 @@ async function syncTasksByType(
  * 执行单个批次的Amazon API同步
  */
 async function executeBatchByType(
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   conn: DbInstance,
   syncService: Record<string, any>,
   taskType: string,
@@ -1191,7 +1191,7 @@ async function executeBatchByType(
 // 辅助函数：任务状态管理
 // ============================================================
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function markTaskSynced(conn: DbInstance, taskId: number) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
@@ -1200,7 +1200,7 @@ async function markTaskSynced(conn: DbInstance, taskId: number) {
   );
 }
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function markTaskFailed(conn: DbInstance, taskId: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   await conn.execute(
@@ -1209,7 +1209,7 @@ async function markTaskFailed(conn: DbInstance, taskId: number, errorMessage: st
   );
 }
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function markTasksFailed(conn: DbInstance, taskIds: number[], errorMessage: string) {
   if (taskIds.length === 0) return;
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -1219,7 +1219,7 @@ async function markTasksFailed(conn: DbInstance, taskIds: number[], errorMessage
   );
 }
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCount: number, errorMessage: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const newRetryCount = (currentRetryCount || 0) + 1;
@@ -1248,7 +1248,7 @@ async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCo
   }
 }
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function updateLocalBid(conn: DbInstance, entityType: string, entityId: number, newBid: string) {
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   if (entityType === 'keyword') {
@@ -1258,7 +1258,7 @@ async function updateLocalBid(conn: DbInstance, entityType: string, entityId: nu
   }
 }
 
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: number, newStatus: string) {
   // v362: SQL注入防护 - 白名单验证表名
   const ALLOWED_TABLES = ['keywords', 'product_targets', 'campaigns', 'ad_groups'];
@@ -1277,7 +1277,7 @@ async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: 
 /**
  * 根据batch的同步结果，更新optimization_logs的api_sync_status
  */
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 async function updateLogsSyncStatus(conn: DbInstance, batchId: string) {
   try {
     // 统计该批次的同步结果

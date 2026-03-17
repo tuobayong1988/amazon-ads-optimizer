@@ -251,7 +251,7 @@ export const campaignRouter = router({
       
       if (previousCampaign && previousCampaign.accountId && previousCampaign.campaignId) {
         const amazonCampaignId = String(previousCampaign.campaignId);
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const campaignType = ((previousCampaign as unknown).campaignType || 'sp_manual').toLowerCase();
         
         // 同步状态变更到Amazon
@@ -274,7 +274,7 @@ export const campaignRouter = router({
         }
         
         // 同步日预算变更到Amazon (SP类型)
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         if (input.dailyBudget && input.dailyBudget !== (previousCampaign as unknown).dailyBudget) {
           try {
             const { syncBudgetAdjustmentToAmazon } = await import('../services/amazonApiHelper');
@@ -296,9 +296,9 @@ export const campaignRouter = router({
             && (campaignType === 'sp_manual' || campaignType === 'sp_auto')) {
           try {
             const { syncPlacementAdjustmentToAmazon } = await import('../services/amazonApiHelper');
-            // @ts-ignore
+            // @ts-expect-error - dynamic property access
             const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as unknown).placementTopSearchBidAdjustment ?? 0;
-            // @ts-ignore
+            // @ts-expect-error - dynamic property access
             const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as unknown).placementProductPageBidAdjustment ?? 0;
             const success = await syncPlacementAdjustmentToAmazon(
               previousCampaign.accountId,

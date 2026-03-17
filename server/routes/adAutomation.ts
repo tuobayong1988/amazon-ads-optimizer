@@ -43,7 +43,7 @@ export const adAutomationRouter = router({
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const suggestions = adAutomation.analyzeFunnelMigration(searchTerms as unknown, {
         broadToPhrase: { minConversions: input.broadToPhraseMinConversions, minRoas: 1 },
         phraseToExact: { minConversions: input.phraseToExactMinConversions, minRoas: input.phraseToExactMinRoas },
@@ -62,7 +62,7 @@ export const adAutomationRouter = router({
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const searchTerms = await db.getCampaignSearchTerms(input.accountId);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const conflicts = adAutomation.detectTrafficConflicts(searchTerms as unknown);
       return {
         totalConflicts: conflicts.length,
@@ -81,7 +81,7 @@ export const adAutomationRouter = router({
     .query(async ({ input, ctx }: any) => {
       await verifyAccountAccess(ctx.user.id, input.accountId);
       const targets = await db.getBidTargets(input.accountId);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const suggestions = adAutomation.analyzeBidAdjustments(targets as unknown, {
         rampUpPercent: 5,
         maxBidMultiplier: 3,

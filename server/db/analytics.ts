@@ -11,6 +11,7 @@ import { getDb } from './connection';
 import { safeInClause } from '../utils/safeSql';
 import { createModuleLogger } from '../utils/logger';
 import { adGroups, campaigns, dailyPerformance, keywords, productTargets } from '../../drizzle/schema';
+import { extractRows } from '../types/utilTypes';
 
 const log = createModuleLogger('DB:analytics');
 

@@ -572,7 +572,7 @@ export async function calculateOptimalAdjustment(
     // 生成调整原因
     let reason = '';
     if (cooldownStatus.inCooldown) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       reason = (cooldownStatus as unknown).reason || '在冷却期内，暂不调整';
     } else if (!score.isReliable) {
       reason = `${score.confidenceReason}，暂不调整`;
@@ -670,7 +670,7 @@ export async function getCampaignPlacementPerformance(
       placementDailyData[placement] = [];
     }
     placementDailyData[placement].push({
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       date: typeof row.date === 'string' ? row.date : new Date(row.date as unknown).toISOString(),
       impressions: row.impressions || 0,
       clicks: row.clicks || 0,
@@ -696,9 +696,9 @@ export async function getCampaignPlacementPerformance(
         // v163: 使用时间衰减加权后的指标计算效率得分
         const totalDays = dailyData.length;
         weightedMetrics = {
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           impressions: Math.round((twMetrics as unknown).weightedDailyImpressions * totalDays),
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           clicks: Math.round((twMetrics as unknown).weightedDailyClicks * totalDays),
           spend: twMetrics.weightedDailySpend * totalDays,
           sales: twMetrics.weightedDailySales * totalDays,
@@ -725,15 +725,15 @@ export async function getCampaignPlacementPerformance(
       confidenceReason: confidence.reason,
       metrics: {
         ...weightedMetrics,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         roas: normalizedMetrics.roas,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         acos: normalizedMetrics.acos,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         cvr: normalizedMetrics.cvr,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         cpc: normalizedMetrics.cpc,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         ctr: normalizedMetrics.ctr
       }
     });
@@ -852,7 +852,7 @@ export async function updatePlacementSettings(
       .set(updateData)
       .where(eq(placementSettings.id, existing[0].id));
   } else {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(placementSettings).values({
       campaignId,
       accountId,
@@ -1163,18 +1163,18 @@ export async function applyPlacementAdjustment(
 ): Promise<boolean> {
   try {
     await updatePlacementSettings(campaignId, accountId, [{
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       placementType: adjustment.placement,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       currentAdjustment: adjustment.currentAdjustment || 0,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       suggestedAdjustment: adjustment.suggestedAdjustment,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       adjustmentDelta: adjustment.suggestedAdjustment - (adjustment.currentAdjustment || 0),
       efficiencyScore: 0,
       confidence: 1,
       isReliable: true,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       reason: adjustment.reason || ''
     }] as PlacementAdjustmentSuggestion[]);
     return true;

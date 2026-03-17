@@ -21,6 +21,7 @@ import { database } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { v4 as uuidv4 } from 'uuid';
+import { extractCount, extractRows, getAffectedRows } from '../types/utilTypes';
 
 const log = createModuleLogger('DistributedLock');
 
@@ -61,8 +62,7 @@ async function cleanupExpiredLocks(): Promise<number> {
     const result = await database.execute(sql`
       DELETE FROM sync_locks WHERE expires_at <= NOW()
     `);
-    // @ts-ignore - MySQL返回的affectedRows
-    const deleted = result?.[0]?.affectedRows || 0;
+    const deleted = getAffectedRows(result);
     if (deleted > 0) {
       log.info(`清理了 ${deleted} 个过期锁`);
     }
@@ -182,8 +182,7 @@ export class DistributedLock {
         SET expires_at = DATE_ADD(NOW(), INTERVAL ${Math.ceil(additionalMs / 1000)} SECOND)
         WHERE lock_key = ${this.lockKey} AND holder_id = ${this.holderId}
       `);
-      // @ts-ignore
-      const affected = result?.[0]?.affectedRows || 0;
+      const affected = getAffectedRows(result);
       if (affected > 0) {
         log.debug(`锁 "${this.lockKey}" 已续期 ${additionalMs}ms`);
         return true;
@@ -205,8 +204,7 @@ export class DistributedLock {
         SELECT COUNT(*) as cnt FROM sync_locks 
         WHERE lock_key = ${this.lockKey} AND expires_at > NOW()
       `);
-      // @ts-ignore
-      const count = Number(result?.[0]?.[0]?.cnt || 0);
+      const count = extractCount(result);
       return count > 0;
     } catch {
       return false;
@@ -270,8 +268,7 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
       WHERE expires_at > NOW()
       ORDER BY acquired_at DESC
     `);
-    // @ts-ignore
-    const rows = result?.[0] || [];
+    const rows = extractRows(result);
     return (rows as any[]).map(row => ({
       lockKey: row.lock_key,
       holderId: row.holder_id,

@@ -313,9 +313,9 @@ export class SmartDecisionEngine {
     // 按优先级和置信度排序
     decisions.sort((a: any, b: any) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const scoreA = priorityScore[a.priority] * a.confidence;
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const scoreB = priorityScore[b.priority] * b.confidence;
       return scoreB - scoreA;
     });

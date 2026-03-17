@@ -146,7 +146,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   const stores = useMemo(() => {
     if (!accounts) return [];
     const uniqueStores = new Set<string>();
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     accounts.forEach(account => {
       const storeName = (account.storeName || account.accountName).trim();
       uniqueStores.add(storeName);
@@ -158,7 +158,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   const marketplaces = useMemo(() => {
     if (!accounts || !currentStore) return [];
     const uniqueMarketplaces = new Set<string>();
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     accounts.forEach(account => {
       const storeName = (account.storeName || account.accountName).trim();
       if (storeName === currentStore) {
@@ -191,9 +191,9 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
       else if (!marketplaces.includes(currentMarketplace)) {
         // 当前站点不属于当前店铺，直接从accounts重新计算确认（避免竞态条件）
         const currentStoreMarketplaces = accounts
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           .filter(a => (a.storeName || a.accountName).trim() === currentStore)
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           .map(a => a.marketplace);
         if (!currentStoreMarketplaces.includes(currentMarketplace)) {
           // 确实不属于当前店铺，才重置
@@ -210,11 +210,11 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   // 切换店铺 - 优先保持当前站点不变
   const handleStoreChange = useCallback((store: string) => {
     // 获取该店铺的所有站点
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const storeAccounts = accounts?.filter(a => 
       (a.storeName || a.accountName).trim() === store
     );
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const storeMarketplaces = storeAccounts?.map(a => a.marketplace) || [];
     
     // 如果新店铺也有当前选中的站点，则保持不变

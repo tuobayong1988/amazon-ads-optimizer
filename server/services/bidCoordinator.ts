@@ -368,7 +368,7 @@ export async function getCampaignBidConfig(
     const db = await getDb();
     if (!db) return null;
     
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT 
         defaultBid as baseBid,

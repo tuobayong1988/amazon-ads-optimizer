@@ -114,7 +114,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
  */
 async function resolveKeywordIds(
   accountId: number,
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   conn: DbInstance,
   result: IdResolutionResult
 ): Promise<void> {
@@ -196,9 +196,9 @@ async function resolveKeywordIds(
       // 构建匹配索引: "keywordText|matchType" -> keywordId
       const amazonKwMap = new Map<string, string>();
       for (const ak of amazonKeywords) {
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const key = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         amazonKwMap.set(key, String((ak as unknown).keywordId));
       }
 
@@ -250,7 +250,7 @@ async function resolveKeywordIds(
             result.keywordsResolved++;
             log.debug(`✅ v357: 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}, accountId=${accountId}`);
           } catch (updateErr: unknown) {
-            // @ts-ignore
+            // @ts-expect-error - MySQL error code check
             if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               // 唯一约束冲突 → 说明是重复记录，删除
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
@@ -345,7 +345,7 @@ async function resolveKeywordIds(
                     result.keywordsCreated++;
                     log.info(`✅ v357: 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}, accountId=${accountId}, campaignId=${amazonCampaignId}`);
                   } catch (upErr: unknown) {
-                    // @ts-ignore
+                    // @ts-expect-error - MySQL error code check
                     if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
                       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                       result.keywordsCleanedUp++;
@@ -400,7 +400,7 @@ async function resolveKeywordIds(
                   
                   if (!resolved) {
                     result.keywordsFailed++;
-                    // @ts-ignore
+                    // @ts-expect-error - dynamic property access
                     const errDetail = (created as unknown).details || created.code || 'Unknown';
                     log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
@@ -439,7 +439,7 @@ async function resolveKeywordIds(
  */
 async function resolveProductTargetIds(
   accountId: number,
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   conn: DbInstance,
   result: IdResolutionResult
 ): Promise<void> {
@@ -499,13 +499,13 @@ async function resolveProductTargetIds(
       for (const at of amazonTargets) {
         const atAny = at as unknown;
         // 用expression作为匹配键
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const expr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
         amazonPtMap.set(expr, String(at.targetId));
         // 也用resolvedExpression匹配
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         if (atAny.resolvedExpression) {
-          // @ts-ignore
+          // @ts-expect-error - Drizzle query builder type
           amazonPtMap.set(JSON.stringify(atAny.resolvedExpression), String(at.targetId));
         }
       }
@@ -522,7 +522,7 @@ async function resolveProductTargetIds(
         if (!amazonTargetId && pt.targetValue) {
           for (const at of amazonTargets) {
             const atAny2 = at as unknown;
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             const exprStr = JSON.stringify(atAny2.expression || atAny2.targetingClause?.expression || []);
             if (exprStr.includes(pt.targetValue)) {
               amazonTargetId = String(at.targetId);
@@ -540,7 +540,7 @@ async function resolveProductTargetIds(
             result.productTargetsResolved++;
             log.debug(`✅ 回填product_target id=${pt.id} → targetId=${amazonTargetId}`);
           } catch (updateErr: unknown) {
-            // @ts-ignore
+            // @ts-expect-error - MySQL error code check
             if ((updateErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
               result.productTargetsResolved++;
@@ -578,7 +578,7 @@ export async function resolveKeywordIdOnDemand(
   accountId: number,
   keywordLocalId: number
 ): Promise<string | null> {
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   let conn: DbInstance = null;
   try {
     // v350: 使用连接池获取直接连接
@@ -642,10 +642,10 @@ export async function resolveKeywordIdOnDemand(
     // 按 keywordText + matchType 匹配
     const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
     for (const ak of amazonKeywords) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       const akKey = `${(ak as unknown).keywordText?.toLowerCase()}|${(ak as unknown).matchType?.toLowerCase()}`;
       if (akKey === key) {
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const amazonKeywordId = String((ak as unknown).keywordId);
         try {
           await conn.execute(
@@ -655,7 +655,7 @@ export async function resolveKeywordIdOnDemand(
           log.debug(`✅ 即时回填keyword id=${keywordLocalId} → keywordId=${amazonKeywordId}`);
           return amazonKeywordId;
         } catch (upErr: unknown) {
-          // @ts-ignore
+          // @ts-expect-error - MySQL error code check
           if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
           }
@@ -742,7 +742,7 @@ export async function resolveProductTargetIdOnDemand(
   accountId: number,
   ptLocalId: number
 ): Promise<string | null> {
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   let conn: DbInstance = null;
   try {
     // v350: 使用连接池获取直接连接
@@ -770,7 +770,7 @@ export async function resolveProductTargetIdOnDemand(
 
     for (const at of amazonTargets) {
       const atAny = at as unknown;
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const exprStr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
 
       let matched = false;
@@ -790,7 +790,7 @@ export async function resolveProductTargetIdOnDemand(
           log.debug(`✅ 即时回填product_target id=${ptLocalId} → targetId=${amazonTargetId}`);
           return amazonTargetId;
         } catch (upErr: unknown) {
-          // @ts-ignore
+          // @ts-expect-error - MySQL error code check
           if ((upErr as Error & { code?: string }).code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
             await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [ptLocalId]);
           }

@@ -474,9 +474,9 @@ async function verifyBidAdjustments(
       // 构建Amazon ID到出价的映射
       const amazonBidMap = new Map<string, number>();
       for (const apiItem of amazonItems) {
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const id = String(isProductTarget ? apiItem.targetId : apiItem.keywordId);
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         amazonBidMap.set(id, apiItem.bid);
       }
       
@@ -612,16 +612,16 @@ async function verifyPlacementAdjustments(
       let isMatch = true;
       const mismatches: string[] = [];
       
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       if (expected.topOfSearch !== undefined && Math.abs(actual.topOfSearch - expected.topOfSearch) > 1) {
         isMatch = false;
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         mismatches.push(`搜索顶部: 期望=${expected.topOfSearch}%, 实际=${actual.topOfSearch}%`);
       }
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       if (expected.productPage !== undefined && Math.abs(actual.productPage - expected.productPage) > 1) {
         isMatch = false;
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         mismatches.push(`商品页面: 期望=${expected.productPage}%, 实际=${actual.productPage}%`);
       }
       
@@ -694,7 +694,7 @@ async function verifyNegativeKeywords(
       
       for (const item of groupItems) {
         const expected = item.expectedValue;
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const key = `${expected.keywordText}_${expected.matchType}`.toLowerCase();
         const found = amazonNegMap.get(key);
         
@@ -704,7 +704,7 @@ async function verifyNegativeKeywords(
           results.push({
             item,
             status: 'not_found',
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             message: `否词 "${expected.keywordText}" (${expected.matchType}) 在Amazon中未找到`,
           });
         }
@@ -838,29 +838,29 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
               pendingPlacementProduct: null,
               lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             };
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             if (result.actualValue?.topOfSearch !== undefined) {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
             }
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             if (result.actualValue?.productPage !== undefined) {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns)
               .set(updateData)
               .where(eq(campaigns.id, item.localId));
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             log.debug(`v166: ✅ 广告活动 ${item.localId} 位置倾斜已确认: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
             break;
           }
           
           case 'negative_keyword': {
             // 否词确认 — 如果Amazon返回了keywordId，更新本地记录
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             if (result.actualValue?.keywordId) {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon (amazonId=${result.actualValue.keywordId})`);
             } else {
               log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon`);
@@ -932,14 +932,14 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
               pendingPlacementProduct: null,
               lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             };
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             if (result.actualValue?.topOfSearch !== undefined) {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               updateData.placementTopSearchBidAdjustment = String(result.actualValue.topOfSearch);
             }
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             if (result.actualValue?.productPage !== undefined) {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               updateData.placementProductPageBidAdjustment = String(result.actualValue.productPage);
             }
             await tx.update(campaigns)

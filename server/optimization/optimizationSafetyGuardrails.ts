@@ -370,7 +370,7 @@ export async function checkEmergencyBrake(
           .where(and(
             eq(optimizationLogs.accountId, accountId),
             sql`created_at >= DATE_SUB(NOW(), INTERVAL ${lookback} DAY)`,
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             eq(optimizationLogs.status, 'applied' as unknown)
           ))
           .limit(1);

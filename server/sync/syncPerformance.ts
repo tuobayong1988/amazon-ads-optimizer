@@ -110,7 +110,7 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       
       try {
         const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         totalSynced += batchSynced;
         log.info(`第${batch + 1}批同步完成: ${batchSynced}条记录`);
         
@@ -156,12 +156,12 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
     if ((error as Error).message?.startsWith('PARTIAL_SYNC_FAILURE:')) {
       throw error;
     }
-    // @ts-ignore
+    // @ts-expect-error - error message access
     log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: (error as Error).message, status: error.status || (error as any).response?.status, code: (error as any).code })}`);
     log.error('[v242] 详细错误:', (error as Error).stack?.substring(0, 500));
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
-    // @ts-ignore
+    // @ts-expect-error - error message access
     if (error.message?.includes('timeout') || (error as Error).message?.includes('PENDING') || (error as Error).message?.includes('Report generation')) {
       log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
     }
@@ -223,7 +223,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
         return data;
       } catch (err: unknown) {
         const errMsg = (err as Error).message || '';
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const errData = (err as Error & { response?: unknown }).response?.data;
         const errDetail = typeof errData === 'string' ? errData : JSON.stringify(errData || '');
         
@@ -278,7 +278,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
   for (let i = 0; i < reportResults.length; i++) {
     const result = reportResults[i];
     if (result.data && result.data.length > 0) {
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       totalSynced += await this.processReportData(db, result.data, adTypes[i]);
       log.info(`[v413] ${result.name}报告处理完成: ${result.data.length}条`);
     } else if (result.error) {
@@ -424,7 +424,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         if (row.campaignId && row.campaignName) {
           try {
             log.info(`${adType}自动创建campaign: ${row.campaignName}`);
-            // @ts-ignore
+            // @ts-expect-error - Drizzle query builder type
             const [newCampaign] = await db.insert(campaigns).values({
               accountId: this.accountId,
               campaignId: String(row.campaignId),
@@ -435,7 +435,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
               dailyBudget: row.campaignBudget ? String(row.campaignBudget) : '0',
               createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             }).returning();
             campaign = newCampaign;
             // v391: 将新创建的campaign加入内存Map，避免后续重复创建
@@ -445,7 +445,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
           } catch (createError: unknown) {
             // 可能是重复插入，尝试再次查询
             log.warn(`${adType}创建campaign失败，尝试再次查询:`, (createError as Error).message);
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             const [existingCampaign] = await db
               .select()
               .from(campaigns)
@@ -1010,12 +1010,12 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
     // v242: 结构化错误日志，避免错误信息被截断
     const errorInfo = {
       message: (error as Error).message || 'Unknown error',
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       status: error.status || (error as Error & { response?: unknown }).response?.status,
       code: (error as Error & { code?: string }).code,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       url: error.config?.url,
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       responseData: (error as Error & { response?: unknown }).response?.data ? JSON.stringify((error as Error & { response?: unknown }).response.data).substring(0, 500) : undefined,
     };
     log.error(`[v242] 关键词绩效同步失败(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);

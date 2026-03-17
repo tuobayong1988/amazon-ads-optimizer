@@ -53,7 +53,7 @@ export const automationRouter = router({
         enabled: input.enabled,
         mode: input.mode,
         enabledTypes: input.enabledTypes,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         safetyBoundary: input.safetyBoundary as unknown,
       });
     }),

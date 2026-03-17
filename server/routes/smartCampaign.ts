@@ -126,7 +126,7 @@ export const smartCampaignRouter = router({
   /**
    * 获取单个广告活动的优化建议
    */
-  // @ts-ignore
+  // @ts-expect-error - tRPC procedure type
   getOptimizationRecommendation: protectedProcedure
     .input(
       z.object({
@@ -186,7 +186,7 @@ export const smartCampaignRouter = router({
   /**
    * 获取绩效组的批量优化建议
    */
-  // @ts-ignore
+  // @ts-expect-error - tRPC procedure type
   getBatchOptimizationRecommendations: protectedProcedure
     .input(
       z.object({
@@ -245,7 +245,7 @@ export const smartCampaignRouter = router({
   /**
    * 执行优化决策
    */
-  // @ts-ignore
+  // @ts-expect-error - tRPC procedure type
   executeOptimization: protectedProcedure
     .input(
       z.object({
@@ -286,7 +286,7 @@ export const smartCampaignRouter = router({
   /**
    * 批量执行优化决策
    */
-  // @ts-ignore
+  // @ts-expect-error - tRPC procedure type
   executeBatchOptimization: protectedProcedure
     .input(
       z.object({
@@ -297,7 +297,7 @@ export const smartCampaignRouter = router({
         maxConcurrent: z.number().default(5),
       })
     )
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     .mutation(async ({ ctx, input }): Promise<{ summary: unknown; results: Record<string, any>[] }> => {
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
 
@@ -306,7 +306,6 @@ export const smartCampaignRouter = router({
       await verifyPerformanceGroupAccess(ctx.user.id, parseInt(performanceGroupId, 10));
 
       // 先获取优化建议
-      // @ts-ignore
       const report = await smartCampaignRouter.createCaller({} as Record<string, any>).getBatchOptimizationRecommendations({
         performanceGroupId,
         goal,

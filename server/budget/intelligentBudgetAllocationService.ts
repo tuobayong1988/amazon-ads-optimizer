@@ -243,7 +243,7 @@ export async function collectCampaignPerformanceData(
       ));
       
       const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         date: typeof d.date === 'string' ? d.date : new Date(d.date as unknown).toISOString(),
         impressions: d.impressions || 0,
         clicks: d.clicks || 0,
@@ -912,7 +912,7 @@ export async function applyBudgetAllocationSuggestions(
   errors: string[];
 }> {
   const dbInstance = await getDb();
-  // @ts-ignore
+  // @ts-expect-error - any type assertion
   if (!dbInstance) return [] as any[];
   const errors: string[] = [];
   let appliedCount = 0;
@@ -954,7 +954,7 @@ export async function applyBudgetAllocationSuggestions(
         .where(eq(campaigns.id, Number(suggestion.campaignId)));
       
       // 记录历史
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await dbInstance.insert(budgetAllocationHistory).values({
         configId: suggestion.configId,
         campaignId: suggestion.campaignId,
@@ -996,7 +996,7 @@ export async function getBudgetAllocationConfig(
   performanceGroupId: number
 ): Promise<AllocationConfig> {
   const dbInstance = await getDb();
-  // @ts-ignore
+  // @ts-expect-error - any type assertion
   if (!dbInstance) return [] as any[];
   
   const [config] = await dbInstance.select()
@@ -1031,7 +1031,7 @@ export async function updateBudgetAllocationConfig(
   updates: Partial<AllocationConfig>
 ): Promise<void> {
   const dbInstance = await getDb();
-  // @ts-ignore
+  // @ts-expect-error - any type assertion
   if (!dbInstance) return [] as any[];
   
   const [existing] = await dbInstance.select()

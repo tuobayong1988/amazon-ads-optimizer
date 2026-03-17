@@ -1861,11 +1861,11 @@ export default function AmazonApiSettings() {
                     return groups;
                   }, {} as Record<string, { accounts: typeof accounts; emptyStore: typeof accounts[0] | null }>);
 
-                  // @ts-ignore
+                  // @ts-expect-error - array method type inference
                   return Object.entries(groupedAccounts).map(([storeName, { accounts: storeAccounts, emptyStore }]) => {
                     // 如果没有实际站点，使用空店铺记录作为primaryAccount
                     const primaryAccount = storeAccounts.length > 0 
-                      // @ts-ignore
+                      // @ts-expect-error - array method type inference
                       ? (storeAccounts.find(a => a.isDefault) || storeAccounts[0])
                       : emptyStore;
                     
@@ -1874,7 +1874,7 @@ export default function AmazonApiSettings() {
                     
                     const hasMultipleMarkets = storeAccounts.length > 1;
                     const isEmptyStore = storeAccounts.length === 0;
-                    // @ts-ignore
+                    // @ts-expect-error - runtime type mismatch
                     const isAnySelected = storeAccounts.some(a => a.id === selectedAccountId) || 
                       (isEmptyStore && emptyStore && selectedAccountId === emptyStore.id);
                     

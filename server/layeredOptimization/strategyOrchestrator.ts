@@ -188,7 +188,7 @@ export function mergeStrategies(
     .filter(s => s.active)
     .sort((a: any, b: any) => {
       const priorityOrder = { primary: 0, secondary: 1, event: 2 };
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
 
@@ -210,7 +210,7 @@ export function mergeStrategies(
     throw new Error('No primary strategy defined');
   }
 
-  // @ts-ignore
+  // @ts-expect-error - array method type inference
   const primaryTemplate = strategyTemplates.find(t => t.id === primaryStrategy.templateId);
   if (!primaryTemplate) {
     throw new Error(`Primary strategy template ${primaryStrategy.templateId} not found`);
@@ -218,39 +218,39 @@ export function mergeStrategies(
 
   // 从主策略开始
   let objective: OptimizationObjective = {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     targetAcos: primaryTemplate.targetAcos,
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     minAcos: primaryTemplate.minAcos,
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     maxAcos: primaryTemplate.maxAcos,
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     bidMultiplier: primaryTemplate.bidMultiplier,
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     budgetMultiplier: primaryTemplate.budgetMultiplier,
     aggressiveness: calculateAggressiveness(primaryTemplate),
   };
 
   // 叠加次要策略和事件策略
   for (const strategy of sortedStrategies.slice(1)) {
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const template = strategyTemplates.find(t => t.id === strategy.templateId);
     if (!template) continue;
 
     const weight = strategy.weight;
 
     // 加权平均
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     objective.targetAcos = objective.targetAcos * (1 - weight) + template.targetAcos * weight;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     objective.bidMultiplier = objective.bidMultiplier * (1 - weight) + template.bidMultiplier * weight;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     objective.budgetMultiplier = objective.budgetMultiplier * (1 - weight) + template.budgetMultiplier * weight;
     
     // 扩展ACoS范围
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     objective.minAcos = Math.min(objective.minAcos, template.minAcos);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     objective.maxAcos = Math.max(objective.maxAcos, template.maxAcos);
   }
 

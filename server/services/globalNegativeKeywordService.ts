@@ -10,7 +10,7 @@
 import { getDb } from '../db';
 import { accountNegativeKeywords, InsertAccountNegativeKeyword } from '../../drizzle/schema';
 import { eq, and, sql } from 'drizzle-orm';
-// @ts-ignore
+// @ts-expect-error - runtime type mismatch
 import { log } from '../utils/logger';
 
 /**

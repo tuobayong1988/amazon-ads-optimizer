@@ -196,7 +196,7 @@ export default function BatchOperations() {
       }
 
       const items = lines.map((line: any, index: any) => {
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         const parts = line.split(',').map(p => p.trim());
         return {
           entityType: 'campaign' as const,
@@ -222,7 +222,7 @@ export default function BatchOperations() {
       }
 
       const items = lines.map((line: any, index: any) => {
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         const parts = line.split(',').map(p => p.trim());
         return {
           entityType: 'keyword' as const,

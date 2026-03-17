@@ -138,7 +138,7 @@ export async function getDualTrackStatus(accountId: number): Promise<{
 async function getApiSyncStatus(db: DbInstance, accountId: number): Promise<SyncStatus> {
   try {
     // 1. 先查询data_sync_jobs表
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [result] = await db.execute(sql`
       SELECT 
         completedAt as lastSyncAt,
@@ -167,7 +167,7 @@ async function getApiSyncStatus(db: DbInstance, accountId: number): Promise<Sync
     }
 
     // 2. 如果没有sync_jobs记录，从daily_performance表获取API数据的状态
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [perfResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as recordCount,
@@ -227,7 +227,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
       .reverse()[0];
     
     // 2. 查询daily_performance表中AMS来源的数据
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [amsDataResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as totalRecords,
@@ -312,7 +312,7 @@ async function getAmsSyncStatus(db: DbInstance, accountId: number): Promise<Sync
  */
 async function getLastConsistencyCheck(db: DbInstance, accountId: number): Promise<Date | null> {
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [result] = await db.execute(sql`
       SELECT MAX(checkTime) as lastCheck
       FROM data_consistency_checks
@@ -369,7 +369,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
 
   try {
     // 获取API数据源的记录数（dataSource为'api'或NULL）
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [apiResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as recordCount,
@@ -384,7 +384,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
     const apiLastUpdate = apiData?.lastUpdate ? new Date(apiData.lastUpdate) : null;
 
     // 获取AMS数据源的记录数
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [amsResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as recordCount,
@@ -399,7 +399,7 @@ export async function getDataSourceStats(accountId: number): Promise<{
     const amsLastUpdate = amsData?.lastUpdate ? new Date(amsData.lastUpdate) : null;
 
     // 获取总记录数
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [totalResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as recordCount,
@@ -462,7 +462,7 @@ export async function runConsistencyCheck(
 
   try {
     // 获取API来源的数据统计
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [apiResult] = await db.execute(sql`
       SELECT COUNT(*) as recordCount
       FROM daily_performance
@@ -503,7 +503,7 @@ export async function getMergedPerformanceData(
   if (!db) return [];
 
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT 
         DATE(date) as reportDate,
@@ -602,7 +602,7 @@ export async function getDataForAlgorithm(
   try {
     // 只获取历史数据（API + 已归因的AMS数据）
     // 绝对不要把"今天"的AMS转化数据嗂给算法
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT 
         DATE(date) as reportDate,
@@ -676,12 +676,12 @@ export async function getRealtimeSpendForGuard(
   try {
     // 优先从AMS缓冲表获取实时数据
     let dataSource: 'ams' | 'api' = 'api';
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     let result: Record<string, any> = null;
 
     // 尝试从AMS缓冲表获取
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       const [amsRows] = await db.execute(sql`
         SELECT 
           SUM(spend) as todaySpend,
@@ -704,7 +704,7 @@ export async function getRealtimeSpendForGuard(
 
     // 如果AMS没数据，从API数据获取
     if (!result) {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       const [apiRows] = await db.execute(sql`
         SELECT 
           SUM(spend) as todaySpend,

@@ -342,7 +342,7 @@ const [activeTab, setActiveTab] = useState("tiered");
           {accountId ? (
             <InitializationProgress 
               accountId={accountId} 
-              // @ts-ignore
+              // @ts-expect-error - array method type inference
               accountName={accounts?.find(a => a.id === accountId)?.accountName}
             />
           ) : (
@@ -358,7 +358,7 @@ const [activeTab, setActiveTab] = useState("tiered");
           {accountId ? (
             <TieredSyncProgress 
               accountId={accountId} 
-              // @ts-ignore
+              // @ts-expect-error - array method type inference
               accountName={accounts?.find(a => a.id === accountId)?.accountName}
             />
           ) : (

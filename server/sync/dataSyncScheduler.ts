@@ -565,7 +565,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
 
   try {
     const { syncAllAccounts } = await import('./unifiedSyncEngine');
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const batchResult = await syncAllAccounts(tier as unknown);
 
     schedulerStatus.tierLastRun[tier] = new Date();
@@ -812,20 +812,13 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         status: 'completed',
         startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
         completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
-        // @ts-ignore
-        spCampaigns: (result as unknown)?.spCampaigns || (result as unknown)?.campaigns || 0,
-        // @ts-ignore
-        sbCampaigns: (result as unknown)?.sbCampaigns || 0,
-        // @ts-ignore
-        sdCampaigns: (result as unknown)?.sdCampaigns || 0,
-        // @ts-ignore
-        adGroupsSynced: (result as unknown)?.adGroups || 0,
-        // @ts-ignore
-        keywordsSynced: (result as unknown)?.keywords || 0,
-        // @ts-ignore
-        targetsSynced: (result as unknown)?.targets || 0,
-        // @ts-ignore
-        performanceSynced: (result as unknown)?.performance || 0,
+        spCampaigns: (result as any)?.spCampaigns || (result as any)?.campaigns || 0,
+        sbCampaigns: (result as any)?.sbCampaigns || 0,
+        sdCampaigns: (result as any)?.sdCampaigns || 0,
+        adGroupsSynced: (result as any)?.adGroups || 0,
+        keywordsSynced: (result as any)?.keywords || 0,
+        targetsSynced: (result as any)?.targets || 0,
+        performanceSynced: (result as any)?.performance || 0,
         // v364: 修复同步任务步骤计数缺失
         totalSteps: 7,
         currentStepIndex: 7,
@@ -835,7 +828,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     }
   } catch (logErr: unknown) {
     // 日志记录失败不影响主流程，但输出完整错误信息便于排查
-    // @ts-ignore
+    // @ts-expect-error - error message access
     log.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${(logErr as Error).message}`, logErr.cause || '');
     logSyncWarn('DataSyncScheduler', `同步日志记录失败`, { accountId, error: (logErr as Error).message });
   }
@@ -1075,13 +1068,13 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     // v360: 使用12小时窗口替代每天一次
     const halfDaySlot = `${now.toISOString().slice(0, 10)}_${now.getHours() < 12 ? 'AM' : 'PM'}`;
     const lastEvolutionKey = `evolution_${schedule.accountId}_${halfDaySlot}`;
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     if (!(globalThis as unknown).__evolutionExecuted) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property assignment
       (globalThis as unknown).__evolutionExecuted = new Set();
     }
     // v360: 限制Set大小，防止内存泄漏
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const evoSet = (globalThis as unknown).__evolutionExecuted as Set<string>;
     if (evoSet.size > 200) {
       const entries = Array.from(evoSet);
@@ -1269,11 +1262,10 @@ export async function withExponentialBackoff<T>(
     try {
       return await fn();
     } catch (error: unknown) {
-      // @ts-ignore
       lastError = error;
       
       // 如果是429错误，使用指数退避
-      // @ts-ignore
+      // @ts-expect-error - error message access
       if (error.response?.status === 429 || (error as Error).message?.includes('429')) {
         const delay = baseDelayMs * Math.pow(2, attempt);
         log.info(`[DataSyncScheduler] 遇到速率限制，等待 ${delay}ms 后重试 (尝试 ${attempt + 1}/${maxRetries})`);
@@ -1505,12 +1497,12 @@ export async function recordModuleExecution(targetId: number, moduleName: string
       // 先读取当前的模块执行时间JSON，然后更新对应模块
       const rows = await dbInstance.execute(sql`SELECT module_execution_times FROM performance_groups WHERE id = ${targetId}`);
       let executionTimes: Record<string, string> = {};
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const rowData = Array.isArray(rows) ? rows[0] : (rows as unknown)?.rows?.[0];
       if (rowData) {
         const rawArr = Array.isArray(rowData) ? rowData : [rowData];
         for (const r of rawArr) {
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           const met = (r as unknown).module_execution_times;
           if (met) {
             try {
@@ -1596,7 +1588,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           const resultRows = Array.isArray(rows) ? rows[0] : rows;
           const dataArr = Array.isArray(resultRows) ? resultRows : [resultRows];
           for (const row of (dataArr as any[])) {
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             const met = (row as unknown)?.module_execution_times;
             if (met) {
               const executionTimes = JSON.parse(met);

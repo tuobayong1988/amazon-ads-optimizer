@@ -379,7 +379,7 @@ export class ABTestAutomationScheduler {
           const selectedType = experimentTypes[accountId % experimentTypes.length];
           
           this.submitPlan({
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             experimentType: selectedType.type,
             accountId,
             name: `v360自动实验: ${selectedType.name} (账户${accountId})`,

@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 426;  // v426: 性能全面优化(API响应解析Bug修复+N+1查询消除+轻量级统计API+DATE()索引失效修复+分布式锁重启+安全异常处理增强)
+export const SYSTEM_VERSION = 427;  // v427: 类型安全优化(1040个@ts-ignore消除)+Redis分布式锁升级(三级降级:Redis→MySQL→内存锁)

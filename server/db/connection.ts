@@ -139,7 +139,7 @@ export async function getDb() {
         _poolStats.created++;
       });
       
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       _db = drizzle(_pool as unknown, { casing: 'camelCase' });
       _lastHealthCheck = Date.now();
       _lastPoolRebuild = Date.now();

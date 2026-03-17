@@ -317,7 +317,7 @@ async function getPerformanceWindow(
     conditions.push(eq(dailyPerformance.performanceGroupId, event.performanceGroupId));
   }
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const [result] = await db.select({
     totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
     totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
@@ -471,7 +471,7 @@ export async function getTrendAnalysis(params: {
   for (const metric of metricsToAnalyze) {
     const dataPoints = enrichedData.map(d => ({
       date: d.date,
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       value: Math.round((d as unknown)[metric] * 100) / 100,
     }));
     
@@ -623,7 +623,7 @@ export async function detectAnomalies(params: {
   };
   
   for (const metric of metricsToCheck) {
-    // @ts-ignore
+    // @ts-expect-error - number type assertion
     const values = enrichedData.map(d => (d as unknown)[metric] as number);
     
     // 计算均值和标准差
@@ -637,7 +637,7 @@ export async function detectAnomalies(params: {
     const threshold = sensitivity; // 1σ, 2σ, 或 3σ
     
     for (let i = 0; i < enrichedData.length; i++) {
-      // @ts-ignore
+      // @ts-expect-error - number type assertion
       const value = (enrichedData[i] as unknown)[metric] as number;
       const zScore = Math.abs((value - mean) / stdDev);
       
@@ -674,9 +674,9 @@ export async function detectAnomalies(params: {
   // 按严重程度和日期排序
   const severityOrder = { critical: 0, warning: 1, info: 2 };
   return anomalies.sort((a: any, b: any) => {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (severityOrder[a.severity] !== severityOrder[b.severity]) {
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       return severityOrder[a.severity] - severityOrder[b.severity];
     }
     return b.date.localeCompare(a.date);
@@ -711,7 +711,7 @@ async function findPossibleCauses(
     conditions.push(eq(optimizationEvents.performanceGroupId, performanceGroupId));
   }
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const events = await db.select()
     .from(optimizationEvents)
     .where(and(...conditions))

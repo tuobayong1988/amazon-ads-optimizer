@@ -370,7 +370,7 @@ export class TieredSyncService {
     const newStatus = update.status || progress.status;
     // 确保状态是有效的枚举值
     const validStatuses = ['pending', 'submitted', 'processing', 'completed', 'failed', 'expired'] as const;
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const finalStatus = validStatuses.includes(newStatus as unknown) ? newStatus as typeof validStatuses[number] : 'pending';
     
     await db

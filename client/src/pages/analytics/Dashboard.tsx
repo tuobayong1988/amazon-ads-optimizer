@@ -371,7 +371,7 @@ const [isRefreshing, setIsRefreshing] = useState(false);
   // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
   const accountId = selectedAccountId;
 // v103: Get current account's marketplace for timezone-aware date calculation
-  // @ts-ignore
+  // @ts-expect-error - array method type inference
   const currentMarketplace = accounts?.find(a => a.id === accountId)?.marketplace || 'US';
 
   // ✅ KPI日期范围状态 - 与日期选择器联动 (moved before usage)

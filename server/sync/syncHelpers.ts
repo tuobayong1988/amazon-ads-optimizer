@@ -53,7 +53,7 @@ export async function hasRecentSyncedOptimization(
     
     const result = await db.select({ id: optimizationEvents.id })
       .from(optimizationEvents)
-      // @ts-ignore
+      // @ts-expect-error - Drizzle dynamic where conditions
       .where(and(...conditions))
       .limit(1);
     

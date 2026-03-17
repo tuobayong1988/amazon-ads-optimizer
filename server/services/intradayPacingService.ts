@@ -181,7 +181,7 @@ export async function checkAllCampaignsPacing(
   
   try {
     // 获取所有启用的Campaign
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT campaignId, dailyBudget
       FROM campaigns
@@ -272,7 +272,7 @@ async function getCampaignBudget(
   if (!db) return 0;
   
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT dailyBudget
       FROM campaigns

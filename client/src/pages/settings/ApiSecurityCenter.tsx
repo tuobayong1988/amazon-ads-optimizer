@@ -116,7 +116,7 @@ export default function ApiSecurityCenter() {
   // 统计数据
   const stats = {
     totalOperations: operationLogs?.total || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     highRiskOperations: operationLogs?.logs.filter(l => l.riskLevel === 'high' || l.riskLevel === 'critical').length || 0,
     activeAlerts: spendAlerts?.filter(a => !a.acknowledged).length || 0,
     pausedEntities: autoPauseRecords?.filter(r => !r.isResumed).length || 0,

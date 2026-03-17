@@ -80,7 +80,7 @@ async function getOrCreateEpisodeId(
   // 查找最近的Episode
   let lastLog;
   if (keywordId) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const results = await db.select({
       episodeId: rlTrainingLogs.episodeId,
       stepIndex: rlTrainingLogs.stepIndex,
@@ -95,7 +95,7 @@ async function getOrCreateEpisodeId(
       .limit(1);
     lastLog = results[0];
   } else if (targetId) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const results = await db.select({
       episodeId: rlTrainingLogs.episodeId,
       stepIndex: rlTrainingLogs.stepIndex,
@@ -168,7 +168,7 @@ export async function recordBidAction(action: BidAction): Promise<void> {
     );
     
     // 记录State-Action对
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(rlTrainingLogs).values({
       accountId: action.accountId,
       keywordId: action.keywordId || null,
@@ -233,7 +233,7 @@ async function captureStateSnapshot(
   
   // ===== 策略1: 从关键词/商品定向表直接获取实体级别数据（最精确） =====
   if (keywordId) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const kwResults = await db.select({
       bid: keywords.bid,
       impressions: keywords.impressions,
@@ -254,7 +254,7 @@ async function captureStateSnapshot(
       dataSource = 'keyword_entity';
     }
   } else if (targetId) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const tgtResults = await db.select({
       bid: productTargets.bid,
       impressions: productTargets.impressions,
@@ -281,7 +281,7 @@ async function captureStateSnapshot(
     const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
     
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const perfResults = await db.select({
       totalImpressions: sql<number>`SUM(impressions)`,
       totalClicks: sql<number>`SUM(clicks)`,
@@ -307,12 +307,12 @@ async function captureStateSnapshot(
     // 如果策略1没有获取到bid，尝试从关键词/定向表获取
     if (currentBid === 0) {
       if (keywordId) {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         const kw = await db.select({ bid: keywords.bid }).from(keywords)
           .where(eq(keywords.id, keywordId)).limit(1);
         currentBid = kw[0] ? Number(kw[0].bid) : 0;
       } else if (targetId) {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         const tgt = await db.select({ bid: productTargets.bid }).from(productTargets)
           .where(eq(productTargets.id, targetId)).limit(1);
         currentBid = tgt[0] ? Number(tgt[0].bid) : 0;
@@ -325,7 +325,7 @@ async function captureStateSnapshot(
     const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
     const today = new Date().toISOString().split('T')[0];
     
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const perfResults = await db.select({
       totalImpressions: sql<number>`SUM(impressions)`,
       totalClicks: sql<number>`SUM(clicks)`,
@@ -867,7 +867,7 @@ export async function recordBidPerformanceHistory(params: {
     const revenue = sales;
     const profit = sales - spend;
     
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(bidPerformanceHistory).values({
       accountId: params.accountId,
       campaignId: String(params.campaignId),

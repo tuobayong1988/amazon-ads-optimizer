@@ -320,9 +320,9 @@ export async function generateNegativeKeywordSuggestions(
   // 按优先级和花费排序
   suggestions.sort((a: any, b: any) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     }
     return b.totalSpend - a.totalSpend;
@@ -348,7 +348,7 @@ export async function executeNegativeKeywords(
   
   for (const negative of negatives) {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(negativeKeywords).values({
         accountId,
         campaignId,

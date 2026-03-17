@@ -79,7 +79,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 418,
     description: 'v418: [ID体系一致性重构 + 集中式ID解析 + API验证层] — (1)P0-BUG修复: 修复SD匹配目标报告错误的reportTypeId(sdMatchedTarget→sdTargeting), SB广告位报告配置错误(reportTypeId+groupBy), 搜索词收割harvestAmazonAdGroupId未赋值, 否定关键词campaignId回退使用内部ID (2)P0-模式重构: keywords/productTargets/searchTerms/negativeKeywords等11张表的adGroupId(varchar)重命名为internalAdGroupId(int),统一ID类型消除隐式类型转换 (3)P1-集中式ID解析服务: 新增EntityIdResolver统一处理内部ID↔Amazon ID转换,带缓存和批量解析 (4)P1-API参数预检验证层: 新增AmazonApiValidator基于官方Postman集合验证reportTypeId/groupBy/columns/ID格式',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization', 'schema', 'utils'],
     correctionActions: [
       'ALTER TABLE keywords CHANGE COLUMN ad_group_id internal_ad_group_id INT',
@@ -91,112 +91,112 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 417,
     description: 'v417: [信息孤岛审计与修复 + 架构优化] — (1)P0-实现缺失API: 新增amazonApi.getAllAuthStatus和amazonApi.refreshToken两个tRPC路由,修复前端AmazonApiAuthStatus页面的断裂链路 (2)P0-启动effectTrackingScheduler: 在系统启动时调用startEffectTrackingScheduler(每1小时),并在deployLifecycleManager中添加优雅停止逻辑 (3)P1-清理死代码: 删除services/effectTrackingScheduler.ts(664行)、services/amazonApiTypes.ts(53行)、sync/performanceSyncOptimizer.ts(252行) (4)P2-架构优化: sync目录整合(services/sync→sync/)、bidOptimizer.ts拆分为5个功能模块、前端pages按功能域重组到12个子目录',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization', 'frontend', 'infrastructure'],
     correctionActions: [],
   },
   {
     version: 416,
     description: 'v416: [后端代码结构重构] — (1)P0-server根目录重组: 将114个文件按功能域归类到28个子目录(api/、sync/、scheduler/、optimization/、budget/、analytics/、system/、config/、automation/等) (2)P0-更新601个import路径: 自动化脚本处理所有静态import和动态import的路径更新 (3)P1-清理70+顶层杂散文件: 历史报告/调试脚本/图表归档到docs/archive/ (4)P2-项目文档体系: 新增docs/development/下架构说明、模块说明、开发指南',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['infrastructure'],
     correctionActions: [],
   },
   {
     version: 415,
     description: 'v415: [建议竞价同步+数据同步全面审计] — (1)P0-新增SP建议竞价同步: 在syncSp.ts中新增syncSpBidRecommendations方法,按adGroup分组批量调用Amazon SP Bid Recommendations API,将suggestedBid写入keywords和productTargets表 (2)P0-新增SYNC_STEP: sp_bid_recommendations步骤(full tier),在每次完整同步时自动获取建议竞价 (3)P1-前端展示建议竞价: 在AdGroupDetail的关键词和商品定位表格中添加建议竞价列,黄色表示建议竞价高于当前出价,绿色表示低于或等于 (4)P2-数据同步模块全面审计: 确认所有31个SYNC_STEPS覆盖SP/SB/SD所有层级',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'frontend'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 414,
     description: 'v414: [源码干净构建] — (1)P0-移除外挂BullMQ补丁: 清除v484-v490的所有运行时注入代码,恢复纯净源码架构 (2)P0-修SB adGroupId映射: 修复42849个SB keywords和3498个product targets的adGroupId今Amazon ID映射到内部DB ID (3)P1-消除Worker队列冲突: 移除v490独立的ads-account-sync-queue,解决与原始队列的Ay锁冲突问题',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 410,
     description: 'v410: [调度器全局并发控制] — (1)P0-数据库级别并发检查: executeUnifiedSync在执行前查询data_sync_jobs表中是否有running状态且心跳正常(近10分钟内更新)的任务,如果存在则跳过本次调度 (2)P0-解决手动/自动同步冲突: 之前手动触发的全量同步不会设置tierRunningState内存变量,导致调度器仍然会创建新任务,现在通过数据库查询彻底解决 (3)P1-避免API限流: 多个同步任务并发请求Amazon API会触发429/425限流,单任务运行确保最优API利用率 (4)P2-容错回退: 数据库检查失败时回退到内存级别tierRunningState检查,不阻塞正常同步',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 412,
     description: 'v412: [字段映射修复] — 修复Drizzle mysql2返回格式[rows,fields]的解析问题,确保并发检查和任务接管日志正确显示任务ID、账户、进度等信息',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 411,
     description: 'v411: [三项优化] — (1)P0-Stale cleanup阈值调优: 启动清理30分钟→10分钟,定期清理60分钟→15分钟,与v410并发检查窗口一致,避免僵尸任务长时间阻塞调度器 (2)P0-任务接管机制: 服务器重启后新实例读取中断任务的断点信息,对于步骤较多(>=10步)且已完成超过3步的任务,触发full同步接管恢复 (3)P1-并发控制日志增强: 添加跳过计数器、心跳时间、进度百分比,恢复执行时输出之前跳过次数',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 410,
     description: 'v410: [调度器全局并发控制] — 数据库级别检查running任务,避免调度器在全量同步运行时创建新任务导致API限流',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 409,
     description: 'v409: [Startup/Shutdown清理机制修复] — (1)P0-Shutdown不再无条件杀死running同步任务: 之前SIGTERM时无条件将所有running任务标记为failed,导致正常运行的同步被误杀;现在只记录日志,由startup cleanup基于updated_at阈值处理 (2)P0-Startup cleanup添加5分钟阈值: 之前无条件清理所有running任务,现在只清理updated_at超过5分钟的任务(心跳间隔3分钟,5分钟无更新才判定为卡死) (3)P1-保护心跳正常的任务: startup时如果发现心跳正常的running任务,记录日志但不清理',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 408,
     description: 'v408: [心跳机制+僵尸清理修复] — (1)P0-心跳机制: 步骤执行期间每3分钟通过onProgress更新updated_at,防止长步骤(如当日绩效需等待Amazon报告生成15分钟)被误判为卡死 (2)P0-僵尸判定基准修复: cleanupStaleJobs从startedAt改为updated_at判断,只有长时间无更新才判定为卡死(而非启动时间超过阈值) (3)P1-清理阈值调整: 启动清理30分钟+定期清理60分钟(从startedAt的10/30分钟恢复为updated_at的合理阈值) (4)P2-异常安全: catch块中也清除心跳定时器防止内存泄漏',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 407,
     description: 'v407: [前后端进度一致性修复] — (1)P0-API增强: getSyncJobById返回currentStepIndex和totalSteps,前端可精确显示第X/Y步 (2)P0-前端进度修复: 整体进度条从站点级计算改为综合步骤级计算,直接使用后端progressPercent (3)P0-动态步骤进度条: 从硬编码17格改为根据totalSteps动态生成,支持31步全量同步 (4)P1-步骤名称显示: 直接显示后端返回的步骤名,不再依赖硬编码映射表',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'frontend'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 406,
     description: 'v406: [同步引擎全面修复] — (1)P0-进度更新await: syncAccount中onProgress回调添加await,确保DB写入完成后再继续,修复前端进度永远卡在初始状态的bug (2)P0-手动同步优先级: 新增isManual标记,手动全量同步不再被自动同步阻塞,强制释放自动同步锁 (3)P0-nightly PST时区: 夜间同步从服务器本地时间改为PST凌晨2点(UTC 10:00) (4)P1-僵尸任务清理: cleanupStaleJobs阈值从30分钟缩短到10分钟 (5)P1-锁释放修复: syncAll路由中锁释放移入finally块,确保整个同步期间持有锁 (6)P1-Job状态初始化: 同步启动时立即将job状态更新为running',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'scheduler'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 405,
     description: 'v405: [Auto Scaling稳定性+同步SIGTERM保护] — (1)P0-Auto Scaling修复: Scale Down Cooldown从360s增加到900s,评估周期从1个(5min)增加到3个(15min),防止同步期间实例被终止 (2)P0-SIGTERM保护: syncAccount步骤循环中检查isShuttingDown,提前保存进度并优雅退出 (3)P1-部署后同步降级: deployLifecycleManager步骤3.5d从full层级改为high层级,避免CPU飙升触发伸缩 (4)P2-ebextensions配置: 新增04_autoscaling.config,固化Cooldown和滚动更新策略',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'infrastructure'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 404,
     description: 'v404: [统一同步代码路径] — (1)P0-手动同步统一: amazonApi.syncAll路由从500+行硬编码重构为调用unifiedSyncEngine.triggerManualFullSync,手动/自动同步共用同一代码路径 (2)P0-全量同步覆盖所有步骤: 手动全量同步现在执行所有SYNC_STEPS(含nightly层级),确保keyword_performance/target_performance/ad_group_performance不被遗漏 (3)P0-specificSteps修复: syncAccount中specificSteps现在从SYNC_STEPS全集过滤而非getStepsForTier结果,支持跨层级执行',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'api'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 403,
     description: 'v403: [数据隔离安全加固+nightly同步层级+前端优化+品牌重命名] — (1)P0-数据隔离: smartCampaign路由新增4个verifyAccountAccess中间件,堆塞越权访问漏洞 (2)P1-承载能力: EB环境变量DB_POOL_SIZE=100/NODE_OPTIONS=3072MB/MAX_CONCURRENT_ACCOUNTS=15 (3)P2-nightly同步层级: 将keyword_performance/target_performance/ad_group_performance从full迁移到nightly层级,每日凌晨2点执行,超时4小时,解决full层级超时问题 (4)P3-策略管理页面: 增加isError状态处理和重新加载按钮 (5)P3-品牌重命名: 全局替换Amazon Ads Optimizer为PPCOPT,移除页脚版权信息',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'frontend', 'security', 'infrastructure'],
     correctionActions: ['revalidate_sync_performance'],
   },
   {
     version: 402,
     description: 'v402: [后端分页+同步分解+连接池+前端优化] \u2014 (1)P1-后端分页API: campaigns.listPaginated新端点,支持服务端分页/排序/筛选/搜索,返回状态统计和类型统计 (2)P1-前端Campaigns页面改造: 切换到服务端分页模式,高级筛选时回退到全量模式 (3)P2-同步子任务分解: syncAll新增layers参数支持按层执行,Layer级别错误隔离,失败不影响后续层 (4)P3-连接池优化: DB_POOL_SIZE默认值从25提升到100 (5)P3-前端代码分割: SmartInsights/QuickActions懒加载,导出功能动态import,Campaigns chunk减少7%',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'frontend', 'infrastructure'],
     correctionActions: ['revalidate_sync_performance'],
   },
@@ -479,9 +479,9 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 221,
     description: 'v221: 全面系统优化 — 修复分层同步锁Bug(层级感知锁防止medium层被跳过), 修复日志拼接[object Object]Bug, 前端路由自动账户选择, 审计日志记录优化操作, optimizationTargetEngine确认同步全覆盖, 数据新鲜度检查机制(防止基于旧数据优化), 前端乐观UI更新, 内存保护与僵尸条目清理',
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     affectedModules: ['sync', 'bidOptimization', 'budgetOptimization', 'placementOptimization', 'negativeKeywords', 'searchTermHarvesting'] as unknown,
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     correctionActions: ['reoptimize_all'] as unknown,
   },
   {
@@ -565,7 +565,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 251,
     description: 'v251: [算法增强] — (1)NextGen规则引擎使用真实AOV(groupAvgAov)替代currentBid*30的粗暴假设，解决品类偏见问题 (2)否定词决策引入花费/客单价比率，解决高客单价产品的“假阳性”否定问题 (3)引入归因延迟容忍度(1.5x)避免误杀正在归因中的流量 (4)前端数据概览卡片布局修复',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['bid', 'negative_keyword'],
     correctionActions: ['rerun_optimization'],
   },
@@ -596,7 +596,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 256,
     description: 'v256: [全链路审计修复] — (1)RL智能双通道回填: 移除3h下限，实体级数据即时回填+扩展窗口到168h，解决重启冷启动瓶颈 (2)自动冲突解决引擎: 批量解决73K+积压pending冲突 (3)高级算法激活阈值优化: UCB 5→3, Sigmoid 10→5, CQL 30→15 (4)recordsSynced字段映射修复 (5)否定关键词同步提升到high层(30min→10min)',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'bid', 'rl'],
     correctionActions: ['rerun_optimization'],
   },
@@ -711,119 +711,119 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 340,
     description: 'v340: [同步健康监控+Token竞态修复+大账户保护] — (1)P0-syncAll详细日志: 为syncAll方法增加统一runStep诊断日志系统,记录每个同步步骤的开始/结束/耗时/记录数/异常,同步完成后输出汇总报告 (2)P0-手动触发同步API: 新增POST /api/ops/force-sync端点,支持指定账户ID和同步层级(full/fast/minimal)手动触发全量同步 (3)P0-Token刷新竞态修复: 实现全局级别Refresh Token刷新锁,解决多个API客户端实例共享同一Refresh Token时的并发刷新冲突,三级Token获取路径(实例缓存→全局锁缓存→全局锁并发等待→实际刷新) (4)P1-同步健康监控: 当账户同步完成但totalSynced=0时自动触发critical级别告警,写入anomaly_alert_logs表 (5)P1-大账户自适应保护: 超过1000个广告活动的账户自动启用保护模式(步骤间额外延迟3秒+单账户同步45分钟超时保护)',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'api', 'monitoring'],
     correctionActions: ['resync_data'],
   },
   {
     version: 341,
     description: 'v341: [401自动重刷新Token修复] — (1)P0-401自动重刷新Token并重试: 当Amazon API返回401 Unauthorized时,自动清除实例级和全局级Token缓存,强制重新执行doRefreshToken()获取新Token,然后重试原始请求(最多1次),防止无限循环 (2)P0-解决LERUCCI店铺同步失败根因: 账户90027/90026/90025的accessToken为NULL导致所有API请求返回401,但旧版本不会重试刷新Token,现在收到01后会自动尝试刷新并重试',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['api', 'sync'],
     correctionActions: ['resync_data'],
   },
   {
     version: 342,
     description: 'v342: [OAuth授权凭证保存机制重大修复] — (1)P0-后端回调直接保存凭证: amazonAuthCallback.ts获取新refresh_token后直接更新数据库中所有匹配的账户凭证,不再依赖前端中转 (2)P0-修复前端clientSecret空字符串缺陷: 前端processCallback中clientSecret硬编码为空字符串导致saveMultipleProfiles验证失败,新refresh_token从未保存到数据库,这是账户90027持续401的根本原因 (3)P0-服务端凭证回退: saveMultipleProfiles和saveCredentials支持__USE_SERVER_SECRET__标记,自动使用服务端环境变量中的clientId/clientSecret (4)P0-保护性数据库更新: saveAmazonApiCredentials不再用空值覆盖已有的有效凭证 (5)P1-共享Token批量更新: 后端回调自动更新所有使用相同clientId的账户的refresh_token (6)P1-回调后自动触发同步: 凭证更新后自动触发受影响账户的立即同步',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['auth', 'api', 'sync', 'db'],
     correctionActions: ['resync_data'],
   },
   {
     version: 343,
     description: 'v343: [授权模块智能去重修复] — (1)P0-后端回调profile智能去重: 对于同一国家的多个profile(seller/vendor),优先保留已在系统中存在的profile,跳过未知的profile,防止创建重复站点 (2)P0-前端授权回调智能分流: 后端已保存凭证(backendSaved>0)时,前端不再调用saveMultipleProfiles,彻底消除刷新授权时的重复创建风险 (3)P0-saveMultipleProfiles去重保护: 增加isRefreshAuth参数和同店铺+同国家重复检查,即使被调用也不会创建重复站点 (4)P1-accountType信息传递: profiles数据中增加accountType字段(seller/vendor/agency),用于智能筛选',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['auth', 'api'],
     correctionActions: ['resync_data'],
   },
   {
     version: 344,
     description: 'v344: [P0冷启动同步天数修复 + P1竞价日志表修复] — (1)P0-coldStartService.executeFullSync修复: syncAll()调用时强制传入performanceDays=90天,之前未传参数导致默认只同步14天绩效数据 (2)P0-移除syncPerformanceOnly硬编码限制: 之前硬编码days>30?30:days导致最多只同步30天 (3)P1-bidding_logs表结构修复: 添加缺失的algorithm_used列,更新logTargetType和actionType枚举值 (4)P1-创建cold_start_logs表: 之前表不存在导致冷启动日志记录失败 (5)P1-amazon_api_credentials表添加last_cold_start_version和last_cold_start_at列',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'bidding', 'cold_start'],
     correctionActions: ['resync_data', 'cold_start'],
   },
   {
     version: 355,
     description: 'v355: [pending重试SQL修复 + searchTermHarvester ID修复 + 内存优化] — (1)P0-pending重试SQL列名修复: campaigns表查询中campaign_id(下划线)改为campaignId(驼峰),修复SELECT和结果引用三处错误,解决pending keyword_create重试时无法查找Amazon Campaign ID导致重试失败 (2)P1-searchTermHarvester ID混用修复: getSearchTermsByCampaignId传入sourceCampaign.id(本地ID)改为sourceCampaign.campaignId(Amazon ID),解决搜索词收割无法查询到search_terms数据导致收割候选为空 (3)P2-内存优化-bundle瘦身: build-server.js排除vite/rollup/babel/tailwindcss等构建时依赖+开启minify压缩,bundle体14.59MB降至4.23MB(减少71%) (4)P2-内存优化-heapUtilization修复: 使用heapUsed/max-old-space-size(1400MB)替代heapUsed/heapTotal,消除V8动态收缩heapTotal导致的虚假高内存使用率告警(97%→实际约7-15%)',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 354,
     description: 'v354: [budget_adjustment修复 + placement_adjust激活 + SB/SBV前置过滤] — (1)P0-budget_adjustment ID不匹配修复: aggregatePerformanceData传入campaign.id(本地自增ID)改为campaign.campaignId(Amazon ID),解决daily_performance查询永远匹配不到数据导致模块完全休眠 (2)P0-CampaignPerformanceData/BudgetAllocationSuggestion增加amazonCampaignId字段,修复整个ID链路(campaigns.find匹配+db.updateCampaign+scheduleBudgetVerification) (3)P1-placement_adjust阈值修复: generatePlacementSuggestions过滤阈值从>5降低为>0,解决confidence=0.6时maxDeltaPercent=5但严格大于5导致中等置信度建议永远被过滤 (4)P1-analyzePlacementOptimization中的needsAdjustment和adjustedCount阈值同步修复 (5)P2-v310 pending重试路径增加SB/SD campaignType前置过滤,解决V351过滤被绕过导致244条SB pending记录反复重试失败 (6)P2-V351 SB/SD过滤增加optimization_logs记录(skipped_unsupported_campaign_type),避免静默跳过无法追踪',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 353,
     description: 'v353: [搜索词收割优化 + 休眠模块诊断 + search_terms去重修复] — (1)P0-search_terms去重key修复: existingMap从buildExistingKey使用本地campaign.id改为Amazon campaignId,解决去重失效导致重复INSERT (2)P0-品牌词前置过滤: 在CREATE_KEYWORD决策后立即检查品牌词,避免品牌词通过API创建被拒绝导致反复重试 (3)P0-PT广告组前置检查: 在campaign循环开头预加载PT状态,避免在API同步阶段才发现skipped_pt_adgroup (4)P1-去重窗口从7天扩展到30天: 进一步消除already_exists重复创建 (5)P1-action_type映射修复: brand_protect_skip/exploration_protect_skip等不再被错误归类为keyword_create (6)P1-去重查询覆盖新action_type: 包含search_term_brand_protect等新类型 (7)P2-placement诊断日志增强: 追踪建议生成和过滤原因 (8)P2-budget诊断日志增强: 追踪建议生成和应用统计',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 352,
     description: 'v352: [数据同步架构重构 - 精细化分账户/分广告类型/分步骤串行化] — (1)P0-报告请求串行化: SP→SB→SD从并行Promise.all改为串行执行,每种广告类型间加3秒延迟,大幅降低API限流风险 (2)P0-智能账户交错排序: 同一品牌(userId)不同站点账户分散到不同批次,避免共享API凭证的账户同时发起请求 (3)P0-账户间串行+5秒延迟: 替代旧的并行批次执行,确保单个账户完成后再开始下一个 (4)P1-并发控制降级: MAX_CONCURRENT_ACCOUNTS从3降为2 (5)P1-优化指令同步增强: 账号间3秒延迟+任务类型间1秒延迟 (6)P1-syncAll步骤间1秒延迟: 降低API调用密度',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization'],
     correctionActions: ['resync_data'],
   },
   {
     version: 351,
     description: 'v351: [P1分时竞价灵敏度重写 + bidding_logs修复 + 永久失败标记增强 + SB/SD数据保留期处理] — (1)P1-分时竞价算法灵敏度彻底重写: 三层级联放大(3x偏差放大+最小偏差保证±0.05+时段特征增强),解决95.6%规则为1.00的根因 (2)P1-分时规则24h自动重算: 替换旧算法生成的无效规则 (3)P1-分时执行阈值降低: $0.01→$0.005+2%双重判断 (4)P1-dayparting recordModuleExecution修复: dayparting_adjustment使用executeAllEnabledTargets但遗漏recordModuleExecution调用 (5)P1-bidding_logs原生SQL列名修复: snake_case→camelCase匹配Drizzle schema (6)P1-SB/SD关键词创建过滤: 阻止对SB/SD广告活动的无效API调用 (7)P1-permanently_failed标记增强: 移除localKeywordId前提条件,覆盖所有失败记录 (8)P1-SB/SD数据保留期自动处理: startDate自动clamp到保留期范围内 (9)P2-placement诊断日志增强',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['dayparting', 'bid', 'sync', 'optimization'],
     correctionActions: ['reset_dayparting_rules', 'rerun_optimization'],
   },
   {
     version: 349,
     description: 'v349: [P0分时竞价修复 + SB搜索词报告修复 + report_jobs表创建 + 诊断增强] — (1)P0-分时竞价停滞修复: dayparting_adjustment升级为关键任务,防止因内存压力被跳过导致分时策略完全停滞 (2)P1-SB搜索词报告400修复: 移除searchTerm groupBy中不允许的campaignStatus过滤器 (3)P1-report_jobs表创建: schema中定义但从未在数据库中创建,导致21个Failed query错误 (4)P2-分时竞价诊断日志: 添加campaigns循环中的详细跳过原因统计',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync', 'db'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 348,
     description: 'v348: [P0凭证解密修复 + P0构建修复 + P1报告诊断增强] — (1)P0-凭证解密修复: discoverSyncableAccounts()直接JOIN查询绕过getAmazonApiCredential()的safeDecrypt(),V345加密凭证后clientSecret和refreshToken以enc:v1:格式发送给Amazon OAuth导致全部账户Token刷新401失败 (2)P0-构建修复: V347的config undefined防护代码未被编译到dist/index.js,导致拦截器崩溃 (3)P1-报告错误诊断增强: SP/SB/SD报告请求失败时记录完整的status/data/headers/requestBody信息',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'build'],
     correctionActions: ['resync_data'],
   },
   {
     version: 347,
     description: 'v347: [P0分时竞价修复 + 内存检查修复 + 优化日志修复] — (1)P0-缺失表创建: keyword_placement_hourly_performance和multi_dim_combo_analysis表从未在数据库中创建,导致分时竞价完全瘫痪 (2)P0-performanceGroupId修复: getOptimizationTargetConfig中未赋值导致所有optimization_logs查询失败(否词去重/搜索词去重/pending重试全部失效) (3)P0-内存检查逻辑修复: 从heapUsed/heapTotal百分比改为RSS绝对值(MB)阈值,解决内存实际只用102MB却报告89%导致任务被跳过 (4)P1-anomaly_alert_logs修复: INSERT全参数化+message列扩展为MEDIUMTEXT (5)P1-cold_start_logs缺失列补全',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'sync', 'db'],
     correctionActions: ['rerun_optimization'],
   },
   {
     version: 426,
     description: 'v426: [性能全面优化+分布式锁重启+安全增强] — (1)P0-API响应解析Bug修复: updateKeywordBids/updateKeywordStatus/updateProductTargetBids/updateTargetStatus/updateSpAdGroupStatus五个函数修复v3 API error对象的index字段解析,消除“假失败”问题 (2)P0-cleanupExpiredDaypartingBids提升为纠错扫描第1步+独立30分钟定时任务 (3)P1-N+1查询消除: adGroupSync/searchTermSync/negativeKeywordSync全面重写,预加载Map+批量insert (4)P1-绩效数据精度统一: toFixed(2)/toFixed(4)一致化 (5)P1-数据库查询优化: analytics.ts消除DATE()索引失效+合并6次COUNT为1次+campaigns.ts添加accountId过滤 (6)P1-轻量级API: 新增campaign.statusCounts和campaign.listNamesOnly端点,前端6处替换为轻量API (7)P1-keyword路由N+1修复: batchUpdateBid/batchUpdateStatus批量化 (8)P2-安全异常处理增强: 熔断检查异常改为安全拒绝,风险评估异常改为默认红色 (9)P2-SB否定关键词匹配修复: 添加internalAdGroupId条件 (10)P3-分布式锁重启: 基于sync_locks表的混合锁模式,替代GET_LOCK不占用连接池 (11)P3-同步数据校验摘要日志',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization', 'correction', 'db', 'api', 'frontend'],
     correctionActions: ['rerun_correction_scan'],
   },
   {
     version: 425,
     description: 'v425: [同步失败全面修复+同步锁机制重构+手动同步最高优先级] — (1)P0-同步锁机制重构: 手动同步最高优先级,任何时候触发都能立即执行,不被自动同步阻塞 (2)P0-syncIdempotencyService新增forceAcquireSyncLock强制获取锁 (3)P0-unifiedSyncEngine同层级/full层锁冲突时手动同步强制释放 (4)P0-dataSyncScheduler.triggerManualSync添加幂等锁保护 (5)P1-纠错服务增强: retryFailedBidAdjustments修复成功判断逻辑(itemResults逐条判断) (6)P1-新增cleanupExpiredDaypartingBids: 超过24h的dayparting_bid失败标记为superseded (7)P1-超过7天的失败事件标记为permanently_failed (8)P1-daypartingExecutor重试增强: 从1次增加到3次指数退避 (9)P1-amazonApiHelper Amazon ID缺失容错: 区分可重试和不可重试,不可重试标记为not_applicable (10)P1-riskActionEngine同步健康度优化: 排除superseded/permanently_failed,失败率>5%才触发P0告警',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['sync', 'optimization', 'correction'],
     correctionActions: ['rerun_correction_scan'],
   },
   {
     version: 346,
     description: 'v346: [P2全面优化] — (1)除零防护加固: bidOptimizer中15+处除法操作添加安全检查 (2)竞态条件防护: 新增AsyncMutex进程级互斥锁工具 (3)内存泄漏修复: marketplaceCache添加TTL+容量上限+定时清理 (4)SQL注入加固: auditLogService/inviteCodeService/marginalBenefitBatchService参数化改造 (5)空catch块修复: 8处空catch添加结构化日志 (6)any类型收窄: bidOptimizer和optimizationTargetEngine中10+处as any消除 (7)归档代码清理: 删除_archived_v149(103文件/1.2MB) (8)日志统一: 25+文件16+处console迁移到结构化日志',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['optimization', 'security', 'sync', 'logging'],
     correctionActions: [],
   },
   {
     version: 345,
     description: 'v345: [P0安全加固 + P1性能优化 + P2代码质量] — (1)P0-凭证加密存储: 新增CryptoService(AES-256-GCM)加解密服务,clientSecret和refreshToken在数据库中加密存储,读取时自动解密,向后兼容明文数据 (2)P0-JWT密钥安全: 移除硬编码default-secret-key回退逻辑,未配置JWT_SECRET时系统拒绝启动 (3)P0-运维接口强制认证: 移除OPS_API_KEY未配置时的无认证分支 (4)P1-数据库索引优化: 为hourly_performance和bidding_logs大表添加复合索引 (5)P1-N+1查询优化: 批量化改造优化引擎中的循环查询 (6)P2-魔法数字常量化: 优化服务中的硬编码数字替换为具名常量',
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     affectedModules: ['security', 'db', 'optimization', 'ops'],
     correctionActions: ['rerun_optimization'],
   },

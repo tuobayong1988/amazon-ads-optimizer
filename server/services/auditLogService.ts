@@ -239,7 +239,7 @@ async function flushBuffer(): Promise<void> {
           ? String(e.metadata.description) 
           : `${e.action}: ${e.entityType || ''}${e.entityId ? '#' + e.entityId : ''}`;
         
-        // @ts-ignore - Drizzle enum类型兼容
+        // @ts-expect-error - Drizzle enum类型兼容
         await db.insert(auditLogs).values({
           actionType: drizzleActionType,
           userId: e.userId || null,
@@ -292,13 +292,13 @@ export async function queryAuditLogs(params: {
     if (params.accountId) conditions.push(eq(auditLogs.accountId, params.accountId));
     if (params.action) {
       const drizzleAction = mapActionToDrizzle(params.action);
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       conditions.push(eq(auditLogs.actionType, drizzleAction));
     }
     if (params.entityType) {
       const drizzleTarget = mapEntityTypeToDrizzle(params.entityType);
       if (drizzleTarget) {
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         conditions.push(eq(auditLogs.targetType, drizzleTarget));
       }
     }
@@ -316,7 +316,7 @@ export async function queryAuditLogs(params: {
       .limit(limit)
       .offset(offset);
     
-    // @ts-ignore
+    // @ts-expect-error - Drizzle sql template type
     const [countResult] = await db.select({ count: sql<number>`COUNT(*)` }).from(auditLogs).where(whereCondition);
     const total = Number(countResult?.count || 0);
     

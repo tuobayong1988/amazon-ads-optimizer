@@ -155,8 +155,7 @@ export async function identifyHarvestCandidates(
     for (const sourceCampaign of sourceCampaigns) {
       // v355: P1修复 — getSearchTermsByCampaignId期望Amazon ID，不是本地自增ID
       // sourceCampaign.id是本地ID，sourceCampaign.campaignId是Amazon ID
-      // @ts-ignore
-      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.campaignId as string);
+      const searchTermsList = await db.getSearchTermsByCampaignId(sourceCampaign.String(campaignId));
       
       for (const st of searchTermsList) {
         const clicks = Number(st.searchTermClicks) || 0;
@@ -282,7 +281,7 @@ export async function harvestSearchTermAtomic(
         : '未知错误';
       
       // 检查是否是"已存在"错误（幂等处理）
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const isDuplicate = createResult.errors.some((e: Record<string, any>) => 
         String(e).includes('DUPLICATE') || String(e).includes('already exists')
       );
@@ -601,15 +600,15 @@ async function findTargetAdGroup(
   
   // v311: 先过滤掉Product Targeting类型的campaign
   const nonPTCampaigns = manualCampaigns.filter(c => 
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     !isProductTargetingCampaign(c.campaignName || '')
   );
   
   // 策由1: 查找名称包含"Exact"的Campaign（排除PT类型）
   const exactCampaigns = nonPTCampaigns.filter(c => 
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     c.campaignName?.toLowerCase().includes('exact') ||
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     c.campaignName?.includes('精确')
   );
   

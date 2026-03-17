@@ -814,7 +814,6 @@ export async function getColdStartLogs(accountId?: number, limit: number = 20): 
         ORDER BY created_at DESC 
         LIMIT ${limit}
       `);
-      // @ts-ignore
       return (rows as Record<string, any>[])?.[0] || [];
     } else {
       const rows = await database.execute(sql`
@@ -822,7 +821,6 @@ export async function getColdStartLogs(accountId?: number, limit: number = 20): 
         ORDER BY created_at DESC 
         LIMIT ${limit}
       `);
-      // @ts-ignore
       return (rows as Record<string, any>[])?.[0] || [];
     }
   } catch (err: unknown) {

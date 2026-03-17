@@ -294,7 +294,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
         const perfRows = await db.select()
           .from(dailyPerformance)
           .where(and(
-            // @ts-ignore
+            // @ts-expect-error - dynamic property access
             eq(dailyPerformance.campaignId, String((log as unknown).campaignId)),
             sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split('T')[0]}`,
             sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
@@ -323,7 +323,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       targetId: bidRecord.targetId || 0,
       targetName: bidRecord.targetName || '',
       targetType: bidRecord.logTargetType as 'keyword' | 'product_target' | 'placement',
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       campaignId: bidRecord.campaignId || 0 as unknown,
       campaignName: '',
       oldBid,
@@ -448,8 +448,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      // @ts-ignore
-      campaignId: campaign.campaignId as string,
+      campaignId: campaign.String(campaignId),
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,
@@ -544,7 +543,7 @@ export async function addNegativeKeyword(data: {
   if (!db) throw new Error("Database not available");
   
   // 记录到negativeKeywords表
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   await db.insert(negativeKeywords).values({
     accountId: 1, // 默认账号
     campaignId: data.campaignId,

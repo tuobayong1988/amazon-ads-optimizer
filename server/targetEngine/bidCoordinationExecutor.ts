@@ -78,7 +78,7 @@ export async function executeBidCoordination(
       const proposals: bidCoordinator.BidProposal[] = [];
       
       // 1. 收集出价优化建议
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const bidSuggestions = bidDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of (bidSuggestions as any[])) {
         if (suggestion.newBid && suggestion.currentBid) {
@@ -97,7 +97,7 @@ export async function executeBidCoordination(
       }
       
       // 2. 收集位置优化建议
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const placementSuggestions = placementDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of (placementSuggestions as any[])) {
         if (suggestion.suggestedMultiplier !== undefined) {
@@ -115,7 +115,7 @@ export async function executeBidCoordination(
       }
       
       // 3. 收集分时策略建议
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const daypartingSuggestions = daypartingDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of (daypartingSuggestions as any[])) {
         if (suggestion.bidMultiplier && suggestion.bidMultiplier !== 1) {

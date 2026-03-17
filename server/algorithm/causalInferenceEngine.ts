@@ -318,7 +318,7 @@ async function getAggregatedPerf(
   startDate: string,
   endDate: string
 ): Promise<PerformanceSnapshot | null> {
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const results = await db.select({
     totalImpressions: sql<number>`SUM(impressions)`,
     totalClicks: sql<number>`SUM(clicks)`,
@@ -388,7 +388,7 @@ async function getAccountAveragePerf(
 async function saveCausalResult(db: DbInstance, accountId: number, result: CausalEffect): Promise<void> {
   const today = new Date().toISOString().split('T')[0];
   
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   await db.insert(causalInferenceResults).values({
     accountId,
     keywordId: result.keywordId || null,

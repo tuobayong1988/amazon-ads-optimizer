@@ -39,7 +39,7 @@ export async function runAutoBidOptimization(
   // v230: 尝试使用NextGen算法
   try {
     const { batchCalculateNextGenBids } = await import('../optimization/nextGenBidOrchestrator');
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const { buildContextFeatures } = await import('../analytics/contextualFeatureService') as unknown;
     
     const batchItems = keywordsToOptimize.map(kw => ({
@@ -59,17 +59,15 @@ export async function runAutoBidOptimization(
     }));
     
     const context = await buildContextFeatures(accountId);
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const nextGenResults = await batchCalculateNextGenBids(accountId, batchItems as unknown, context);
     
     for (const ngResult of nextGenResults) {
-      // @ts-ignore
       if ((ngResult as Record<string, any>[]).action === 'hold') {
         results.skipped++;
         continue;
       }
       
-      // @ts-ignore
       const kw = keywordsToOptimize.find(k => k.id === (ngResult as Record<string, any>[]).keywordId);
       if (!kw) { results.skipped++; continue; }
       
@@ -84,7 +82,6 @@ export async function runAutoBidOptimization(
           'keyword',
           kw.id,
           ngResult.newBid,
-          // @ts-ignore
           `NextGen[${(ngResult as Record<string, any>[]).algorithm}]: ${ngResult.reason}`,
           adGroup.campaignId
         );

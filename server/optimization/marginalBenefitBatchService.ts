@@ -140,7 +140,6 @@ export async function createBatchAnalysis(
     )
   `);
 
-  // @ts-ignore
   return (result as Record<string, any>[][])[0].insertId;
 }
 
@@ -173,7 +172,7 @@ export async function executeBatchAnalysis(
   `);
 
   const campaignMap = new Map(
-    // @ts-ignore
+    // @ts-expect-error - any type assertion
     ((campaigns as unknown)[0] as any[]).map(c => [c.campaignId, c])
   );
 
@@ -411,7 +410,7 @@ export async function applyOptimization(
     AND account_id = ${request.accountId}
   `);
 
-  // @ts-ignore
+  // @ts-expect-error - any type assertion
   const current = ((currentSettings as unknown)[0] as any[])[0] || {
     top_of_search_adjustment: 0,
     product_page_adjustment: 0

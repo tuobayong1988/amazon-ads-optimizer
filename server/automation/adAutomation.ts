@@ -641,7 +641,7 @@ export function analyzeBidAdjustments(
   
   // 按优先级排序
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   return suggestions.sort((a: any, b: any) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 }
 
@@ -1050,7 +1050,7 @@ export function analyzeBidCorrections(
   // 按优先级和置信度排序
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
   suggestions.sort((a: any, b: any) => {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
     if (priorityDiff !== 0) return priorityDiff;
     return b.confidence - a.confidence;

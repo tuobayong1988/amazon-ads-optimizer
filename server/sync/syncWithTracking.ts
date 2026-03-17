@@ -174,7 +174,6 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
             ),
           });
@@ -185,7 +184,6 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
         if (apiBudget === 0 && localBudget > 0) {
           log.warn(`v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).dailyBudget;
         }
         // v150.1: 预算保护逻辑
@@ -193,7 +191,6 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           const hasRecentOpt = protectedCampaignIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
-            // @ts-ignore
             delete (campaignData as Record<string, any>[]).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
@@ -204,30 +201,24 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         
         // v165+v423: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
         const localTopPlacement = existing.placementTopSearchBidAdjustment || 0;
-        // @ts-ignore
         const apiTopPlacement = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement = existing.placementProductPageBidAdjustment || 0;
-        // @ts-ignore
         const apiProductPlacement = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
         // v423: 增加restOfSearch位置保护
         const localRestPlacement = (existing as any).placementRestBidAdjustment || 0;
-        // @ts-ignore
         const apiRestPlacement = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
         const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement || localRestPlacement !== apiRestPlacement;
         if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%, localRest=${localRestPlacement}%, apiRest=${apiRestPlacement}%`);
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
 
         await db
           .update(campaigns)
-          // @ts-ignore
+          // @ts-expect-error - Drizzle query builder type
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
@@ -246,7 +237,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           });
         }
 
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await db.insert(campaigns).values({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -270,17 +261,17 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     return result;
   } catch (error: unknown) {
     log.error('[同步WithTracking] ❌ SP广告活动同步失败');
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     log.error('[同步WithTracking] 错误类型:', error.constructor?.name);
-    // @ts-ignore
+    // @ts-expect-error - error message access
     log.error('[同步WithTracking] 错误消息:', error?.message || error);
-    // @ts-ignore
+    // @ts-expect-error - error stack access
     log.error('[同步WithTracking] 错误堆栈:', error?.stack);
-    // @ts-ignore
+    // @ts-expect-error - Axios error response access
     if (error?.response) {
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       log.error('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       log.error('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return result;
@@ -390,7 +381,6 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
             ),
           });
@@ -542,7 +532,6 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
             previousData: existing,
             newData: campaignData,
             changedFields: Object.keys(campaignData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (campaignData as Record<string, any>[])[k as number]
             ),
           });
@@ -689,7 +678,6 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
             previousData: existing,
             newData: adGroupData,
             changedFields: Object.keys(adGroupData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (adGroupData as Record<string, any>[])[k]
             ),
           });
@@ -848,7 +836,6 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
             previousData: existing,
             newData: keywordData,
             changedFields: Object.keys(keywordData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (keywordData as Record<string, any>[])[k]
             ),
           });
@@ -861,7 +848,6 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
           const hasRecentOpt = protectedKeywordIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
-            // @ts-ignore
             delete (keywordData as Record<string, any>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
@@ -1034,7 +1020,6 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
             previousData: existing,
             newData: targetData,
             changedFields: Object.keys(targetData).filter(k => 
-              // @ts-ignore
               (existing as Record<string, any>)[k] !== (targetData as Record<string, any>[])[k]
             ),
           });
@@ -1047,7 +1032,6 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
-            // @ts-ignore
             delete (targetData as Record<string, any>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);

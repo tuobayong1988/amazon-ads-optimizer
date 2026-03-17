@@ -226,7 +226,7 @@ export async function getOperationLogs(params: {
       conditions.push(eq(apiOperationLogs.operationType, params.operationType));
     }
     if (params.status) {
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       conditions.push(eq(apiOperationLogs.status, params.status as string));
     }
     if (params.riskLevel) {
@@ -361,7 +361,7 @@ export async function checkSpendLimit(
     return { exceeded: false };
   }
 
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const dailyLimit = parseFloat(config.dailySpendLimit);
   const spendPercent = (currentSpend / dailyLimit) * 100;
 
@@ -374,7 +374,7 @@ export async function checkSpendLimit(
     .select()
     .from(spendAlertLogs)
     .where(and(
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       eq(spendAlertLogs.configId, config.id),
       gte(spendAlertLogs.createdAt, today)
     ));
@@ -392,15 +392,15 @@ export async function checkSpendLimit(
     if (config.autoStopEnabled) {
       shouldPause = true;
     }
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   } else if (spendPercent >= parseFloat(config.criticalThreshold) && !alertedTypes.has('critical_95')) {
     alertType = 'critical_95';
     alertLevel = 'critical';
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   } else if (spendPercent >= parseFloat(config.warningThreshold2) && !alertedTypes.has('warning_80')) {
     alertType = 'warning_80';
     alertLevel = 'warning';
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   } else if (spendPercent >= parseFloat(config.warningThreshold1) && !alertedTypes.has('warning_50')) {
     alertType = 'warning_50';
     alertLevel = 'info';
@@ -409,7 +409,7 @@ export async function checkSpendLimit(
   if (alertType) {
     // 记录告警
     await db.insert(spendAlertLogs).values({
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       configId: config.id,
       userId,
       accountId,

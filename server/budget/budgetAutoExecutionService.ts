@@ -367,7 +367,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
       }
 
       // 保存执行明细
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(budgetAutoExecutionDetails).values({
         historyId: executionId,
         campaignId: suggestion.campaignId,
@@ -379,7 +379,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetChange: String(budgetAfter - budgetBefore),
         adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
         adjustmentReason: suggestion.reasons.join('; '),
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         compositeScore: String((suggestion as unknown).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
         status: details[details.length - 1].status as string,
@@ -403,7 +403,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     await db.update(budgetAutoExecutionHistory)
       .set({
         executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         status: finalStatus as unknown,
         totalCampaigns: summary.totalCampaigns,
         campaignsAdjusted: summary.adjustedCampaigns,
@@ -512,7 +512,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
 
   return {
     execution: executionResults[0],
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     details: details.map(d => ({
       id: d.id,
       campaignId: d.campaignId,
@@ -559,7 +559,7 @@ export async function approveExecution(
     // 更新执行状态
     await db.update(budgetAutoExecutionHistory)
       .set({
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         status: 'completed' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
@@ -567,7 +567,7 @@ export async function approveExecution(
     // 拒绝执行
     await db.update(budgetAutoExecutionHistory)
       .set({
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         status: 'cancelled' as unknown,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));

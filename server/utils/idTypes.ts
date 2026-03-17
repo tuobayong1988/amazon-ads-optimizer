@@ -86,7 +86,7 @@ export function isValidLocalId(value: Record<string, any>): boolean {
  */
 export function classifyCampaignId(value: string | number): 'amazon' | 'local' | 'ambiguous' {
   const str = String(value).trim();
-  // @ts-ignore
+  // @ts-expect-error - Amazon ID type assertion
   if (!isValidAmazonId(str)) return 'ambiguous';
   
   // 字符串类型输入且长度>=8 → 大概率是Amazon ID
@@ -122,10 +122,10 @@ export function classifyCampaignId(value: string | number): 'amazon' | 'local' |
 export function assertAmazonCampaignId(
   value: Record<string, any>,
   context: string
-// @ts-ignore
+// @ts-expect-error - type assertion function
 ): asserts value is string {
   const str = String(value).trim();
-  // @ts-ignore
+  // @ts-expect-error - Amazon ID type assertion
   const classification = classifyCampaignId(value);
   
   if (classification === 'local') {
@@ -144,10 +144,10 @@ export function assertAmazonCampaignId(
 export function assertAmazonAdGroupId(
   value: Record<string, any>,
   context: string
-// @ts-ignore
+// @ts-expect-error - type assertion function
 ): asserts value is string {
   const str = String(value).trim();
-  // @ts-ignore
+  // @ts-expect-error - Amazon ID type assertion
   const classification = classifyCampaignId(value); // 复用同一个分类逻辑
   
   if (classification === 'local') {
@@ -164,7 +164,7 @@ export function assertAmazonAdGroupId(
 export function assertLocalId(
   value: Record<string, any>,
   context: string
-// @ts-ignore
+// @ts-expect-error - type assertion function
 ): asserts value is number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     const errorMsg = `[IdTypes] ⛔ 断言失败: 无效的本地ID(${value}, type=${typeof value})! 调用来源: ${context}`;
@@ -228,7 +228,7 @@ export function extractCampaignIds(campaign: { id?: number; campaignId?: string 
   }
   
   const amazonId = String(rawAmazonId).trim();
-  // @ts-ignore
+  // @ts-expect-error - Amazon ID type assertion
   if (!isValidAmazonId(amazonId)) {
     const errorMsg = `[IdTypes] ⛔ Campaign的campaignId无效! id=${campaign.id}, campaignId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
     log.error(errorMsg);
@@ -269,7 +269,7 @@ export function extractAdGroupIds(adGroup: { id?: number; adGroupId?: string | n
   }
   
   const amazonId = String(rawAmazonId).trim();
-  // @ts-ignore
+  // @ts-expect-error - Amazon ID type assertion
   if (!isValidAmazonId(amazonId)) {
     const errorMsg = `[IdTypes] ⛔ AdGroup的adGroupId无效! id=${adGroup.id}, adGroupId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
     log.error(errorMsg);
@@ -312,7 +312,7 @@ export function getAdGroupAmazonId(adGroup: { id?: number; adGroupId?: string | 
 export function getKeywordAmazonId(keyword: { id?: number; keywordId?: string | null }): string | null {
   if (keyword.keywordId != null) {
     const amazonId = String(keyword.keywordId).trim();
-    // @ts-ignore
+    // @ts-expect-error - Amazon ID type assertion
     if (isValidAmazonId(amazonId)) {
       return amazonId;
     }
@@ -327,7 +327,7 @@ export function getKeywordAmazonId(keyword: { id?: number; keywordId?: string | 
 export function getTargetAmazonId(target: { id?: number; targetId?: string | null }): string | null {
   if (target.targetId != null) {
     const amazonId = String(target.targetId).trim();
-    // @ts-ignore
+    // @ts-expect-error - Amazon ID type assertion
     if (isValidAmazonId(amazonId)) {
       return amazonId;
     }

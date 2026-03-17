@@ -122,7 +122,7 @@ export default function AccountsSummary() {
   };
 
   // 准备图表数据
-  // @ts-ignore
+  // @ts-expect-error - array method type inference
   const accountChartData = summary?.accountsData?.map(account => ({
     name: account.storeName || account.accountName,
     spend: account.spend,
@@ -138,11 +138,11 @@ export default function AccountsSummary() {
   const marketplaceChartData = summary?.marketplaceDistribution 
     ? Object.entries(summary.marketplaceDistribution).map(([marketplace, data], index) => ({
         name: `${MARKETPLACE_FLAGS[marketplace] || '🌐'} ${marketplace}`,
-        // @ts-ignore
+        // @ts-expect-error - Dynamic data property access
         value: data.sales,
-        // @ts-ignore
+        // @ts-expect-error - Dynamic data property access
         count: data.count,
-        // @ts-ignore
+        // @ts-expect-error - Dynamic data property access
         spend: data.spend,
         color: CHART_COLORS[index % CHART_COLORS.length],
       }))

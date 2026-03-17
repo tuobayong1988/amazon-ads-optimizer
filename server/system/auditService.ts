@@ -103,7 +103,6 @@ export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdA
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data);
-  // @ts-ignore
   const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as Record<string, any>[][])[0]?.insertId || 0));
   return log;
 }
@@ -175,12 +174,12 @@ export async function getAuditLogs(params: {
   }
 
   if (actionTypes && actionTypes.length > 0) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     conditions.push(inArray(auditLogs.actionType, actionTypes as unknown));
   }
 
   if (targetTypes && targetTypes.length > 0) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     conditions.push(inArray(auditLogs.targetType, targetTypes as unknown));
   }
 
@@ -189,7 +188,7 @@ export async function getAuditLogs(params: {
   }
 
   if (status) {
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     conditions.push(eq(auditLogs.status, status as string));
   }
 
@@ -372,7 +371,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.userId, auditLogs.userName) as unknown;
 
-  // @ts-ignore
+  // @ts-expect-error - array method type inference
   const actionsByUser = userStats.map((stat: Record<string, any>) => ({
     userId: stat.userId || 0,
     userName: stat.userName || (stat.userId === 0 || !stat.userId ? '系统自动优化' : '未知用户'), // v375: 修复系统自动操作显示为"未知用户"的问题
@@ -448,6 +447,6 @@ export async function cleanupOldAuditLogs(retentionDays: number = 365): Promise<
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
   const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
-  // @ts-ignore
+  // @ts-expect-error - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }

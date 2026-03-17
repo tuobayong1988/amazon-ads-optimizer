@@ -26,7 +26,7 @@ export class M1KeywordService {
 
     try {
       const conditions = [eq(prelaunchKeywords.projectId, input.projectId)];
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       if (input.relevanceLayer) conditions.push(eq(prelaunchKeywords.relevanceLayer, input.relevanceLayer as unknown));
       if (input.scenarioCode) conditions.push(eq(prelaunchKeywords.scenarioCode, input.scenarioCode));
       if (input.clusterId) conditions.push(eq(prelaunchKeywords.clusterId, input.clusterId));
@@ -117,24 +117,24 @@ export class M1KeywordService {
       // Step 4: 批量写入数据库
       const insertData = scoredKeywords.map(kw => ({
         projectId,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         keyword: kw.keyword,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         searchVolume: kw.searchVolume || 0,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         relevanceLayer: kw.relevanceLayer as unknown,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         dimensionType: kw.dimensionType,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         scenarioCode: kw.scenarioCode,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         intentTag: kw.intentTag,
         kviScore: String(kw.kviScore),
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         kviVolume: String(kw.kviVolume || 0),
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         kviRelevance: String(kw.kviRelevance || 0),
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         kviOpportunity: String(kw.kviOpportunity || 0),
         dataSource: 'gemini_expansion',
       }));
@@ -143,7 +143,7 @@ export class M1KeywordService {
         // 分批插入，每批100条
         for (let i = 0; i < insertData.length; i += 100) {
           const batch = insertData.slice(i, i + 100);
-          // @ts-ignore
+          // @ts-expect-error - Drizzle query builder type
           await db.insert(prelaunchKeywords).values(batch);
         }
       }
@@ -242,7 +242,7 @@ Return JSON array: [{"keyword":"...","relevanceLayer":"...","dimensionType":"...
 
   /** 聚类分析 */
   private async runClustering(db: DbInstance, projectId: number) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const allKeywords = await db.select()
       .from(prelaunchKeywords)
       .where(eq(prelaunchKeywords.projectId, projectId));
@@ -261,7 +261,7 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
     const clusters = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.2 });
 
     for (const cluster of clusters) {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       const [result] = await db.insert(prelaunchKeywordClusters).values({
         projectId,
         clusterLabel: cluster.clusterLabel,
@@ -271,13 +271,13 @@ Create 5-15 clusters. Every keyword must belong to exactly one cluster.`;
         topScenario: 'S01',
       });
 
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const clusterId = (result as Record<string, number>).insertId;
 
       // 更新关键词的clusterId
       if (cluster.members && clusterId) {
         for (const member of cluster.members) {
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           await db.update(prelaunchKeywords)
             .set({ clusterId })
             .where(and(
@@ -314,7 +314,7 @@ Generate 10-30 high-quality triples. Return JSON array:
     const triples = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.3 });
 
     for (const triple of triples) {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(prelaunchCosmoTriples).values({
         projectId,
         causeNode: triple.causeNode,

@@ -82,7 +82,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
         const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           projectId,
           slotPosition: slot.position,
           slotRole: slot.role,

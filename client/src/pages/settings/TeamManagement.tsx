@@ -185,11 +185,11 @@ export default function TeamManagement() {
   // 统计数据
   const stats = {
     total: members?.length || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     active: members?.filter(m => m.status === "active").length || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     pending: members?.filter(m => m.status === "pending").length || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     admins: members?.filter(m => m.role === "admin" || m.role === "owner").length || 0,
   };
 
@@ -332,7 +332,7 @@ export default function TeamManagement() {
               </TabsContent>
               <TabsContent value="active" className="mt-4">
                 <MemberTable 
-                  // @ts-ignore
+                  // @ts-expect-error - array method type inference
                   members={(members || []).filter(m => m.status === "active")} 
                   isLoading={isLoading}
                   onOpenPermissions={handleOpenPermissions}
@@ -345,7 +345,7 @@ export default function TeamManagement() {
               </TabsContent>
               <TabsContent value="pending" className="mt-4">
                 <MemberTable 
-                  // @ts-ignore
+                  // @ts-expect-error - array method type inference
                   members={(members || []).filter(m => m.status === "pending")} 
                   isLoading={isLoading}
                   onOpenPermissions={handleOpenPermissions}

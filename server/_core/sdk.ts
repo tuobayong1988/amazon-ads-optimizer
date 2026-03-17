@@ -272,7 +272,7 @@ class SDKServer {
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
         const decoded = jwt.default.verify(token, secret) as any;
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
           // v257.1: 添加超时保护，防止数据库查询导致504
@@ -303,7 +303,7 @@ class SDKServer {
             const rows = (result as Record<string, any>[][])[0];
             if (rows && rows.length > 0) {
               const localUser = rows[0] as any;
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               return {
                 id: localUser.id,
                 openId: `local_${localUser.id}`,
@@ -318,19 +318,19 @@ class SDKServer {
           } catch (dbError: unknown) {
             log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
             // v257.1: 数据库查询失败时，从 JWT payload 构建基本用户信息（降级策略）
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             return {
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               id: decoded.userId,
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               openId: `local_${decoded.userId}`,
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               name: decoded.name || 'User',
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               email: decoded.username || '',
               loginMethod: 'local',
               lastSignedIn: new Date().toISOString(),
-              // @ts-ignore
+              // @ts-expect-error - runtime type mismatch
               organizationId: decoded.organizationId || 1,
               role: 'user',
             } as Record<string, any>;
@@ -338,7 +338,7 @@ class SDKServer {
         }
       } catch (jwtError: unknown) {
         // JWT verification failed, fall through to cookie auth
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         if (jwtError.name !== 'TokenExpiredError') {
           log.error('[Auth] JWT verification failed:', (jwtError as Error).message);
         }

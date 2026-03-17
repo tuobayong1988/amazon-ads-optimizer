@@ -135,7 +135,7 @@ async function checkBidDirectionConsistency(
       : sql`target_id = ${targetId}`;
     
     // 查询最近3次出价调整的方向
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [rows] = await db.execute(sql`
       SELECT action_type, new_value, previous_value, created_at
       FROM optimization_events
@@ -599,9 +599,9 @@ function ruleEngineDecision(
   if (dailyDataForImpression && dailyDataForImpression.length >= 7) {
     const recent3d = dailyDataForImpression.slice(-3);
     const earlier4d = dailyDataForImpression.slice(-7, -3);
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const recentAvgImpressions = recent3d.reduce((sum: any, d: any) => sum + ((d as unknown).impressions || 0), 0) / Math.max(recent3d.length, 1);
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const earlierAvgImpressions = earlier4d.reduce((sum: any, d: any) => sum + ((d as unknown).impressions || 0), 0) / Math.max(earlier4d.length, 1);
     
     if (earlierAvgImpressions > 50 && recentAvgImpressions < earlierAvgImpressions * BID_CIRCUIT_BREAKER_CONFIG.minImpressionProtectionRatio) {
@@ -622,7 +622,7 @@ function ruleEngineDecision(
     // 针对因长期低价而失去曝光的关键词，将出价提升至建议竞价的80%
     // 触发条件：曝光持续低迷（近期均值<20）且当前出价较低（<$0.50）
     // 安全保护：仅对有历史表现的关键词触发，且受maxBid限制
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const hasHistoricalPerformance = dailyDataForImpression.some(d => ((d as unknown).impressions || 0) > 100);
     if (recentAvgImpressions < 20 && currentBid < 0.50 && hasHistoricalPerformance) {
       const suggestedBid = (groupConfig.maxBid || 10) * 0.15; // 使用maxBid的15%作为建议竞价估算
@@ -648,11 +648,11 @@ function ruleEngineDecision(
   // v330: R-01优化 — 引入亚马逊建议出价作为锚点
   if (impressions === 0) {
     // v330 R-01: 从上层传入的建议出价数据
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const suggestedBid = (groupConfig as unknown)._suggestedBid as number | undefined;
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const suggestedBidRangeStart = (groupConfig as unknown)._suggestedBidRangeStart as number | undefined;
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     const suggestedBidRangeEnd = (groupConfig as unknown)._suggestedBidRangeEnd as number | undefined;
     
     // v330 R-01: 如果有建议出价，使用建议出价作为探索目标
@@ -1041,11 +1041,11 @@ export async function calculateNextGenBid(
   // v267 P1-3: 自我进化引擎集成 — 读取进化引擎注入的自适应参数
   // 进化引擎通过 _evolvedMaxChangePercent/_evolvedMaxDecreasePercent/_confidenceMultiplier 注入参数
   // 这些参数基于历史优化效果动态调整，使系统能够自我学习和进化
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   const evolvedMaxIncrease = (groupConfig as unknown)._evolvedMaxChangePercent;
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   const evolvedMaxDecrease = (groupConfig as unknown)._evolvedMaxDecreasePercent;
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   const evolvedConfidenceMultiplier = (groupConfig as unknown)._confidenceMultiplier || 1.0;
   
   // 使用进化参数覆盖默认安全配置（如果可用）
@@ -1081,7 +1081,7 @@ export async function calculateNextGenBid(
       target.type === 'keyword' ? 'keyword' : 'product_target',
       target.id,
       (target as Record<string, any>).amazonCampaignId,
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       (normalizedConfig as unknown).strategyTemplate
     );
     
@@ -1137,7 +1137,7 @@ export async function calculateNextGenBid(
           entityType: target.type === 'keyword' ? 'keyword' : 'product_target',
           entityId: target.id,
           campaignId: (target as Record<string, any>).amazonCampaignId,
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           strategyTemplateId: (normalizedConfig as unknown).strategyTemplate,
           metaSelection: {
             algorithmScores: metaDecision.algorithmScores?.map((s: Record<string, any>) => ({ algorithm: s.algorithm, score: s.score, eligible: s.eligible })) || [],

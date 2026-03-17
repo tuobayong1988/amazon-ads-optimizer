@@ -118,7 +118,7 @@ function invertMatrix(matrix: number[][]): number[][] | null {
   const n = matrix.length;
   // 创建增广矩阵 [A | I]
   const aug = matrix.map((row: any, i: any) => [
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     ...row.map(v => v),
     ...Array.from({ length: n }, (_, j) => (i === j ? 1 : 0)),
   ]);
@@ -239,7 +239,7 @@ export async function loadOrInitLinUCBModel(accountId: number): Promise<LinUCBAr
   
   // 保存到数据库
   for (const arm of arms) {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(linucbModels).values({
       accountId,
       armId: arm.armId,

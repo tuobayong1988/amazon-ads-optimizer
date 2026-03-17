@@ -574,7 +574,7 @@ function calculateBudgetEfficiencyScore(
   // v164: 使用时间衰减加权日均花费（近期数据权重更高）
   const avgDailySpend = timeWeighted 
     ? timeWeighted.weightedDailySpend 
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     : (metrics.totalSpend / Math.max(1, (timeWeighted as unknown)?.effectiveDataDays || 30));
   const dataSource = timeWeighted ? '加权' : '平均';
   
@@ -649,7 +649,7 @@ function calculateConversionEfficiencyScore(
     'beauty': 8, 'health': 7, 'baby': 9, 'pet_supplies': 8,
     'grocery': 18, 'luxury': 3, 'default': 8,
   };
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   const productCategory = (config as unknown).productCategory || 'default';
   const categoryCvrBenchmark = CATEGORY_CVR_BENCHMARK[productCategory] || CATEGORY_CVR_BENCHMARK['default'];
   

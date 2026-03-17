@@ -551,7 +551,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
         .where(eq(cqlModels.id, existing[0].id));
     } else {
       // 插入新模型
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(cqlModels).values({
         accountId,
         weights: weightsJson,

@@ -85,17 +85,17 @@ async function getAccountMarketplace(accountId: number): Promise<string> {
 async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null> {
   try {
     const account = await db.getAdAccountById(accountId);
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     if (account && (account as unknown).lastSyncAt) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       return new Date((account as unknown).lastSyncAt);
     }
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
     const status = getEngineStatus();
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     if ((status as string).lastSyncResults) {
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       const accountResult = ((status as string).lastSyncResults as any[])?.find((r: Record<string, any>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);
@@ -269,7 +269,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     // v347: 修复 performanceGroupId 未赋值导致 optimization_logs 查询全部失败的严重bug
     performanceGroupId: group.id,
     
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     optimizationGoal: (group.optimizationGoal as unknown) || 'balanced',
     targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
     targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
@@ -286,7 +286,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     
     executionFrequency: 'daily',
     // v156: 从数据库恢复上次执行时间
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     lastExecutionTime: (group as unknown).lastOptimizationAt ? new Date((group as unknown).lastOptimizationAt) : undefined,
     nextExecutionTime: undefined,
     
@@ -296,9 +296,9 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     autoRollbackEnabled: true,
     
     // v164: 自我进化所需字段
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     userId: (group as unknown).userId || 0,
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     strategyTemplateId: (group as unknown).strategyTemplateId || undefined,
   };
   
@@ -475,7 +475,7 @@ export async function executeOptimizationTarget(
   
   // v156: 只对enabled状态的campaign执行优化
   // paused/archived的campaign在Amazon端不会投放广告，对其做出价调整是无效的
-  // @ts-ignore
+  // @ts-expect-error - dynamic property assignment
   const campaigns = allCampaigns.filter(c => (c as unknown).campaignStatus === 'enabled');
   const skippedCampaigns = allCampaigns.length - campaigns.length;
   if (skippedCampaigns > 0) {
@@ -489,7 +489,7 @@ export async function executeOptimizationTarget(
     // 业务规则：用户在亚马逊后台暂停广告活动 = 不参与自动优化
     if (allCampaigns.length > 0 && campaigns.length === 0) {
       const allPausedOrArchived = allCampaigns.every(c => 
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         ['paused', 'archived'].includes((c as unknown).campaignStatus || '')
       );
       if (allPausedOrArchived) {
@@ -633,7 +633,7 @@ export async function executeOptimizationTarget(
         
         // 将组合分析结果注入到多维度优化结果中
         if (result.multiDimensionOptimization) {
-          // @ts-ignore
+          // @ts-expect-error - dynamic property assignment
           (result.multiDimensionOptimization as unknown).comboAnalysis = {
             goldenCount: comboResults.goldenCount,
             leadenCount: comboResults.leadenCount,
@@ -682,8 +682,7 @@ export async function executeOptimizationTarget(
   if (config.enableSearchTermAnalysis && shouldExecute('searchterm')) {
     try {
       const ngramResults = await executeAutoNgramNegation(config, campaigns, dryRun);
-      // @ts-ignore
-      (result as unknown).ngramAnalysis = ngramResults;
+      (result as any).ngramAnalysis = ngramResults;
       if (ngramResults.negativeKeywordsAdded > 0) {
         log.info(`[NgramAutoNegation] v337.3: Ngram自动否定完成: 添加${ngramResults.negativeKeywordsAdded}个否定词`);
       }
@@ -1123,7 +1122,7 @@ export async function getEnabledOptimizationTargets(accountId?: number): Promise
   
   for (const group of groups) {
     // 只执行 status='active' 且 autoOptimize 开启的优化目标
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     if (group.status === 'active' && (group as unknown).autoOptimize !== 0) {
       const config = await getOptimizationTargetConfig(group.id);
       if (config) {

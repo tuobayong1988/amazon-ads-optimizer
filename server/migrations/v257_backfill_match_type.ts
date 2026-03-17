@@ -38,7 +38,7 @@ export async function backfillMatchType(): Promise<{ updated: number; errors: nu
     `);
     
     // 获取受影响的行数
-    // @ts-ignore
+    // @ts-expect-error - MySQL affectedRows
     const affectedRows = (result as Record<string, any>[][])[0]?.affectedRows || (result as unknown)?.affectedRows || 0;
     updated = affectedRows;
     

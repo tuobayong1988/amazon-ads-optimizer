@@ -337,7 +337,7 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
       );
       if (existingSuggestion) continue;
       
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const suggestion = evaluateAdjustment(record as unknown, rule);
       if (suggestion) {
         newSuggestions.push(suggestion);
@@ -457,9 +457,9 @@ export function getRollbackSuggestionStats(): {
   };
   
   for (const suggestion of (rollbackSuggestions as any[])) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     stats[suggestion.status]++;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     stats.byPriority[suggestion.priority]++;
     stats.byRule[suggestion.ruleId] = (stats.byRule[suggestion.ruleId] || 0) + 1;
   }

@@ -44,7 +44,7 @@ export function PlacementPerformanceList({ campaignId, campaignType }: { campaig
   
   const placementTypes = campaignType === 'sd' ? sdPlacements : campaignType === 'sb' ? sbPlacements : spPlacements;
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   if (!placements || placements.length === 0) {
     return (
       <div className="space-y-4">

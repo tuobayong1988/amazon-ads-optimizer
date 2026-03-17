@@ -288,7 +288,7 @@ export async function getUserNotifications(params: {
   
   const conditions = [eq(collaborationNotifications.recipientUserId, userId)];
   if (status) {
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     conditions.push(eq(collaborationNotifications.status, status as string));
   }
   
@@ -344,7 +344,7 @@ export async function markAllNotificationsAsRead(userId: number): Promise<number
     .update(collaborationNotifications)
     .set({ status: "read", readAt: new Date().toISOString() })
     .where(and(eq(collaborationNotifications.recipientUserId, userId), eq(collaborationNotifications.status, "sent")));
-  // @ts-ignore
+  // @ts-expect-error - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }
 
@@ -381,7 +381,7 @@ export async function triggerCollaborationNotification(params: {
   } = params;
   
   // 检查是否是重要操作
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   if (!IMPORTANT_ACTIONS.includes(actionType as unknown)) {
     return 0;
   }

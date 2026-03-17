@@ -483,7 +483,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpCampaigns();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -498,7 +498,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbCampaigns();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -513,7 +513,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSdCampaigns();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -546,7 +546,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpAdGroups();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -561,7 +561,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbAdGroups();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -575,7 +575,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSdAdGroups();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -589,7 +589,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpKeywords();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -604,7 +604,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbKeywords();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -618,7 +618,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpProductTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const synced = typeof result === 'number' ? result : result.synced;
         return { success: true, synced, errors: [] };
       } catch (e: unknown) {
@@ -633,7 +633,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbProductTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -647,7 +647,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSdProductTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -679,7 +679,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeKeywords();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -693,7 +693,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeKeywords();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -707,7 +707,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSpNegativeProductTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -721,7 +721,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbNegativeTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -735,7 +735,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSdNegativeTargets();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -840,7 +840,7 @@ const SYNC_STEPS: SyncStep[] = [
     execute: async (service, ctx) => {
       try {
         const result = await service.syncSbAds();
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         return { success: true, synced: result.synced, errors: [] };
       } catch (e: unknown) {
         return { success: false, synced: 0, errors: [(e as Error).message] };
@@ -1378,17 +1378,17 @@ export async function syncAccount(
         // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
         const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
           (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
-            // @ts-ignore
+            // @ts-expect-error - dynamic property access
             Object.values(stepResult.synced as unknown).reduce((s: number, v: Record<string, any>) => s + (typeof v === 'number' ? v : 0), 0) : 0);
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         stepResult.synced = safeSynced;
 
         if (stepResult.success) {
           result.completedSteps++;
           context.completedSteps.push(step.id);
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           result.totalSynced += safeSynced;
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           context.totalSynced += safeSynced;
         } else {
           result.failedSteps++;
@@ -1881,7 +1881,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
       }
 
       try {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await database.insert(dataSyncJobs).values({
           userId: accountResult.userId || 390001, // v336: 使用账户关联的userId，而不是硬编码的1
           accountId: accountResult.accountId,
@@ -1891,33 +1891,33 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           completedAt: accountResult.endTime.toISOString().slice(0, 19).replace('T', ' '),
           durationMs: accountResult.durationMs,
           errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join('; ') : null,
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           spCampaigns: safeNum(accountResult.stepResults['sp_campaigns']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           sbCampaigns: safeNum(accountResult.stepResults['sb_campaigns']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           sdCampaigns: safeNum(accountResult.stepResults['sd_campaigns']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           adGroupsSynced: safeNum(accountResult.stepResults['sp_ad_groups']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['sb_ad_groups']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['sd_ad_groups']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           keywordsSynced: safeNum(accountResult.stepResults['sp_keywords']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['sb_keywords']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           targetsSynced: safeNum(accountResult.stepResults['sp_product_targets']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['sb_product_targets']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['sd_product_targets']?.synced),
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           performanceSynced: safeNum(accountResult.stepResults['performance_today']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['performance_7d']?.synced) +
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             safeNum(accountResult.stepResults['performance_95d']?.synced),
           // v256: 修复 recordsSynced 字段映射 — 计算所有步骤的同步记录总数
           recordsSynced: Object.values(accountResult.stepResults).reduce(

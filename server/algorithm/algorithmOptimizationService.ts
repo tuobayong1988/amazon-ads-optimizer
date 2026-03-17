@@ -134,7 +134,7 @@ export async function calculateAlgorithmPerformance(
   days: number = 30
 ): Promise<AlgorithmPerformanceMetrics> {
   const db = await getDb();
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   if (!db) return null as unknown;
   
   // 查询历史记录
@@ -319,9 +319,9 @@ export async function analyzeByAdjustmentType(
       count: typeRecords.length,
       accuracy,
       mae,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       totalEstimated,
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       totalActual,
       recommendation: generateTypeRecommendation(type, accuracy, mae, typeRecords.length),
     });
@@ -600,7 +600,7 @@ export async function generateOptimizationSuggestions(
   
   // 按优先级排序
   const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   return suggestions.sort((a: any, b: any) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 }
 

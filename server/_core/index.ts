@@ -281,6 +281,20 @@ async function startServer() {
       logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${(err as Error).message}`);
     });
 
+    // v427: 初始化 Redis 连接（用于分布式锁和缓存）
+    import('../utils/redisClient').then(async ({ ensureRedis, redisHealthCheck }) => {
+      const connected = await ensureRedis();
+      if (connected) {
+        const health = await redisHealthCheck();
+        log.info(`[Redis] v427: Redis 连接已建立 (latency: ${health.latencyMs}ms)`);
+        logSystem('Redis', `Redis 连接已建立 (latency: ${health.latencyMs}ms)`);
+      } else {
+        log.info('[Redis] v427: Redis 不可用，分布式锁将使用 MySQL sync_locks 表');
+      }
+    }).catch(err => {
+      log.warn(`[Redis] v427: Redis 初始化异常: ${(err as Error).message}`);
+    });
+
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
     log.info('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');

@@ -522,15 +522,15 @@ export class SQSConsumerService {
     // 根据数据类型路由到不同的处理器
     switch (queue.dataType) {
       case 'traffic':
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         await this.processTrafficMessage(amsData, queue.adType);
         break;
       case 'conversion':
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         await this.processConversionMessage(amsData, queue.adType);
         break;
       case 'budget':
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         await this.processBudgetMessage(amsData, queue.adType);
         break;
       default:
@@ -1017,7 +1017,7 @@ export class SQSConsumerService {
         .where(eq(keywordPlacementHourlyPerformance.id, existing[0].id));
     } else {
       // 插入新记录
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await dbConn.insert(keywordPlacementHourlyPerformance).values({
         accountId: params.accountId,
         campaignId: params.campaignId,

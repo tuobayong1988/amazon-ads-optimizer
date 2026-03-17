@@ -97,7 +97,7 @@ export async function safeCampaignIdForInsert(ctx: CampaignIdContext): Promise<s
         return str; // 已经是有效的 Amazon ID
       }
       // 如果是 'ambiguous'（如5-9位数字），也接受（可能是较短的 Amazon ID）
-      // @ts-ignore
+      // @ts-expect-error - Amazon ID type assertion
       if (classification === 'ambiguous' && isValidAmazonId(str)) {
         return str;
       }
@@ -164,7 +164,7 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
     const adGroup = await queryAdGroupById(adGroupId);
     if (adGroup && adGroup.campaignId) {
       const campaignId = String(adGroup.campaignId).trim();
-      // @ts-ignore
+      // @ts-expect-error - Amazon ID type assertion
       if (isValidAmazonId(campaignId) && classifyCampaignId(campaignId) !== 'local') {
         setCachedCampaignId(adGroupId, campaignId);
         return campaignId;

@@ -30,6 +30,7 @@ import { getSystemInfo } from '../deployLifecycleManager';
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
+import { extractCount, extractRows } from '../types/utilTypes';
 
 const router = Router();
 
@@ -304,6 +305,19 @@ router.get('/status', async (req: Request, res: Response) => {
         status: dbStatus,
         latencyMs: dbLatencyMs,
       },
+      // v427: Redis 状态
+      redis: await (async () => {
+        try {
+          const { isRedisAvailable, redisHealthCheck } = await import('../utils/redisClient');
+          if (isRedisAvailable()) {
+            const health = await redisHealthCheck();
+            return { status: 'connected', latencyMs: health.latencyMs };
+          }
+          return { status: 'disconnected', latencyMs: -1 };
+        } catch {
+          return { status: 'unavailable', latencyMs: -1 };
+        }
+      })(),
       logger: {
         bufferUsage: `${loggerStatus.bufferSize}/${loggerStatus.bufferCapacity}`,
         recentRate: `${loggerStatus.recentRate} logs/min`,
@@ -889,7 +903,7 @@ router.get('/sync-diagnosis', async (req: Request, res: Response) => {
 function parseOpsQuery(req: Request): OpsQuery {
   return {
     category: req.query.category as OpsCategory | undefined,
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     level: req.query.level as unknown,
     module: req.query.module as string | undefined,
     keyword: req.query.keyword as string || req.query.search as string || undefined,
@@ -1022,33 +1036,33 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
       limit: 20,
     });
     
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const bid = Array.isArray(bidStats) ? (bidStats[0] as unknown)?.[0] || bidStats[0] : bidStats;
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const rl = Array.isArray(rlStats) ? (rlStats[0] as unknown)?.[0] || rlStats[0] : rlStats;
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const exploration = Array.isArray(explorationStats) ? (explorationStats[0] as unknown)?.[0] || explorationStats[0] : explorationStats;
     const sigmoid = extractCount(Array.isArray(sigmoidCount) ? sigmoidCount[0] : sigmoidCount);
     const features = extractCount(Array.isArray(featureCount) ? featureCount[0] : featureCount);
     
     // 计算关键指标
-    // @ts-ignore
+    // @ts-expect-error - number type assertion
     const totalBidEvents = Number((bid as number)?.total_events) || 0;
-    // @ts-ignore
+    // @ts-expect-error - number type assertion
     const actualAdjustments = Number((bid as number)?.actual_adjustments) || 0;
-    // @ts-ignore
+    // @ts-expect-error - number type assertion
     const holdCount = Number((bid as number)?.hold_count) || 0;
     const effectiveRate = totalBidEvents > 0 ? (actualAdjustments / totalBidEvents * 100).toFixed(1) : '0.0';
     
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const totalRLLogs = Number((rl as unknown)?.total_logs) || 0;
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const rewardFilled = Number((rl as unknown)?.reward_filled) || 0;
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const advancedAlgoCount = Number((rl as unknown)?.linucb_count || 0) + Number((rl as unknown)?.cql_count || 0);
     const advancedRate = totalRLLogs > 0 ? (advancedAlgoCount / totalRLLogs * 100).toFixed(1) : '0.0';
     
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const rlExplorationCount = Number((exploration as unknown)?.total_exploration_actions) || 0;
     
     // 健康度评估
@@ -1082,11 +1096,11 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
         actualAdjustments,
         holdCount,
         effectiveRate: `${effectiveRate}%`,
-        // @ts-ignore
+        // @ts-expect-error - number type assertion
         apiSynced: Number((bid as number)?.api_synced) || 0,
-        // @ts-ignore
+        // @ts-expect-error - number type assertion
         apiFailed: Number((bid as number)?.api_failed) || 0,
-        // @ts-ignore
+        // @ts-expect-error - number type assertion
         apiPending: Number((bid as number)?.api_pending) || 0,
       },
       
@@ -1097,21 +1111,21 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
       rlColdStart: {
         totalRLLogs: totalRLLogs,
         rewardFilled,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         rewardPending: Number((rl as unknown)?.reward_pending) || 0,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         bidIncreaseCount: Number((rl as unknown)?.bid_increase_count) || 0,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         bidDecreaseCount: Number((rl as unknown)?.bid_decrease_count) || 0,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         bidHoldCount: Number((rl as unknown)?.bid_hold_count) || 0,
         explorationActions: rlExplorationCount,
         advancedAlgorithm: {
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           linucbCount: Number((rl as unknown)?.linucb_count) || 0,
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           cqlCount: Number((rl as unknown)?.cql_count) || 0,
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           ruleBasedCount: Number((rl as unknown)?.rule_based_count) || 0,
           advancedRate: `${advancedRate}%`,
         },
@@ -1229,7 +1243,7 @@ router.post('/force-sync', async (req: Request, res: Response) => {
     logger.info('OPS', `手动触发账户${accountId}的${tier}层全量同步`);
     
     // 异步执行，不阻塞响应
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     syncAccount(targetAccount, tier as unknown).then(result => {
       const durationMin = ((Date.now() - syncStartTime.getTime()) / 60000).toFixed(1);
       logger.info('OPS', `账户${accountId} ${tier}层同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);

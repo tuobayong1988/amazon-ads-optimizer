@@ -19,6 +19,7 @@ import { DbInstance, getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { logMigration, logMigrationWarn, logMigrationError } from './opsLogger';
+import { extractCount } from '../types/utilTypes';
 
 const log = createModuleLogger('migrateCampaignIds');
 
@@ -62,7 +63,7 @@ function extractCount(result: Record<string, any>): number {
  */
 async function hasRecordsToMigrate(db: DbInstance, tableName: string): Promise<boolean> {
   try {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const result = await db.execute(sql.raw(`
       SELECT 1 as found FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} 
@@ -91,7 +92,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
   
   try {
     // 方法1：通过 campaigns 表直接映射
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const directResult = await db.execute(sql.raw(`
       SELECT t.id, c.campaignId as correctCampaignId
       FROM \`${tableName}\` t
@@ -114,7 +115,7 @@ async function findRecordsToMigrate(db: DbInstance, tableName: string): Promise<
   // 方法2：对于 bidding_logs，通过 adGroupId → ad_groups.campaignId 链路解析未映射的记录
   if (tableName === 'bidding_logs') {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       const adGroupResult = await db.execute(sql.raw(`
         SELECT t.id, ag.campaignId as correctCampaignId
         FROM bidding_logs t
@@ -154,7 +155,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   let hasOrphanRecords = false;
   if (tableName === 'bidding_logs') {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       const orphanCheck = await db.execute(sql.raw(`
         SELECT 1 as found FROM bidding_logs 
         WHERE campaignId LIKE 'ORPHAN_%' OR campaignId = 'UNRESOLVED'
@@ -176,7 +177,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   
   if (recordsToMigrate.length === 0) {
     // 有疑似记录但无法映射 — 这些是真正的孤立记录
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const countResult = await db.execute(sql.raw(`
       SELECT COUNT(*) as cnt FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} AND campaignId REGEXP '^[0-9]+$'
@@ -196,7 +197,7 @@ async function migrateTable(db: DbInstance, tableName: string): Promise<Migratio
   // 逐条 UPDATE — 每条使用主键索引，毫秒级完成，不会造成锁冲突
   for (const record of (recordsToMigrate as any[])) {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle raw SQL execution
       await db.execute(sql.raw(
         `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
       ));

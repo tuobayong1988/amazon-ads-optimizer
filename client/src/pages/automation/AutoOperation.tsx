@@ -304,7 +304,7 @@ const [isExecuting, setIsExecuting] = useState(false);
                     {OPERATION_STEPS.map((step: any) => {
                       // 构建配置键名
                       const keyParts = step.key.split('_');
-                      // @ts-ignore
+                      // @ts-expect-error - array method type inference
                       const configKeyName = 'enable' + keyParts.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
                       
                       // 根据步骤获取对应的配置值

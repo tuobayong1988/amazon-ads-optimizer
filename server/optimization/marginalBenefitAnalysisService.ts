@@ -658,11 +658,11 @@ function runOptimizationAlgorithm(
         optimized[lowest.placement] -= reduction;
         
         // 增加到高效位置
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         if (optimized[highest.placement] < constraints.maxAdjustmentPerPlacement) {
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           optimized[highest.placement] = Math.min(
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             optimized[highest.placement] + reduction,
             constraints.maxAdjustmentPerPlacement
           );

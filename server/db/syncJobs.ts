@@ -329,7 +329,7 @@ export async function getSyncChangeRecords(syncJobId: number, entityType?: strin
   
   const conditions = [eq(syncChangeRecords.syncJobId, syncJobId)];
   if (entityType) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     conditions.push(eq(syncChangeRecords.entityType, entityType as unknown));
   }
   
@@ -431,7 +431,7 @@ export async function getSyncConflicts(accountId: number, status?: string) {
   
   const conditions = [eq(syncConflicts.accountId, accountId)];
   if (status) {
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     conditions.push(eq(syncConflicts.resolutionStatus, status as string));
   }
   
@@ -591,7 +591,7 @@ export async function getSyncQueue(userId: number, status?: string) {
   
   const conditions = [eq(syncTaskQueue.userId, userId)];
   if (status) {
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     conditions.push(eq(syncTaskQueue.status, status as string));
   }
   
@@ -773,7 +773,7 @@ export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7
       lte(syncTaskQueue.completedAt, cutoffDateStr)
     ));
   
-  // @ts-ignore
+  // @ts-expect-error - MySQL affectedRows
   return (result as Record<string, number>).affectedRows || 0;
 }
 
@@ -850,7 +850,7 @@ export async function createSyncSchedule(data: {
   
   const [result] = await db.insert(dataSyncSchedules)
     .values({
-      // @ts-ignore
+      // @ts-expect-error - Dynamic data property access
       userId: data.userId,
       accountId: data.accountId,
       syncType: data.syncType as unknown,
@@ -861,7 +861,7 @@ export async function createSyncSchedule(data: {
       nextRunAt: nextRunAt.toISOString().slice(0, 19).replace('T', ' '),
     });
   
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   return (result as Record<string, number>).insertId;
 }
 
@@ -1074,7 +1074,7 @@ export async function createSyncLog(data: {
   
   const [result] = await db.insert(dataSyncJobs)
     .values({
-      // @ts-ignore
+      // @ts-expect-error - Dynamic data property access
       userId: data.userId,
       accountId: data.accountId,
       syncType: data.syncType as unknown,
@@ -1092,7 +1092,7 @@ export async function createSyncLog(data: {
       errorMessage: data.errorMessage,
     });
   
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   return (result as Record<string, number>).insertId;
 }
 

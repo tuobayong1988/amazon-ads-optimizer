@@ -116,7 +116,7 @@ export const amazonApiRouter = router({
           log.info(`[ExchangeCode] Fetched profiles: ${profiles.length} 个`);
         } catch (profileError: unknown) {
           log.error('[ExchangeCode] Failed to fetch profiles:', (profileError as Error).message);
-          // @ts-ignore
+          // @ts-expect-error - error stack access
           log.error(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || (profileError as Error).stack).substring(0, 500)}`);
           // 不抛出错误，继续返回其他信息
         }
@@ -921,7 +921,7 @@ export const amazonApiRouter = router({
           }
         } finally {
           // v406: 在同步完成后才释放锁（移到此处，确保锁在整个同步期间持有）
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           await releaseSyncLock(input.accountId, 'all', lockId);
           log.info(`[v406-同步锁] 账号 ${input.accountId} 同步锁已释放`);
         }
@@ -1350,7 +1350,7 @@ export const amazonApiRouter = router({
           { name: '商品定位', fn: () => syncService.syncSpProductTargets() },
         ];
 
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         const results: Record<string, any>[] = {};
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
@@ -1363,7 +1363,7 @@ export const amazonApiRouter = router({
           );
           
           const result = await step.fn();
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           results[step.name] = result;
         }
 
@@ -1465,7 +1465,7 @@ export const amazonApiRouter = router({
         const group = await db.getPerformanceGroupById(input.performanceGroupId);
         if (group) {
           config = {
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             optimizationGoal: (group.optimizationGoal || 'maximize_sales') as unknown,
             targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
             targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
@@ -1705,7 +1705,7 @@ export const amazonApiRouter = router({
         });
         
         const subscription = await client.createAmsSubscription(
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           input.dataSetId as unknown,
           sqsQueueArn,
           input.notes
@@ -2110,7 +2110,7 @@ export const amazonApiRouter = router({
                 accountId = await db.createAdAccount({
                   userId: ctx.user.id,
                   accountId: String(profile.profileId),
-                  // @ts-ignore
+                  // @ts-expect-error - dynamic property access
                   accountName: (profile as unknown).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
                   storeName: input.storeName,
                   marketplace: profile.countryCode,

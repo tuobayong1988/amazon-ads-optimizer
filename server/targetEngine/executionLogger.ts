@@ -74,7 +74,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
         // v335: 将safety_pause和safety_summary记录到单独的logCategory，避免污染bid_adjustment日志
         if (detail.action === 'safety_pause' || detail.action === 'safety_summary') {
           try {
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             await db.createOptimizationLog({
               performanceGroupId: result.targetId,
               performanceGroupName: result.targetName,
@@ -118,7 +118,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
             v357_amazonKeywordId: detail.amazonKeywordId || detail.keywordId || '',
             v357_amazonCampaignId: detail.amazonCampaignId || '',
           };
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           await db.createOptimizationLog({
             performanceGroupId: result.targetId,
             performanceGroupName: result.targetName,
@@ -204,7 +204,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           performanceGroupName: result.targetName,
           accountId: result.accountId || detail.accountId || 0,
           logCategory: 'optimization_settings',
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           actionType: actionType as unknown,
           campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,

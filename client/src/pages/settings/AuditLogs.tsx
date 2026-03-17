@@ -124,7 +124,7 @@ export default function AuditLogs() {
     return Object.entries(actionTypes.categories).map(([key, actions]) => ({
       key,
       label: getCategoryLabel(key),
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       actions: [...actions] as string[],
     }));
   }, [actionTypes]);
@@ -552,7 +552,7 @@ export default function AuditLogs() {
                 {userStats?.actionsByType && Object.keys(userStats.actionsByType).length > 0 ? (
                   <div className="space-y-3">
                     {Object.entries(userStats.actionsByType)
-                      // @ts-ignore
+                      // @ts-expect-error - runtime type mismatch
                       .sort(([, a], [, b]) => b - a)
                       .slice(0, 10)
                       .map(([actionType, count]) => {

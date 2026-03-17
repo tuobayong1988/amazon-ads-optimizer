@@ -1,23 +1,25 @@
 /**
- * 账户级模块锁管理器 (v368)
+ * 账户级模块锁管理器 (v427)
  * 
  * v181: 从 dataSyncScheduler.ts 中提取的独立模块
  * v362: 增强为混合锁管理器，支持内存锁（单实例）和数据库锁（多实例）
- * v368: 修复分布式锁连接管理Bug（GET_LOCK绑定连接，不能提前release），
- *       将acquireAccountOptimizationLock升级为混合锁（内存锁+数据库锁双重保护）
+ * v368: 修复分布式锁连接管理Bug
+ * v426: 改用sync_locks表替代GET_LOCK
+ * v427: 升级为 Redis 分布式锁（三级降级：Redis → MySQL sync_locks → 内存锁）
  * 
  * 设计原则：
  * 1. 内存锁用于单实例快速路径（零延迟）
- * 2. 数据库锁用于多实例环境下的分布式互斥
- * 3. 混合锁模式：先获取内存锁（快速失败），再获取数据库锁（跨实例互斥）
- * 4. 锁超时自动释放，防止死锁
- * 5. 锁状态可查询，便于监控和排查
+ * 2. Redis 锁用于多实例环境下的分布式互斥（<1ms延迟）
+ * 3. MySQL sync_locks 表作为 Redis 不可用时的降级方案
+ * 4. 三级降级：Redis → MySQL → 内存锁
+ * 5. 锁超时自动释放，防止死锁
+ * 6. 锁状态可查询，便于监控和排查
  */
 import { createModuleLogger } from './logger';
 const log = createModuleLogger('LockManager');
 
 // ============================================================
-// 内存锁（单实例模式）
+// 内存锁（单实例模式 - 快速路径）
 // ============================================================
 
 interface MemoryLockState {
@@ -30,7 +32,7 @@ interface MemoryLockState {
 
 const accountModuleLocks: Record<string, MemoryLockState> = {};
 
-/** v426: 分布式锁释放函数缓存（用于释放sync_locks表中的锁） */
+/** v427: 分布式锁释放函数缓存 */
 const distributedLockReleases: Map<string, () => Promise<void>> = new Map();
 
 /** v362: 默认锁超时时间（10分钟，从5分钟提升以适应大账户优化） */
@@ -102,15 +104,58 @@ function releaseMemoryLock(lockKey: string): void {
   }
 }
 
+// ============================================================
+// v427: Redis 分布式锁集成
+// ============================================================
+
 /**
- * 获取账户+模块级别的优化锁（混合锁：内存锁 + sync_locks表分布式锁）
+ * 尝试获取 Redis 分布式锁，降级到 MySQL sync_locks 表
+ * @returns 释放函数，如果获取失败返回 null
+ */
+async function acquireRedisOrMySQLLock(
+  lockKey: string,
+  timeoutMs: number
+): Promise<(() => Promise<void>) | null> {
+  // 优先尝试 Redis 分布式锁
+  try {
+    const { RedisDistributedLock } = await import('./redisDistributedLock');
+    const redisLock = new RedisDistributedLock(`opt_${lockKey}`);
+    const release = await redisLock.tryAcquire(timeoutMs);
+    if (release) {
+      log.debug(`[LockManager] ${lockKey} Redis分布式锁获取成功`);
+      return release;
+    }
+    // Redis 锁被占用
+    return null;
+  } catch (e: unknown) {
+    log.debug(`[LockManager] ${lockKey} Redis锁不可用: ${(e as Error).message}，降级到MySQL锁`);
+  }
+
+  // 降级到 MySQL sync_locks 表锁
+  try {
+    const { DistributedLock } = await import('./distributedLock');
+    const mysqlLock = new DistributedLock(`opt_${lockKey}`);
+    const release = await mysqlLock.tryAcquire(timeoutMs);
+    if (release) {
+      log.debug(`[LockManager] ${lockKey} MySQL分布式锁获取成功`);
+      return release;
+    }
+    return null;
+  } catch (e: unknown) {
+    log.debug(`[LockManager] ${lockKey} MySQL锁也不可用: ${(e as Error).message}，降级到仅内存锁`);
+    // 返回空释放函数（仅内存锁模式）
+    return async () => {};
+  }
+}
+
+/**
+ * 获取账户+模块级别的优化锁（三级混合锁：内存锁 + Redis/MySQL 分布式锁）
  * 
- * v368: 升级为混合锁模式
- * v385: 降级为仅内存锁（减少数据库连接占用）
- * v426: 重新启用混合锁模式，改用sync_locks表替代GET_LOCK（不占用连接）
- * - 先尝试获取内存锁（快速失败，避免不必要的数据库调用）
- * - 再尝试获取sync_locks表锁（跨实例互斥保护，不占用连接池）
- * - 如果数据库锁获取失败，回滚内存锁
+ * v427: 升级为三级降级策略
+ * - 先获取内存锁（快速失败，避免不必要的网络调用）
+ * - 再尝试 Redis 分布式锁（<1ms延迟，跨实例互斥）
+ * - Redis 不可用时降级到 MySQL sync_locks 表锁
+ * - 全部不可用时降级到仅内存锁模式
  */
 export async function acquireAccountOptimizationLock(
   accountId: number,
@@ -126,15 +171,13 @@ export async function acquireAccountOptimizationLock(
     return false;
   }
   
-  // Step 2: v426 sync_locks表分布式锁（不占用连接池）
+  // Step 2: v427 Redis/MySQL 分布式锁
   try {
-    const { DistributedLock } = await import('./distributedLock');
     const timeoutMs = options?.expectedDurationMs || DEFAULT_LOCK_TIMEOUT_MS;
-    const distLock = new DistributedLock(`opt_${lockKey}`);
-    const release = await distLock.tryAcquire(timeoutMs);
+    const release = await acquireRedisOrMySQLLock(lockKey, timeoutMs);
     
-    if (!release) {
-      // 分布式锁获取失败，回滚内存锁
+    if (release === null) {
+      // 分布式锁获取失败（被其他实例持有），回滚内存锁
       releaseMemoryLock(lockKey);
       log.info(`[LockManager] ${lockKey} 分布式锁已被其他实例持有，${lockedBy} 跳过`);
       return false;
@@ -154,7 +197,7 @@ export async function acquireAccountOptimizationLock(
 
 /**
  * 释放账户+模块级别的优化锁（同时释放内存锁和分布式锁）
- * v426: 同时释放sync_locks表中的分布式锁
+ * v427: 同时释放 Redis/MySQL 分布式锁
  */
 export async function releaseAccountOptimizationLock(accountId: number, moduleGroup?: string): Promise<void> {
   const group = moduleGroup || 'all';
@@ -169,7 +212,7 @@ export async function releaseAccountOptimizationLock(accountId: number, moduleGr
   // 释放内存锁
   releaseMemoryLock(lockKey);
   
-  // v426: 释放分布式锁
+  // v427: 释放分布式锁（Redis 或 MySQL）
   try {
     const release = distributedLockReleases?.get(lockKey);
     if (release) {
@@ -205,21 +248,20 @@ export async function acquireAccountOptimizationLockWithRetry(
 }
 
 // ============================================================
-// v368: 数据库分布式锁（修复连接管理）
+// v427: 向后兼容的数据库分布式锁（保留旧API）
 // ============================================================
 
 /**
- * v368: 分布式锁连接池
+ * v368: 分布式锁连接池（向后兼容）
  * 
- * MySQL GET_LOCK 绑定在连接上，连接释放后锁自动失效。
- * 因此必须在锁的整个生命周期内保持连接不释放。
- * 使用独立的Map管理锁连接的生命周期。
+ * 注意：此API已被 Redis 分布式锁取代，保留仅为向后兼容。
+ * 新代码应使用 RedisDistributedLock 或 acquireAccountOptimizationLock。
  */
 const distributedLockConnections: Map<string, any> = new Map();
 
 /**
  * 基于数据库的分布式锁获取 (MySQL GET_LOCK)
- * v368: 修复连接管理 — 锁持有期间保持连接不释放
+ * @deprecated 使用 RedisDistributedLock 替代
  */
 export async function acquireDistributedLock(lockName: string, timeoutSec: number = 5): Promise<boolean> {
   const fullLockName = `ppcopt_${lockName}`;
@@ -239,6 +281,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     const db = await import('../db');
     const conn = await db.getDirectConnection(10000);
     
+    // @ts-expect-error - MySQL connection method
     const [rows] = await conn.execute('SELECT GET_LOCK(?, ?) as result', [fullLockName, timeoutSec]) as any[];
     const result = rows?.[0]?.result;
     
@@ -250,6 +293,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     }
     
     // 锁获取失败，释放连接
+    // @ts-expect-error - MySQL connection method
     conn.release();
     log.debug(`[DistLock] 获取分布式锁失败: ${lockName} (result=${result})`);
     return false;
@@ -261,7 +305,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
 
 /**
  * 释放数据库分布式锁
- * v368: 释放锁后同时释放对应的连接
+ * @deprecated 使用 RedisDistributedLock 替代
  */
 export async function releaseDistributedLock(lockName: string): Promise<void> {
   const fullLockName = `ppcopt_${lockName}`;
@@ -281,7 +325,6 @@ export async function releaseDistributedLock(lockName: string): Promise<void> {
       distributedLockConnections.delete(fullLockName);
       log.debug(`[DistLock] 释放分布式锁: ${lockName} (剩余锁连接: ${distributedLockConnections.size})`);
     } else {
-      // 没有找到对应连接，可能是降级模式下的锁
       log.debug(`[DistLock] 释放分布式锁: ${lockName} (无对应连接，可能已释放)`);
     }
   } catch (error) {
@@ -291,10 +334,22 @@ export async function releaseDistributedLock(lockName: string): Promise<void> {
 
 /**
  * 使用分布式锁执行操作（自动获取和释放）
+ * v427: 优先使用 Redis 锁
  */
 export async function withDistributedLock<T>(
   lockName: string, fn: () => Promise<T>, options?: { timeoutSec?: number }
 ): Promise<T | null> {
+  // v427: 优先使用 Redis 分布式锁
+  try {
+    const { withRedisLock } = await import('./redisDistributedLock');
+    const timeoutMs = (options?.timeoutSec || 5) * 1000;
+    const result = await withRedisLock(lockName, fn, timeoutMs);
+    return result;
+  } catch (e: unknown) {
+    log.debug(`[DistLock] Redis锁不可用，降级到MySQL GET_LOCK: ${(e as Error).message}`);
+  }
+
+  // 降级到 MySQL GET_LOCK
   const acquired = await acquireDistributedLock(lockName, options?.timeoutSec || 5);
   if (!acquired) return null;
   try {
@@ -306,20 +361,16 @@ export async function withDistributedLock<T>(
 
 /**
  * v368: 定期清理可能泄漏的锁连接（安全网）
- * 每5分钟检查一次，释放超过30分钟的锁连接
  */
 const DIST_LOCK_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-const DIST_LOCK_MAX_HOLD_MS = 30 * 60 * 1000;
 
 setInterval(async () => {
   if (distributedLockConnections.size === 0) return;
   
   log.debug(`[DistLock] 清理检查: ${distributedLockConnections.size} 个活跃锁连接`);
   
-  // 检查每个锁连接是否仍然有效
   for (const [lockName, conn] of distributedLockConnections.entries()) {
     try {
-      // 尝试ping连接，如果失败说明连接已断开
       await conn.ping();
     } catch (e) {
       log.warn(`[DistLock] 清理无效锁连接: ${lockName}`);
@@ -353,6 +404,7 @@ function recordLockEvent(lockKey: string, action: string, lockedBy: string, hold
 
 /**
  * 获取当前所有锁的状态（用于监控和排查）
+ * v427: 增加 Redis 锁状态
  */
 export function getLockStatus(): {
   activeLocks: Array<{ key: string; lockedBy: string; holdTimeSec: number }>;
@@ -376,6 +428,49 @@ export function getLockStatus(): {
       totalTimeout: lockEvents.filter(e => e.action === 'timeout_release').length,
       totalReleased: lockEvents.filter(e => e.action === 'released').length,
       activeDistLocks: distributedLockConnections.size,
+    },
+  };
+}
+
+/**
+ * v427: 获取完整的锁状态（包括 Redis 分布式锁）
+ */
+export async function getFullLockStatus(): Promise<{
+  memoryLocks: Array<{ key: string; lockedBy: string; holdTimeSec: number }>;
+  redisLocks: Array<{ lockKey: string; holderId: string; ttlMs: number }>;
+  mysqlLocks: Array<{ lockKey: string; holderId: string; acquiredAt: string; expiresAt: string; remainingMs: number }>;
+  recentEvents: LockEvent[];
+  stats: { totalAcquired: number; totalTimeout: number; totalReleased: number };
+}> {
+  const basicStatus = getLockStatus();
+  
+  // 获取 Redis 锁状态
+  let redisLocks: Array<{ lockKey: string; holderId: string; ttlMs: number }> = [];
+  try {
+    const { getAllRedisLockStatus } = await import('./redisDistributedLock');
+    redisLocks = await getAllRedisLockStatus();
+  } catch {
+    // Redis 不可用
+  }
+
+  // 获取 MySQL 锁状态
+  let mysqlLocks: Array<{ lockKey: string; holderId: string; acquiredAt: string; expiresAt: string; remainingMs: number }> = [];
+  try {
+    const { getAllDistributedLockStatus } = await import('./distributedLock');
+    mysqlLocks = await getAllDistributedLockStatus();
+  } catch {
+    // MySQL 锁不可用
+  }
+
+  return {
+    memoryLocks: basicStatus.activeLocks,
+    redisLocks,
+    mysqlLocks,
+    recentEvents: basicStatus.recentEvents,
+    stats: {
+      totalAcquired: basicStatus.stats.totalAcquired,
+      totalTimeout: basicStatus.stats.totalTimeout,
+      totalReleased: basicStatus.stats.totalReleased,
     },
   };
 }

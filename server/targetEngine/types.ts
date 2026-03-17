@@ -29,17 +29,17 @@ async function getAccountMarketplace(accountId: number): Promise<string> {
 async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null> {
   try {
     const account = await db.getAdAccountById(accountId);
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     if (account && (account as unknown).lastSyncAt) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       return new Date((account as unknown).lastSyncAt);
     }
     // 备用：从同步日志表查询
     const { getEngineStatus } = await import('../sync/unifiedSyncEngine');
     const status = getEngineStatus();
-    // @ts-ignore
+    // @ts-expect-error - string type assertion
     if ((status as string).lastSyncResults) {
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       const accountResult = ((status as string).lastSyncResults as any[])?.find((r: Record<string, any>) => r.accountId === accountId);
       if (accountResult?.completedAt) {
         return new Date(accountResult.completedAt);

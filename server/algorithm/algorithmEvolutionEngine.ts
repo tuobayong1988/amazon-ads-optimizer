@@ -276,7 +276,7 @@ async function getEventPerformanceData(
     if (event.keywordId) {
       // 关键词级别：从keywords表获取聚合数据
       const { keywords } = await import('../../drizzle/schema');
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const kwData = await db.select()
         .from(keywords)
         .where(eq(keywords.id, event.keywordId))
@@ -295,7 +295,7 @@ async function getEventPerformanceData(
     } else if (event.campaignId) {
       // 广告活动级别
       const { campaigns } = await import('../../drizzle/schema');
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const campData = await db.select()
         .from(campaigns)
         .where(eq(campaigns.id, event.campaignId))
@@ -313,7 +313,7 @@ async function getEventPerformanceData(
       }
     }
     
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     return result || null;
   } catch (error: unknown) {
     log.error(`[EvolutionEngine] 获取事件 ${event.id} 效果数据失败:`, (error as Error).message);
@@ -526,7 +526,7 @@ export async function getTargetAlgorithmConfig(targetId: number): Promise<Target
       const group = groups[0] as any;
       // 尝试从performanceData JSON字段读取（如果有的话）
       // 目前使用默认配置，后续可以扩展到数据库持久化
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       const storedConfig = (group as unknown).algorithmConfig;
       if (storedConfig && typeof storedConfig === 'object') {
         return { ...DEFAULT_TARGET_ALGORITHM_CONFIG, ...storedConfig };
@@ -670,7 +670,7 @@ export function calculateParameterAdjustments(
         });
         
         // 存储实际的新权重值（通过特殊编码）
-        // @ts-ignore
+        // @ts-expect-error - dynamic property assignment
         (adjustments[adjustments.length - 1] as unknown)._newWeights = newWeights;
       }
     }
@@ -787,9 +787,9 @@ export function applyAdjustments(
         newConfig.confidenceThreshold = adj.newValue;
         break;
       case 'algorithmWeights':
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         if ((adj as unknown)._newWeights) {
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           newConfig.algorithmWeights = (adj as unknown)._newWeights;
         }
         break;

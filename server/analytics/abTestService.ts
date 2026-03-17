@@ -153,7 +153,7 @@ export async function assignCampaignsToTest(
   ];
 
   if (assignments.length > 0) {
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(abTestCampaignAssignments).values(assignments as unknown);
   }
 

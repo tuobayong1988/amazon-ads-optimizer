@@ -20,13 +20,13 @@ export async function createBiddingLog(log: InsertBiddingLog) {
   const safeCampaignId = await safeCampaignIdForInsert({
     campaignId: log.campaignId,
     targetLocalId: log.targetId ? Number(log.targetId) : undefined,
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     targetType: (log as unknown).logTargetType || 'keyword',
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     adGroupId: (log as unknown).internalAdGroupId ? Number((log as unknown).internalAdGroupId) : undefined,
     caller: 'createBiddingLog',
   });
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   log.campaignId = safeCampaignId as unknown;
   
   const result = await db.insert(biddingLogs).values(log);
@@ -40,10 +40,10 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
       campaignId: Number(safeCampaignId) || null,
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       campaignName: (log as unknown).campaignName as string || null,
       keywordId: log.targetId,
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       keywordText: (log as unknown).keywordText as string || null,
       matchType: log.logMatchType as string || null,
       previousBid: String(log.previousBid || 0),
@@ -57,7 +57,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       sourceId: Number(logId),
     });
   } catch (e) {
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     (log as unknown).error('[v145] 双写optimization_events失败(biddingLog):', e);
   }
   

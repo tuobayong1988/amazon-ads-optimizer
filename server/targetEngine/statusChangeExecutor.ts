@@ -295,7 +295,7 @@ export async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: keyword.internalAdGroupId || undefined }]  // v421: 使用internalAdGroupId(int)
                   );
-                // @ts-ignore
+                // @ts-expect-error - error message access
                 } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
@@ -354,7 +354,7 @@ export async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: keyword.internalAdGroupId || undefined }]  // v421: 使用internalAdGroupId(int)
                   );
-                // @ts-ignore
+                // @ts-expect-error - error message access
                 } catch (ve: unknown) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
@@ -669,7 +669,7 @@ export async function executeAdGroupStatusChanges(
                   AND api_sync_status = 'failed'
                   AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
               `);
-              // @ts-ignore
+              // @ts-expect-error - type assertion
               const failCount = ((failHistory as unknown)[0]?.[0]?.fail_count) || 0;
               if (failCount >= 3) {
                 log.warn(`[AdGroupStatus] v328: 跳过广告组"${adGroup.adGroupName}" — 已连续失败${failCount}次，等待人工处理`);

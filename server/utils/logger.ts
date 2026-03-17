@@ -290,9 +290,9 @@ class DbWriter {
     } catch (err: unknown) {
       // 写入失败，静默处理（避免日志系统自身的错误导致递归）
       // 仅在控制台输出简短错误
-      // @ts-ignore
+      // @ts-expect-error - error code check
       if (err?.code !== 'ER_NO_SUCH_TABLE') {
-        // @ts-ignore
+        // @ts-expect-error - error message access
         process.stderr.write(`[Logger] DB flush error: ${err?.message || 'unknown'}\n`);
       }
     } finally {
@@ -503,7 +503,7 @@ class Logger {
     // 文本搜索
     if (params.search) {
       const searchLower = params.search.toLowerCase();
-      // @ts-ignore
+      // @ts-expect-error - error message access
       entries = entries.filter(e => (e as Error).message.toLowerCase().includes(searchLower));
     }
 

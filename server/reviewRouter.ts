@@ -80,9 +80,9 @@ export const reviewRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }: any) => {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的否词
@@ -94,7 +94,7 @@ export const reviewRouter = router({
           input.accountId,
           input.campaignId,
           input.adGroupId,
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           accepted.map(a => ({ keyword: a.ngram, matchType: a.matchType }))
         );
         addedCount = result.addedCount;
@@ -207,9 +207,9 @@ export const reviewRouter = router({
       })),
     }))
     .mutation(async ({ input }: any) => {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的隔离
@@ -219,7 +219,7 @@ export const reviewRouter = router({
       if (accepted.length > 0) {
         const result = await executeTrafficIsolation(
           input.accountId,
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           accepted.map(a => ({
             searchTerm: a.searchTerm,
             campaignId: a.sourceCampaignId,
@@ -252,9 +252,9 @@ export const reviewRouter = router({
       })),
     }))
     .mutation(async ({ input }: any) => {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const accepted = input.decisions.filter(d => d.action === 'accept');
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const rejected = input.decisions.filter(d => d.action === 'reject');
       
       // 执行接受的冲突消解
@@ -265,7 +265,7 @@ export const reviewRouter = router({
         // 在所有loser campaign中添加精准否定
         const result = await executeTrafficIsolation(
           input.accountId,
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           decision.loserCampaignIds.map(campaignId => ({
             searchTerm: decision.searchTerm,
             campaignId,

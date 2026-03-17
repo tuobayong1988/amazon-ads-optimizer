@@ -201,7 +201,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
         targetId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       var _apiResponseId = ptApiResult.requestIds?.[0] || '';
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
@@ -216,7 +216,7 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     log.info(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}${_apiResponseId ? `, requestId=${_apiResponseId}` : ''}`);
     
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(biddingLogs).values({
         accountId: this.accountId,
         campaignId: resolvedCampaignId,
@@ -253,15 +253,15 @@ AmazonSyncService.prototype.applyBidAdjustment = async function(this: AmazonSync
     // v333: 返回包含apiResponseId的结果对象，同时保持向后兼容（truthy值）
     return { success: true, apiResponseId: _apiResponseId || undefined };
   } catch (error: unknown) {
-    // @ts-ignore
+    // @ts-expect-error - error message access
     const errorDetail = (error as any).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
     log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
-    // @ts-ignore
+    // @ts-expect-error - Axios error response access
     log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
     // v310-fix: 识别Amazon ID无效错误，清空targetId防止后续继续尝试同步
     const isInvalidId = (
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       (error as Error & { response?: unknown }).response?.status === 404 ||
       errorDetail.includes('INVALID_ARGUMENT') ||
       errorDetail.includes('NOT_FOUND') ||

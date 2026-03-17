@@ -185,9 +185,9 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
       experiments.push({
         testId: test.id,
         experimentType: test.testType || 'bid_strategy',
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         controlConfig: ((controlVariant as unknown).config as ExperimentVariantConfig) || {},
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         treatmentConfig: ((treatmentVariant as unknown).config as ExperimentVariantConfig) || {},
         controlCampaignIds,
         treatmentCampaignIds,
@@ -241,7 +241,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
             AND accountId = ${accountId}
         `);
         
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         const metrics = (metricsQuery as unknown)[0]?.[0] || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 };
         
         await abTestService.recordDailyMetrics(

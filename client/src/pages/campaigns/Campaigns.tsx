@@ -594,7 +594,7 @@ export default function Campaigns() {
   // 使用GlobalAccountSelector的选择查找对应的accountId
   const accountId = useMemo(() => {
     if (!accounts || !currentStore || !currentMarketplace) return undefined;
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const account = accounts.find(a => 
       (a.storeName || a.accountName).trim() === currentStore.trim() && 
       a.marketplace === currentMarketplace
@@ -788,7 +788,7 @@ export default function Campaigns() {
   // 获取店铺和站点信息（从账号列表中获取）
   const storeOptions = useMemo(() => {
     if (!accounts) return [{ value: "all", label: "全部店铺" }];
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const storeSet = new Set(accounts.map(a => (a.storeName || a.accountName).trim()).filter(Boolean));
     const stores = Array.from(storeSet) as string[];
     return [
@@ -799,7 +799,7 @@ export default function Campaigns() {
 
   const marketplaceOptions = useMemo(() => {
     if (!accounts) return [{ value: "all", label: "全部站点" }];
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     const marketplaceSet = new Set(accounts.map(a => a.marketplace).filter(Boolean));
     const marketplaces = Array.from(marketplaceSet) as string[];
     return [
@@ -812,13 +812,13 @@ export default function Campaigns() {
   const filteredAccountIds = useMemo(() => {
     if (!accounts) return [];
     return accounts
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       .filter(a => {
         const matchesStore = storeFilter === "all" || (a.storeName || a.accountName).trim() === storeFilter;
         const matchesMarketplace = marketplaceFilter === "all" || a.marketplace === marketplaceFilter;
         return matchesStore && matchesMarketplace;
       })
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       .map(a => a.id);
   }, [accounts, storeFilter, marketplaceFilter]);
 

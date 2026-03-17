@@ -496,7 +496,7 @@ export default function Scheduler() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {Object.entries(taskTypeConfig).map(([key, config]) => {
                 const Icon = config.icon;
-                // @ts-ignore
+                // @ts-expect-error - runtime type mismatch
                 const hasTask = tasks?.some(t => t.taskType === key);
                 return (
                   <Card key={key} className={hasTask ? 'opacity-50' : ''}>

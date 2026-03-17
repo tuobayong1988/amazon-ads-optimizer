@@ -649,11 +649,11 @@ export async function ensureDaypartingStrategy(
     // v157: campaignId在schema中是int类型，但数据库中是varchar(64)
     const strategyId = await createDaypartingStrategy({
       accountId,
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       campaignId: Number(campaignId) || 0 as unknown,
       name: `自动分时策略 - ${campaignName}`,
       strategyType: 'both',
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       daypartingOptGoal: (options.optimizationGoal as unknown) || 'maximize_sales',
       daypartingTargetAcos: options.targetAcos?.toString(),
       daypartingTargetRoas: options.targetRoas?.toString(),
@@ -841,8 +841,7 @@ export async function generateOptimalStrategy(
   // 5. 创建策略
   const strategyId = await createDaypartingStrategy({
     accountId,
-    // @ts-ignore
-    campaignId: campaignId as string,
+    campaignId: String(campaignId),
     name: options.name,
     strategyType: "both",
     daypartingOptGoal: options.optimizationGoal,
@@ -914,7 +913,7 @@ export async function getHourlyRule(
     dayOfWeek: rule.dayOfWeek,
     hour: rule.hour,
     bidMultiplier: parseFloat(rule.bidMultiplier || '1'),
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     isEnabled: (rule as unknown).ruleEnabled ?? true
   };
 }

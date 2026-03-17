@@ -83,7 +83,7 @@ export async function migrateEncryptCredentials(): Promise<{
       FROM amazon_api_credentials
     `) as unknown;
     
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const records = rows[0] || rows;
     result.totalRecords = records.length;
     log.info(`[v345-migration] 共 ${records.length} 条凭证记录`);

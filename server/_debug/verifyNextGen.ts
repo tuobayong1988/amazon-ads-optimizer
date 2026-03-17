@@ -41,7 +41,7 @@ async function setupMockData() {
     await db.delete(contextualFeatures).where(eq(contextualFeatures.accountId, TEST_ACCOUNT_ID));
 
     // Create mock campaign
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(campaigns).values({
         id: 9999,
         accountId: TEST_ACCOUNT_ID,
@@ -53,7 +53,7 @@ async function setupMockData() {
     } as Record<string, any>);
 
     // Create mock ad group
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(adGroups).values({
         id: TEST_ADGROUP_ID,
         campaignId: "9999",
@@ -63,7 +63,7 @@ async function setupMockData() {
     } as Record<string, any>);
 
     // Create mock keyword
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(keywords).values({
         id: TEST_KEYWORD_ID,
         adGroupId: TEST_ADGROUP_ID,
@@ -75,7 +75,7 @@ async function setupMockData() {
     } as Record<string, any>);
 
     // Create some mock RL logs to make algorithms eligible
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(rlTrainingLogs).values(Array.from({ length: 60 }, (_, i) => ({
         accountId: TEST_ACCOUNT_ID,
         keywordId: TEST_KEYWORD_ID,
@@ -131,7 +131,7 @@ async function runVerification() {
             targetAcos: 0.35,
         };
 
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         const bidResult = await (calculateNextGenBid as unknown)(TEST_ACCOUNT_ID, mockTarget, mockGroupConfig, {
             enableNextGen: true,
             nextGenTrafficRatio: 1.0, // Force usage of new algo

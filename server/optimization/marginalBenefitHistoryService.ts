@@ -199,7 +199,7 @@ export async function saveMarginalBenefitHistory(
     )
   `);
 
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   return (result[0] as unknown).insertId;
 }
 

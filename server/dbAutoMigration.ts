@@ -33,7 +33,7 @@ const log = createModuleLogger('AutoDbMigration');
  */
 function isAlreadyExistsError(err: Error): boolean {
   const message = String(err?.message || '');
-  // @ts-ignore
+  // @ts-expect-error - error message access
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
   
@@ -54,7 +54,7 @@ async function safeDDL(database: any, ddlSql: any, tableName: string, results: s
     log.info(`${tableName} 已就绪`);
     return true;
   } catch (err: unknown) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (isAlreadyExistsError(err)) {
       results.push(`${tableName}: 已存在（跳过）`);
       return true;

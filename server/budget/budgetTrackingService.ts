@@ -328,7 +328,7 @@ export async function getTrackingList(
 
   const conditions = [eq(budgetAllocationTracking.userId, userId)];
   if (options.accountId) conditions.push(eq(budgetAllocationTracking.accountId, options.accountId));
-  // @ts-ignore
+  // @ts-expect-error - string type assertion
   if (options.status) conditions.push(eq(budgetAllocationTracking.status, options.status as string));
 
   const trackings = await db

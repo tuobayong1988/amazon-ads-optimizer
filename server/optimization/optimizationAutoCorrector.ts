@@ -428,7 +428,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
         WHERE api_sync_status IS NULL
         LIMIT ${BATCH_SIZE}
       `);
-      // @ts-ignore
+      // @ts-expect-error - MySQL affectedRows
       batchAffected = (updateResult as Record<string, any>[])?.[0]?.affectedRows || (updateResult as Record<string, any>[])?.affectedRows || 0;
       totalAffected += batchAffected;
       if (batchAffected > 0) {
@@ -445,7 +445,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
         WHERE api_sync_status IS NULL
         LIMIT ${BATCH_SIZE}
       `);
-      // @ts-ignore
+      // @ts-expect-error - MySQL affectedRows
       batchAffected2 = (updateResult2 as Record<string, any>[])?.[0]?.affectedRows || (updateResult2 as unknown)?.affectedRows || 0;
       totalAffected += batchAffected2;
       if (batchAffected2 > 0) {
@@ -775,7 +775,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         campaignId: row.amazon_campaign_id || row.campaign_id || 0,
         reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
       };
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     }).filter((item: Record<string, any>): item is NonNullable<typeof item> => item !== null);
     
     if (correctionItems.length === 0) {
@@ -786,12 +786,12 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     try {
       const syncResult: any = await amazonApiHelper.syncBidAdjustmentsToAmazon(
         accountId,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         correctionItems
       );
       
       // v172: 使用correctionItems中的实际纠正值（已受max_bid限制）
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const correctionMap = new Map(correctionItems.map((item: Record<string, any>) => [item.keywordId, item.newBid]));
       
       for (const row of (arbitratedRows as any[])) {
@@ -1544,7 +1544,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         if (kw.keywordId) {
           // 已有Amazon ID，直接标记为synced
           await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
           continue;
         }
@@ -1606,7 +1606,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         }
         
         results.push({
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           type: 'keyword_create_retry' as unknown,
           accountId,
           targetId: localKeywordId,
@@ -1618,7 +1618,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
           errorMessage: success ? undefined : syncResult.errors.join('; '),
         });
       } catch (retryError: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - error message access
         results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: (retryError as Error).message });
       }
     }
@@ -1732,7 +1732,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           level: amazonAdGroupId ? 'adgroup' : 'campaign',
           retryCount,
         };
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         negKeywordsToSync.push(nkEntry);
       } catch (parseErr: unknown) {
         log.warn(`v178: 解析否定关键词事件失败: eventId=${event.id}, ${(parseErr as Error).message}`);
@@ -1747,7 +1747,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     const toPermanentlyFail: typeof negKeywordsToSync = [];
     
     for (const nk of negKeywordsToSync) {
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       if ((nk as unknown).retryCount >= maxRetries) {
         toPermanentlyFail.push(nk);
       } else {
@@ -1761,7 +1761,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         apiSyncStatus: 'not_applicable',
         apiSyncDetail: JSON.stringify({ 
           reason: `超过最大重试次数(${maxRetries})，放弃重试`,
-          // @ts-ignore
+          // @ts-expect-error - dynamic property access
           retryCount: (nk as unknown).retryCount,
           lastRetryAt: new Date().toISOString()
         }),
@@ -1826,11 +1826,11 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     for (const nk of toRetry) {
       const keywordFailed = failedKeywords.has(nk.keywordText.toLowerCase());
       const success = !keywordFailed && syncResult.success > 0;
-      // @ts-ignore
+      // @ts-expect-error - dynamic property access
       const newRetryCount = ((nk as unknown).retryCount || 0) + 1;
       
       // v175b: 如果Amazon拒绝了关键词(PATTERN_NOT_MATCHED等)，直接标记为永久失败
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const isPermanentError = keywordFailed && syncResult.errors.some(e => 
         e.toLowerCase().includes(nk.keywordText.toLowerCase()) && 
         (e.includes('PATTERN_NOT_MATCHED') || e.includes('Keyword is invalid') || e.includes('malformedValueError'))
@@ -2125,7 +2125,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
   try {
     // 1. v230: 查询最近7天的同步状态统计
     // v230: 排除not_applicable状态，避免将不需要同步的操作计入失真
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [syncStats] = await database.execute(sql`
       SELECT 
         COUNT(*) as total,
@@ -2138,7 +2138,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
     `) as unknown;
     
     // 2. v230: 按操作类型统计同步率，排除not_applicable
-    // @ts-ignore
+    // @ts-expect-error - Drizzle raw SQL execution
     const [typeStats] = await database.execute(sql`
       SELECT 
         action_type,
@@ -2262,7 +2262,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
       
       // 输出最近失败事件的典型错误模式
       try {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle raw SQL execution
         const [recentErrors] = await database.execute(sql`
           SELECT action_type, error_message, COUNT(*) as count
           FROM optimization_events 
@@ -2358,7 +2358,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     `;
     
     const violations = await database.execute(violationQuery);
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const rows = (violations as unknown)[0] || violations;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -2430,7 +2430,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     `;
     
     const ptViolations = await database.execute(ptViolationQuery);
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const ptRows = (ptViolations as unknown)[0] || ptViolations;
     
     if (Array.isArray(ptRows) && ptRows.length > 0) {
@@ -2501,7 +2501,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
     `;
     
     const orphans = await database.execute(orphanQuery);
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const rows = (orphans as unknown)[0] || orphans;
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
@@ -2590,7 +2590,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
       LIMIT ${MAX_PER_RUN}
     `);
     
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const events = (failedEvents as unknown)[0] || failedEvents;
     if (!events || events.length === 0) return results;
     
@@ -2639,7 +2639,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
                 api_sync_detail = ${JSON.stringify({ reason: 'v311: Product Targeting campaign不支持keyword操作', fixedAt: new Date().toISOString() })}
               WHERE id = ${kw.eventId}
             `).catch(() => {});
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             results.push({ type: 'keyword_create_retry' as unknown, accountId, targetId: localCampaignId, targetType: 'campaign', previousValue: '', correctedValue: kw.searchTerm, reason: `v311: PT campaign不支持keyword，放弃重试: ${kw.searchTerm}`, success: false, errorMessage: 'pt_campaign_no_keyword' });
           }
           continue;
@@ -2758,7 +2758,6 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
               INSERT INTO keywords (internal_ad_group_id, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
               VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
-            // @ts-ignore
             const localKeywordId = (insertResult as Record<string, any>[])[0]?.insertId || (insertResult as Record<string, any>[])?.insertId;
             
             keywordsToSync.push({
@@ -3319,9 +3318,9 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
     
   } catch (err: unknown) {
     log.error(`v199: 出价执行确认异常: ${(err as Error).message}`);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (err.cause) log.error(`v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (err.sql) log.error(`v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
   
@@ -3582,9 +3581,9 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
     
   } catch (err: unknown) {
     log.error(`v199: 账户${accountId} NextGen质量审计异常: ${(err as Error).message}`);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (err.cause) log.error(`v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (err.sql) log.error(`v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
   
@@ -3623,9 +3622,9 @@ export function startAutoCorrector(): void {
     }, 30 * 60 * 1000); // 每30分钟
     log.info('[v426] 独立 dayparting 清理定时任务已启动，每30分钟运行一次');
   }
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   const intervalMs = (AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours 
-    // @ts-ignore
+    // @ts-expect-error - dynamic property access
     ? (AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours * 60 * 60 * 1000 
     : 4 * 60 * 60 * 1000;
   correctionInterval = setInterval(async () => {
@@ -3659,7 +3658,7 @@ export function startAutoCorrector(): void {
       log.error('定时纠错扫描失败:', (err as Error).message);
     }
   }, intervalMs);
-  // @ts-ignore
+  // @ts-expect-error - dynamic property access
   log.info(`定时纠错服务已启动，每${(AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours || 4}小时运行一次`);
 }
 
@@ -4037,7 +4036,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
         `).catch(() => {});
         
         results.push({
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           type: 'keyword_create_retry' as unknown, // 复用现有类型
           accountId,
           targetId: target.localTargetId,
@@ -4049,7 +4048,7 @@ async function retryFailedProductTargetCreations(database: any, accountId: numbe
         });
       } else {
         results.push({
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           type: 'keyword_create_retry' as unknown,
           accountId,
           targetId: target.localTargetId,
@@ -4168,7 +4167,7 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
           cancelled++;
           
           results.push({
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             type: 'bid_execution_verify' as unknown,
             accountId,
             targetId: row.keyword_id || row.target_id,
@@ -4251,7 +4250,7 @@ async function cleanupExpiredDaypartingBids(database: any, accountId: number): P
     log.warn(`v425: 账户${accountId} 已将${expiredRecords.length}条过期dayparting_bid标记为superseded`);
     
     results.push({
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       type: 'dayparting_cleanup' as unknown,
       accountId,
       targetId: 0,
@@ -4290,7 +4289,7 @@ async function cleanupExpiredDaypartingBids(database: any, accountId: number): P
       log.warn(`v425: 账户${accountId} 已将${Math.min(oldFailedCount, 1000)}条超7天的非dayparting失败记录标记为permanently_failed`);
       
       results.push({
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         type: 'old_failure_cleanup' as unknown,
         accountId,
         targetId: 0,

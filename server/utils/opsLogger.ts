@@ -157,7 +157,7 @@ class OpsCollector {
     if (keyword) {
       const kw = keyword.toLowerCase();
       entries = entries.filter(e => 
-        // @ts-ignore
+        // @ts-expect-error - error message access
         (e as Error).message.toLowerCase().includes(kw) || 
         (e.data && JSON.stringify(e.data).toLowerCase().includes(kw))
       );

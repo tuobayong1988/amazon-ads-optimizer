@@ -219,7 +219,6 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
         if (apiBudget === 0 && localBudget > 0) {
           log.warn(`v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).dailyBudget;
         }
         
@@ -233,7 +232,6 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
           if (hasRecentOpt) {
             // 有近期优化事件，保留本地预算
             log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
-            // @ts-ignore
             delete (campaignData as Record<string, any>[]).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
@@ -245,34 +243,28 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
         
         // v165: 位置倾斜比例保护逻辑
         const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
-        // @ts-ignore
         const apiTopPlacement1 = (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment || 0;
         const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
-        // @ts-ignore
         const apiProductPlacement1 = (campaignData as Record<string, any>[]).placementProductPageBidAdjustment || 0;
         // v423: 增加restOfSearch位置保护
         const localRestPlacement1 = (existing as any).placementRestBidAdjustment || 0;
-        // @ts-ignore
         const apiRestPlacement1 = (campaignData as Record<string, any>[]).placementRestBidAdjustment || 0;
         const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1 || localRestPlacement1 !== apiRestPlacement1;
         if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
           log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%, localRest=${localRestPlacement1}%, apiRest=${apiRestPlacement1}%`);
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementTopSearchBidAdjustment;
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementProductPageBidAdjustment;
-          // @ts-ignore
           delete (campaignData as Record<string, any>[]).placementRestBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
         
         await db
           .update(campaigns)
-          // @ts-ignore
+          // @ts-expect-error - Drizzle query builder type
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await db.insert(campaigns).values({
           ...campaignData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -290,14 +282,14 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     return { synced, skipped };
   } catch (error: unknown) {
     log.error('[同步] ❌ SP广告活动同步失败');
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     log.error('[同步] 错误类型:', error.constructor.name);
     log.error('[同步] 错误消息:', (error as Error).message);
     log.error('[同步] 错误堆栈:', (error as Error).stack);
     if ((error as Error & { response?: unknown }).response) {
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
@@ -469,7 +461,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
           .set(keywordData)
           .where(eq(keywords.id, existing.id));
       } else {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await db.insert(keywords).values({
           ...keywordData,
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -670,7 +662,6 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
             log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-            // @ts-ignore
             delete (targetData as Record<string, any>[]).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);

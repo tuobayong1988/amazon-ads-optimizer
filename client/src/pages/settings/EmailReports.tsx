@@ -225,9 +225,9 @@ export default function EmailReports() {
   // 统计数据
   const stats = {
     total: subscriptions?.length || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     active: subscriptions?.filter(s => s.isActive).length || 0,
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     paused: subscriptions?.filter(s => !s.isActive).length || 0,
   };
 

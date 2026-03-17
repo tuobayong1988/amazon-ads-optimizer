@@ -87,10 +87,10 @@ export const systemLogRouter = router({
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // @ts-ignore
+        // @ts-expect-error - Drizzle raw SQL execution
         const [rows] = await dbInstance.execute() as unknown;
 
-        // @ts-ignore
+        // @ts-expect-error - Drizzle raw SQL execution
         const [countResult] = await dbInstance.execute(
           `SELECT COUNT(*) as total FROM system_logs ${whereClause}`
         ) as unknown;
@@ -101,7 +101,7 @@ export const systemLogRouter = router({
         };
       } catch (err: unknown) {
         // system_logs表可能尚未创建
-        // @ts-ignore
+        // @ts-expect-error - error code check
         if (err?.code === 'ER_NO_SUCH_TABLE') {
           return { logs: [], total: 0, message: 'system_logs表尚未创建，将在下次部署迁移时自动创建' };
         }

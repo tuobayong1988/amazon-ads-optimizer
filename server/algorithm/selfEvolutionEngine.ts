@@ -305,7 +305,7 @@ async function getTimeWeightedCampaignMetrics(
 ): Promise<{ acos: number; roas: number; dailySpend: number; dailyOrders: number; days: number } | null> {
   if (campaignIds.length === 0) return null;
   
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   const dailyData = await db.select({
     date: dailyPerformance.date,
     spend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
@@ -412,11 +412,11 @@ function calculateEffectScore(
   // v274: 5. 因果推断增量利润信号（权重5%）
   // 如果该优化动作的action_detail中包含因果推断结果，作为额外信号
   try {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (logEntry?.actionDetail) {
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const detail = typeof logEntry.actionDetail === 'string' 
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         ? JSON.parse(logEntry.actionDetail) : logEntry.actionDetail;
       if (detail.causalAdjustment && detail.causalAdjustment.confidence > 0.5) {
         // 因果推断的增量利润为正 → 加分，为负 → 减分
@@ -719,7 +719,7 @@ export async function executeAutoCorrections(
       }
       
       // 写入纠错日志
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(optimizationLogs).values({
         userId,
         accountId,

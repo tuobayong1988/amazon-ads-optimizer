@@ -200,7 +200,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
   const filteredAccounts = useMemo(() => {
     if (!accounts) return [];
     
-    // @ts-ignore
+    // @ts-expect-error - array method type inference
     return accounts.filter(account => {
       // 按区域筛选
       if (filterRegion) {
@@ -220,19 +220,19 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
   }, [accounts, filterRegion, filterMarketplace]);
 
   // 当前选中的账号
-  // @ts-ignore
+  // @ts-expect-error - array method type inference
   const currentAccount = accounts?.find(a => a.id === currentAccountId);
 
   // 如果没有选中账号或选中的账号无效，自动选择默认账号或第一个
   useEffect(() => {
     if (accounts && accounts.length > 0) {
       // 检查当前选中的账号是否有效（存在于账号列表中）
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const isCurrentAccountValid = currentAccountId && accounts.some(a => a.id === currentAccountId);
       
       if (!isCurrentAccountValid) {
         // 选择默认账号或第一个账号
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         const defaultAccount = accounts.find(a => a.isDefault) || accounts[0];
         setCurrentAccountId(defaultAccount.id);
         // console.log('[AccountSwitcher] Auto-selected account:', defaultAccount.id, defaultAccount.storeName);

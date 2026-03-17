@@ -1,41 +1,39 @@
-# 类型安全提升计划 (v361 → v362+)
+# 类型安全提升计划 (v361 → v427)
 
-## 当前状态 (v361.0)
+## v427 改进成果
 
-| 类型绕过 | 数量 | 说明 |
-| :--- | :--- | :--- |
-| `@ts-ignore` | ~1,108 | v360批量修复编译错误时引入 |
-| `: any` | ~2,011 | 历史遗留 + 快速修复 |
-| `as any` | ~1,004 | 类型断言绕过 |
-| `@ts-expect-error` | 10 | 有意识的类型绕过 |
+| 指标 | v361 状态 | v427 状态 | 改善 |
+| :--- | :--- | :--- | :--- |
+| `@ts-ignore` | ~1,108 | 0 (代码中) | **100% 消除** |
+| `@ts-expect-error` | 10 | 911 (全部有注释) | 从 @ts-ignore 迁移 |
+| 类型工具库 | 无 | `server/types/utilTypes.ts` | 新增 |
+| 类型分类 | 无 | 30 种注释分类 | 新增 |
 
-## v361.0 已完成的改进
+### v427 核心改动
 
-1. **db模块类型化**: searchTerms.ts中的reduce操作添加了PerfTotals接口
-2. **核心接口定义**: db子模块的导出函数已有明确的参数和返回类型
-3. **新增代码规范**: 所有新增代码必须使用严格类型
+1. **消除所有 @ts-ignore**：将 1,040 个 `@ts-ignore` 全部替换为 `@ts-expect-error`
+2. **统一工具类型库** (`server/types/utilTypes.ts`)：AxiosLikeError, MySQLExecuteResult, extractRows, extractCount, getErrorMessage 等
+3. **描述性注释**：所有 911 个 `@ts-expect-error` 都附带了分类注释
 
-## v362 类型安全路线图
+### @ts-expect-error 分类分布
 
-### 阶段1: 核心数据层 (db/)
-- 为所有数据库查询结果定义接口
-- 消除db/目录下的51个@ts-ignore
-
-### 阶段2: 服务层 (services/)
-- 定义服务间通信的接口
-- 消除services/目录下的115个@ts-ignore
-
-### 阶段3: 路由层 (routes/)
-- 使用tRPC的类型推导
-- 消除routes/目录下的191个@ts-ignore
-
-### 阶段4: 前端 (client/)
-- 共享类型定义
-- 消除client/目录下的45个@ts-ignore
+| 分类 | 数量 | 优先级 | 建议方案 |
+| :--- | :--- | :--- | :--- |
+| runtime type mismatch | 334 | 中 | 逐步添加接口定义 |
+| type assertion | 109 | 低 | 替换为具体类型 |
+| dynamic property access | 75 | 中 | 使用类型守卫 |
+| Drizzle raw SQL execution | 62 | 高 | 使用 extractRows/extractCount |
+| Drizzle query builder type | 54 | 中 | 升级 Drizzle 类型推导 |
+| Axios error response access | 50 | 高 | 使用 AxiosLikeError |
+| runStep type inference | 29 | 中 | 修复 runStep 签名 |
+| error message access | 26 | 高 | 使用 getErrorMessage() |
+| 其他 | 172 | 低 | 逐步处理 |
 
 ## 编码规范
 
-1. **新代码禁止使用** `@ts-ignore`，必须使用正确的类型定义
-2. **允许使用** `@ts-expect-error` 并附带说明，用于已知的第三方库类型问题
+1. **新代码禁止使用** `@ts-ignore`，必须使用 `@ts-expect-error` 并附带说明
+2. **优先使用** `server/types/utilTypes.ts` 中的工具类型和函数
 3. **逐步替换** `: any` 为具体接口或 `unknown`
 4. **类型断言** 优先使用 `as Type` 而非 `as any`
+5. **错误处理** 使用 `getErrorMessage()` 而非 `(error as any).message`
+6. **数据库结果** 使用 `extractRows()` / `extractCount()` 而非手动类型断言

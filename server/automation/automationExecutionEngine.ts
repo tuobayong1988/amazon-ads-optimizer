@@ -1202,7 +1202,7 @@ export async function runFullAutomationCycle(accountId: number): Promise<{
   
   // 3. 批量执行
   const executionBatch = optimizations.length > 0
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     ? await batchExecuteOptimizations(accountId, optimizations)
     : null;
   

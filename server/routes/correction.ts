@@ -276,7 +276,7 @@ export const correctionRouter = router({
       const corrections = await db.getCorrectionRecordsForSession(input.sessionId);
       
       // Convert to CorrectionAnalysis format for recommendations
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const analyses: correctionService.CorrectionAnalysis[] = corrections.map(c => ({
         record: {
           id: c.id,

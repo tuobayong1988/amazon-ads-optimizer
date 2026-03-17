@@ -242,7 +242,7 @@ export async function buildKeywordGraph(accountId: number): Promise<{
     for (let i = 0; i < edgeValues.length; i += batchSize) {
       const batch = edgeValues.slice(i, i + batchSize);
       await db.insert(keywordSemanticGraph).values(
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         batch.map(e => ({
           accountId,
           sourceNodeType: 'keyword' as const,

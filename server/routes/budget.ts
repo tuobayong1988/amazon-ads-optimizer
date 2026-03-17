@@ -57,7 +57,7 @@ export const budgetAllocationRouter = router({
         input.goalId,
         input.allocationName,
         input.description,
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         input.result
       );
       return { allocationId };

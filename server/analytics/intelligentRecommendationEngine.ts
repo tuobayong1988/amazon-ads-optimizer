@@ -564,7 +564,7 @@ export async function scanAccountHealth(accountId: number): Promise<ScanResult> 
   }
 
   const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-  // @ts-ignore
+  // @ts-expect-error - runtime type mismatch
   recommendations.sort((a: any, b: any) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
   return {

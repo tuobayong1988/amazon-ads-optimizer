@@ -92,7 +92,7 @@ Return JSON with all fields above.`;
 
         // 适配prelaunchVideoScripts表的实际字段：videoType, scriptFramework, hook, body, cta, duration, storyboard, generatedFrameUrls
         await db.insert(prelaunchVideoScripts).values({
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           projectId,
           videoType: `PAS_${duration}s`,
           scriptFramework: 'PAS',
@@ -133,7 +133,7 @@ Return JSON: {"headline":"...","visualDescription":"...","keyElements":["..."],"
         const brief = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.4 });
 
         await db.insert(prelaunchVisualBriefs).values({
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           projectId,
           slotPosition: 100 + bannerSizes.indexOf(banner),
           slotRole: banner.name,

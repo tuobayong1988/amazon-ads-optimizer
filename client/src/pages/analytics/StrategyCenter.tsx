@@ -101,7 +101,7 @@ export default function StrategyCenter() {
     
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const account = accounts.find(a => 
         (a.storeName || a.accountName).trim() === currentStore && 
         a.marketplace === currentMarketplace
@@ -111,7 +111,7 @@ export default function StrategyCenter() {
     
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const account = accounts.find(a => 
         (a.storeName || a.accountName).trim() === currentStore
       );

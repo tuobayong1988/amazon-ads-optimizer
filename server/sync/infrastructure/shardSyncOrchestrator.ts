@@ -90,7 +90,7 @@ export async function shardBasedSyncAll(
           accountId: account.accountId,
           stepId: step.id,
           stepName: step.name,
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           tier: step.tier,
         });
       }

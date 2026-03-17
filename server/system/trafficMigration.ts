@@ -253,9 +253,9 @@ export async function generateMigrationSuggestions(
   // 按优先级和ROAS排序
   suggestions.sort((a: any, b: any) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     }
     return b.performance.roas - a.performance.roas;
@@ -343,7 +343,7 @@ export async function detectTrafficConflicts(
   // 按严重程度排序
   conflicts.sort((a: any, b: any) => {
     const severityOrder = { high: 0, medium: 1, low: 2 };
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     return severityOrder[a.severity] - severityOrder[b.severity];
   });
   
@@ -369,7 +369,7 @@ export async function executeTrafficIsolation(
   
   for (const isolation of isolations) {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(negativeKeywords).values({
         accountId,
         campaignId: isolation.campaignId,

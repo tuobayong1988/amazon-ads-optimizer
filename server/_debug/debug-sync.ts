@@ -45,7 +45,7 @@ export const debugSyncRouter = router({
         );
 
         // 调用API
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const apiResponse = await (syncService as unknown).client.listSpCampaigns();
 
         return {
@@ -65,7 +65,7 @@ export const debugSyncRouter = router({
           success: false,
           error: (error as Error).message,
           stack: (error as Error).stack,
-          // @ts-ignore
+          // @ts-expect-error - Axios error response access
           details: (error as Error & { response?: unknown }).response?.data || error.toString(),
         };
       }
@@ -111,7 +111,7 @@ export const debugSyncRouter = router({
     .query(async ({ input }: any) => {
       try {
         // 直接查询sync_tasks表
-        // @ts-ignore
+        // @ts-expect-error - dynamic property access
         const tasks = await (db as unknown).query(
           `SELECT * FROM sync_tasks 
            WHERE account_id = ? 

@@ -684,7 +684,7 @@ export async function applyHourlyBidRulesToStrategy(
   // 获取或创建分时策略
   let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignId);
   if (!strategy) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     strategy = await daypartingService.ensureDaypartingStrategy(
       accountId,
       campaignId,
@@ -703,7 +703,7 @@ export async function applyHourlyBidRulesToStrategy(
   // 渐进式更新：新规则与现有规则混合
   const updatedRules = rules.map(newRule => {
     const existing = existingRules.find(
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       (e: Error) => e.dayOfWeek === newRule.dayOfWeek && e.hour === newRule.hour
     );
     
@@ -757,7 +757,7 @@ export async function applyDailyBudgetRulesToStrategy(
   // 获取或创建分时策略
   let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignId);
   if (!strategy) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     strategy = await daypartingService.ensureDaypartingStrategy(
       accountId,
       campaignId,

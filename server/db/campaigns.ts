@@ -633,16 +633,16 @@ export async function getCampaignStatusCounts(accountId: number) {
   
   let total = 0, enabled = 0, paused = 0, archived = 0, managed = 0, unmanaged = 0;
   for (const row of rows) {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const count = Number(row.cnt);
     total += count;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (row.campaignStatus === 'enabled') enabled += count;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (row.campaignStatus === 'paused') paused += count;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (row.campaignStatus === 'archived') archived += count;
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     if (row.optimizationStatus === 'managed') managed += count;
     else unmanaged += count;
   }

@@ -335,7 +335,7 @@ Generate 10-20 diverse phrases. Return JSON array:
       const phrases = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.4 });
 
       for (const p of phrases) {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await db.insert(prelaunchCompetitorUserLanguage).values({
           projectId,
           competitorId: comp.id,
@@ -375,10 +375,10 @@ Return JSON array: [{"scenarioCode":"S01","trafficShare":0.25,"attackFeasibility
 
       for (const entry of matrix) {
         if (scenarios.includes(entry.scenarioCode)) {
-          // @ts-ignore
+          // @ts-expect-error - Drizzle query builder type
           await db.insert(prelaunchCompetitorScenarioMatrix).values({
             projectId,
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             competitorId: comp.id,
             scenarioCode: entry.scenarioCode,
             trafficShare: String(entry.trafficShare || 0),

@@ -84,7 +84,7 @@ export async function executeSearchTermAnalysis(
           AND api_sync_status IN ('synced', 'already_exists', 'failed', 'permanently_failed', 'skipped_pt_adgroup', 'pending', 'not_applicable', 'timeout_failed')
           AND action_detail IS NOT NULL AND JSON_VALID(action_detail)
       `);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       for (const row of (recentLogs as unknown)[0] || []) {
         if (row.search_term && row.campaign_id) {
           recentlyProcessedSearchTerms.add(`${row.campaign_id}::${row.search_term}`);
@@ -127,7 +127,7 @@ export async function executeSearchTermAnalysis(
         ) combined
         GROUP BY search_term
       `);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       for (const row of (failedLogs as unknown)[0] || []) {
         if (row.search_term) {
           permanentlyFailedKeywords.add(row.search_term);
@@ -160,7 +160,7 @@ export async function executeSearchTermAnalysis(
         ORDER BY ol.created_at ASC
         LIMIT 50
       `);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const pendingKwRows = (pendingKeywords as unknown)[0] || [];
       
       if (pendingKwRows.length > 0) {
@@ -171,7 +171,7 @@ export async function executeSearchTermAnalysis(
         for (const row of (pendingKwRows as any[])) {
           try {
             // v354: P2修复 — SB/SD广告活动不支持通过API创建关键词，直接标记为skipped_unsupported_campaign_type
-            // @ts-ignore
+            // @ts-expect-error - dynamic property access
             const rowCampaignType = (row as unknown).campaign_type;
             if (rowCampaignType === 'sb' || rowCampaignType === 'sd') {
               await dbInstance.execute(sql`
@@ -208,7 +208,7 @@ export async function executeSearchTermAnalysis(
                 const campaignLookup = await dbInstance.execute(sql`
                   SELECT campaignId FROM campaigns WHERE id = ${localCampaignId} LIMIT 1
                 `);
-                // @ts-ignore
+                // @ts-expect-error - type assertion
                 const lookupRows = (campaignLookup as unknown)[0] || [];
                 if (lookupRows.length > 0 && lookupRows[0].campaignId) {
                   // 找到了Amazon Campaign ID，更新action_detail并继续
@@ -362,7 +362,7 @@ export async function executeSearchTermAnalysis(
       }
       
       // 获取搜索词数据
-      // @ts-ignore
+      // @ts-expect-error - string type assertion
       const searchTerms = await db.getSearchTermsByCampaignId(campaignAmazonId as string);
       
       // v191: 使用智能投放决策引擎替代旧的classifySearchTerms
@@ -474,7 +474,7 @@ export async function executeSearchTermAnalysis(
           
           // v204: 否定词预验证 — 在入队前清洗特殊字符并检查Amazon限制
           let negMatchType = decision.negativeMatchType === 'negative_exact' ? 'negative_exact' : 'negative_phrase';
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           const negValidation = sanitizeAndValidateKeyword(decision.targetValue, negMatchType as unknown);
           let cleanedNegText = negValidation.sanitizedText || decision.targetValue;
           
@@ -819,7 +819,7 @@ export async function executeSearchTermAnalysis(
                   log.info(`[SearchTermAnalysis] v168: 关键词已存在，跳过: "${decision.targetValue}" (请求=${matchType}, 已存在=${existingMatchTypes})`);
                 } else {
                   // v191: 使用算法建议的出价而非固定$0.50
-                  // @ts-ignore
+                  // @ts-expect-error - Drizzle query builder type
                   const insertResult = await dbInstance.insert(keywords).values({
                     internalAdGroupId: adGroup.id,  // v418: ID体系重构
                     keywordText: decision.targetValue,

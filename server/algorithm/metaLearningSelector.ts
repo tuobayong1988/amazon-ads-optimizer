@@ -394,7 +394,7 @@ async function executeAlgorithm(
       if (keywordId || targetId) {
         const entityType = keywordId ? 'keyword' : 'target';
         const entityId = keywordId || targetId || 0;
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         const params = await fitAndCacheSigmoidForEntity(accountId, entityType as unknown, entityId, campaignId || '');
         if (params && params.r2 > 0.3) {
           sigmoid = calculateSigmoidOptimalBid(params, 0.01, 0.05, 30);
@@ -424,7 +424,6 @@ async function executeAlgorithm(
           if (sigR.optimalBid > 0) {
             const sigConf = Math.min(0.9, sigP.r2);
             bids.push({ bid: sigR.optimalBid, weight: sigConf });
-            // @ts-ignore
             sigmoid = { recommendedBid: sigR.optimalBid, confidence: sigConf } as Record<string, any>;
           }
         }
@@ -638,7 +637,7 @@ export async function selectBestAlgorithm(
   
   // 记录选择日志
   const db = await getDbInstance();
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   await db.insert(algorithmSelectionLogs).values({
     accountId,
     keywordId: keywordId || null,

@@ -293,8 +293,7 @@ export const optimizationRouter = router({
               const adGroup = keyword.internalAdGroupId ? await db.getAdGroupById(keyword.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
               if (adGroup) {
                 adGroupId = adGroup.id;
-                // @ts-ignore
-                campaignId = adGroup.campaignId as string;
+                campaignId = adGroup.String(campaignId);
               }
               targetName = keyword.keywordText;
               matchType = keyword.matchType;
@@ -306,8 +305,7 @@ export const optimizationRouter = router({
               const adGroup = target.internalAdGroupId ? await db.getAdGroupById(target.internalAdGroupId) : null;  // v421: 使用internalAdGroupId(int)
               if (adGroup) {
                 adGroupId = adGroup.id;
-                // @ts-ignore
-                campaignId = adGroup.campaignId as string;
+                campaignId = adGroup.String(campaignId);
               }
               targetName = `ASIN: ${target.targetValue}`;
               amazonId = target.targetId || '';
@@ -348,8 +346,7 @@ export const optimizationRouter = router({
           // Create bidding log with API status
           await db.createBiddingLog({
             accountId: group.accountId,
-            // @ts-ignore
-            campaignId: campaignId as string,
+            campaignId: String(campaignId),
             internalAdGroupId: adGroupId || 0,  // v421: 使用internalAdGroupId
             logTargetType: result.targetType,
             targetId: result.targetId,

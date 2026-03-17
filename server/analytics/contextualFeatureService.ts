@@ -437,7 +437,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       });
       
       if (insertValues.length > 0) {
-        // @ts-ignore
+        // @ts-expect-error - Drizzle query builder type
         await db.insert(contextualFeatures).values(insertValues as unknown);
         processedCount += insertValues.length;
       }

@@ -344,7 +344,7 @@ export const performanceGroupRouter = router({
         accountId: rest.accountId,
         name: rest.name,
         description: rest.description,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         optimizationGoal: optimizationGoal as unknown,
         targetAcos,
         targetRoas,
@@ -936,9 +936,9 @@ export const performanceGroupRouter = router({
         accountName: account?.accountName || '',
         userId: ctx.user.id,
         userName: ctx.user.name || ctx.user.email || '',
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         logCategory: input.logCategory as unknown,
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         actionType: input.actionType as unknown,
         campaignId: input.campaignId,
         campaignName: input.campaignName,
@@ -948,7 +948,7 @@ export const performanceGroupRouter = router({
         previousValue: input.previousValue,
         newValue: input.newValue,
         changeReason: input.changeReason,
-        // @ts-ignore
+        // @ts-expect-error - string type assertion
         status: input.status as string,
         executedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });

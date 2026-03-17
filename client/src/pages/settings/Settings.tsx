@@ -35,7 +35,7 @@ const { resetOnboarding, savedProgress } = useOnboarding();
   // Fetch accounts
   // v399: accountId 已由全局选择器 Hook 提供（selectedAccountId）
   const accountId = selectedAccountId;
-// @ts-ignore
+// @ts-expect-error - array method type inference
   const selectedAccount = accounts?.find(a => a.id === accountId);
 
   // Update account mutation

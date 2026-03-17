@@ -65,7 +65,7 @@ export async function recordBidAdjustment(data: {
     ? ((data.newBid - data.previousBid) / data.previousBid * 100)
     : 100;
   
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   const result = await db.insert(bidAdjustmentHistory).values({
     accountId: data.accountId,
     campaignId: data.campaignId,
@@ -93,7 +93,7 @@ export async function recordBidAdjustment(data: {
     const statusMap: Record<string, string> = {
       'applied': 'success', 'pending': 'pending', 'failed': 'failed', 'rolled_back': 'rolled_back'
     };
-    // @ts-ignore
+    // @ts-expect-error - Drizzle query builder type
     await db.insert(optimizationEvents).values({
       performanceGroupId: data.performanceGroupId,
       performanceGroupName: data.performanceGroupName,
@@ -178,7 +178,7 @@ export async function recordBidAdjustmentBatch(records: Array<{
     };
   });
   
-  // @ts-ignore
+  // @ts-expect-error - Drizzle query builder type
   const result = await db.insert(bidAdjustmentHistory).values(values as unknown);
   return result;
 }

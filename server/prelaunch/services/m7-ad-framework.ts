@@ -79,19 +79,19 @@ export class M7AdFrameworkService {
           frameworkType: fwType,
           frameworkName: `${fwType}_${new Date().toISOString().slice(0, 10)}`,
           campaignStructure: compiledPayload,
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           totalCampaigns: compiledPayload.campaigns?.length || 0,
-          // @ts-ignore
+          // @ts-expect-error - array method type inference
           totalAdGroups: compiledPayload.campaigns?.reduce((sum: number, c: Record<string, any>) => sum + (c.adGroups?.length || 0), 0) || 0,
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           totalKeywords: compiledPayload.totalKeywords || 0,
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           totalTargets: compiledPayload.totalTargets || 0,
           estimatedDailyBudget: String(input.dailyBudget),
           status: 'draft',
         });
 
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         results.push({ frameworkType: fwType, frameworkId: (result as Record<string, number>).insertId, payload: compiledPayload });
       }
 
@@ -270,14 +270,14 @@ export class M7AdFrameworkService {
     let totalTargets = 0;
 
     for (const tier of tiers) {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const tierComps = competitors.filter((c: Record<string, any>) => c.tier === tier);
       if (tierComps.length === 0) continue;
 
       const adGroups = [{
         adGroupName: `SP-PT-${tier}-ASIN`,
         defaultBid,
-        // @ts-ignore
+        // @ts-expect-error - array method type inference
         targets: tierComps.map((c: Record<string, any>) => {
           totalTargets++;
           return {
@@ -379,11 +379,11 @@ export class M7AdFrameworkService {
     let totalTargets = 0;
 
     for (const tier of tiers) {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const tierComps = competitors.filter((c: Record<string, any>) => c.tier === tier);
       if (tierComps.length === 0) continue;
 
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const targets = tierComps.map((c: Record<string, any>) => {
         totalTargets++;
         return {

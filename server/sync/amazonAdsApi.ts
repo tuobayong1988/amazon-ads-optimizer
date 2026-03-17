@@ -274,8 +274,7 @@ export class AmazonAdsApiClient {
             log.error(`[Amazon API] v341: Token重刷新失败: ${(refreshErr as Error).message} (profileId=${profileId})`);
             // Token刷新失败，触发告警并继续抛出原始401错误
             this._triggerAuthFailureAlert(401, 'TOKEN_EXPIRED', profileId, requestUrl).catch((alertErr: unknown) => {
-              // @ts-ignore
-              log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
+              log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${(alertErr as Error).message}`);
             });
             throw error;
           }
@@ -290,8 +289,7 @@ export class AmazonAdsApiClient {
           
           // 异步触发告警（不阻塞主流程）
           this._triggerAuthFailureAlert(status, authErrorType, profileId, requestUrl).catch((alertErr: unknown) => {
-            // @ts-ignore
-            log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${alertErr.message}`);
+            log.warn(`[Amazon API] v333: 认证失败告警发送失败: ${(alertErr as Error).message}`);
           });
         }
         
@@ -361,22 +359,17 @@ export class AmazonAdsApiClient {
             }
             
             const enhancedError = new Error(errorMessage);
-            // @ts-ignore
-            (enhancedError as unknown).originalError = error;
-            // @ts-ignore
-            (enhancedError as unknown).status = status;
-            // @ts-ignore
-            (enhancedError as unknown).isHtmlResponse = true;
-            // @ts-ignore
-            (enhancedError as unknown).retryCount = config._retryCount;
+            (enhancedError as any).originalError = error;
+            (enhancedError as any).status = status;
+            (enhancedError as any).isHtmlResponse = true;
+            (enhancedError as any).retryCount = config._retryCount;
             throw enhancedError;
           }
         }
         
         // v148: 非HTML错误也添加重试信息
         if (config._retryCount > 0) {
-          // @ts-ignore
-          (error as unknown).retryCount = config._retryCount;
+          (error as any).retryCount = config._retryCount;
         }
         throw error;
       }
@@ -654,14 +647,13 @@ export class AmazonAdsApiClient {
         log.debug('[Amazon API] Access token refreshed successfully');
         return this.accessToken!;
       } catch (error: unknown) {
-        // @ts-ignore
         lastError = error;
         
         // 检查是否为不可重试的认证错误 - 立即抛出
         if ((error as Error & { response?: unknown }).response) {
-          // @ts-ignore
+          // @ts-expect-error - Axios error response access
           const contentType = (error as Error & { response?: unknown }).response.headers?.['content-type'] || '';
-          // @ts-ignore
+          // @ts-expect-error - Axios error response access
           const data = (error as Error & { response?: unknown }).response.data;
           
           if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
@@ -671,7 +663,7 @@ export class AmazonAdsApiClient {
             throw new Error('Token刷新失败，请重新授权。可能原因：Refresh Token已过期或无效');
           }
           
-          // @ts-ignore
+          // @ts-expect-error - Axios error response access
           if (error.response.status === 400) {
             const errorData = (error as any).response.data;
             if (errorData?.error === 'invalid_grant') {
@@ -682,7 +674,7 @@ export class AmazonAdsApiClient {
           }
           
           // 401/403 也是认证错误，不重试
-          // @ts-ignore
+          // @ts-expect-error - Axios error response access
           if (error.response.status === 401 || (error as any).response.status === 403) {
             this.accessToken = null;
             this.tokenExpiry = null;
@@ -789,9 +781,8 @@ export class AmazonAdsApiClient {
             log.debug(`[SP API] Fetched ${campaigns.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
             break;
           } catch (error: unknown) {
-            // @ts-ignore
             lastError = error;
-            // @ts-ignore
+            // @ts-expect-error - Axios error response access
             if ((error as Error & { response?: unknown }).response?.status === 415) {
               log.warn(`SP campaigns list failed with headers ${JSON.stringify(headers)}, trying next variant...`);
               continue;
@@ -900,9 +891,8 @@ export class AmazonAdsApiClient {
             log.debug(`[SP API] Fetched ${adGroups.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
             break;
           } catch (error: unknown) {
-            // @ts-ignore
             lastError = error;
-            // @ts-ignore
+            // @ts-expect-error - Axios error response access
             if ((error as Error & { response?: unknown }).response?.status === 415) {
               continue;
             }
@@ -957,7 +947,7 @@ export class AmazonAdsApiClient {
           nextToken = response.data.nextToken;
           log.debug(`[SP API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } catch (error: unknown) {
-          // @ts-ignore
+          // @ts-expect-error - error message access
           log.error(`[SP API] Error fetching keywords: ${(error as Error).message} ${(error as any).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : ''}`);
           throw error;
         }
@@ -972,12 +962,11 @@ export class AmazonAdsApiClient {
             log.debug(`[SP API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
             break;
           } catch (error: unknown) {
-            // @ts-ignore
             lastError = error;
-            // @ts-ignore
+            // @ts-expect-error - error message access
             log.warn(`[SP API] listSpKeywords header variant failed (status=${(error as any).response?.status}):`, (error as any).response?.data ? JSON.stringify(error.response.data).slice(0, 200) : (error as Error).message);
             // v129: 400和415错误都尝试下一种header格式
-            // @ts-ignore
+            // @ts-expect-error - Axios error response access
             if ((error as Error & { response?: unknown }).response?.status === 415 || (error as Error & { response?: unknown }).response?.status === 400) {
               continue;
             }
@@ -1087,7 +1076,7 @@ export class AmazonAdsApiClient {
     }
     
     log.warn(`[SP API] v199: 关键词创建完成: 总计=${keywords.length}, 成功=${allCreatedKeywords.length - allErrors.length}, 失败=${allErrors.length}`);
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     return { success: allErrors.length === 0, createdKeywords: allCreatedKeywords, errors: allErrors };
   }
 
@@ -1443,9 +1432,8 @@ export class AmazonAdsApiClient {
             log.debug(`[SP API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
             break;
           } catch (error: unknown) {
-            // @ts-ignore
             lastError = error;
-            // @ts-ignore
+            // @ts-expect-error - Axios error response access
             if ((error as Error & { response?: unknown }).response?.status === 415) {
               continue;
             }
@@ -1635,7 +1623,7 @@ export class AmazonAdsApiClient {
           allErrors.push({ expression: t.expression, code: 'BATCH_ERROR', details: (error as Error).message });
         }
         // 限流时增加等待
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         if (error.response?.status === 429) {
           const throttleWait = BATCH_DELAY_MS * 5;
           log.debug(`[SP API] v310: 限流，等待${throttleWait}ms后继续...`);
@@ -1739,11 +1727,11 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: unknown) {
       // v348: 增强错误诊断日志
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errStatus = (error as Error & { response?: unknown }).response?.status;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errData = (error as Error & { response?: unknown }).response?.data;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errHeaders = (error as Error & { response?: unknown }).response?.headers;
       log.error(`[Amazon API] 请求SP广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${(error as Error).message}`);
       if (errStatus === 400) {
@@ -1943,11 +1931,11 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: unknown) {
       // v348: 增强错误诊断日志
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errStatus = (error as Error & { response?: unknown }).response?.status;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errData = (error as Error & { response?: unknown }).response?.data;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errHeaders = (error as Error & { response?: unknown }).response?.headers;
       log.error(`[Amazon API] 请求SB广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${(error as Error).message}`);
       if (errStatus === 400) {
@@ -2073,11 +2061,11 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: unknown) {
       // v348: 增强错误诊断日志
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errStatus = (error as Error & { response?: unknown }).response?.status;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errData = (error as Error & { response?: unknown }).response?.data;
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const errHeaders = (error as Error & { response?: unknown }).response?.headers;
       log.error(`[Amazon API] 请求SD广告活动报告失败: status=${errStatus}, data=${JSON.stringify(errData)?.slice(0, 500)}, message=${(error as Error).message}`);
       if (errStatus === 400) {
@@ -3669,7 +3657,7 @@ export class AmazonAdsApiClient {
         nextToken = response.data.nextToken;
         log.debug(`[SB API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
       } catch (error: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         if ((error as Error & { response?: unknown }).response?.status === 404) {
           log.warn(`[SB API] v332: SB keywords/list返回404，该账户可能未开通SB关键词定向功能，跳过`);
           return [];
@@ -3717,7 +3705,7 @@ export class AmazonAdsApiClient {
         log.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
       } catch (error: unknown) {
         // v230: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         if ((error as Error & { response?: unknown }).response?.status === 404) {
           log.warn(`[SB API] v230: SB targets/list返回404，该账户可能未开通SB商品定向功能，跳过`);
           return [];
@@ -3974,9 +3962,9 @@ export class AmazonAdsApiClient {
         }
       } catch (batchErr: unknown) {
         // v328: 增强错误日志 — 记录完整的错误响应体
-        // @ts-ignore
+        // @ts-expect-error - error message access
         const errorDetail = batchErr.response?.data ? JSON.stringify(batchErr.response.data).substring(0, 500) : (batchErr as Error).message;
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const errorStatus = (batchErr as Error & { response?: unknown }).response?.status || 'N/A';
         log.error(`[SD API] v328: 第${batchIdx + 1}批SD广告组状态更新失败: status=${errorStatus}, detail=${errorDetail}`);
         for (const item of batch) {
@@ -4116,9 +4104,9 @@ export class AmazonAdsApiClient {
         }
         log.warn(`[SP API] v199: 第${batchIdx + 1}批完成: 成功=${successItems.length}, 失败=${errorItems.length}`);
       } catch (err: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const errData = (err as Error & { response?: unknown }).response?.data;
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         log.error(`[SP API] v199: 第${batchIdx + 1}批失败: status=${(err as Error & { response?: unknown }).response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
         // 记录本批所有否定词为失败
         for (let i = 0; i < batch.length; i++) {
@@ -4565,7 +4553,7 @@ export class AmazonAdsApiClient {
       const response = await this.axiosInstance.get(`/streams/subscriptions/${subscriptionId}`);
       return response.data;
     } catch (error: unknown) {
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       if ((error as Error & { response?: unknown }).response?.status === 404) {
         return null;
       }
@@ -4943,7 +4931,7 @@ export class AmazonAdsApiClient {
         log.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
       } catch (error: unknown) {
         // v255: 403是Amazon权限限制，降级为WARN而非ERROR
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status;
         if (statusCode === 403) {
           log.warn('[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions');
@@ -4992,7 +4980,7 @@ export class AmazonAdsApiClient {
         log.debug(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
       } catch (error: unknown) {
         // v255: 403是Amazon权限限制，降级为WARN而非ERROR
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status;
         if (statusCode === 403) {
           log.warn('[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions');
@@ -5055,7 +5043,7 @@ export class AmazonAdsApiClient {
         allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
         log.info(`[SB API] v2: 第${batchIdx + 1}批完成`);
       } catch (err: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (err as Error & { response?: unknown }).response?.status;
         log.error(`[SB API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${(err as Error).message}`);
         if (statusCode === 403) {
@@ -5116,7 +5104,7 @@ export class AmazonAdsApiClient {
         allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
         log.info(`[SB API] v2: 第${batchIdx + 1}批SB否定产品定向完成`);
       } catch (err: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (err as Error & { response?: unknown }).response?.status;
         log.error(`[SB API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${(err as Error).message}`);
         if (statusCode === 403) {
@@ -5168,7 +5156,7 @@ export class AmazonAdsApiClient {
         if (targets.length < count) break;
         startIndex += count;
       } catch (error: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status;
         if (statusCode === 403) {
           log.warn('[SD API] v2: SD Negative Targets API access denied (403)');
@@ -5222,7 +5210,7 @@ export class AmazonAdsApiClient {
         allResults.push(...(Array.isArray(batchResults) ? batchResults : [batchResults]));
         log.info(`[SD API] v2: 第${batchIdx + 1}批SD否定产品定向完成`);
       } catch (err: unknown) {
-        // @ts-ignore
+        // @ts-expect-error - Axios error response access
         const statusCode = (err as Error & { response?: unknown }).response?.status;
         log.error(`[SD API] v2: 第${batchIdx + 1}批失败: status=${statusCode}, msg=${(err as Error).message}`);
         if (statusCode === 403) {
@@ -5511,7 +5499,7 @@ export class AmazonAdsApiClient {
       log.debug(`[SP API] v424: Campaign ${campaignId} has ${Array.isArray(rules) ? rules.length : 0} budget rules`);
       return Array.isArray(rules) ? rules : [];
     } catch (error: unknown) {
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       const statusCode = (error as Error & { response?: unknown }).response?.status;
       if (statusCode === 404 || statusCode === 400) {
         // 没有budget rules是正常情况
@@ -5708,9 +5696,9 @@ export async function validateCredentials(credentials: AmazonApiCredentials): Pr
   } catch (error: unknown) {
     log.error('[validateCredentials] 验证失败:', {
       message: (error as Error).message,
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       response: (error as Error & { response?: unknown }).response?.data,
-      // @ts-ignore
+      // @ts-expect-error - Axios error response access
       status: (error as Error & { response?: unknown }).response?.status,
     });
     return false;

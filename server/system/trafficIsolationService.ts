@@ -492,8 +492,7 @@ export async function detectTrafficConflicts(
         normalizedVolume * dataVolumeWeight;
       
       conflictingCampaigns.push({
-        // @ts-ignore
-        campaignId: campaignId as string,
+        campaignId: String(campaignId),
         campaignName: campaign.campaignName,
         matchType: stats.matchType,
         clicks: stats.clicks,
@@ -550,9 +549,9 @@ export async function detectTrafficConflicts(
     searchTerm: conflict.searchTerm,
     winnerCampaignId: conflict.suggestedWinner.campaignId,
     negativesToAdd: conflict.conflictingCampaigns
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       .filter(c => c.campaignId !== conflict.suggestedWinner.campaignId)
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       .map(c => ({
         campaignId: c.campaignId,
         negativeText: conflict.searchTerm,
@@ -617,7 +616,7 @@ export async function identifyFunnelTiers(
   const tierConfigs: FunnelTierConfig[] = [];
   
   for (const campaign of (campaignData as any[])) {
-    // @ts-ignore
+    // @ts-expect-error - type assertion
     const matchTypes = campaignMatchTypes.get(campaign.id as unknown);
     if (!matchTypes) continue;
     
@@ -746,8 +745,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        // @ts-ignore
-        targetCampaignId: campaignId as string,
+        targetCampaignId: String(campaignId),
         targetTier: config?.tierLevel || 'tier2_longtail',
         negatives,
       });
@@ -770,8 +768,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        // @ts-ignore
-        targetCampaignId: campaignId as string,
+        targetCampaignId: String(campaignId),
         targetTier: config?.tierLevel || 'tier3_explore',
         negatives,
       });
@@ -1016,7 +1013,7 @@ export async function applyNegativeKeywords(
       }
       
       // 插入否定词
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(negativeKeywords).values({
         accountId,
         campaignId: neg.campaignId,

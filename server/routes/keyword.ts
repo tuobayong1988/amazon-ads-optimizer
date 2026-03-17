@@ -186,7 +186,6 @@ export const keywordRouter = router({
               const r = results.find(r => r.id === kw.kwId);
               if (!r) continue;
               if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-              // @ts-ignore
               byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, newBid: r.newBid, campaignId: kw.campaignId } as Record<string, any>);
             }
             
@@ -257,7 +256,6 @@ export const keywordRouter = router({
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
           for (const kw of (kwDetails as any[])) {
             if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
-            // @ts-ignore
             byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, campaignId: kw.campaignId } as Record<string, any>);
           }
           
@@ -536,7 +534,6 @@ export const productTargetRouter = router({
               const r = results.find(r => r.id === pt.ptId);
               if (!r) continue;
               if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-              // @ts-ignore
               byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, newBid: r.newBid, campaignId: pt.campaignId } as Record<string, any>);
             }
             
@@ -597,7 +594,6 @@ export const productTargetRouter = router({
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
           for (const pt of ptDetails) {
             if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
-            // @ts-ignore
             byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, campaignId: pt.campaignId } as Record<string, any>);
           }
           

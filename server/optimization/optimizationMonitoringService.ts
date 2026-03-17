@@ -160,7 +160,7 @@ async function checkBidRatio(
   try {
     const sinceStr = since.toISOString();
     // v263: 使用actionType (bid_increase/bid_decrease) 替代不存在的direction字段
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const result = await db.select({
       actionType: optimizationEvents.actionType,
       count: sql<number>`count(*)`,
@@ -217,7 +217,7 @@ async function checkAcosOverrun(
 ): Promise<{ avgOverrun: number; highRiskCount: number }> {
   try {
     // 查询所有活跃账户的ACoS和目标ACoS
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const accounts = await db.select({
       id: adAccounts.id,
       name: adAccounts.accountName,
@@ -234,7 +234,7 @@ async function checkAcosOverrun(
     // 改为从actionDetail JSON中提取ACoS数据，或从performanceGroups获取目标ACoS
     for (const account of (accounts as any[])) {
       // 从optimization_logs的actionDetail中提取最近的ACoS数据
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const latestLog = await db.select({
         actionDetail: optimizationLogs.actionDetail,
         previousValue: optimizationLogs.previousValue,
@@ -304,7 +304,7 @@ async function checkSyncHealth(
   alerts: MonitoringAlert[]
 ): Promise<{ successRate: number }> {
   try {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const result = await db.select({
       status: optimizationEvents.apiSyncStatus,
       count: sql<number>`count(*)`,
@@ -363,7 +363,7 @@ async function checkAlgorithmHealth(
   try {
     const sinceStr = since.toISOString();
     // 查询30天内的优化操作总数
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const opsResult = await db.select({
       count: sql<number>`count(*)`,
     })
@@ -380,7 +380,7 @@ async function checkAlgorithmHealth(
 
     // v263: 查询正向操作 — 使用status='success'替代不存在的isPositive字段
     // 正向操作定义：成功执行的出价调整
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const positiveResult = await db.select({
       count: sql<number>`count(*)`,
     })
@@ -398,7 +398,7 @@ async function checkAlgorithmHealth(
     const positiveRate = totalOps > 0 ? (positiveCount / totalOps) * 100 : 0;
 
     // 查询使用的算法类型
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const algorithmResult = await db.select({
       algorithm: optimizationEvents.algorithmVersion,
     })
@@ -512,7 +512,7 @@ async function checkUnassignedCampaigns(
 ): Promise<void> {
   try {
     // 查询所有未分配的活跃广告活动
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const unassigned = await db.select({
       id: campaigns.id,
       campaignName: campaigns.campaignName,
@@ -560,7 +560,7 @@ async function checkProactiveRiskWarning(
   alerts: MonitoringAlert[]
 ): Promise<void> {
   try {
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     const accounts = await db.select({
       id: adAccounts.id,
       name: adAccounts.accountName,
@@ -572,7 +572,7 @@ async function checkProactiveRiskWarning(
     for (const account of (accounts as any[])) {
       try {
         // 查询最近7天和前14天的ACoS
-        // @ts-ignore
+        // @ts-expect-error - Drizzle raw SQL execution
         const [recentResult] = await db.execute(
           sql`SELECT 
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,
@@ -582,7 +582,7 @@ async function checkProactiveRiskWarning(
                 AND date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`
         ) as unknown;
         
-        // @ts-ignore
+        // @ts-expect-error - Drizzle raw SQL execution
         const [prevResult] = await db.execute(
           sql`SELECT 
                 SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,

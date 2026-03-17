@@ -112,7 +112,7 @@ export async function executeDaypartingOptimization(
         ORDER BY ol.created_at DESC
         LIMIT 50
       `);
-      // @ts-ignore
+      // @ts-expect-error - type assertion
       const pendingRows = (pendingDayparting as unknown)[0] || [];
       
       if (pendingRows.length > 0) {
@@ -215,7 +215,7 @@ export async function executeDaypartingOptimization(
       // v157: 修复分时策略查找 - 按campaignId查找，并自动创建缺失的策略
       let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy) {
-        // @ts-ignore
+        // @ts-expect-error - runtime type mismatch
         strategy = await daypartingService.ensureDaypartingStrategy(
           config.accountId,
           campaignAmazonId,
@@ -242,8 +242,7 @@ export async function executeDaypartingOptimization(
             if (hourlyData.length > 0) {
               // 计算最优出价调整并保存
               const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-                // @ts-ignore
-                optimizationGoal: config.optimizationGoal as unknown,
+                optimizationGoal: config.optimizationGoal as any,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -263,8 +262,7 @@ export async function executeDaypartingOptimization(
               
               // 计算最优预算分配并保存
               const budgetAllocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
-                // @ts-ignore
-                optimizationGoal: config.optimizationGoal as unknown,
+                optimizationGoal: config.optimizationGoal as any,
                 targetAcos: config.targetAcos,
                 targetRoas: config.targetRoas,
               });
@@ -281,7 +279,7 @@ export async function executeDaypartingOptimization(
               })));
               
               // 升级策略状态为active
-              // @ts-ignore
+              // @ts-expect-error - type assertion
               await daypartingService.updateDaypartingStrategy(strategy.id, { daypartingStatus: 'active' as unknown });
               strategy.daypartingStatus = 'active';
               log.info(`[DaypartingOptimization] v337: 自动升级分时策略 strategyId=${strategy.id} 从draft→active，数据点=${totalDataPoints}，小时数据=${hourlyData.length}条`);
@@ -312,8 +310,7 @@ export async function executeDaypartingOptimization(
           const hourlyData = await daypartingService.analyzeHourlyPerformance(Number(campaignAmazonId), 30);
           if (hourlyData.length > 0) {
             const bidAdjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
-              // @ts-ignore
-              optimizationGoal: config.optimizationGoal as unknown,
+              optimizationGoal: config.optimizationGoal as any,
               targetAcos: config.targetAcos,
               targetRoas: config.targetRoas,
             });
@@ -330,7 +327,7 @@ export async function executeDaypartingOptimization(
               dataPoints: hourlyData.find(h => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.dataPoints || 0,
               isEnabled: 1,
             })));
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             await daypartingService.updateDaypartingStrategy(strategy.id, { lastAnalyzedAt: new Date().toISOString() as unknown });
             log.info(`[DaypartingOptimization] v351: 重新计算分时规则 strategyId=${strategy.id}, 上次分析=${hoursSinceLastAnalysis.toFixed(0)}h前`);
           }
@@ -347,7 +344,7 @@ export async function executeDaypartingOptimization(
       }
       
       // 基础分时乘数（广告活动级别）
-      // @ts-ignore
+      // @ts-expect-error - runtime type mismatch
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');
       
       // 获取广告活动下的所有关键词
@@ -380,11 +377,11 @@ export async function executeDaypartingOptimization(
             const bestWindows: unknown[] = comboAnalysis.bestTimeWindows || [];
             const worstWindows: unknown[] = comboAnalysis.worstTimeWindows || [];
             
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             const isInBestWindow = bestWindows.some((w: Record<string, any>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );
-            // @ts-ignore
+            // @ts-expect-error - runtime type mismatch
             const isInWorstWindow = worstWindows.some((w: Record<string, any>) => 
               w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
             );

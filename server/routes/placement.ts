@@ -425,7 +425,7 @@ export const placementRouter = router({
         if (marketCurve) {
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             marketCurve.impressionCurve as unknown,
             marketCurve.ctrCurve as unknown,
             marketCurve.conversion as unknown
@@ -512,7 +512,7 @@ export const placementRouter = router({
           
           if (marketCurve) {
             const optimalBid = marketCurveService.calculateOptimalBid(
-              // @ts-ignore
+              // @ts-expect-error - type assertion
               marketCurve.impressionCurve as unknown,
               marketCurve.ctrCurve as unknown,
               marketCurve.conversion as unknown
@@ -634,7 +634,7 @@ export const placementRouter = router({
           
           // 计算最优出价点
           const optimalBid = marketCurveService.calculateOptimalBid(
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             marketCurve.impressionCurve as unknown,
             marketCurve.ctrCurve as unknown,
             marketCurve.conversion as unknown
@@ -790,7 +790,7 @@ export const placementRouter = router({
             }
             
             const optimalBid = marketCurveService.calculateOptimalBid(
-              // @ts-ignore
+              // @ts-expect-error - type assertion
               marketCurve.impressionCurve as unknown,
               marketCurve.ctrCurve as unknown,
               marketCurve.conversion as unknown
@@ -944,7 +944,7 @@ export const placementRouter = router({
       
       if (marketCurve) {
         const optimalBid = marketCurveService.calculateOptimalBid(
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           marketCurve.impressionCurve as unknown,
           marketCurve.ctrCurve as unknown,
           marketCurve.conversion as unknown
@@ -1033,7 +1033,7 @@ export const placementRouter = router({
       })),
     }))
     .mutation(async ({ input, ctx }: any) => {
-      // @ts-ignore
+      // @ts-expect-error - array method type inference
       const recordsWithAccount = input.records.map(r => ({
         ...r,
         accountId: input.accountId,
@@ -1142,7 +1142,7 @@ export const placementRouter = router({
       const records = await dbInstance
         .select()
         .from(bidAdjustmentHistory)
-        // @ts-ignore
+        // @ts-expect-error - Drizzle dynamic where conditions
         .where(and(...conditions))
         .orderBy(desc(bidAdjustmentHistory.appliedAt));
       
@@ -1172,14 +1172,14 @@ export const placementRouter = router({
         
         // 按广告活动分组
         if (record.campaignId) {
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           if (!(byCampaign as unknown)[record.campaignId]) {
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             (byCampaign as unknown)[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
           }
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           (byCampaign as unknown)[record.campaignId].count++;
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           (byCampaign as unknown)[record.campaignId].estimated += estimated;
         }
         
@@ -1190,9 +1190,9 @@ export const placementRouter = router({
           count7d++;
           trackedRecords++;
           byAdjustmentType[type].actual += actual;
-          // @ts-ignore
+          // @ts-expect-error - type assertion
           if (record.campaignId && (byCampaign as unknown)[record.campaignId]) {
-            // @ts-ignore
+            // @ts-expect-error - type assertion
             (byCampaign as unknown)[record.campaignId].actual += actual;
           }
         }
@@ -1556,7 +1556,7 @@ export const placementRouter = router({
       
       // 生成报告
       const report = generateMarginalBenefitReport(
-        // @ts-ignore
+        // @ts-expect-error - type assertion
         marginalBenefits as unknown,
         allocationResult
       );

@@ -226,7 +226,7 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
   // 按优先级排序
   suggestions.sort((a: any, b: any) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };
-    // @ts-ignore
+    // @ts-expect-error - runtime type mismatch
     return priorityOrder[a.priority] - priorityOrder[b.priority];
   });
   
@@ -386,8 +386,7 @@ export async function executeOptimizationSuggestions(
   const executionId = await db.createAiOptimizationExecution({
     userId,
     accountId,
-    // @ts-ignore
-    campaignId: campaignId as string,
+    campaignId: String(campaignId),
     executionName: `AI优化执行 - ${new Date().toLocaleDateString("zh-CN")}`,
     aiExecType: executionType,
     totalActions: suggestions.length,
@@ -413,7 +412,7 @@ export async function executeOptimizationSuggestions(
     changeReason: s.reason
   }));
   
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   await db.createAiOptimizationActions(actions as unknown);
   
   // 创建预测记录
@@ -432,7 +431,7 @@ export async function executeOptimizationSuggestions(
     predictionRationale: p.rationale
   }));
   
-  // @ts-ignore
+  // @ts-expect-error - type assertion
   await db.createAiOptimizationPredictions(predictionRecords as unknown);
   
   // 创建复盘计划

@@ -85,7 +85,7 @@ export class M4XCopyService {
         const result = await geminiStructuredOutput<Record<string, unknown>>('', prompt, { temperature: 0.5 });
 
         await db.insert(prelaunchCopyVersions).values({
-          // @ts-ignore
+          // @ts-expect-error - runtime type mismatch
           projectId,
           generation: 0,
           copyType,
@@ -221,7 +221,7 @@ Return JSON: [{"question":"...","answer":"...","sourceType":"cosmo_triple|keywor
     const qnas = await geminiStructuredOutput<Record<string, any>[]>('', prompt, { temperature: 0.4 });
 
     for (const qna of qnas) {
-      // @ts-ignore
+      // @ts-expect-error - Drizzle query builder type
       await db.insert(prelaunchQnaSeeds).values({
         projectId,
         question: qna.question,
