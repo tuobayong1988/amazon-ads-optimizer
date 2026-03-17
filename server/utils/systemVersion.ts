@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 429;  // v429: 彻底统一ID体系 - 修复SB API/集成entityIdResolver/修复字段名bug/僵尸任务清理/失效引用前置校验
+export const SYSTEM_VERSION = 430;  // v430: 修复SB Keywords PUT API headers - Content-Type: application/json, Accept: application/vnd.sbkeywordresponse.v3+json
