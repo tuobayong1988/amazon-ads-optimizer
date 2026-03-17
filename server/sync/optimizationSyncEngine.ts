@@ -80,7 +80,6 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
   if (tasks.length === 0) return '';
   
   const batchId = tasks[0].batchId || randomUUID();
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   
   log.debug(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${tasks.length}条`);
   
@@ -92,7 +91,8 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
     const INSERT_BATCH = 500;
     for (let i = 0; i < tasks.length; i += INSERT_BATCH) {
       const batch = tasks.slice(i, i + INSERT_BATCH);
-      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+      // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
+      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
       const values: any[] = [];
       
       for (const t of (batch as any[])) {
@@ -103,7 +103,7 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
           t.action, t.oldValue || null, t.newValue || null,
           t.changeReason || null, t.algorithmUsed || null, t.confidenceScore || null,
           t.campaignId || null, t.campaignName || null, t.adGroupId || null,
-          'pending', now
+          'pending'
         );
       }
       
@@ -493,12 +493,11 @@ async function syncTasksByType(
   }
   
   // 标记任务为processing
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   const taskIds = tasks.map((t: Record<string, any>) => t.id);
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   if (taskIds.length > 0) {
     await conn.execute(
-      `UPDATE optimization_tasks SET status = 'processing', processing_started_at = ? WHERE id IN (${taskIds.join(',')})`,
-      [now]
+      `UPDATE optimization_tasks SET status = 'processing', processing_started_at = NOW() WHERE id IN (${taskIds.join(',')})`,
     );
   }
   
@@ -544,7 +543,6 @@ async function executeBatchByType(
   batch: any[]
 ): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
   const result = { synced: 0, failed: 0, skipped: 0, errors: [] as string[] };
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   
   switch (taskType) {
     case 'bid_adjustment': {
@@ -1469,35 +1467,37 @@ async function executeBatchByType(
 
 // @ts-expect-error - runtime type mismatch
 async function markTaskSynced(conn: DbInstance, taskId: number) {
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   await conn.execute(
-    `UPDATE optimization_tasks SET status = 'synced', completed_at = ? WHERE id = ?`,
-    [now, taskId]
+    `UPDATE optimization_tasks SET status = 'synced', completed_at = NOW() WHERE id = ?`,
+    [taskId]
   );
 }
 
 // @ts-expect-error - runtime type mismatch
 async function markTaskFailed(conn: DbInstance, taskId: number, errorMessage: string) {
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   await conn.execute(
-    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
-    [errorMessage.substring(0, 1000), now, taskId]
+    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id = ?`,
+    [errorMessage.substring(0, 1000), taskId]
   );
 }
 
 // @ts-expect-error - runtime type mismatch
 async function markTasksFailed(conn: DbInstance, taskIds: number[], errorMessage: string) {
   if (taskIds.length === 0) return;
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   await conn.execute(
-    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id IN (${taskIds.join(',')})`,
-    [errorMessage.substring(0, 1000), now]
+    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id IN (${taskIds.join(',')})`,
+    [errorMessage.substring(0, 1000)]
   );
 }
 
 // @ts-expect-error - runtime type mismatch
 async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCount: number, errorMessage: string) {
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 修复时区不一致问题
+  // 问题: toISOString()返回UTC时间，但数据库NOW()返回US/Pacific时间
+  // 解决: 统一使用SQL的NOW()和DATE_ADD()来设置时间戳，避免JS/DB时区不一致
   const newRetryCount = (currentRetryCount || 0) + 1;
   
   // v190: 增加重试次数到5次，延长退避时间，确保更高的最终成功率
@@ -1508,29 +1508,28 @@ async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCo
   if (newRetryCount >= MAX_RETRIES) {
     // 超过最大重试次数，标记为永久失败
     await conn.execute(
-      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = ? WHERE id = ?`,
-      [`超过最大重试次数(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1000), newRetryCount, now, taskId]
+      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
+      [`超过最大重试次数(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
     );
   } else {
-    // 设置重试时间（指数退避）
+    // v429.1: 使用SQL的DATE_ADD(NOW(), INTERVAL)设置next_retry_at
+    // 这样next_retry_at和WHERE条件中的NOW()使用相同时区
     const retryDelayMinutes = [1, 5, 15, 30, 60][newRetryCount - 1] || 60;
-    const nextRetry = new Date(Date.now() + retryDelayMinutes * 60 * 1000);
-    const nextRetryStr = nextRetry.toISOString().slice(0, 19).replace('T', ' ');
     
     await conn.execute(
-      `UPDATE optimization_tasks SET status = 'retry', error_message = ?, retry_count = ?, next_retry_at = ? WHERE id = ?`,
-      [errorMessage.substring(0, 1000), newRetryCount, nextRetryStr, taskId]
+      `UPDATE optimization_tasks SET status = 'retry', error_message = ?, retry_count = ?, next_retry_at = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?`,
+      [errorMessage.substring(0, 1000), newRetryCount, retryDelayMinutes, taskId]
     );
   }
 }
 
 // @ts-expect-error - runtime type mismatch
 async function updateLocalBid(conn: DbInstance, entityType: string, entityId: number, newBid: string) {
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   if (entityType === 'keyword') {
-    await conn.execute('UPDATE keywords SET bid = ?, updatedAt = ? WHERE id = ?', [newBid, now, entityId]);
+    await conn.execute('UPDATE keywords SET bid = ?, updatedAt = NOW() WHERE id = ?', [newBid, entityId]);
   } else if (entityType === 'product_target') {
-    await conn.execute('UPDATE product_targets SET bid = ?, updatedAt = ? WHERE id = ?', [newBid, now, entityId]);
+    await conn.execute('UPDATE product_targets SET bid = ?, updatedAt = NOW() WHERE id = ?', [newBid, entityId]);
   }
 }
 
@@ -1548,9 +1547,9 @@ async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: 
   if (!statusColumn) {
     throw new Error(`[updateLocalStatus] 非法表名: ${tableName}`);
   }
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
   const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
-  await conn.execute(`UPDATE ${tableName} SET ${statusColumn} = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
+  await conn.execute(`UPDATE ${tableName} SET ${statusColumn} = ?, updatedAt = NOW() WHERE id = ?`, [statusValue, entityId]);
 }
 
 // ============================================================
@@ -1589,7 +1588,7 @@ async function updateLogsSyncStatus(conn: DbInstance, batchId: string) {
     }
     
     // 更新该批次对应的所有optimization_logs
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // v429.1: 移除未使用的now变量（时区不一致修复）
     await conn.execute(
       `UPDATE optimization_logs 
        SET api_sync_status = ?, 
