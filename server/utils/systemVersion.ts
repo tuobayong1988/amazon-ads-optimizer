@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 431;  // v431: 修复4个遗留问题 - SB bid最低值保护、DUPLICATE视为成功、keyword_status增强错误信息、安全检查优化
+export const SYSTEM_VERSION = 432;  // v432: 修复adgroup_status API方法名、negativeExact混合错误处理

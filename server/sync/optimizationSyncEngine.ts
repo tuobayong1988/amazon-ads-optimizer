@@ -1100,30 +1100,52 @@ async function executeBatchByType(
     }
     
     case 'adgroup_status': {
-      for (const t of (batch as any[])) {
+      // v431: 修复方法名 updateSpAdGroup → updateSpAdGroupStatus，使用批量API
+      const validAdGroupTasks = (batch as any[]).filter(t => t.amazon_entity_id);
+      const invalidAdGroupTasks = (batch as any[]).filter(t => !t.amazon_entity_id);
+      
+      // 标记缺少ID的任务为失败
+      for (const t of invalidAdGroupTasks) {
+        await markTaskFailed(conn, t.id, '缺少Amazon AdGroup ID');
+        result.failed++;
+      }
+      
+      if (validAdGroupTasks.length > 0) {
         try {
-          if (!t.amazon_entity_id) {
-            await markTaskFailed(conn, t.id, '缺少Amazon AdGroup ID');
-            result.failed++;
-            continue;
-          }
-          
-          await (syncService as any).client.updateSpAdGroup(
-            String(t.amazon_entity_id),
-            { state: t.new_value === 'enabled' ? 'ENABLED' : 'PAUSED' }
+          const agResult = await (syncService as any).client.updateSpAdGroupStatus(
+            validAdGroupTasks.map((t: any) => ({
+              adGroupId: String(t.amazon_entity_id),
+              state: t.new_value === 'enabled' ? 'enabled' : 'paused',
+            }))
           );
           
-          await markTaskSynced(conn, t.id);
-          await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
-          result.synced++;
+          const agFailedIds = new Map<string, string>();
+          if (agResult.errors && agResult.errors.length > 0) {
+            for (const err of agResult.errors) {
+              agFailedIds.set(String(err.adGroupId), err.details || err.code || 'API_ERROR');
+            }
+          }
           
-          log.info(`[SyncEngine] ✅ 广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          for (const t of validAdGroupTasks) {
+            const failReason = agFailedIds.get(String(t.amazon_entity_id));
+            if (failReason) {
+              await markTaskForRetry(conn, t.id, t.retry_count, `v431: AdGroup状态更新失败: ${failReason}`);
+              result.failed++;
+            } else {
+              await markTaskSynced(conn, t.id);
+              await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
+              result.synced++;
+              log.info(`[SyncEngine] ✅ 广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
+            }
+          }
+          
+          log.warn(`[SyncEngine] v431: 广告组状态批量同步: 发送=${validAdGroupTasks.length}, 成功=${validAdGroupTasks.length - agFailedIds.size}, 失败=${agFailedIds.size}`);
         } catch (err: unknown) {
-          await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
-          result.failed++;
+          for (const t of validAdGroupTasks) {
+            await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
+          }
+          result.failed += validAdGroupTasks.length;
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 200));
       }
       break;
     }
@@ -1284,17 +1306,21 @@ async function executeBatchByType(
             result.synced += validTasks.length;
             log.warn(`[SyncEngine] v189: 否定词部分成功: 成功=${negSyncResult.success}, 失败=${negSyncResult.failed}`);
           } else {
-            // v431: 全部失败 — 检查是否全是DUPLICATE错误，如果是则视为成功
-            const allDuplicate = negSyncResult.errors.every((e: string) => e.includes('duplicate') || e.includes('DUPLICATE'));
-            if (allDuplicate && negSyncResult.errors.length > 0) {
-              log.info(`[SyncEngine] v431: 否定词全部DUPLICATE，视为成功（已存在）`);
+            // v431: 全部失败 — 检查是否包含DUPLICATE/duplicates错误，如果是则视为成功
+            const errorStr = negSyncResult.errors.join('; ');
+            const hasDuplicate = errorStr.includes('duplicate') || errorStr.includes('DUPLICATE') || errorStr.includes('duplicates in entity name');
+            const hasOnlyDuplicateAndOther = negSyncResult.errors.every((e: string) => 
+              e.includes('duplicate') || e.includes('DUPLICATE') || e.includes('duplicates in entity name') || e.includes('otherError')
+            );
+            if (hasDuplicate && hasOnlyDuplicateAndOther && negSyncResult.errors.length > 0) {
+              log.info(`[SyncEngine] v431: 否定词DUPLICATE/otherError，视为成功（已存在）: ${errorStr.substring(0, 200)}`);
               for (const t of validTasks) {
                 await markTaskSynced(conn, t.id);
               }
               result.synced += validTasks.length;
             } else {
               for (const t of validTasks) {
-                await markTaskForRetry(conn, t.id, t.retry_count, negSyncResult.errors.join('; '));
+                await markTaskForRetry(conn, t.id, t.retry_count, errorStr);
               }
               result.failed += validTasks.length;
             }
