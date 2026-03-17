@@ -3740,65 +3740,130 @@ export class AmazonAdsApiClient {
    * 
    * 历史问题追踪：
    * - v428: 使用v3端点但缺少adGroupId/campaignId必填字段 → 406 Not Acceptable
-   * - v428.2: 切换到v4端点但v4不支持keywords PUT → 403 Forbidden
-   * - v429: 回退v3端点并补充完整的必填字段
+   * - v428.2: 切换到v4端点但缺少adGroupId/campaignId → 403 Forbidden
+   * - v429: 回退v3端点并补充完整字段 → 仍然406（v3端点可能已弃用）
+   * - v429.1: 使用v4端点 + v4 Content-Type + 完整字段（adGroupId, campaignId）
+   *           如果v4返回403则降级到v3端点尝试
    * 
-   * Amazon SB v3 API文档要求：
-   * - 端点: PUT /sb/keywords
-   * - Content-Type: application/json
-   * - 请求体: 数组格式 [{keywordId, adGroupId, campaignId, state, bid}]
-   * - keywordId, adGroupId, campaignId 均为 required
-   * - 响应: 207 Multi-Status, Content-Type: application/vnd.sbkeywordresponse.v3+json
+   * 策略: v4端点优先（与listSbKeywords保持一致），v3降级
    */
   async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }>): Promise<{ successes: any[]; errors: any[] }> {
-    const BATCH_SIZE = 100; // SB v3 API限制每次最多100个
+    const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 500;
     const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
-    log.info(`[SB API] v429: updateSbKeywordBids 使用v3端点 PUT /sb/keywords: 总计${updates.length}个, 分${totalBatches}批`);
+    log.info(`[SB API] v429.1: updateSbKeywordBids 双端点策略: 总计${updates.length}个, 分${totalBatches}批`);
     
     const allSuccesses: any[] = [];
     const allErrors: any[] = [];
     
-    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-      log.info(`[SB API] v429: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB关键词出价更新`);
-      
-      try {
-        // v429: 使用v3端点 PUT /sb/keywords
-        // 请求体为数组格式，包含完整的required字段
-        const response = await this.axiosInstance.put('/sb/keywords', 
-          batch.map(u => ({
+    // v429.1: 端点配置 — v4优先，v3降级
+    const endpoints = [
+      {
+        name: 'v4',
+        url: '/sb/v4/keywords',
+        contentType: 'application/vnd.sbkeywordresource.v4+json',
+        // v4请求体: {keywords: [{keywordId, adGroupId, campaignId, state, bid}]}
+        buildBody: (batch: typeof updates) => ({
+          keywords: batch.map(u => ({
             keywordId: u.keywordId,
             adGroupId: u.adGroupId,
             campaignId: u.campaignId,
             state: 'enabled',
             bid: u.bid,
-          })),
-          {
+          }))
+        }),
+        parseResponse: (data: any) => {
+          const items = data?.keywords || (Array.isArray(data) ? data : [data]);
+          return items;
+        },
+      },
+      {
+        name: 'v3',
+        url: '/sb/keywords',
+        contentType: 'application/json',
+        // v3请求体: 数组格式 [{keywordId, adGroupId, campaignId, state, bid}]
+        buildBody: (batch: typeof updates) => batch.map(u => ({
+          keywordId: u.keywordId,
+          adGroupId: u.adGroupId,
+          campaignId: u.campaignId,
+          state: 'enabled',
+          bid: u.bid,
+        })),
+        parseResponse: (data: any) => {
+          return Array.isArray(data) ? data : [data];
+        },
+      },
+    ];
+    
+    // 确定使用哪个端点 — 用第一批测试，成功后后续批次沿用
+    let activeEndpoint = endpoints[0]; // 默认v4
+    let endpointLocked = false;
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      log.info(`[SB API] v429.1: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB关键词出价更新 (端点: ${activeEndpoint.name})`);
+      
+      let batchSuccess = false;
+      const endpointsToTry = endpointLocked ? [activeEndpoint] : endpoints;
+      
+      for (const ep of endpointsToTry) {
+        try {
+          const body = ep.buildBody(batch);
+          log.info(`[SB API] v429.1: 尝试 ${ep.name} 端点 PUT ${ep.url}, Content-Type: ${ep.contentType}`);
+          
+          const response = await this.axiosInstance.put(ep.url, body, {
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              'Content-Type': ep.contentType,
+              'Accept': ep.contentType,
             },
+          });
+          
+          // 解析响应
+          const items = ep.parseResponse(response.data);
+          for (const item of items) {
+            if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
+              allSuccesses.push(item);
+            } else {
+              allErrors.push(item);
+              log.warn(`[SB API] v429.1: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details || JSON.stringify(item.errors || '')}`);
+            }
           }
-        );
-        
-        // v429: 解析v3响应 — 207 Multi-Status
-        // v3响应格式: 数组 [{keywordId, code, description, errors}] 或单个对象
-        const responseData = response.data;
-        const items = Array.isArray(responseData) ? responseData : [responseData];
-        for (const item of items) {
-          if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
-            allSuccesses.push(item);
-          } else {
-            allErrors.push(item);
-            log.warn(`[SB API] v429: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details || JSON.stringify(item.errors || '')}`);
+          
+          // 锁定成功的端点
+          if (!endpointLocked) {
+            activeEndpoint = ep;
+            endpointLocked = true;
+            log.info(`[SB API] v429.1: ✅ ${ep.name} 端点成功，后续批次将沿用此端点`);
           }
+          batchSuccess = true;
+          break; // 成功，不再尝试其他端点
+          
+        } catch (epErr: unknown) {
+          const statusCode = (epErr as any)?.response?.status;
+          const errMsg = (epErr as Error).message;
+          log.warn(`[SB API] v429.1: ${ep.name} 端点失败 (HTTP ${statusCode}): ${errMsg}`);
+          
+          // 如果是403/406/415，尝试下一个端点
+          if ([403, 406, 415].includes(statusCode) && !endpointLocked) {
+            log.info(`[SB API] v429.1: ${ep.name} 返回 ${statusCode}，尝试下一个端点...`);
+            continue;
+          }
+          
+          // 其他错误（429限流、500服务器错误等）直接标记失败
+          log.error(`[SB API] v429.1: 第${batchIdx + 1}批SB关键词出价更新失败: ${errMsg}`);
+          for (const u of batch) {
+            allErrors.push({ keywordId: u.keywordId, code: 'API_ERROR', details: `${ep.name}: ${errMsg}` });
+          }
+          batchSuccess = true; // 标记为已处理（虽然失败），避免重复
+          break;
         }
-      } catch (batchErr: unknown) {
-        log.error(`[SB API] v429: 第${batchIdx + 1}批SB关键词出价更新API调用失败: ${(batchErr as Error).message}`);
-        // 将整批标记为失败
+      }
+      
+      // 所有端点都返回403/406/415
+      if (!batchSuccess) {
+        log.error(`[SB API] v429.1: 所有端点均失败，第${batchIdx + 1}批 ${batch.length}个任务标记为失败`);
         for (const u of batch) {
-          allErrors.push({ keywordId: u.keywordId, code: 'API_ERROR', details: (batchErr as Error).message });
+          allErrors.push({ keywordId: u.keywordId, code: 'ALL_ENDPOINTS_FAILED', details: 'v4返回403/406, v3返回406 — SB keywords PUT API可能需要额外权限' });
         }
       }
       
@@ -3806,7 +3871,7 @@ export class AmazonAdsApiClient {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
-    log.info(`[SB API] v429: SB关键词出价更新完成: 总计=${updates.length}, 成功=${allSuccesses.length}, 失败=${allErrors.length}`);
+    log.info(`[SB API] v429.1: SB关键词出价更新完成: 总计=${updates.length}, 成功=${allSuccesses.length}, 失败=${allErrors.length}`);
     return { successes: allSuccesses, errors: allErrors };
   }
 
