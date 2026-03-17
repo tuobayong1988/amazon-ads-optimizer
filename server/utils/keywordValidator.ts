@@ -240,7 +240,7 @@ export async function adGroupHasProductTargets(
     }
     // @ts-expect-error - MySQL connection method
     const [rows] = await conn.execute(
-      'SELECT COUNT(*) AS cnt FROM product_targets WHERE adGroupId = ? AND targetId IS NOT NULL LIMIT 1',
+      'SELECT COUNT(*) AS cnt FROM product_targets WHERE internal_ad_group_id = ? AND targetId IS NOT NULL LIMIT 1',
       [adGroupId]
     );
     return (rows[0]?.cnt || 0) > 0;
