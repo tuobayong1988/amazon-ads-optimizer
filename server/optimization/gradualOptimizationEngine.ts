@@ -544,11 +544,18 @@ export function performSafetyCheck(
   const baselineWindow = windows.find(w => w.windowName === 'baseline_reference');
   
   if (recentWindow && baselineWindow && baselineWindow.dailyAvgSales > 0) {
+    // v431: 只有当基准期花费超过最低阈值时，比率变化才有统计意义
+    const hasBaselineSpend = baselineWindow.dailyAvgSpend >= 3;
+    
     // 检查销售急剧下降
     const salesDropRatio = recentWindow.dailyAvgSales / baselineWindow.dailyAvgSales;
-    if (salesDropRatio < 0.40) {
+    if (salesDropRatio < 0.40 && hasBaselineSpend) {
+      // v431: 不再直接暂停，而是发出警告
       warnings.push(`近期日均销售额下降${((1 - salesDropRatio) * 100).toFixed(0)}%，可能存在缺货或listing问题`);
-      shouldPause = true;
+      // v431: 只有当花费较高且销售下降超过80%时才触发暂停
+      if (salesDropRatio < 0.20 && baselineWindow.dailyAvgSpend >= 10) {
+        shouldPause = true;
+      }
     } else if (salesDropRatio < 0.65) {
       warnings.push(`近期日均销售额下降${((1 - salesDropRatio) * 100).toFixed(0)}%，需要关注`);
     }
@@ -556,9 +563,12 @@ export function performSafetyCheck(
     // 检查花费激增
     if (baselineWindow.dailyAvgSpend > 0) {
       const spendSurgeRatio = recentWindow.dailyAvgSpend / baselineWindow.dailyAvgSpend;
-      if (spendSurgeRatio > 2.5) {
+      if (spendSurgeRatio > 2.5 && hasBaselineSpend) {
+        // v431: 花费激增不再直接暂停，除非激增超过5倍
         warnings.push(`近期日均花费激增${((spendSurgeRatio - 1) * 100).toFixed(0)}%，可能存在异常`);
-        shouldPause = true;
+        if (spendSurgeRatio > 5.0) {
+          shouldPause = true;
+        }
       } else if (spendSurgeRatio > 1.8) {
         warnings.push(`近期日均花费增长${((spendSurgeRatio - 1) * 100).toFixed(0)}%`);
       }
@@ -574,12 +584,22 @@ export function performSafetyCheck(
   }
   
   // v332: ACoS持续超标检测 — 当加权ACoS超过合理阈值时发出警告
-  // 这是对LERUCCI US ACoS 132.7%问题的底层修复
+  // v431: 优化安全检查逻辑 — 考虑绝对花费金额，低花费campaign的ACoS波动大是正常的
+  // 之前的问题：所有9个Campaign全部被安全检查跳过，导致优化引擎完全无法执行
   if (metrics.weightedAcos > 0) {
-    if (metrics.weightedAcos > 1.5) {
-      // ACoS > 150%: 严重超标，触发安全暂停
-      warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，严重超标，建议紧急审查广告活动`);
+    // v431: 只有当花费超过最低阈值时，ACoS才有统计意义
+    // 低花费campaign（日均花费<$5）的ACoS波动很大，不应触发暂停
+    const hasSignificantSpend = recentWindow && recentWindow.dailyAvgSpend >= 5;
+    
+    if (metrics.weightedAcos > 3.0 && hasSignificantSpend) {
+      // v431: ACoS > 300% 且花费显著: 这是真正的异常，触发暂停
+      warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，极度异常，建议紧急审查广告活动`);
       shouldPause = true;
+    } else if (metrics.weightedAcos > 1.5 && hasSignificantSpend) {
+      // ACoS > 150% 且花费显著: 不再触发暂停，而是发出警告并应用保守策略
+      // v431: 从直接暂停改为发出严重警告，让优化引擎继续以保守策略运行
+      warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，严重超标，将使用保守优化策略`);
+      // v431: 不再设置 shouldPause = true，让优化引擎继续运行但使用保守参数
     } else if (metrics.weightedAcos > 0.8) {
       // ACoS > 80%: 明显超标，发出警告
       warnings.push(`加权ACoS达${(metrics.weightedAcos * 100).toFixed(1)}%，明显偏高`);

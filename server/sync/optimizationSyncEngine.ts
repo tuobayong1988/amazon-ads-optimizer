@@ -782,9 +782,18 @@ async function executeBatchByType(
             }
             
             for (const t of spKwTasks) {
-              if (failedIds.has(String(t.amazon_entity_id))) {
-                await markTaskForRetry(conn, t.id, t.retry_count, failedIds.get(String(t.amazon_entity_id))!);
-                result.failed++;
+              const spFailReason = failedIds.get(String(t.amazon_entity_id));
+              if (spFailReason) {
+                // v431: DUPLICATE视为成功 — bid已是目标值
+                if (spFailReason === 'DUPLICATE' || spFailReason.includes('DUPLICATE')) {
+                  log.info(`[SyncEngine] v431: SP keyword ${t.amazon_entity_id} DUPLICATE视为成功`);
+                  await markTaskSynced(conn, t.id);
+                  await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
+                  result.synced++;
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, spFailReason);
+                  result.failed++;
+                }
               } else {
                 await markTaskSynced(conn, t.id);
                 await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
@@ -822,9 +831,16 @@ async function executeBatchByType(
                 ) as any[];
                 
                 if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
+                  // v431: SB keyword最低bid保护 — Amazon SB Keywords API要求bid >= $0.25
+                  const SB_MIN_BID = 0.25;
+                  let sbBid = Number(parseFloat(t.new_value).toFixed(2));
+                  if (sbBid < SB_MIN_BID) {
+                    log.info(`[SyncEngine] v431: SB keyword bid $${sbBid} 低于最低要求$${SB_MIN_BID}，自动调整为$${SB_MIN_BID}`);
+                    sbBid = SB_MIN_BID;
+                  }
                   sbUpdates.push({
                     keywordId: String(t.amazon_entity_id),
-                    bid: Number(parseFloat(t.new_value).toFixed(2)),
+                    bid: sbBid,
                     adGroupId: String(kwDetailRows[0].amazonAdGroupId),
                     campaignId: String(kwDetailRows[0].amazonCampaignId),
                   });
@@ -862,9 +878,18 @@ async function executeBatchByType(
             }
             
             for (const t of activeSbTasks) {
-              if (sbFailedIds.has(String(t.amazon_entity_id))) {
-                await markTaskForRetry(conn, t.id, t.retry_count, sbFailedIds.get(String(t.amazon_entity_id))!);
-                result.failed++;
+              const failReason = sbFailedIds.get(String(t.amazon_entity_id));
+              if (failReason) {
+                // v431: DUPLICATE视为成功 — 表示bid已经是目标值，无需重试
+                if (failReason === 'DUPLICATE' || failReason.includes('DUPLICATE')) {
+                  log.info(`[SyncEngine] v431: SB keyword ${t.amazon_entity_id} DUPLICATE视为成功（bid已是目标值）`);
+                  await markTaskSynced(conn, t.id);
+                  await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
+                  result.synced++;
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, failReason);
+                  result.failed++;
+                }
               } else {
                 await markTaskSynced(conn, t.id);
                 await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
@@ -1009,16 +1034,20 @@ async function executeBatchByType(
             }))
           );
           
-          const failedIds = new Set<string>();
+          // v431: 增强错误信息记录 — 保留API返回的具体错误码和描述
+          const failedIdMap = new Map<string, string>();
           if (apiResult.errors && apiResult.errors.length > 0) {
             for (const err of apiResult.errors) {
-              failedIds.add(String(err.keywordId));
+              const errDetail = err.details || err.description || err.code || err.message || 'UNKNOWN_ERROR';
+              failedIdMap.set(String(err.keywordId), `v431: keyword_status API错误: ${errDetail}`);
+              log.error(`[SyncEngine] v431: keyword_status失败: keywordId=${err.keywordId}, code=${err.code}, details=${errDetail}`);
             }
           }
           
           for (const t of validTasks) {
-            if (failedIds.has(String(t.amazon_entity_id))) {
-              await markTaskForRetry(conn, t.id, t.retry_count, 'API返回错误');
+            const statusFailReason = failedIdMap.get(String(t.amazon_entity_id));
+            if (statusFailReason) {
+              await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);
@@ -1027,7 +1056,7 @@ async function executeBatchByType(
             }
           }
           
-          log.warn(`[SyncEngine] 关键词状态批量同步: 发送=${validTasks.length}, 成功=${validTasks.length - failedIds.size}`);
+          log.warn(`[SyncEngine] v431: 关键词状态批量同步: 发送=${validTasks.length}, 成功=${validTasks.length - failedIdMap.size}, 失败=${failedIdMap.size}`);
         } catch (err: unknown) {
           for (const t of validTasks) {
             await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
@@ -1255,11 +1284,20 @@ async function executeBatchByType(
             result.synced += validTasks.length;
             log.warn(`[SyncEngine] v189: 否定词部分成功: 成功=${negSyncResult.success}, 失败=${negSyncResult.failed}`);
           } else {
-            // 全部失败
-            for (const t of validTasks) {
-              await markTaskForRetry(conn, t.id, t.retry_count, negSyncResult.errors.join('; '));
+            // v431: 全部失败 — 检查是否全是DUPLICATE错误，如果是则视为成功
+            const allDuplicate = negSyncResult.errors.every((e: string) => e.includes('duplicate') || e.includes('DUPLICATE'));
+            if (allDuplicate && negSyncResult.errors.length > 0) {
+              log.info(`[SyncEngine] v431: 否定词全部DUPLICATE，视为成功（已存在）`);
+              for (const t of validTasks) {
+                await markTaskSynced(conn, t.id);
+              }
+              result.synced += validTasks.length;
+            } else {
+              for (const t of validTasks) {
+                await markTaskForRetry(conn, t.id, t.retry_count, negSyncResult.errors.join('; '));
+              }
+              result.failed += validTasks.length;
             }
-            result.failed += validTasks.length;
           }
         } catch (err: unknown) {
           for (const t of validTasks) {
