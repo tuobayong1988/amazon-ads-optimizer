@@ -3737,60 +3737,49 @@ export class AmazonAdsApiClient {
    * 更新SB关键词出价
    */
   async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<{ successes: any[]; errors: any[] }> {
-    // v428: P0修复 — SB关键词出价更新改用v3端点 PUT /sb/keywords
-    // 原因：PUT /sb/v4/keywords 端点不存在（v4迁移文档中没有keywords的PUT操作），导致403错误
-    // v3端点请求体为数组格式 [{keywordId, bid, state}]，不需要v4特有的Content-Type
-    const BATCH_SIZE = 100; // v428: SB v3 API限制每次最多100个
+    // v428.2: P0修复 — SB关键词出价更新使用v4端点 PUT /sb/v4/keywords
+    // v428尝试v3端点返回406，v4端点需要正确的Content-Type头
+    // 与updateSbCampaign的v4格式保持一致：{keywords: [{keywordId, bid}]}
+    const BATCH_SIZE = 100;
     const BATCH_DELAY_MS = 500;
     const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
-    log.info(`[SB API] v428: updateSbKeywordBids 使用v3端点: 总计${updates.length}个, 分${totalBatches}批`);
+    log.info(`[SB API] v428.2: updateSbKeywordBids 使用v4端点: 总计${updates.length}个, 分${totalBatches}批`);
     
     const allSuccesses: any[] = [];
     const allErrors: any[] = [];
     
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
       const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-      log.info(`[SB API] v428: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB关键词出价更新`);
+      log.info(`[SB API] v428.2: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB关键词出价更新`);
       
       try {
-        // v428: 使用v3端点 PUT /sb/keywords，请求体为数组格式
-        const response = await this.axiosInstance.put('/sb/keywords', 
-          batch.map(u => ({
+        // v428.2: 使用v4端点 PUT /sb/v4/keywords，请求体为v4包装格式
+        const response = await this.axiosInstance.put('/sb/v4/keywords', 
+          { keywords: batch.map(u => ({
             keywordId: u.keywordId,
             bid: u.bid,
-            state: 'enabled',  // v428: v3 API要求state字段
-          })),
+          })) },
           {
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+              'Accept': 'application/vnd.sbkeywordresource.v4+json',
             },
           }
         );
         
-        // v428: 解析v3响应，收集成功和失败的结果
+        // v428.2: 解析v4响应，v4格式可能返回 {keywords: [{keywordId, code, ...}]} 或直接数组
         const responseData = response.data;
-        if (Array.isArray(responseData)) {
-          for (const item of responseData) {
-            if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
-              allSuccesses.push(item);
-            } else {
-              allErrors.push(item);
-              log.warn(`[SB API] v428: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, details=${item.details || item.description || ''}`);
-            }
-          }
-        } else if (responseData?.updateKeywordResponses) {
-          // v428: 某些版本的API返回包装对象
-          for (const item of responseData.updateKeywordResponses) {
-            if (item.code === 'SUCCESS' || !item.code) {
-              allSuccesses.push(item);
-            } else {
-              allErrors.push(item);
-            }
+        const items = responseData?.keywords || (Array.isArray(responseData) ? responseData : []);
+        for (const item of items) {
+          if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
+            allSuccesses.push(item);
+          } else {
+            allErrors.push(item);
+            log.warn(`[SB API] v428.2: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, details=${item.details || item.description || ''}`);
           }
         }
       } catch (batchErr: unknown) {
-        log.error(`[SB API] v428: 第${batchIdx + 1}批SB关键词出价更新API调用失败: ${(batchErr as Error).message}`);
+        log.error(`[SB API] v428.2: 第${batchIdx + 1}批SB关键词出价更新API调用失败: ${(batchErr as Error).message}`);
         // 将整批标记为失败
         for (const u of batch) {
           allErrors.push({ keywordId: u.keywordId, code: 'API_ERROR', details: (batchErr as Error).message });
