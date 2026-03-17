@@ -30,6 +30,9 @@ interface MemoryLockState {
 
 const accountModuleLocks: Record<string, MemoryLockState> = {};
 
+/** v426: 分布式锁释放函数缓存（用于释放sync_locks表中的锁） */
+const distributedLockReleases: Map<string, () => Promise<void>> = new Map();
+
 /** v362: 默认锁超时时间（10分钟，从5分钟提升以适应大账户优化） */
 const DEFAULT_LOCK_TIMEOUT_MS = 10 * 60 * 1000;
 /** v362: 最大锁超时时间（30分钟） */
@@ -100,11 +103,13 @@ function releaseMemoryLock(lockKey: string): void {
 }
 
 /**
- * 获取账户+模块级别的优化锁（混合锁：内存锁 + 数据库分布式锁）
+ * 获取账户+模块级别的优化锁（混合锁：内存锁 + sync_locks表分布式锁）
  * 
  * v368: 升级为混合锁模式
+ * v385: 降级为仅内存锁（减少数据库连接占用）
+ * v426: 重新启用混合锁模式，改用sync_locks表替代GET_LOCK（不占用连接）
  * - 先尝试获取内存锁（快速失败，避免不必要的数据库调用）
- * - 再尝试获取数据库锁（跨实例互斥保护）
+ * - 再尝试获取sync_locks表锁（跨实例互斥保护，不占用连接池）
  * - 如果数据库锁获取失败，回滚内存锁
  */
 export async function acquireAccountOptimizationLock(
@@ -116,17 +121,40 @@ export async function acquireAccountOptimizationLock(
   const group = moduleGroup || 'all';
   const lockKey = `${accountId}:${group}`;
   
-  // v385: 单实例模式，仅使用内存锁，移除分布式锁开销（每次占用一个数据库连接）
+  // Step 1: 内存锁快速路径
   if (!acquireMemoryLock(lockKey, lockedBy, options)) {
     return false;
   }
+  
+  // Step 2: v426 sync_locks表分布式锁（不占用连接池）
+  try {
+    const { DistributedLock } = await import('./distributedLock');
+    const timeoutMs = options?.expectedDurationMs || DEFAULT_LOCK_TIMEOUT_MS;
+    const distLock = new DistributedLock(`opt_${lockKey}`);
+    const release = await distLock.tryAcquire(timeoutMs);
+    
+    if (!release) {
+      // 分布式锁获取失败，回滚内存锁
+      releaseMemoryLock(lockKey);
+      log.info(`[LockManager] ${lockKey} 分布式锁已被其他实例持有，${lockedBy} 跳过`);
+      return false;
+    }
+    
+    // 保存release函数用于后续释放
+    distributedLockReleases.set(lockKey, release);
+  } catch (e: unknown) {
+    // 分布式锁获取异常，降级为仅内存锁模式
+    log.debug(`[LockManager] ${lockKey} 分布式锁降级: ${(e as Error).message}`);
+  }
+  
   recordLockEvent(lockKey, 'acquired', lockedBy, 0);
-  log.debug(`[LockManager] ${lockKey} 内存锁获取成功 by ${lockedBy}`);
+  log.debug(`[LockManager] ${lockKey} 混合锁获取成功 by ${lockedBy}`);
   return true;
 }
 
 /**
- * 释放账户+模块级别的优化锁（同时释放内存锁和数据库锁）
+ * 释放账户+模块级别的优化锁（同时释放内存锁和分布式锁）
+ * v426: 同时释放sync_locks表中的分布式锁
  */
 export async function releaseAccountOptimizationLock(accountId: number, moduleGroup?: string): Promise<void> {
   const group = moduleGroup || 'all';
@@ -138,8 +166,19 @@ export async function releaseAccountOptimizationLock(accountId: number, moduleGr
     recordLockEvent(lockKey, 'released', accountModuleLocks[lockKey].lockedBy, holdTime);
   }
   
-  // v385: 单实例模式，仅释放内存锁
+  // 释放内存锁
   releaseMemoryLock(lockKey);
+  
+  // v426: 释放分布式锁
+  try {
+    const release = distributedLockReleases?.get(lockKey);
+    if (release) {
+      await release();
+      distributedLockReleases.delete(lockKey);
+    }
+  } catch (e: unknown) {
+    log.debug(`[LockManager] ${lockKey} 释放分布式锁失败: ${(e as Error).message}`);
+  }
 }
 
 /**

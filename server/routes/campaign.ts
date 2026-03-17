@@ -152,6 +152,38 @@ export const campaignRouter = router({
       return result;
     }),
 
+  // v426: 轻量级广告活动名称列表（仅返回id/name/type/status，用于下拉选择框）
+  listNamesOnly: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      const cacheKey = apiCache.generateKey('campaign.listNamesOnly', ctx.user.id, { accountId: input.accountId });
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
+      const result = await db.getCampaignNamesOnly(input.accountId);
+      apiCache.set(cacheKey, result, 5 * 60 * 1000); // 5分钟缓存
+      return result;
+    }),
+
+  // v426: 轻量级广告活动状态统计（替代全量加载）
+  statusCounts: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ ctx, input }: any) => {
+      const { verifyAccountAccess } = await import('../utils/accessControl');
+      await verifyAccountAccess(ctx.user.id, input.accountId);
+      
+      const cacheKey = apiCache.generateKey('campaign.statusCounts', ctx.user.id, { accountId: input.accountId });
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) return cached;
+      
+      const result = await db.getCampaignStatusCounts(input.accountId);
+      apiCache.set(cacheKey, result, 5 * 60 * 1000); // 5分钟缓存
+      return result;
+    }),
+
   // 获取未分配到绩效组的广告活动
   // v361: 数据隔离修复 - accountId改为必填
   listUnassigned: protectedProcedure

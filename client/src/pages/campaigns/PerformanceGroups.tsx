@@ -262,8 +262,8 @@ const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     { enabled: !!accountId }
   );
 
-  // Fetch all campaigns to count managed/unmanaged
-  const { data: campaigns } = trpc.campaign.list.useQuery(
+  // v426: 使用轻量级API，仅获取必要字段（包含performanceGroupId用于统计）
+  const { data: campaigns } = trpc.campaign.listNamesOnly.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }
   );

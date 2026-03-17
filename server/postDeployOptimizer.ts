@@ -800,8 +800,22 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['rerun_optimization'],
   },
   {
+    version: 426,
+    description: 'v426: [性能全面优化+分布式锁重启+安全增强] — (1)P0-API响应解析Bug修复: updateKeywordBids/updateKeywordStatus/updateProductTargetBids/updateTargetStatus/updateSpAdGroupStatus五个函数修复v3 API error对象的index字段解析,消除“假失败”问题 (2)P0-cleanupExpiredDaypartingBids提升为纠错扫描第1步+独立30分钟定时任务 (3)P1-N+1查询消除: adGroupSync/searchTermSync/negativeKeywordSync全面重写,预加载Map+批量insert (4)P1-绩效数据精度统一: toFixed(2)/toFixed(4)一致化 (5)P1-数据库查询优化: analytics.ts消除DATE()索引失效+合并6次COUNT为1次+campaigns.ts添加accountId过滤 (6)P1-轻量级API: 新增campaign.statusCounts和campaign.listNamesOnly端点,前端6处替换为轻量API (7)P1-keyword路由N+1修复: batchUpdateBid/batchUpdateStatus批量化 (8)P2-安全异常处理增强: 熔断检查异常改为安全拒绝,风险评估异常改为默认红色 (9)P2-SB否定关键词匹配修复: 添加internalAdGroupId条件 (10)P3-分布式锁重启: 基于sync_locks表的混合锁模式,替代GET_LOCK不占用连接池 (11)P3-同步数据校验摘要日志',
+    // @ts-ignore
+    affectedModules: ['sync', 'optimization', 'correction', 'db', 'api', 'frontend'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
+    version: 425,
+    description: 'v425: [同步失败全面修复+同步锁机制重构+手动同步最高优先级] — (1)P0-同步锁机制重构: 手动同步最高优先级,任何时候触发都能立即执行,不被自动同步阻塞 (2)P0-syncIdempotencyService新增forceAcquireSyncLock强制获取锁 (3)P0-unifiedSyncEngine同层级/full层锁冲突时手动同步强制释放 (4)P0-dataSyncScheduler.triggerManualSync添加幂等锁保护 (5)P1-纠错服务增强: retryFailedBidAdjustments修复成功判断逻辑(itemResults逐条判断) (6)P1-新增cleanupExpiredDaypartingBids: 超过24h的dayparting_bid失败标记为superseded (7)P1-超过7天的失败事件标记为permanently_failed (8)P1-daypartingExecutor重试增强: 从1次增加到3次指数退避 (9)P1-amazonApiHelper Amazon ID缺失容错: 区分可重试和不可重试,不可重试标记为not_applicable (10)P1-riskActionEngine同步健康度优化: 排除superseded/permanently_failed,失败率>5%才触发P0告警',
+    // @ts-ignore
+    affectedModules: ['sync', 'optimization', 'correction'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 346,
-    description: 'v346: [P2全面优化] — (1)除零防护加固: bidOptimizer中15+处除法操作添加安全检查 (2)竞态条件防护: 新增AsyncMutex进程级互斥锁工具 (3)内存泄漏修复: marketplaceCache添加TTL+容量上限+定时清理 (4)SQL注入加固: auditLogService/inviteCodeService/marginalBenefitBatchService参数化改造 (5)空catch块修复: 8处空catch添加结构化日志 (6)any类型收窄: bidOptimizer和optimizationTargetEngine中10+处as any消除 (7)归档代码清理: 删除_archived_v149(103文件/1.2MB) (8)日志统一: 25+文件100+处console迁移到结构化日志',
+    description: 'v346: [P2全面优化] — (1)除零防护加固: bidOptimizer中15+处除法操作添加安全检查 (2)竞态条件防护: 新增AsyncMutex进程级互斥锁工具 (3)内存泄漏修复: marketplaceCache添加TTL+容量上限+定时清理 (4)SQL注入加固: auditLogService/inviteCodeService/marginalBenefitBatchService参数化改造 (5)空catch块修复: 8处空catch添加结构化日志 (6)any类型收窄: bidOptimizer和optimizationTargetEngine中10+处as any消除 (7)归档代码清理: 删除_archived_v149(103文件/1.2MB) (8)日志统一: 25+文件16+处console迁移到结构化日志',
     // @ts-ignore
     affectedModules: ['optimization', 'security', 'sync', 'logging'],
     correctionActions: [],

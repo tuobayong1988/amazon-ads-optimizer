@@ -1171,16 +1171,16 @@ export default function OptimizationTargets() {
     { enabled: !!currentAccountId }
   );
 
-  // 获取广告活动统计
-  const { data: campaigns } = trpc.campaign.list.useQuery(
+  // v426: 使用轻量级statusCounts API替代全量加载
+  const { data: campaignCounts } = trpc.campaign.statusCounts.useQuery(
     { accountId: currentAccountId as any},
     { enabled: !!currentAccountId }
   );
 
   // 统计数据
   const stats = useMemo(() => {
-    const managedCampaigns = campaigns?.filter(c => c.optimizationStatus === "managed").length || 0;
-    const unmanagedCampaigns = campaigns?.filter(c => c.optimizationStatus !== "managed").length || 0;
+    const managedCampaigns = campaignCounts?.managed || 0;
+    const unmanagedCampaigns = campaignCounts?.unmanaged || 0;
     const activeTargets = targets?.filter(t => t.status === "active").length || 0;
     const pausedTargets = targets?.filter(t => t.status !== "active").length || 0;
     
@@ -1191,7 +1191,7 @@ export default function OptimizationTargets() {
       activeTargets,
       pausedTargets,
     };
-  }, [targets, campaigns]);
+  }, [targets, campaignCounts]);
 
   return (
     <DashboardLayout>

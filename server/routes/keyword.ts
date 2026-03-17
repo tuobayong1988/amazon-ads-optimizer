@@ -94,14 +94,17 @@ export const keywordRouter = router({
       bidValue: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
-      // v385: 数据隔离 - 批量验证关键词归属
-      const { verifyKeywordAccess } = await import('../utils/accessControl');
-      for (const kid of input.ids) {
-        await verifyKeywordAccess(ctx.user.id, kid);
-      }
+      // v426: 批量验证关键词归属（一次性查询替代N次循环）
+      const { verifyBatchKeywordAccess } = await import('../utils/accessControl');
+      await verifyBatchKeywordAccess(ctx.user.id, input.ids);
+      
+      // v426: 批量获取所有关键词（一次查询替代N次循环）
+      const allKeywords = await db.getKeywordsByIds(input.ids);
+      const keywordMap = new Map(allKeywords.map((k: any) => [k.id, k]));
+      
       const results = [];
       for (const id of input.ids) {
-        const keyword = await db.getKeywordById(id);
+        const keyword = keywordMap.get(id);
         if (!keyword) continue;
         
         let newBid: number;
@@ -223,17 +226,12 @@ export const keywordRouter = router({
       status: z.enum(["enabled", "paused"]),
     }))
     .mutation(async ({ ctx, input }: any) => {
-      // v385: 数据隔离 - 批量验证关键词归属
-      const { verifyKeywordAccess } = await import('../utils/accessControl');
-      for (const kid of input.ids) {
-        await verifyKeywordAccess(ctx.user.id, kid);
-      }
-      // v159: 先更新本地数据库
-      let updated = 0;
-      for (const id of input.ids) {
-        await db.updateKeyword(id, { keywordStatus: input.status });
-        updated++;
-      }
+      // v426: 批量验证关键词归属（一次性查询替代N次循环）
+      const { verifyBatchKeywordAccess } = await import('../utils/accessControl');
+      await verifyBatchKeywordAccess(ctx.user.id, input.ids);
+      // v426: 批量更新本地数据库（一次查询替代N次循环）
+      await db.batchUpdateKeywordStatus(input.ids, input.status);
+      const updated = input.ids.length;
       
       // v159: 同步关键词状态变更到Amazon
       try {

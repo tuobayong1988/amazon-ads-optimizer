@@ -1,6 +1,9 @@
 /**
- * v361: 分析与统计
- * 从db.ts拆分的子模块
+ * v426: 分析与统计 - 性能优化版
+ * 核心优化:
+ * 1. 移除所有DATE()函数包裹，改用直接范围比较以利用索引
+ * 2. 合并getLocalDataStats的6次COUNT为1次查询
+ * 3. 消除@ts-ignore，使用类型安全的结果处理
  */
 
 import { and, count, eq, not, sql } from 'drizzle-orm';
@@ -11,87 +14,131 @@ import { adGroups, campaigns, dailyPerformance, keywords, productTargets } from 
 
 const log = createModuleLogger('DB:analytics');
 
-// 获取本地数据统计
-export async function getLocalDataStats(accountId: number) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      spCampaigns: 0,
-      sbCampaigns: 0,
-      sdCampaigns: 0,
-      adGroups: 0,
-      keywords: 0,
-      productTargets: 0,
-    };
-  }
-
-  // 统计各类数据的数量 - 使用原生SQL查询避免类型问题
-  const [spCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(campaigns)
-    .where(sql`${campaigns.accountId} = ${accountId} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
-  
-  const [sbCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(campaigns)
-    .where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sb'`);
-  
-  const [sdCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(campaigns)
-    .where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sd'`);
-  
-  const [adGroupsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(adGroups)
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
-    .where(eq(campaigns.accountId, accountId));
-  
-  const [keywordsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(keywords)
-    .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
-    .where(eq(campaigns.accountId, accountId));
-  
-  const [productTargetsResult] = await db.select({ count: sql<number>`count(*)` })
-    .from(productTargets)
-    .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
-    .where(eq(campaigns.accountId, accountId));
-
-  return {
-    spCampaigns: Number(spCampaignsResult?.count || 0),
-    sbCampaigns: Number(sbCampaignsResult?.count || 0),
-    sdCampaigns: Number(sdCampaignsResult?.count || 0),
-    adGroups: Number(adGroupsResult?.count || 0),
-    keywords: Number(keywordsResult?.count || 0),
-    productTargets: Number(productTargetsResult?.count || 0),
-  };
+// ==================== 类型定义 ====================
+interface LocalDataStats {
+  spCampaigns: number;
+  sbCampaigns: number;
+  sdCampaigns: number;
+  adGroups: number;
+  keywords: number;
+  productTargets: number;
 }
 
-
-// 获取账户绩效汇总
-
-// 获取账户绩效汇总
-export async function getAccountPerformanceSummary(
-  accountId: number,
-  startDate?: Date,
-  endDate?: Date
-): Promise<{
+interface PerformanceSummary {
   totalSpend: number;
   totalSales: number;
   totalOrders: number;
   totalImpressions: number;
   totalClicks: number;
-} | null> {
+}
+
+interface DailyTrendItem {
+  date: string;
+  spend: number;
+  sales: number;
+  orders: number;
+  acos: number;
+}
+
+interface DataDateRange {
+  minDate: string;
+  maxDate: string;
+  hasData: boolean;
+  lastSyncAt?: string;
+}
+
+// ==================== 辅助函数 ====================
+
+/** 安全提取raw SQL查询结果的行数组 */
+function extractRows(rawResult: unknown): Record<string, any>[] {
+  if (!rawResult) return [];
+  if (Array.isArray(rawResult)) {
+    // mysql2 返回 [rows, fields] 格式
+    if (rawResult.length > 0 && Array.isArray(rawResult[0])) {
+      return rawResult[0] as Record<string, any>[];
+    }
+    return rawResult as Record<string, any>[];
+  }
+  return [];
+}
+
+/** 安全提取单行结果 */
+function extractFirstRow(rawResult: unknown): Record<string, any> | null {
+  const rows = extractRows(rawResult);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+// ==================== 查询函数 ====================
+
+/**
+ * v426: 获取本地数据统计 - 合并为单次查询
+ * 优化: 6次独立COUNT查询 → 1次campaigns统计 + 1次子查询统计
+ */
+export async function getLocalDataStats(accountId: number): Promise<LocalDataStats> {
+  const db = await getDb();
+  if (!db) {
+    return { spCampaigns: 0, sbCampaigns: 0, sdCampaigns: 0, adGroups: 0, keywords: 0, productTargets: 0 };
+  }
+
+  try {
+    // 合并campaigns统计为单次查询
+    const [campaignStats] = await db.select({
+      spCampaigns: sql<number>`SUM(CASE WHEN ${campaigns.campaignType} IN ('sp_auto', 'sp_manual') THEN 1 ELSE 0 END)`,
+      sbCampaigns: sql<number>`SUM(CASE WHEN ${campaigns.campaignType} = 'sb' THEN 1 ELSE 0 END)`,
+      sdCampaigns: sql<number>`SUM(CASE WHEN ${campaigns.campaignType} = 'sd' THEN 1 ELSE 0 END)`,
+    }).from(campaigns).where(eq(campaigns.accountId, accountId));
+
+    // 使用子查询统计关联数据，避免多次JOIN
+    const subStatsResult = await db.execute(sql`
+      SELECT 
+        (SELECT COUNT(*) FROM ad_groups ag 
+         INNER JOIN campaigns c ON ag.campaignId = c.campaignId 
+         WHERE c.accountId = ${accountId}) as adGroupCount,
+        (SELECT COUNT(*) FROM keywords k 
+         INNER JOIN ad_groups ag ON k.internalAdGroupId = ag.id 
+         INNER JOIN campaigns c ON ag.campaignId = c.campaignId 
+         WHERE c.accountId = ${accountId}) as keywordCount,
+        (SELECT COUNT(*) FROM product_targets pt 
+         INNER JOIN ad_groups ag ON pt.internalAdGroupId = ag.id 
+         INNER JOIN campaigns c ON ag.campaignId = c.campaignId 
+         WHERE c.accountId = ${accountId}) as productTargetCount
+    `) as unknown;
+
+    const subStats = extractFirstRow(subStatsResult);
+
+    return {
+      spCampaigns: Number(campaignStats?.spCampaigns || 0),
+      sbCampaigns: Number(campaignStats?.sbCampaigns || 0),
+      sdCampaigns: Number(campaignStats?.sdCampaigns || 0),
+      adGroups: Number(subStats?.adGroupCount || 0),
+      keywords: Number(subStats?.keywordCount || 0),
+      productTargets: Number(subStats?.productTargetCount || 0),
+    };
+  } catch (error) {
+    log.error('[getLocalDataStats] Error:', error);
+    return { spCampaigns: 0, sbCampaigns: 0, sdCampaigns: 0, adGroups: 0, keywords: 0, productTargets: 0 };
+  }
+}
+
+
+/**
+ * v426: 获取账户绩效汇总 - 移除DATE()函数以利用索引
+ * 优化: DATE(date) >= startDate → date >= startDate (直接范围比较)
+ */
+export async function getAccountPerformanceSummary(
+  accountId: number,
+  startDate?: Date,
+  endDate?: Date
+): Promise<PerformanceSummary | null> {
   const db = await getDb();
   if (!db) return null;
   
   try {
-    // 如果有时间范围，从日报表查询；否则从 campaigns 表查询累计数据
     if (startDate && endDate) {
-      // 将Date对象转换为YYYY-MM-DD格式字符串，与数据库中的日期格式匹配
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
       
-      // v104: 从daily_performance表查询指定时间范围的数据
-      // 使用 spend_usd/sales_usd（如果有）进行USD汇总，否则回退到 spend/sales
+      // v426: 移除DATE()包裹，直接使用范围比较以利用idx_daily_perf_account_date索引
       const [result] = await db.select({
         totalSpend: sql<number>`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
         totalSales: sql<number>`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
@@ -102,8 +149,8 @@ export async function getAccountPerformanceSummary(
       .from(dailyPerformance)
       .where(and(
         eq(dailyPerformance.accountId, accountId),
-        sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
-        sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
+        sql`${dailyPerformance.date} >= ${startDateStr}`,
+        sql`${dailyPerformance.date} < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)`
       ));
       
       return {
@@ -140,30 +187,31 @@ export async function getAccountPerformanceSummary(
 }
 
 
-// 获取每日趋势数据
-
-// 获取每日趋势数据
-export async function getDailyTrendData(accountIds: number[], days: number, timeRange?: string, customStartDate?: string, customEndDate?: string): Promise<{
-  date: string;
-  spend: number;
-  sales: number;
-  orders: number;
-  acos: number;
-}[]> {
+/**
+ * v426: 获取每日趋势数据 - 移除DATE()函数以利用索引
+ * 优化:
+ * 1. WHERE条件中移除DATE()包裹
+ * 2. GROUP BY使用date列直接分组（date列本身是DATE类型）
+ * 3. 消除@ts-ignore，使用extractRows辅助函数
+ */
+export async function getDailyTrendData(
+  accountIds: number[], 
+  days: number, 
+  timeRange?: string, 
+  customStartDate?: string, 
+  customEndDate?: string
+): Promise<DailyTrendItem[]> {
   const db = await getDb();
   if (!db) return [];
   
   try {
-    // 优先使用前端传入的日期字符串（已根据站点时区计算）
     let startDateStr: string;
     let endDateStr: string;
     
     if (customStartDate && customEndDate) {
-      // 前端传入的日期已经是YYYY-MM-DD格式
       startDateStr = customStartDate;
       endDateStr = customEndDate;
     } else {
-      // 如果没有传入日期，使用默认计算（回退方案）
       let endDate = new Date();
       let startDate = new Date();
       
@@ -180,30 +228,28 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
       endDateStr = endDate.toISOString().split('T')[0];
     }
     
-    // v104: 使用 spend_usd/sales_usd 进行USD汇总
+    // v426: 移除DATE()包裹，直接使用date列进行范围比较和分组
     const results = await db.execute(sql`
       SELECT 
-        DATE(date) as report_date,
+        date as report_date,
         COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), 0) as spend,
         COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), 0) as sales,
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
       WHERE accountId IN (${safeInClause(accountIds)})
-        AND DATE(date) >= ${startDateStr}
-        AND DATE(date) <= ${endDateStr}
-      GROUP BY DATE(date)
-      ORDER BY DATE(date)
+        AND date >= ${startDateStr}
+        AND date < DATE_ADD(${endDateStr}, INTERVAL 1 DAY)
+      GROUP BY date
+      ORDER BY date
     `) as unknown;
     
-    // @ts-ignore
-    const rows = results[0] || results;
+    const rows = extractRows(results);
     
-    return (rows as any[]).map((r: Record<string, any>) => {
+    return rows.map((r: Record<string, any>) => {
       const spend = Number(r.spend) || 0;
       const sales = Number(r.sales) || 0;
       const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
       
-      // 格式化日期为 M/D 格式，使用report_date字段
       let dateStr = 'N/A';
       const dateValue = r.report_date || r.date;
       if (dateValue) {
@@ -228,17 +274,12 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
 }
 
 
-// 获取数据可用日期范围和最后同步时间
-
-// 获取数据可用日期范围和最后同步时间
-export async function getDataDateRange(accountIds: number[]): Promise<{
-  minDate: string;
-  maxDate: string;
-  hasData: boolean;
-  lastSyncAt?: string; // 最后同步时间
-}> {
+/**
+ * v426: 获取数据可用日期范围 - 移除DATE()函数以利用索引
+ */
+export async function getDataDateRange(accountIds: number[]): Promise<DataDateRange> {
   const db = await getDb();
-  if (!db) {
+  const defaultRange = (): DataDateRange => {
     const now = new Date();
     const minDate = new Date(now);
     minDate.setDate(minDate.getDate() - 90);
@@ -247,21 +288,21 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
       maxDate: now.toISOString().split('T')[0],
       hasData: false,
     };
-  }
+  };
+  
+  if (!db) return defaultRange();
   
   try {
-    // 从daily_performance表获取最早和最晚的数据日期
+    // v426: 移除DATE()包裹，直接使用MIN/MAX on date列
     const results = await db.execute(sql`
       SELECT 
-        MIN(DATE(date)) as min_date,
-        MAX(DATE(date)) as max_date
+        MIN(date) as min_date,
+        MAX(date) as max_date
       FROM daily_performance
       WHERE accountId IN (${safeInClause(accountIds)})
     `) as unknown;
     
-    // @ts-ignore
-    const rows = results[0] || results;
-    const row = Array.isArray(rows) ? rows[0] : rows;
+    const row = extractFirstRow(results);
     
     if (row && row.min_date && row.max_date) {
       // 获取最后同步时间
@@ -270,13 +311,18 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
         FROM amazon_api_credentials
         WHERE accountId IN (${safeInClause(accountIds)})
       `) as unknown;
-      // @ts-ignore
-      const syncRows = syncResults[0] || syncResults;
-      const syncRow = Array.isArray(syncRows) ? syncRows[0] : syncRows;
+      const syncRow = extractFirstRow(syncResults);
+      
+      // 格式化日期为YYYY-MM-DD字符串
+      const formatDate = (d: any): string => {
+        if (typeof d === 'string') return d.split('T')[0];
+        if (d instanceof Date) return d.toISOString().split('T')[0];
+        return String(d);
+      };
       
       return {
-        minDate: row.min_date,
-        maxDate: row.max_date,
+        minDate: formatDate(row.min_date),
+        maxDate: formatDate(row.max_date),
         hasData: true,
         lastSyncAt: syncRow?.last_sync || undefined,
       };
@@ -285,56 +331,44 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
     // 如果daily_performance没有数据，尝试从campaigns表获取
     const campaignResults = await db.execute(sql`
       SELECT 
-        MIN(DATE(createdAt)) as min_date,
-        MAX(DATE(updatedAt)) as max_date
+        MIN(createdAt) as min_date,
+        MAX(updatedAt) as max_date
       FROM campaigns
       WHERE accountId IN (${safeInClause(accountIds)})
     `) as unknown;
     
-    // @ts-ignore
-    const campaignRows = campaignResults[0] || campaignResults;
-    const campaignRow = Array.isArray(campaignRows) ? campaignRows[0] : campaignRows;
+    const campaignRow = extractFirstRow(campaignResults);
     
     if (campaignRow && campaignRow.min_date && campaignRow.max_date) {
+      const formatDate = (d: any): string => {
+        if (typeof d === 'string') return d.split('T')[0];
+        if (d instanceof Date) return d.toISOString().split('T')[0];
+        return String(d);
+      };
+      
       return {
-        minDate: campaignRow.min_date,
-        maxDate: campaignRow.max_date,
+        minDate: formatDate(campaignRow.min_date),
+        maxDate: formatDate(campaignRow.max_date),
         hasData: true,
       };
     }
     
-    // 没有数据时返回默认90天范围
-    const now = new Date();
-    const minDate = new Date(now);
-    minDate.setDate(minDate.getDate() - 90);
-    return {
-      minDate: minDate.toISOString().split('T')[0],
-      maxDate: now.toISOString().split('T')[0],
-      hasData: false,
-    };
+    return defaultRange();
   } catch (error) {
     log.error('[getDataDateRange] Error:', error);
-    const now = new Date();
-    const minDate = new Date(now);
-    minDate.setDate(minDate.getDate() - 90);
-    return {
-      minDate: minDate.toISOString().split('T')[0],
-      maxDate: now.toISOString().split('T')[0],
-      hasData: false,
-    };
+    return defaultRange();
   }
 }
 
-// 获取广告活动的位置绩效数据
 
-// 获取广告活动的位置绩效数据
-export async function getPlacementPerformanceByCampaignId(campaignId: number | string) {
+/**
+ * v426: 获取广告活动的位置绩效数据
+ */
+export async function getPlacementPerformanceByCampaignId(campaignId: string) {
   const db = await getDb();
   if (!db) return [];
   
   try {
-    // v165: 修复SQL列名错误 - 实际列名是campaignId/placement/date（非campaign_id/placement_type/report_date）
-    // 聚合所有日期的数据，按位置类型汇总，展示累计绩效
     const result = await db.execute(sql`
       SELECT 
         MIN(id) as id,
@@ -358,7 +392,7 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number | s
       ORDER BY placement
     `);
     
-    return (result as unknown) || [];
+    return extractRows(result) || [];
   } catch (error) {
     log.error('[getPlacementPerformanceByCampaignId] Error:', error);
     return [];
@@ -368,18 +402,6 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number | s
 
 /**
  * 更新广告活动的预算使用情况（快照模式，直接覆盖）
- * 用于处理AMS的budget-usage消息
- * 
- * ⚠️ 重要: 预算数据是快照(Snapshot)，不是累加!
- * 参考文档: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/overview
- */
-
-/**
- * 更新广告活动的预算使用情况（快照模式，直接覆盖）
- * 用于处理AMS的budget-usage消息
- * 
- * ⚠️ 重要: 预算数据是快照(Snapshot)，不是累加!
- * 参考文档: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/overview
  */
 export async function updateCampaignBudgetUsage(
   campaignId: string,

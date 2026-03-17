@@ -98,8 +98,8 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
   const [adjustmentStep, setAdjustmentStep] = useState(10);
 
   // 获取账号列表
-  // 获取广告活动列表
-  const { data: campaigns } = trpc.campaign.list.useQuery(
+  // v426: 使用轻量级API，仅获取名称/ID用于下拉选择
+  const { data: campaigns } = trpc.campaign.listNamesOnly.useQuery(
     { accountId: selectedAccountId! },
     { enabled: !!selectedAccountId }
   );

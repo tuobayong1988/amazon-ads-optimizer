@@ -94,16 +94,19 @@ export async function getCampaignsWithPerformance(
     }
   }
   
-  // 获取所有优化目标组名称用于关联展示
-  const allGroups = await db.select({
-    id: performanceGroups.id,
-    name: performanceGroups.name,
-    strategyTemplateId: performanceGroups.strategyTemplateId,
-    strategyTemplateName: performanceGroups.strategyTemplateName,
-  }).from(performanceGroups);
-  const groupMap = new Map<number, typeof allGroups[0]>();
-  for (const g of allGroups) {
-    groupMap.set(g.id, g);
+  // v426: 获取当前账户相关的优化目标组（通过campaigns关联过滤，避免加载全部组）
+  const accountGroupIds = [...new Set(campaignList.map((c: any) => c.performanceGroupId).filter(Boolean))];
+  let groupMap = new Map<number, { id: number; name: string; strategyTemplateId: number | null; strategyTemplateName: string | null }>();
+  if (accountGroupIds.length > 0) {
+    const relevantGroups = await db.select({
+      id: performanceGroups.id,
+      name: performanceGroups.name,
+      strategyTemplateId: performanceGroups.strategyTemplateId,
+      strategyTemplateName: performanceGroups.strategyTemplateName,
+    }).from(performanceGroups).where(inArray(performanceGroups.id, accountGroupIds));
+    for (const g of relevantGroups) {
+      groupMap.set(g.id, g);
+    }
   }
   
   // 合并数据 - 包含优化目标组名称和策略模板推荐
@@ -369,15 +372,18 @@ export async function getCampaignsWithPerformancePaginated(
     if (p.campaignId) todayPerfMap.set(p.campaignId, p);
   }
   
-  // 获取优化目标组名称
-  const allGroups = await db.select({
-    id: performanceGroups.id,
-    name: performanceGroups.name,
-    strategyTemplateId: performanceGroups.strategyTemplateId,
-    strategyTemplateName: performanceGroups.strategyTemplateName,
-  }).from(performanceGroups);
-  const groupMap = new Map<number, typeof allGroups[0]>();
-  for (const g of allGroups) groupMap.set(g.id, g);
+  // v426: 获取当前账户相关的优化目标组（通过campaigns关联过滤，避免加载全部组）
+  const accountGroupIds = [...new Set(campaignList.map((c: any) => c.performanceGroupId).filter(Boolean))];
+  let groupMap = new Map<number, { id: number; name: string; strategyTemplateId: number | null; strategyTemplateName: string | null }>();
+  if (accountGroupIds.length > 0) {
+    const relevantGroups = await db.select({
+      id: performanceGroups.id,
+      name: performanceGroups.name,
+      strategyTemplateId: performanceGroups.strategyTemplateId,
+      strategyTemplateName: performanceGroups.strategyTemplateName,
+    }).from(performanceGroups).where(inArray(performanceGroups.id, accountGroupIds));
+    for (const g of relevantGroups) groupMap.set(g.id, g);
+  }
   
   // ========== Step 7: 合并数据 ==========
   let mergedData = campaignList.map(campaign => {
@@ -591,6 +597,56 @@ export async function batchAssignCampaignsToPerformanceGroup(campaignIds: number
       optimizationStatus: "managed"
     })
     .where(inArray(campaigns.id, campaignIds));
+}
+
+/** v426: 轻量级广告活动名称列表（仅返回id/name/type/status，用于下拉选择框） */
+export async function getCampaignNamesOnly(accountId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select({
+    id: campaigns.id,
+    campaignId: campaigns.campaignId,
+    campaignName: campaigns.campaignName,
+    campaignType: campaigns.campaignType,
+    campaignStatus: campaigns.campaignStatus,
+    optimizationStatus: campaigns.optimizationStatus,
+    performanceGroupId: campaigns.performanceGroupId,
+  })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, accountId));
+}
+
+/** v426: 轻量级广告活动状态统计（替代全量加载） */
+export async function getCampaignStatusCounts(accountId: number) {
+  const db = await getDb();
+  if (!db) return { total: 0, enabled: 0, paused: 0, archived: 0, managed: 0, unmanaged: 0 };
+  
+  const rows = await db.select({
+    campaignStatus: campaigns.campaignStatus,
+    optimizationStatus: campaigns.optimizationStatus,
+    cnt: sql<number>`COUNT(*)`
+  })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, accountId))
+    .groupBy(campaigns.campaignStatus, campaigns.optimizationStatus);
+  
+  let total = 0, enabled = 0, paused = 0, archived = 0, managed = 0, unmanaged = 0;
+  for (const row of rows) {
+    // @ts-ignore
+    const count = Number(row.cnt);
+    total += count;
+    // @ts-ignore
+    if (row.campaignStatus === 'enabled') enabled += count;
+    // @ts-ignore
+    if (row.campaignStatus === 'paused') paused += count;
+    // @ts-ignore
+    if (row.campaignStatus === 'archived') archived += count;
+    // @ts-ignore
+    if (row.optimizationStatus === 'managed') managed += count;
+    else unmanaged += count;
+  }
+  return { total, enabled, paused, archived, managed, unmanaged };
 }
 
 // ==================== Ad Group Functions ====================
