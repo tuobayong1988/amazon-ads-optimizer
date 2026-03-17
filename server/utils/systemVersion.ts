@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 432;  // v432: 修复adgroup_status API方法名、negativeExact混合错误处理
+export const SYSTEM_VERSION = 433;  // v433: negativeExact添加internalServerError到可接受错误列表

@@ -1310,7 +1310,7 @@ async function executeBatchByType(
             const errorStr = negSyncResult.errors.join('; ');
             const hasDuplicate = errorStr.includes('duplicate') || errorStr.includes('DUPLICATE') || errorStr.includes('duplicates in entity name');
             const hasOnlyDuplicateAndOther = negSyncResult.errors.every((e: string) => 
-              e.includes('duplicate') || e.includes('DUPLICATE') || e.includes('duplicates in entity name') || e.includes('otherError')
+              e.includes('duplicate') || e.includes('DUPLICATE') || e.includes('duplicates in entity name') || e.includes('otherError') || e.includes('internalServerError')
             );
             if (hasDuplicate && hasOnlyDuplicateAndOther && negSyncResult.errors.length > 0) {
               log.info(`[SyncEngine] v431: 否定词DUPLICATE/otherError，视为成功（已存在）: ${errorStr.substring(0, 200)}`);
