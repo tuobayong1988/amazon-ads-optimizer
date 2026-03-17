@@ -3811,6 +3811,7 @@ export class AmazonAdsApiClient {
       
       let batchSuccess = false;
       const endpointsToTry = endpointLocked ? [activeEndpoint] : endpoints;
+      const epResults: Record<string, { status: number; body: string }> = {};
       
       for (const ep of endpointsToTry) {
         try {
@@ -3845,9 +3846,12 @@ export class AmazonAdsApiClient {
           break; // 成功，不再尝试其他端点
           
         } catch (epErr: unknown) {
-          const statusCode = (epErr as any)?.response?.status;
+          const statusCode = (epErr as any)?.response?.status || 0;
+          const responseBody = (epErr as any)?.response?.data;
           const errMsg = (epErr as Error).message;
-          log.warn(`[SB API] v429.2: ${ep.name} 端点失败 (HTTP ${statusCode}): ${errMsg}`);
+          const bodyStr = responseBody ? JSON.stringify(responseBody).substring(0, 200) : 'no body';
+          epResults[ep.name] = { status: statusCode, body: bodyStr };
+          log.warn(`[SB API] v429.2: ${ep.name} 端点失败 (HTTP ${statusCode}): ${errMsg}, body: ${bodyStr}`);
           
           // 如果是403/406/415，尝试下一个端点
           if ([403, 406, 415].includes(statusCode) && !endpointLocked) {
@@ -3869,7 +3873,8 @@ export class AmazonAdsApiClient {
       if (!batchSuccess) {
         log.error(`[SB API] v429.2: 所有端点均失败，第${batchIdx + 1}批 ${batch.length}个任务标记为失败`);
         for (const u of batch) {
-          allErrors.push({ keywordId: u.keywordId, code: 'ALL_ENDPOINTS_FAILED', details: 'v3(int IDs)返回403/406, v4(str IDs)返回403/406 — SB keywords PUT API权限或格式问题' });
+          const detailParts = Object.entries(epResults).map(([name, r]) => `${name}→HTTP${r.status}(${r.body.substring(0, 60)})`);
+          allErrors.push({ keywordId: u.keywordId, code: 'ALL_ENDPOINTS_FAILED', details: detailParts.join('; ') });
         }
       }
       
