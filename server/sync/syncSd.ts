@@ -545,11 +545,18 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         || existingSdRptTgtByValue.get(`${adGroup.id}:${targetValue}`)
         || null;
 
+      // v428: P2修复 - 当targetingText为空且没有匹配到已有记录时跳过，避免targetId=undefined导致insert失败
+      if (!targetingText && !existing) {
+        log.debug(`v428: SD定向报告跳过空targetingText记录: adGroupId=${row.adGroupId}`);
+        continue;
+      }
+
       const targetData = {
         internalAdGroupId: adGroup.id,
         campaignId: adGroup.campaignId || '',
         // v422: 如果匹配到已有记录，保留其targetId；否则用targetingText作为临时标识
-        targetId: existing?.targetId || `text:${targetingText}`,
+        // v428: 确保targetId永远不为空字符串
+        targetId: existing?.targetId || (targetingText ? `text:${targetingText}` : `unknown:${adGroup.id}:${Date.now()}`),
         targetType,
         targetValue,
         targetExpression: targetingText,

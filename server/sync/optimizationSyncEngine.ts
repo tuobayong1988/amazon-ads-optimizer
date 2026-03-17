@@ -164,6 +164,21 @@ export async function executeBatchSync(options?: {
   // v350: 使用连接池获取直接连接，替代独立createConnection
   const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
+  // v428: P2修复 — 僵尸任务清理：将超过30分钟仍在processing状态的任务重置为retry
+  try {
+    const [zombieResult] = await conn.execute(
+      `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
+       error_message = CONCAT(IFNULL(error_message,''), ' | v428: 僵尸任务自动重置(processing超过30分钟)') 
+       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
+    ) as any[];
+    const zombieCount = (zombieResult as any)?.affectedRows || 0;
+    if (zombieCount > 0) {
+      log.warn(`[SyncEngine] v428: 清理${zombieCount}个僵尸任务(processing超过30分钟)`);
+    }
+  } catch (zombieErr: unknown) {
+    log.error(`[SyncEngine] v428: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
+  }
+  
   const accountGroups = new Map<number, Record<string, any>[]>();
   try {
     // 1. 读取待处理任务
@@ -539,10 +554,31 @@ async function executeBatchByType(
         }
       }
       
+      // v428: P2修复 — Amazon ID前置校验，检查target_entity_id对应的记录是否仍然存在
+      // 避免对已删除的关键词/定向发送API请求
+      const validatedBatch: any[] = [];
+      for (const t of (batch as any[])) {
+        if (t.target_entity_id) {
+          try {
+            const checkTable = t.target_entity_type === 'keyword' ? 'keywords' : 'product_targets';
+            const [existRows] = await conn.execute(
+              `SELECT id FROM ${checkTable} WHERE id = ? LIMIT 1`,
+              [t.target_entity_id]
+            ) as any[];
+            if (existRows.length === 0) {
+              await markTaskFailed(conn, t.id, `v428: 目标实体已不存在 (${checkTable}.id=${t.target_entity_id})`);
+              result.failed++;
+              continue;
+            }
+          } catch { /* 校验失败不阻塞执行 */ }
+        }
+        validatedBatch.push(t);
+      }
+      
       // 分离keyword和product_target
-      const kwTasks = batch.filter((t: Record<string, any>) => t.target_entity_type === 'keyword' && t.amazon_entity_id);
-      const ptTasks = batch.filter((t: Record<string, any>) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
-      const noIdTasks = batch.filter((t: Record<string, any>) => !t.amazon_entity_id);
+      const kwTasks = validatedBatch.filter((t: Record<string, any>) => t.target_entity_type === 'keyword' && t.amazon_entity_id);
+      const ptTasks = validatedBatch.filter((t: Record<string, any>) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
+      const noIdTasks = validatedBatch.filter((t: Record<string, any>) => !t.amazon_entity_id);
       
       // v141: 对无Amazon ID的任务使用即时回填机制
       if (noIdTasks.length > 0) {
@@ -674,23 +710,36 @@ async function executeBatchByType(
         // v224: SB关键词出价同步 — 使用SB API
         if (sbKwTasks.length > 0) {
           try {
-            await (syncService as any).client.updateSbKeywordBids(
+            // v428: P0修复 — updateSbKeywordBids现在返回{successes, errors}，支持单个任务级别的成功/失败处理
+            const sbApiResult = await (syncService as any).client.updateSbKeywordBids(
               sbKwTasks.map((t: Record<string, any>) => ({
                 keywordId: String(t.amazon_entity_id),
                 bid: Number(parseFloat(t.new_value).toFixed(2)),
               }))
             );
             
-            // SB API不返回详细的成功/失败列表，如果没有抛异常则视为全部成功
-            for (const t of sbKwTasks) {
-              await markTaskSynced(conn, t.id);
-              await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
-              result.synced++;
+            // v428: 构建keywordId到失败原因的映射
+            const sbFailedIds = new Map<string, string>();
+            if (sbApiResult.errors && sbApiResult.errors.length > 0) {
+              for (const err of sbApiResult.errors) {
+                sbFailedIds.set(String(err.keywordId), err.details || err.code || 'SB_API_ERROR');
+              }
             }
             
-            log.warn(`[SyncEngine] v224: SB关键词出价批量同步: 发送=${sbKwTasks.length}, 全部成功`);
+            for (const t of sbKwTasks) {
+              if (sbFailedIds.has(String(t.amazon_entity_id))) {
+                await markTaskForRetry(conn, t.id, t.retry_count, sbFailedIds.get(String(t.amazon_entity_id))!);
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalBid(conn, 'keyword', t.target_entity_id, t.new_value);
+                result.synced++;
+              }
+            }
+            
+            log.warn(`[SyncEngine] v428: SB关键词出价批量同步: 发送=${sbKwTasks.length}, 成功=${sbKwTasks.length - sbFailedIds.size}, 失败=${sbFailedIds.size}`);
           } catch (err: unknown) {
-            log.error(`[SyncEngine] v224: SB关键词出价批量API调用失败: ${(err as Error).message}`);
+            log.error(`[SyncEngine] v428: SB关键词出价批量API调用失败: ${(err as Error).message}`);
             for (const t of sbKwTasks) {
               await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
             }
@@ -937,11 +986,78 @@ async function executeBatchByType(
         return cType === 'sb' || cType === 'sd';
       });
       
-      // v395: SB/SD任务直接标记为skipped（这些类型不支持通过SP API创建否定词）
-      for (const t of nonSpTasks) {
-        await markTaskFailed(conn, t.id, `v395: 跳过非SP类型campaign (${t._campaignType})，SP否定词API不支持SB/SD`);
+      // v428: P2修复 — SB否定词使用SB专用API（POST /sb/negativeKeywords）而不是直接跳过
+      // SD不支持否定关键词，仅支持否定产品定向，所以SD仍然跳过
+      const sbNegTasks = nonSpTasks.filter((t: Record<string, any>) => {
+        const cType = (t._campaignType || '').toLowerCase();
+        return cType === 'sb';
+      });
+      const sdNegTasks = nonSpTasks.filter((t: Record<string, any>) => {
+        const cType = (t._campaignType || '').toLowerCase();
+        return cType === 'sd';
+      });
+      
+      // SD否定词任务直接跳过（SD不支持否定关键词）
+      for (const t of sdNegTasks) {
+        await markTaskFailed(conn, t.id, `v428: SD不支持否定关键词，仅支持否定产品定向`);
         result.skipped = (result.skipped || 0) + 1;
-        log.info(`[SyncEngine] v395: 跳过SB/SD否定词: campaign_type=${t._campaignType}, keyword=${t.target_entity_name}`);
+      }
+      
+      // v428: SB否定词使用SB专用API (POST /sb/negativeKeywords)
+      if (sbNegTasks.length > 0) {
+        const sbNegValidTasks = sbNegTasks.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
+        if (sbNegValidTasks.length > 0) {
+          try {
+            // v428: 需要回填adGroupId，SB否定词需要adGroupId
+            for (const t of sbNegValidTasks) {
+              if (!t.ad_group_id && t.target_entity_id) {
+                try {
+                  const [agRows] = await conn.execute(
+                    'SELECT ag.adGroupId FROM ad_groups ag JOIN campaigns c ON ag.internalCampaignId = c.id WHERE c.campaignId = ? LIMIT 1',
+                    [t.amazon_entity_id || t.campaign_id]
+                  ) as any[];
+                  if (agRows.length > 0) t.ad_group_id = agRows[0].adGroupId;
+                } catch { /* ignore */ }
+              }
+            }
+            
+            const sbNegApiResults = await (syncService as any).client.createSbNegativeKeywords(
+              sbNegValidTasks.map((t: Record<string, any>) => ({
+                campaignId: String(t.amazon_entity_id || t.campaign_id),
+                adGroupId: t.ad_group_id ? String(t.ad_group_id) : '0',
+                keywordText: t.target_entity_name,
+                matchType: (t.action || '').includes('exact') || (t.action || '').includes('Exact')
+                  ? 'negativeExact' as const : 'negativePhrase' as const,
+              }))
+            );
+            // createSbNegativeKeywords返回数组，每个元素包含结果
+            const sbNegSuccessCount = Array.isArray(sbNegApiResults) ? sbNegApiResults.filter((r: any) => r.code === 'SUCCESS' || r.negativeKeywordId).length : 0;
+            if (sbNegSuccessCount > 0 || (Array.isArray(sbNegApiResults) && sbNegApiResults.length > 0)) {
+              for (const t of sbNegValidTasks) {
+                await markTaskSynced(conn, t.id);
+              }
+              result.synced += sbNegValidTasks.length;
+              log.info(`[SyncEngine] v428: SB否定词同步成功: ${sbNegValidTasks.length}个`);
+            } else {
+              for (const t of sbNegValidTasks) {
+                await markTaskForRetry(conn, t.id, t.retry_count, 'SB否定词API返回空结果');
+              }
+              result.failed += sbNegValidTasks.length;
+            }
+          } catch (sbNegErr: unknown) {
+            log.error(`[SyncEngine] v428: SB否定词API调用失败: ${(sbNegErr as Error).message}`);
+            for (const t of sbNegValidTasks) {
+              await markTaskForRetry(conn, t.id, t.retry_count, (sbNegErr as Error).message);
+            }
+            result.failed += sbNegValidTasks.length;
+          }
+        }
+        // 无法回填campaign_id的SB任务
+        const sbNegInvalidTasks = sbNegTasks.filter((t: Record<string, any>) => !t.campaign_id && !t.amazon_entity_id);
+        for (const t of sbNegInvalidTasks) {
+          await markTaskFailed(conn, t.id, 'v428: SB否定词缺少Amazon Campaign ID');
+          result.failed++;
+        }
       }
       
       const validTasks = spTasks.filter((t: Record<string, any>) => t.campaign_id || t.amazon_entity_id);
@@ -1261,13 +1377,20 @@ async function updateLocalBid(conn: DbInstance, entityType: string, entityId: nu
 // @ts-expect-error - runtime type mismatch
 async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: number, newStatus: string) {
   // v362: SQL注入防护 - 白名单验证表名
-  const ALLOWED_TABLES = ['keywords', 'product_targets', 'campaigns', 'ad_groups'];
-  if (!ALLOWED_TABLES.includes(tableName)) {
+  // v428: P1修复 — 修复列名映射错误，各表的状态列名不同
+  const TABLE_STATUS_COLUMN: Record<string, string> = {
+    'keywords': 'keywordStatus',
+    'product_targets': 'targetStatus',
+    'campaigns': 'campaignStatus',
+    'ad_groups': 'adGroupStatus',
+  };
+  const statusColumn = TABLE_STATUS_COLUMN[tableName];
+  if (!statusColumn) {
     throw new Error(`[updateLocalStatus] 非法表名: ${tableName}`);
   }
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
-  await conn.execute(`UPDATE ${tableName} SET status = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
+  await conn.execute(`UPDATE ${tableName} SET ${statusColumn} = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
 }
 
 // ============================================================
