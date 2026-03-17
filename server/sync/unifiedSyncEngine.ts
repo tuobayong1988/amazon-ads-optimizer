@@ -1149,8 +1149,14 @@ export async function syncAccount(
       continue;
     }
     
-    // 同一层级的同步在运行，跳过
+    // 同一层级的同步在运行
     if (existingTier === tier) {
+      // v425: 手动同步拥有最高优先级，强制释放已有的同层级锁
+      if (options?.isManual) {
+        log.warn(`[UnifiedSync] v425: 手动同步优先 - 强制释放账户 ${account.accountId} 的${existingTier}层自动同步锁（已运行${runningMinutes.toFixed(1)}分钟）`);
+        activeSyncs.delete(existingKey);
+        continue;
+      }
       log.info(`[UnifiedSync] 账户 ${account.accountId} 已有${existingTier}层同步在运行（${runningMinutes.toFixed(1)}分钟），跳过`);
       result.errors.push(`已有${existingTier}层同步在运行`);
       return result;
@@ -1158,6 +1164,12 @@ export async function syncAccount(
     
     // full层同步在运行时的处理
     if (existingTier === 'full') {
+      // v425: 手动同步拥有最高优先级，强制释放已有的full层自动同步锁
+      if (options?.isManual) {
+        log.warn(`[UnifiedSync] v425: 手动同步优先 - 强制释放账户 ${account.accountId} 的full层自动同步锁（已运行${runningMinutes.toFixed(1)}分钟）`);
+        activeSyncs.delete(existingKey);
+        continue;
+      }
       // v388: confirmation层级允许与full层并行运行
       // confirmation只是验证性的读取操作，不会与full同步产生数据冲突
       if (tier === 'confirmation') {
@@ -1490,6 +1502,20 @@ export async function syncAccount(
 
     result.endTime = new Date();
     result.durationMs = result.endTime.getTime() - result.startTime.getTime();
+
+    // v426: P3-3 同步数据校验摘要日志
+    const durationSec = (result.durationMs / 1000).toFixed(1);
+    const stepSummary = Object.entries(result.stepResults)
+      .map(([step, r]: [string, any]) => `${step}:${r.synced ?? r.result ?? '?'}`)
+      .join(', ');
+    const errorSummary = result.errors.length > 0 ? ` | 错误: ${result.errors.slice(0, 3).join('; ')}` : '';
+    log.info(
+      `[v426-SyncSummary] 账户=${account.accountId}(${account.accountName}) ` +
+      `层级=${tier} 状态=${result.success ? '✅成功' : '❌失败'} ` +
+      `耗时=${durationSec}s 步骤=${result.completedSteps}/${result.totalSteps} ` +
+      `同步数=${result.totalSynced} 失败步骤=${result.failedSteps}` +
+      `${errorSummary} | 明细: ${stepSummary}`
+    );
 
     // 更新引擎统计
     if (result.success) {

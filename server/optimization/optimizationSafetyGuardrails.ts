@@ -563,12 +563,13 @@ export async function assessRiskLevel(
 
     return { level, score: Math.min(riskScore, 100), factors, autoResponse };
   } catch (error) {
-    log.error(`[RiskAssessment] Error for PG ${performanceGroupId}:`, error);
+    // v426: P2-4 修复 — 风险评估异常时安全拒绝（默认红色），而非静默放行（默认绿色）
+    log.error(`[RiskAssessment] 风险评估异常，安全拒绝(RED) for PG ${performanceGroupId}:`, error);
     return {
-      level: 'green',
-      score: 0,
-      factors: ['风险评估异常，默认绿色'],
-      autoResponse: { action: 'none', bidMultiplier: 1.0, budgetMultiplier: 1.0, cooldownExtension: 1.0 },
+      level: 'red',
+      score: 100,
+      factors: [`风险评估异常(安全拒绝): ${(error as Error).message}`],
+      autoResponse: { action: 'reduce_bids', bidMultiplier: 0.8, budgetMultiplier: 0.85, cooldownExtension: 2.0 },
     };
   }
 }

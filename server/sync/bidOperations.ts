@@ -114,10 +114,16 @@ export async function applyBidAdjustment(service: SyncContext,
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
-      await service.client.updateKeywordBids([{
+      // v426: 检查API返回值，确保出价更新真正成功
+      const bidResult = await service.client.updateKeywordBids([{
         keywordId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
+      if (!bidResult.success && bidResult.errors.length > 0) {
+        const errDetail = JSON.stringify(bidResult.errors[0]);
+        log.error(`[applyBidAdjustment] v426: Amazon API返回错误: keywordId=${amazonId}, errors=${errDetail}`);
+        throw new Error(`AMAZON_API_ERROR: keyword bid update failed: ${errDetail}`);
+      }
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
       // 避免双重DB更新导致的性能浪费和潜在不一致性
@@ -181,10 +187,16 @@ export async function applyBidAdjustment(service: SyncContext,
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
-      await service.client.updateProductTargetBids([{
+      // v426: 检查API返回值，确保出价更新真正成功
+      const targetBidResult = await service.client.updateProductTargetBids([{
         targetId: amazonId,
         bid: Number(newBid.toFixed(2)),
       }]);
+      if (!targetBidResult.success && targetBidResult.errors.length > 0) {
+        const errDetail = JSON.stringify(targetBidResult.errors[0]);
+        log.error(`[applyBidAdjustment] v426: Amazon API返回错误: targetId=${amazonId}, errors=${errDetail}`);
+        throw new Error(`AMAZON_API_ERROR: target bid update failed: ${errDetail}`);
+      }
 
       // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
       // 避免双重DB更新导致的性能浪费和潜在不一致性

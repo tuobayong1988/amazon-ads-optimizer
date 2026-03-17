@@ -1131,31 +1131,55 @@ export class AmazonAdsApiClient {
           log.info(`[SP API] v333: 关键词出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
         }
         
+        // v426: 修复v3 API响应解析 - 正确处理success/error数组和index字段
         const responseKeywords = response.data?.keywords;
-        if (responseKeywords) {
+        if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+          // v3 API格式: { keywords: { success: [...], error: [...] } }
           if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
             for (const err of responseKeywords.error) {
-              allErrors.push({ keywordId: err.keywordId, code: (err as any).code || 'ERROR', details: err.details || err.description });
-              log.error(`[SP API] 关键词出价更新失败: keywordId=${err.keywordId}, code=${(err as any).code}, details=${err.details || err.description}`);
+              // v426: v3 API的error对象使用index字段标识失败项，而非keywordId
+              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+              const failedKeywordId = err.keywordId || (failedIndex !== undefined ? batch[failedIndex]?.keywordId : 'unknown');
+              const errorCode = err.code || 'ERROR';
+              const errorDetails = err.description || err.details || err.message || '';
+              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
+              log.error(`[SP API] v426: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
             }
           }
           if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
             totalSuccess += responseKeywords.success.length;
+            for (const item of responseKeywords.success) {
+              const successKeywordId = item.keywordId || (typeof item.index === 'number' ? batch[item.index]?.keywordId : 'unknown');
+              log.debug(`[SP API] v426: 关键词出价更新成功: keywordId=${successKeywordId}`);
+            }
           }
+        } else if (Array.isArray(response.data)) {
+          // v2 API兼容: 响应为数组格式
+          for (const item of response.data) {
+            if (item.code === 'SUCCESS') {
+              totalSuccess++;
+            } else {
+              allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || item.details || '' });
+              log.error(`[SP API] v426: 关键词出价更新失败(v2): keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details}`);
+            }
+          }
+        } else {
+          // 无法解析的响应格式 - 假设成功（API未返回错误）
+          log.warn(`[SP API] v426: 关键词出价更新响应格式未知, HTTP状态=${response.status}, 假设batch#${batchIdx + 1}的${batch.length}个更新成功`);
+          totalSuccess += batch.length;
         }
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${(batchErr as Error).message}`);
         // v333: 尝试从错误响应中提取requestId
-        // @ts-ignore
-        const errRequestId = (batchErr as Error & { response?: unknown }).response?.headers?.['x-amzn-requestid'] || (batchErr as Error & { response?: unknown }).response?.headers?.['x-amz-request-id'] || '';
+        const errResponse = (batchErr as any)?.response;
+        const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
         if (errRequestId) {
           allRequestIds.push(errRequestId);
           log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
         }
         // 将该批次所有关键词记录为失败
         for (const item of batch) {
-          // @ts-ignore
-          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: batchErr.message });
+          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
         }
       }
       
@@ -1201,17 +1225,30 @@ export class AmazonAdsApiClient {
           },
         });
         
+        // v426: 修复v3 API响应解析 - 正确处理index字段
         const responseKeywords = response.data?.keywords;
-        if (responseKeywords) {
+        if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
           if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
             for (const err of responseKeywords.error) {
-              allErrors.push({ keywordId: err.keywordId, code: (err as any).code || 'ERROR', details: err.details || err.description });
-              log.error(`[SP API] 关键词状态更新失败: keywordId=${err.keywordId}, code=${(err as any).code}, details=${err.details || err.description}`);
+              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+              const failedKeywordId = err.keywordId || (failedIndex !== undefined ? batch[failedIndex]?.keywordId : 'unknown');
+              const errorCode = err.code || 'ERROR';
+              const errorDetails = err.description || err.details || err.message || '';
+              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
+              log.error(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
             }
           }
           if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
             totalSuccess += responseKeywords.success.length;
           }
+        } else if (Array.isArray(response.data)) {
+          for (const item of response.data) {
+            if (item.code === 'SUCCESS') { totalSuccess++; }
+            else { allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || '' }); }
+          }
+        } else {
+          log.warn(`[SP API] v426: 关键词状态更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
+          totalSuccess += batch.length;
         }
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批状态更新API调用失败: ${(batchErr as Error).message}`);
@@ -1260,11 +1297,14 @@ export class AmazonAdsApiClient {
           },
         });
         
+        // v426: 修复v3 API响应解析
         const responseTargets = response.data?.targetingClauses;
-        if (responseTargets) {
+        if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
           if (responseTargets.error && Array.isArray(responseTargets.error)) {
             for (const err of responseTargets.error) {
-              allErrors.push({ targetId: err.targetId, code: (err as any).code || 'ERROR', details: err.details || err.description });
+              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+              const failedTargetId = err.targetId || (failedIndex !== undefined ? batch[failedIndex]?.targetId : 'unknown');
+              allErrors.push({ targetId: failedTargetId, code: err.code || 'ERROR', details: err.description || err.details || '' });
             }
           }
           if (responseTargets.success && Array.isArray(responseTargets.success)) {
@@ -1318,16 +1358,27 @@ export class AmazonAdsApiClient {
           },
         });
         
+        // v426: 修复v3 API响应解析
         const responseAdGroups = response.data?.adGroups;
-        if (responseAdGroups) {
+        if (responseAdGroups && typeof responseAdGroups === 'object' && !Array.isArray(responseAdGroups)) {
           if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
             for (const err of responseAdGroups.error) {
-              allErrors.push({ adGroupId: err.adGroupId, code: (err as any).code || 'ERROR', details: err.details || err.description });
+              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+              const failedAdGroupId = err.adGroupId || (failedIndex !== undefined ? batch[failedIndex]?.adGroupId : 'unknown');
+              allErrors.push({ adGroupId: failedAdGroupId, code: err.code || 'ERROR', details: err.description || err.details || '' });
             }
           }
           if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
             totalSuccess += responseAdGroups.success.length;
           }
+        } else if (Array.isArray(response.data)) {
+          for (const item of response.data) {
+            if (item.code === 'SUCCESS') { totalSuccess++; }
+            else { allErrors.push({ adGroupId: item.adGroupId, code: item.code || 'ERROR', details: item.description || '' }); }
+          }
+        } else {
+          log.warn(`[SP API] v426: 广告组状态更新响应格式未知, 假设batch成功`);
+          totalSuccess += batch.length;
         }
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批广告组状态更新失败: ${(batchErr as Error).message}`);
@@ -1451,30 +1502,42 @@ export class AmazonAdsApiClient {
           log.info(`[SP API] v333: 商品定位出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
         }
         
+        // v426: 修复v3 API响应解析 - 正确处理index字段
         const responseTargets = response.data?.targetingClauses;
-        if (responseTargets) {
+        if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
           if (responseTargets.error && Array.isArray(responseTargets.error)) {
             for (const err of responseTargets.error) {
-              allErrors.push({ targetId: err.targetId, code: (err as any).code || 'ERROR', details: err.details || err.description });
-              log.error(`[SP API] 商品定位出价更新失败: targetId=${err.targetId}, code=${(err as any).code}, details=${err.details || err.description}`);
+              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+              const failedTargetId = err.targetId || (failedIndex !== undefined ? batch[failedIndex]?.targetId : 'unknown');
+              const errorCode = err.code || 'ERROR';
+              const errorDetails = err.description || err.details || err.message || '';
+              allErrors.push({ targetId: failedTargetId, code: errorCode, details: errorDetails });
+              log.error(`[SP API] v426: 商品定位出价更新失败: targetId=${failedTargetId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
             }
           }
           if (responseTargets.success && Array.isArray(responseTargets.success)) {
             totalSuccess += responseTargets.success.length;
           }
+        } else if (Array.isArray(response.data)) {
+          for (const item of response.data) {
+            if (item.code === 'SUCCESS') { totalSuccess++; }
+            else { allErrors.push({ targetId: item.targetId, code: item.code || 'ERROR', details: item.description || '' }); }
+          }
+        } else {
+          log.warn(`[SP API] v426: 商品定位出价更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
+          totalSuccess += batch.length;
         }
       } catch (batchErr: unknown) {
         log.error(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${(batchErr as Error).message}`);
         // v333: 尝试从错误响应中提取requestId
-        // @ts-ignore
-        const errRequestId = (batchErr as Error & { response?: unknown }).response?.headers?.['x-amzn-requestid'] || (batchErr as Error & { response?: unknown }).response?.headers?.['x-amz-request-id'] || '';
+        const errResponse = (batchErr as any)?.response;
+        const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
         if (errRequestId) {
           allRequestIds.push(errRequestId);
           log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
         }
         for (const item of batch) {
-          // @ts-ignore
-          allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: batchErr.message });
+          allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
         }
       }
       

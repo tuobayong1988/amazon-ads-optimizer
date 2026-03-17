@@ -334,14 +334,15 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
         date: reportDateStr,
         impressions: row.impressions || 0,
         clicks: row.clicks || 0,
-        spend: String(cost),
-        sales: String(sales),
+        // v426: 统一金额精度为2位小数，比率精度为4位小数
+        spend: cost.toFixed(2),
+        sales: sales.toFixed(2),
         orders: orders,
-        dailyAcos: cost && sales ? String((cost / sales) * 100) : '0',
-        dailyRoas: cost && sales ? String(sales / cost) : '0',
-        ctr: (row.impressions || 0) > 0 ? String(((row.clicks || 0) / (row.impressions || 0))) : null,
-        cvr: (row.clicks || 0) > 0 ? String((orders / (row.clicks || 0))) : null,
-        cpc: (row.clicks || 0) > 0 ? String((cost / (row.clicks || 0))) : null,
+        dailyAcos: cost > 0 && sales > 0 ? ((cost / sales) * 100).toFixed(2) : '0',
+        dailyRoas: cost > 0 && sales > 0 ? (sales / cost).toFixed(2) : '0',
+        ctr: (row.impressions || 0) > 0 ? ((row.clicks || 0) / (row.impressions || 0)).toFixed(4) : null,
+        cvr: (row.clicks || 0) > 0 ? (orders / (row.clicks || 0)).toFixed(4) : null,
+        cpc: (row.clicks || 0) > 0 ? (cost / (row.clicks || 0)).toFixed(2) : null,
         unitsSold, dpv, addToCart, ntbOrders,
         ntbSales: String(ntbSales),
         viewableImpressions,
@@ -797,6 +798,10 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
     
     log.info(`v364批量预查询完成: campaigns=${allCampaigns.length}, existingPlacements=${existingPlacements.length}`);
 
+    // v426: 收集新记录用于批量insert
+    const toInsertPlacement: any[] = [];
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
     for (const row of (reportData as any[])) {
       // v364: 使用预查询Map替代循环内DB查询
       const campaign = campaignByIdMap.get(String(row.campaignId));
@@ -846,14 +851,15 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
         date: reportDate,
         impressions,
         clicks,
-        spend: String(cost),
-        sales: String(sales),
+        // v426: 统一精度
+        spend: Number(cost).toFixed(2),
+        sales: Number(sales).toFixed(2),
         orders,
-        ctr: impressions > 0 ? String(clicks / impressions) : null,
-        cpc: clicks > 0 ? String(cost / clicks) : null,
-        cvr: clicks > 0 ? String(orders / clicks) : null,
-        acos: sales > 0 ? String((cost / sales) * 100) : null,
-        roas: cost > 0 ? String(sales / cost) : null,
+        ctr: impressions > 0 ? (clicks / impressions).toFixed(4) : null,
+        cpc: clicks > 0 ? (Number(cost) / clicks).toFixed(2) : null,
+        cvr: clicks > 0 ? (orders / clicks).toFixed(4) : null,
+        acos: Number(sales) > 0 ? ((Number(cost) / Number(sales)) * 100).toFixed(2) : null,
+        roas: Number(cost) > 0 ? (Number(sales) / Number(cost)).toFixed(2) : null,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -862,16 +868,33 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
           .update(placementPerformance)
           .set(perfData)
           .where(eq(placementPerformance.id, existing.id));
+        synced++;
       } else {
-        await db.insert(placementPerformance).values({
-          ...perfData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
+        toInsertPlacement.push({ ...perfData, createdAt: nowStr });
       }
-      synced++;
     }
 
-    log.info(`位置绩效同步完成: ${synced} 条记录`);
+    // v426: 批量insert新记录
+    const PLACEMENT_CHUNK = 200;
+    for (let i = 0; i < toInsertPlacement.length; i += PLACEMENT_CHUNK) {
+      const chunk = toInsertPlacement.slice(i, i + PLACEMENT_CHUNK);
+      try {
+        await db.insert(placementPerformance).values(chunk);
+        synced += chunk.length;
+      } catch (err) {
+        log.warn(`v426: 批量insert失败(${chunk.length}条)，回退逐条: ${(err as Error).message}`);
+        for (const item of chunk) {
+          try {
+            await db.insert(placementPerformance).values(item);
+            synced++;
+          } catch (e) {
+            log.warn(`v426: 逐条insert失败: ${(e as Error).message}`);
+          }
+        }
+      }
+    }
+
+    log.info(`v426: 位置绩效同步完成: synced=${synced}, inserted=${toInsertPlacement.length}`);
     return synced;
   } catch (error) {
     log.error('同步位置绩效失败:', error);
@@ -1119,14 +1142,15 @@ export async function syncSbPlacementPerformance(service: SyncContext,days: numb
         date: dateStr,
         impressions,
         clicks,
-        spend: String(cost),
-        sales: String(sales),
+        // v426: 统一精度
+        spend: cost.toFixed(2),
+        sales: sales.toFixed(2),
         orders,
-        ctr: impressions > 0 ? String(clicks / impressions) : null,
-        cpc: clicks > 0 ? String(cost / clicks) : null,
-        cvr: clicks > 0 ? String(orders / clicks) : null,
-        acos: sales > 0 ? String((cost / sales) * 100) : null,
-        roas: cost > 0 ? String(sales / cost) : null,
+        ctr: impressions > 0 ? (clicks / impressions).toFixed(4) : null,
+        cpc: clicks > 0 ? (cost / clicks).toFixed(2) : null,
+        cvr: clicks > 0 ? (orders / clicks).toFixed(4) : null,
+        acos: sales > 0 ? ((cost / sales) * 100).toFixed(2) : null,
+        roas: cost > 0 ? (sales / cost).toFixed(2) : null,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       

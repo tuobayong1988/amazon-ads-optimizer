@@ -33,6 +33,7 @@ import * as amazonApiHelper from '../services/amazonApiHelper';
 import { sanitizeAndValidateKeyword, isProductTargetingCampaign } from '../utils/keywordValidator';
 import { createModuleLogger } from '../utils/logger';
 import { recordAudit, auditSystemAction } from '../services/auditLogService';
+import { safeInClause } from '../utils/safeSql';
 import v8 from 'v8';
 
 const log = createModuleLogger('AutoCorrector');
@@ -267,7 +268,12 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         break;
       }
       try {
-        // 1. 重试API同步失败的出价调整
+        // v426: 将cleanupExpiredDaypartingBids提升为第1步，确保每次扫描都优先清理过期记录
+        // 这是最重要的清理步骤，因为分时出价失败占总失败数的92.6%
+        const daypartingCleanups = await cleanupExpiredDaypartingBids(database, accId);
+        corrections.push(...daypartingCleanups);
+        
+        // 2. 重试API同步失败的出价调整
         const bidRetries = await retryFailedBidAdjustments(database, accId);
         corrections.push(...bidRetries);
         
@@ -342,6 +348,8 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         // 19. v310: 增量pending指令合理性重评估
         const pendingRevalidations = await revalidateStalePendingCommands(database, accId);
         corrections.push(...pendingRevalidations);
+        
+        // 20. (v426: 已提升到第1步)
         
       } catch (accError: unknown) {
         log.error(`v178: 账户 ${accId} 纠错失败: ${(accError as Error).message}`);
@@ -524,12 +532,16 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
         retryItems
       );
       
-      // 更新成功的事件状态
+      // v425: 修复成功判断Bug - 使用itemResults逐条判断每个keyword的同步结果
+      // 旧逻辑: const success = syncResult.success > 0 (全局判断，只要有一个成功就认为全部成功)
+      // 新逻辑: 使用itemResults Map逐条判断
       for (const item of retryItems) {
         const event = Array.from(latestByKeyword.values()).find(e => e.keywordId === item.keywordId);
         if (!event) continue;
         
-        const success = syncResult.success > 0;
+        // v425: 逐条判断每个keyword的同步结果
+        const itemResult = syncResult.itemResults?.get(item.keywordId);
+        const success = itemResult?.status === 'synced';
         
         results.push({
           type: 'bid_retry',
@@ -540,7 +552,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
           correctedValue: String(item.newBid),
           reason: `重试失败的出价调整 (原事件: ${event.id})`,
           success,
-          errorMessage: success ? undefined : '重试仍然失败',
+          errorMessage: success ? undefined : (itemResult?.error || '重试仍然失败'),
         });
         
         // 更新optimization_events的api_sync_status
@@ -549,7 +561,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
             .update(optimizationEvents)
             .set({ 
               apiSyncStatus: 'synced',
-              apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString() }),
+              apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector_v425', correctedAt: new Date().toISOString(), apiResponseId: itemResult?.apiResponseId }),
               apiSyncedAt: new Date(),
             })
             .where(eq(optimizationEvents.id, event.id));
@@ -559,6 +571,18 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
             .update(keywords)
             .set({ bid: String(item.newBid) })
             .where(eq(keywords.id, item.keywordId));
+        } else {
+          // v425: 记录逐条失败原因，便于下次纠错时诊断
+          await database
+            .update(optimizationEvents)
+            .set({
+              apiSyncDetail: JSON.stringify({ 
+                lastRetryAt: new Date().toISOString(), 
+                retryError: itemResult?.error || 'unknown',
+                retryBy: 'AutoCorrector_v425',
+              }),
+            })
+            .where(eq(optimizationEvents.id, event.id));
         }
       }
     } catch (apiError: unknown) {
@@ -2987,6 +3011,7 @@ async function rescuePermanentlyFailedTasks(accountId: number): Promise<Correcti
 
 // ==================== 定时纠错调度 ====================
 let correctionInterval: ReturnType<typeof setInterval> | null = null;
+let daypartingCleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * 启动自动纠错定时服务（每4小时运行一次）
@@ -3575,6 +3600,29 @@ export function startAutoCorrector(): void {
     log.debug('定时纠错服务已在运行中');
     return;
   }
+  
+  // v426: 启动独立的dayparting清理定时任务（每30分钟）
+  if (!daypartingCleanupInterval) {
+    daypartingCleanupInterval = setInterval(async () => {
+      try {
+        log.info('[v426] 独立 dayparting 清理任务开始...');
+        const database = await getDb();
+        if (!database) return;
+        const accountIds = await getActiveAccountIds(database);
+        let totalCleaned = 0;
+        for (const accId of accountIds) {
+          const cleanups = await cleanupExpiredDaypartingBids(database, accId);
+          totalCleaned += cleanups.length;
+        }
+        if (totalCleaned > 0) {
+          log.warn(`[v426] 独立 dayparting 清理完成: ${totalCleaned}个账户有清理操作`);
+        }
+      } catch (err: unknown) {
+        log.error(`[v426] 独立 dayparting 清理失败: ${(err as Error).message}`);
+      }
+    }, 30 * 60 * 1000); // 每30分钟
+    log.info('[v426] 独立 dayparting 清理定时任务已启动，每30分钟运行一次');
+  }
   // @ts-ignore
   const intervalMs = (AUTO_CORRECTION_CONFIG as unknown).scanIntervalHours 
     // @ts-ignore
@@ -3624,6 +3672,31 @@ export function stopAutoCorrector(): void {
     correctionInterval = null;
     log.debug('定时纠错服务已停止');
   }
+  if (daypartingCleanupInterval) {
+    clearInterval(daypartingCleanupInterval);
+    daypartingCleanupInterval = null;
+    log.debug('[v426] 独立 dayparting 清理定时任务已停止');
+  }
+}
+
+/**
+ * v426: 手动触发dayparting清理（可通过API调用）
+ */
+export async function runDaypartingCleanup(): Promise<{ accountsCleaned: number; totalRecordsCleaned: number }> {
+  const database = await getDb();
+  if (!database) return { accountsCleaned: 0, totalRecordsCleaned: 0 };
+  const accountIds = await getActiveAccountIds(database);
+  let accountsCleaned = 0;
+  let totalRecordsCleaned = 0;
+  for (const accId of accountIds) {
+    const cleanups = await cleanupExpiredDaypartingBids(database, accId);
+    if (cleanups.length > 0) {
+      accountsCleaned++;
+      totalRecordsCleaned += cleanups.reduce((sum, c) => sum + parseInt(c.previousValue.match(/\d+/)?.[0] || '0'), 0);
+    }
+  }
+  log.warn(`[v426] 手动dayparting清理完成: ${accountsCleaned}个账户, ${totalRecordsCleaned}条记录`);
+  return { accountsCleaned, totalRecordsCleaned };
 }
 
 
@@ -4118,6 +4191,118 @@ async function revalidateStalePendingCommands(database: any, accountId: number):
     }
   } catch (error: unknown) {
     log.error(`v310: 账户${accountId} revalidateStalePendingCommands失败: ${(error as Error).message}`);
+  }
+  
+  return results;
+}
+
+
+// ==================== 20. v425: 清理过期的dayparting_bid失败记录 ====================
+
+/**
+ * v425: 清理过期的 dayparting_bid 失败/pending 记录
+ * 
+ * 分时出价是时效性极强的操作（特定小时的出价调整），超过24小时就已过时。
+ * 但之前的纠错服务会在7天内持续重试这些过期的分时出价，导致：
+ * 1. 失败数持续累积（当前5,352条失败中dayparting_bid占90.6%）
+ * 2. 无效的API调用浪费资源
+ * 3. 同步健康度指标被拉低
+ * 
+ * 本函数将超过24小时的 dayparting_bid 失败/pending 记录标记为 superseded（已过时），
+ * 从而将它们从"失败"统计中移除，提升同步健康度指标的准确性。
+ */
+async function cleanupExpiredDaypartingBids(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查找超过24小时的 dayparting_bid 失败/pending 记录
+    const [expiredRecords] = await database.execute(sql`
+      SELECT id, keyword_id, action_type, api_sync_status, new_bid, previous_bid, created_at
+      FROM optimization_events
+      WHERE account_id = ${accountId}
+        AND action_type = 'dayparting_bid'
+        AND api_sync_status IN ('failed', 'pending')
+        AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ORDER BY created_at ASC
+      LIMIT 2000
+    `);
+    
+    if (!expiredRecords || expiredRecords.length === 0) {
+      return results;
+    }
+    
+    log.info(`v425: 账户${accountId} 发现${expiredRecords.length}条过期的dayparting_bid失败/pending记录`);
+    
+    // 批量更新为 superseded
+    const expiredIds = (expiredRecords as any[]).map((r: any) => r.id);
+    
+    // 分批处理（每批500条）
+    for (let i = 0; i < expiredIds.length; i += 500) {
+      const batch = expiredIds.slice(i, i + 500);
+      await database.execute(sql`
+        UPDATE optimization_events 
+        SET api_sync_status = 'superseded',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v425: 分时竞价超过24h已过时，标记为superseded')
+        WHERE id IN (${safeInClause(batch)})
+      `);
+    }
+    
+    log.warn(`v425: 账户${accountId} 已将${expiredRecords.length}条过期dayparting_bid标记为superseded`);
+    
+    results.push({
+      // @ts-ignore
+      type: 'dayparting_cleanup' as unknown,
+      accountId,
+      targetId: 0,
+      targetType: 'batch',
+      previousValue: `${expiredRecords.length} expired dayparting_bid records`,
+      correctedValue: 'superseded',
+      reason: `v425: 清理${expiredRecords.length}条超过24h的过期dayparting_bid记录`,
+      success: true,
+    });
+    
+    // 同时清理超过7天的其他类型的 failed 记录（标记为 permanently_failed）
+    const [oldFailedRecords] = await database.execute(sql`
+      SELECT COUNT(*) as cnt
+      FROM optimization_events
+      WHERE account_id = ${accountId}
+        AND api_sync_status = 'failed'
+        AND action_type != 'dayparting_bid'
+        AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND created_at > DATE_SUB(NOW(), INTERVAL 60 DAY)
+    `);
+    
+    const oldFailedCount = (oldFailedRecords as any[])?.[0]?.cnt || 0;
+    if (oldFailedCount > 0) {
+      await database.execute(sql`
+        UPDATE optimization_events 
+        SET api_sync_status = 'permanently_failed',
+            error_message = CONCAT(COALESCE(error_message, ''), ' | v425: 超过7天未成功同步，标记为permanently_failed')
+        WHERE account_id = ${accountId}
+          AND api_sync_status = 'failed'
+          AND action_type != 'dayparting_bid'
+          AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+          AND created_at > DATE_SUB(NOW(), INTERVAL 60 DAY)
+        LIMIT 1000
+      `);
+      
+      log.warn(`v425: 账户${accountId} 已将${Math.min(oldFailedCount, 1000)}条超7天的非dayparting失败记录标记为permanently_failed`);
+      
+      results.push({
+        // @ts-ignore
+        type: 'old_failure_cleanup' as unknown,
+        accountId,
+        targetId: 0,
+        targetType: 'batch',
+        previousValue: `${oldFailedCount} old failed records`,
+        correctedValue: 'permanently_failed',
+        reason: `v425: 清理${Math.min(oldFailedCount, 1000)}条超7天的非dayparting失败记录`,
+        success: true,
+      });
+    }
+  } catch (error: unknown) {
+    log.error(`v425: 账户${accountId} cleanupExpiredDaypartingBids失败: ${(error as Error).message}`);
   }
   
   return results;

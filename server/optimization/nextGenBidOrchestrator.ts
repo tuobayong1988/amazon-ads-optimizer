@@ -399,8 +399,9 @@ async function checkCircuitBreaker(
     
     return { tripped: false, reason: '', guardrailInfo };
   } catch (error: unknown) {
-    log.warn(`[CircuitBreaker] 熔断检查异常: ${(error as Error).message}`);
-    return { tripped: false, reason: '', guardrailInfo: {} };
+    // v426: P2-4 修复 — 熔断检查异常时安全拒绝（tripped=true），而非静默放行
+    log.error(`[CircuitBreaker] 熔断检查异常，安全拒绝: ${(error as Error).message}`);
+    return { tripped: true, reason: `熔断检查异常(安全拒绝): ${(error as Error).message}`, guardrailInfo: {} };
   }
 }
 

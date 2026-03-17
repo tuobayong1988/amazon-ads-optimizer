@@ -1,6 +1,7 @@
 /**
  * 广告组同步模块
  * 从 amazonSyncService.ts 拆分的独立模块
+ * v426: 消除N+1查询瓶颈 — 预加载campaigns和adGroups到Map中
  */
 import { eq, and, sql, gte, inArray } from 'drizzle-orm';
 import { getDb } from '../db';
@@ -30,11 +31,49 @@ export interface SyncContext {
 
 const log = createModuleLogger('adGroupSync');
 
+// v426: 批量UPSERT的分块大小
+const UPSERT_CHUNK_SIZE = 200;
+
+/**
+ * v426: 预加载账户的所有campaigns到Map中（amazonCampaignId -> campaign）
+ * 消除循环内逐条查询campaign的N+1问题
+ */
+async function preloadCampaignMap(db: any, accountId: number): Promise<Map<string, { id: number; campaignId: string }>> {
+  const allCampaigns = await db
+    .select({ id: campaigns.id, campaignId: campaigns.campaignId })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, accountId));
+  
+  const map = new Map<string, { id: number; campaignId: string }>();
+  for (const c of allCampaigns) {
+    map.set(String(c.campaignId), c);
+  }
+  return map;
+}
+
+/**
+ * v426: 预加载账户的所有adGroups到Map中（campaignId:adGroupId -> adGroup）
+ * 消除循环内逐条查询existing adGroup的N+1问题
+ */
+async function preloadAdGroupMap(db: any, accountId: number): Promise<Map<string, { id: number; campaignId: string; adGroupId: string }>> {
+  const allAdGroups = await db
+    .select({ id: adGroups.id, campaignId: adGroups.campaignId, adGroupId: adGroups.adGroupId })
+    .from(adGroups)
+    .where(eq(adGroups.accountId, accountId));
+  
+  const map = new Map<string, { id: number; campaignId: string; adGroupId: string }>();
+  for (const ag of allAdGroups) {
+    map.set(`${ag.campaignId}:${ag.adGroupId}`, ag);
+  }
+  return map;
+}
+
 /**
  * 同步SP广告组
+ * v426: 消除N+1查询 — 预加载campaigns和adGroups，批量UPSERT
  * @param lastSyncTime 上次同步时间，用于增量同步
  */
-export async function syncSpAdGroups(service: SyncContext,lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
+export async function syncSpAdGroups(service: SyncContext, lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
 
@@ -43,38 +82,22 @@ export async function syncSpAdGroups(service: SyncContext,lastSyncTime?: string 
     let synced = 0;
     let skipped = 0;
 
-    for (const apiAdGroup of apiAdGroups) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, service.accountId),
-            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
-          )
-        )
-        .limit(1);
+    // v426: 预加载所有campaigns和adGroups（2次查询替代 2*N 次查询）
+    const campaignMap = await preloadCampaignMap(db, service.accountId);
+    const adGroupMap = await preloadAdGroupMap(db, service.accountId);
+    
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: number; data: any }> = [];
 
+    for (const apiAdGroup of apiAdGroups) {
+      // v426: O(1) Map查找替代数据库查询
+      const campaign = campaignMap.get(String(apiAdGroup.campaignId));
       if (!campaign) continue;
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(adGroups)
-        .where(
-          and(
-            eq(adGroups.campaignId, String(campaign.campaignId)),
-            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
-          )
-        )
-        .limit(1);
+      const existingKey = `${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`;
+      const existing = adGroupMap.get(existingKey);
 
-      // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-      // v215修复: 移除错误的updatedAt跳过逻辑
-      // 始终使用Amazon API返回的最新数据更新本地记录
-
-      // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       
       const adGroupData = {
@@ -84,23 +107,32 @@ export async function syncSpAdGroups(service: SyncContext,lastSyncTime?: string 
         adGroupName: apiAdGroup.name,
         adGroupStatus: normalizedState,
         defaultBid: String(apiAdGroup.defaultBid || 0),
-        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        updatedAt: nowStr,
       };
 
       if (existing) {
-        await db
-          .update(adGroups)
-          .set(adGroupData)
-          .where(eq(adGroups.id, existing.id));
+        toUpdate.push({ id: existing.id, data: adGroupData });
       } else {
-        await db.insert(adGroups).values({
+        toInsert.push({
           ...adGroupData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          createdAt: nowStr,
         });
       }
       synced++;
     }
 
+    // v426: 批量insert
+    for (let i = 0; i < toInsert.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = toInsert.slice(i, i + UPSERT_CHUNK_SIZE);
+      await db.insert(adGroups).values(chunk);
+    }
+
+    // v426: 批量update（逐条但不再有额外的SELECT查询）
+    for (const item of toUpdate) {
+      await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
+    }
+
+    log.info(`SP广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
     log.error('Error syncing SP ad groups:', error);
@@ -111,9 +143,9 @@ export async function syncSpAdGroups(service: SyncContext,lastSyncTime?: string 
 
 /**
  * 同步SB品牌广告组
- * 从Amazon SB API获取广告组列表并同步到本地数据库
+ * v426: 消除N+1查询 — 预加载campaigns和adGroups，批量UPSERT
  */
-export async function syncSbAdGroups(service: SyncContext,): Promise<{ synced: number; skipped: number }> {
+export async function syncSbAdGroups(service: SyncContext): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
 
@@ -124,32 +156,20 @@ export async function syncSbAdGroups(service: SyncContext,): Promise<{ synced: n
 
     log.debug(`获取到 ${apiAdGroups.length} 个SB广告组`);
 
-    for (const apiAdGroup of apiAdGroups) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, service.accountId),
-            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
-          )
-        )
-        .limit(1);
+    // v426: 预加载
+    const campaignMap = await preloadCampaignMap(db, service.accountId);
+    const adGroupMap = await preloadAdGroupMap(db, service.accountId);
+    
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: number; data: any }> = [];
 
+    for (const apiAdGroup of apiAdGroups) {
+      const campaign = campaignMap.get(String(apiAdGroup.campaignId));
       if (!campaign) continue;
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(adGroups)
-        .where(
-          and(
-            eq(adGroups.campaignId, String(campaign.campaignId)),
-            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
-          )
-        )
-        .limit(1);
+      const existingKey = `${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`;
+      const existing = adGroupMap.get(existingKey);
 
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -161,24 +181,31 @@ export async function syncSbAdGroups(service: SyncContext,): Promise<{ synced: n
         adGroupStatus: normalizedState,
         defaultBid: String(apiAdGroup.bid || apiAdGroup.defaultBid || 0),
         creativeType: apiAdGroup.creativeType || null,
-        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        updatedAt: nowStr,
       };
 
       if (existing) {
-        await db
-          .update(adGroups)
-          .set(adGroupData)
-          .where(eq(adGroups.id, existing.id));
+        toUpdate.push({ id: existing.id, data: adGroupData });
       } else {
-        await db.insert(adGroups).values({
+        toInsert.push({
           ...adGroupData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          createdAt: nowStr,
         });
       }
       synced++;
     }
 
-    log.info(`SB广告组同步完成: synced=${synced}, skipped=${skipped}`);
+    // v426: 批量insert
+    for (let i = 0; i < toInsert.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = toInsert.slice(i, i + UPSERT_CHUNK_SIZE);
+      await db.insert(adGroups).values(chunk);
+    }
+
+    for (const item of toUpdate) {
+      await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
+    }
+
+    log.info(`SB广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
     log.error('Error syncing SB ad groups:', error);
@@ -189,9 +216,9 @@ export async function syncSbAdGroups(service: SyncContext,): Promise<{ synced: n
 
 /**
  * 同步SD展示广告组
- * 从Amazon SD API获取广告组列表并同步到本地数据库
+ * v426: 消除N+1查询 — 预加载campaigns和adGroups，批量UPSERT
  */
-export async function syncSdAdGroups(service: SyncContext,): Promise<{ synced: number; skipped: number }> {
+export async function syncSdAdGroups(service: SyncContext): Promise<{ synced: number; skipped: number }> {
   const db = await getDb();
   if (!db) return { synced: 0, skipped: 0 };
 
@@ -202,36 +229,22 @@ export async function syncSdAdGroups(service: SyncContext,): Promise<{ synced: n
 
     log.debug(`获取到 ${apiAdGroups.length} 个SD广告组`);
 
-    for (const apiAdGroup of apiAdGroups) {
-      // 查找对应的campaign
-      const [campaign] = await db
-        .select()
-        .from(campaigns)
-        .where(
-          and(
-            eq(campaigns.accountId, service.accountId),
-            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
-          )
-        )
-        .limit(1);
+    // v426: 预加载
+    const campaignMap = await preloadCampaignMap(db, service.accountId);
+    const adGroupMap = await preloadAdGroupMap(db, service.accountId);
+    
+    const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: number; data: any }> = [];
 
+    for (const apiAdGroup of apiAdGroups) {
+      const campaign = campaignMap.get(String(apiAdGroup.campaignId));
       if (!campaign) continue;
 
-      // 检查是否已存在
-      const [existing] = await db
-        .select()
-        .from(adGroups)
-        .where(
-          and(
-            eq(adGroups.campaignId, String(campaign.campaignId)),
-            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
-          )
-        )
-        .limit(1);
+      const existingKey = `${campaign.campaignId}:${String(apiAdGroup.adGroupId)}`;
+      const existing = adGroupMap.get(existingKey);
 
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
-
-      // SD广告组可能有tactic字段（如T00020 = 受众定向, T00030 = 商品定向）
       const tactic = apiAdGroup.tactic || null;
 
       const adGroupData = {
@@ -242,24 +255,31 @@ export async function syncSdAdGroups(service: SyncContext,): Promise<{ synced: n
         adGroupStatus: normalizedState,
         defaultBid: String(apiAdGroup.defaultBid || apiAdGroup.bid || 0),
         tactic: tactic,
-        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        updatedAt: nowStr,
       };
 
       if (existing) {
-        await db
-          .update(adGroups)
-          .set(adGroupData)
-          .where(eq(adGroups.id, existing.id));
+        toUpdate.push({ id: existing.id, data: adGroupData });
       } else {
-        await db.insert(adGroups).values({
+        toInsert.push({
           ...adGroupData,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          createdAt: nowStr,
         });
       }
       synced++;
     }
 
-    log.info(`SD广告组同步完成: synced=${synced}, skipped=${skipped}`);
+    // v426: 批量insert
+    for (let i = 0; i < toInsert.length; i += UPSERT_CHUNK_SIZE) {
+      const chunk = toInsert.slice(i, i + UPSERT_CHUNK_SIZE);
+      await db.insert(adGroups).values(chunk);
+    }
+
+    for (const item of toUpdate) {
+      await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
+    }
+
+    log.info(`SD广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
     log.error('Error syncing SD ad groups:', error);
@@ -268,11 +288,14 @@ export async function syncSdAdGroups(service: SyncContext,): Promise<{ synced: n
 }
 
 
+// v426: 导入时区工具
+import { getMarketplaceDateRange } from '../utils/timezone';
+
 /**
  * 同步广告组和定位数据（中频同步）
  * 用于获取广告组、关键词和商品定位的变化
  */
-export async function syncAdGroupsAndTargeting(service: SyncContext,): Promise<{
+export async function syncAdGroupsAndTargeting(service: SyncContext): Promise<{
   adGroups: number;
   keywords: number;
   targets: number;
@@ -360,12 +383,11 @@ export async function syncAdGroupsAndTargeting(service: SyncContext,): Promise<{
 
 /**
  * 同步广告组绩效数据
- * 通过SP/SB/SD广告组报告获取广告组级别的绩效数据
- * 并写入adGroups表的绩效字段（impressions/clicks/spend/sales/orders/ctr/cvr/acos/roas/cpc等）
+ * v426: 消除N+1查询 — 预加载adGroups到Map中，使用数值类型存储绩效数据
  * 
  * 归因窗口: SP=7天, SB/SD=14天
  */
-export async function syncAdGroupPerformanceData(service: SyncContext,days: number = 14): Promise<number> {
+export async function syncAdGroupPerformanceData(service: SyncContext, days: number = 14): Promise<number> {
   const db = await getDb();
   if (!db) return 0;
 
@@ -385,6 +407,16 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
     const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
 
+    // v426: 预加载所有adGroups到Map中（adGroupId -> adGroup），消除N+1查询
+    const allAdGroups = await db
+      .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
+      .from(adGroups)
+      .where(eq(adGroups.accountId, service.accountId));
+    const adGroupIdMap = new Map<string, { id: number; adGroupId: string }>();
+    for (const ag of allAdGroups) {
+      adGroupIdMap.set(ag.adGroupId, ag);
+    }
+
     // v413: 批量提交SP/SB/SD广告组报告 + 统一轮询
     const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(service.marketplace, 7);
     const reportRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -402,40 +434,70 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     const reportResults = reportRequests.length > 0
       ? await service.client.submitAndWaitMultipleReports(reportRequests, 300000, 2000)
       : [];
-    
+
+    /**
+     * v426: 统一的绩效数据处理函数
+     * 消除了三段重复代码，同时使用预加载的Map消除N+1查询
+     */
+    function processAdGroupReport(
+      data: any[],
+      adType: 'SP' | 'SB' | 'SD',
+      salesField: string,
+      ordersField: string,
+    ): Array<{ id: number; data: any }> {
+      const updates: Array<{ id: number; data: any }> = [];
+      for (const row of data) {
+        const adGroupId = String(row.adGroupId);
+        // v426: O(1) Map查找替代数据库查询
+        const adGroup = adGroupIdMap.get(adGroupId);
+        if (!adGroup) continue;
+
+        const cost = Number(row.cost || 0);
+        const sales = Number(row[salesField] || 0);
+        const orders = Number(row[ordersField] || 0);
+        const impressions = Number(row.impressions || 0);
+        const clicks = Number(row.clicks || 0);
+
+        const perfData: any = {
+          impressions,
+          clicks,
+          spend: String(cost),
+          sales: String(sales),
+          orders,
+          ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+          cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+          acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+          roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+          cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+        };
+
+        // SB/SD额外字段
+        if (adType === 'SB' || adType === 'SD') {
+          perfData.dpv = Number(row.dpv14d || 0);
+          perfData.ntbOrders = Number(row.attributedOrdersNewToBrand14d || 0);
+          perfData.ntbSales = String(Number(row.attributedSalesNewToBrand14d || 0));
+        }
+        if (adType === 'SD') {
+          perfData.viewAttributedSales = String(Number(row.viewAttributedSales14d || 0));
+          perfData.viewAttributedOrders = Number(row.viewAttributedUnitsOrdered14d || 0);
+        }
+
+        updates.push({ id: adGroup.id, data: perfData });
+      }
+      return updates;
+    }
+
     // 处理SP报告结果
     let resultIdx = 0;
     if (spCampaigns.length > 0) {
       const spResult = reportResults[resultIdx++];
       if (spResult?.data && spResult.data.length > 0) {
-        for (const row of (spResult.data as any[])) {
-          const adGroupId = String(row.adGroupId);
-          const [adGroup] = await db
-            .select()
-            .from(adGroups)
-            .where(eq(adGroups.adGroupId, adGroupId))
-            .limit(1);
-          if (!adGroup) continue;
-          const cost = row.cost || 0;
-          const sales = row.sales7d || 0;
-          const orders = row.purchases7d || 0;
-          const impressions = row.impressions || 0;
-          const clicks = row.clicks || 0;
-          await db
-            .update(adGroups)
-            .set({
-              impressions, clicks,
-              spend: String(cost), sales: String(sales), orders,
-              ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-              cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-              acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-              roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-              cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-            })
-            .where(eq(adGroups.id, adGroup.id));
-          synced++;
+        const updates = processAdGroupReport(spResult.data, 'SP', 'sales7d', 'purchases7d');
+        for (const item of updates) {
+          await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
         }
-        log.info(`SP广告组绩效同步: ${synced} 条记录`);
+        synced += updates.length;
+        log.info(`SP广告组绩效同步: ${updates.length} 条记录`);
       } else if (spResult?.error) {
         log.error('SP广告组绩效同步失败:', spResult.error);
       }
@@ -445,50 +507,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     if (sbCampaigns.length > 0) {
       const sbResult = reportResults[resultIdx++];
       if (sbResult?.data && sbResult.data.length > 0) {
-        const sbData = sbResult.data;
-        if (sbData && sbData.length > 0) {
-          let sbSynced = 0;
-          for (const row of (sbData as any[])) {
-            const adGroupId = String(row.adGroupId);
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
-            if (!adGroup) continue;
-
-            const cost = row.cost || 0;
-            const sales = row.salesClicks14d || row.sales14d || 0;
-            const orders = row.purchasesClicks14d || row.purchases14d || 0;
-            const impressions = row.impressions || 0;
-            const clicks = row.clicks || 0;
-            const dpv = row.dpv14d || 0;
-            const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
-            const ntbSales = row.attributedSalesNewToBrand14d || 0;
-
-            await db
-              .update(adGroups)
-              .set({
-                impressions,
-                clicks,
-                spend: String(cost),
-                sales: String(sales),
-                orders,
-                ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-                dpv,
-                ntbOrders,
-                ntbSales: String(ntbSales),
-              })
-              .where(eq(adGroups.id, adGroup.id));
-            sbSynced++;
-          }
-          synced += sbSynced;
-          log.info(`SB广告组绩效同步: ${sbSynced} 条记录`);
+        const updates = processAdGroupReport(sbResult.data, 'SB', 'salesClicks14d', 'purchasesClicks14d');
+        for (const item of updates) {
+          await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
         }
+        synced += updates.length;
+        log.info(`SB广告组绩效同步: ${updates.length} 条记录`);
       } else if (sbResult?.error) {
         log.error('SB广告组绩效同步失败:', sbResult.error);
       }
@@ -498,54 +522,12 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     if (sdCampaigns.length > 0) {
       const sdResult = reportResults[resultIdx++];
       if (sdResult?.data && sdResult.data.length > 0) {
-        const sdData = sdResult.data;
-        if (sdData && sdData.length > 0) {
-          let sdSynced = 0;
-          for (const row of (sdData as any[])) {
-            const adGroupId = String(row.adGroupId);
-            const [adGroup] = await db
-              .select()
-              .from(adGroups)
-              .where(eq(adGroups.adGroupId, adGroupId))
-              .limit(1);
-            if (!adGroup) continue;
-
-            const cost = row.cost || 0;
-            const sales = row.sales14d || 0;
-            const orders = row.purchases14d || 0;
-            const impressions = row.impressions || 0;
-            const clicks = row.clicks || 0;
-            const dpv = row.dpv14d || 0;
-            const viewSales = row.viewAttributedSales14d || 0;
-            const viewOrders = row.viewAttributedUnitsOrdered14d || 0;
-            const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
-            const ntbSales = row.attributedSalesNewToBrand14d || 0;
-
-            await db
-              .update(adGroups)
-              .set({
-                impressions,
-                clicks,
-                spend: String(cost),
-                sales: String(sales),
-                orders,
-                ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
-                dpv,
-                ntbOrders,
-                ntbSales: String(ntbSales),
-                viewAttributedSales: String(viewSales),
-                viewAttributedOrders: viewOrders,
-              })
-              .where(eq(adGroups.id, adGroup.id));
-            sdSynced++;
-          }
-          synced += sdSynced;
-          log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
+        const updates = processAdGroupReport(sdResult.data, 'SD', 'sales14d', 'purchases14d');
+        for (const item of updates) {
+          await db.update(adGroups).set(item.data).where(eq(adGroups.id, item.id));
         }
+        synced += updates.length;
+        log.info(`SD广告组绩效同步: ${updates.length} 条记录`);
       } else if (sdResult?.error) {
         log.error('SD广告组绩效同步失败:', sdResult.error);
       }
@@ -558,5 +540,3 @@ export async function syncAdGroupPerformanceData(service: SyncContext,days: numb
     return synced;
   }
 }
-
-
