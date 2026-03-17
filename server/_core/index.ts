@@ -32,6 +32,9 @@ import { startEffectTrackingScheduler } from '../scheduler/effectTrackingSchedul
 // v224: 加载 AmazonSyncService 的 prototype 扩展子模块
 import '../sync/init';
 import { getDb } from '../db';
+// v429: 加载集中式EntityIdResolver及其数据库提供者
+import { initEntityIdResolver } from '../services/entityIdResolver';
+import { createEntityIdResolverDbProvider } from '../services/entityIdResolverDbProvider';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -280,6 +283,16 @@ async function startServer() {
       log.error('[AutoMigration] v208 campaignId迁移异常:', (err as Error).message);
       logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${(err as Error).message}`);
     });
+
+    // v429: 初始化集中式EntityIdResolver（统一内部ID与Amazon ID的双向转换）
+    // 完成v418/v421设计但未集成的工作，提供带缓存的批量解析能力
+    try {
+      initEntityIdResolver(createEntityIdResolverDbProvider());
+      log.info('[EntityIdResolver] v429: 集中式ID解析器已初始化');
+      logSystem('EntityIdResolver', 'v429: 集中式ID解析器已初始化');
+    } catch (resolverErr: unknown) {
+      log.error(`[EntityIdResolver] v429: 初始化失败: ${(resolverErr as Error).message}`);
+    }
 
     // v427: 初始化 Redis 连接（用于分布式锁和缓存）
     import('../utils/redisClient').then(async ({ ensureRedis, redisHealthCheck }) => {

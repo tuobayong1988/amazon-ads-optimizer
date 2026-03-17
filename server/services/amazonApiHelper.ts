@@ -162,14 +162,23 @@ export async function syncBidAdjustmentsToAmazon(
     for (const adj of keywordAdjustments) {
       let amazonKeywordId = kwIdMap.get(adj.keywordId);
       
-      // 如果批量查询未找到，尝试即时回填
+      // v429: entityIdResolver优先，amazonIdResolver降级
+      if (!amazonKeywordId) {
+        try {
+          const { resolveKeywordId } = await import('./entityIdResolver');
+          const resolved = await resolveKeywordId(adj.keywordId);
+          if (resolved && resolved.amazonId) {
+            amazonKeywordId = resolved.amazonId;
+          }
+        } catch (_) { /* entityIdResolver未初始化 */ }
+      }
       if (!amazonKeywordId) {
         try {
           const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
           // @ts-expect-error - runtime type mismatch
           amazonKeywordId = await resolveKeywordIdOnDemand(accountId, adj.keywordId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v391: 即时回填异常: ${(resolveErr as Error).message}`);
+          log.error(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -212,14 +221,23 @@ export async function syncBidAdjustmentsToAmazon(
       const actualId = adj.productTargetId || adj.keywordId;
       let amazonTargetId = ptIdMap.get(actualId);
       
-      // 如果批量查询未找到，尝试即时回填
+      // v429: entityIdResolver优先，amazonIdResolver降级
+      if (!amazonTargetId) {
+        try {
+          const { resolveProductTargetId } = await import('./entityIdResolver');
+          const resolved = await resolveProductTargetId(actualId);
+          if (resolved && resolved.amazonId) {
+            amazonTargetId = resolved.amazonId;
+          }
+        } catch (_) { /* entityIdResolver未初始化 */ }
+      }
       if (!amazonTargetId) {
         try {
           const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
           // @ts-expect-error - runtime type mismatch
           amazonTargetId = await resolveProductTargetIdOnDemand(accountId, actualId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v391: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
+          log.error(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -1178,14 +1196,25 @@ export async function syncKeywordStatusToAmazon(
           .limit(1);
         
         if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+          // v429: entityIdResolver优先，amazonIdResolver降级
           try {
-            const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
-            const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
-            if (resolvedId) {
-              kw = { keywordId: resolvedId };
+            const { resolveKeywordId } = await import('./entityIdResolver');
+            const resolved = await resolveKeywordId(change.keywordId);
+            if (resolved && resolved.amazonId) {
+              kw = { keywordId: resolved.amazonId };
             }
-          } catch (resolveErr: unknown) {
-            log.error(`[AmazonApiHelper] 即时回填异常: ${(resolveErr as Error).message}`);
+          } catch (_) { /* entityIdResolver未初始化 */ }
+          
+          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+            try {
+              const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
+              const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
+              if (resolvedId) {
+                kw = { keywordId: resolvedId };
+              }
+            } catch (resolveErr: unknown) {
+              log.error(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
+            }
           }
           
           if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
@@ -1250,11 +1279,21 @@ export async function syncKeywordStatusToAmazon(
         let resolvedTargetId: string | null = pt?.targetId && pt.targetId !== '0' && pt.targetId !== '' ? String(pt.targetId) : null;
         
         if (!resolvedTargetId) {
+          // v429: entityIdResolver优先，amazonIdResolver降级
+          try {
+            const { resolveProductTargetId } = await import('./entityIdResolver');
+            const resolved = await resolveProductTargetId(change.keywordId);
+            if (resolved && resolved.amazonId) {
+              resolvedTargetId = resolved.amazonId;
+            }
+          } catch (_) { /* entityIdResolver未初始化 */ }
+        }
+        if (!resolvedTargetId) {
           try {
             const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
             resolvedTargetId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
           } catch (resolveErr: unknown) {
-            log.error(`[AmazonApiHelper] 商品定向即时回填异常: ${(resolveErr as Error).message}`);
+            log.error(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
           }
         }
         

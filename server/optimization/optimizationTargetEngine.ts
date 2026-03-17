@@ -510,9 +510,17 @@ export async function executeOptimizationTarget(
     return result;
   }
 
-  // v141: 统一Pre-Sync ID Resolution - 确保所有Amazon ID就绪
-  // 在执行任何优化操作前，自动回填缺失的keywordId和targetId
+  // v429: Pre-Sync ID Resolution - 确保所有Amazon ID就绪
+  // 保留amazonIdResolver.ensureAmazonIdsReady作为API级别的回填层（处理keywordId为NULL需要通过Amazon API创建的情况）
+  // 同时清理entityIdResolver缓存，确保后续优化任务使用最新的ID映射
   if (!dryRun) {
+    // v429: 先清理entityIdResolver缓存，确保后续解析使用最新数据
+    try {
+      const { clearAllCaches } = await import('../services/entityIdResolver');
+      clearAllCaches();
+      log.debug('[OptimizationTarget] v429: entityIdResolver缓存已清理');
+    } catch (_) { /* entityIdResolver未初始化时忽略 */ }
+    
     try {
       const idResolution = await amazonIdResolver.ensureAmazonIdsReady(config.accountId);
       if (idResolution.totalMissingBefore > 0) {

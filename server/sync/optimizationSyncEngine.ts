@@ -164,19 +164,50 @@ export async function executeBatchSync(options?: {
   // v350: 使用连接池获取直接连接，替代独立createConnection
   const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
-  // v428: P2修复 — 僵尸任务清理：将超过30分钟仍在processing状态的任务重置为retry
+  // v429: P1修复 — 僵尸任务清理：将超过15分钟仍在processing状态的任务重置为retry
+  // v428使用的是30分钟窗口，v429缩短到15分钟以更快恢复被中断的任务
   try {
     const [zombieResult] = await conn.execute(
       `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
-       error_message = CONCAT(IFNULL(error_message,''), ' | v428: 僵尸任务自动重置(processing超过30分钟)') 
-       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`
+       error_message = CONCAT(IFNULL(error_message,''), ' | v429: 僵尸任务自动重置(processing超过15分钟)') 
+       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
     ) as any[];
     const zombieCount = (zombieResult as any)?.affectedRows || 0;
     if (zombieCount > 0) {
-      log.warn(`[SyncEngine] v428: 清理${zombieCount}个僵尸任务(processing超过30分钟)`);
+      log.warn(`[SyncEngine] v429: 清理${zombieCount}个僵尸任务(processing超过15分钟)`);
     }
   } catch (zombieErr: unknown) {
-    log.error(`[SyncEngine] v428: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
+    log.error(`[SyncEngine] v429: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
+  }
+  
+  // v429: P1修复 — 失效引用前置清理：将引用已删除实体的retry任务标记为cancelled
+  // 避免无效的API重试消耗资源
+  try {
+    // 清理引用已删除keyword的任务
+    const [kwCleanResult] = await conn.execute(
+      `UPDATE optimization_tasks ot
+       LEFT JOIN keywords k ON ot.target_entity_id = k.id
+       SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标keyword已被删除')
+       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.id IS NULL AND ot.target_entity_id IS NOT NULL`
+    ) as any[];
+    const kwCleanCount = (kwCleanResult as any)?.affectedRows || 0;
+    if (kwCleanCount > 0) {
+      log.warn(`[SyncEngine] v429: 清理${kwCleanCount}个引用已删除keyword的任务`);
+    }
+    
+    // 清理引用已删除product_target的任务
+    const [ptCleanResult] = await conn.execute(
+      `UPDATE optimization_tasks ot
+       LEFT JOIN product_targets pt ON ot.target_entity_id = pt.id
+       SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标product_target已被删除')
+       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.id IS NULL AND ot.target_entity_id IS NOT NULL`
+    ) as any[];
+    const ptCleanCount = (ptCleanResult as any)?.affectedRows || 0;
+    if (ptCleanCount > 0) {
+      log.warn(`[SyncEngine] v429: 清理${ptCleanCount}个引用已删除product_target的任务`);
+    }
+  } catch (cleanErr: unknown) {
+    log.error(`[SyncEngine] v429: 失效引用清理失败: ${(cleanErr as Error).message}`);
   }
   
   const accountGroups = new Map<number, Record<string, any>[]>();
@@ -580,44 +611,111 @@ async function executeBatchByType(
       const ptTasks = validatedBatch.filter((t: Record<string, any>) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
       const noIdTasks = validatedBatch.filter((t: Record<string, any>) => !t.amazon_entity_id);
       
-      // v141: 对无Amazon ID的任务使用即时回填机制
+      // v429: 使用集中式entityIdResolver批量解析缺失的Amazon ID（替代v141的逐个即时回填）
+      // entityIdResolver内置10分钟缓存，显著降低数据库查询压力
       if (noIdTasks.length > 0) {
-        log.debug(`[SyncEngine] v141: ${noIdTasks.length}条任务缺少Amazon ID，尝试即时回填...`);
+        log.debug(`[SyncEngine] v429: ${noIdTasks.length}条任务缺少Amazon ID，使用entityIdResolver批量解析...`);
         try {
-          const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
-          for (const t of noIdTasks) {
-            try {
-              let resolvedId: string | null = null;
-              if (t.target_entity_type === 'keyword') {
-                resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
-              } else if (t.target_entity_type === 'product_target') {
-                resolvedId = await resolveProductTargetIdOnDemand(t.account_id, t.target_entity_id);
-              }
-              if (resolvedId) {
-                t.amazon_entity_id = resolvedId;
-                await conn.execute(
-                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                  [resolvedId, t.id]
-                );
-                // 重新分配到对应的任务队列
-                if (t.target_entity_type === 'keyword') {
-                  kwTasks.push(t);
-                } else {
-                  ptTasks.push(t);
-                }
-                log.info(`[SyncEngine] v141: ✅ 即时回填成功: ${t.target_entity_type} id=${t.target_entity_id} -> ${resolvedId}`);
+          const { batchResolveKeywordIds, batchResolveProductTargetIds } = await import('../services/entityIdResolver');
+          
+          // 分离keyword和product_target的无ID任务
+          const noIdKwTasks = noIdTasks.filter((t: Record<string, any>) => t.target_entity_type === 'keyword');
+          const noIdPtTasks = noIdTasks.filter((t: Record<string, any>) => t.target_entity_type === 'product_target');
+          
+          // 批量解析keyword IDs
+          if (noIdKwTasks.length > 0) {
+            const kwIds = noIdKwTasks.map((t: Record<string, any>) => t.target_entity_id);
+            const kwResult = await batchResolveKeywordIds(kwIds);
+            for (const t of noIdKwTasks) {
+              const resolved = kwResult.resolved.get(t.target_entity_id);
+              if (resolved) {
+                t.amazon_entity_id = resolved.amazonId;
+                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+                kwTasks.push(t);
+                log.debug(`[SyncEngine] v429: ✅ 批量解析keyword: id=${t.target_entity_id} -> ${resolved.amazonId}`);
               } else {
-                await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
-                result.failed++;
+                // 回退到旧的amazonIdResolver即时回填（处理keywordId为NULL需要通过API创建的情况）
+                try {
+                  const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
+                  const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+                  if (resolvedId) {
+                    t.amazon_entity_id = resolvedId;
+                    await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                    kwTasks.push(t);
+                    log.info(`[SyncEngine] v429: ✅ 回退即时回填成功: keyword id=${t.target_entity_id} -> ${resolvedId}`);
+                  } else {
+                    await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
+                    result.failed++;
+                  }
+                } catch (fallbackErr: unknown) {
+                  await markTaskFailed(conn, t.id, `ID解析失败: ${(fallbackErr as Error).message}`);
+                  result.failed++;
+                }
               }
-            } catch (resolveErr: unknown) {
-              await markTaskFailed(conn, t.id, `即时回填异常: ${(resolveErr as Error).message}`);
-              result.failed++;
             }
           }
-        } catch (importErr: unknown) {
-          await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（即时回填模块加载失败）');
-          result.failed += noIdTasks.length;
+          
+          // 批量解析product_target IDs
+          if (noIdPtTasks.length > 0) {
+            const ptIds = noIdPtTasks.map((t: Record<string, any>) => t.target_entity_id);
+            const ptResult = await batchResolveProductTargetIds(ptIds);
+            for (const t of noIdPtTasks) {
+              const resolved = ptResult.resolved.get(t.target_entity_id);
+              if (resolved) {
+                t.amazon_entity_id = resolved.amazonId;
+                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+                ptTasks.push(t);
+                log.debug(`[SyncEngine] v429: ✅ 批量解析product_target: id=${t.target_entity_id} -> ${resolved.amazonId}`);
+              } else {
+                try {
+                  const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
+                  const resolvedId = await resolveProductTargetIdOnDemand(t.account_id, t.target_entity_id);
+                  if (resolvedId) {
+                    t.amazon_entity_id = resolvedId;
+                    await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                    ptTasks.push(t);
+                    log.info(`[SyncEngine] v429: ✅ 回退即时回填成功: product_target id=${t.target_entity_id} -> ${resolvedId}`);
+                  } else {
+                    await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
+                    result.failed++;
+                  }
+                } catch (fallbackErr: unknown) {
+                  await markTaskFailed(conn, t.id, `ID解析失败: ${(fallbackErr as Error).message}`);
+                  result.failed++;
+                }
+              }
+            }
+          }
+        } catch (resolverErr: unknown) {
+          // entityIdResolver未初始化时回退到旧的amazonIdResolver
+          log.warn(`[SyncEngine] v429: entityIdResolver不可用，回退到amazonIdResolver: ${(resolverErr as Error).message}`);
+          try {
+            const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
+            for (const t of noIdTasks) {
+              try {
+                let resolvedId: string | null = null;
+                if (t.target_entity_type === 'keyword') {
+                  resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+                } else if (t.target_entity_type === 'product_target') {
+                  resolvedId = await resolveProductTargetIdOnDemand(t.account_id, t.target_entity_id);
+                }
+                if (resolvedId) {
+                  t.amazon_entity_id = resolvedId;
+                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  if (t.target_entity_type === 'keyword') kwTasks.push(t); else ptTasks.push(t);
+                } else {
+                  await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
+                  result.failed++;
+                }
+              } catch (resolveErr: unknown) {
+                await markTaskFailed(conn, t.id, `即时回填异常: ${(resolveErr as Error).message}`);
+                result.failed++;
+              }
+            }
+          } catch (importErr: unknown) {
+            await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
+            result.failed += noIdTasks.length;
+          }
         }
       }
       
@@ -640,10 +738,10 @@ async function executeBatchByType(
                 campaignType = campRows[0].campaignType;
               }
             } else if (t.target_entity_id) {
-              // 通过关键词 -> 广告组 -> 广告活动 查找类型
+              // v429: 修复字段名bug — keywords表中字段名是internal_ad_group_id，不是adGroupId
               const [kwCampRows] = await conn.execute(
                 `SELECT c.campaignType FROM keywords k
-                 INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+                 INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
                  INNER JOIN campaigns c ON ag.campaignId = c.campaignId
                  WHERE k.id = ? LIMIT 1`,
                 [t.target_entity_id]
@@ -707,16 +805,55 @@ async function executeBatchByType(
           }
         }
         
-        // v224: SB关键词出价同步 — 使用SB API
+        // v429: SB关键词出价同步 — 使用SB v3 API (PUT /sb/keywords)
+        // 修复v428/v428.2的403/406错误：v3端点要求adGroupId和campaignId为必填字段
         if (sbKwTasks.length > 0) {
           try {
-            // v428: P0修复 — updateSbKeywordBids现在返回{successes, errors}，支持单个任务级别的成功/失败处理
-            const sbApiResult = await (syncService as any).client.updateSbKeywordBids(
-              sbKwTasks.map((t: Record<string, any>) => ({
-                keywordId: String(t.amazon_entity_id),
-                bid: Number(parseFloat(t.new_value).toFixed(2)),
-              }))
-            );
+            // v429: 为每个SB关键词任务查询关联的Amazon adGroupId和campaignId
+            const sbUpdates: Array<{ keywordId: string; bid: number; adGroupId: string; campaignId: string }> = [];
+            const sbSkippedTasks: any[] = [];
+            
+            for (const t of sbKwTasks) {
+              try {
+                const [kwDetailRows] = await conn.execute(
+                  `SELECT k.keywordId, k.campaignId AS amazonCampaignId, ag.adGroupId AS amazonAdGroupId
+                   FROM keywords k
+                   INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
+                   WHERE k.id = ? LIMIT 1`,
+                  [t.target_entity_id]
+                ) as any[];
+                
+                if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
+                  sbUpdates.push({
+                    keywordId: String(t.amazon_entity_id),
+                    bid: Number(parseFloat(t.new_value).toFixed(2)),
+                    adGroupId: String(kwDetailRows[0].amazonAdGroupId),
+                    campaignId: String(kwDetailRows[0].amazonCampaignId),
+                  });
+                } else {
+                  // 无法获取关联ID，标记失败
+                  await markTaskFailed(conn, t.id, 'v429: 无法获取SB关键词的adGroupId或campaignId');
+                  result.failed++;
+                  sbSkippedTasks.push(t);
+                }
+              } catch (detailErr: unknown) {
+                await markTaskForRetry(conn, t.id, t.retry_count, `v429: 查询SB关键词详情失败: ${(detailErr as Error).message}`);
+                result.failed++;
+                sbSkippedTasks.push(t);
+              }
+            }
+            
+            // 过滤掉已跳过的任务
+            const activeSbTasks = sbKwTasks.filter(t => !sbSkippedTasks.includes(t));
+            
+            if (sbUpdates.length > 0) {
+              log.info(`[SyncEngine] v429: SB关键词出价准备完成: 有效=${sbUpdates.length}, 跳过=${sbSkippedTasks.length}`);
+            }
+            
+            // v429: 调用修复后的updateSbKeywordBids，现在传递完整的adGroupId和campaignId
+            const sbApiResult = sbUpdates.length > 0 
+              ? await (syncService as any).client.updateSbKeywordBids(sbUpdates)
+              : { successes: [], errors: [] };
             
             // v428: 构建keywordId到失败原因的映射
             const sbFailedIds = new Map<string, string>();
@@ -726,7 +863,7 @@ async function executeBatchByType(
               }
             }
             
-            for (const t of sbKwTasks) {
+            for (const t of activeSbTasks) {
               if (sbFailedIds.has(String(t.amazon_entity_id))) {
                 await markTaskForRetry(conn, t.id, t.retry_count, sbFailedIds.get(String(t.amazon_entity_id))!);
                 result.failed++;
@@ -737,9 +874,9 @@ async function executeBatchByType(
               }
             }
             
-            log.warn(`[SyncEngine] v428: SB关键词出价批量同步: 发送=${sbKwTasks.length}, 成功=${sbKwTasks.length - sbFailedIds.size}, 失败=${sbFailedIds.size}`);
+            log.warn(`[SyncEngine] v429: SB关键词出价批量同步: 发送=${sbUpdates.length}, 成功=${sbUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}, 跳过=${sbSkippedTasks.length}`);
           } catch (err: unknown) {
-            log.error(`[SyncEngine] v428: SB关键词出价批量API调用失败: ${(err as Error).message}`);
+            log.error(`[SyncEngine] v429: SB关键词出价批量API调用失败: ${(err as Error).message}`);
             for (const t of sbKwTasks) {
               await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
             }
@@ -790,55 +927,78 @@ async function executeBatchByType(
     }
     
     case 'keyword_status': {
-      // v138: 先尝试从数据库查找缺失的Amazon ID
+      // v429: 使用entityIdResolver批量解析keyword_status任务的Amazon ID
+      // 替代v138的逐个数据库查询和v141的即时回填
+      const validTasks: any[] = [];
+      const noIdTasks: any[] = [];
+      
+      // 先将已有Amazon ID的任务分到validTasks
       for (const t of (batch as any[])) {
-        if (!t.amazon_entity_id && t.target_entity_id) {
-          try {
-            const [kwRows] = await conn.execute(
-              'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
-              [t.target_entity_id]
-            ) as any[];
-            if (kwRows[0]?.keywordId) {
-              t.amazon_entity_id = kwRows[0].keywordId;
-              await conn.execute(
-                'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                [t.amazon_entity_id, t.id]
-              );
-              log.debug(`[SyncEngine] v138: keyword_status自动查找到Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
-            }
-          } catch (lookupErr: unknown) {
-            log.warn(`[SyncEngine] v138: keyword_status查找Amazon ID失败: ${(lookupErr as Error).message}`);
-          }
+        if (t.amazon_entity_id) {
+          validTasks.push(t);
+        } else {
+          noIdTasks.push(t);
         }
       }
       
-      const validTasks = batch.filter((t: Record<string, any>) => t.amazon_entity_id);
-      const noIdTasks = batch.filter((t: Record<string, any>) => !t.amazon_entity_id);
-      
-      // v141: 对无Amazon ID的任务使用即时回填机制
+      // 批量解析缺失的Amazon ID
       if (noIdTasks.length > 0) {
         try {
-          const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
+          const { batchResolveKeywordIds } = await import('../services/entityIdResolver');
+          const kwIds = noIdTasks.map((t: Record<string, any>) => t.target_entity_id);
+          const kwResult = await batchResolveKeywordIds(kwIds);
+          
           for (const t of noIdTasks) {
-            try {
-              const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
-              if (resolvedId) {
-                t.amazon_entity_id = resolvedId;
-                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
-                validTasks.push(t);
-                log.debug(`[SyncEngine] v141: ✅ keyword_status即时回填: id=${t.target_entity_id} -> ${resolvedId}`);
-              } else {
-                await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
+            const resolved = kwResult.resolved.get(t.target_entity_id);
+            if (resolved) {
+              t.amazon_entity_id = resolved.amazonId;
+              await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+              validTasks.push(t);
+              log.debug(`[SyncEngine] v429: ✅ keyword_status批量解析: id=${t.target_entity_id} -> ${resolved.amazonId}`);
+            } else {
+              // 回退到amazonIdResolver即时回填
+              try {
+                const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
+                const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+                if (resolvedId) {
+                  t.amazon_entity_id = resolvedId;
+                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  validTasks.push(t);
+                } else {
+                  await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
+                  result.failed++;
+                }
+              } catch (fallbackErr: unknown) {
+                await markTaskFailed(conn, t.id, `ID解析失败: ${(fallbackErr as Error).message}`);
                 result.failed++;
               }
-            } catch (resolveErr: unknown) {
-              await markTaskFailed(conn, t.id, `即时回填异常: ${(resolveErr as Error).message}`);
-              result.failed++;
             }
           }
-        } catch (importErr: unknown) {
-          await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（即时回填模块加载失败）');
-          result.failed += noIdTasks.length;
+        } catch (resolverErr: unknown) {
+          // entityIdResolver不可用时回退
+          log.warn(`[SyncEngine] v429: entityIdResolver不可用，回退到amazonIdResolver`);
+          try {
+            const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
+            for (const t of noIdTasks) {
+              try {
+                const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+                if (resolvedId) {
+                  t.amazon_entity_id = resolvedId;
+                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  validTasks.push(t);
+                } else {
+                  await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
+                  result.failed++;
+                }
+              } catch (resolveErr: unknown) {
+                await markTaskFailed(conn, t.id, `即时回填异常: ${(resolveErr as Error).message}`);
+                result.failed++;
+              }
+            }
+          } catch (importErr: unknown) {
+            await markTasksFailed(conn, noIdTasks.map((t: Record<string, any>) => t.id), '缺少Amazon ID（所有解析器均不可用）');
+            result.failed += noIdTasks.length;
+          }
         }
       }
       

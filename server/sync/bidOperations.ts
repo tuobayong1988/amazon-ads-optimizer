@@ -65,24 +65,37 @@ export async function applyBidAdjustment(service: SyncContext,
         return false;
       }
       if (!kw.keywordId) {
-        // v141: 即时回填机制 - 尝试通过Amazon API查找并回填keywordId
-        log.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试即时回填...`);
+        // v429: 使用entityIdResolver优先，amazonIdResolver降级
+        log.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试解析...`);
+        
+        // 第一层：entityIdResolver（有缓存，无API调用）
         try {
-          const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
-          // 获取accountId: 通过adGroup -> campaign -> accountId
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.internalAdGroupId)).limit(1);
-          if (ag) {
-            const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
-            if (camp) {
-              const resolvedId = await resolveKeywordIdOnDemand(camp.accountId, targetId);
-              if (resolvedId) {
-                kw.keywordId = resolvedId;
-                log.info(`[applyBidAdjustment] ✅ 即时回填成功: keyword id=${targetId} -> keywordId=${resolvedId}`);
+          const { resolveKeywordId } = await import('../services/entityIdResolver');
+          const resolved = await resolveKeywordId(targetId);
+          if (resolved && resolved.amazonId) {
+            kw.keywordId = resolved.amazonId;
+            log.info(`[applyBidAdjustment] ✅ v429 entityIdResolver解析成功: keyword id=${targetId} -> keywordId=${resolved.amazonId}`);
+          }
+        } catch (_) { /* entityIdResolver未初始化或查询失败 */ }
+        
+        // 第二层：amazonIdResolver即时回填（通过Amazon API）
+        if (!kw.keywordId) {
+          try {
+            const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.internalAdGroupId)).limit(1);
+            if (ag) {
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
+              if (camp) {
+                const resolvedId = await resolveKeywordIdOnDemand(camp.accountId, targetId);
+                if (resolvedId) {
+                  kw.keywordId = resolvedId;
+                  log.info(`[applyBidAdjustment] ✅ v429 amazonIdResolver回填成功: keyword id=${targetId} -> keywordId=${resolvedId}`);
+                }
               }
             }
+          } catch (resolveErr: unknown) {
+            log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
           }
-        } catch (resolveErr: unknown) {
-          log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
         }
         
         if (!kw.keywordId) {
@@ -139,23 +152,37 @@ export async function applyBidAdjustment(service: SyncContext,
         return false;
       }
       if (!pt.targetId) {
-        // v141: 即时回填机制 - 尝试通过Amazon API查找并回填targetId
-        log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
+        // v429: 使用entityIdResolver优先，amazonIdResolver降级
+        log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试解析...`);
+        
+        // 第一层：entityIdResolver（有缓存，无API调用）
         try {
-          const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
-          const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.internalAdGroupId)).limit(1);
-          if (ag) {
-            const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
-            if (camp) {
-              const resolvedId = await resolveProductTargetIdOnDemand(camp.accountId, targetId);
-              if (resolvedId) {
-                pt.targetId = resolvedId;
-                log.info(`[applyBidAdjustment] ✅ 即时回填成功: product_target id=${targetId} -> targetId=${resolvedId}`);
+          const { resolveProductTargetId } = await import('../services/entityIdResolver');
+          const resolved = await resolveProductTargetId(targetId);
+          if (resolved && resolved.amazonId) {
+            pt.targetId = resolved.amazonId;
+            log.info(`[applyBidAdjustment] ✅ v429 entityIdResolver解析成功: product_target id=${targetId} -> targetId=${resolved.amazonId}`);
+          }
+        } catch (_) { /* entityIdResolver未初始化或查询失败 */ }
+        
+        // 第二层：amazonIdResolver即时回填（通过Amazon API）
+        if (!pt.targetId) {
+          try {
+            const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.internalAdGroupId)).limit(1);
+            if (ag) {
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
+              if (camp) {
+                const resolvedId = await resolveProductTargetIdOnDemand(camp.accountId, targetId);
+                if (resolvedId) {
+                  pt.targetId = resolvedId;
+                  log.info(`[applyBidAdjustment] ✅ v429 amazonIdResolver回填成功: product_target id=${targetId} -> targetId=${resolvedId}`);
+                }
               }
             }
+          } catch (resolveErr: unknown) {
+            log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
           }
-        } catch (resolveErr: unknown) {
-          log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
         }
         
         if (!pt.targetId) {

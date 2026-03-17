@@ -139,9 +139,10 @@ async function resolveKeywordIds(
   // 按adGroupId分组
   const groupedByAdGroup = new Map<number, Record<string, any>[]>();
   for (const kw of (missingKws as any[])) {
-    const group = groupedByAdGroup.get(kw.adGroupId) || [];
+    // v429: 修复字段名bug — SQL返回的是internal_ad_group_id而非adGroupId
+    const group = groupedByAdGroup.get(kw.internal_ad_group_id) || [];
     group.push(kw);
-    groupedByAdGroup.set(kw.adGroupId, group);
+    groupedByAdGroup.set(kw.internal_ad_group_id, group);
   }
 
   log.debug(`Keywords: 分布在${groupedByAdGroup.size}个adGroup中`);
@@ -360,7 +361,7 @@ async function resolveKeywordIds(
                   // 先检查本地是否已有有效记录
                   const [existing] = await conn.execute(
                     `SELECT id, keywordId FROM keywords WHERE internal_ad_group_id = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
-                    [original.adGroupId, original.keywordText, original.matchType]
+                    [original.internal_ad_group_id, original.keywordText, original.matchType]
                   );
                   if (existing.length > 0) {
                     await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
@@ -607,7 +608,8 @@ export async function resolveKeywordIdOnDemand(
     }
 
     // v194: 检查广告组是否已有product targets
-    const hasProductTargets = await adGroupHasProductTargets(kw.adGroupId, conn);
+    // v429: 修复字段名bug — SQL结果中字段名是internal_ad_group_id
+    const hasProductTargets = await adGroupHasProductTargets(kw.internal_ad_group_id, conn);
     if (hasProductTargets) {
       log.debug(`⚠️ 即时清理: keyword id=${keywordLocalId} 广告组已有product targets`);
       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
