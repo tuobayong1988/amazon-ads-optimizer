@@ -50,6 +50,7 @@ import type { SearchTermPerformance, TargetingDecision } from "../services/targe
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "../utils/keywordValidator";
 import { createModuleLogger } from '../utils/logger';
 import { getCampaignAmazonId, getCampaignLocalId } from '../utils/idTypes';
+import { clampBidToConstraint, getBidConstraint } from '../utils/amazonBidConstraints';
 import { recordAudit, auditBidChange } from '../services/auditLogService';
 import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from '../analytics/ngramAnalysis';
 
@@ -421,10 +422,18 @@ export async function executeBidOptimization(
         // NextGen保证每个target都有结果，无需null检查
         let finalBid = nextGenResult.newBid;
         
-        // 绝对红线校验（双重保险）
-        finalBid = Math.min(finalBid, maxBidLimit);
-        finalBid = Math.max(finalBid, 0.02);
+        // v434: 绝对红线校验 — 使用bid constraints模块动态获取最低/最高竞价
+        // 根据campaign类型(SP/SB/SD)、计费方式(CPC/vCPM)、广告格式(Standard/Video)和市场确定正确约束
+        const campType = (campaign as any).campaignType || 'sp_manual';
+        const campCostType = (campaign as any).costType || 'cpc';
+        const campAdFormat = (campaign as any).ad_format || (campaign as any).adFormat || null;
+        const campMarketplace = config.marketplace || 'US';
+        const { clampedBid: kwClampedBid, wasAdjusted: kwWasAdjusted, constraint: kwConstraint, adTypeKey: kwAdTypeKey } = clampBidToConstraint(finalBid, campType, campMarketplace, campCostType, campAdFormat);
+        finalBid = Math.min(kwClampedBid, maxBidLimit);
         finalBid = Math.round(finalBid * 100) / 100;
+        if (kwWasAdjusted) {
+          log.info(`[BidOptimization] v434: keyword ${nextGenResult.targetId} bid $${nextGenResult.newBid.toFixed(2)} 超出${kwAdTypeKey}约束[$${kwConstraint.minBid}~$${kwConstraint.maxBid}]，调整为$${finalBid} (marketplace=${campMarketplace})`);
+        }
         
         if (nextGenResult.actionType !== 'hold' && Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
           const keyword = keywords.find(k => k.id === nextGenResult.targetId);
@@ -500,10 +509,17 @@ export async function executeBidOptimization(
       for (const nextGenResult of nextGenPtResults) {
         let finalBid = nextGenResult.newBid;
         
-        // 绝对红线校验（双重保险）
-        finalBid = Math.min(finalBid, maxBidLimit);
-        finalBid = Math.max(finalBid, 0.02);
+        // v434: 绝对红线校验 — 商品定向也使用bid constraints模块
+        const ptCampType = (campaign as any).campaignType || 'sp_manual';
+        const ptCostType = (campaign as any).costType || 'cpc';
+        const ptAdFormat = (campaign as any).ad_format || (campaign as any).adFormat || null;
+        const ptMarketplace = config.marketplace || 'US';
+        const { clampedBid: ptClampedBid, wasAdjusted: ptWasAdjusted, constraint: ptConstraint, adTypeKey: ptAdTypeKey } = clampBidToConstraint(finalBid, ptCampType, ptMarketplace, ptCostType, ptAdFormat);
+        finalBid = Math.min(ptClampedBid, maxBidLimit);
         finalBid = Math.round(finalBid * 100) / 100;
+        if (ptWasAdjusted) {
+          log.info(`[BidOptimization] v434: product target ${nextGenResult.targetId} bid $${nextGenResult.newBid.toFixed(2)} 超出${ptAdTypeKey}约束[$${ptConstraint.minBid}~$${ptConstraint.maxBid}]，调整为$${finalBid} (marketplace=${ptMarketplace})`);
+        }
         
         if (nextGenResult.actionType !== 'hold' && Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
           const target = allTargets.find(t => t.id === nextGenResult.targetId);

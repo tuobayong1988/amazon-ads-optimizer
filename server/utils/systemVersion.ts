@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 433;  // v433: negativeExact添加internalServerError到可接受错误列表
+export const SYSTEM_VERSION = 434;  // v434: Amazon bid constraints模块 + 新投放词动态初始竞价策略(建议最低×50%~建议最高×150%)

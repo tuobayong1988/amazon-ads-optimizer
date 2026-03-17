@@ -17,6 +17,7 @@ import * as amazonApiHelper from '../services/amazonApiHelper';
 import { randomUUID } from 'crypto';
 import { isShuttingDown, registerActiveTask, unregisterActiveTask } from '../utils/taskLifecycle';
 import { createModuleLogger } from '../utils/logger';
+import { clampBidToConstraint } from '../utils/amazonBidConstraints';
 
 const log = createModuleLogger('OptSyncEngine');
 
@@ -767,12 +768,19 @@ async function executeBatchByType(
         // SP关键词出价同步
         if (spKwTasks.length > 0) {
           try {
-            const apiResult: any = await (syncService as any).client.updateKeywordBids(
-              spKwTasks.map((t: Record<string, any>) => ({
+            // v434: SP keyword bid约束保护 — 确保竞价在Amazon允许范围内
+            const spBidUpdates = spKwTasks.map((t: Record<string, any>) => {
+              const rawBid = Number(parseFloat(t.new_value).toFixed(2));
+              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sp_manual', 'US', 'cpc');
+              if (wasAdjusted) {
+                log.info(`[SyncEngine] v434: SP keyword ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
+              }
+              return {
                 keywordId: String(t.amazon_entity_id),
-                bid: Number(parseFloat(t.new_value).toFixed(2)),
-              }))
-            );
+                bid: clampedBid,
+              };
+            });
+            const apiResult: any = await (syncService as any).client.updateKeywordBids(spBidUpdates);
             
             const failedIds = new Map<string, string>();
             if (apiResult.errors && apiResult.errors.length > 0) {
@@ -831,13 +839,29 @@ async function executeBatchByType(
                 ) as any[];
                 
                 if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
-                  // v431: SB keyword最低bid保护 — Amazon SB Keywords API要求bid >= $0.25
-                  const SB_MIN_BID = 0.25;
+                  // v434: SB keyword最低bid保护 — 使用bid constraints模块动态获取最低竞价
+                  // 根据campaign的adFormat区分SB Standard($0.10)和SB Video($0.25)
                   let sbBid = Number(parseFloat(t.new_value).toFixed(2));
-                  if (sbBid < SB_MIN_BID) {
-                    log.info(`[SyncEngine] v431: SB keyword bid $${sbBid} 低于最低要求$${SB_MIN_BID}，自动调整为$${SB_MIN_BID}`);
-                    sbBid = SB_MIN_BID;
+                  // 查询campaign的adFormat和marketplace来确定正确的最低竞价
+                  let sbAdFormat: string | null = null;
+                  let sbMarketplace = 'US';
+                  try {
+                    const [campDetailRows] = await conn.execute(
+                      `SELECT c.ad_format, a.marketplace FROM campaigns c
+                       LEFT JOIN ad_accounts a ON c.accountId = a.id
+                       WHERE c.campaignId = ? LIMIT 1`,
+                      [kwDetailRows[0].amazonCampaignId]
+                    ) as any[];
+                    if (campDetailRows.length > 0) {
+                      sbAdFormat = campDetailRows[0].ad_format || null;
+                      sbMarketplace = campDetailRows[0].marketplace || 'US';
+                    }
+                  } catch (e) { /* 查询失败时使用默认值 */ }
+                  const { clampedBid: clampedSbBid, wasAdjusted: sbWasAdjusted, constraint: sbConstraint, adTypeKey: sbAdTypeKey } = clampBidToConstraint(sbBid, 'sb', sbMarketplace, 'cpc', sbAdFormat);
+                  if (sbWasAdjusted) {
+                    log.info(`[SyncEngine] v434: SB keyword bid $${sbBid} 超出${sbAdTypeKey}约束[$${sbConstraint.minBid}~$${sbConstraint.maxBid}]，调整为$${clampedSbBid} (marketplace=${sbMarketplace})`);
                   }
+                  sbBid = clampedSbBid;
                   sbUpdates.push({
                     keywordId: String(t.amazon_entity_id),
                     bid: sbBid,
@@ -912,12 +936,38 @@ async function executeBatchByType(
       // 批量更新商品定向出价
       if (ptTasks.length > 0) {
         try {
-          const apiResult: any = await (syncService as any).client.updateProductTargetBids(
-            ptTasks.map((t: Record<string, any>) => ({
+          // v434: product target bid约束保护 — 根据campaign类型和计费方式确定正确的最低竞价
+          const ptBidUpdates = await Promise.all(ptTasks.map(async (t: Record<string, any>) => {
+            const rawBid = Number(parseFloat(t.new_value).toFixed(2));
+            // 查询campaign类型和costType
+            let ptCampType = 'sp_manual';
+            let ptCostType = 'cpc';
+            let ptMarketplace = 'US';
+            try {
+              const [ptCampRows] = await conn.execute(
+                `SELECT c.campaignType, c.costType, a.marketplace FROM product_targets pt
+                 INNER JOIN ad_groups ag ON pt.adGroupId = ag.adGroupId
+                 INNER JOIN campaigns c ON ag.campaignId = c.campaignId
+                 LEFT JOIN ad_accounts a ON c.accountId = a.id
+                 WHERE pt.id = ? LIMIT 1`,
+                [t.target_entity_id]
+              ) as any[];
+              if (ptCampRows.length > 0) {
+                ptCampType = ptCampRows[0].campaignType || 'sp_manual';
+                ptCostType = ptCampRows[0].costType || 'cpc';
+                ptMarketplace = ptCampRows[0].marketplace || 'US';
+              }
+            } catch (e) { /* 查询失败时使用默认值 */ }
+            const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, ptCampType, ptMarketplace, ptCostType);
+            if (wasAdjusted) {
+              log.info(`[SyncEngine] v434: product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
+            }
+            return {
               targetId: String(t.amazon_entity_id),
-              bid: Number(parseFloat(t.new_value).toFixed(2)),
-            }))
-          );
+              bid: clampedBid,
+            };
+          }));
+          const apiResult: any = await (syncService as any).client.updateProductTargetBids(ptBidUpdates);
           
           const failedIds = new Map<string, string>();
           if (apiResult.errors && apiResult.errors.length > 0) {

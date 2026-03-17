@@ -293,17 +293,42 @@ export function getExplorationStrategy(
   let suggestedBid = currentBid;
   let strategy: 'explore' | 'exploit' | 'transition' = 'explore';
   
+  // v434: 新投放词初始竞价策略 — 基于Amazon建议竞价的动态范围
+  // 竞价范围: 建议最低竞价×50% ~ 建议最高竞价×150%
+  // 目的: 快速测试投放词的曝光、点击、转化、投产，加快产生有效数据
   if (suggestedBidRange) {
-    if (daysSinceCreation <= explorationDays * 0.5) {
+    const bidFloor = suggestedBidRange.low * 0.50;   // 最低建议竞价的50%
+    const bidCeiling = suggestedBidRange.high * 1.50; // 最高建议竞价的150%
+    
+    if (daysSinceCreation <= explorationDays * 0.3) {
+      // 探索初期（前30%天数）: 积极获取曝光，使用建议最高竞价的100%
+      suggestedBid = suggestedBidRange.high;
+    } else if (daysSinceCreation <= explorationDays * 0.5) {
+      // 探索中期（30%~50%天数）: 使用中位数建议竞价
       suggestedBid = suggestedBidRange.median;
     } else if (totalClicks >= 5) {
+      // 过渡期（有5+点击）: 根据CTR动态调整
       strategy = 'transition';
       const ctr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
-      suggestedBid = ctr > 0.005 ? suggestedBidRange.median : suggestedBidRange.low;
+      if (ctr > 0.01) {
+        // CTR较高，表现好，保持较高竞价继续获取数据
+        suggestedBid = suggestedBidRange.median * 1.1;
+      } else if (ctr > 0.005) {
+        // CTR一般，使用中位数
+        suggestedBid = suggestedBidRange.median;
+      } else {
+        // CTR较低，降低竞价但不低于最低建议竞价的50%
+        suggestedBid = suggestedBidRange.low;
+      }
     } else {
+      // 探索后期但点击不足: 使用中位数继续探索
       suggestedBid = suggestedBidRange.median;
     }
+    
+    // 确保竞价在建议范围内: [low*50%, high*150%]
+    suggestedBid = Math.max(bidFloor, Math.min(bidCeiling, suggestedBid));
   } else {
+    // 无建议竞价时，使用当前竞价的120%作为探索竞价
     suggestedBid = currentBid * 1.2;
   }
   

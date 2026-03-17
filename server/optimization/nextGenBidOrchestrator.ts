@@ -655,40 +655,46 @@ function ruleEngineDecision(
     // @ts-expect-error - dynamic property access
     const suggestedBidRangeEnd = (groupConfig as unknown)._suggestedBidRangeEnd as number | undefined;
     
-    // v330 R-01: 如果有建议出价，使用建议出价作为探索目标
+    // v434: 零曝光探索 — 基于Amazon建议竞价的动态范围快速测试
+    // 竞价范围: 建议最低竞价×50% ~ 建议最高竞价×150%
+    // 目的: 快速获取曝光和点击数据，加快产生有效数据用于后续优化决策
     if (suggestedBid && suggestedBid > 0) {
-      // 计算目标出价：优先使用范围中位数，否则使用suggestedBid
+      // 计算目标出价：优先使用建议竞价范围
       let targetBid: number;
       if (suggestedBidRangeStart && suggestedBidRangeEnd && suggestedBidRangeEnd > suggestedBidRangeStart) {
-        // 使用范围中位数作为更稳健的初始值
+        // v434: 使用建议竞价范围的中位数作为目标，确保在合理范围内
         targetBid = (suggestedBidRangeStart + suggestedBidRangeEnd) / 2;
       } else {
         targetBid = suggestedBid;
       }
       
-      // 安全保护：不超过maxBid的60%
-      const suggestedBidCeiling = maxBid * 0.60;
-      const safeBid = Math.min(targetBid, suggestedBidCeiling, maxBid);
+      // v434: 安全保护 — 不超过建议最高竞价的150%，且不超过maxBid的80%
+      const suggestedBidCeiling = suggestedBidRangeEnd 
+        ? Math.min(suggestedBidRangeEnd * 1.50, maxBid * 0.80) 
+        : Math.min(targetBid * 1.50, maxBid * 0.80);
+      const suggestedBidFloor = suggestedBidRangeStart 
+        ? suggestedBidRangeStart * 0.50 
+        : targetBid * 0.50;
+      const safeBid = Math.max(suggestedBidFloor, Math.min(targetBid, suggestedBidCeiling, maxBid));
       
       // 如果当前出价已经接近或超过建议出价，维持当前出价
       if (currentBid >= safeBid * 0.90) {
         return {
           bid: currentBid,
           confidence: 0.5,
-          reason: `[v330 R-01] 零曝光但出价已接近建议出价($${currentBid.toFixed(2)} vs 建议$${safeBid.toFixed(2)}): 维持出价，建议检查关键词相关性`,
+          reason: `[v434] 零曝光但出价已接近建议竞价($${currentBid.toFixed(2)} vs 建议$${safeBid.toFixed(2)}): 维持出价，建议检查关键词相关性`,
         };
       }
       
-      // 分步逼近建议出价，避免出价跳跃过大
-      // 每次最多调整到当前出价与建议出价差距的50%
+      // v434: 更积极的分步逼近 — 每次走差距的70%（从50%提升），加快达到建议竞价
       const bidGap = safeBid - currentBid;
-      const stepBid = currentBid + bidGap * 0.50;
-      const finalBid = Math.min(stepBid, suggestedBidCeiling, maxBid);
+      const stepBid = currentBid + bidGap * 0.70;
+      const finalBid = Math.max(suggestedBidFloor, Math.min(stepBid, suggestedBidCeiling, maxBid));
       
       return {
         bid: finalBid,
         confidence: 0.65,
-        reason: `[v330 R-01] 零曝光探索(建议出价引导): 从$${currentBid.toFixed(2)}向建议出价$${safeBid.toFixed(2)}逼近至$${finalBid.toFixed(2)} (API建议=$${suggestedBid.toFixed(2)}, 范围=$${(suggestedBidRangeStart||0).toFixed(2)}-$${(suggestedBidRangeEnd||0).toFixed(2)})`,
+        reason: `[v434] 零曝光探索(建议竞价引导): 从$${currentBid.toFixed(2)}向建议竞价$${safeBid.toFixed(2)}逼近至$${finalBid.toFixed(2)} (建议范围=$${(suggestedBidRangeStart||0).toFixed(2)}-$${(suggestedBidRangeEnd||0).toFixed(2)}, 动态上下界=$${suggestedBidFloor.toFixed(2)}-$${suggestedBidCeiling.toFixed(2)})`,
       };
     }
     
