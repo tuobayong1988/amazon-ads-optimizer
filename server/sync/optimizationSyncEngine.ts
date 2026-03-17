@@ -728,27 +728,41 @@ async function executeBatchByType(
         for (const t of kwTasks) {
           try {
             let campaignType = 'sp_manual'; // 默认SP
+            let kwMarketplace = 'US'; // v434: 默认US，动态获取
+            let kwCostType = 'cpc'; // v434: 默认CPC
             if (t.campaign_id) {
               const [campRows] = await conn.execute(
-                'SELECT campaignType FROM campaigns WHERE id = ? OR campaignId = ? LIMIT 1',
+                `SELECT c.campaignType, c.costType, a.country as marketplace 
+                 FROM campaigns c 
+                 LEFT JOIN ad_accounts a ON c.accountId = a.id 
+                 WHERE c.id = ? OR c.campaignId = ? LIMIT 1`,
                 [t.campaign_id, String(t.campaign_id)]
               ) as any[];
-              if (campRows.length > 0 && campRows[0].campaignType) {
-                campaignType = campRows[0].campaignType;
+              if (campRows.length > 0) {
+                if (campRows[0].campaignType) campaignType = campRows[0].campaignType;
+                if (campRows[0].marketplace) kwMarketplace = campRows[0].marketplace;
+                if (campRows[0].costType) kwCostType = campRows[0].costType;
               }
             } else if (t.target_entity_id) {
               // v429: 修复字段名bug — keywords表中字段名是internal_ad_group_id，不是adGroupId
               const [kwCampRows] = await conn.execute(
-                `SELECT c.campaignType FROM keywords k
+                `SELECT c.campaignType, c.costType, a.country as marketplace 
+                 FROM keywords k
                  INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
                  INNER JOIN campaigns c ON ag.campaignId = c.campaignId
+                 LEFT JOIN ad_accounts a ON c.accountId = a.id
                  WHERE k.id = ? LIMIT 1`,
                 [t.target_entity_id]
               ) as any[];
-              if (kwCampRows.length > 0 && kwCampRows[0].campaignType) {
-                campaignType = kwCampRows[0].campaignType;
+              if (kwCampRows.length > 0) {
+                if (kwCampRows[0].campaignType) campaignType = kwCampRows[0].campaignType;
+                if (kwCampRows[0].marketplace) kwMarketplace = kwCampRows[0].marketplace;
+                if (kwCampRows[0].costType) kwCostType = kwCampRows[0].costType;
               }
             }
+            // v434: 保存marketplace和costType到任务对象，供后续bid constraint使用
+            t._marketplace = kwMarketplace;
+            t._costType = kwCostType;
             
             if (campaignType === 'sb') {
               sbKwTasks.push(t);
@@ -771,7 +785,8 @@ async function executeBatchByType(
             // v434: SP keyword bid约束保护 — 确保竞价在Amazon允许范围内
             const spBidUpdates = spKwTasks.map((t: Record<string, any>) => {
               const rawBid = Number(parseFloat(t.new_value).toFixed(2));
-              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sp_manual', 'US', 'cpc');
+              const spMarketplace = t._marketplace || 'US';
+              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sp_manual', spMarketplace, 'cpc');
               if (wasAdjusted) {
                 log.info(`[SyncEngine] v434: SP keyword ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
               }
