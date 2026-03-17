@@ -807,6 +807,13 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['rerun_correction_scan'],
   },
   {
+    version: 428,
+    description: 'v428: [综合优化修复] — (1)P0-SB出价API端点修复: updateSbKeywordBids从PUT /sb/v4/keywords改为PUT /sb/keywords(v3端点),解决7261个403错误 (2)P1-updateLocalStatus列名映射修复: keywords→keywordStatus,campaigns→campaignStatus,ad_groups→adGroupStatus,product_targets→targetStatus (3)P2-SB否定词: 使用SB专用API(POST /sb/negativeKeywords) (4)P2-Amazon ID前置校验 (5)P2-僵尸任务清理: processing超过30分钟自动重置 (6)P2-SD定向报告: 跳过空targetingText记录',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['sync', 'optimization'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 425,
     description: 'v425: [同步失败全面修复+同步锁机制重构+手动同步最高优先级] — (1)P0-同步锁机制重构: 手动同步最高优先级,任何时候触发都能立即执行,不被自动同步阻塞 (2)P0-syncIdempotencyService新增forceAcquireSyncLock强制获取锁 (3)P0-unifiedSyncEngine同层级/full层锁冲突时手动同步强制释放 (4)P0-dataSyncScheduler.triggerManualSync添加幂等锁保护 (5)P1-纠错服务增强: retryFailedBidAdjustments修复成功判断逻辑(itemResults逐条判断) (6)P1-新增cleanupExpiredDaypartingBids: 超过24h的dayparting_bid失败标记为superseded (7)P1-超过7天的失败事件标记为permanently_failed (8)P1-daypartingExecutor重试增强: 从1次增加到3次指数退避 (9)P1-amazonApiHelper Amazon ID缺失容错: 区分可重试和不可重试,不可重试标记为not_applicable (10)P1-riskActionEngine同步健康度优化: 排除superseded/permanently_failed,失败率>5%才触发P0告警',
     // @ts-expect-error - runtime type mismatch

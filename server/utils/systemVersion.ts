@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 427;  // v427: 类型安全优化(1040个@ts-ignore消除)+Redis分布式锁升级(三级降级:Redis→MySQL→内存锁)
+export const SYSTEM_VERSION = 428;  // v428: 综合优化修复 - P0 SB出价API端点(v3)/P1列名映射/P2 SB否定词+Amazon ID校验+僵尸清理+SD定向
