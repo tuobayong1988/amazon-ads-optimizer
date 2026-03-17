@@ -293,7 +293,7 @@ export interface AmazonSearchTermRow {
  * 替代 .where(and(...conditions)) 的 @ts-ignore
  */
 import type { SQL } from 'drizzle-orm';
-import { extractCount, extractRows, getAffectedRows, getErrorMessage, getErrorStack, isDuplicateKeyError } from './utilTypes';
+// v429: removed self-referencing import (these functions are already defined in this file)
 
 export type DrizzleCondition = SQL<unknown> | undefined;
 
