@@ -3765,7 +3765,23 @@ export class AmazonAdsApiClient {
     
     const endpoints = [
       {
-        name: 'v3',
+        name: 'v3-vnd',
+        url: '/sb/keywords',
+        contentType: 'application/vnd.sbkeywordresource.v3+json',
+        // v3请求体: 数组格式 [{keywordId(int), adGroupId(int), campaignId(int), state, bid}]
+        buildBody: (batch: typeof updates) => batch.map(u => ({
+          keywordId: toInt(u.keywordId),
+          adGroupId: toInt(u.adGroupId),
+          campaignId: toInt(u.campaignId),
+          state: 'enabled',
+          bid: u.bid,
+        })),
+        parseResponse: (data: any) => {
+          return Array.isArray(data) ? data : [data];
+        },
+      },
+      {
+        name: 'v3-json',
         url: '/sb/keywords',
         contentType: 'application/json',
         // v3请求体: 数组格式 [{keywordId(int), adGroupId(int), campaignId(int), state, bid}]
