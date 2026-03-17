@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 428;  // v428: 综合优化修复 - P0 SB出价API端点(v3)/P1列名映射/P2 SB否定词+Amazon ID校验+僵尸清理+SD定向
+export const SYSTEM_VERSION = 429;  // v429: 彻底统一ID体系 - 修复SB API/集成entityIdResolver/修复字段名bug/僵尸任务清理/失效引用前置校验

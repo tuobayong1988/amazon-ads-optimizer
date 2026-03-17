@@ -807,6 +807,13 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['rerun_correction_scan'],
   },
   {
+    version: 429,
+    description: 'v429: [彻底统一ID体系] — (1)P0-SB出价API彻底修复: updateSbKeywordBids回退v3端点PUT /sb/keywords+补充必填adGroupId/campaignId/state字段 (2)P0-amazonIdResolver字段名bug修复: 3处kw.adGroupId→kw.internal_ad_group_id(修复即时回填完全失效) (3)P1-entityIdResolver全面激活: 应用入口initEntityIdResolver+10分钟缓存+批量解析 (4)P1-双层降级架构: bidOperations/syncBidOperations/amazonApiHelper全部实现entityIdResolver优先+amazonIdResolver降级 (5)P1-僵尸任务清理增强: 阈值30min→15min (6)P1-失效引用前置校验: 已删除实体的任务自动cancelled (7)P2-SB 403重试任务retry_count重置 (8)P2-同步后缓存清理机制',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['sync', 'optimization', 'services'],
+    correctionActions: ['rerun_correction_scan'],
+  },
+  {
     version: 428,
     description: 'v428: [综合优化修复] — (1)P0-SB出价API端点修复: updateSbKeywordBids从PUT /sb/v4/keywords改为PUT /sb/keywords(v3端点),解决7261个403错误 (2)P1-updateLocalStatus列名映射修复: keywords→keywordStatus,campaigns→campaignStatus,ad_groups→adGroupStatus,product_targets→targetStatus (3)P2-SB否定词: 使用SB专用API(POST /sb/negativeKeywords) (4)P2-Amazon ID前置校验 (5)P2-僵尸任务清理: processing超过30分钟自动重置 (6)P2-SD定向报告: 跳过空targetingText记录',
     // @ts-expect-error - runtime type mismatch
