@@ -655,16 +655,24 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     let indexSkipped = 0;
     for (const [table, idxName, columns] of v446Indexes) {
       try {
+        // 用反引号包裹每个列名，确保兼容性
+        const wrappedCols = columns.split(',').map((c: string) => {
+          const trimmed = c.trim();
+          return trimmed.startsWith('`') ? trimmed : `\`${trimmed}\``;
+        }).join(', ');
         await database.execute(sql.raw(
-          `CREATE INDEX \`${idxName}\` ON \`${table}\` (${columns})`
+          `CREATE INDEX \`${idxName}\` ON \`${table}\` (${wrappedCols})`
         ));
         indexSuccess++;
       } catch (err: unknown) {
         const msg = String((err as Error)?.message || '');
-        if (msg.includes('Duplicate key name') || msg.includes('already exists')) {
+        // @ts-expect-error - accessing cause for detailed error
+        const causeMsg = String(err?.cause?.message || err?.cause || '');
+        const fullMsg = msg + ' | cause: ' + causeMsg;
+        if (fullMsg.includes('Duplicate key name') || fullMsg.includes('already exists')) {
           indexSkipped++;
         } else {
-          log.warn(`v446: 索引 ${idxName} 创建失败: ${msg}`);
+          log.warn(`v446: 索引 ${idxName} 创建失败: ${fullMsg}`);
         }
       }
     }
