@@ -7,6 +7,7 @@ import { and, count, desc, eq, gte, lte, not, sql } from 'drizzle-orm';
 import { InsertOptimizationEvent, InsertOptimizationLog, OptimizationEvent, OptimizationLog, bidAdjustmentHistory, biddingLogs, optimizationEvents, optimizationLogs } from '../../drizzle/schema';
 import { getDb } from './connection';
 import { createModuleLogger } from '../utils/logger';
+import { guardCampaignIdInsert } from '../utils/idTypes';
 import { getAdAccounts, getPerformanceGroupsByAccountId } from './accounts';
 
 const log = createModuleLogger('DB:optimizationEvents');
@@ -112,7 +113,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       actionType: resolvedActionType as unknown,
       strategyTemplateId: data.strategyTemplateId,
       strategyTemplateName: data.strategyTemplateName,
-      campaignId: data.campaignId,
+      campaignId: data.campaignId ? guardCampaignIdInsert(data.campaignId, 'optimization_events') : null,
       campaignName: data.campaignName,
       // v212: 从 action_detail中提取的关键字段
       keywordId: extractedKeywordId,

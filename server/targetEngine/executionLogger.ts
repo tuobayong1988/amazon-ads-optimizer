@@ -50,6 +50,7 @@ import type { SearchTermPerformance, TargetingDecision } from "../services/targe
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets, isProductTargetingCampaign } from "../utils/keywordValidator";
 import { createModuleLogger } from '../utils/logger';
 import { getCampaignAmazonId, getCampaignLocalId } from '../utils/idTypes';
+import { safeCampaignIdForInsert } from '../utils/campaignIdResolver';
 import { recordAudit, auditBidChange } from '../services/auditLogService';
 import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from '../analytics/ngramAnalysis';
 
@@ -81,7 +82,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
               accountId: result.accountId || detail.accountId || 0,
               logCategory: 'safety_check',
               actionType: detail.action === 'safety_summary' ? 'safety_summary' : 'safety_pause',
-              campaignId: detail.localCampaignId,
+              campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
               campaignName: detail.campaignName,
               actionDetail: JSON.stringify(detail),
               previousValue: null,
@@ -125,7 +126,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
             accountId: result.accountId || detail.accountId || 0,
             logCategory: 'bid_adjustment',
             actionType: (detail.newBid ?? 0) > (detail.currentBid ?? 0) ? 'bid_increase' : 'bid_decrease',
-            campaignId: detail.localCampaignId,
+            campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(enhancedBidDetail),  // v357: 使用增强后的detail
             previousValue: `${(typeof detail.currentBid === 'number' ? detail.currentBid : 0).toFixed(2)}`,
@@ -157,7 +158,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'placement_adjustment',
           actionType: 'placement_adjust',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousValue || `${detail.placement}: ${detail.currentMultiplier}%`,
@@ -206,7 +207,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           logCategory: 'optimization_settings',
           // @ts-expect-error - type assertion
           actionType: actionType as unknown,
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(enhancedDetail),  // v357: 使用增强后的detail
           previousValue: '',
@@ -231,7 +232,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'dayparting_bid',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储
@@ -257,7 +258,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储，避免AutoCorrector解析NaN
@@ -284,7 +285,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0,
           logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: `${detail.currentBudget?.toFixed(2) || '0.00'}`,
@@ -309,7 +310,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.action === 'add_negative' ? 'negative_keyword_add' : detail.newStatus === 'paused' ? 'target_pause' : 'target_enable',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || '',
@@ -335,7 +336,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.newStatus === 'paused' ? 'bid_decrease' : 'bid_increase',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousStatus || '',
@@ -361,7 +362,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: detail.action === 'pause' ? 'adgroup_pause' : 'adgroup_enable',
-          campaignId: detail.localCampaignId,
+          campaignId: detail.amazonCampaignId || String(detail.localCampaignId || ''),
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || '',

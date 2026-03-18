@@ -898,10 +898,12 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
     log.warn(`v178: 账户${accountId} 发现${failedEvents.length}条失败的预算调整需要重试`);
     
     // 按campaign分组，只保留最新的一条
-    const latestByCampaign = new Map<number, typeof failedEvents[0]>();
+    // v441: campaignId现在存储的是Amazon ID（字符串），不再是本地自增ID
+    const latestByCampaign = new Map<string, typeof failedEvents[0]>();
     for (const event of failedEvents) {
-      if (event.campaignId && !latestByCampaign.has(event.campaignId)) {
-        latestByCampaign.set(event.campaignId, event);
+      const cid = event.campaignId != null ? String(event.campaignId) : '';
+      if (cid && !latestByCampaign.has(cid)) {
+        latestByCampaign.set(cid, event);
       }
     }
     
@@ -912,15 +914,8 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
         const newBudget = Math.round(parseFloat(rawBudget));
         if (isNaN(newBudget) || newBudget <= 0) continue;
         
-        // 获取campaign的Amazon ID
-        const campRows = await database
-          .select({ campaignId: campaigns.campaignId })
-          .from(campaigns)
-          .where(eq(campaigns.id, campId))
-          .limit(1);
-        
-        if (campRows.length === 0) continue;
-        const amazonCampaignId = campRows[0].campaignId;
+        // v441: optimization_events.campaign_id 现在存的是Amazon ID，直接使用
+        const amazonCampaignId = String(campId);
         
         const syncResult: any = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
           accountId,
@@ -952,11 +947,11 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
             })
             .where(eq(optimizationEvents.id, event.id));
           
-          // 更新campaigns表的dailyBudget
+          // v441: 更新campaigns表的dailyBudget（使用Amazon campaignId匹配）
           await database
             .update(campaigns)
             .set({ dailyBudget: String(newBudget) })
-            .where(eq(campaigns.id, campId));
+            .where(eq(campaigns.campaignId, String(campId)));
         }
       } catch (apiError: unknown) {
         results.push({
@@ -1003,7 +998,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.id
+      JOIN campaigns c ON oe.campaign_id = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'budget_adjustment'
@@ -1070,10 +1065,11 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         });
         
         if (success) {
+          // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
           await database
             .update(campaigns)
             .set({ dailyBudget: String(expectedBudget) })
-            .where(eq(campaigns.id, row.campaign_id));
+            .where(eq(campaigns.campaignId, String(row.campaign_id)));
           
           await logCorrectionEvent(database, {
             accountId,
@@ -1125,7 +1121,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
         c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.id
+      JOIN campaigns c ON oe.campaign_id = c.campaignId
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'placement_adjustment'
         AND oe.status = 'success'
@@ -1197,10 +1193,11 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
           if (expectedTop !== null) updateData.placementTopSearchBidAdjustment = String(expectedTop);
           if (expectedProduct !== null) updateData.placementProductPageBidAdjustment = String(expectedProduct);
           
+          // v441: row.campaign_id 现在是Amazon ID，使用campaignId匹配
           await database
             .update(campaigns)
             .set(updateData)
-            .where(eq(campaigns.id, row.campaign_id));
+            .where(eq(campaigns.campaignId, String(row.campaign_id)));
         }
       } catch (apiError: unknown) {
         results.push({
@@ -1373,16 +1370,12 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
         
         // 1. 预算类型的settings_update
         if ((actionType.includes('budget') || detailType === 'budget_adjustment') && event.campaignId && event.newValue) {
-          const campRows = await database
-            .select({ campaignId: campaigns.campaignId })
-            .from(campaigns)
-            .where(eq(campaigns.id, event.campaignId))
-            .limit(1);
-          
-          if (campRows.length > 0) {
+          // v441: event.campaignId 现在已经是Amazon ID，无需再通过campaigns表解析
+          const amazonCampaignId = String(event.campaignId);
+          if (amazonCampaignId) {
             const syncResult: any = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
               accountId,
-              String(campRows[0].campaignId),
+              amazonCampaignId,
               Math.round(parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, ''))),
               `[自动纠错] 重试设置变更`
             );
@@ -1403,18 +1396,14 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
         }
         // 3. v267: 位置倾斜类型的settings_update
         else if ((actionType.includes('placement') || detailType === 'placement_adjustment') && event.campaignId) {
-          const campRows = await database
-            .select({ campaignId: campaigns.campaignId })
-            .from(campaigns)
-            .where(eq(campaigns.id, event.campaignId))
-            .limit(1);
-          
-          if (campRows.length > 0) {
+          // v441: event.campaignId 现在已经是Amazon ID，无需再通过campaigns表解析
+          const amazonCampaignId = String(event.campaignId);
+          if (amazonCampaignId) {
             const placementValue = parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, ''));
             const placementType = detail.placementType || 'top';
             const syncResult: any = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
               accountId,
-              String(campRows[0].campaignId),
+              amazonCampaignId,
               placementType,
               placementValue,
               `[自动纠错] 重试位置倾斜变更`
@@ -1695,19 +1684,10 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         
         // v201: 获取Amazon Campaign ID（增强诊断日志）
         let resolvedCampaignId = amazonCampaignId;
+        // v441: event.campaignId 现在已经是Amazon ID，直接使用
         if (!resolvedCampaignId && event.campaignId) {
-          const campRows = await database
-            .select({ campaignId: campaigns.campaignId, campaignName: campaigns.campaignName, campaignStatus: campaigns.campaignStatus })
-            .from(campaigns)
-            .where(eq(campaigns.id, event.campaignId))
-            .limit(1);
-          if (campRows.length > 0) {
-            // v201: 直接使用字符串避免大数字精度丢失
-            resolvedCampaignId = campRows[0].campaignId;
-            log.debug(`v201: 否定词campaignId解析: localId=${event.campaignId} -> amazonId=${resolvedCampaignId} (${campRows[0].campaignName}, status=${campRows[0].campaignStatus})`);
-          } else {
-            log.warn(`v201: 否定词campaignId解析失败: localId=${event.campaignId} 在campaigns表中不存在`);
-          }
+          resolvedCampaignId = String(event.campaignId);
+          log.debug(`v441: 否定词campaignId: 直接使用event.campaignId=${resolvedCampaignId}作为Amazon ID`);
         }
         
         if (!resolvedCampaignId) {
@@ -1988,8 +1968,17 @@ async function logCorrectionEvent(database: any, data: {
       keywordText: data.keywordText,
       targetId: data.targetId,
       targetName: data.targetName,
-      // v438: campaignId统一存储为字符串，避免INT溢出（schema已改为VARCHAR(64)）
-      campaignId: data.campaignId != null ? String(data.campaignId) : undefined,
+      // v441: campaignId写入前经过guardCampaignIdInsert守卫验证
+      campaignId: (() => {
+        if (data.campaignId == null) return undefined;
+        try {
+          const { guardCampaignIdInsert } = require('../utils/idTypes');
+          return guardCampaignIdInsert(data.campaignId, 'optimization_events(logCorrectionEvent)');
+        } catch (e) {
+          log.warn(`v441: logCorrectionEvent campaignId守卫异常: ${(e as Error).message}`);
+          return String(data.campaignId);
+        }
+      })(),
       campaignName: data.campaignName,
       previousBid: data.previousBid,
       newBid: data.newBid,

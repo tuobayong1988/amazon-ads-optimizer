@@ -7,6 +7,7 @@ import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { getDb } from './connection';
 import { createModuleLogger } from '../utils/logger';
 import { bidAdjustmentHistory, keywords } from '../../drizzle/schema';
+import { guardCampaignIdInsert } from '../utils/idTypes';
 
 const log = createModuleLogger('DB:bidAdjustment');
 
@@ -100,7 +101,7 @@ export async function recordBidAdjustment(data: {
       accountId: data.accountId,
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
-      campaignId: data.campaignId,
+      campaignId: data.campaignId != null ? guardCampaignIdInsert(data.campaignId, 'optimization_events(bidAdjustment)') : null,
       campaignName: data.campaignName,
       keywordId: data.keywordId,
       keywordText: data.keywordText,

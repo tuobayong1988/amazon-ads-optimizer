@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 440;  // v440: 命名物理隔离 + 全面Fail-Fast拦截 + 数据健康巡检定时任务
+export const SYSTEM_VERSION = 441;  // v441: 修复executionLogger/optimizationAutoCorrector本地ID污染 + AMS负数保护 + optimization_events守卫

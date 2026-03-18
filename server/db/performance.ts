@@ -225,6 +225,11 @@ export async function upsertDailyPerformanceFromAms(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v441: AMS实时数据流可能发送负数增量修正，防止负数写入
+  const safeImpressions = Math.max(0, data.impressions);
+  const safeClicks = Math.max(0, data.clicks);
+  const safeCost = Math.max(0, data.cost);
+  
   // === 1. 写入campaign维度的记录（如果有campaignId） ===
   if (data.campaignId) {
     // v439: 写入前验证campaignId格式，拦截本地ID
@@ -242,9 +247,9 @@ export async function upsertDailyPerformanceFromAms(data: {
       // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
       await db.update(dailyPerformance)
         .set({
-          impressions: data.impressions,
-          clicks: data.clicks,
-          spend: String(data.cost),
+          impressions: safeImpressions,
+          clicks: safeClicks,
+          spend: String(safeCost),
           dataSource: 'ams',
         })
         .where(eq(dailyPerformance.id, existingCampaign.id));
@@ -254,9 +259,9 @@ export async function upsertDailyPerformanceFromAms(data: {
         accountId: data.accountId,
         campaignId: safeCampaignId,  // v439: 使用验证后的Amazon ID
         date: data.date,
-        impressions: data.impressions,
-        clicks: data.clicks,
-        spend: String(data.cost),
+        impressions: safeImpressions,
+        clicks: safeClicks,
+        spend: String(safeCost),
         sales: '0',
         orders: 0,
         conversions: 0,
@@ -282,9 +287,9 @@ export async function upsertDailyPerformanceFromAms(data: {
     // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
     await db.update(dailyPerformance)
       .set({
-        impressions: data.impressions,
-        clicks: data.clicks,
-        spend: String(data.cost),
+        impressions: safeImpressions,
+        clicks: safeClicks,
+        spend: String(safeCost),
         dataSource: 'ams',
       })
       .where(eq(dailyPerformance.id, existingAccount.id));
@@ -292,9 +297,9 @@ export async function upsertDailyPerformanceFromAms(data: {
     await db.insert(dailyPerformance).values({
       accountId: data.accountId,
       date: data.date,
-      impressions: data.impressions,
-      clicks: data.clicks,
-      spend: String(data.cost),
+      impressions: safeImpressions,
+      clicks: safeClicks,
+      spend: String(safeCost),
       sales: '0',
       orders: 0,
       conversions: 0,
