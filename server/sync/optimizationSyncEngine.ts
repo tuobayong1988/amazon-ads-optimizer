@@ -854,15 +854,13 @@ async function executeBatchByType(
                 ) as any[];
                 
                 if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
-                  // v434: SB keyword最低bid保护 — 使用bid constraints模块动态获取最低竞价
-                  // 根据campaign的adFormat区分SB Standard($0.10)和SB Video($0.25)
+                  // v436: SB keyword最低bid保护 — 增强ad_format获取，支持campaign名称推断
                   let sbBid = Number(parseFloat(t.new_value).toFixed(2));
-                  // 查询campaign的adFormat和marketplace来确定正确的最低竞价
                   let sbAdFormat: string | null = null;
                   let sbMarketplace = 'US';
                   try {
                     const [campDetailRows] = await conn.execute(
-                      `SELECT c.ad_format, a.marketplace FROM campaigns c
+                      `SELECT c.ad_format, c.campaignName, a.marketplace FROM campaigns c
                        LEFT JOIN ad_accounts a ON c.accountId = a.id
                        WHERE c.campaignId = ? LIMIT 1`,
                       [kwDetailRows[0].amazonCampaignId]
@@ -870,8 +868,23 @@ async function executeBatchByType(
                     if (campDetailRows.length > 0) {
                       sbAdFormat = campDetailRows[0].ad_format || null;
                       sbMarketplace = campDetailRows[0].marketplace || 'US';
+                      // v436: 如果ad_format为NULL，从campaign名称推断
+                      if (!sbAdFormat && campDetailRows[0].campaignName) {
+                        const campName = String(campDetailRows[0].campaignName).toUpperCase();
+                        if (campName.includes('SBV') || campName.includes('VIDEO')) {
+                          sbAdFormat = 'video';
+                          log.info(`[SyncEngine] v436: 从campaign名称推断SBV: ${campDetailRows[0].campaignName}`);
+                        }
+                      }
                     }
                   } catch (e) { /* 查询失败时使用默认值 */ }
+                  // v436: 也从任务的campaign_name推断
+                  if (!sbAdFormat && t.campaign_name) {
+                    const taskCampName = String(t.campaign_name).toUpperCase();
+                    if (taskCampName.includes('SBV') || taskCampName.includes('VIDEO')) {
+                      sbAdFormat = 'video';
+                    }
+                  }
                   const { clampedBid: clampedSbBid, wasAdjusted: sbWasAdjusted, constraint: sbConstraint, adTypeKey: sbAdTypeKey } = clampBidToConstraint(sbBid, 'sb', sbMarketplace, 'cpc', sbAdFormat);
                   if (sbWasAdjusted) {
                     log.info(`[SyncEngine] v434: SB keyword bid $${sbBid} 超出${sbAdTypeKey}约束[$${sbConstraint.minBid}~$${sbConstraint.maxBid}]，调整为$${clampedSbBid} (marketplace=${sbMarketplace})`);

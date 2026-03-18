@@ -163,10 +163,26 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
         }
       }
 
-      // 获取SB广告格式
-      const sbAdFormat = (apiCampaign as Record<string, any>).adFormat || (apiCampaign as Record<string, any>).creative?.adFormat || null;
+      // v436: 增强SB广告格式获取逻辑 — 尝试多个字段路径和campaign名称推断
+      const rawAdFormat = (apiCampaign as Record<string, any>).adFormat 
+        || (apiCampaign as Record<string, any>).creative?.adFormat
+        || (apiCampaign as Record<string, any>).creativeType
+        || (apiCampaign as Record<string, any>).creative?.type
+        || (apiCampaign as Record<string, any>).format
+        || null;
       const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
-      const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
+      let normalizedAdFormat: string | null = validAdFormats.includes(rawAdFormat) ? rawAdFormat : null;
+      // v436: 如果API未返回adFormat，从campaign名称推断
+      if (!normalizedAdFormat && apiCampaign.name) {
+        const campNameUpper = apiCampaign.name.toUpperCase();
+        if (campNameUpper.includes('SBV') || campNameUpper.includes('VIDEO') || campNameUpper.includes('BRAND VIDEO')) {
+          normalizedAdFormat = 'video';
+          log.debug(`v436: 从campaign名称推断 adFormat=video: ${apiCampaign.name}`);
+        } else if (campNameUpper.includes('STORE SPOTLIGHT') || campNameUpper.includes('SPOTLIGHT')) {
+          normalizedAdFormat = 'storeSpotlight';
+        }
+      }
+      log.debug(`v436: SB campaign ${apiCampaign.name} adFormat: raw=${rawAdFormat}, normalized=${normalizedAdFormat}`);
 
       // 获取SB广告的竞价优化目标
       const sbBidOptimization = (apiCampaign as Record<string, any>).bidOptimization || null;
