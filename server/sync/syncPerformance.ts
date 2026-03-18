@@ -33,6 +33,7 @@ import {
   getRecentlyOptimizedCampaignIds,
 } from './syncHelpers';
 import { calculateBidAdjustment } from '../optimization/bidOptimizer';
+import { extractCampaignIds, guardCampaignIdInsert } from '../utils/idTypes';
 import type { OptimizationTarget, PerformanceGroupConfig } from '../optimization/bidOptimizer';
 
 const log = createModuleLogger('syncPerformance');
@@ -474,6 +475,9 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
         }
       }
 
+      // v440: 命名物理隔离 - 通过extractCampaignIds解构，明确区分Amazon ID和本地ID
+      const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, `syncPerformance.${adType}`);
+
       // 使用报告日期或当前日期
       const reportDate = row.date ? new Date(row.date) : new Date();
       const reportDateStr = reportDate.toISOString().split('T')[0];
@@ -531,7 +535,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
 
       const perfData = {
         accountId: this.accountId,
-        campaignId: campaign.campaignId,
+        campaignId: guardCampaignIdInsert(amazonCampaignId, 'daily_performance'),
         date: reportDateStr,
         impressions: row.impressions || 0,
         clicks: row.clicks || 0,
@@ -626,6 +630,8 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     log.debug(`站点${this.marketplace}当前日期: ${marketplaceToday}`);
     
     for (const campaign of (accountCampaigns as any[])) {
+      // v440: 命名物理隔离
+      const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'generateMockPerformanceData');
       // 为每个广告活动生成最近N天的模拟数据
       for (let i = 0; i < days; i++) {
         // 基于站点当前日期计算
@@ -640,7 +646,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
           .where(
             and(
               eq(dailyPerformance.accountId, this.accountId),
-              eq(dailyPerformance.campaignId, String(campaign.campaignId)),
+              eq(dailyPerformance.campaignId, amazonCampaignId),
               sql`DATE(${dailyPerformance.date}) = ${dateStr}`
             )
           )
@@ -663,7 +669,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
 
         const perfData = {
           accountId: this.accountId,
-          campaignId: campaign.campaignId,
+          campaignId: guardCampaignIdInsert(amazonCampaignId, 'daily_performance'),
           date: dateStr,
           impressions,
           clicks,
@@ -1603,9 +1609,8 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
 
       const reportDate = row.date || new Date().toISOString().split('T')[0];
 
-      // v207/v337.1: 统一使用Amazon campaignId（varchar字段存储Amazon ID）
-      // v337.1: 修复误导性变量名 localCampaignId → amazonCampaignId
-      const amazonCampaignId = String(campaign.campaignId);
+      // v440: 命名物理隔离 - 通过extractCampaignIds解构，并用guardCampaignIdInsert拦截
+      const { amazonId: amazonCampaignId } = extractCampaignIds(campaign, 'syncPlacementPerformance');
       
       // v399-fix3: 移除冗余的existing检查，已有UPSERT(onDuplicateKeyUpdate)保证覆盖式回填
       const cost = row.cost || 0;
@@ -1616,7 +1621,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
       const orders = row.purchases7d || row.purchases14d || 0;
 
       const perfData = {
-        campaignId: amazonCampaignId,
+        campaignId: guardCampaignIdInsert(amazonCampaignId, 'placement_performance'),
         accountId: this.accountId,
         placement,
         date: reportDate,

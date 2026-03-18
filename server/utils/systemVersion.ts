@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 439;  // v439: 修复AMS实时数据流写入本地ID的根因问题 + guardCampaignIdInsert拦截模式
+export const SYSTEM_VERSION = 440;  // v440: 命名物理隔离 + 全面Fail-Fast拦截 + 数据健康巡检定时任务

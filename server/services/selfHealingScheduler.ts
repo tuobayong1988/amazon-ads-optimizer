@@ -668,6 +668,127 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
     },
   });
   
+  // Level 3.5: v440 数据健康巡检 - 每小时检查核心表ID格式规范
+  scheduler.registerTask({
+    id: 'data-id-health-check',
+    name: 'v440 核心表ID格式巡检',
+    level: 'check',
+    intervalMs: 60 * 60 * 1000, // 每小时一次
+    timeoutMs: 60 * 1000,
+    enabled: true,
+    execute: async () => {
+      try {
+        const { getDb } = await import('../db');
+        const database = await getDb();
+        if (!database) {
+          return { success: false, issuesFound: 1, issuesFixed: 0, details: '数据库连接失败' };
+        }
+        
+        const { sql } = await import('drizzle-orm');
+        let totalIssues = 0;
+        const issueDetails: string[] = [];
+        
+        // 检查 1: daily_performance 中是否有短 campaignId（本地ID泄漏）
+        const [dpShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM daily_performance 
+          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+        `);
+        const dpCount = Number((dpShortIds as any)?.[0]?.cnt || 0);
+        if (dpCount > 0) {
+          totalIssues += dpCount;
+          issueDetails.push(`daily_performance: ${dpCount}条短 campaignId`);
+        }
+        
+        // 检查 2: keyword_placement_hourly_performance 中是否有短 campaignId
+        const [kphShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM keyword_placement_hourly_performance 
+          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+        `);
+        const kphCount = Number((kphShortIds as any)?.[0]?.cnt || 0);
+        if (kphCount > 0) {
+          totalIssues += kphCount;
+          issueDetails.push(`keyword_placement_hourly_performance: ${kphCount}条短 campaignId`);
+        }
+        
+        // 检查 3: campaigns 表中是否有短 campaignId
+        const [campShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM campaigns 
+          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+        `);
+        const campCount = Number((campShortIds as any)?.[0]?.cnt || 0);
+        if (campCount > 0) {
+          totalIssues += campCount;
+          issueDetails.push(`campaigns: ${campCount}条短 campaignId`);
+        }
+        
+        // 检查 4: ad_groups 表中是否有短 adGroupId
+        const [agShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM ad_groups 
+          WHERE ad_group_id IS NOT NULL AND LENGTH(ad_group_id) < 8
+        `);
+        const agCount = Number((agShortIds as any)?.[0]?.cnt || 0);
+        if (agCount > 0) {
+          totalIssues += agCount;
+          issueDetails.push(`ad_groups: ${agCount}条短 adGroupId`);
+        }
+        
+        // 检查 5: product_targets 中是否有 NULL accountId
+        const [ptNullAccount] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM product_targets 
+          WHERE account_id IS NULL
+        `);
+        const ptCount = Number((ptNullAccount as any)?.[0]?.cnt || 0);
+        if (ptCount > 0) {
+          totalIssues += ptCount;
+          issueDetails.push(`product_targets: ${ptCount}条NULL accountId`);
+        }
+        
+        // 检查 6: placement_performance 中是否有短 campaignId
+        const [ppShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM placement_performance 
+          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+        `);
+        const ppCount = Number((ppShortIds as any)?.[0]?.cnt || 0);
+        if (ppCount > 0) {
+          totalIssues += ppCount;
+          issueDetails.push(`placement_performance: ${ppCount}条短 campaignId`);
+        }
+        
+        // 检查 7: search_terms 中是否有短 campaignId
+        const [stShortIds] = await database.execute(sql`
+          SELECT COUNT(*) as cnt FROM search_terms 
+          WHERE campaign_id IS NOT NULL AND LENGTH(campaign_id) < 8
+        `);
+        const stCount = Number((stShortIds as any)?.[0]?.cnt || 0);
+        if (stCount > 0) {
+          totalIssues += stCount;
+          issueDetails.push(`search_terms: ${stCount}条短 campaignId`);
+        }
+        
+        if (totalIssues > 0) {
+          log.error(`[DataHealthCheck] ⛔ 发现${totalIssues}条ID格式异常: ${issueDetails.join('; ')}`);
+          return {
+            success: false,
+            issuesFound: totalIssues,
+            issuesFixed: 0,
+            details: `ID格式异常: ${issueDetails.join('; ')}`,
+            escalate: true,
+            escalateReason: `发现${totalIssues}条本地ID泄漏到核心表`,
+          };
+        }
+        
+        return {
+          success: true,
+          issuesFound: 0,
+          issuesFixed: 0,
+          details: '所有核心表ID格式正常',
+        };
+      } catch (error: unknown) {
+        return { success: false, issuesFound: 1, issuesFixed: 0, details: `巡检异常: ${(error as Error).message}` };
+      }
+    },
+  });
+  
   // Level 4: 紧急 - 数据库连接池健康检查（按需触发）
   scheduler.registerTask({
     id: 'emergency-db-check',

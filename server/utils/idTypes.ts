@@ -132,9 +132,9 @@ export function assertAmazonCampaignId(
     const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地campaignId(${value})被用于需要Amazon ID的场景! ` +
       `调用来源: ${context}. 必须传入campaign.campaignId而非campaign.id`;
     log.error(errorMsg);
-    // 在生产环境中记录但不抛错，避免中断服务
-    // 但在日志中留下明确的错误痕迹
-    log.error(errorMsg);
+    logIdGuardError('IdTypes', `assertAmazonCampaignId: ${errorMsg}`, { context, value: String(value), classification });
+    // v440: 升级为Fail-Fast模式 - 宁可中断也不让错误ID传播
+    throw new Error(errorMsg);
   }
 }
 
@@ -154,7 +154,9 @@ export function assertAmazonAdGroupId(
     const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地adGroupId(${value})被用于需要Amazon ID的场景! ` +
       `调用来源: ${context}. 必须传入adGroup.adGroupId而非adGroup.id`;
     log.error(errorMsg);
-    log.error(errorMsg);
+    logIdGuardError('IdTypes', `assertAmazonAdGroupId: ${errorMsg}`, { context, value: String(value), classification });
+    // v440: 升级为Fail-Fast模式
+    throw new Error(errorMsg);
   }
 }
 
@@ -365,7 +367,8 @@ export function guardCampaignIdParam(
     const msg = `${functionName}() 收到本地campaignId(${value})! 调用者必须传入campaign.campaignId而非campaign.id`;
     log.error(`[IdTypes] ⛔ ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdParam: ${msg}`, { functionName, value: String(value), classification });
-    log.error(new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`).stack || '');
+    // v440: 升级为Fail-Fast模式 - 宁可查询失败也不返回错误结果
+    throw new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`);
   }
   
   return str;
@@ -393,6 +396,48 @@ export function guardCampaignIdInsert(
     log.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack || '');
     // v439: 升级为拦截模式 - 拒绝写入本地ID，防止脏数据产生
     throw new Error(`[IdTypes] 拦截本地ID写入: ${tableName}.campaignId = ${value}`);
+  }
+  
+  return str;
+}
+
+/**
+ * v440: 查询函数的adGroupId参数守卫
+ * 在所有以adGroupId为参数的查询函数入口处调用
+ */
+export function guardAdGroupIdParam(
+  value: string | number,
+  functionName: string
+): string {
+  const str = String(value).trim();
+  const classification = classifyCampaignId(value); // 复用同一个分类逻辑
+  
+  if (classification === 'local') {
+    const msg = `${functionName}() 收到本地adGroupId(${value})! 调用者必须传入adGroup.adGroupId而非adGroup.id`;
+    log.error(`[IdTypes] ⛔ ${msg}`);
+    logIdGuardError('IdTypes', `guardAdGroupIdParam: ${msg}`, { functionName, value: String(value), classification });
+    throw new Error(`[IdTypes] ${functionName}() 收到本地adGroupId(${value})`);
+  }
+  
+  return str;
+}
+
+/**
+ * v440: INSERT语句中adGroupId字段的守卫
+ * 在所有INSERT/UPDATE语句中adGroupId字段赋值前调用
+ */
+export function guardAdGroupIdInsert(
+  value: string | number,
+  tableName: string
+): string {
+  const str = String(value).trim();
+  const classification = classifyCampaignId(value);
+  
+  if (classification === 'local') {
+    const msg = `⛔ v440拦截: 尝试将本地adGroupId(${value})写入${tableName}.adGroupId! 该字段应存储Amazon Ad Group ID`;
+    log.error(`[IdTypes] ${msg}`);
+    logIdGuardError('IdTypes', `guardAdGroupIdInsert: ${msg}`, { tableName, value: String(value), classification });
+    throw new Error(`[IdTypes] 拦截本地ID写入: ${tableName}.adGroupId = ${value}`);
   }
   
   return str;
