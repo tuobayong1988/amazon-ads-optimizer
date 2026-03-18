@@ -239,7 +239,9 @@ export async function executeBudgetAllocation(configId: number): Promise<{
   const executionData: InsertBudgetAutoExecutionHistory = {
     configId,
     accountId: config.accountId,
-    executionStartAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    performanceGroupId: config.performanceGroupId || null,
+    executionType: 'scheduled',
+    startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     status: 'running',
   };
 
@@ -377,13 +379,12 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetBefore: String(budgetBefore),
         budgetAfter: String(details[details.length - 1].status === 'applied' ? budgetAfter : budgetBefore),
         budgetChange: String(budgetAfter - budgetBefore),
-        adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
-        adjustmentReason: suggestion.reasons.join('; '),
+        changePercent: String(details[details.length - 1].adjustmentPercent),
+        changeReason: suggestion.reasons.join('; '),
         // @ts-expect-error - dynamic property access
-        compositeScore: String((suggestion as unknown).compositeScore || 0),
-        riskLevel: suggestion.riskLevel,
-        status: details[details.length - 1].status as string,
-        errorMessage: details[details.length - 1].reason,
+        performanceScore: String((suggestion as unknown).compositeScore || 0),
+        confidence: String((suggestion as unknown).confidence || 0),
+        apiSyncStatus: 'pending',
       } as Record<string, any>);
     }
 
@@ -402,15 +403,17 @@ export async function executeBudgetAllocation(configId: number): Promise<{
 
     await db.update(budgetAutoExecutionHistory)
       .set({
-        executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        // @ts-expect-error - type assertion
-        status: finalStatus as unknown,
-        totalCampaigns: summary.totalCampaigns,
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        status: finalStatus === 'pending_approval' ? 'pending' : 'completed',
+        campaignsAnalyzed: summary.totalCampaigns,
         campaignsAdjusted: summary.adjustedCampaigns,
-        skippedCampaigns: summary.skippedCampaigns,
-        errorCampaigns: summary.errorCampaigns,
         totalBudgetBefore: String(summary.totalBudgetBefore),
         totalBudgetAfter: String(summary.totalBudgetAfter),
+        totalBudgetChange: String(summary.totalBudgetAfter - summary.totalBudgetBefore),
+        executionDetails: JSON.stringify({
+          skippedCampaigns: summary.skippedCampaigns,
+          errorCampaigns: summary.errorCampaigns,
+        }),
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
 
@@ -446,7 +449,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     // 更新执行记录为失败
     await db.update(budgetAutoExecutionHistory)
       .set({
-        executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         status: 'failed',
         errorMessage: error instanceof Error ? (error as Error).message : '未知错误',
       })
@@ -475,7 +478,7 @@ export async function getExecutionHistory(
   return db.select()
     .from(budgetAutoExecutionHistory)
     .where(eq(budgetAutoExecutionHistory.accountId, accountId))
-    .orderBy(desc(budgetAutoExecutionHistory.executionStartAt))
+    .orderBy(desc(budgetAutoExecutionHistory.startedAt))
     .limit(limit);
 }
 
@@ -488,12 +491,12 @@ export async function getExecutionDetails(executionId: number): Promise<{
     campaignName: string | null;
     budgetBefore: string | null;
     budgetAfter: string | null;
-    adjustmentPercent: string | null;
-    adjustmentReason: string | null;
-    compositeScore: string | null;
-    riskLevel: string | null;
-    status: string;
-    errorMessage: string | null;
+    changePercent: string | null;
+    changeReason: string | null;
+    performanceScore: string | null;
+    confidence: string | null;
+    apiSyncStatus: string;
+    apiSyncDetail: string | null;
   }>;
 } | null> {
   const db = await getDb();
@@ -519,12 +522,12 @@ export async function getExecutionDetails(executionId: number): Promise<{
       campaignName: d.campaignName,
       budgetBefore: d.budgetBefore,
       budgetAfter: d.budgetAfter,
-      adjustmentPercent: d.adjustmentPercent,
-      adjustmentReason: d.adjustmentReason,
-      compositeScore: d.compositeScore,
-      riskLevel: d.riskLevel,
-      status: d.status as string,
-      errorMessage: d.errorMessage,
+      changePercent: d.changePercent,
+      changeReason: d.changeReason,
+      performanceScore: d.performanceScore,
+      confidence: d.confidence,
+      apiSyncStatus: d.apiSyncStatus as string,
+      apiSyncDetail: d.apiSyncDetail,
     } as Record<string, any>)),
   };
 }
@@ -545,13 +548,13 @@ export async function approveExecution(
 
     // 应用所有待审批的调整
     for (const detail of executionData.details) {
-      if (detail.status === 'skipped' && detail.errorMessage === '等待审批') {
+      if (detail.apiSyncStatus === 'pending' && detail.changeReason?.includes('等待审批')) {
         await db.update(campaigns)
           .set({ dailyBudget: detail.budgetAfter })
           .where(eq(campaigns.id, detail.campaignId));
 
         await db.update(budgetAutoExecutionDetails)
-          .set({ status: 'applied' })
+          .set({ apiSyncStatus: 'synced' })
           .where(eq(budgetAutoExecutionDetails.id, detail.id));
       }
     }
