@@ -564,10 +564,10 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSbSearchTermReport(rangeStartDate, rangeEndDate);
-        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        const data = await this.client.waitAndDownloadReport(reportId, 600000); // v449: SB搜索词超时从5分钟增加到10分钟
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: SB搜索词报告请求失败:`, (e as Error).message);
+        log.error(`v449: SB搜索词报告请求失败:`, (e as Error).message);
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -585,7 +585,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
         });
       }
       log.info(`[v413] SB搜索词: ${batches}批次批量提交开始`);
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -772,10 +772,10 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     if (batches === 1) {
       try {
         const reportId = await this.client.requestSbTargetingReport(rangeStartDate, rangeEndDate);
-        const data = await this.client.waitAndDownloadReport(reportId, 300000);
+        const data = await this.client.waitAndDownloadReport(reportId, 600000); // v449: SB定向超时从5分钟增加到10分钟
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: SB定向报告请求失败:`, (e as Error).message);
+        log.error(`v449: SB定向报告请求失败:`, (e as Error).message);
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -793,7 +793,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
         });
       }
       log.info(`[v413] SB定向: ${batches}批次批量提交开始`);
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);
@@ -1203,7 +1203,7 @@ AmazonSyncService.prototype.syncSbPlacementPerformance = async function(this: Am
         });
       }
       log.info(`[v413] SB广告位: ${batches}批次批量提交开始`);
-      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 300000, 2000);
+      const results = await this.client.submitAndWaitMultipleReports(batchRequests, 600000, 2000); // v449: SB报告超时从5分钟增加到10分钟
       for (const result of results) {
         if (result.data && result.data.length > 0) {
           allReportData = allReportData.concat(result.data);

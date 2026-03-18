@@ -903,7 +903,7 @@ export async function syncNegativeKeywordsToAmazon(
         // @ts-expect-error - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
           const r = results[ri] as Record<string, any>;
-          if (r.code === 'SUCCESS' || r.keywordId) {
+          if (r.code === 'SUCCESS' || r.code === 'SUCCESS_DUPLICATE' || r.keywordId) {
             result.success++;
             // v195: 记录成功创建的否定词ID，用于回写amazon_negative_keyword_id
             const idx = r.index !== undefined ? r.index : ri;
@@ -913,7 +913,9 @@ export async function syncNegativeKeywordsToAmazon(
               if (r.keywordId) {
                 result.keywordIdMap.set(mapKey, String(r.keywordId));
               }
-              log.info(`[AmazonApiHelper] 否定词创建成功: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
+              // v449: 区分新创建和重复的日志
+              const dupTag = r.code === 'SUCCESS_DUPLICATE' ? ' (duplicate, 已存在)' : '';
+              log.info(`[AmazonApiHelper] 否定词创建成功${dupTag}: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
             }
           } else {
             result.failed++;
@@ -976,7 +978,7 @@ export async function syncNegativeKeywordsToAmazon(
         // @ts-expect-error - runtime type mismatch
         for (let ri = 0; ri < results.length; ri++) {
           const r = results[ri] as Record<string, any>;
-          if (r.code === 'SUCCESS' || r.keywordId) {
+          if (r.code === 'SUCCESS' || r.code === 'SUCCESS_DUPLICATE' || r.keywordId) {
             result.success++;
             // v195: 记录adGroup级否定词的keywordId
             const idx = r.index !== undefined ? r.index : ri;

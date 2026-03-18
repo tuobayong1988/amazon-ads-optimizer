@@ -18,7 +18,9 @@ esbuild.build({
     '@babel/preset-typescript'
   ],
   alias: {
-    '@db/schema': './drizzle/schema.ts'
+    '@db/schema': './drizzle/schema.ts',
+    '@db': './drizzle',
+    '@shared': './shared',
   },
   format: 'cjs',
   sourcemap: true,

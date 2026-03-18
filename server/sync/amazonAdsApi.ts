@@ -3431,48 +3431,79 @@ export class AmazonAdsApiClient {
   /**
    * 下载报告数据
    */
-  async downloadReport(url: string): Promise<Record<string, any>[]> {
-    // ✅ 优化: 使用流式处理大文件，避免内存溢出
-    // 参考文档: SP报告可能达到500MB+，必须流式处理
-    const response = await axios.get(url, {
-      responseType: 'stream',
-    });
-    
-    const zlib = await import('zlib');
-    const { Readable } = await import('stream');
-    
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      let totalSize = 0;
-      const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
-      
-      const gunzip = zlib.createGunzip();
-      
-      response.data
-        .pipe(gunzip)
-        .on('data', (chunk: Buffer) => {
-          totalSize += chunk.length;
-          if (totalSize > MAX_SIZE) {
-            gunzip.destroy();
-            reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
-            return;
-          }
-          chunks.push(chunk);
-        })
-        .on('end', () => {
-          try {
-            const data = Buffer.concat(chunks).toString('utf-8');
-            const result = JSON.parse(data);
-            log.info(`[Amazon API] 报告解压完成，原始大小: ${totalSize} bytes, 数据条数: ${result?.length || 0}`);
-            resolve(result);
-          } catch (parseError: unknown) {
-            reject(new Error(`Failed to parse report JSON: ${(parseError as Error).message}`));
-          }
-        })
-        .on('error', (err: Error) => {
-          reject(new Error(`Failed to decompress report: ${(err as Error).message}`));
+  async downloadReport(url: string, retries: number = 3): Promise<Record<string, any>[]> {
+    // v449: 增强报告下载 — 添加超时、重试机制，解决SB搜索词报告下载超时问题
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.get(url, {
+          responseType: 'stream',
+          timeout: 120000, // v449: 120秒连接+响应超时
         });
-    });
+        
+        const zlib = await import('zlib');
+        
+        const data = await new Promise<Record<string, any>[]>((resolve, reject) => {
+          const chunks: Buffer[] = [];
+          let totalSize = 0;
+          const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
+          
+          // v449: 流级别超时 — 如果120秒内没有新数据到达，中断下载
+          let lastDataTime = Date.now();
+          const STREAM_IDLE_TIMEOUT = 120000;
+          const idleTimer = setInterval(() => {
+            if (Date.now() - lastDataTime > STREAM_IDLE_TIMEOUT) {
+              clearInterval(idleTimer);
+              gunzip.destroy();
+              reject(new Error(`Stream idle timeout: no data received for ${STREAM_IDLE_TIMEOUT / 1000}s`));
+            }
+          }, 10000);
+          
+          const gunzip = zlib.createGunzip();
+          
+          response.data
+            .pipe(gunzip)
+            .on('data', (chunk: Buffer) => {
+              lastDataTime = Date.now();
+              totalSize += chunk.length;
+              if (totalSize > MAX_SIZE) {
+                clearInterval(idleTimer);
+                gunzip.destroy();
+                reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
+                return;
+              }
+              chunks.push(chunk);
+            })
+            .on('end', () => {
+              clearInterval(idleTimer);
+              try {
+                const data = Buffer.concat(chunks).toString('utf-8');
+                const result = JSON.parse(data);
+                log.info(`[Amazon API] v449: 报告解压完成，原始大小: ${totalSize} bytes, 数据条数: ${result?.length || 0}, 尝试: ${attempt}/${retries}`);
+                resolve(result);
+              } catch (parseError: unknown) {
+                reject(new Error(`Failed to parse report JSON: ${(parseError as Error).message}`));
+              }
+            })
+            .on('error', (err: Error) => {
+              clearInterval(idleTimer);
+              reject(new Error(`Failed to decompress report: ${(err as Error).message}`));
+            });
+        });
+        
+        return data;
+      } catch (downloadErr: unknown) {
+        const errMsg = (downloadErr as Error).message || '';
+        log.warn(`[Amazon API] v449: 报告下载失败(尝试${attempt}/${retries}): ${errMsg}`);
+        if (attempt >= retries) {
+          throw new Error(`Report download failed after ${retries} attempts: ${errMsg}`);
+        }
+        // v449: 指数退避重试 — 5s, 10s, 20s
+        const backoff = Math.min(5000 * Math.pow(2, attempt - 1), 20000);
+        log.info(`[Amazon API] v449: ${backoff / 1000}秒后重试下载...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+      }
+    }
+    throw new Error('Unreachable: download retry loop exited without result');
   }
 
   /**
@@ -4176,12 +4207,25 @@ export class AmazonAdsApiClient {
             const fullDetail = message ? `${errorType}: ${message}${trigger ? ` (trigger: ${trigger})` : ''}` : `${errorType}: ${JSON.stringify(val).substring(0, 200)}`;
             return fullDetail;
           }).join('; ') || 'Unknown error';
-          allResults.push({
-            keywordId: 0,
-            code: 'ERROR',
-            details: errorMsg,
-            index: e.index !== undefined ? e.index + batchIdx * BATCH_SIZE : undefined,
-          });
+          
+          // v449: duplicateValueError 表示Amazon上已存在相同否定词，视为成功（幂等性保障）
+          const isDuplicateError = errorMsg.includes('duplicateValueError') || errorMsg.includes('DUPLICATE_VALUE');
+          if (isDuplicateError) {
+            log.info(`[SP API] v449: 否定词已存在(duplicate)，视为成功: index=${e.index}`);
+            allResults.push({
+              keywordId: e.campaignNegativeKeywordId || 0,
+              code: 'SUCCESS_DUPLICATE',
+              details: 'Already exists on Amazon (duplicate)',
+              index: e.index !== undefined ? e.index + batchIdx * BATCH_SIZE : undefined,
+            });
+          } else {
+            allResults.push({
+              keywordId: 0,
+              code: 'ERROR',
+              details: errorMsg,
+              index: e.index !== undefined ? e.index + batchIdx * BATCH_SIZE : undefined,
+            });
+          }
         }
         
         if (errorItems.length > 0) {

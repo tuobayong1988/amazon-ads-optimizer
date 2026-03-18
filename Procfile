@@ -1,1 +1,1 @@
-web: node --max-old-space-size=3072 --expose-gc node_modules/.bin/tsx server/_core/index.ts
+web: bash -c 'if [ -f dist/index.js ]; then echo "v449: Starting from compiled dist/index.js"; exec node --max-old-space-size=3072 --expose-gc dist/index.js; else echo "v449: Fallback to tsx"; exec node --max-old-space-size=3072 --expose-gc node_modules/.bin/tsx server/_core/index.ts; fi'
