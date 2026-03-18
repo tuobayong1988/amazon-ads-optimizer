@@ -57,9 +57,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 
 // v447: 通用超时包装器，防止连接池满时DB查询无限hang
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timedOut = false;
   return Promise.race([
     promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
+    new Promise<T>((resolve) => setTimeout(() => {
+      timedOut = true;
+      log.warn(`[v447] DB query timeout after ${ms}ms, using fallback`);
+      resolve(fallback);
+    }, ms))
   ]);
 }
 
@@ -178,6 +183,11 @@ const enforceAccountAccess = t.middleware(async opts => {
   if (ctx.user && rawInput && typeof rawInput === 'object') {
     const input = rawInput as Record<string, any>;
     const userId = ctx.user.id;
+    
+    // v447: admin角色拥有全部账户访问权限，跳过数据隔离检查
+    if (ctx.user.role === 'admin') {
+      return next();
+    }
     
     // ===== 1. 检查accountId字段（v366原有逻辑） =====
     const accountId = input.accountId;
