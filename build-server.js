@@ -19,6 +19,7 @@ esbuild.build({
     // v449: Vite plugins only used in dev mode, not needed in production bundle
     '@builder.io/vite-plugin-jsx-loc',
     'vite-plugin-manus-runtime',
+    '@vitejs/plugin-react',
     'vite',
   ],
   alias: {
