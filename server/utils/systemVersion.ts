@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 444;  // v444: 全局accountId NOT NULL约束 + 历史NULL数据回填 + 字段/ID标准统一审计
+export const SYSTEM_VERSION = 445;  // v445: 锁冲突机制修复 + force-sync重构 + negative_keyword错误解析增强 + trigger_source区分

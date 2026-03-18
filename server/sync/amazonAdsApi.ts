@@ -4168,8 +4168,13 @@ export class AmazonAdsApiClient {
         for (const e of errorItems) {
           const errorMsg = e.errors?.map((err: Record<string, any>) => {
             const val = err.errorValue || {};
-            const detail = val.malformedValueError || val.duplicateValueError || val;
-            return detail.message || err.errorType || 'Unknown error';
+            // v445: 增强错误解析 — 覆盖所有Amazon API错误类型
+            const errorType = err.errorType || 'unknownError';
+            const typedError = val[errorType] || val.malformedValueError || val.duplicateValueError || val.otherError || val.entityNotFoundError || val;
+            const message = typedError?.message || typedError?.cause?.message || '';
+            const trigger = typedError?.cause?.trigger || '';
+            const fullDetail = message ? `${errorType}: ${message}${trigger ? ` (trigger: ${trigger})` : ''}` : `${errorType}: ${JSON.stringify(val).substring(0, 200)}`;
+            return fullDetail;
           }).join('; ') || 'Unknown error';
           allResults.push({
             keywordId: 0,

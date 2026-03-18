@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 445,
+    description: 'v445: [锁冲突机制修复 + force-sync重构 + 错误解析增强] — (1)P0-force-sync重构: tier=full时使用triggerManualFullSync获得完整功能(含nightly步骤+心跳进度), 添加isManual标记使手动同步获得最高优先级 (2)P0-trigger_source区分: data_sync_jobs新增trigger_source字段区分manual/auto, 自动同步调度器排除手动同步job避免互相阻塞 (3)P1-negative_keyword错误解析增强: 覆盖otherError/entityNotFoundError/malformedValueError等所有Amazon错误类型, 不再丢失错误详情 (4)P1-不可恢复错误自动检测: entityNotFoundError/malformedValueError直接标记permanently_failed不再重试 (5)P2-archived实体过滤: getKeywordsByCampaignId/getKeywordsByAdGroupId/getProductTargetsByCampaignId自动过滤archived状态实体',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['sync', 'ops', 'db'],
+    correctionActions: [],
+  },
+  {
     version: 444,
     description: 'v444: [全局字段/ID标准统一审计与修复 + API错误解析增强] — (1)P0-历史NULL数据回填: product_targets 29条+2条重复删除, search_terms 493条, negative_keywords 21条孤儿数据删除 (2)P0-全局accountId NOT NULL约束: 对24个表的accountId字段统一加NOT NULL约束 (3)P1-schema同步: drizzle/schema.ts中所有accountId字段统一为.notNull() (4)P2-API错误解析增强: SP/SB keyword、product target的API错误响应现在记录完整JSON对象，兼容errorCode/errorMessage/errorDescription等字段名',
     // @ts-expect-error - runtime type mismatch

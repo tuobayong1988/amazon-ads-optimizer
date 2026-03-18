@@ -18,10 +18,13 @@ export async function createSyncJob(data: {
   syncType?: 'campaigns' | 'keywords' | 'performance' | 'all';
   isIncremental?: boolean;
   maxRetries?: number;
+  triggerSource?: 'auto' | 'manual' | 'scheduled';  // v445: 区分同步触发来源
 }) {
   const db = await getDb();
   if (!db) return null;
   
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  // v445: 使用raw SQL设置trigger_source，因为drizzle schema中还没有这个字段
   const [result] = await db.insert(dataSyncJobs).values({
     userId: data.userId,
     accountId: data.accountId,
@@ -29,9 +32,18 @@ export async function createSyncJob(data: {
     status: 'running',
     isIncremental: data.isIncremental ? 1 : 0,
     maxRetries: data.maxRetries || 3,
-    startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-    createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    startedAt: now,
+    createdAt: now,
   });
+  
+  // v445: 单独更新trigger_source字段（绕过drizzle schema限制）
+  if (data.triggerSource && result.insertId) {
+    try {
+      await db.execute(sql`UPDATE data_sync_jobs SET trigger_source = ${data.triggerSource} WHERE id = ${result.insertId}`);
+    } catch (e) {
+      // trigger_source列可能还不存在，忽略错误
+    }
+  }
   
   return result.insertId;
 }

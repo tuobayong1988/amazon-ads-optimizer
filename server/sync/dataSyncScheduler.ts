@@ -491,13 +491,17 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   try {
     const database = await db.getDb();
     if (database) {
+      // v445: 排除手动同步的job，避免手动同步阻塞自动同步的调度
+      // 手动同步和自动同步应该独立运行，互不阻塞
+      // 账户级别的并发保护由unifiedSyncEngine的activeSyncs负责
       const runningJobs = await database.execute(
-        sql`SELECT id, accountId, syncType, current_step, current_step_index, total_steps,
+        sql`SELECT id, accountId, syncType, trigger_source, current_step, current_step_index, total_steps,
                    TIMESTAMPDIFF(MINUTE, startedAt, NOW()) as running_minutes,
                    TIMESTAMPDIFF(SECOND, updated_at, NOW()) as seconds_since_heartbeat
             FROM data_sync_jobs
             WHERE status = 'running'
               AND updated_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+              AND (trigger_source IS NULL OR trigger_source = 'auto')
             ORDER BY id`
       );
       // Drizzle mysql2返回 [rows, fields]，取第一个元素

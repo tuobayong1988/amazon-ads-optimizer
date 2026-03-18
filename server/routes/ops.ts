@@ -1249,6 +1249,7 @@ router.post('/force-sync', async (req: Request, res: Response) => {
         accountId: Number(accountId),
         syncType: tier === 'high' ? 'campaigns' : tier === 'medium' ? 'keywords' : 'all',
         isIncremental: false,
+        triggerSource: 'manual',  // v445: 标记为手动触发，避免阻塞自动同步调度
       }) as number | null;
       logger.info('OPS', `force-sync创建data_sync_jobs记录: jobId=${jobId}, accountId=${accountId}, tier=${tier}`);
     } catch (jobErr: unknown) {
@@ -1257,64 +1258,101 @@ router.post('/force-sync', async (req: Request, res: Response) => {
 
     logger.info('OPS', `手动触发账户${accountId}的${tier}层全量同步`);
     
-    // 异步执行，不阻塞响应
-    // @ts-expect-error - dynamic property access
-    syncAccount(targetAccount, tier as unknown).then(async (result) => {
-      const durationMs = Date.now() - syncStartTime.getTime();
-      const durationMin = (durationMs / 60000).toFixed(1);
-      logger.info('OPS', `账户${accountId} ${tier}层同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);
-      if (result.errors.length > 0) {
-        logger.warn('OPS', `账户${accountId} 同步错误: ${result.errors.join('; ')}`);
-      }
-
-      // v442: 同步完成后更新data_sync_jobs记录
-      if (jobId) {
-        try {
-          const { updateSyncJob } = await import('../db/syncJobs');
-          const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v)) ? v : 0;
-          await updateSyncJob(jobId, {
-            status: result.success ? 'completed' : 'failed',
-            durationMs,
-            recordsSynced: result.totalSynced,
-            errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
-            spCampaigns: safeNum(result.stepResults?.['sp_campaigns']?.synced),
-            sbCampaigns: safeNum(result.stepResults?.['sb_campaigns']?.synced),
-            sdCampaigns: safeNum(result.stepResults?.['sd_campaigns']?.synced),
-            adGroupsSynced: safeNum(result.stepResults?.['sp_ad_groups']?.synced) +
-              safeNum(result.stepResults?.['sb_ad_groups']?.synced) +
-              safeNum(result.stepResults?.['sd_ad_groups']?.synced),
-            keywordsSynced: safeNum(result.stepResults?.['sp_keywords']?.synced) +
-              safeNum(result.stepResults?.['sb_keywords']?.synced),
-            targetsSynced: safeNum(result.stepResults?.['sp_product_targets']?.synced) +
-              safeNum(result.stepResults?.['sb_product_targets']?.synced) +
-              safeNum(result.stepResults?.['sd_product_targets']?.synced),
-            totalSteps: result.totalSteps,
-            currentStepIndex: result.completedSteps,
-            currentStep: result.success ? '完成' : '失败',
-            progressPercent: result.success ? 100 : Math.round((result.completedSteps / Math.max(result.totalSteps, 1)) * 100),
-          });
-          logger.info('OPS', `force-sync data_sync_jobs记录已更新: jobId=${jobId}, status=${result.success ? 'completed' : 'failed'}`);
-        } catch (updateErr: unknown) {
-          logger.warn('OPS', `force-sync更新data_sync_jobs记录失败: ${(updateErr as Error).message}`);
+    // v445: 重构force-sync异步执行逻辑
+    // - tier=full时使用triggerManualFullSync，获得完整功能（含nightly步骤+心跳进度更新）
+    // - 其他tier使用syncAccount + isManual标记，确保不被自动同步阻塞
+    if (tier === 'full') {
+      // v445: 使用triggerManualFullSync获得完整的手动同步功能
+      const { triggerManualFullSync } = await import('../sync/unifiedSyncEngine');
+      triggerManualFullSync(
+        Number(accountId),
+        undefined,  // onProgress由triggerManualFullSync内部通过jobId处理
+        { jobId: jobId || undefined, userId: targetAccount.userId }
+      ).then(async (result) => {
+        if (result) {
+          const durationMin = (result.durationMs / 60000).toFixed(1);
+          logger.info('OPS', `账户${accountId} full层手动同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);
+          if (result.errors.length > 0) {
+            logger.warn('OPS', `账户${accountId} 同步错误: ${result.errors.join('; ')}`);
+          }
+          // triggerManualFullSync内部已更新data_sync_jobs，无需重复更新
+        } else {
+          logger.warn('OPS', `账户${accountId} full层手动同步返回null（账户不可用）`);
         }
-      }
-    }).catch(async (err) => {
-      logger.error('OPS', `账户${accountId} ${tier}层同步异常: ${(err as Error).message}`);
-      // v442: 异常时也更新data_sync_jobs记录
-      if (jobId) {
-        try {
-          const { updateSyncJob } = await import('../db/syncJobs');
-          await updateSyncJob(jobId, {
-            status: 'failed',
-            durationMs: Date.now() - syncStartTime.getTime(),
-            errorMessage: (err as Error).message,
-            currentStep: '异常终止',
-          });
-        } catch (updateErr: unknown) {
-          logger.warn('OPS', `force-sync异常更新data_sync_jobs失败: ${(updateErr as Error).message}`);
+      }).catch(async (err) => {
+        logger.error('OPS', `账户${accountId} full层手动同步异常: ${(err as Error).message}`);
+        if (jobId) {
+          try {
+            const { updateSyncJob } = await import('../db/syncJobs');
+            await updateSyncJob(jobId, {
+              status: 'failed',
+              durationMs: Date.now() - syncStartTime.getTime(),
+              errorMessage: (err as Error).message,
+              currentStep: '异常终止',
+            });
+          } catch (updateErr: unknown) {
+            logger.warn('OPS', `force-sync异常更新data_sync_jobs失败: ${(updateErr as Error).message}`);
+          }
         }
-      }
-    });
+      });
+    } else {
+      // v445: 非full层使用syncAccount + isManual标记
+      // @ts-expect-error - dynamic property access
+      syncAccount(targetAccount, tier as unknown, { isManual: true }).then(async (result) => {
+        const durationMs = Date.now() - syncStartTime.getTime();
+        const durationMin = (durationMs / 60000).toFixed(1);
+        logger.info('OPS', `账户${accountId} ${tier}层同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);
+        if (result.errors.length > 0) {
+          logger.warn('OPS', `账户${accountId} 同步错误: ${result.errors.join('; ')}`);
+        }
+        // v442: 同步完成后更新data_sync_jobs记录
+        if (jobId) {
+          try {
+            const { updateSyncJob } = await import('../db/syncJobs');
+            const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v)) ? v : 0;
+            await updateSyncJob(jobId, {
+              status: result.success ? 'completed' : 'failed',
+              durationMs,
+              recordsSynced: result.totalSynced,
+              errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+              spCampaigns: safeNum(result.stepResults?.['sp_campaigns']?.synced),
+              sbCampaigns: safeNum(result.stepResults?.['sb_campaigns']?.synced),
+              sdCampaigns: safeNum(result.stepResults?.['sd_campaigns']?.synced),
+              adGroupsSynced: safeNum(result.stepResults?.['sp_ad_groups']?.synced) +
+                safeNum(result.stepResults?.['sb_ad_groups']?.synced) +
+                safeNum(result.stepResults?.['sd_ad_groups']?.synced),
+              keywordsSynced: safeNum(result.stepResults?.['sp_keywords']?.synced) +
+                safeNum(result.stepResults?.['sb_keywords']?.synced),
+              targetsSynced: safeNum(result.stepResults?.['sp_product_targets']?.synced) +
+                safeNum(result.stepResults?.['sb_product_targets']?.synced) +
+                safeNum(result.stepResults?.['sd_product_targets']?.synced),
+              totalSteps: result.totalSteps,
+              currentStepIndex: result.completedSteps,
+              currentStep: result.success ? '完成' : '失败',
+              progressPercent: result.success ? 100 : Math.round((result.completedSteps / Math.max(result.totalSteps, 1)) * 100),
+            });
+            logger.info('OPS', `force-sync data_sync_jobs记录已更新: jobId=${jobId}, status=${result.success ? 'completed' : 'failed'}`);
+          } catch (updateErr: unknown) {
+            logger.warn('OPS', `force-sync更新data_sync_jobs记录失败: ${(updateErr as Error).message}`);
+          }
+        }
+      }).catch(async (err) => {
+        logger.error('OPS', `账户${accountId} ${tier}层同步异常: ${(err as Error).message}`);
+        if (jobId) {
+          try {
+            const { updateSyncJob } = await import('../db/syncJobs');
+            await updateSyncJob(jobId, {
+              status: 'failed',
+              durationMs: Date.now() - syncStartTime.getTime(),
+              errorMessage: (err as Error).message,
+              currentStep: '异常终止',
+            });
+          } catch (updateErr: unknown) {
+            logger.warn('OPS', `force-sync异常更新data_sync_jobs失败: ${(updateErr as Error).message}`);
+          }
+        }
+      });
+    }
 
     res.json({
       message: `已触发账户${accountId}的${tier}层全量同步，后台执行中`,
