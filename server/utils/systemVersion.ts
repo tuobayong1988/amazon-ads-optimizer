@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 441;  // v441: 修复executionLogger/optimizationAutoCorrector本地ID污染 + AMS负数保护 + optimization_events守卫
+export const SYSTEM_VERSION = 442;  // v442: AMS累加模式重构 + 统一同步日志记录 + 僵尸账户排查

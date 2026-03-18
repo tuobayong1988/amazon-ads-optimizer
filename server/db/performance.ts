@@ -4,7 +4,7 @@
  */
 
 import { and, eq, not, sql } from 'drizzle-orm';
-import { DailyPerformance, InsertDailyPerformance, InsertMarketCurveData, dailyPerformance, marketCurveData } from '../../drizzle/schema';
+import { DailyPerformance, InsertDailyPerformance, InsertMarketCurveData, dailyPerformance, marketCurveData, amsProcessedMessages } from '../../drizzle/schema';
 import { getDb } from './connection';
 import { guardCampaignIdParam, guardCampaignIdInsert } from '../utils/idTypes';
 import { createModuleLogger } from '../utils/logger';
@@ -205,12 +205,17 @@ export async function getDailyPerformanceByAccountAndDate(
 /**
  * 从SQS/AMS插入或更新绩效数据
  * 
- * ⚠️ 重要设计原则：使用【覆盖写入】而非累加
- * AMS实时数据流会持续推送同一天的最新快照数据，
- * 每次写入都应该用最新值覆盖旧值，而不是累加。
- * 这确保了无论一天内触发多少次同步，数据始终是准确的。
+ * v442: 重构为【累加模式】
+ * Amazon Marketing Stream推送的是增量delta记录（delta records），
+ * 同一campaign同一天会收到多条消息（每小时一条、每keyword/placement一条）。
+ * 必须对所有delta记录做SUM聚合，而不是用最后一条覆盖。
  * 
- * 不覆盖已被API校准的数据（isFinalized=1），
+ * 使用idempotency_id去重：AMS保证至少一次投递（at-least-once），
+ * 重复消息必须跳过，否则会导致数据重复累加。
+ * 
+ * 参考: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/aggregating-data
+ * 
+ * 不修改已被API校准的数据（isFinalized=1），
  * 因为API报告数据经过归因窗口校准，比AMS实时数据更准确。
  */
 export async function upsertDailyPerformanceFromAms(data: {
@@ -221,14 +226,35 @@ export async function upsertDailyPerformanceFromAms(data: {
   cost: number;
   adType?: string;  // SP, SB, SD
   campaignId?: string | null;  // v439: Amazon原始campaignId（varchar）
+  idempotencyId?: string;  // v442: AMS消息幂等性ID，用于去重
+  datasetId?: string;  // v442: 数据集ID（sp-traffic等）
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // v441: AMS实时数据流可能发送负数增量修正，防止负数写入
-  const safeImpressions = Math.max(0, data.impressions);
-  const safeClicks = Math.max(0, data.clicks);
-  const safeCost = Math.max(0, data.cost);
+  // v442: idempotency_id去重 — 防止重复消息导致delta重复累加
+  if (data.idempotencyId) {
+    try {
+      // INSERT IGNORE: 如果idempotency_id已存在则静默跳过（返回affectedRows=0）
+      const result = await db.execute(sql`
+        INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
+        VALUES (${data.idempotencyId}, ${data.datasetId || null})
+      `);
+      if ((result as any)[0]?.affectedRows === 0) {
+        // 已处理过的消息，跳过
+        log.debug(`[AMS DB] 跳过重复消息: idempotencyId=${data.idempotencyId}`);
+        return;
+      }
+    } catch (e: unknown) {
+      // 去重表写入失败不应阻断主流程，仅记录警告
+      log.warn(`[AMS DB] idempotency去重检查失败: ${(e as Error).message}`);
+    }
+  }
+  
+  // v442: AMS delta数据允许负数（合法的修正值），不再过滤
+  const deltaImpressions = data.impressions;
+  const deltaClicks = data.clicks;
+  const deltaCost = data.cost;
   
   // === 1. 写入campaign维度的记录（如果有campaignId） ===
   if (data.campaignId) {
@@ -241,27 +267,31 @@ export async function upsertDailyPerformanceFromAms(data: {
     );
     
     if (existingCampaign?.isFinalized) {
-      // 已校准的campaign级数据不覆盖
+      // 已校准的campaign级数据不修改
       log.info(`[AMS DB] 跳过已校准campaign数据: ${data.date} campaignId=${data.campaignId}`);
     } else if (existingCampaign) {
-      // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
+      // v442: 累加模式 — 将delta增量累加到已有值上
+      const newImpressions = Math.max(0, (existingCampaign.impressions || 0) + deltaImpressions);
+      const newClicks = Math.max(0, (existingCampaign.clicks || 0) + deltaClicks);
+      const newSpend = Math.max(0, parseFloat(String(existingCampaign.spend || '0')) + deltaCost);
       await db.update(dailyPerformance)
         .set({
-          impressions: safeImpressions,
-          clicks: safeClicks,
-          spend: String(safeCost),
+          impressions: newImpressions,
+          clicks: newClicks,
+          spend: String(newSpend.toFixed(2)),
           dataSource: 'ams',
         })
         .where(eq(dailyPerformance.id, existingCampaign.id));
     } else {
+      // 首条delta记录：直接插入（负数delta在首条时归零保护）
       // @ts-expect-error - Drizzle query builder type
       await db.insert(dailyPerformance).values({
         accountId: data.accountId,
-        campaignId: safeCampaignId,  // v439: 使用验证后的Amazon ID
+        campaignId: safeCampaignId,
         date: data.date,
-        impressions: safeImpressions,
-        clicks: safeClicks,
-        spend: String(safeCost),
+        impressions: Math.max(0, deltaImpressions),
+        clicks: Math.max(0, deltaClicks),
+        spend: String(Math.max(0, deltaCost).toFixed(2)),
         sales: '0',
         orders: 0,
         conversions: 0,
@@ -284,12 +314,15 @@ export async function upsertDailyPerformanceFromAms(data: {
   }
   
   if (existingAccount) {
-    // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
+    // v442: 累加模式 — 账户级汇总也累加delta
+    const newImpressions = Math.max(0, (existingAccount.impressions || 0) + deltaImpressions);
+    const newClicks = Math.max(0, (existingAccount.clicks || 0) + deltaClicks);
+    const newSpend = Math.max(0, parseFloat(String(existingAccount.spend || '0')) + deltaCost);
     await db.update(dailyPerformance)
       .set({
-        impressions: safeImpressions,
-        clicks: safeClicks,
-        spend: String(safeCost),
+        impressions: newImpressions,
+        clicks: newClicks,
+        spend: String(newSpend.toFixed(2)),
         dataSource: 'ams',
       })
       .where(eq(dailyPerformance.id, existingAccount.id));
@@ -297,9 +330,9 @@ export async function upsertDailyPerformanceFromAms(data: {
     await db.insert(dailyPerformance).values({
       accountId: data.accountId,
       date: data.date,
-      impressions: safeImpressions,
-      clicks: safeClicks,
-      spend: String(safeCost),
+      impressions: Math.max(0, deltaImpressions),
+      clicks: Math.max(0, deltaClicks),
+      spend: String(Math.max(0, deltaCost).toFixed(2)),
       sales: '0',
       orders: 0,
       conversions: 0,
@@ -310,19 +343,11 @@ export async function upsertDailyPerformanceFromAms(data: {
 }
 
 /**
- * 更新转化数据（销售额和订单数）
+ * v442: 更新转化数据（销售额和订单数）
  * 
- * ⚠️ 重要设计原则：使用【覆盖写入】而非累加
- * AMS转化数据流推送的是归因窗口内的累计快照值，
- * 每次写入都应用最新值覆盖旧值，避免重复触发导致数据翻倍。
- */
-
-/**
- * 更新转化数据（销售额和订单数）
- * 
- * ⚠️ 重要设计原则：使用【覆盖写入】而非累加
- * AMS转化数据流推送的是归因窗口内的累计快照值，
- * 每次写入都应用最新值覆盖旧值，避免重复触发导致数据翻倍。
+ * 重构为【累加模式】：转化数据也是delta增量记录，
+ * 同一campaign同一天会收到多条转化消息（不同归因窗口、不同keyword）。
+ * idempotency_id去重已在调用层（sqsConsumerService）完成。
  */
 export async function updateDailyPerformanceConversion(data: {
   accountId: number;
@@ -331,13 +356,33 @@ export async function updateDailyPerformanceConversion(data: {
   orders: number;
   adType?: string;  // SP, SB, SD
   campaignId?: string | null;  // v439: Amazon原始campaignId（varchar）
+  idempotencyId?: string;  // v442: AMS消息幂等性ID
+  datasetId?: string;  // v442: 数据集ID
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // === 1. 更新campaign维度的转化数据（如果有campaignId） ===
+  // v442: idempotency_id去重
+  if (data.idempotencyId) {
+    try {
+      const result = await db.execute(sql`
+        INSERT IGNORE INTO ams_processed_messages (idempotency_id, dataset_id)
+        VALUES (${data.idempotencyId}, ${data.datasetId || null})
+      `);
+      if ((result as any)[0]?.affectedRows === 0) {
+        log.debug(`[AMS DB] 跳过重复转化消息: idempotencyId=${data.idempotencyId}`);
+        return;
+      }
+    } catch (e: unknown) {
+      log.warn(`[AMS DB] 转化idempotency去重检查失败: ${(e as Error).message}`);
+    }
+  }
+  
+  const deltaSales = data.sales;
+  const deltaOrders = data.orders;
+  
+  // === 1. 累加campaign维度的转化数据（如果有campaignId） ===
   if (data.campaignId) {
-    // v439: 写入前验证campaignId格式，拦截本地ID
     const safeCampaignId = guardCampaignIdInsert(data.campaignId, 'daily_performance');
     const existingCampaign = await getDailyPerformanceByAccountAndDate(
       data.accountId,
@@ -346,18 +391,20 @@ export async function updateDailyPerformanceConversion(data: {
     );
     
     if (existingCampaign && !existingCampaign.isFinalized) {
-      // ✅ 覆盖写入：用AMS最新转化快照直接替换旧值
+      // v442: 累加模式
+      const newSales = Math.max(0, parseFloat(String(existingCampaign.sales || '0')) + deltaSales);
+      const newOrders = Math.max(0, (existingCampaign.orders || 0) + deltaOrders);
       await db.update(dailyPerformance)
         .set({
-          sales: String(data.sales),
-          orders: data.orders,
+          sales: String(newSales.toFixed(2)),
+          orders: newOrders,
           dataSource: 'ams',
         })
         .where(eq(dailyPerformance.id, existingCampaign.id));
     }
   }
   
-  // === 2. 同时更新账户级别汇总记录 ===
+  // === 2. 同时累加账户级别汇总记录 ===
   const existing = await getDailyPerformanceByAccountAndDate(
     data.accountId,
     data.date,
@@ -370,11 +417,13 @@ export async function updateDailyPerformanceConversion(data: {
   }
   
   if (existing) {
-    // ✅ 覆盖写入：用AMS最新转化快照直接替换旧值
+    // v442: 累加模式
+    const newSales = Math.max(0, parseFloat(String(existing.sales || '0')) + deltaSales);
+    const newOrders = Math.max(0, (existing.orders || 0) + deltaOrders);
     await db.update(dailyPerformance)
       .set({
-        sales: String(data.sales),
-        orders: data.orders,
+        sales: String(newSales.toFixed(2)),
+        orders: newOrders,
         dataSource: 'ams',
       })
       .where(eq(dailyPerformance.id, existing.id));

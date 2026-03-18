@@ -30,7 +30,7 @@ import { getSystemInfo } from '../deployLifecycleManager';
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
-import { extractCount, extractRows } from '../types/utilTypes';
+import { extractRows } from '../types/utilTypes';
 
 const router = Router();
 
@@ -1238,20 +1238,82 @@ router.post('/force-sync', async (req: Request, res: Response) => {
       });
     }
 
-    // 异步执行同步，立即返回响应
+    // v442: 统一同步日志记录 — force-sync也创建data_sync_jobs记录
     const syncStartTime = new Date();
+    const startTimeStr = syncStartTime.toISOString().slice(0, 19).replace('T', ' ');
+    let jobId: number | null = null;
+    try {
+      const { createSyncJob } = await import('../db/syncJobs');
+      jobId = await createSyncJob({
+        userId: targetAccount.userId || 390001,
+        accountId: Number(accountId),
+        syncType: tier === 'high' ? 'campaigns' : tier === 'medium' ? 'keywords' : 'all',
+        isIncremental: false,
+      }) as number | null;
+      logger.info('OPS', `force-sync创建data_sync_jobs记录: jobId=${jobId}, accountId=${accountId}, tier=${tier}`);
+    } catch (jobErr: unknown) {
+      logger.warn('OPS', `force-sync创建data_sync_jobs记录失败: ${(jobErr as Error).message}`);
+    }
+
     logger.info('OPS', `手动触发账户${accountId}的${tier}层全量同步`);
     
     // 异步执行，不阻塞响应
     // @ts-expect-error - dynamic property access
-    syncAccount(targetAccount, tier as unknown).then(result => {
-      const durationMin = ((Date.now() - syncStartTime.getTime()) / 60000).toFixed(1);
+    syncAccount(targetAccount, tier as unknown).then(async (result) => {
+      const durationMs = Date.now() - syncStartTime.getTime();
+      const durationMin = (durationMs / 60000).toFixed(1);
       logger.info('OPS', `账户${accountId} ${tier}层同步完成: 成功=${result.success}, 步骤=${result.completedSteps}/${result.totalSteps}, 记录=${result.totalSynced}, 耗时=${durationMin}分钟`);
       if (result.errors.length > 0) {
         logger.warn('OPS', `账户${accountId} 同步错误: ${result.errors.join('; ')}`);
       }
-    }).catch(err => {
+
+      // v442: 同步完成后更新data_sync_jobs记录
+      if (jobId) {
+        try {
+          const { updateSyncJob } = await import('../db/syncJobs');
+          const safeNum = (v: any) => (typeof v === 'number' && !isNaN(v)) ? v : 0;
+          await updateSyncJob(jobId, {
+            status: result.success ? 'completed' : 'failed',
+            durationMs,
+            recordsSynced: result.totalSynced,
+            errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+            spCampaigns: safeNum(result.stepResults?.['sp_campaigns']?.synced),
+            sbCampaigns: safeNum(result.stepResults?.['sb_campaigns']?.synced),
+            sdCampaigns: safeNum(result.stepResults?.['sd_campaigns']?.synced),
+            adGroupsSynced: safeNum(result.stepResults?.['sp_ad_groups']?.synced) +
+              safeNum(result.stepResults?.['sb_ad_groups']?.synced) +
+              safeNum(result.stepResults?.['sd_ad_groups']?.synced),
+            keywordsSynced: safeNum(result.stepResults?.['sp_keywords']?.synced) +
+              safeNum(result.stepResults?.['sb_keywords']?.synced),
+            targetsSynced: safeNum(result.stepResults?.['sp_product_targets']?.synced) +
+              safeNum(result.stepResults?.['sb_product_targets']?.synced) +
+              safeNum(result.stepResults?.['sd_product_targets']?.synced),
+            totalSteps: result.totalSteps,
+            currentStepIndex: result.completedSteps,
+            currentStep: result.success ? '完成' : '失败',
+            progressPercent: result.success ? 100 : Math.round((result.completedSteps / Math.max(result.totalSteps, 1)) * 100),
+          });
+          logger.info('OPS', `force-sync data_sync_jobs记录已更新: jobId=${jobId}, status=${result.success ? 'completed' : 'failed'}`);
+        } catch (updateErr: unknown) {
+          logger.warn('OPS', `force-sync更新data_sync_jobs记录失败: ${(updateErr as Error).message}`);
+        }
+      }
+    }).catch(async (err) => {
       logger.error('OPS', `账户${accountId} ${tier}层同步异常: ${(err as Error).message}`);
+      // v442: 异常时也更新data_sync_jobs记录
+      if (jobId) {
+        try {
+          const { updateSyncJob } = await import('../db/syncJobs');
+          await updateSyncJob(jobId, {
+            status: 'failed',
+            durationMs: Date.now() - syncStartTime.getTime(),
+            errorMessage: (err as Error).message,
+            currentStep: '异常终止',
+          });
+        } catch (updateErr: unknown) {
+          logger.warn('OPS', `force-sync异常更新data_sync_jobs失败: ${(updateErr as Error).message}`);
+        }
+      }
     });
 
     res.json({
@@ -1260,6 +1322,7 @@ router.post('/force-sync', async (req: Request, res: Response) => {
       accountName: targetAccount.accountName,
       marketplace: targetAccount.marketplace,
       tier,
+      jobId,  // v442: 返回jobId供追踪
       triggeredAt: syncStartTime.toISOString(),
       note: '同步在后台异步执行，可通过 GET /api/ops/sync-health 查看进度',
     });

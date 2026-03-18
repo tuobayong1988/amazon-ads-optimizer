@@ -639,6 +639,8 @@ export class SQSConsumerService {
         cost: cost,
         adType: adType,
         campaignId: amazonCampaignId,
+        idempotencyId: data.idempotency_id,  // v442: AMS消息幂等性ID，用于去重
+        datasetId: data.dataset_id,  // v442: 数据集ID
       });
       log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {
@@ -731,6 +733,8 @@ export class SQSConsumerService {
         orders: orders,
         adType: adType,
         campaignId: amazonCampaignId,
+        idempotencyId: data.idempotency_id,  // v442: AMS消息幂等性ID，用于去重
+        datasetId: data.dataset_id,  // v442: 数据集ID
       });
       log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {

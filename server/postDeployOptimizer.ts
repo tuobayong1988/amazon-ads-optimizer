@@ -77,6 +77,15 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 442,
+    description: 'v442: [AMS累加模式重构 + 统一同步日志 + 僵尸账户排查] — (1)P0-AMS数据处理重构: upsertDailyPerformanceFromAms从over写模式转为累加模式(impressions+=, clicks+=, cost+=, sales+=),新增ams_processed_messages表实现idempotency_id去重 (2)P0-updateDailyPerformanceConversion同样重构为累加模式 (3)P1-统一同步日志: force-sync端点现在会创建data_sync_jobs记录,同步完成后更新状态/耗时/记录数 (4)P2-僵尸账户排查: 确认90022(MX)/90025(CA)/90026(MX)API凭证有效但Amazon后台无广告活动',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['sync', 'db', 'ops'],
+    correctionActions: [
+      'CREATE TABLE IF NOT EXISTS ams_processed_messages (id INT AUTO_INCREMENT PRIMARY KEY, idempotency_id VARCHAR(128) NOT NULL UNIQUE, dataset_id VARCHAR(64), processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)',
+    ],
+  },
+  {
     version: 418,
     description: 'v418: [ID体系一致性重构 + 集中式ID解析 + API验证层] — (1)P0-BUG修复: 修复SD匹配目标报告错误的reportTypeId(sdMatchedTarget→sdTargeting), SB广告位报告配置错误(reportTypeId+groupBy), 搜索词收割harvestAmazonAdGroupId未赋值, 否定关键词campaignId回退使用内部ID (2)P0-模式重构: keywords/productTargets/searchTerms/negativeKeywords等11张表的adGroupId(varchar)重命名为internalAdGroupId(int),统一ID类型消除隐式类型转换 (3)P1-集中式ID解析服务: 新增EntityIdResolver统一处理内部ID↔Amazon ID转换,带缓存和批量解析 (4)P1-API参数预检验证层: 新增AmazonApiValidator基于官方Postman集合验证reportTypeId/groupBy/columns/ID格式',
     // @ts-expect-error - runtime type mismatch

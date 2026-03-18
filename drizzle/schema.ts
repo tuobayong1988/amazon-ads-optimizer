@@ -4547,3 +4547,27 @@ export const campaignBudgetRuleAssociations = mysqlTable("campaign_budget_rule_a
 ]);
 export type CampaignBudgetRuleAssociation = InferSelectModel<typeof campaignBudgetRuleAssociations>;
 export type InsertCampaignBudgetRuleAssociation = InferInsertModel<typeof campaignBudgetRuleAssociations>;
+
+
+/**
+ * v442: AMS消息去重表
+ * Amazon Marketing Stream保证至少一次投递（at-least-once delivery），
+ * 需要通过idempotency_id去重，防止重复消息导致delta数据重复累加。
+ * 
+ * 设计说明：
+ * - 使用idempotency_id作为唯一键，INSERT IGNORE实现幂等写入
+ * - 定期清理7天以前的记录（AMS消息通常在24小时内完成重试）
+ * - 表体积小（仅存ID和时间戳），查询性能高
+ */
+export const amsProcessedMessages = mysqlTable("ams_processed_messages", {
+	id: int().autoincrement().notNull(),
+	idempotencyId: varchar("idempotency_id", { length: 128 }).notNull(),
+	datasetId: varchar("dataset_id", { length: 64 }),  // sp-traffic, sp-conversion等
+	processedAt: timestamp("processed_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	unique("uk_idempotency").on(table.idempotencyId),
+	index("idx_processed_at").on(table.processedAt),
+]);
+export type AmsProcessedMessage = InferSelectModel<typeof amsProcessedMessages>;
+export type InsertAmsProcessedMessage = InferInsertModel<typeof amsProcessedMessages>;
