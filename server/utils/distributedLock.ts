@@ -17,7 +17,7 @@
  * try { ... } finally { release(); }
  * ```
  */
-import { database } from '../db';
+import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,6 +35,7 @@ let tableEnsured = false;
 async function ensureTable(): Promise<boolean> {
   if (tableEnsured) return true;
   try {
+    const database = await getDb();
     await database.execute(sql`
       CREATE TABLE IF NOT EXISTS sync_locks (
         id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -59,6 +60,7 @@ async function ensureTable(): Promise<boolean> {
  */
 async function cleanupExpiredLocks(): Promise<number> {
   try {
+    const database = await getDb();
     const result = await database.execute(sql`
       DELETE FROM sync_locks WHERE expires_at <= NOW()
     `);
@@ -112,7 +114,8 @@ export class DistributedLock {
         const expiresAtMs = Date.now() + timeoutMs;
         const expiresAt = new Date(expiresAtMs).toISOString().slice(0, 19).replace('T', ' ');
         
-        await database.execute(sql`
+        const db = await getDb();
+        await db.execute(sql`
           INSERT INTO sync_locks (lock_key, holder_id, acquired_at, expires_at)
           VALUES (${this.lockKey}, ${this.holderId}, NOW(), ${expiresAt})
         `);
@@ -130,7 +133,8 @@ export class DistributedLock {
         return async () => {
           clearTimeout(localTimeout);
           try {
-            await database.execute(sql`
+            const db = await getDb();
+            await db.execute(sql`
               DELETE FROM sync_locks 
               WHERE lock_key = ${lockKey} AND holder_id = ${holderId}
             `);
@@ -177,7 +181,8 @@ export class DistributedLock {
    */
   async renew(additionalMs: number = 30000): Promise<boolean> {
     try {
-      const result = await database.execute(sql`
+      const db = await getDb();
+      const result = await db.execute(sql`
         UPDATE sync_locks 
         SET expires_at = DATE_ADD(NOW(), INTERVAL ${Math.ceil(additionalMs / 1000)} SECOND)
         WHERE lock_key = ${this.lockKey} AND holder_id = ${this.holderId}
@@ -200,7 +205,8 @@ export class DistributedLock {
    */
   async isLocked(): Promise<boolean> {
     try {
-      const result = await database.execute(sql`
+      const db = await getDb();
+      const result = await db.execute(sql`
         SELECT COUNT(*) as cnt FROM sync_locks 
         WHERE lock_key = ${this.lockKey} AND expires_at > NOW()
       `);
@@ -216,7 +222,8 @@ export class DistributedLock {
    */
   async forceRelease(): Promise<boolean> {
     try {
-      await database.execute(sql`
+      const db = await getDb();
+      await db.execute(sql`
         DELETE FROM sync_locks WHERE lock_key = ${this.lockKey}
       `);
       log.warn(`锁 "${this.lockKey}" 被强制释放`);
@@ -261,6 +268,7 @@ export async function getAllDistributedLockStatus(): Promise<Array<{
 }>> {
   try {
     await ensureTable();
+    const database = await getDb();
     const result = await database.execute(sql`
       SELECT lock_key, holder_id, acquired_at, expires_at,
         TIMESTAMPDIFF(SECOND, NOW(), expires_at) * 1000 as remaining_ms
