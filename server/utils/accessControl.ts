@@ -23,6 +23,31 @@ const campaignAccountCache = new Map<number, { accountId: number; expiry: number
 const pgOwnershipCache = new Map<number, { accountId: number; userId: number; expiry: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 
+// v447: admin角色缓存 - 避免每次验证都查询数据库
+const adminUserCache = new Map<number, { isAdmin: boolean; expiry: number }>();
+const ADMIN_CACHE_TTL_MS = 10 * 60 * 1000; // 10分钟
+
+/** v447: 检查用户是否为admin角色（带缓存） */
+export async function isAdminUser(userId: number): Promise<boolean> {
+  const cached = adminUserCache.get(userId);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.isAdmin;
+  }
+  try {
+    const { getDb } = await import('../db/connection');
+    const { teamMembers } = await import('../../drizzle/schema');
+    const db = await getDb();
+    if (!db) return false;
+    const rows = await db.select({ role: teamMembers.role })
+      .from(teamMembers).where(eq(teamMembers.id, userId)).limit(1);
+    const isAdmin = rows.length > 0 && rows[0].role === 'admin';
+    adminUserCache.set(userId, { isAdmin, expiry: Date.now() + ADMIN_CACHE_TTL_MS });
+    return isAdmin;
+  } catch {
+    return false;
+  }
+}
+
 // ==================== 基础查询函数 ====================
 
 /** 获取用户拥有的所有accountId集合（带缓存） */
@@ -135,6 +160,8 @@ export async function verifyAccountAccess(userId: number, accountId: number): Pr
   if (!accountId || !userId) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: '缺少必要的用户或账户信息' });
   }
+  // v447: admin角色拥有全部账户访问权限
+  if (await isAdminUser(userId)) return;
   const userAccounts = await getUserAccountIds(userId);
   if (!userAccounts.has(accountId)) {
     log.warn(`[v370.4] 数据隔离拦截(account): 用户 ${userId} 试图访问不属于自己的账户 ${accountId}`);
@@ -145,6 +172,8 @@ export async function verifyAccountAccess(userId: number, accountId: number): Pr
 /** 验证多个accountId是否都属于指定用户 */
 export async function verifyMultipleAccountAccess(userId: number, accountIds: number[]): Promise<void> {
   if (!accountIds || accountIds.length === 0) return;
+  // v447: admin角色拥有全部账户访问权限
+  if (await isAdminUser(userId)) return;
   const userAccounts = await getUserAccountIds(userId);
   for (const accountId of accountIds) {
     if (!userAccounts.has(accountId)) {
@@ -156,6 +185,8 @@ export async function verifyMultipleAccountAccess(userId: number, accountIds: nu
 
 /** v370.4: 验证campaign是否属于指定用户 */
 export async function verifyCampaignAccess(userId: number, campaignId: number): Promise<void> {
+  // v447: admin角色拥有全部访问权限
+  if (await isAdminUser(userId)) return;
   const accountId = await getCampaignAccountId(campaignId);
   if (accountId === null) {
     throw new TRPCError({ code: 'NOT_FOUND', message: '广告活动不存在' });
@@ -169,6 +200,8 @@ export async function verifyCampaignAccess(userId: number, campaignId: number): 
 
 /** v370.4: 验证performanceGroup是否属于指定用户 */
 export async function verifyPerformanceGroupAccess(userId: number, pgId: number): Promise<void> {
+  // v447: admin角色拥有全部访问权限
+  if (await isAdminUser(userId)) return;
   const ownership = await getPGOwnership(pgId);
   if (!ownership) {
     throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
@@ -184,6 +217,8 @@ export async function verifyPerformanceGroupAccess(userId: number, pgId: number)
 
 /** v370.4: 验证keyword是否属于指定用户 */
 export async function verifyKeywordAccess(userId: number, keywordId: number): Promise<void> {
+  // v447: admin角色拥有全部访问权限
+  if (await isAdminUser(userId)) return;
   const accountId = await getKeywordAccountId(keywordId);
   if (accountId === null) return; // 旧数据可能没有accountId
   const userAccounts = await getUserAccountIds(userId);
@@ -195,6 +230,8 @@ export async function verifyKeywordAccess(userId: number, keywordId: number): Pr
 
 /** v370.4: 验证adGroup是否属于指定用户 */
 export async function verifyAdGroupAccess(userId: number, adGroupId: number): Promise<void> {
+  // v447: admin角色拥有全部访问权限
+  if (await isAdminUser(userId)) return;
   const accountId = await getAdGroupAccountId(adGroupId);
   if (accountId === null) return; // 旧数据可能没有accountId
   const userAccounts = await getUserAccountIds(userId);
@@ -206,6 +243,8 @@ export async function verifyAdGroupAccess(userId: number, adGroupId: number): Pr
 
 /** v370.4: 验证scheduledTask是否属于指定用户 */
 export async function verifyScheduledTaskAccess(userId: number, taskId: number): Promise<void> {
+  // v447: admin角色拥有全部访问权限
+  if (await isAdminUser(userId)) return;
   const taskUserId = await getScheduledTaskUserId(taskId);
   if (taskUserId === null) {
     throw new TRPCError({ code: 'NOT_FOUND', message: '任务不存在' });
@@ -228,4 +267,5 @@ export function clearAllAccountCache(): void {
   userAccountCache.clear();
   campaignAccountCache.clear();
   pgOwnershipCache.clear();
+  adminUserCache.clear();
 }
