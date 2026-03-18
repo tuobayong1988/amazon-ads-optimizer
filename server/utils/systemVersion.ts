@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 435;  // v435: SP/SB/SD bid同步动态获取marketplace + 完善bid constraints集成
+export const SYSTEM_VERSION = 439;  // v439: 修复AMS实时数据流写入本地ID的根因问题 + guardCampaignIdInsert拦截模式
