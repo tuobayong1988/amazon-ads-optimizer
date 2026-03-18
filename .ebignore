@@ -72,10 +72,11 @@ scripts/generate-mock-*.mjs
 scripts/seed-*.mjs
 scripts/seed-*.ts
 
-# Source files (not needed in production, only dist is needed)
+# Source files (client not needed in production)
 client/
-server/
-drizzle/
+# server/ and drizzle/ are REQUIRED because Procfile uses tsx to run TypeScript directly
+# server/
+# drizzle/
 shared/
 # Source maps (not needed in production)
 dist/index.js.map
