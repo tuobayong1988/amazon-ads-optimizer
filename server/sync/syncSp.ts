@@ -1042,28 +1042,39 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
           const recommendations = await this.client.getKeywordBidRecommendations(amazonAgId, apiKeywords);
 
-          // 匹配建议竞价并更新数据库
+          // v436: 匹配建议竞价并更新数据库（包含low/median/high三个竞价值）
           if (recommendations && recommendations.length > 0) {
-            // 建立keyword+matchType到suggestedBid的映射
-            const recMap = new Map<string, number>();
+            // 建立keyword+matchType到完整建议竞价的映射
+            const recMap = new Map<string, { suggestedBid: number; rangeLow: number; rangeHigh: number }>();
             for (const rec of recommendations) {
               if (rec.keyword && rec.suggestedBid) {
-                recMap.set(`${rec.keyword.toLowerCase()}:${(rec as any).matchType?.toLowerCase() || ''}`, rec.suggestedBid);
+                const bidData = {
+                  suggestedBid: rec.suggestedBid,
+                  rangeLow: rec.rangeStart || 0,
+                  rangeHigh: rec.rangeEnd || 0,
+                };
+                recMap.set(`${rec.keyword.toLowerCase()}:${(rec as any).matchType?.toLowerCase() || ''}`, bidData);
                 // 也用不带matchType的key作为fallback
-                recMap.set(rec.keyword.toLowerCase(), rec.suggestedBid);
+                recMap.set(rec.keyword.toLowerCase(), bidData);
               }
             }
 
             for (const kw of batch) {
-              const suggestedBid = recMap.get(`${kw.keywordText.toLowerCase()}:${kw.matchType.toLowerCase()}`)
+              const bidData = recMap.get(`${kw.keywordText.toLowerCase()}:${kw.matchType.toLowerCase()}`)
                 || recMap.get(kw.keywordText.toLowerCase());
-              if (suggestedBid && suggestedBid > 0) {
+              if (bidData && bidData.suggestedBid > 0) {
                 await db.update(keywords)
-                  .set({ suggestedBid: String(suggestedBid) })
+                  .set({
+                    suggestedBid: String(bidData.suggestedBid),
+                    suggestedBidLow: bidData.rangeLow > 0 ? String(bidData.rangeLow) : null,
+                    suggestedBidHigh: bidData.rangeHigh > 0 ? String(bidData.rangeHigh) : null,
+                  })
                   .where(eq(keywords.id, kw.id));
                 keywordBidsUpdated++;
               }
             }
+          } else {
+            log.debug(`[v436] adGroup ${internalAgId} API返回空建议竞价 (batch=${batch.length})`);
           }
         }
       } catch (err: unknown) {
@@ -1159,18 +1170,24 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
           const recommendations = await this.client.getTargetBidRecommendations(amazonAgId, expressions);
 
-          // 更新建议竞价
+          // v436: 更新建议竞价（包含low/median/high）
           if (recommendations && recommendations.length > 0) {
             // 对于targets，按顺序匹配（API返回顺序与请求顺序一致）
             for (let j = 0; j < Math.min(recommendations.length, batch.length); j++) {
               const rec = recommendations[j];
               if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
                 await db.update(productTargets)
-                  .set({ suggestedBid: String(rec.suggestedBid) })
+                  .set({
+                    suggestedBid: String(rec.suggestedBid),
+                    suggestedBidLow: (rec as any).rangeLow > 0 ? String((rec as any).rangeLow) : null,
+                    suggestedBidHigh: (rec as any).rangeHigh > 0 ? String((rec as any).rangeHigh) : null,
+                  })
                   .where(eq(productTargets.id, batch[j].id));
                 targetBidsUpdated++;
               }
             }
+          } else {
+            log.debug(`[v436] adGroup ${internalAgId} 商品定位API返回空建议竞价 (batch=${batch.length})`);
           }
         }
       } catch (err: unknown) {

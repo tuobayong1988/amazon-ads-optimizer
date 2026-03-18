@@ -624,8 +624,9 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     //   2. 引入“最新决策优先”原则：如果优化器已经做出了更新的决策，以最新决策为准
     //   3. 缩小时间窗口从3天到1天，减少与优化器冲突的概率
     //   4. 排除所有护栏机制产生的事件（冷却、熔断、提价恢复）
+    // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     const mismatchQuery = sql`
-      SELECT 
+      SELECT /*+ MAX_EXECUTION_TIME(60000) */
         oe.id as event_id,
         oe.keyword_id,
         oe.keyword_text,
@@ -990,8 +991,9 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
     
     // v178: 排除启用分时预算的campaigns（分时系统自行管理预算，AutoCorrector不应干预）
     // v178: 排除AutoCorrector自身产生的纠正事件（避免纠正循环）
+    // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     const mismatchQuery = sql`
-      SELECT 
+      SELECT /*+ MAX_EXECUTION_TIME(60000) */
         oe.id as event_id,
         oe.campaign_id,
         oe.campaign_name,
@@ -1111,8 +1113,9 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
   const results: CorrectionResult[] = [];
   
   try {
+    // v436: 添加MAX_EXECUTION_TIME防止僵尸查询（最多60秒）
     const mismatchQuery = sql`
-      SELECT 
+      SELECT /*+ MAX_EXECUTION_TIME(60000) */
         oe.id as event_id,
         oe.campaign_id,
         oe.campaign_name,

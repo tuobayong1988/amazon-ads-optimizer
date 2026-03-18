@@ -780,21 +780,30 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
 
         const recommendations = await this.client.getSdTargetBidRecommendations(targetingClauses);
 
+        // v436: 更新建议竞价（包含low/median/high）
         if (recommendations && recommendations.length > 0) {
           // 尝试按targetId匹配
-          const recByTargetId = new Map<string, number>();
+          const recByTargetId = new Map<string, { suggestedBid: number; bidRangeLow: number; bidRangeHigh: number }>();
           for (const rec of recommendations) {
             if (rec.targetId && rec.suggestedBid && rec.suggestedBid > 0) {
-              recByTargetId.set(rec.targetId, rec.suggestedBid);
+              recByTargetId.set(rec.targetId, {
+                suggestedBid: rec.suggestedBid,
+                bidRangeLow: rec.bidRangeLow || 0,
+                bidRangeHigh: rec.bidRangeHigh || 0,
+              });
             }
           }
 
           for (const tgt of batch) {
             if (!tgt.targetId) continue;
-            const suggestedBid = recByTargetId.get(tgt.targetId);
-            if (suggestedBid && suggestedBid > 0) {
+            const bidData = recByTargetId.get(tgt.targetId);
+            if (bidData && bidData.suggestedBid > 0) {
               await db.update(productTargets)
-                .set({ suggestedBid: String(suggestedBid) })
+                .set({
+                  suggestedBid: String(bidData.suggestedBid),
+                  suggestedBidLow: bidData.bidRangeLow > 0 ? String(bidData.bidRangeLow) : null,
+                  suggestedBidHigh: bidData.bidRangeHigh > 0 ? String(bidData.bidRangeHigh) : null,
+                })
                 .where(eq(productTargets.id, tgt.id));
               targetBidsUpdated++;
             }
@@ -808,7 +817,11 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
               const tgt = orderedTargets[j][1];
               if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
                 await db.update(productTargets)
-                  .set({ suggestedBid: String(rec.suggestedBid) })
+                  .set({
+                    suggestedBid: String(rec.suggestedBid),
+                    suggestedBidLow: rec.bidRangeLow > 0 ? String(rec.bidRangeLow) : null,
+                    suggestedBidHigh: rec.bidRangeHigh > 0 ? String(rec.bidRangeHigh) : null,
+                  })
                   .where(eq(productTargets.id, tgt.id));
                 targetBidsUpdated++;
               }

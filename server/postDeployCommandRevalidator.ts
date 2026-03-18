@@ -135,7 +135,7 @@ async function revalidatePendingCommands(
     
     // 1. 查询所有pending指令（包括optimization_events和optimization_logs两张表）
     const pendingEvents = await database.execute(
-      sql`SELECT oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
+      sql`SELECT /*+ MAX_EXECUTION_TIME(60000) */ oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
                  oe.campaign_id, oe.campaign_name, oe.previous_bid, oe.new_bid,
                  oe.previous_value, oe.new_value, oe.created_at, oe.error_message,
                  k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType,
@@ -361,7 +361,7 @@ async function auditAndCorrectHistoricalCommands(
     
     // 1. 查询近期synced的出价调整指令
     const syncedEvents = await database.execute(
-      sql`SELECT oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
+      sql`SELECT /*+ MAX_EXECUTION_TIME(60000) */ oe.id, oe.action_type, oe.event_category, oe.keyword_id, oe.keyword_text,
                  oe.campaign_id, oe.campaign_name, oe.internal_ad_group_id,
                  oe.previous_bid, oe.new_bid, oe.previous_value, oe.new_value,
                  oe.created_at, oe.algorithm_version,

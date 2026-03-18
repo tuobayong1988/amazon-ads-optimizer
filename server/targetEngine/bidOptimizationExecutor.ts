@@ -177,20 +177,56 @@ export async function executeBidOptimization(
   }
   log.info(`[BidOptimization] v330 CVR估算: groupAvgCvr=${(groupAvgCvr * 100).toFixed(2)}%, source=${cvrSource}, totalClicks=${totalClicks}`);
   
-  // v330: 冷启动出价优化 R-01 — 获取亚马逊建议出价
-  // 当优化目标内有零曝光的关键词/Target时，尝试获取建议出价作为锚点
+  // v436: 建议出价获取 — 优先从数据库读取已同步的建议竞价，仅在无数据时回退到实时API调用
   let suggestedBidData: { suggestedBid?: number; rangeStart?: number; rangeEnd?: number } | null = null;
-  if (totalClicks === 0) {
+  
+  // v436: 策略一 — 从数据库读取已同步的建议竞价（优先）
+  try {
+    const firstCampaign = campaigns[0] as any;
+    if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
+      const firstAdGroup = firstCampaign.adGroups[0];
+      // 检查该adGroup下的keyword/target是否有已同步的建议竞价
+      if (firstAdGroup.keywords && firstAdGroup.keywords.length > 0) {
+        for (const kw of firstAdGroup.keywords) {
+          if (kw.suggestedBid && Number(kw.suggestedBid) > 0) {
+            suggestedBidData = {
+              suggestedBid: Number(kw.suggestedBid),
+              rangeStart: Number(kw.suggestedBidLow) || 0,
+              rangeEnd: Number(kw.suggestedBidHigh) || 0,
+            };
+            log.info(`[BidOptimization] v436: 从数据库获取到建议出价 suggestedBid=$${suggestedBidData.suggestedBid}, range=[$${suggestedBidData.rangeStart}-$${suggestedBidData.rangeEnd}]`);
+            break;
+          }
+        }
+      }
+      if (!suggestedBidData && firstAdGroup.targets && firstAdGroup.targets.length > 0) {
+        for (const tgt of firstAdGroup.targets) {
+          if (tgt.suggestedBid && Number(tgt.suggestedBid) > 0) {
+            suggestedBidData = {
+              suggestedBid: Number(tgt.suggestedBid),
+              rangeStart: Number(tgt.suggestedBidLow) || 0,
+              rangeEnd: Number(tgt.suggestedBidHigh) || 0,
+            };
+            log.info(`[BidOptimization] v436: 从数据库获取到target建议出价 suggestedBid=$${suggestedBidData.suggestedBid}, range=[$${suggestedBidData.rangeStart}-$${suggestedBidData.rangeEnd}]`);
+            break;
+          }
+        }
+      }
+    }
+  } catch (dbBidErr: unknown) {
+    log.debug(`[BidOptimization] v436: 从数据库读取建议竞价失败: ${(dbBidErr as Error).message}`);
+  }
+  
+  // v436: 策略二 — 如果数据库无数据且零点击，回退到实时API调用
+  if (!suggestedBidData && totalClicks === 0) {
     try {
       const syncService = await amazonApiHelper.getAmazonSyncService(config.accountId);
       if (syncService && (syncService as any).client) {
-        // 尝试从第一个campaign的第一个adGroup获取建议出价
         const firstCampaign = campaigns[0] as any;
         if (firstCampaign && firstCampaign.adGroups && firstCampaign.adGroups.length > 0) {
-          const adGroupId = String(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);  // v356: 统一使用String类型传递Amazon ID
+          const adGroupId = String(firstCampaign.adGroups[0].amazonAdGroupId || firstCampaign.adGroups[0].adGroupId);
           if (adGroupId) {
             try {
-              // 尝试获取关键词建议出价
               const keywordRecs = await (syncService as any).client.getKeywordBidRecommendations(
                 adGroupId,
                 [{ keyword: config.name || 'product', matchType: 'BROAD' }]
@@ -202,16 +238,16 @@ export async function executeBidOptimization(
                   rangeStart: rec.rangeStart,
                   rangeEnd: rec.rangeEnd,
                 };
-                log.info(`[BidOptimization] v330 R-01: 获取到建议出价 suggestedBid=$${rec.suggestedBid}, range=[$${rec.rangeStart}-$${rec.rangeEnd}]`);
+                log.info(`[BidOptimization] v436 R-01: API获取到建议出价 suggestedBid=$${rec.suggestedBid}, range=[$${rec.rangeStart}-$${rec.rangeEnd}]`);
               }
             } catch (kwBidErr: unknown) {
-              log.debug(`[BidOptimization] v330 R-01: 关键词建议出价获取失败: ${(kwBidErr as Error).message}`);
+              log.debug(`[BidOptimization] v436 R-01: 关键词建议出价获取失败: ${(kwBidErr as Error).message}`);
             }
           }
         }
       }
     } catch (suggestedBidErr: unknown) {
-      log.debug(`[BidOptimization] v330 R-01: 建议出价API调用异常: ${(suggestedBidErr as Error).message}`);
+      log.debug(`[BidOptimization] v436 R-01: 建议出价API调用异常: ${(suggestedBidErr as Error).message}`);
     }
   }
   

@@ -4478,37 +4478,172 @@ export class AmazonAdsApiClient {
   // ==================== 出价建议 API ====================
 
   /**
-   * 获取关键词出价建议
+   * v436: 获取SP关键词出价建议 — 升级到Theme-Based Bid Recommendations API
+   * 新端点: POST /sp/targets/bid/recommendations
+   * 旧端点 /sp/keywords/bidRecommendations 已弃用
+   * 
+   * 返回格式: { suggestedBid, bidRangeLow, bidRangeHigh } 三个竞价值
    */
   async getKeywordBidRecommendations(
-    adGroupId: string,  // v356: 统一ID参数类型为string
+    adGroupId: string,
     keywords: Array<{ keyword: string; matchType: string }>
-  ): Promise<Array<{ keyword: string; suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
-    const response = await this.axiosInstance.post('/sp/keywords/bidRecommendations', {
-      adGroupId: String(adGroupId),
-      keywords,
-    });
-    return response.data.recommendations || [];
+  ): Promise<Array<{ keyword: string; matchType: string; suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
+    try {
+      // v436: 使用Theme-Based API — 按keyword逐个请求（API要求targetingExpressions格式）
+      const results: Array<{ keyword: string; matchType: string; suggestedBid: number; rangeStart: number; rangeEnd: number }> = [];
+      
+      // 批量构建请求 — Theme-Based API支持一次请求多个targets
+      const targetingExpressions = keywords.map(kw => ({
+        type: 'KEYWORD',
+        value: kw.keyword,
+      }));
+      
+      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', {
+        advertisingChannelType: 'SPONSORED_PRODUCTS',
+        targetingExpressions,
+        campaignOptimizationType: 'CONVERSIONS',
+      }, {
+        headers: {
+          'Content-Type': 'application/vnd.spbidrecommendation.v3+json',
+          'Accept': 'application/vnd.spbidrecommendation.v3+json',
+        },
+      });
+      
+      const recs = response.data?.bidRecommendations || response.data?.recommendations || [];
+      
+      for (let i = 0; i < recs.length; i++) {
+        const rec = recs[i];
+        // Theme-Based API返回格式: { recommendations: [{ value, matchedTargetingExpression }] }
+        // 或者直接返回 { suggestedBid, bidValues: { low, median, high } }
+        let suggestedBid = 0;
+        let rangeLow = 0;
+        let rangeHigh = 0;
+        
+        if (rec.recommendations && rec.recommendations.length > 0) {
+          // v3格式: recommendations数组中包含不同theme的建议
+          for (const themeRec of rec.recommendations) {
+            if (themeRec.value) {
+              suggestedBid = Number(themeRec.value) || 0;
+            }
+            if (themeRec.bidValues) {
+              rangeLow = Number(themeRec.bidValues.low) || 0;
+              suggestedBid = Number(themeRec.bidValues.median) || suggestedBid;
+              rangeHigh = Number(themeRec.bidValues.high) || 0;
+            }
+          }
+        } else if (rec.suggestedBid !== undefined) {
+          suggestedBid = Number(rec.suggestedBid) || 0;
+          rangeLow = Number(rec.rangeStart || rec.bidRangeLow || rec.rangeLow) || 0;
+          rangeHigh = Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0;
+        }
+        
+        if (suggestedBid > 0) {
+          const kw = keywords[i] || { keyword: '', matchType: '' };
+          results.push({
+            keyword: rec.matchedTargetingExpression?.value || kw.keyword,
+            matchType: kw.matchType,
+            suggestedBid,
+            rangeStart: rangeLow,
+            rangeEnd: rangeHigh,
+          });
+        }
+      }
+      
+      return results;
+    } catch (error: unknown) {
+      // v436: 如果Theme-Based API失败，回退到旧版API
+      log.warn(`[SP] Theme-Based bid recommendations API失败，回退到旧版: ${(error as Error).message}`);
+      try {
+        const response = await this.axiosInstance.post('/sp/keywords/bidRecommendations', {
+          adGroupId: String(adGroupId),
+          keywords,
+        });
+        const recs = response.data.recommendations || [];
+        return recs.map((rec: any) => ({
+          keyword: rec.keyword || '',
+          matchType: rec.matchType || '',
+          suggestedBid: Number(rec.suggestedBid) || 0,
+          rangeStart: Number(rec.rangeStart) || 0,
+          rangeEnd: Number(rec.rangeEnd) || 0,
+        }));
+      } catch (fallbackErr: unknown) {
+        log.warn(`[SP] 旧版bid recommendations API也失败: ${(fallbackErr as Error).message}`);
+        return [];
+      }
+    }
   }
 
   /**
-   * 获取商品定位出价建议
+   * v436: 获取SP商品定位出价建议 — 升级到Theme-Based API
+   * 新端点: POST /sp/targets/bid/recommendations
    */
   async getTargetBidRecommendations(
-    adGroupId: string,  // v356: 统一ID参数类型为string
+    adGroupId: string,
     expressions: Array<{ type: string; value?: string }>
-  ): Promise<Array<{ expression: unknown; suggestedBid: number }>> {
-    const response = await this.axiosInstance.post('/sp/targets/bidRecommendations', {
-      adGroupId: String(adGroupId),
-      expressions,
-    });
-    return response.data.recommendations || [];
+  ): Promise<Array<{ expression: unknown; suggestedBid: number; rangeLow?: number; rangeHigh?: number }>> {
+    try {
+      // v436: 使用Theme-Based API
+      const targetingExpressions = expressions.map(expr => ({
+        type: expr.type === 'asinSameAs' ? 'ASIN_SAME_AS' : 
+              expr.type === 'asinCategorySameAs' ? 'ASIN_CATEGORY_SAME_AS' : expr.type,
+        value: expr.value || '',
+      }));
+      
+      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', {
+        advertisingChannelType: 'SPONSORED_PRODUCTS',
+        targetingExpressions,
+        campaignOptimizationType: 'CONVERSIONS',
+      }, {
+        headers: {
+          'Content-Type': 'application/vnd.spbidrecommendation.v3+json',
+          'Accept': 'application/vnd.spbidrecommendation.v3+json',
+        },
+      });
+      
+      const recs = response.data?.bidRecommendations || response.data?.recommendations || [];
+      return recs.map((rec: any) => {
+        let suggestedBid = 0;
+        let rangeLow = 0;
+        let rangeHigh = 0;
+        
+        if (rec.recommendations && rec.recommendations.length > 0) {
+          const themeRec = rec.recommendations[0];
+          suggestedBid = Number(themeRec.value || themeRec.bidValues?.median) || 0;
+          rangeLow = Number(themeRec.bidValues?.low) || 0;
+          rangeHigh = Number(themeRec.bidValues?.high) || 0;
+        } else {
+          suggestedBid = Number(rec.suggestedBid) || 0;
+          rangeLow = Number(rec.rangeStart || rec.bidRangeLow) || 0;
+          rangeHigh = Number(rec.rangeEnd || rec.bidRangeHigh) || 0;
+        }
+        
+        return { expression: rec.matchedTargetingExpression || rec.expression, suggestedBid, rangeLow, rangeHigh };
+      });
+    } catch (error: unknown) {
+      log.warn(`[SP] Theme-Based target bid recommendations失败，回退到旧版: ${(error as Error).message}`);
+      try {
+        const response = await this.axiosInstance.post('/sp/targets/bidRecommendations', {
+          adGroupId: String(adGroupId),
+          expressions,
+        });
+        return (response.data.recommendations || []).map((rec: any) => ({
+          expression: rec.expression,
+          suggestedBid: Number(rec.suggestedBid) || 0,
+          rangeLow: Number(rec.rangeStart) || 0,
+          rangeHigh: Number(rec.rangeEnd) || 0,
+        }));
+      } catch (fallbackErr: unknown) {
+        log.warn(`[SP] 旧版target bid recommendations也失败: ${(fallbackErr as Error).message}`);
+        return [];
+      }
+    }
   }
 
   /**
-   * 获取SB关键词出价建议
+   * v436: 获取SB关键词出价建议
    * 端点: POST /sb/recommendations/bids
    * 支持关键词和商品定位两种类型
+   * 返回格式增强: 包含 rangeStart/rangeEnd
    */
   async getSbBidRecommendations(
     campaignId: string,
@@ -4519,7 +4654,15 @@ export class AmazonAdsApiClient {
         campaignId: String(campaignId),
         keywords,
       });
-      return response.data?.recommendations || response.data || [];
+      const rawRecs = response.data?.recommendations || response.data || [];
+      log.debug(`[SB] 获取到 ${rawRecs.length} 个关键词建议竞价 (campaignId=${campaignId})`);
+      return rawRecs.map((rec: any) => ({
+        keyword: rec.keyword || '',
+        matchType: rec.matchType || '',
+        suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
+        rangeStart: Number(rec.rangeStart || rec.bidRangeLow || rec.rangeLow) || 0,
+        rangeEnd: Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0,
+      }));
     } catch (error: unknown) {
       log.warn(`[SB] 获取关键词建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
       return [];
@@ -4527,19 +4670,25 @@ export class AmazonAdsApiClient {
   }
 
   /**
-   * 获取SB商品定位出价建议
+   * v436: 获取SB商品定位出价建议
    * 端点: POST /sb/recommendations/bids (targets模式)
    */
   async getSbTargetBidRecommendations(
     campaignId: string,
     targets: Array<{ type: string; value?: string }>
-  ): Promise<Array<{ suggestedBid: number; rangeStart?: number; rangeEnd?: number }>> {
+  ): Promise<Array<{ suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
     try {
       const response = await this.axiosInstance.post('/sb/recommendations/bids', {
         campaignId: String(campaignId),
         targets,
       });
-      return response.data?.recommendations || response.data || [];
+      const rawRecs = response.data?.recommendations || response.data || [];
+      log.debug(`[SB] 获取到 ${rawRecs.length} 个商品定位建议竞价 (campaignId=${campaignId})`);
+      return rawRecs.map((rec: any) => ({
+        suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
+        rangeStart: Number(rec.rangeStart || rec.bidRangeLow || rec.rangeLow) || 0,
+        rangeEnd: Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0,
+      }));
     } catch (error: unknown) {
       log.warn(`[SB] 获取商品定位建议竞价失败 (campaignId=${campaignId}): ${(error as Error).message}`);
       return [];
@@ -4547,18 +4696,25 @@ export class AmazonAdsApiClient {
   }
 
   /**
-   * 获取SD投放对象出价建议
+   * v436: 获取SD投放对象出价建议
    * 端点: POST /sd/targets/bid/recommendations
    * 支持最多100个targeting clauses
    */
   async getSdTargetBidRecommendations(
     targetingClauses: Array<{ targetId: string; adGroupId: string }>
-  ): Promise<Array<{ targetId: string; suggestedBid: number; bidRangeLow?: number; bidRangeHigh?: number }>> {
+  ): Promise<Array<{ targetId: string; suggestedBid: number; bidRangeLow: number; bidRangeHigh: number }>> {
     try {
       const response = await this.axiosInstance.post('/sd/targets/bid/recommendations', {
         targetingClauses,
       });
-      return response.data?.recommendations || response.data || [];
+      const rawRecs = response.data?.recommendations || response.data || [];
+      log.debug(`[SD] 获取到 ${rawRecs.length} 个投放对象建议竞价`);
+      return rawRecs.map((rec: any) => ({
+        targetId: rec.targetId || '',
+        suggestedBid: Number(rec.suggestedBid || rec.bid) || 0,
+        bidRangeLow: Number(rec.bidRangeLow || rec.rangeStart || rec.rangeLow) || 0,
+        bidRangeHigh: Number(rec.bidRangeHigh || rec.rangeEnd || rec.rangeHigh) || 0,
+      }));
     } catch (error: unknown) {
       log.warn(`[SD] 获取投放对象建议竞价失败: ${(error as Error).message}`);
       return [];

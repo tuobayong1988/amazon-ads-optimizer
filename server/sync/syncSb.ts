@@ -1377,20 +1377,30 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
           const recommendations = await this.client.getSbBidRecommendations(amazonCampaignId, apiKeywords);
 
           if (recommendations && recommendations.length > 0) {
-            const recMap = new Map<string, number>();
+            // v436: 升级为包含bid range的对象
+            const recMap = new Map<string, { suggestedBid: number; rangeLow: number; rangeHigh: number }>();
             for (const rec of recommendations) {
               if (rec.keyword && rec.suggestedBid) {
-                recMap.set(`${rec.keyword.toLowerCase()}:${(rec.matchType || '').toLowerCase()}`, rec.suggestedBid);
-                recMap.set(rec.keyword.toLowerCase(), rec.suggestedBid);
+                const bidData = {
+                  suggestedBid: rec.suggestedBid,
+                  rangeLow: rec.rangeStart || 0,
+                  rangeHigh: rec.rangeEnd || 0,
+                };
+                recMap.set(`${rec.keyword.toLowerCase()}:${(rec.matchType || '').toLowerCase()}`, bidData);
+                recMap.set(rec.keyword.toLowerCase(), bidData);
               }
             }
 
             for (const kw of batch) {
-              const suggestedBid = recMap.get(`${kw.keywordText.toLowerCase()}:${kw.matchType.toLowerCase()}`)
+              const bidData = recMap.get(`${kw.keywordText.toLowerCase()}:${kw.matchType.toLowerCase()}`)
                 || recMap.get(kw.keywordText.toLowerCase());
-              if (suggestedBid && suggestedBid > 0) {
+              if (bidData && bidData.suggestedBid > 0) {
                 await db.update(keywords)
-                  .set({ suggestedBid: String(suggestedBid) })
+                  .set({
+                    suggestedBid: String(bidData.suggestedBid),
+                    suggestedBidLow: bidData.rangeLow > 0 ? String(bidData.rangeLow) : null,
+                    suggestedBidHigh: bidData.rangeHigh > 0 ? String(bidData.rangeHigh) : null,
+                  })
                   .where(eq(keywords.id, kw.id));
                 keywordBidsUpdated++;
               }
@@ -1476,12 +1486,17 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
 
           const recommendations = await this.client.getSbTargetBidRecommendations(amazonCampaignId, targets);
 
+          // v436: 更新建议竞价（包含low/median/high）
           if (recommendations && recommendations.length > 0) {
             for (let j = 0; j < Math.min(recommendations.length, batch.length); j++) {
               const rec = recommendations[j];
               if (rec && rec.suggestedBid && rec.suggestedBid > 0) {
                 await db.update(productTargets)
-                  .set({ suggestedBid: String(rec.suggestedBid) })
+                  .set({
+                    suggestedBid: String(rec.suggestedBid),
+                    suggestedBidLow: rec.rangeStart > 0 ? String(rec.rangeStart) : null,
+                    suggestedBidHigh: rec.rangeEnd > 0 ? String(rec.rangeEnd) : null,
+                  })
                   .where(eq(productTargets.id, batch[j].id));
                 targetBidsUpdated++;
               }
@@ -1490,12 +1505,12 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
         }
       } catch (err: unknown) {
         errors++;
-        log.warn(`[v417] campaign ${campaignId} SB商品定位建议竞价获取失败: ${(err as Error).message}`);
+        log.warn(`[v436] campaign ${campaignId} SB商品定位建议竞价获取失败: ${(err as Error).message}`);
       }
     }
 
-    log.info(`[v417] SB商品定位建议竞价同步完成: ${targetBidsUpdated} 个定位已更新`);
-    log.info(`[v417] ========== SB建议竞价同步总结: 关键词=${keywordBidsUpdated}, 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
+    log.info(`[v436] SB商品定位建议竞价同步完成: ${targetBidsUpdated} 个定位已更新`);
+    log.info(`[v436] ========== SB建议竞价同步总结: 关键词=${keywordBidsUpdated}, 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
 
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error) {
