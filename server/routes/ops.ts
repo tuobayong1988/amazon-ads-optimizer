@@ -1481,5 +1481,16 @@ router.post('/gc', async (req: Request, res: Response) => {
   });
 });
 
+// v450: 手动触发 CloudWatch 指标推送
+router.post('/push-metrics', async (req: Request, res: Response) => {
+  try {
+    const { manualPushMetrics } = await import('../services/cloudwatchMonitor');
+    const result = await manualPushMetrics();
+    res.json(result);
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 export default router;
 

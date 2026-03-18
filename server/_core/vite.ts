@@ -119,10 +119,16 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // v422: 统一使用项目根目录下的dist/public
-  // 无论是esbuild打包模式还是tsx直接运行模式，都使用相同的路径
+  // v450: 统一使用项目根目录下的dist/public
+  // 兼容两种运行模式:
+  //   - esbuild打包模式: __dirname = project_root/dist/, 需要 resolve("..", "dist", "public")
+  //   - tsx直接运行模式: __dirname = project_root/server/_core/, 需要 resolve("../..", "dist", "public")
   const baseDir = typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname;
-  const distPath = path.resolve(baseDir, "../..", "dist", "public");
+  // 检测是否在esbuild打包模式下运行（dist/index.js）
+  const isEsbuildBundle = baseDir.endsWith('/dist') || baseDir.endsWith('\\dist');
+  const distPath = isEsbuildBundle
+    ? path.resolve(baseDir, "public")
+    : path.resolve(baseDir, "../..", "dist", "public");
   if (!fs.existsSync(distPath)) {
     log.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`

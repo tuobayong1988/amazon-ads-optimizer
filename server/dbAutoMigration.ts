@@ -679,7 +679,63 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     log.info(`v446: 索引优化完成 - 新建${indexSuccess}个, 已存在${indexSkipped}个, 共${v446Indexes.length}个`);
     results.push(`v446索引: 新建${indexSuccess}, 已存在${indexSkipped}, 共${v446Indexes.length}`);
 
-    log.info(`v446: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ========== v450: 核心表索引优化 ==========
+    // campaigns表: 123次查询, 0个索引（除PK）
+    // ad_groups表: 68次查询, 仅adGroupId有索引
+    // daily_performance表: 53+次查询, 0个索引（除PK）
+    const v450Indexes: [string, string, string][] = [
+      // campaigns 表 - 最高频查询表
+      ['campaigns', 'idx_campaigns_accountId', 'accountId'],
+      ['campaigns', 'idx_campaigns_campaignId', 'campaignId'],
+      ['campaigns', 'idx_campaigns_account_campaign', 'accountId, campaignId'],
+      ['campaigns', 'idx_campaigns_account_status', 'accountId, campaignStatus'],
+      ['campaigns', 'idx_campaigns_account_type', 'accountId, campaignType'],
+      ['campaigns', 'idx_campaigns_perfGroupId', 'performanceGroupId'],
+      // ad_groups 表
+      ['ad_groups', 'idx_adGroups_accountId', 'accountId'],
+      ['ad_groups', 'idx_adGroups_campaignId', 'campaignId'],
+      ['ad_groups', 'idx_adGroups_account_campaign', 'accountId, campaignId'],
+      // daily_performance 表 - 分析查询核心
+      ['daily_performance', 'idx_dp_accountId', 'accountId'],
+      ['daily_performance', 'idx_dp_account_date', 'accountId, date'],
+      ['daily_performance', 'idx_dp_account_campaign_date', 'accountId, campaignId, date'],
+      ['daily_performance', 'idx_dp_campaignId', 'campaignId'],
+      // keywords 表 - 补充高频查询索引
+      ['keywords', 'idx_keywords_accountId', 'accountId'],
+      ['keywords', 'idx_keywords_account_adgroup', 'accountId, internalAdGroupId'],
+      // optimization_events 表 - 同步率查询
+      ['optimization_events', 'idx_oe_accountId', 'accountId'],
+      ['optimization_events', 'idx_oe_account_status', 'accountId, apiSyncStatus'],
+      ['optimization_events', 'idx_oe_createdAt', 'createdAt'],
+    ];
+    let v450IndexSuccess = 0;
+    let v450IndexSkipped = 0;
+    for (const [table, idxName, columns] of v450Indexes) {
+      try {
+        const wrappedCols = columns.split(',').map((c: string) => {
+          const trimmed = c.trim();
+          return trimmed.startsWith('`') ? trimmed : `\`${trimmed}\``;
+        }).join(', ');
+        await database.execute(sql.raw(
+          `CREATE INDEX \`${idxName}\` ON \`${table}\` (${wrappedCols})`
+        ));
+        v450IndexSuccess++;
+      } catch (err: unknown) {
+        const msg = String((err as Error)?.message || '');
+        // @ts-expect-error - accessing cause for detailed error
+        const causeMsg = String(err?.cause?.message || err?.cause || '');
+        const fullMsg = msg + ' | cause: ' + causeMsg;
+        if (fullMsg.includes('Duplicate key name') || fullMsg.includes('already exists')) {
+          v450IndexSkipped++;
+        } else {
+          log.warn(`v450: 索引 ${idxName} 创建失败: ${fullMsg}`);
+        }
+      }
+    }
+    log.info(`v450: 核心表索引优化完成 - 新建${v450IndexSuccess}个, 已存在${v450IndexSkipped}个, 共${v450Indexes.length}个`);
+    results.push(`v450索引: 新建${v450IndexSuccess}, 已存在${v450IndexSkipped}, 共${v450Indexes.length}`);
+
+    log.info(`v450: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

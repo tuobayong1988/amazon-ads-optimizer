@@ -35,6 +35,8 @@ import { getDb } from '../db';
 // v429: 加载集中式EntityIdResolver及其数据库提供者
 import { initEntityIdResolver } from '../services/entityIdResolver';
 import { createEntityIdResolverDbProvider } from '../services/entityIdResolverDbProvider';
+// v450: CloudWatch 自定义指标推送
+import { startCloudWatchMonitor } from '../services/cloudwatchMonitor';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -341,6 +343,9 @@ async function startServer() {
     // 启动异步报告任务调度器
     reportJobScheduler.start();
     log.info('[ReportJobScheduler] 异步报告任务调度器已启动');
+
+    // v450: 启动 CloudWatch 自定义指标推送（每5分钟推送连接池/内存指标）
+    startCloudWatchMonitor();
     
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
