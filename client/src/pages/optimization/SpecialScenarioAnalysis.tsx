@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback} from "react";
 import { safeToLocaleDateString } from "@/lib/safeDate";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,29 +131,29 @@ const [activeTab, setActiveTab] = useState("overview");
     },
   });
 
-  const handleRefreshAnalysis = () => {
+  const handleRefreshAnalysis = useCallback(() => {
     setIsAnalyzing(true);
     refetchAnalysis().finally(() => setIsAnalyzing(false));
-  };
+  }, [refetchAnalysis]);
 
-  const handleSelectAllOverbidding = () => {
+  const handleSelectAllOverbidding = useCallback(() => {
     if (bidEfficiency?.topOverbidding) {
       const allIds = bidEfficiency.topOverbidding
         .filter(k => k.isOverbidding)
         .map(k => k.targetId);
       setSelectedKeywords(allIds);
     }
-  };
+  }, [bidEfficiency?.topOverbidding]);
 
-  const handleApplySelectedBids = () => {
+  const handleApplySelectedBids = useCallback(() => {
     if (selectedKeywords.length === 0) {
       toast.error("请先选择要调整的投放词");
       return;
     }
     setShowBatchConfirm(true);
-  };
+  }, [selectedKeywords.length]);
 
-  const confirmApplyBids = () => {
+  const confirmApplyBids = useCallback(() => {
     if (!bidEfficiency?.topOverbidding) return;
     
     const adjustments = selectedKeywords.map(id => {
@@ -166,9 +166,9 @@ const [activeTab, setActiveTab] = useState("overview");
     }).filter(a => a.newBid > 0);
 
     applyBidsMutation.mutate({ adjustments });
-  };
+  }, [bidEfficiency?.topOverbidding, selectedKeywords, applyBidsMutation]);
 
-  const getRiskBadge = (level: string) => {
+  const getRiskBadge = useCallback((level: string) => {
     switch (level) {
       case 'critical':
         return <Badge variant="destructive">严重</Badge>;
@@ -177,9 +177,9 @@ const [activeTab, setActiveTab] = useState("overview");
       default:
         return <Badge variant="outline" className="border-green-500 text-green-500">正常</Badge>;
     }
-  };
+  }, []);
 
-  const getConfidenceBadge = (confidence: string) => {
+  const getConfidenceBadge = useCallback((confidence: string) => {
     switch (confidence) {
       case 'high':
         return <Badge variant="outline" className="border-green-500 text-green-500">高置信度</Badge>;
@@ -188,7 +188,7 @@ const [activeTab, setActiveTab] = useState("overview");
       default:
         return <Badge variant="outline" className="border-red-500 text-red-500">低置信度</Badge>;
     }
-  };
+  }, []);
 
   return (
     <DashboardLayout>

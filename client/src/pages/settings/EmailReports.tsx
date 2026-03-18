@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback} from "react";
 import { safeToLocaleDateString, safeToLocaleTimeString } from "@/lib/safeDate";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -168,7 +168,7 @@ export default function EmailReports() {
     },
   });
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     if (!form.name) {
       toast.error("请输入订阅名称");
       return;
@@ -178,14 +178,14 @@ export default function EmailReports() {
       return;
     }
     createMutation.mutate(form);
-  };
+  }, [form, createMutation]);
 
-  const handleUpdate = () => {
+  const handleUpdate = useCallback(() => {
     if (!editingId) return;
     updateMutation.mutate({ id: editingId, ...form });
-  };
+  }, [editingId, form, updateMutation]);
 
-  const handleEdit = (subscription: any) => {
+  const handleEdit = useCallback((subscription: any) => {
     setEditingId(subscription.id);
     setForm({
       name: subscription.name,
@@ -203,9 +203,9 @@ export default function EmailReports() {
       dateRange: subscription.dateRange || "last_7_days",
     });
     setIsEditOpen(true);
-  };
+  }, []);
 
-  const addRecipient = () => {
+  const addRecipient = useCallback(() => {
     if (!recipientInput || !recipientInput.includes("@")) {
       toast.error("请输入有效的邮箱地址");
       return;
@@ -216,20 +216,20 @@ export default function EmailReports() {
     }
     setForm({ ...form, recipients: [...form.recipients, recipientInput] });
     setRecipientInput("");
-  };
+  }, [form, recipientInput]);
 
-  const removeRecipient = (email: string) => {
+  const removeRecipient = useCallback((email: string) => {
     setForm({ ...form, recipients: form.recipients.filter(r => r !== email) });
-  };
+  }, [form]);
 
-  // 统计数据
-  const stats = {
+  // 统计数据 - v446: useMemo避免重复计算
+  const stats = useMemo(() => ({
     total: subscriptions?.length || 0,
     // @ts-expect-error - array method type inference
     active: subscriptions?.filter(s => s.isActive).length || 0,
     // @ts-expect-error - array method type inference
     paused: subscriptions?.filter(s => !s.isActive).length || 0,
-  };
+  }), [subscriptions]);
 
   const SubscriptionForm = ({ isEdit = false }: { isEdit?: boolean }) => (
     <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">

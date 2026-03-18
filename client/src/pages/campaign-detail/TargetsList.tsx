@@ -3,7 +3,7 @@
  * v361: 从CampaignDetail.tsx拆分的TargetsList子组件
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback} from "react";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -160,14 +160,14 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
   });
   
   // 打开编辑出价弹窗
-  const handleEditBid = (target: any) => {
+  const handleEditBid = useCallback((target: any) => {
     setEditingTarget(target);
     setNewBid(target.bid || "");
     setEditBidOpen(true);
-  };
+  }, []);
   
   // 保存出价
-  const handleSaveBid = () => {
+  const handleSaveBid = useCallback(() => {
     if (!editingTarget || !newBid) return;
     
     const realId = parseInt(editingTarget.id.split("-")[1]);
@@ -178,17 +178,17 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
     } else {
       updateProductTargetMutation.mutate({ id: realId, bid: newBid });
     }
-  };
+  }, [editingTarget, newBid, updateKeywordMutation, updateProductTargetMutation]);
   
   // 打开状态变更确认弹窗
-  const handleStatusChange = (target: any, status: "enabled" | "paused") => {
+  const handleStatusChange = useCallback((target: any, status: "enabled" | "paused") => {
     setStatusChangeTarget(target);
     setNewStatus(status);
     setConfirmStatusOpen(true);
-  };
+  }, []);
   
   // 确认状态变更
-  const handleConfirmStatusChange = () => {
+  const handleConfirmStatusChange = useCallback(() => {
     if (!statusChangeTarget) return;
     
     const realId = parseInt(statusChangeTarget.id.split("-")[1]);
@@ -201,10 +201,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
     }
     setConfirmStatusOpen(false);
     setStatusChangeTarget(null);
-  };
+  }, [statusChangeTarget, newStatus, updateKeywordMutation, updateProductTargetMutation]);
   
   // 切换单个选择
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
@@ -213,10 +213,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
     }
     setSelectedIds(newSelected);
     setSelectAll(false);
-  };
+  }, [selectedIds]);
   
   // 全选/取消全选
-  const toggleSelectAll = (targets: any[]) => {
+  const toggleSelectAll = useCallback((targets: any[]) => {
     if (selectAll) {
       setSelectedIds(new Set());
       setSelectAll(false);
@@ -224,10 +224,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
       setSelectedIds(new Set(targets.map(t => t.id)));
       setSelectAll(true);
     }
-  };
+  }, [selectAll]);
   
   // 批量修改出价
-  const handleBatchBid = () => {
+  const handleBatchBid = useCallback(() => {
     if (!batchBidValue || selectedIds.size === 0) return;
     
     const keywordIds: number[] = [];
@@ -257,10 +257,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
         bidValue: parseFloat(batchBidValue),
       });
     }
-  };
+  }, [selectedIds, batchBidValue, batchBidType, batchUpdateKeywordBidMutation, batchUpdateProductTargetBidMutation]);
   
   // 批量修改状态
-  const handleBatchStatus = () => {
+  const handleBatchStatus = useCallback(() => {
     if (selectedIds.size === 0) return;
     
     const keywordIds: number[] = [];
@@ -288,10 +288,10 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
         status: batchStatus,
       });
     }
-  };
+  }, [selectedIds, batchStatus, batchUpdateKeywordStatusMutation, batchUpdateProductTargetStatusMutation]);
   
   // 清除筛选
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setFilters({
       matchType: "all",
       status: "all",
@@ -314,7 +314,7 @@ export function TargetsList({ campaignId }: { campaignId: number }) {
       cvrMin: "",
       cvrMax: "",
     });
-  };
+  }, []);
   
   // 检查是否有激活的筛选
   const hasActiveFilters = () => {

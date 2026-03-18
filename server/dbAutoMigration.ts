@@ -560,7 +560,120 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       `), `${tableName}.ad_group_id→internal_ad_group_id`, results);
     }
 
-    log.info(`v418: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ==================== v446: 数据库索引性能优化 ====================
+    // 为19个高频查询表添加84个缺失索引，覆盖所有核心WHERE条件
+    // 使用CREATE INDEX IF NOT EXISTS确保幂等性
+    log.info('v446: 开始添加性能优化索引...');
+    const v446Indexes: [string, string, string][] = [
+      // Tier 1 - 每次同步/优化周期都会查询的核心表
+      ['data_sync_jobs', 'idx_dsj_accountId', 'account_id'],
+      ['data_sync_jobs', 'idx_dsj_status', 'status'],
+      ['data_sync_jobs', 'idx_dsj_userId', 'user_id'],
+      ['data_sync_jobs', 'idx_dsj_account_status', 'account_id, status'],
+      ['data_sync_jobs', 'idx_dsj_startedAt', 'started_at'],
+      ['data_sync_logs', 'idx_dsl_jobId', 'job_id'],
+      ['data_sync_logs', 'idx_dsl_status', 'status'],
+      ['hourly_performance', 'idx_hp_accountId', 'account_id'],
+      ['hourly_performance', 'idx_hp_campaignId', 'campaign_id'],
+      ['hourly_performance', 'idx_hp_date', 'date'],
+      ['hourly_performance', 'idx_hp_account_campaign', 'account_id, campaign_id'],
+      ['placement_performance', 'idx_pp_accountId', 'account_id'],
+      ['placement_performance', 'idx_pp_campaignId', 'campaign_id'],
+      ['placement_performance', 'idx_pp_date', 'date'],
+      ['placement_performance', 'idx_pp_account_campaign', 'account_id, campaign_id'],
+      ['bid_performance_history', 'idx_bph_accountId', 'account_id'],
+      ['bid_performance_history', 'idx_bph_bidObjectId', 'bid_object_id'],
+      ['bid_performance_history', 'idx_bph_account_object', 'account_id, bid_object_type, bid_object_id'],
+      ['bid_performance_history', 'idx_bph_campaignId', 'campaign_id'],
+      ['bid_performance_history', 'idx_bph_createdAt', 'created_at'],
+      ['bidding_logs', 'idx_bl_accountId', 'account_id'],
+      ['bidding_logs', 'idx_bl_campaignId', 'campaign_id'],
+      ['bidding_logs', 'idx_bl_targetId', 'target_id'],
+      ['bidding_logs', 'idx_bl_createdAt', 'created_at'],
+      ['bidding_logs', 'idx_bl_actionType', 'action_type'],
+      ['performance_groups', 'idx_pg_accountId', 'account_id'],
+      ['performance_groups', 'idx_pg_userId', 'user_id'],
+      ['performance_groups', 'idx_pg_status', 'status'],
+      ['performance_groups', 'idx_pg_account_status', 'account_id, status'],
+      ['budget_history', 'idx_bh_accountId', 'account_id'],
+      ['budget_history', 'idx_bh_userId', 'user_id'],
+      ['budget_history', 'idx_bh_campaignId', 'campaign_id'],
+      ['budget_history', 'idx_bh_createdAt', 'created_at'],
+      // Tier 2 - API/UI操作频繁查询的表
+      ['audit_logs', 'idx_al_accountId', 'account_id'],
+      ['audit_logs', 'idx_al_userId', 'user_id'],
+      ['audit_logs', 'idx_al_actionType', 'action_type'],
+      ['audit_logs', 'idx_al_createdAt', 'created_at'],
+      ['audit_logs', 'idx_al_account_action', 'account_id, action_type'],
+      ['api_call_logs', 'idx_acl_accountId', 'account_id'],
+      ['api_call_logs', 'idx_acl_userId', 'user_id'],
+      ['api_call_logs', 'idx_acl_apiType', 'api_type'],
+      ['api_call_logs', 'idx_acl_createdAt', 'created_at'],
+      ['api_call_logs', 'idx_acl_statusCode', 'status_code'],
+      ['api_operation_logs', 'idx_aol_accountId', 'account_id'],
+      ['api_operation_logs', 'idx_aol_userId', 'user_id'],
+      ['api_operation_logs', 'idx_aol_operationType', 'operation_type'],
+      ['api_operation_logs', 'idx_aol_status', 'status'],
+      ['api_operation_logs', 'idx_aol_createdAt', 'created_at'],
+      ['api_request_queue', 'idx_arq_accountId', 'account_id'],
+      ['api_request_queue', 'idx_arq_status', 'status'],
+      ['api_request_queue', 'idx_arq_priority_status', 'priority, status'],
+      ['api_request_queue', 'idx_arq_scheduledAt', 'scheduled_at'],
+      ['optimization_recommendations', 'idx_or_accountId', 'account_id'],
+      ['optimization_recommendations', 'idx_or_campaignId', 'campaign_id'],
+      ['optimization_recommendations', 'idx_or_status', 'status'],
+      ['optimization_recommendations', 'idx_or_priority', 'priority'],
+      ['optimization_recommendations', 'idx_or_account_status', 'account_id, status'],
+      ['notification_history', 'idx_nh_userId', 'user_id'],
+      ['notification_history', 'idx_nh_accountId', 'account_id'],
+      ['notification_history', 'idx_nh_status', 'status'],
+      ['notification_history', 'idx_nh_createdAt', 'created_at'],
+      ['task_execution_log', 'idx_tel_accountId', 'account_id'],
+      ['task_execution_log', 'idx_tel_userId', 'user_id'],
+      ['task_execution_log', 'idx_tel_taskType', 'task_type'],
+      ['task_execution_log', 'idx_tel_status', 'status'],
+      ['task_execution_log', 'idx_tel_createdAt', 'created_at'],
+      ['batch_operations', 'idx_bo_userId', 'user_id'],
+      ['batch_operations', 'idx_bo_accountId', 'account_id'],
+      ['batch_operations', 'idx_bo_batchStatus', 'batch_status'],
+      ['batch_operations', 'idx_bo_createdAt', 'created_at'],
+      ['batch_operation_items', 'idx_boi_batchId', 'batch_id'],
+      ['batch_operation_items', 'idx_boi_itemStatus', 'item_status'],
+      ['dayparting_strategies', 'idx_ds_accountId', 'account_id'],
+      ['dayparting_strategies', 'idx_ds_campaignId', 'campaign_id'],
+      ['dayparting_strategies', 'idx_ds_account_campaign', 'account_id, campaign_id'],
+      ['auto_pause_records', 'idx_apr_accountId', 'account_id'],
+      ['auto_pause_records', 'idx_apr_userId', 'user_id'],
+      ['auto_pause_records', 'idx_apr_pausedAt', 'paused_at'],
+      // Tier 3 - 已有索引表的缺失索引补全
+      ['ad_groups', 'idx_adGroups_adGroupId', 'ad_group_id'],
+      ['keywords', 'idx_keywords_keywordStatus', 'keyword_status'],
+      ['negative_keywords', 'idx_negKw_internalAdGroupId', 'internal_ad_group_id'],
+      ['negative_keywords', 'idx_negKw_negativeLevel', 'negative_level'],
+      ['product_targets', 'idx_prodTargets_internalAdGroupId', 'internal_ad_group_id'],
+      ['product_targets', 'idx_prodTargets_targetStatus', 'target_status'],
+    ];
+    let indexSuccess = 0;
+    let indexSkipped = 0;
+    for (const [table, idxName, columns] of v446Indexes) {
+      try {
+        await database.execute(sql.raw(
+          `CREATE INDEX \`${idxName}\` ON \`${table}\` (${columns})`
+        ));
+        indexSuccess++;
+      } catch (err: unknown) {
+        const msg = String((err as Error)?.message || '');
+        if (msg.includes('Duplicate key name') || msg.includes('already exists')) {
+          indexSkipped++;
+        } else {
+          log.warn(`v446: 索引 ${idxName} 创建失败: ${msg}`);
+        }
+      }
+    }
+    log.info(`v446: 索引优化完成 - 新建${indexSuccess}个, 已存在${indexSkipped}个, 共${v446Indexes.length}个`);
+    results.push(`v446索引: 新建${indexSuccess}, 已存在${indexSkipped}, 共${v446Indexes.length}`);
+
+    log.info(`v446: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

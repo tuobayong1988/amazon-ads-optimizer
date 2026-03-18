@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback} from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,13 +99,13 @@ export default function IntelligentBudgetAllocation() {
     }
   });
   
-  const handleApplySuggestions = () => {
+  const handleApplySuggestions = useCallback(() => {
     if (selectedSuggestions.length > 0) {
       applySuggestionsMutation.mutate({ suggestionIds: selectedSuggestions });
     }
-  };
+  }, [selectedSuggestions, applySuggestionsMutation]);
   
-  const getRiskBadge = (riskLevel: string) => {
+  const getRiskBadge = useCallback((riskLevel: string) => {
     switch (riskLevel) {
       case 'low':
         return <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">低风险</Badge>;
@@ -116,19 +116,19 @@ export default function IntelligentBudgetAllocation() {
       default:
         return null;
     }
-  };
+  }, []);
   
-  const getScoreColor = (score: number) => {
+  const getScoreColor = useCallback((score: number) => {
     if (score >= 70) return "text-green-500";
     if (score >= 50) return "text-yellow-500";
     return "text-red-500";
-  };
+  }, []);
   
-  const getAdjustmentIcon = (amount: number) => {
+  const getAdjustmentIcon = useCallback((amount: number) => {
     if (amount > 0.5) return <ArrowUpRight className="h-4 w-4 text-green-500" />;
     if (amount < -0.5) return <ArrowDownRight className="h-4 w-4 text-red-500" />;
     return <Minus className="h-4 w-4 text-muted-foreground" />;
-  };
+  }, []);
 
   return (
     <DashboardLayout>

@@ -186,6 +186,7 @@ export const adGroups = mysqlTable("ad_groups", {
 	idx_adGroups_accountId: index('idx_adGroups_accountId').on(table.accountId),
 	idx_adGroups_campaignId: index('idx_adGroups_campaignId').on(table.campaignId),
 	idx_adGroups_account_campaign: index('idx_adGroups_account_campaign').on(table.accountId, table.campaignId),
+	idx_adGroups_adGroupId: index('idx_adGroups_adGroupId').on(table.adGroupId),
 }));
 
 export const aiOptimizationActions = mysqlTable("ai_optimization_actions", {
@@ -484,7 +485,14 @@ export const apiCallLogs = mysqlTable("api_call_logs", {
 	isRetry: tinyint().default(0),
 	originalRequestId: int(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_acl_accountId').on(table.accountId),
+	index('idx_acl_userId').on(table.userId),
+	index('idx_acl_apiType').on(table.apiType),
+	index('idx_acl_createdAt').on(table.createdAt),
+	index('idx_acl_statusCode').on(table.statusCode),
+]));
 
 export const apiOperationLogs = mysqlTable("api_operation_logs", {
 	id: int().autoincrement().notNull(),
@@ -512,7 +520,14 @@ export const apiOperationLogs = mysqlTable("api_operation_logs", {
 	reviewedAt: timestamp({ mode: 'string' }),
 	executedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_aol_accountId').on(table.accountId),
+	index('idx_aol_userId').on(table.userId),
+	index('idx_aol_operationType').on(table.operationType),
+	index('idx_aol_status').on(table.status),
+	index('idx_aol_createdAt').on(table.createdAt),
+]));
 
 export const apiRateLimits = mysqlTable("api_rate_limits", {
 	id: int().autoincrement().notNull(),
@@ -549,7 +564,13 @@ export const apiRequestQueue = mysqlTable("api_request_queue", {
 	startedAt: timestamp({ mode: 'string' }),
 	completedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_arq_accountId').on(table.accountId),
+	index('idx_arq_status').on(table.status),
+	index('idx_arq_priority_status').on(table.priority, table.status),
+	index('idx_arq_scheduledAt').on(table.scheduledAt),
+]));
 
 export const attributionCorrectionRecords = mysqlTable("attribution_correction_records", {
 	id: int().autoincrement().notNull(),
@@ -598,7 +619,14 @@ export const auditLogs = mysqlTable("audit_logs", {
 	status: mysqlEnum(['success','failed','partial']).default('success'),
 	errorMessage: text(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_al_accountId').on(table.accountId),
+	index('idx_al_userId').on(table.userId),
+	index('idx_al_actionType').on(table.actionType),
+	index('idx_al_createdAt').on(table.createdAt),
+	index('idx_al_account_action').on(table.accountId, table.actionType),
+]));
 
 export const autoPauseRecords = mysqlTable("auto_pause_records", {
 	id: int().autoincrement().notNull(),
@@ -622,7 +650,12 @@ export const autoPauseRecords = mysqlTable("auto_pause_records", {
 	notificationSent: tinyint().default(0).notNull(),
 	notificationSentAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_apr_accountId').on(table.accountId),
+	index('idx_apr_userId').on(table.userId),
+	index('idx_apr_pausedAt').on(table.pausedAt),
+]));
 
 export const autoTargetingPerformance = mysqlTable("auto_targeting_performance", {
 	id: int().autoincrement().notNull(),
@@ -712,7 +745,11 @@ export const batchOperationItems = mysqlTable("batch_operation_items", {
 	previousValue: text(),
 	itemExecutedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_boi_batchId').on(table.batchId),
+	index('idx_boi_itemStatus').on(table.itemStatus),
+]));
 
 export const batchOperations = mysqlTable("batch_operations", {
 	id: int().autoincrement().notNull(),
@@ -739,7 +776,13 @@ export const batchOperations = mysqlTable("batch_operations", {
 	sourceTaskId: int(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+},
+(table) => ([
+	index('idx_bo_userId').on(table.userId),
+	index('idx_bo_accountId').on(table.accountId),
+	index('idx_bo_batchStatus').on(table.batchStatus),
+	index('idx_bo_createdAt').on(table.createdAt),
+]));
 
 export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
 	id: int().autoincrement().notNull(),
@@ -843,7 +886,14 @@ export const bidPerformanceHistory = mysqlTable("bid_performance_history", {
 	revenue: decimal({ precision: 12, scale: 2 }),
 	profit: decimal({ precision: 12, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
-});
+},
+(table) => ([
+	index('idx_bph_accountId').on(table.accountId),
+	index('idx_bph_bidObjectId').on(table.bidObjectId),
+	index('idx_bph_account_object').on(table.accountId, table.bidObjectType, table.bidObjectId),
+	index('idx_bph_campaignId').on(table.campaignId),
+	index('idx_bph_createdAt').on(table.createdAt),
+]));
 
 export const biddingLogs = mysqlTable("bidding_logs", {
 	id: int().autoincrement().notNull(),
@@ -868,7 +918,14 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 	apiResponseId: varchar('api_response_id', { length: 128 }),
 	errorMessage: text('error_message'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_bl_accountId').on(table.accountId),
+	index('idx_bl_campaignId').on(table.campaignId),
+	index('idx_bl_targetId').on(table.targetId),
+	index('idx_bl_createdAt').on(table.createdAt),
+	index('idx_bl_actionType').on(table.actionType),
+]));
 
 export const budgetAlertSettings = mysqlTable("budget_alert_settings", {
 	id: int().autoincrement().notNull(),
@@ -1265,7 +1322,13 @@ export const budgetHistory = mysqlTable("budget_history", {
 	snapshotSpend: decimal({ precision: 15, scale: 2 }),
 	snapshotSales: decimal({ precision: 15, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_bh_accountId').on(table.accountId),
+	index('idx_bh_userId').on(table.userId),
+	index('idx_bh_campaignId').on(table.campaignId),
+	index('idx_bh_createdAt').on(table.createdAt),
+]));
 
 export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_snapshots", {
 	id: int().autoincrement().notNull(),
@@ -1634,7 +1697,13 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	progressPercent: int("progress_percent").default(0),
 	siteProgress: json("site_progress"),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
-});
+}, (table) => ([
+	index('idx_dsj_accountId').on(table.accountId),
+	index('idx_dsj_status').on(table.status),
+	index('idx_dsj_userId').on(table.userId),
+	index('idx_dsj_account_status').on(table.accountId, table.status),
+	index('idx_dsj_startedAt').on(table.startedAt),
+]));
 
 export const dataSyncLogs = mysqlTable("data_sync_logs", {
 	id: int().autoincrement().notNull(),
@@ -1644,8 +1713,10 @@ export const dataSyncLogs = mysqlTable("data_sync_logs", {
 	message: text(),
 	details: json(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
+}, (table) => ([
+	index('idx_dsl_jobId').on(table.jobId),
+	index('idx_dsl_status').on(table.status),
+]));
 export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
@@ -1747,7 +1818,12 @@ export const daypartingStrategies = mysqlTable("dayparting_strategies", {
 	lastAppliedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+},
+(table) => ([
+	index('idx_ds_accountId').on(table.accountId),
+	index('idx_ds_campaignId').on(table.campaignId),
+	index('idx_ds_account_campaign').on(table.accountId, table.campaignId),
+]));
 
 export const decisionTreeModels = mysqlTable("decision_tree_models", {
 	id: int().autoincrement().notNull(),
@@ -1830,6 +1906,10 @@ export const hourlyPerformance = mysqlTable("hourly_performance", {
 },
 (table) => ([
 	unique('uk_hourly_perf').on(table.accountId, table.campaignId, table.date, table.hour),
+	index('idx_hp_accountId').on(table.accountId),
+	index('idx_hp_campaignId').on(table.campaignId),
+	index('idx_hp_date').on(table.date),
+	index('idx_hp_account_campaign').on(table.accountId, table.campaignId),
 ]));
 
 export const hourpartingBidRules = mysqlTable("hourparting_bid_rules", {
@@ -1966,6 +2046,7 @@ export const keywords = mysqlTable("keywords", {
 	idx_keywords_internalAdGroupId: index('idx_keywords_internal_ad_group_id').on(table.internalAdGroupId),
 	idx_keywords_account_campaign: index('idx_keywords_account_campaign').on(table.accountId, table.campaignId),
 	idx_keywords_keywordId: index('idx_keywords_keywordId').on(table.keywordId),
+	idx_keywords_keywordStatus: index('idx_keywords_keywordStatus').on(table.keywordStatus),
 }));
 
 export const localUsers = mysqlTable("local_users", {
@@ -2120,6 +2201,8 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	idx_negKw_accountId: index('idx_negKw_accountId').on(table.accountId),
 	idx_negKw_campaignId: index('idx_negKw_campaignId').on(table.campaignId),
 	idx_negKw_account_campaign: index('idx_negKw_account_campaign').on(table.accountId, table.campaignId),
+	idx_negKw_internalAdGroupId: index('idx_negKw_internalAdGroupId').on(table.internalAdGroupId),
+	idx_negKw_negativeLevel: index('idx_negKw_negativeLevel').on(table.negativeLevel),
 }));
 
 export const notificationHistory = mysqlTable("notification_history", {
@@ -2137,7 +2220,13 @@ export const notificationHistory = mysqlTable("notification_history", {
 	sentAt: timestamp({ mode: 'string' }),
 	readAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_nh_userId').on(table.userId),
+	index('idx_nh_accountId').on(table.accountId),
+	index('idx_nh_status').on(table.status),
+	index('idx_nh_createdAt').on(table.createdAt),
+]));
 
 export const notificationSettings = mysqlTable("notification_settings", {
 	id: int().autoincrement().notNull(),
@@ -2183,7 +2272,14 @@ export const optimizationRecommendations = mysqlTable("optimization_recommendati
 	expiresAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
-});
+},
+(table) => ([
+	index('idx_or_accountId').on(table.accountId),
+	index('idx_or_campaignId').on(table.campaignId),
+	index('idx_or_status').on(table.status),
+	index('idx_or_priority').on(table.priority),
+	index('idx_or_account_status').on(table.accountId, table.status),
+]));
 
 export const organizations = mysqlTable("organizations", {
 	id: int().autoincrement().notNull(),
@@ -2246,7 +2342,13 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	lastOptimizationAt: datetime("last_optimization_at", { mode: 'string' }),
 	// v242: 模块级别的执行时间持久化，解决部署重启导致调度状态丢失的问题
 	moduleExecutionTimes: text("module_execution_times"),
-});
+},
+(table) => ([
+	index('idx_pg_accountId').on(table.accountId),
+	index('idx_pg_userId').on(table.userId),
+	index('idx_pg_status').on(table.status),
+	index('idx_pg_account_status').on(table.accountId, table.status),
+]));
 
 export const placementBidSettings = mysqlTable("placement_bid_settings", {
 	id: int().autoincrement().notNull(),
@@ -2287,6 +2389,10 @@ export const placementPerformance = mysqlTable("placement_performance", {
 },
 (table) => ([
 	unique('uk_placement_perf').on(table.campaignId, table.accountId, table.placement, table.date),
+	index('idx_pp_accountId').on(table.accountId),
+	index('idx_pp_campaignId').on(table.campaignId),
+	index('idx_pp_date').on(table.date),
+	index('idx_pp_account_campaign').on(table.accountId, table.campaignId),
 ]));
 
 export const placementSettings = mysqlTable("placement_settings", {
@@ -2352,6 +2458,8 @@ export const productTargets = mysqlTable("product_targets", {
 	idx_prodTargets_campaignId: index('idx_prodTargets_campaignId').on(table.campaignId),
 	idx_prodTargets_account_campaign: index('idx_prodTargets_account_campaign').on(table.accountId, table.campaignId),
 	idx_prodTargets_targetId: index('idx_prodTargets_targetId').on(table.targetId),
+	idx_prodTargets_internalAdGroupId: index('idx_prodTargets_internalAdGroupId').on(table.internalAdGroupId),
+	idx_prodTargets_targetStatus: index('idx_prodTargets_targetStatus').on(table.targetStatus),
 }));
 
 export const promotionalEvents = mysqlTable("promotional_events", {
@@ -2772,7 +2880,14 @@ export const taskExecutionLog = mysqlTable("task_execution_log", {
 	errorMessage: text(),
 	resultSummary: text(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
+},
+(table) => ([
+	index('idx_tel_accountId').on(table.accountId),
+	index('idx_tel_userId').on(table.userId),
+	index('idx_tel_taskType').on(table.taskType),
+	index('idx_tel_status').on(table.status),
+	index('idx_tel_createdAt').on(table.createdAt),
+]));
 
 export const teamMembers = mysqlTable("team_members", {
 	id: int().autoincrement().notNull(),

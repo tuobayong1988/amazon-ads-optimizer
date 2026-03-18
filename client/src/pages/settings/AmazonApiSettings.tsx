@@ -127,7 +127,7 @@ export default function AmazonApiSettings() {
   const [formData, setFormData] = useState<AccountFormData>(initialFormData);
   
   // 打开对话框时重置表单（但保留店铺名称）
-  const handleOpenAddDialog = () => {
+  const handleOpenAddDialog = useCallback(() => {
     setFormData({
       ...formData,
       accountId: "",
@@ -141,13 +141,13 @@ export default function AmazonApiSettings() {
       isDefault: false,
     });
     setIsAddDialogOpen(true);
-  };
+  }, [formData]);
   
   // 关闭对话框时重置表单
-  const handleCloseAddDialog = () => {
+  const handleCloseAddDialog = useCallback(() => {
     setIsAddDialogOpen(false);
     setFormData(initialFormData);
-  };
+  }, []);
   const [credentials, setCredentials] = useState({
     clientId: "",
     clientSecret: "",
@@ -1600,7 +1600,7 @@ export default function AmazonApiSettings() {
     }
   };
 
-  const openEditDialog = (account: NonNullable<typeof accounts>[number]) => {
+  const openEditDialog = useCallback((account: NonNullable<typeof accounts>[number]) => {
     setEditingAccount({
       id: account.id,
       accountId: account.accountId,
@@ -1615,9 +1615,9 @@ export default function AmazonApiSettings() {
       isDefault: Boolean(account.isDefault),
     });
     setIsEditDialogOpen(true);
-  };
+  }, []);
 
-  const getConnectionStatusBadge = (status: string | null) => {
+  const getConnectionStatusBadge = useCallback((status: string | null) => {
     switch (status) {
       case 'connected':
         return <Badge className="bg-green-500/20 text-green-400 border-green-500/30"><CheckCircle2 className="h-3 w-3 mr-1" />已连接</Badge>;
@@ -1628,7 +1628,7 @@ export default function AmazonApiSettings() {
       default:
         return <Badge variant="outline"><Loader2 className="h-3 w-3 mr-1 animate-spin" />待配置</Badge>;
     }
-  };
+  }, []);
 
   if (authLoading || accountsLoading) {
     return (

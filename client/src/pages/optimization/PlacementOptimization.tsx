@@ -99,6 +99,7 @@ const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null
 
   // 获取账号列表
   // v426: 使用轻量级API，仅获取名称/ID用于下拉选择
+
   const { data: campaigns } = trpc.campaign.listNamesOnly.useQuery(
     { accountId: selectedAccountId! },
     { enabled: !!selectedAccountId }

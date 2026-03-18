@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, useCallback} from "react";
 import { safeToLocaleDateString } from "@/lib/safeDate";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -129,28 +129,28 @@ export default function TeamManagement() {
     { enabled: !!selectedMemberId }
   );
 
-  const handleInvite = () => {
+  const handleInvite = useCallback(() => {
     if (!inviteForm.email) {
       toast.error("请输入邮箱地址");
       return;
     }
     inviteMutation.mutate(inviteForm);
-  };
+  }, [inviteForm, inviteMutation]);
 
-  const handleOpenPermissions = (memberId: number) => {
+  const handleOpenPermissions = useCallback((memberId: number) => {
     setSelectedMemberId(memberId);
     setIsPermissionOpen(true);
-  };
+  }, []);
 
-  const handleSavePermissions = () => {
+  const handleSavePermissions = useCallback(() => {
     if (!selectedMemberId) return;
     setPermissionsMutation.mutate({
       memberId: selectedMemberId,
       permissions,
     });
-  };
+  }, [selectedMemberId, permissions, setPermissionsMutation]);
 
-  const getRoleBadge = (role: TeamMemberRole) => {
+  const getRoleBadge = useCallback((role: TeamMemberRole) => {
     const roleConfig = {
       owner: { label: "所有者", variant: "default" as const, className: "bg-gradient-to-r from-amber-500 to-orange-500" },
       admin: { label: "管理员", variant: "default" as const, className: "bg-purple-500" },
@@ -163,9 +163,9 @@ export default function TeamManagement() {
         {config.label}
       </Badge>
     );
-  };
+  }, []);
 
-  const getStatusBadge = (status: TeamMemberStatus) => {
+  const getStatusBadge = useCallback((status: TeamMemberStatus) => {
     const statusConfig = {
       pending: { label: "待接受", icon: Clock, className: "text-yellow-500" },
       active: { label: "已激活", icon: CheckCircle, className: "text-green-500" },
@@ -180,10 +180,10 @@ export default function TeamManagement() {
         <span>{config.label}</span>
       </div>
     );
-  };
+  }, []);
 
-  // 统计数据
-  const stats = {
+  // 统计数据 - v446: useMemo避免重复计算
+  const stats = useMemo(() => ({
     total: members?.length || 0,
     // @ts-expect-error - array method type inference
     active: members?.filter(m => m.status === "active").length || 0,
@@ -191,7 +191,7 @@ export default function TeamManagement() {
     pending: members?.filter(m => m.status === "pending").length || 0,
     // @ts-expect-error - array method type inference
     admins: members?.filter(m => m.role === "admin" || m.role === "owner").length || 0,
-  };
+  }), [members]);
 
   return (
     <DashboardLayout>

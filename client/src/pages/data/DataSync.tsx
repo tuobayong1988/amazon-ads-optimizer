@@ -3,7 +3,7 @@
  * 管理Amazon API数据同步任务和限流状态
  */
 
-import { useState } from "react";
+import { useState, useMemo, useCallback} from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -177,12 +177,12 @@ const [activeTab, setActiveTab] = useState("tiered");
     { enabled: !!selectedScheduleId }
   );
 
-  const openHistoryDialog = (scheduleId: number) => {
+  const openHistoryDialog = useCallback((scheduleId: number) => {
     setSelectedScheduleId(scheduleId);
     setShowHistoryDialog(true);
-  };
+  }, []);
 
-  const handleCreateJob = () => {
+  const handleCreateJob = useCallback(() => {
     if (!accountId) {
       toast.error("请先选择广告账号");
       return;
@@ -191,9 +191,9 @@ const [activeTab, setActiveTab] = useState("tiered");
       accountId,
       syncType,
     });
-  };
+  }, [accountId, syncType, createJobMutation]);
 
-  const getStatusIcon = (status: string | null) => {
+  const getStatusIcon = useCallback((status: string | null) => {
     switch (status) {
       case "pending":
         return <Clock className="h-4 w-4 text-yellow-500" />;
@@ -208,9 +208,9 @@ const [activeTab, setActiveTab] = useState("tiered");
       default:
         return <Clock className="h-4 w-4" />;
     }
-  };
+  }, []);
 
-  const getStatusBadge = (status: string | null) => {
+  const getStatusBadge = useCallback((status: string | null) => {
     switch (status) {
       case "pending":
         return <Badge className="bg-yellow-500">等待中</Badge>;
@@ -225,9 +225,9 @@ const [activeTab, setActiveTab] = useState("tiered");
       default:
         return <Badge>{status}</Badge>;
     }
-  };
+  }, []);
 
-  const getSyncTypeName = (type: string | null) => {
+  const getSyncTypeName = useCallback((type: string | null) => {
     const names: Record<string, string> = {
       campaigns: "广告活动",
       keywords: "关键词",
@@ -235,9 +235,9 @@ const [activeTab, setActiveTab] = useState("tiered");
       all: "全量同步",
     };
     return names[type || ""] || type || "未知";
-  };
+  }, []);
 
-  const formatDuration = (startedAt: Date | string | null, completedAt: Date | string | null) => {
+  const formatDuration = useCallback((startedAt: Date | string | null, completedAt: Date | string | null) => {
     if (!startedAt) return "N/A";
     const start = safeGetTime(startedAt);
     const end = completedAt ? safeGetTime(completedAt) : Date.now();
@@ -245,7 +245,7 @@ const [activeTab, setActiveTab] = useState("tiered");
     if (duration < 60) return `${duration}秒`;
     if (duration < 3600) return `${Math.round(duration / 60)}分钟`;
     return `${Math.round(duration / 3600)}小时`;
-  };
+  }, []);
 
   // 检查是否有已授权的账号
   const hasAuthorizedAccounts = accounts && accounts.length > 0;

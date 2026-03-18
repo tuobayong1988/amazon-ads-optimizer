@@ -1174,6 +1174,7 @@ export default function OptimizationTargets() {
   // v426: 使用轻量级statusCounts API替代全量加载
   const { data: campaignCounts } = trpc.campaign.statusCounts.useQuery(
     { accountId: currentAccountId as any},
+
     { enabled: !!currentAccountId }
   );
 
@@ -1181,13 +1182,14 @@ export default function OptimizationTargets() {
   const stats = useMemo(() => {
     const managedCampaigns = campaignCounts?.managed || 0;
     const unmanagedCampaigns = campaignCounts?.unmanaged || 0;
+
     const activeTargets = targets?.filter(t => t.status === "active").length || 0;
     const pausedTargets = targets?.filter(t => t.status !== "active").length || 0;
     
     return {
       totalTargets: targets?.length || 0,
-      managedCampaigns,
-      unmanagedCampaigns,
+      managedCampaigns: campaignCounts?.managed || 0,
+      unmanagedCampaigns: campaignCounts?.unmanaged || 0,
       activeTargets,
       pausedTargets,
     };

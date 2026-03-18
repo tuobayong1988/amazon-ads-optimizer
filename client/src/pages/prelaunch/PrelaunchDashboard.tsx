@@ -3,7 +3,7 @@
  * 核心修复: 完整的项目管理系统（存储、展示、编辑、删除）
  * P1优化: 模块卡片可点击跳转、状态指示、数据流可视化、新建项目分步向导
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -385,7 +385,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
   });
 
   // 当project变化时重置编辑状态
-  const resetEditState = () => {
+  const resetEditState = useCallback(() => {
     if (project) {
       setEditName(project.projectName || '');
       setEditAsin(project.asin || '');
@@ -397,9 +397,9 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       setEditKeywords(kws.join('\n'));
       setEditStatus(project.status || 'draft');
     }
-  };
+  }, [project]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!editName.trim()) { toast.error("项目名称不能为空"); return; }
     updateProject.mutate({
       projectId: project.id,
@@ -410,7 +410,7 @@ function ProjectDetailDialog({ project, open, onClose, onSaved }: {
       seedKeywords: editKeywords.split(/[,，\n]/).map((s: string) => s.trim()).filter(Boolean),
       status: editStatus as any,
     });
-  };
+  }, [editName, editAsin, editCategory, editMarketplace, editKeywords, editStatus, project?.id, updateProject]);
 
   if (!project) return null;
 
@@ -599,13 +599,13 @@ function CreateProjectWizard({ onClose, onCreated }: {
     onError: (err: any) => toast.error("创建失败: " + err.message),
   });
 
-  const toggleModule = (key: string) => {
+  const toggleModule = useCallback((key: string) => {
     setSelectedModules(prev =>
       prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     );
-  };
+  }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!projectName.trim()) { toast.error("请输入项目名称"); return; }
     createProject.mutate({
       projectName: projectName.trim(),
@@ -614,7 +614,7 @@ function CreateProjectWizard({ onClose, onCreated }: {
       marketplace,
       seedKeywords: seedKeywords.split(/[,，\n]/).map(s => s.trim()).filter(Boolean),
     });
-  };
+  }, [projectName, asin, category, marketplace, seedKeywords, createProject]);
 
   return (
     <Card className="border-blue-500/30">
@@ -851,20 +851,20 @@ export default function PrelaunchDashboard() {
     };
   }, [projects]);
 
-  const handleRunPipeline = () => {
+  const handleRunPipeline = useCallback(() => {
     if (!selectedProjectId) { toast.error("请先选择或创建项目"); return; }
     runPipeline.mutate({
       projectId: selectedProjectId,
       seedKeywords: [],
       marketplace: 'US',
     });
-  };
+  }, [selectedProjectId, runPipeline]);
 
-  const handleDeleteProject = () => {
+  const handleDeleteProject = useCallback(() => {
     if (deleteProject) {
       deleteProjectMutation.mutate({ projectId: deleteProject.id });
     }
-  };
+  }, [deleteProject, deleteProjectMutation]);
 
   return (
     <DashboardLayout>

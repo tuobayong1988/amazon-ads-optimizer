@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback} from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 // v399: removed old AccountSwitcher import
 import { trpc } from "@/lib/trpc";
