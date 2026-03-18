@@ -15,7 +15,11 @@ esbuild.build({
     'oracledb',
     '@tailwindcss/oxide',
     'lightningcss',
-    '@babel/preset-typescript'
+    '@babel/preset-typescript',
+    // v449: Vite plugins only used in dev mode, not needed in production bundle
+    '@builder.io/vite-plugin-jsx-loc',
+    'vite-plugin-manus-runtime',
+    'vite',
   ],
   alias: {
     '@db/schema': './drizzle/schema.ts',
