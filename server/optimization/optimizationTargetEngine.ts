@@ -1230,16 +1230,25 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
   }
   
   const campaigns = await db.getCampaignsByPerformanceGroupId(targetId);
-  let keywordsCount = 0;
   
-  for (const campaign of (campaigns as any[])) {
-    const campaignAmazonId = getCampaignAmazonId(campaign);
-    const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
-    keywordsCount += keywords.length;
-  }
-  
-  // 执行干运行获取待处理操作数量
-  const dryRunResult = await executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
+  // v451: 优化N+1查询 - 并行获取关键词计数 + 并行执行dry-run
+  const [keywordCounts, dryRunResult] = await Promise.all([
+    // 并行获取所有campaign的关键词数量
+    Promise.all(
+      (campaigns as any[]).map(async (campaign) => {
+        try {
+          const campaignAmazonId = getCampaignAmazonId(campaign);
+          const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
+          return keywords.length;
+        } catch {
+          return 0;
+        }
+      })
+    ),
+    // 同时执行干运行获取待处理操作数量
+    executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true }),
+  ]);
+  const keywordsCount = keywordCounts.reduce((sum, count) => sum + count, 0);
   
   return {
     config,

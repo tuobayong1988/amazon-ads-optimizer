@@ -153,11 +153,12 @@ export const smartCampaignRouter = router({
       cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
       const endDate = new Date();
 
+      // v451: 修复ID类型混淆 - getDailyPerformanceByDateRange需要Amazon campaignId（varchar），不能传本地id（int）
       const historicalRecords = await db.getDailyPerformanceByDateRange(
         campaign.accountId,
         cutoffDate,
         endDate,
-        campaign.id
+        campaign.campaignId
       );
 
       if (historicalRecords.length === 0) {
@@ -215,12 +216,13 @@ export const smartCampaignRouter = router({
       const endDate = new Date();
 
       const campaignMetrics: CampaignMetrics[] = await Promise.all(
-        groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; campaignStatus: string | null; dailyBudget: string | null }) => {
+        groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignId: string; campaignName: string; campaignStatus: string | null; dailyBudget: string | null }) => {
+          // v451: 修复ID类型混淆 - 使用Amazon campaignId而非本地id
           const historicalRecords = await db.getDailyPerformanceByDateRange(
             campaign.accountId,
             cutoffDate,
             endDate,
-            campaign.id
+            campaign.campaignId
           );
 
           return buildMetrics(

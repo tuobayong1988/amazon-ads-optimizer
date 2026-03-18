@@ -37,6 +37,8 @@ import { initEntityIdResolver } from '../services/entityIdResolver';
 import { createEntityIdResolverDbProvider } from '../services/entityIdResolverDbProvider';
 // v450: CloudWatch 自定义指标推送
 import { startCloudWatchMonitor } from '../services/cloudwatchMonitor';
+// v451: 汇率服务启动时初始化
+import { getExchangeRates } from '../services/exchangeRateService';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -346,6 +348,13 @@ async function startServer() {
 
     // v450: 启动 CloudWatch 自定义指标推送（每5分钟推送连接池/内存指标）
     startCloudWatchMonitor();
+
+    // v451: 启动时初始化汇率服务，避免首次访问时返回not_initialized
+    getExchangeRates().then(rates => {
+      log.info(`[ExchangeRate] v451: 汇率服务初始化完成，共${Object.keys(rates).length}种货币`);
+    }).catch(err => {
+      log.warn(`[ExchangeRate] v451: 汇率服务初始化失败: ${(err as Error).message}，将使用静态兆底汇率`);
+    });
     
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑

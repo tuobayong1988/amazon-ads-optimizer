@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 445;  // v445: 锁冲突机制修复 + force-sync重构 + negative_keyword错误解析增强 + trigger_source区分
+export const SYSTEM_VERSION = 451;  // v451: 修复smartCampaign ID类型混淆 + getExecutionSummary缓存优化 + 汇率服务启动初始化

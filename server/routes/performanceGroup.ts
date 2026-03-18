@@ -14,6 +14,7 @@ import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { bidAdjustmentHistory } from '../../drizzle/schema';
 import { createModuleLogger } from '../utils/logger';
 import { verifyAccountAccess } from '../utils/accessControl';
+import { apiCache } from '../services/apiCacheService';
 
 const log = createModuleLogger('Route_performanceGroup');
 
@@ -722,13 +723,27 @@ export const performanceGroupRouter = router({
   // ==================== 优化目标自动执行引擎 API ====================
   
   // v370.4: 数据隔离 - 获取优化目标执行摘要
+  // v451: 添加2分钟API缓存解决大数据量下的超时问题
   getExecutionSummary: protectedProcedure
     .input(z.object({ targetId: z.number() }))
     .query(async ({ ctx, input }: any) => {
       const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
       await verifyPerformanceGroupAccess(ctx.user.id, input.targetId);
+      
+      // v451: 缓存优化 - 执行摘要涉及dry-run计算，非常耗时，添加2分钟缓存
+      const cacheKey = apiCache.generateKey('performanceGroup.getExecutionSummary', ctx.user.id, input);
+      const cached = apiCache.get<any>(cacheKey);
+      if (cached) {
+        log.info(`[Cache HIT] getExecutionSummary targetId=${input.targetId}`);
+        return cached;
+      }
+      
       const optimizationTargetEngine = await import('../optimization/optimizationTargetEngine');
-      return optimizationTargetEngine.getOptimizationTargetSummary(input.targetId);
+      const result = await optimizationTargetEngine.getOptimizationTargetSummary(input.targetId);
+      
+      // 缓存2分钟
+      apiCache.set(cacheKey, result, 2 * 60 * 1000);
+      return result;
     }),
   
   // v370.4: 数据隔离 - 执行优化目标（干运行模式）
