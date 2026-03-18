@@ -800,7 +800,9 @@ async function executeBatchByType(
             const failedIds = new Map<string, string>();
             if (apiResult.errors && apiResult.errors.length > 0) {
               for (const err of apiResult.errors) {
-                failedIds.set(String(err.keywordId), err.details || (err as any).code || 'API_ERROR');
+                // v444: 增强错误记录 - 保存完整错误信息
+                const errDetail = err.details || (err as any).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
+                failedIds.set(String(err.keywordId), errDetail);
               }
             }
             
@@ -925,7 +927,9 @@ async function executeBatchByType(
             const sbFailedIds = new Map<string, string>();
             if (sbApiResult.errors && sbApiResult.errors.length > 0) {
               for (const err of sbApiResult.errors) {
-                sbFailedIds.set(String(err.keywordId), err.details || err.code || 'SB_API_ERROR');
+                // v444: 增强错误记录 - 保存完整错误信息
+                const sbErrDetail = err.details || err.code || JSON.stringify(err).substring(0, 200) || 'SB_API_ERROR';
+                sbFailedIds.set(String(err.keywordId), sbErrDetail);
               }
             }
             
@@ -1000,7 +1004,9 @@ async function executeBatchByType(
           const failedIds = new Map<string, string>();
           if (apiResult.errors && apiResult.errors.length > 0) {
             for (const err of apiResult.errors) {
-              failedIds.set(String(err.targetId), err.details || (err as any).code || 'API_ERROR');
+              // v444: 增强错误记录 - 保存完整错误信息
+              const ptErrDetail = err.details || (err as any).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
+              failedIds.set(String(err.targetId), ptErrDetail);
             }
           }
           

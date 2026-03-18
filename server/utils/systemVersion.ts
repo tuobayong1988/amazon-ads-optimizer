@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 443;  // v443: 僵尸账户自动检测与标注机制 + paused账户过滤 + 账户重新激活API
+export const SYSTEM_VERSION = 444;  // v444: 全局accountId NOT NULL约束 + 历史NULL数据回填 + 字段/ID标准统一审计

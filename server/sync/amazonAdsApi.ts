@@ -1126,13 +1126,14 @@ export class AmazonAdsApiClient {
           // v3 API格式: { keywords: { success: [...], error: [...] } }
           if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
             for (const err of responseKeywords.error) {
-              // v426: v3 API的error对象使用index字段标识失败项，而非keywordId
+              // v444: 增强错误解析 - 记录完整error对象，兼容更多字段名
               const failedIndex = typeof err.index === 'number' ? err.index : undefined;
               const failedKeywordId = err.keywordId || (failedIndex !== undefined ? batch[failedIndex]?.keywordId : 'unknown');
-              const errorCode = err.code || 'ERROR';
-              const errorDetails = err.description || err.details || err.message || '';
-              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
-              log.error(`[SP API] v426: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+              const errorCode = err.code || err.errorCode || 'ERROR';
+              const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
+              const fullErrorStr = JSON.stringify(err).substring(0, 300);
+              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails || fullErrorStr });
+              log.error(`[SP API] v444: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
             }
           }
           if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
@@ -1495,12 +1496,14 @@ export class AmazonAdsApiClient {
         if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
           if (responseTargets.error && Array.isArray(responseTargets.error)) {
             for (const err of responseTargets.error) {
+              // v444: 增强错误解析 - 记录完整error对象
               const failedIndex = typeof err.index === 'number' ? err.index : undefined;
               const failedTargetId = err.targetId || (failedIndex !== undefined ? batch[failedIndex]?.targetId : 'unknown');
-              const errorCode = err.code || 'ERROR';
-              const errorDetails = err.description || err.details || err.message || '';
-              allErrors.push({ targetId: failedTargetId, code: errorCode, details: errorDetails });
-              log.error(`[SP API] v426: 商品定位出价更新失败: targetId=${failedTargetId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+              const errorCode = err.code || err.errorCode || 'ERROR';
+              const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
+              const fullErrorStr = JSON.stringify(err).substring(0, 300);
+              allErrors.push({ targetId: failedTargetId, code: errorCode, details: errorDetails || fullErrorStr });
+              log.error(`[SP API] v444: 商品定位出价更新失败: targetId=${failedTargetId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
             }
           }
           if (responseTargets.success && Array.isArray(responseTargets.success)) {
@@ -3803,8 +3806,15 @@ export class AmazonAdsApiClient {
           if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
             allSuccesses.push(item);
           } else {
-            allErrors.push(item);
-            log.warn(`[SB API] v429.5: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details || JSON.stringify(item.errors || '')}`);
+            // v444: 增强错误解析 - 记录完整响应对象并规范化错误格式
+            const fullItemStr = JSON.stringify(item).substring(0, 300);
+            const errorDetails = item.description || item.details || item.errorMessage || item.errorDescription || JSON.stringify(item.errors || '') || fullItemStr;
+            allErrors.push({ 
+              keywordId: item.keywordId, 
+              code: item.code || item.errorCode || 'SB_ERROR', 
+              details: errorDetails 
+            });
+            log.warn(`[SB API] v444: SB关键词出价更新失败: keywordId=${item.keywordId}, code=${item.code}, fullItem=${fullItemStr}`);
           }
         }
         

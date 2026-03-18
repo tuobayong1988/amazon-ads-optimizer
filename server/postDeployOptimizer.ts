@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 444,
+    description: 'v444: [全局字段/ID标准统一审计与修复 + API错误解析增强] — (1)P0-历史NULL数据回填: product_targets 29条+2条重复删除, search_terms 493条, negative_keywords 21条孤儿数据删除 (2)P0-全局accountId NOT NULL约束: 对24个表的accountId字段统一加NOT NULL约束 (3)P1-schema同步: drizzle/schema.ts中所有accountId字段统一为.notNull() (4)P2-API错误解析增强: SP/SB keyword、product target的API错误响应现在记录完整JSON对象，兼容errorCode/errorMessage/errorDescription等字段名',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['schema', 'db', 'sync'],
+    correctionActions: [],
+  },
+  {
     version: 443,
     description: 'v443: [僵尸账户自动检测与标注机制] — (1)P0-僵尸账户自动检测: 新增zombieAccountDetector模块,在每次high层同步完成后自动检查连续10次同步0条记录的账户并自动标记为paused (2)P0-paused账户过滤: discoverSyncableAccounts现在过滤paused状态的账户,不再浪费API调用 (3)P1-账户管理API: 新增POST /api/ops/detect-zombies手动触发检测 + POST /api/ops/reactivate-account重新激活账户 (4)P2-立即暂停90022(MX)/90025(CA)/90026(MX)三个无经营账户',
     // @ts-expect-error - runtime type mismatch

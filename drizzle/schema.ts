@@ -145,7 +145,8 @@ export const adAccounts = mysqlTable("ad_accounts", {
 export const adGroups = mysqlTable("ad_groups", {
 	id: int().autoincrement().notNull(),
 	// v311: 添加缺失的accountId字段，确保与数据库实际表结构一致
-	accountId: int(),
+	// v444: 加NOT NULL约束，防止NULL accountId
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: varchar({ length: 64 }).notNull(),
 	adGroupName: varchar({ length: 500 }).notNull(),
@@ -429,7 +430,7 @@ export const anomalyAlertLogs = mysqlTable("anomaly_alert_logs", {
 	id: int().autoincrement().notNull(),
 	ruleId: int().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	anomalyType: mysqlEnum(['bid_spike','bid_drop','batch_size','budget_change','acos_spike','spend_velocity','click_anomaly','conversion_drop']).notNull(),
 	detectedValue: decimal({ precision: 10, scale: 2 }).notNull(),
 	thresholdValue: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -450,7 +451,7 @@ export const anomalyAlertLogs = mysqlTable("anomaly_alert_logs", {
 export const anomalyDetectionRules = mysqlTable("anomaly_detection_rules", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	ruleName: varchar({ length: 200 }).notNull(),
 	ruleDescription: text(),
 	anomalyType: mysqlEnum(['bid_spike','bid_drop','batch_size','budget_change','acos_spike','spend_velocity','click_anomaly','conversion_drop']).notNull(),
@@ -488,7 +489,7 @@ export const apiCallLogs = mysqlTable("api_call_logs", {
 export const apiOperationLogs = mysqlTable("api_operation_logs", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	operationType: mysqlEnum(['bid_adjustment','budget_change','campaign_status','keyword_status','negative_keyword','target_status','batch_operation','api_sync','auto_optimization','manual_operation','other']).notNull(),
 	targetType: mysqlEnum(['campaign','ad_group','keyword','product_target','search_term','account','multiple']).notNull(),
 	targetId: int(),
@@ -589,7 +590,7 @@ export const auditLogs = mysqlTable("audit_logs", {
 	previousValue: json(),
 	newValue: json(),
 	metadata: json(),
-	accountId: int(),
+	accountId: int().notNull(),
 	accountName: varchar({ length: 255 }),
 	ipAddress: varchar({ length: 45 }),
 	userAgent: text(),
@@ -716,7 +717,7 @@ export const batchOperationItems = mysqlTable("batch_operation_items", {
 export const batchOperations = mysqlTable("batch_operations", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	operationType: mysqlEnum(['negative_keyword','bid_adjustment','keyword_migration','campaign_status']).notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
@@ -872,7 +873,7 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 export const budgetAlertSettings = mysqlTable("budget_alert_settings", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	overspendingThreshold: decimal({ precision: 5, scale: 2 }).default('120'),
 	underspendingThreshold: decimal({ precision: 5, scale: 2 }).default('50'),
 	nearDepletionThreshold: decimal({ precision: 5, scale: 2 }).default('90'),
@@ -977,7 +978,7 @@ export const budgetAllocationSuggestions = mysqlTable("budget_allocation_suggest
 export const budgetAllocationTracking = mysqlTable("budget_allocation_tracking", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	allocationId: int().notNull(),
 	trackingPeriod: mysqlEnum(['7_days','14_days','30_days']).default('7_days'),
 	startDate: timestamp({ mode: 'string' }).notNull(),
@@ -1012,7 +1013,7 @@ export const budgetAllocationTracking = mysqlTable("budget_allocation_tracking",
 export const budgetAllocations = mysqlTable("budget_allocations", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	goalId: int(),
 	allocationName: varchar({ length: 255 }).notNull(),
 	description: text(),
@@ -1089,7 +1090,7 @@ export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_deta
 export const budgetAutoExecutionHistory = mysqlTable("budget_auto_execution_history", {
 	id: int().autoincrement().notNull(),
 	configId: int("config_id").notNull(),
-	accountId: int("account_id"),
+	accountId: int("account_id").notNull(),
 	executionTime: timestamp("execution_time", { mode: 'string' }),
 	executionStartAt: datetime("execution_start_at", { mode: 'string' }),
 	executionEndAt: datetime("execution_end_at", { mode: 'string' }),
@@ -1164,7 +1165,7 @@ export const keywordAutoExecutionConfigs = mysqlTable("keyword_auto_execution_co
 export const keywordAutoExecutionHistory = mysqlTable("keyword_auto_execution_history", {
 	id: int().autoincrement().notNull(),
 	configId: int("config_id").notNull(),
-	accountId: int("account_id"),
+	accountId: int("account_id").notNull(),
 	executionTime: datetime("execution_time", { mode: 'string' }),
 	keywordsPaused: int("keywords_paused").default(0),
 	keywordsEnabled: int("keywords_enabled").default(0),
@@ -1209,7 +1210,7 @@ export const keywordAutoExecutionDetails = mysqlTable("keyword_auto_execution_de
 export const budgetConsumptionAlerts = mysqlTable("budget_consumption_alerts", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	alertType: mysqlEnum(['overspending','underspending','budget_depleted','near_depletion']).notNull(),
 	severity: mysqlEnum(['low','medium','high','critical']).default('medium'),
@@ -1231,7 +1232,7 @@ export const budgetConsumptionAlerts = mysqlTable("budget_consumption_alerts", {
 export const budgetGoals = mysqlTable("budget_goals", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	goalType: mysqlEnum(['sales_target','roas_target','acos_target','profit_target','market_share']).notNull(),
 	targetValue: decimal({ precision: 15, scale: 2 }).notNull(),
 	periodType: mysqlEnum(['daily','weekly','monthly','quarterly']).default('monthly'),
@@ -1250,7 +1251,7 @@ export const budgetGoals = mysqlTable("budget_goals", {
 export const budgetHistory = mysqlTable("budget_history", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }).notNull(),
 	allocationId: int(),
 	previousBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -1466,7 +1467,7 @@ export const collaborationNotifications = mysqlTable("collaboration_notification
 	targetType: varchar({ length: 100 }),
 	targetId: varchar({ length: 255 }),
 	targetName: varchar({ length: 500 }),
-	accountId: int(),
+	accountId: int().notNull(),
 	accountName: varchar({ length: 255 }),
 	channel: mysqlEnum(['app','email']).notNull(),
 	recipientUserId: int().notNull(),
@@ -1852,7 +1853,7 @@ export const hourpartingBidRules = mysqlTable("hourparting_bid_rules", {
 export const importJobs = mysqlTable("import_jobs", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	fileName: varchar({ length: 255 }).notNull(),
 	fileUrl: varchar({ length: 1000 }),
 	fileType: mysqlEnum(['csv','excel']).notNull(),
@@ -1925,7 +1926,8 @@ export const keywordPredictions = mysqlTable("keyword_predictions", {
 export const keywords = mysqlTable("keywords", {
 	id: int().autoincrement().notNull(),
 	// v418: ID体系一致性重构 - internalAdGroupId存储adGroups.id(内部自增int)
-	accountId: int(),
+	// v444: accountId加NOT NULL约束
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }),
 	internalAdGroupId: int("internal_ad_group_id"),
 	keywordId: varchar({ length: 64 }),
@@ -2123,7 +2125,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 export const notificationHistory = mysqlTable("notification_history", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	type: mysqlEnum(['alert','report','system']).notNull(),
 	severity: mysqlEnum(['info','warning','critical']).default('info'),
 	title: varchar({ length: 255 }).notNull(),
@@ -2140,7 +2142,7 @@ export const notificationHistory = mysqlTable("notification_history", {
 export const notificationSettings = mysqlTable("notification_settings", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	emailEnabled: tinyint().default(1),
 	inAppEnabled: tinyint().default(1),
 	acosThreshold: decimal({ precision: 5, scale: 2 }).default('50.00'),
@@ -2314,7 +2316,8 @@ export const placementSettings = mysqlTable("placement_settings", {
 export const productTargets = mysqlTable("product_targets", {
 	id: int().autoincrement().notNull(),
 	// v418: ID体系一致性重构 - internalAdGroupId存储adGroups.id(内部自增int)
-	accountId: int(),
+	// v444: accountId加NOT NULL约束
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }),
 	internalAdGroupId: int("internal_ad_group_id"),
 	targetId: varchar({ length: 64 }),
@@ -2391,7 +2394,7 @@ export const sbCampaignSettings = mysqlTable("sb_campaign_settings", {
 export const scheduledTasks = mysqlTable("scheduled_tasks", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	taskType: mysqlEnum(['ngram_analysis','funnel_migration','traffic_conflict','smart_bidding','health_check','data_sync','traffic_isolation_full']).notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
@@ -2563,7 +2566,7 @@ export const searchTerms = mysqlTable("search_terms", {
 export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recommendations", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	campaignId: varchar({ length: 64 }),
 	eventId: int(),
 	recommendationType: mysqlEnum(['event_increase','event_warmup','seasonal_increase','seasonal_decrease','trend_based']).notNull(),
@@ -2584,7 +2587,7 @@ export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recomme
 export const seasonalTrends = mysqlTable("seasonal_trends", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	year: int().notNull(),
 	month: int().notNull(),
 	weekOfYear: int(),
@@ -2757,7 +2760,7 @@ export const taskExecutionLog = mysqlTable("task_execution_log", {
 	id: int().autoincrement().notNull(),
 	taskId: int().notNull(),
 	userId: int().notNull(),
-	accountId: int(),
+	accountId: int().notNull(),
 	taskType: varchar({ length: 64 }).notNull(),
 	status: mysqlEnum(['running','success','failed','cancelled']).notNull(),
 	startedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
