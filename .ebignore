@@ -90,6 +90,7 @@ dist/public/og-image.png
 # tsconfig.json
 vite.config.ts
 vite.build.config.ts
-build-server.js
+# v449: build-server.js is REQUIRED for predeploy esbuild compilation
+# build-server.js
 # v395: package-lock.json must NOT be excluded - npm needs it for deployment
 # package-lock.json
