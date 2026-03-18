@@ -1331,4 +1331,69 @@ router.post('/force-sync', async (req: Request, res: Response) => {
   }
 });
 
+// ============================================================
+// v443: 僵尸账户检测与管理
+// ============================================================
+
+/**
+ * POST /api/ops/detect-zombies
+ * 手动触发僵尸账户检测
+ */
+router.post('/detect-zombies', async (req: Request, res: Response) => {
+  try {
+    const { detectAndPauseZombieAccounts } = await import('../sync/infrastructure/zombieAccountDetector');
+    const result = await detectAndPauseZombieAccounts();
+    res.json({
+      message: `僵尸账户检测完成: 检查${result.checkedAccounts}个账户, 发现${result.detectedZombies.length}个僵尸, 自动暂停${result.pausedAccounts}个`,
+      ...result,
+    });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+/**
+ * POST /api/ops/reactivate-account
+ * 重新激活被paused的账户
+ * Body: { accountId: number }
+ */
+router.post('/reactivate-account', async (req: Request, res: Response) => {
+  try {
+    const { accountId } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ error: '缺少accountId参数' });
+    }
+    const database = await getDb();
+    if (!database) {
+      return res.status(500).json({ error: '数据库不可用' });
+    }
+    // 检查账户当前状态
+    const [account] = await database.execute(sql`
+      SELECT id, accountName, marketplace, status FROM ad_accounts WHERE id = ${accountId}
+    `) as any;
+    const row = Array.isArray(account) ? account[0] : account;
+    if (!row) {
+      return res.status(404).json({ error: `账户${accountId}不存在` });
+    }
+    if (row.status === 'active') {
+      return res.json({ message: `账户${accountId}已经是active状态`, accountId, status: 'active' });
+    }
+    // 重新激活
+    await database.execute(sql`
+      UPDATE ad_accounts SET status = 'active' WHERE id = ${accountId}
+    `);
+    res.json({
+      message: `账户${accountId}(${row.accountName})已重新激活为active`,
+      accountId,
+      accountName: row.accountName,
+      marketplace: row.marketplace,
+      previousStatus: row.status,
+      newStatus: 'active',
+    });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
 export default router;
+

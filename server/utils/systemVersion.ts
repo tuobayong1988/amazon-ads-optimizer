@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 442;  // v442: AMS累加模式重构 + 统一同步日志记录 + 僵尸账户排查
+export const SYSTEM_VERSION = 443;  // v443: 僵尸账户自动检测与标注机制 + paused账户过滤 + 账户重新激活API

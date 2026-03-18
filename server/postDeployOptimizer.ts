@@ -77,6 +77,13 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 443,
+    description: 'v443: [僵尸账户自动检测与标注机制] — (1)P0-僵尸账户自动检测: 新增zombieAccountDetector模块,在每次high层同步完成后自动检查连续10次同步0条记录的账户并自动标记为paused (2)P0-paused账户过滤: discoverSyncableAccounts现在过滤paused状态的账户,不再浪费API调用 (3)P1-账户管理API: 新增POST /api/ops/detect-zombies手动触发检测 + POST /api/ops/reactivate-account重新激活账户 (4)P2-立即暂停90022(MX)/90025(CA)/90026(MX)三个无经营账户',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['sync', 'ops', 'infrastructure'],
+    correctionActions: [],
+  },
+  {
     version: 442,
     description: 'v442: [AMS累加模式重构 + 统一同步日志 + 僵尸账户排查] — (1)P0-AMS数据处理重构: upsertDailyPerformanceFromAms从over写模式转为累加模式(impressions+=, clicks+=, cost+=, sales+=),新增ams_processed_messages表实现idempotency_id去重 (2)P0-updateDailyPerformanceConversion同样重构为累加模式 (3)P1-统一同步日志: force-sync端点现在会创建data_sync_jobs记录,同步完成后更新状态/耗时/记录数 (4)P2-僵尸账户排查: 确认90022(MX)/90025(CA)/90026(MX)API凭证有效但Amazon后台无广告活动',
     // @ts-expect-error - runtime type mismatch

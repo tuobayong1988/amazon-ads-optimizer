@@ -1049,8 +1049,8 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
         if (!r.clientId || !r.clientSecret || !r.refreshToken || !r.profileId) {
           return false;
         }
-        // 账户状态不能是archived
-        if (r.accountStatus === 'archived') {
+        // 账户状态不能是archived或paused
+        if (r.accountStatus === 'archived' || r.accountStatus === 'paused') {
           return false;
         }
         return true;
@@ -1719,6 +1719,19 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
 
   // 记录同步结果到数据库
   await recordBatchSyncResult(batchResult);
+
+  // v443: high层同步完成后自动检测僵尸账户
+  if (tier === 'high') {
+    try {
+      const { detectAndPauseZombieAccounts } = await import('./infrastructure/zombieAccountDetector');
+      const zombieResult = await detectAndPauseZombieAccounts();
+      if (zombieResult.pausedAccounts > 0) {
+        log.warn(`[UnifiedSync] [v443] 僵尸账户检测: 自动暂停${zombieResult.pausedAccounts}个无数据账户`);
+      }
+    } catch (zombieErr: unknown) {
+      log.warn(`[UnifiedSync] [v443] 僵尸账户检测失败: ${(zombieErr as Error).message}`);
+    }
+  }
 
   return batchResult;
 }
