@@ -39,7 +39,8 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       accountId: log.accountId || 0,
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
-      campaignId: Number(safeCampaignId) || null,
+      // v438: campaignId存储为字符串，避免Amazon ID转Number时精度丢失或溢出
+      campaignId: safeCampaignId != null ? String(safeCampaignId) : null,
       // @ts-expect-error - dynamic property access
       campaignName: (log as unknown).campaignName as string || null,
       keywordId: log.targetId,

@@ -3441,7 +3441,8 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
   strategyTemplateName: varchar("strategy_template_name", { length: 255 }),
   
   // Campaign信息
-  campaignId: int("campaign_id"),
+  // v438: ID体系统一 - campaign_id改为VARCHAR以支持Amazon原始ID
+  campaignId: varchar("campaign_id", { length: 64 }),
   campaignName: varchar("campaign_name", { length: 500 }),
   
   // 操作详情
@@ -3541,16 +3542,17 @@ export const optimizationEvents = mysqlTable("optimization_events", {
   strategyTemplateName: varchar("strategy_template_name", { length: 255 }),
   
   // === 广告活动/广告组信息 ===
-  campaignId: int("campaign_id"),
+  // v438: ID体系统一 - campaign_id/keyword_id/target_id改为VARCHAR以支持Amazon原始ID（避免INT溢出）
+  campaignId: varchar("campaign_id", { length: 64 }),
   campaignName: varchar("campaign_name", { length: 500 }),
   internalAdGroupId: int("internal_ad_group_id"),  // v418: ID体系重构
   adGroupName: varchar("ad_group_name", { length: 500 }),
   
   // === 关键词/投放目标信息 ===
-  keywordId: int("keyword_id"),
+  keywordId: varchar("keyword_id", { length: 64 }),  // v438: INT→VARCHAR
   keywordText: varchar("keyword_text", { length: 500 }),
   matchType: varchar("match_type", { length: 32 }),
-  targetId: int("target_id"),
+  targetId: varchar("target_id", { length: 64 }),  // v438: INT→VARCHAR
   targetName: varchar("target_name", { length: 500 }),
   
   // === 出价调整详情 ===

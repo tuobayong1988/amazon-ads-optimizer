@@ -31,6 +31,15 @@ export const DAY_OF_WEEK_LABELS = ["周日", "周一", "周二", "周三", "周�
 // 小时标签
 export const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${i.toString().padStart(2, "0")}:00`);
 
+// v438: 将本地campaignId转换为Amazon原始ID
+// 所有performance表统一存储Amazon原始ID，查询时必须使用Amazon ID
+async function resolveAmazonCampaignId(localCampaignId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return String(localCampaignId);
+  const result = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+  return result.length > 0 ? String(result[0].campaignId) : String(localCampaignId);
+}
+
 // ==================== 数据分析函数 ====================
 
 /**
@@ -71,7 +80,7 @@ export async function analyzeWeeklyPerformance(
     .from(dailyPerformance)
     .where(
       and(
-        eq(dailyPerformance.campaignId, String(campaignId)),
+        eq(dailyPerformance.campaignId, await resolveAmazonCampaignId(campaignId)),  // v438: 统一使用Amazon ID
         sql`${dailyPerformance.date} >= ${startDate.toISOString()}`
       )
     )
@@ -223,7 +232,7 @@ export async function analyzeHourlyPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, String(campaignId)),
+        eq(hourlyPerformance.campaignId, await resolveAmazonCampaignId(campaignId)),  // v438: 统一使用Amazon ID
         gte(hourlyPerformance.date, startDate.toISOString().split('T')[0]),
         lte(hourlyPerformance.date, endDate.toISOString().split('T')[0]) // 排除最近3天
       )
@@ -649,8 +658,9 @@ export async function ensureDaypartingStrategy(
     // v157: campaignId在schema中是int类型，但数据库中是varchar(64)
     const strategyId = await createDaypartingStrategy({
       accountId,
+      // v438: 修复ID混用 - campaignId必须存Amazon原始ID字符串，不能用Number()转换（会导致精度丢失）
       // @ts-expect-error - type assertion
-      campaignId: Number(campaignId) || 0 as unknown,
+      campaignId: String(campaignId) as unknown,
       name: `自动分时策略 - ${campaignName}`,
       strategyType: 'both',
       // @ts-expect-error - type assertion

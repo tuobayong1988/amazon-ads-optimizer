@@ -19,6 +19,14 @@ import {
   performanceGroups,
 } from '../../drizzle/schema';
 
+// v438: 将本地campaignId转换为Amazon原始ID查询performance表
+async function resolveAmazonCampaignId(localCampaignId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return String(localCampaignId);
+  const result = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+  return result.length > 0 ? String(result[0].campaignId) : String(localCampaignId);
+}
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -241,7 +249,7 @@ export async function learnCampaignSpendPattern(
   const historicalData = await db.select()
     .from(dailyPerformance)
     .where(and(
-      eq(dailyPerformance.campaignId, String(campaignId)),
+      eq(dailyPerformance.campaignId, await resolveAmazonCampaignId(campaignId)),  // v438: 统一使用Amazon ID
       gte(dailyPerformance.date, formatDate(startDate))
     ))
     .orderBy(dailyPerformance.date);

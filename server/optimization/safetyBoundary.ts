@@ -9,6 +9,17 @@ import { getDb } from "../db";
 import { dailyPerformance, campaigns, keywords, bidAdjustmentHistory } from "../../drizzle/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 
+/**
+ * v438: 将本地campaignId转换为Amazon原始ID
+ * 所有performance表统一存储Amazon原始ID，查询时必须使用Amazon ID
+ */
+async function resolveAmazonCampaignId(localCampaignId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+  return result.length > 0 ? String(result[0].campaignId) : null;
+}
+
 // 安全边界配置
 export const SAFETY_LIMITS = {
   BUDGET: {
@@ -69,7 +80,13 @@ export async function getAverageSpend(
     lte(dailyPerformance.date, endDateStr),
   ];
   if (campaignId) {
-    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
+    // v438: 将本地ID转换为Amazon原始ID查询performance表
+    const amazonId = await resolveAmazonCampaignId(campaignId);
+    if (amazonId) {
+      conditions.push(eq(dailyPerformance.campaignId, amazonId));
+    } else {
+      conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
+    }
   }
   // @ts-expect-error - runtime type mismatch
   const [result] = await db.select({
@@ -100,7 +117,13 @@ export async function getAverageCPC(
     lte(dailyPerformance.date, endDateStr),
   ];
   if (campaignId) {
-    cpcConditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
+    // v438: 将本地ID转换为Amazon原始ID查询performance表
+    const amazonId = await resolveAmazonCampaignId(campaignId);
+    if (amazonId) {
+      cpcConditions.push(eq(dailyPerformance.campaignId, amazonId));
+    } else {
+      cpcConditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
+    }
   }
   // @ts-expect-error - runtime type mismatch
   const [cpcResult] = await db.select({

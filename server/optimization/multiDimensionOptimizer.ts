@@ -196,7 +196,7 @@ export async function analyzeMultiDimensionPerformance(
   accountId: number,
   lookbackDays: number = 30,
   targetAcos?: number,
-  amazonCampaignId?: string | number  // v222: Amazon campaignId用于查询关键词（hourly/placement表用本地ID，keywords表用Amazon ID）
+  amazonCampaignId?: string | number  // v438: Amazon campaignId统一用于查询所有performance表和keywords表
 ): Promise<MultiDimAnalysis | null> {
   const db = await getDb();
   if (!db) return null;
@@ -208,6 +208,10 @@ export async function analyzeMultiDimensionPerformance(
   
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = endDate.toISOString().split('T')[0];
+  
+  // v438: 统一使用Amazon原始ID查询所有performance表
+  // 所有performance表的campaignId字段统一存储Amazon原始ID
+  const performanceQueryId = String(amazonCampaignId || campaignId);
   
   // ===== 1. 时间维度分析 =====
   
@@ -225,7 +229,7 @@ export async function analyzeMultiDimensionPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, String(campaignId)),
+        eq(hourlyPerformance.campaignId, performanceQueryId),
         sql`${hourlyPerformance.date} >= ${startStr}`,
         sql`${hourlyPerformance.date} <= ${endStr}`
       )
@@ -246,7 +250,7 @@ export async function analyzeMultiDimensionPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, String(campaignId)),
+        eq(hourlyPerformance.campaignId, performanceQueryId),
         sql`${hourlyPerformance.date} >= ${startStr}`,
         sql`${hourlyPerformance.date} <= ${endStr}`
       )
@@ -266,7 +270,7 @@ export async function analyzeMultiDimensionPerformance(
     .from(placementPerformance)
     .where(
       and(
-        eq(placementPerformance.campaignId, String(campaignId)),
+        eq(placementPerformance.campaignId, performanceQueryId),
         eq(placementPerformance.accountId, accountId),
         gte(placementPerformance.date, startStr),
         lte(placementPerformance.date, endStr)
@@ -275,8 +279,7 @@ export async function analyzeMultiDimensionPerformance(
     .groupBy(placementPerformance.placement);
   
   // ===== 3. 投放词维度分析 =====
-  // v222修复: keywords表使用Amazon campaignId查询，而非本地ID
-  // hourly_performance和placement_performance表存储本地ID，但keywords表关联的是Amazon campaignId
+  // v438: keywords表通过ad_groups关联campaign，使用Amazon campaignId
   const keywordQueryId = amazonCampaignId || campaignId;
   const allKeywords = await dbFunctions.getKeywordsByCampaignId(Number(keywordQueryId));
   const keywordData = allKeywords.filter(kw => kw.keywordStatus === 'enabled');
@@ -858,14 +861,10 @@ export async function executeMultiDimensionOptimization(
   
   for (const campaign of (campaigns as any[])) {
     try {
-      // v186: 修复campaignId MISMATCH - hourly_performance和placement_performance表存储的是本地ID(campaigns.id)
-      // 之前错误地使用campaign.campaignId(Amazon ID)导致查不到任何数据，分时竞价/预算完全失效
-      const campaignLocalId = campaign.id;
-      
-      // 1. 多维度分析
-      // v222修复: 传入两个ID - 本地ID用于hourly/placement查询，Amazon ID用于keywords查询
+      // v438: ID统一 - 所有performance表和keywords表统一使用Amazon原始ID查询
+      // campaignId参数传入本地ID（兼容旧数据），amazonCampaignId传入Amazon ID（优先使用）
       const analysis = await analyzeMultiDimensionPerformance(
-        campaignLocalId, accountId, lookbackDays, config.targetAcos, campaign.campaignId
+        campaign.id, accountId, lookbackDays, config.targetAcos, campaign.campaignId
       );
       
       if (!analysis) {
@@ -886,8 +885,9 @@ export async function executeMultiDimensionOptimization(
       
       // 3. 应用分时竞价规则
       if (!dryRun && plan.hourlyBidRules.length > 0) {
+        // v438: 修复ID混用 - dayparting_strategies.campaignId必须存Amazon原始ID
         const applyResult = await applyHourlyBidRulesToStrategy(
-          campaign.id, accountId, plan.hourlyBidRules
+          campaign.campaignId, accountId, plan.hourlyBidRules
         );
         totalRulesGenerated += applyResult.rulesApplied;
       }
@@ -903,8 +903,9 @@ export async function executeMultiDimensionOptimization(
       );
       if (!dryRun && uniqueDayPerfs.length > 0) {
         try {
+          // v438: 修复ID混用 - dayparting_strategies.campaignId必须存Amazon原始ID
           const budgetApplyResult = await applyDailyBudgetRulesToStrategy(
-            campaign.id, accountId, uniqueDayPerfs, config
+            campaign.campaignId, accountId, uniqueDayPerfs, config
           );
           if (budgetApplyResult.success) {
             log.info(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} 分时预算规则已保存: ${budgetApplyResult.rulesApplied}条`);

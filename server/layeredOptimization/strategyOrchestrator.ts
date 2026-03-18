@@ -11,6 +11,14 @@ import { getDb } from '../db';
 import { campaigns, dailyPerformance } from '../../drizzle/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 
+// v438: 将本地campaignId转换为Amazon原始ID查询performance表
+async function resolveAmazonCampaignId(localCampaignId: number): Promise<string> {
+  const db = await getDb();
+  if (!db) return String(localCampaignId);
+  const result = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+  return result.length > 0 ? String(result[0].campaignId) : String(localCampaignId);
+}
+
 // 产品生命周期阶段
 export enum ProductLifecycleStage {
   NEW_LAUNCH = 'new_launch',        // 新品推广期 (0-3个月)
@@ -94,7 +102,7 @@ export async function identifyProductLifecycle(
     .from(dailyPerformance)
     .where(
       and(
-        eq(dailyPerformance.campaignId, String(campaignId)),
+        eq(dailyPerformance.campaignId, await resolveAmazonCampaignId(campaignId)),  // v438: 统一使用Amazon ID
         sql`${dailyPerformance.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`
       )
     )

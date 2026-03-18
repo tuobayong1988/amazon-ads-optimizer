@@ -1955,7 +1955,7 @@ async function logCorrectionEvent(database: any, data: {
   keywordText?: string;
   targetId?: number;
   targetName?: string;
-  campaignId?: number;
+  campaignId?: number | string;  // v438: 支持Amazon原始ID（字符串）和本地ID（数字）
   campaignName?: string;
   previousBid?: string;
   newBid?: string;
@@ -1988,7 +1988,8 @@ async function logCorrectionEvent(database: any, data: {
       keywordText: data.keywordText,
       targetId: data.targetId,
       targetName: data.targetName,
-      campaignId: data.campaignId,
+      // v438: campaignId统一存储为字符串，避免INT溢出（schema已改为VARCHAR(64)）
+      campaignId: data.campaignId != null ? String(data.campaignId) : undefined,
       campaignName: data.campaignName,
       previousBid: data.previousBid,
       newBid: data.newBid,

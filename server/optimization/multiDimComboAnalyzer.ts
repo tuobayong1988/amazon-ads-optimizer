@@ -177,7 +177,7 @@ async function synthesizeFromExistingData(
   })
   .from(hourlyPerformance)
   .where(and(
-    eq(hourlyPerformance.campaignId, String(campaignId)),
+    eq(hourlyPerformance.campaignId, String(amazonCampaignId)),  // v438: 统一使用Amazon原始ID查询performance表
     eq(hourlyPerformance.accountId, accountId),
     gte(hourlyPerformance.date, startStr),
     lte(hourlyPerformance.date, endStr),
