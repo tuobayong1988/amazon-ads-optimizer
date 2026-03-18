@@ -3,7 +3,7 @@
  * 从db.ts拆分的子模块
  */
 
-import { eq, inArray, not } from 'drizzle-orm';
+import { eq, inArray, not, and, ne } from 'drizzle-orm';
 import { InsertKeyword, Keyword, adGroups, keywords } from '../../drizzle/schema';
 import { getDb } from './connection';
 import { guardCampaignIdParam } from '../utils/idTypes';
@@ -24,7 +24,13 @@ export async function getKeywordsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(keywords).where(eq(keywords.internalAdGroupId, Number(adGroupId)));
+  // v444: 过滤archived状态的keyword，避免为已删除实体生成优化任务
+  return db.select().from(keywords).where(
+    and(
+      eq(keywords.internalAdGroupId, Number(adGroupId)),
+      ne(keywords.keywordStatus, 'archived')
+    )
+  );
 }
 
 export async function getKeywordById(id: number) {
@@ -64,7 +70,13 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   // v421: internalAdGroupId是int类型，直接使用int数组
   const adGroupIds = adGroupsList.map(ag => ag.id);
-  const allKeywords = await db.select().from(keywords).where(inArray(keywords.internalAdGroupId, adGroupIds));
+  // v444: 过滤archived状态的keyword，避免为已删除实体生成优化任务
+  const allKeywords = await db.select().from(keywords).where(
+    and(
+      inArray(keywords.internalAdGroupId, adGroupIds),
+      ne(keywords.keywordStatus, 'archived')
+    )
+  );
   
   return allKeywords;
 }

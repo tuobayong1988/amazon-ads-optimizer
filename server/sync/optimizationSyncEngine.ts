@@ -1648,6 +1648,21 @@ async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCo
   // 解决: 统一使用SQL的NOW()和DATE_ADD()来设置时间戳，避免JS/DB时区不一致
   const newRetryCount = (currentRetryCount || 0) + 1;
   
+  // v444: 不可恢复错误检测 — 这些错误类型无论重试多少次都不会成功
+  // entityNotFoundError: Amazon后台已删除该实体
+  // malformedValueError: 实体ID格式无效（如SKIP_前缀）
+  const UNRECOVERABLE_PATTERNS = ['entityNotFoundError', 'malformedValueError', 'ENTITY_NOT_FOUND'];
+  const isUnrecoverable = UNRECOVERABLE_PATTERNS.some(p => errorMessage.includes(p));
+  
+  if (isUnrecoverable) {
+    // v444: 不可恢复错误直接标记为permanently_failed，不浪费重试配额
+    await conn.execute(
+      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
+      [`[v444-unrecoverable] ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
+    );
+    return;
+  }
+  
   // v190: 增加重试次数到5次，延长退避时间，确保更高的最终成功率
   // 重试策略: 1分钟 -> 5分钟 -> 15分钟 -> 30分钟 -> 60分钟
   // 总等待时间约111分钟（近两小时），足以覆盖大多数临时性API故障

@@ -3,7 +3,7 @@
  * 从db.ts拆分的子模块
  */
 
-import { eq, inArray, not } from 'drizzle-orm';
+import { eq, inArray, not, and, ne } from 'drizzle-orm';
 import { InsertProductTarget, productTargets } from '../../drizzle/schema';
 import { getDb } from './connection';
 
@@ -23,7 +23,13 @@ export async function getProductTargetsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(productTargets).where(eq(productTargets.internalAdGroupId, Number(adGroupId)));
+  // v444: 过滤archived状态的product target，避免为已删除实体生成优化任务
+  return db.select().from(productTargets).where(
+    and(
+      eq(productTargets.internalAdGroupId, Number(adGroupId)),
+      ne(productTargets.targetStatus, 'archived')
+    )
+  );
 }
 
 // v357: 批量获取多个广告组的商品定向 — adGroupId现在是varchar类型
@@ -34,7 +40,13 @@ export async function getProductTargetsByAdGroupIds(adGroupIds: (number | string
   if (!db || adGroupIds.length === 0) return [];
   
   // v421: internalAdGroupId是int类型，直接使用Number转换
-  return db.select().from(productTargets).where(inArray(productTargets.internalAdGroupId, adGroupIds.map(id => Number(id))));
+  // v444: 过滤archived状态的product target，避免为已删除实体生成优化任务
+  return db.select().from(productTargets).where(
+    and(
+      inArray(productTargets.internalAdGroupId, adGroupIds.map(id => Number(id))),
+      ne(productTargets.targetStatus, 'archived')
+    )
+  );
 }
 
 export async function getProductTargetById(id: number) {
