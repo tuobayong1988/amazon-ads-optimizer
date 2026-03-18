@@ -72,25 +72,22 @@ scripts/generate-mock-*.mjs
 scripts/seed-*.mjs
 scripts/seed-*.ts
 
-# Source files (client not needed in production)
+# v449: Source files not needed - using pre-compiled dist/index.js
 client/
-# server/ and drizzle/ are REQUIRED because Procfile uses tsx to run TypeScript directly
-# server/
-# drizzle/
-# shared/ is REQUIRED because server imports from @shared/*
-# shared/
+server/
+drizzle/
+shared/
 # Source maps (not needed in production)
 dist/index.js.map
 # Blog images (large)
 dist/public/blog/
 # Large images
 dist/public/og-image.png
-# TypeScript config
-# tsconfig.json is REQUIRED for tsx path resolution
-# tsconfig.json
+# v449: TypeScript config not needed - using pre-compiled dist/index.js
+tsconfig.json
 vite.config.ts
 vite.build.config.ts
-# v449: build-server.js is REQUIRED for predeploy esbuild compilation
-# build-server.js
+# v449: build-server.js only needed locally for building
+build-server.js
 # v395: package-lock.json must NOT be excluded - npm needs it for deployment
 # package-lock.json
