@@ -77,7 +77,8 @@ client/
 # server/ and drizzle/ are REQUIRED because Procfile uses tsx to run TypeScript directly
 # server/
 # drizzle/
-shared/
+# shared/ is REQUIRED because server imports from @shared/*
+# shared/
 # Source maps (not needed in production)
 dist/index.js.map
 # Blog images (large)
@@ -85,7 +86,8 @@ dist/public/blog/
 # Large images
 dist/public/og-image.png
 # TypeScript config
-tsconfig.json
+# tsconfig.json is REQUIRED for tsx path resolution
+# tsconfig.json
 vite.config.ts
 vite.build.config.ts
 build-server.js
