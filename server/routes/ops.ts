@@ -78,12 +78,12 @@ router.use(opsAuth);
 // 因此提高百分比阈值，并新增绝对值阈值作为更可靠的内存监控指标
 const ALERT_THRESHOLDS = {
   memory: {
-    rssWarningMB: 500,       // RSS内存警告阈值（MB）- 2048MB堆下适当提高
-    rssCriticalMB: 800,      // RSS内存严重阈值（MB）
+    rssWarningMB: 1200,      // v447: RSS内存警告阈值（MB）- 3072MB堆限制下，RSS通常是堆的2-3倍，1200MB是合理警告线
+    rssCriticalMB: 2000,     // v447: RSS内存严重阈值（MB）- 接近3GB堆限制时才告警
     heapWarningPct: 90,      // 堆内存使用率警告阈值（%）- V8常态80-90%是正常的
     heapCriticalPct: 96,     // 堆内存使用率严重阈值（%）- 只有接近OOM才告警
-    heapUsedWarningMB: 512,  // 堆内存绝对值警告阈值（MB）
-    heapUsedCriticalMB: 1024, // 堆内存绝对值严重阈值（MB）
+    heapUsedWarningMB: 768,  // v447: 堆内存绝对值警告阈值（MB）- 3072MB堆限制的25%
+    heapUsedCriticalMB: 1536, // v447: 堆内存绝对值严重阈值（MB）- 3072MB堆限制的50%
   },
   database: {
     latencyWarningMs: 500,   // DB延迟警告阈值（ms）
@@ -1431,6 +1431,54 @@ router.post('/reactivate-account', async (req: Request, res: Response) => {
   } catch (e: unknown) {
     res.status(500).json({ error: (e as Error).message });
   }
+});
+
+// ============================================================
+// v447: 连接池诊断端点
+// ============================================================
+
+router.get('/pool-stats', async (req: Request, res: Response) => {
+  try {
+    const { getPoolStats } = await import('../db/connection');
+    const stats = getPoolStats();
+    res.json({
+      timestamp: new Date().toISOString(),
+      poolStats: stats,
+      memory: {
+        rss: `${(process.memoryUsage().rss / 1024 / 1024).toFixed(1)}MB`,
+        heapUsed: `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1)}MB`,
+        heapTotal: `${(process.memoryUsage().heapTotal / 1024 / 1024).toFixed(1)}MB`,
+      },
+    });
+  } catch (e: unknown) {
+    res.status(500).json({ error: (e as Error).message });
+  }
+});
+
+// v447: 主动GC触发端点
+router.post('/gc', async (req: Request, res: Response) => {
+  const before = process.memoryUsage();
+  if (global.gc) {
+    global.gc();
+    // 等待GC完成
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  const after = process.memoryUsage();
+  res.json({
+    gcAvailable: !!global.gc,
+    before: {
+      rss: `${(before.rss / 1024 / 1024).toFixed(1)}MB`,
+      heapUsed: `${(before.heapUsed / 1024 / 1024).toFixed(1)}MB`,
+    },
+    after: {
+      rss: `${(after.rss / 1024 / 1024).toFixed(1)}MB`,
+      heapUsed: `${(after.heapUsed / 1024 / 1024).toFixed(1)}MB`,
+    },
+    freed: {
+      rss: `${((before.rss - after.rss) / 1024 / 1024).toFixed(1)}MB`,
+      heapUsed: `${((before.heapUsed - after.heapUsed) / 1024 / 1024).toFixed(1)}MB`,
+    },
+  });
 });
 
 export default router;

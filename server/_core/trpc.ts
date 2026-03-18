@@ -55,6 +55,14 @@ const pgAccountCache = new Map<number, { accountId: number; expiry: number }>();
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 
+// v447: 通用超时包装器，防止连接池满时DB查询无限hang
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms))
+  ]);
+}
+
 async function getUserAccountIds(userId: number): Promise<Set<number>> {
   const cached = userAccountCache.get(userId);
   if (cached && cached.expiry > Date.now()) {
@@ -65,15 +73,19 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
     const { getDb } = await import('../db/connection');
     const { adAccounts } = await import('../../drizzle/schema');
     const { eq } = await import('drizzle-orm');
-    const db = await getDb();
-    if (!db) return new Set();
-
-    const accounts = await db.select({ id: adAccounts.id })
-      .from(adAccounts)
-      .where(eq(adAccounts.userId, userId));
+    // v447: 给getDb()+查询加5秒超时
+    const accounts = await withTimeout((async () => {
+      const db = await getDb();
+      if (!db) return [] as { id: number }[];
+      return db.select({ id: adAccounts.id })
+        .from(adAccounts)
+        .where(eq(adAccounts.userId, userId));
+    })(), 5000, [] as { id: number }[]);
 
     const accountSet = new Set(accounts.map(a => a.id));
-    userAccountCache.set(userId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
+    if (accountSet.size > 0) {
+      userAccountCache.set(userId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
+    }
     return accountSet;
   } catch (error) {
     log.error(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
@@ -92,13 +104,16 @@ async function getCampaignAccountId(campaignId: number): Promise<number | null> 
     const { getDb } = await import('../db/connection');
     const { campaigns } = await import('../../drizzle/schema');
     const { eq } = await import('drizzle-orm');
-    const db = await getDb();
-    if (!db) return null;
-
-    const [row] = await db.select({ accountId: campaigns.accountId })
-      .from(campaigns)
-      .where(eq(campaigns.id, campaignId))
-      .limit(1);
+    // v447: 给getDb()+查询加5秒超时
+    const row = await withTimeout((async () => {
+      const db = await getDb();
+      if (!db) return null;
+      const [r] = await db.select({ accountId: campaigns.accountId })
+        .from(campaigns)
+        .where(eq(campaigns.id, campaignId))
+        .limit(1);
+      return r || null;
+    })(), 5000, null);
 
     if (row) {
       campaignAccountCache.set(campaignId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });
@@ -121,13 +136,16 @@ async function getPGAccountId(pgId: number): Promise<number | null> {
     const { getDb } = await import('../db/connection');
     const { performanceGroups } = await import('../../drizzle/schema');
     const { eq } = await import('drizzle-orm');
-    const db = await getDb();
-    if (!db) return null;
-
-    const [row] = await db.select({ accountId: performanceGroups.accountId })
-      .from(performanceGroups)
-      .where(eq(performanceGroups.id, pgId))
-      .limit(1);
+    // v447: 给getDb()+查询加5秒超时
+    const row = await withTimeout((async () => {
+      const db = await getDb();
+      if (!db) return null;
+      const [r] = await db.select({ accountId: performanceGroups.accountId })
+        .from(performanceGroups)
+        .where(eq(performanceGroups.id, pgId))
+        .limit(1);
+      return r || null;
+    })(), 5000, null);
 
     if (row) {
       pgAccountCache.set(pgId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });

@@ -279,21 +279,23 @@ class SDKServer {
           const { sql } = await import('drizzle-orm');
           const { getDb } = await import('../db');
           
-          const dbQueryWithTimeout = async (timeoutMs: number = 8000) => {
-            const localDb = await getDb();
-            if (!localDb) throw new Error('Database not available');
-            
+          // v447: 将getDb()也包含在超时范围内，防止连接池满时getDb()无限等待
+          const dbQueryWithTimeout = async (timeoutMs: number = 5000) => {
             const timeoutPromise = new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('DB query timeout')), timeoutMs)
+              setTimeout(() => reject(new Error('Auth DB query timeout')), timeoutMs)
             );
             
             return Promise.race([
-              localDb.execute(sql`
-                SELECT tm.*, o.name as organization_name 
-                FROM team_members tm 
-                LEFT JOIN organizations o ON tm.organization_id = o.id 
-                WHERE tm.id = ${decoded.userId}
-              `),
+              (async () => {
+                const localDb = await getDb();
+                if (!localDb) throw new Error('Database not available');
+                return localDb.execute(sql`
+                  SELECT tm.*, o.name as organization_name 
+                  FROM team_members tm 
+                  LEFT JOIN organizations o ON tm.organization_id = o.id 
+                  WHERE tm.id = ${decoded.userId}
+                `);
+              })(),
               timeoutPromise
             ]);
           };

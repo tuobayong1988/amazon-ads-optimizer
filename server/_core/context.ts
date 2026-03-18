@@ -17,7 +17,17 @@ export async function createContext(
   let user: User | null = null;
 
   try {
-    user = await sdk.authenticateRequest(opts.req);
+    // v447: 给整个authenticateRequest加上10秒总超时，防止连接池耗尽时导致tRPC无限hang
+    const authTimeout = new Promise<null>((resolve) => 
+      setTimeout(() => {
+        console.error('[Context] authenticateRequest timeout after 10s, falling back to null user');
+        resolve(null);
+      }, 10000)
+    );
+    user = await Promise.race([
+      sdk.authenticateRequest(opts.req),
+      authTimeout
+    ]);
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;
