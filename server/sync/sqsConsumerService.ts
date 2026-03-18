@@ -608,15 +608,24 @@ export class SQSConsumerService {
     // 从 event_hour 提取日期
     const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
 
-    // 尝试将Amazon的campaignId映射到本地数据库ID
-    let localCampaignId: number | null = null;
+    // v439: 使用Amazon原始campaignId（varchar），不再映射为本地自增ID
+    // AMS数据流中的campaign_id就是Amazon原始ID，直接使用
+    let amazonCampaignId: string | null = null;
     if (campaignId) {
-      try {
-        const dbModule = await import('../db');
-        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
-        if (campaign) localCampaignId = campaign.id;
-      } catch (e) {
-        // 映射失败不影响账户级别数据写入
+      const candidateId = String(campaignId);
+      // v439: ID格式验证 - Amazon campaignId是12-15位纯数字字符串
+      if (/^\d{9,20}$/.test(candidateId)) {
+        amazonCampaignId = candidateId;
+      } else {
+        log.warn(`[SQS Consumer] 流量消息campaignId格式异常，疑似非Amazon ID: ${candidateId}`);
+        // 仍然尝试验证是否存在于campaigns表
+        try {
+          const dbModule = await import('../db');
+          const campaign = await dbModule.getCampaignByAmazonId(account.id, candidateId);
+          if (campaign) amazonCampaignId = campaign.campaignId; // 使用campaign表中的Amazon ID
+        } catch (e) {
+          // 验证失败，跳过campaign级别写入
+        }
       }
     }
 
@@ -629,19 +638,19 @@ export class SQSConsumerService {
         clicks: clicks,
         cost: cost,
         adType: adType,
-        campaignId: localCampaignId,
+        campaignId: amazonCampaignId,
       });
-      log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+      log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {
       log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (keyword × placement × hour)
-    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+    if (amazonCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
       try {
         await this.upsertKeywordPlacementHourlyData({
           accountId: account.id,
-          campaignId: localCampaignId,
+          campaignId: amazonCampaignId,
           amazonAdGroupId: data.ad_group_id || null,
           amazonKeywordId: data.keyword_id || null,
           amazonTargetId: data.target_id || null,
@@ -694,15 +703,22 @@ export class SQSConsumerService {
     // 从 event_hour 提取日期
     const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
 
-    // 尝试将Amazon的campaignId映射到本地数据库ID
-    let localCampaignId: number | null = null;
+    // v439: 使用Amazon原始campaignId（varchar），不再映射为本地自增ID
+    let amazonCampaignId: string | null = null;
     if (campaignId) {
-      try {
-        const dbModule = await import('../db');
-        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
-        if (campaign) localCampaignId = campaign.id;
-      } catch (e) {
-        // 映射失败不影响账户级别数据写入
+      const candidateId = String(campaignId);
+      // v439: ID格式验证 - Amazon campaignId是12-15位纯数字字符串
+      if (/^\d{9,20}$/.test(candidateId)) {
+        amazonCampaignId = candidateId;
+      } else {
+        log.warn(`[SQS Consumer] 转化消息campaignId格式异常，疑似非Amazon ID: ${candidateId}`);
+        try {
+          const dbModule = await import('../db');
+          const campaign = await dbModule.getCampaignByAmazonId(account.id, candidateId);
+          if (campaign) amazonCampaignId = campaign.campaignId;
+        } catch (e) {
+          // 验证失败，跳过campaign级别写入
+        }
       }
     }
 
@@ -714,19 +730,19 @@ export class SQSConsumerService {
         sales: sales,
         orders: orders,
         adType: adType,
-        campaignId: localCampaignId,
+        campaignId: amazonCampaignId,
       });
-      log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+      log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {
       log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (转化数据)
-    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+    if (amazonCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
       try {
         await this.upsertKeywordPlacementHourlyData({
           accountId: account.id,
-          campaignId: localCampaignId,
+          campaignId: amazonCampaignId,
           amazonAdGroupId: data.ad_group_id || null,
           amazonKeywordId: data.keyword_id || null,
           amazonTargetId: data.target_id || null,
@@ -905,7 +921,7 @@ export class SQSConsumerService {
    */
   private async upsertKeywordPlacementHourlyData(params: {
     accountId: number;
-    campaignId: number;
+    campaignId: string;  // v439: Amazon原始campaignId（varchar）
     amazonAdGroupId: string | null;
     amazonKeywordId: string | null;
     amazonTargetId: string | null;
@@ -975,7 +991,7 @@ export class SQSConsumerService {
       .from(keywordPlacementHourlyPerformance)
       .where(and(
         eq(keywordPlacementHourlyPerformance.accountId, params.accountId),
-        eq(keywordPlacementHourlyPerformance.campaignId, String(params.campaignId)),
+        eq(keywordPlacementHourlyPerformance.campaignId, params.campaignId),
         localKeywordId ? eq(keywordPlacementHourlyPerformance.keywordId, localKeywordId) : sql`${keywordPlacementHourlyPerformance.keywordId} IS NULL`,
         localTargetId ? eq(keywordPlacementHourlyPerformance.targetId, localTargetId) : sql`${keywordPlacementHourlyPerformance.targetId} IS NULL`,
         eq(keywordPlacementHourlyPerformance.placement, params.placement),

@@ -387,10 +387,12 @@ export function guardCampaignIdInsert(
   const classification = classifyCampaignId(value);
   
   if (classification === 'local') {
-    const msg = `尝试将本地campaignId(${value})写入${tableName}.campaignId! 该字段应存储Amazon Campaign ID`;
-    log.error(`[IdTypes] ⛔ ${msg}`);
+    const msg = `⛔ v439拦截: 尝试将本地campaignId(${value})写入${tableName}.campaignId! 该字段应存储Amazon Campaign ID`;
+    log.error(`[IdTypes] ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdInsert: ${msg}`, { tableName, value: String(value), classification });
     log.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack || '');
+    // v439: 升级为拦截模式 - 拒绝写入本地ID，防止脏数据产生
+    throw new Error(`[IdTypes] 拦截本地ID写入: ${tableName}.campaignId = ${value}`);
   }
   
   return str;

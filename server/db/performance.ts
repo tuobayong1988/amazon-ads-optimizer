@@ -6,7 +6,7 @@
 import { and, eq, not, sql } from 'drizzle-orm';
 import { DailyPerformance, InsertDailyPerformance, InsertMarketCurveData, dailyPerformance, marketCurveData } from '../../drizzle/schema';
 import { getDb } from './connection';
-import { guardCampaignIdParam } from '../utils/idTypes';
+import { guardCampaignIdParam, guardCampaignIdInsert } from '../utils/idTypes';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('DB:performance');
@@ -220,17 +220,19 @@ export async function upsertDailyPerformanceFromAms(data: {
   clicks: number;
   cost: number;
   adType?: string;  // SP, SB, SD
-  campaignId?: number | null;  // 广告活动ID（本地数据库ID）
+  campaignId?: string | null;  // v439: Amazon原始campaignId（varchar）
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   // === 1. 写入campaign维度的记录（如果有campaignId） ===
   if (data.campaignId) {
+    // v439: 写入前验证campaignId格式，拦截本地ID
+    const safeCampaignId = guardCampaignIdInsert(data.campaignId, 'daily_performance');
     const existingCampaign = await getDailyPerformanceByAccountAndDate(
       data.accountId,
       data.date,
-      data.campaignId
+      safeCampaignId
     );
     
     if (existingCampaign?.isFinalized) {
@@ -250,7 +252,7 @@ export async function upsertDailyPerformanceFromAms(data: {
       // @ts-expect-error - Drizzle query builder type
       await db.insert(dailyPerformance).values({
         accountId: data.accountId,
-        campaignId: data.campaignId,
+        campaignId: safeCampaignId,  // v439: 使用验证后的Amazon ID
         date: data.date,
         impressions: data.impressions,
         clicks: data.clicks,
@@ -323,17 +325,19 @@ export async function updateDailyPerformanceConversion(data: {
   sales: number;
   orders: number;
   adType?: string;  // SP, SB, SD
-  campaignId?: number | null;  // 广告活动ID（本地数据库ID）
+  campaignId?: string | null;  // v439: Amazon原始campaignId（varchar）
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   // === 1. 更新campaign维度的转化数据（如果有campaignId） ===
   if (data.campaignId) {
+    // v439: 写入前验证campaignId格式，拦截本地ID
+    const safeCampaignId = guardCampaignIdInsert(data.campaignId, 'daily_performance');
     const existingCampaign = await getDailyPerformanceByAccountAndDate(
       data.accountId,
       data.date,
-      data.campaignId
+      safeCampaignId
     );
     
     if (existingCampaign && !existingCampaign.isFinalized) {
