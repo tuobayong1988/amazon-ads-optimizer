@@ -4486,69 +4486,97 @@ export class AmazonAdsApiClient {
    */
   async getKeywordBidRecommendations(
     adGroupId: string,
-    keywords: Array<{ keyword: string; matchType: string }>
+    keywords: Array<{ keyword: string; matchType: string }>,
+    campaignId?: string
   ): Promise<Array<{ keyword: string; matchType: string; suggestedBid: number; rangeStart: number; rangeEnd: number }>> {
     try {
-      // v436: 使用Theme-Based API — 按keyword逐个请求（API要求targetingExpressions格式）
+      // v437: 修复Theme-Based Bid Recommendations API — 正确的Content-Type、campaignId和type格式
       const results: Array<{ keyword: string; matchType: string; suggestedBid: number; rangeStart: number; rangeEnd: number }> = [];
       
-      // 批量构建请求 — Theme-Based API支持一次请求多个targets
+      // v437: 修复type字段 — 必须包含matchType（KEYWORD_BROAD_MATCH等），不是简单的KEYWORD
+      const matchTypeMapping: Record<string, string> = {
+        'BROAD': 'KEYWORD_BROAD_MATCH',
+        'PHRASE': 'KEYWORD_PHRASE_MATCH',
+        'EXACT': 'KEYWORD_EXACT_MATCH',
+      };
+      
       const targetingExpressions = keywords.map(kw => ({
-        type: 'KEYWORD',
+        type: matchTypeMapping[kw.matchType.toUpperCase()] || 'KEYWORD_BROAD_MATCH',
         value: kw.keyword,
       }));
       
-      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', {
-        advertisingChannelType: 'SPONSORED_PRODUCTS',
+      // v437: 修复 — campaignId和adGroupId是必需参数，recommendationType也是必需的
+      const requestBody: any = {
         targetingExpressions,
-        campaignOptimizationType: 'CONVERSIONS',
-      }, {
+        recommendationType: 'BIDS_FOR_EXISTING_AD_GROUP',
+        adGroupId: String(adGroupId),
+      };
+      if (campaignId) {
+        requestBody.campaignId = String(campaignId);
+      }
+      
+      // v437: 修复Content-Type — 必须是v4版本的theme-based header
+      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', requestBody, {
         headers: {
-          'Content-Type': 'application/vnd.spbidrecommendation.v3+json',
-          'Accept': 'application/vnd.spbidrecommendation.v3+json',
+          'Content-Type': 'application/vnd.spthemebasedbidrecommendation.v4+json',
+          'Accept': 'application/vnd.spthemebasedbidrecommendation.v4+json',
         },
       });
       
-      const recs = response.data?.bidRecommendations || response.data?.recommendations || [];
+      // v437: 正确解析Theme-Based API响应格式
+      // 响应结构: { bidRecommendations: [{ theme, bidRecommendationsForTargetingExpressions: [{ targetingExpression, bidValues }], impactMetrics }] }
+      const themeRecs = response.data?.bidRecommendations || [];
       
-      for (let i = 0; i < recs.length; i++) {
-        const rec = recs[i];
-        // Theme-Based API返回格式: { recommendations: [{ value, matchedTargetingExpression }] }
-        // 或者直接返回 { suggestedBid, bidValues: { low, median, high } }
-        let suggestedBid = 0;
-        let rangeLow = 0;
-        let rangeHigh = 0;
+      // 记录原始API响应用于调试
+      if (themeRecs.length === 0) {
+        log.warn(`[SP] Theme-Based API返回空结果, response.data keys: ${Object.keys(response.data || {}).join(', ')}`);
+        log.debug(`[SP] 完整响应: ${JSON.stringify(response.data).substring(0, 500)}`);
+      }
+      
+      for (const themeBlock of themeRecs) {
+        const targetExprRecs = themeBlock.bidRecommendationsForTargetingExpressions || [];
         
-        if (rec.recommendations && rec.recommendations.length > 0) {
-          // v3格式: recommendations数组中包含不同theme的建议
-          for (const themeRec of rec.recommendations) {
-            if (themeRec.value) {
-              suggestedBid = Number(themeRec.value) || 0;
-            }
-            if (themeRec.bidValues) {
-              rangeLow = Number(themeRec.bidValues.low) || 0;
-              suggestedBid = Number(themeRec.bidValues.median) || suggestedBid;
-              rangeHigh = Number(themeRec.bidValues.high) || 0;
-            }
+        for (const exprRec of targetExprRecs) {
+          const targetExpr = exprRec.targetingExpression || {};
+          const bidValuesArr = exprRec.bidValues || [];
+          
+          // bidValues是数组: [{ suggestedBid: low }, { suggestedBid: median }, { suggestedBid: high }]
+          let rangeLow = 0;
+          let suggestedBid = 0;
+          let rangeHigh = 0;
+          
+          if (bidValuesArr.length >= 3) {
+            rangeLow = Number(bidValuesArr[0]?.suggestedBid) || 0;
+            suggestedBid = Number(bidValuesArr[1]?.suggestedBid) || 0;  // median
+            rangeHigh = Number(bidValuesArr[2]?.suggestedBid) || 0;
+          } else if (bidValuesArr.length === 1) {
+            suggestedBid = Number(bidValuesArr[0]?.suggestedBid) || 0;
           }
-        } else if (rec.suggestedBid !== undefined) {
-          suggestedBid = Number(rec.suggestedBid) || 0;
-          rangeLow = Number(rec.rangeStart || rec.bidRangeLow || rec.rangeLow) || 0;
-          rangeHigh = Number(rec.rangeEnd || rec.bidRangeHigh || rec.rangeHigh) || 0;
-        }
-        
-        if (suggestedBid > 0) {
-          const kw = keywords[i] || { keyword: '', matchType: '' };
-          results.push({
-            keyword: rec.matchedTargetingExpression?.value || kw.keyword,
-            matchType: kw.matchType,
-            suggestedBid,
-            rangeStart: rangeLow,
-            rangeEnd: rangeHigh,
-          });
+          
+          if (suggestedBid > 0) {
+            // 从targetingExpression.type中提取matchType
+            const typeToMatchType: Record<string, string> = {
+              'KEYWORD_BROAD_MATCH': 'BROAD',
+              'KEYWORD_PHRASE_MATCH': 'PHRASE',
+              'KEYWORD_EXACT_MATCH': 'EXACT',
+              'CLOSE_MATCH': 'CLOSE_MATCH',
+              'LOOSE_MATCH': 'LOOSE_MATCH',
+              'SUBSTITUTES': 'SUBSTITUTES',
+              'COMPLEMENTS': 'COMPLEMENTS',
+            };
+            
+            results.push({
+              keyword: targetExpr.value || '',
+              matchType: typeToMatchType[targetExpr.type] || targetExpr.type || '',
+              suggestedBid,
+              rangeStart: rangeLow,
+              rangeEnd: rangeHigh,
+            });
+          }
         }
       }
       
+      log.info(`[SP] Theme-Based API成功解析 ${results.length} 个关键词建议竞价`);
       return results;
     } catch (error: unknown) {
       // v436: 如果Theme-Based API失败，回退到旧版API
@@ -4579,46 +4607,69 @@ export class AmazonAdsApiClient {
    */
   async getTargetBidRecommendations(
     adGroupId: string,
-    expressions: Array<{ type: string; value?: string }>
+    expressions: Array<{ type: string; value?: string }>,
+    campaignId?: string
   ): Promise<Array<{ expression: unknown; suggestedBid: number; rangeLow?: number; rangeHigh?: number }>> {
     try {
-      // v436: 使用Theme-Based API
+      // v437: 修复Theme-Based API — 正确的Content-Type、type映射和campaignId
+      const targetTypeMapping: Record<string, string> = {
+        'asinsameAs': 'PAT_ASIN',
+        'asinSameAs': 'PAT_ASIN',
+        'asinCategorySameAs': 'PAT_CATEGORY',
+        'asincategorysameAs': 'PAT_CATEGORY',
+        'ASIN_SAME_AS': 'PAT_ASIN',
+        'ASIN_CATEGORY_SAME_AS': 'PAT_CATEGORY',
+      };
       const targetingExpressions = expressions.map(expr => ({
-        type: expr.type === 'asinSameAs' ? 'ASIN_SAME_AS' : 
-              expr.type === 'asinCategorySameAs' ? 'ASIN_CATEGORY_SAME_AS' : expr.type,
+        type: targetTypeMapping[expr.type] || 'PAT_ASIN',
         value: expr.value || '',
       }));
       
-      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', {
-        advertisingChannelType: 'SPONSORED_PRODUCTS',
+      const requestBody: any = {
         targetingExpressions,
-        campaignOptimizationType: 'CONVERSIONS',
-      }, {
+        recommendationType: 'BIDS_FOR_EXISTING_AD_GROUP',
+        adGroupId: String(adGroupId),
+      };
+      if (campaignId) {
+        requestBody.campaignId = String(campaignId);
+      }
+      
+      const response = await this.axiosInstance.post('/sp/targets/bid/recommendations', requestBody, {
         headers: {
-          'Content-Type': 'application/vnd.spbidrecommendation.v3+json',
-          'Accept': 'application/vnd.spbidrecommendation.v3+json',
+          'Content-Type': 'application/vnd.spthemebasedbidrecommendation.v4+json',
+          'Accept': 'application/vnd.spthemebasedbidrecommendation.v4+json',
         },
       });
       
-      const recs = response.data?.bidRecommendations || response.data?.recommendations || [];
-      return recs.map((rec: any) => {
-        let suggestedBid = 0;
-        let rangeLow = 0;
-        let rangeHigh = 0;
-        
-        if (rec.recommendations && rec.recommendations.length > 0) {
-          const themeRec = rec.recommendations[0];
-          suggestedBid = Number(themeRec.value || themeRec.bidValues?.median) || 0;
-          rangeLow = Number(themeRec.bidValues?.low) || 0;
-          rangeHigh = Number(themeRec.bidValues?.high) || 0;
-        } else {
-          suggestedBid = Number(rec.suggestedBid) || 0;
-          rangeLow = Number(rec.rangeStart || rec.bidRangeLow) || 0;
-          rangeHigh = Number(rec.rangeEnd || rec.bidRangeHigh) || 0;
+      // v437: 正确解析Theme-Based API响应格式
+      const themeRecs = response.data?.bidRecommendations || [];
+      const results: Array<{ expression: unknown; suggestedBid: number; rangeLow?: number; rangeHigh?: number }> = [];
+      
+      for (const themeBlock of themeRecs) {
+        const targetExprRecs = themeBlock.bidRecommendationsForTargetingExpressions || [];
+        for (const exprRec of targetExprRecs) {
+          const bidValuesArr = exprRec.bidValues || [];
+          let rangeLow = 0, suggestedBid = 0, rangeHigh = 0;
+          if (bidValuesArr.length >= 3) {
+            rangeLow = Number(bidValuesArr[0]?.suggestedBid) || 0;
+            suggestedBid = Number(bidValuesArr[1]?.suggestedBid) || 0;
+            rangeHigh = Number(bidValuesArr[2]?.suggestedBid) || 0;
+          } else if (bidValuesArr.length === 1) {
+            suggestedBid = Number(bidValuesArr[0]?.suggestedBid) || 0;
+          }
+          if (suggestedBid > 0) {
+            results.push({
+              expression: exprRec.targetingExpression || {},
+              suggestedBid,
+              rangeLow,
+              rangeHigh,
+            });
+          }
         }
-        
-        return { expression: rec.matchedTargetingExpression || rec.expression, suggestedBid, rangeLow, rangeHigh };
-      });
+      }
+      
+      log.info(`[SP] Theme-Based target API成功解析 ${results.length} 个商品定位建议竞价`);
+      return results;
     } catch (error: unknown) {
       log.warn(`[SP] Theme-Based target bid recommendations失败，回退到旧版: ${(error as Error).message}`);
       try {

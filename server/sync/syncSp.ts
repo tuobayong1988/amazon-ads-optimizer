@@ -992,6 +992,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       adGroupId: keywords.internalAdGroupId,
       keywordText: keywords.keywordText,
       matchType: keywords.matchType,
+      campaignId: campaigns.campaignId,  // v437: 添加campaignId用于Theme-Based API
     }).from(keywords)
       .innerJoin(adGroups, eq(keywords.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
@@ -1005,12 +1006,13 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     log.info(`[v414] 查询到 ${spKeywordRows.length} 个SP关键词需要获取建议竞价`);
 
     // 按adGroupId分组 (v422: 修复Map key类型不匹配 - 统一使用number类型)
-    const kwByAdGroup = new Map<number, Array<{ id: number; keywordText: string; matchType: string }>>();
+    // v437: 添加campaignId到分组数据中
+    const kwByAdGroup = new Map<number, Array<{ id: number; keywordText: string; matchType: string; campaignId: string }>>();
     for (const row of spKeywordRows) {
       const agId = Number(row.adGroupId) || 0;
       if (agId === 0) continue; // 跳过无效的adGroupId
       if (!kwByAdGroup.has(agId)) kwByAdGroup.set(agId, []);
-      kwByAdGroup.get(agId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType });
+      kwByAdGroup.get(agId)!.push({ id: row.id, keywordText: row.keywordText, matchType: row.matchType, campaignId: row.campaignId });
     }
 
     // 查询adGroup的Amazon adGroupId映射（API需要Amazon adGroupId，不是内部DB id）
@@ -1040,7 +1042,9 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
             matchType: kw.matchType.toUpperCase(),
           }));
 
-          const recommendations = await this.client.getKeywordBidRecommendations(amazonAgId, apiKeywords);
+          // v437: 传入campaignId用于Theme-Based API（必需参数）
+          const batchCampaignId = batch[0]?.campaignId || '';
+          const recommendations = await this.client.getKeywordBidRecommendations(amazonAgId, apiKeywords, batchCampaignId);
 
           // v436: 匹配建议竞价并更新数据库（包含low/median/high三个竞价值）
           if (recommendations && recommendations.length > 0) {
@@ -1097,6 +1101,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
       targetExpression: productTargets.targetExpression,
       targetType: productTargets.targetType,
       targetValue: productTargets.targetValue,
+      campaignId: campaigns.campaignId,  // v437: 添加campaignId用于Theme-Based API
     }).from(productTargets)
       .innerJoin(adGroups, eq(productTargets.internalAdGroupId, adGroups.id))  // v420: 修复 - 两者都是int类型，无需CAST
       .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
@@ -1110,7 +1115,8 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     log.info(`[v414] 查询到 ${spTargetRows.length} 个SP商品定位需要获取建议竞价`);
 
     // 按adGroupId分组 (v422: 修复Map key类型不匹配 - 统一使用number类型)
-    const tgtByAdGroup = new Map<number, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string }>>();
+    // v437: 添加campaignId到分组数据中
+    const tgtByAdGroup = new Map<number, Array<{ id: number; targetExpression: string | null; targetType: string; targetValue: string; campaignId: string }>>();
     for (const row of spTargetRows) {
       const agId = Number(row.adGroupId) || 0;
       if (agId === 0) continue; // 跳过无效的adGroupId
@@ -1120,6 +1126,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
         targetExpression: row.targetExpression,
         targetType: row.targetType,
         targetValue: row.targetValue,
+        campaignId: row.campaignId,
       });
     }
 
@@ -1168,7 +1175,9 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
           if (expressions.length === 0) continue;
 
-          const recommendations = await this.client.getTargetBidRecommendations(amazonAgId, expressions);
+          // v437: 传入campaignId用于Theme-Based API
+          const batchCampaignId = batch[0]?.campaignId || '';
+          const recommendations = await this.client.getTargetBidRecommendations(amazonAgId, expressions, batchCampaignId);
 
           // v436: 更新建议竞价（包含low/median/high）
           if (recommendations && recommendations.length > 0) {
