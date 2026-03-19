@@ -24,11 +24,12 @@ export async function getKeywordsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  // v444: 过滤archived状态的keyword，避免为已删除实体生成优化任务
+  // v444+v454: 过滤archived和amazon_deleted状态的keyword，避免为已删除/已失效实体生成优化任务
   return db.select().from(keywords).where(
     and(
       eq(keywords.internalAdGroupId, Number(adGroupId)),
-      ne(keywords.keywordStatus, 'archived')
+      ne(keywords.keywordStatus, 'archived'),
+      ne(keywords.keywordStatus, 'amazon_deleted')
     )
   );
 }
@@ -70,11 +71,12 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   
   // v421: internalAdGroupId是int类型，直接使用int数组
   const adGroupIds = adGroupsList.map(ag => ag.id);
-  // v444: 过滤archived状态的keyword，避免为已删除实体生成优化任务
+  // v444+v454: 过滤archived和amazon_deleted状态的keyword，避免为已删除/已失效实体生成优化任务
   const allKeywords = await db.select().from(keywords).where(
     and(
       inArray(keywords.internalAdGroupId, adGroupIds),
-      ne(keywords.keywordStatus, 'archived')
+      ne(keywords.keywordStatus, 'archived'),
+      ne(keywords.keywordStatus, 'amazon_deleted')
     )
   );
   

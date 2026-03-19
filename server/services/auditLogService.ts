@@ -240,11 +240,12 @@ async function flushBuffer(): Promise<void> {
           : `${e.action}: ${e.entityType || ''}${e.entityId ? '#' + e.entityId : ''}`;
         
         // @ts-expect-error - Drizzle enum类型兼容
+        // v454: 为NOT NULL字段提供默认值，确保系统级操作也能正常写入
         await db.insert(auditLogs).values({
           actionType: drizzleActionType,
-          userId: e.userId || null,
-          userName: e.userName || null,
-          accountId: e.accountId || null,
+          userId: e.userId || 0,  // v454: 系统操作使用userId=0
+          userName: e.userName || 'system',
+          accountId: e.accountId || 0,  // v454: 系统操作使用accountId=0
           targetType: drizzleTargetType || null,
           targetId: e.entityId != null ? String(e.entityId) : null,
           targetName: e.entityName || null,

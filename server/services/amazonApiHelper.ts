@@ -283,6 +283,7 @@ export async function syncBidAdjustmentsToAmazon(
       }
       
       // 处理失败的
+      const entityNotFoundKeywordIds: string[] = [];  // v454: 收集entityNotFoundError的keyword
       if (apiResult.errors && apiResult.errors.length > 0) {
         result.failed += apiResult.errors.length;
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
@@ -292,10 +293,30 @@ export async function syncBidAdjustmentsToAmazon(
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
+          // v454: 检测entityNotFoundError，标记过期实体
+          const errStr = JSON.stringify(err).toLowerCase();
+          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find')) {
+            if (err.keywordId) entityNotFoundKeywordIds.push(String(err.keywordId));
+          }
         }
       }
       
-      log.info(`[AmazonApiHelper] v359: 关键词出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
+      // v454: 自动标记Amazon端已不存在的关键词，避免后续重复同步失败
+      if (entityNotFoundKeywordIds.length > 0) {
+        try {
+          const { inArray: inArr } = await import('drizzle-orm');
+          // 将这些关键词标记为amazon_deleted，后续优化引擎将跳过它们
+          await dbInstance.execute(
+            `UPDATE keywords SET keyword_status = 'amazon_deleted' WHERE keyword_id IN (${entityNotFoundKeywordIds.map(() => '?').join(',')})`,
+            entityNotFoundKeywordIds
+          );
+          log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundKeywordIds.length}个关键词为amazon_deleted（Amazon端已不存在）: ${entityNotFoundKeywordIds.slice(0, 5).join(', ')}`);
+        } catch (markErr: unknown) {
+          log.error(`[AmazonApiHelper] v454: 标记过期关键词失败: ${(markErr as Error).message}`);
+        }
+      }
+      
+      log.info(`[AmazonApiHelper] v359: 关键词出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundKeywordIds.length}`);
     } catch (batchErr: unknown) {
       log.error(`[AmazonApiHelper] v359: 关键词出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += resolvedKeywordBids.length;
@@ -328,6 +349,7 @@ export async function syncBidAdjustmentsToAmazon(
         }
       }
       
+      const entityNotFoundTargetIds: string[] = [];  // v454: 收集entityNotFoundError的target
       if (apiResult.errors && apiResult.errors.length > 0) {
         result.failed += apiResult.errors.length;
         for (const err of apiResult.errors as Array<Record<string, unknown>>) {
@@ -337,10 +359,28 @@ export async function syncBidAdjustmentsToAmazon(
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
+          // v454: 检测entityNotFoundError
+          const errStr = JSON.stringify(err).toLowerCase();
+          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find')) {
+            if (err.targetId) entityNotFoundTargetIds.push(String(err.targetId));
+          }
         }
       }
       
-      log.info(`[AmazonApiHelper] v359: 商品定向出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}`);
+      // v454: 自动标记Amazon端已不存在的商品定向
+      if (entityNotFoundTargetIds.length > 0) {
+        try {
+          await dbInstance.execute(
+            `UPDATE product_targets SET status = 'amazon_deleted' WHERE target_id IN (${entityNotFoundTargetIds.map(() => '?').join(',')})`,
+            entityNotFoundTargetIds
+          );
+          log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundTargetIds.length}个商品定向为amazon_deleted`);
+        } catch (markErr: unknown) {
+          log.error(`[AmazonApiHelper] v454: 标记过期商品定向失败: ${(markErr as Error).message}`);
+        }
+      }
+      
+      log.info(`[AmazonApiHelper] v359: 商品定向出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundTargetIds.length}`);
     } catch (batchErr: unknown) {
       log.error(`[AmazonApiHelper] v359: 商品定向出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += resolvedTargetBids.length;
@@ -357,6 +397,9 @@ export async function syncBidAdjustmentsToAmazon(
   if (result.errors.length > 0) {
     log.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
   }
+  
+  // v454: 记录同步统计到日志，便于追踪失败率趋势
+  log.info(`[AmazonApiHelper] v454: 出价同步统计 accountId=${accountId}: 总计=${totalAttempts}, 成功=${result.success}, 失败=${result.failed}, 成功率=${totalAttempts > 0 ? ((result.success / totalAttempts) * 100).toFixed(1) : 0}%`);
   
   // v126: API同步失败率监控告警
   const FAILURE_RATE_THRESHOLD = 20; // 失败率超过20%触发告警

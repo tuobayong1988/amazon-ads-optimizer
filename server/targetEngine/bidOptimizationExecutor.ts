@@ -411,6 +411,8 @@ export async function executeBidOptimization(
     const keywordTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     
     for (const keyword of keywords) {
+      // v454: 跳过Amazon端已不存在的关键词，避免无效同步
+      if (keyword.keywordStatus === 'amazon_deleted') continue;
       if (keyword.keywordStatus !== 'enabled') continue;
       const currentBid = parseFloat(keyword.bid || '0');
       if (currentBid <= 0) continue;

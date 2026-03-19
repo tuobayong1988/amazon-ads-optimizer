@@ -3510,7 +3510,7 @@ export class AmazonAdsApiClient {
    * 等待报告完成并下载
    * v413: 智能退避优化 — 指数退避轮询(5s→10s→20s→30s) + 缩短默认超时(15分钟→5分钟) + 连续PENDING检测
    */
-  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, unknown>[]> {
+  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 600000): Promise<Record<string, unknown>[]> {  // v454: 超时从5分钟增加到10分钟
     const startTime = Date.now();
     let pollCount = 0;
     // v413: 指数退避轮询间隔：5s → 10s → 20s → 30s(封顶)
@@ -5076,7 +5076,7 @@ export class AmazonAdsApiClient {
    * 等待并下载V2报告
    * v413: 智能退避优化 — 指数退避轮询 + 减少日志刷屏
    */
-  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<Record<string, unknown>[]> {
+  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 600000): Promise<Record<string, unknown>[]> {  // v454: 超时从5分钟增加到10分钟
     const startTime = Date.now();
     let pollCount = 0;
     // v413: 指数退避轮询间隔：3s → 6s → 15s → 30s(封顶)

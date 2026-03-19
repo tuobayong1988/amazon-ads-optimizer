@@ -484,6 +484,33 @@ export const performanceGroupRouter = router({
         }
       }
       
+      // v454: 记录campaign_action到optimization_events，确保操作可追踪
+      try {
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          for (const campaign of (targetCampaigns as Array<Record<string, unknown>>)) {
+            const wasApiSynced = statusChanges.some(sc => sc.campaignId === campaign.id);
+            const apiStatus = wasApiSynced ? (apiResult.success > 0 ? 'synced' : 'failed') : 'not_applicable';
+            await dbInstance.execute(
+              `INSERT INTO optimization_events (account_id, performance_group_id, campaign_id, campaign_name, event_category, action_type, change_reason, api_sync_status, created_at)
+               VALUES (?, ?, ?, ?, 'campaign_action', ?, ?, ?, NOW())`,
+              [
+                group.accountId,
+                input.groupId,
+                campaign.id,
+                campaign.campaignName || `Campaign ${campaign.id}`,
+                input.newStatus === 'enabled' ? 'campaign_enable' : 'campaign_pause',
+                `用户手动批量${input.newStatus === 'enabled' ? '启用' : '暂停'}操作`,
+                apiStatus,
+              ]
+            );
+          }
+          log.info(`[batchUpdateCampaignStatus] v454: 已记录${targetCampaigns.length}条campaign_action事件到optimization_events`);
+        }
+      } catch (eventErr: unknown) {
+        log.error(`[batchUpdateCampaignStatus] v454: 记录optimization_events失败: ${(eventErr as Error).message}`);
+      }
+
       // v219: 批量状态变更后触发确认同步，从 Amazon 回读最新状态
       if (apiResult.success > 0 && group.accountId) {
         try {
