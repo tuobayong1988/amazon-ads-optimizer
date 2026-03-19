@@ -294,9 +294,9 @@ export async function syncBidAdjustmentsToAmazon(
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
-          // v454: 检测entityNotFoundError，标记过期实体
+          // v454+v474: 检测entityNotFoundError和entityStateError(archived)，标记过期/归档实体
           const errStr = JSON.stringify(err).toLowerCase();
-          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find')) {
+          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
             if (err.keywordId) entityNotFoundKeywordIds.push(String(err.keywordId));
           }
         }
@@ -359,9 +359,9 @@ export async function syncBidAdjustmentsToAmazon(
           if (localItem) {
             result.itemResults.set(localItem.localId, { status: 'failed', error: String(err.details || (err as Record<string, unknown>).code) });
           }
-          // v454: 检测entityNotFoundError
+          // v454+v474: 检测entityNotFoundError和entityStateError(archived)
           const errStr = JSON.stringify(err).toLowerCase();
-          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find')) {
+          if (errStr.includes('entitynotfounderror') || errStr.includes('entity_not_found') || errStr.includes('could not find') || errStr.includes('entitystateerror') || errStr.includes('archived entity')) {
             if (err.targetId) entityNotFoundTargetIds.push(String(err.targetId));
           }
         }
