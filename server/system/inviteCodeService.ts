@@ -35,6 +35,34 @@ export interface CreateInviteCodeInput {
 }
 
 let tablesEnsured = false;
+let fkDropAttempted = false;
+async function dropInviteCodesForeignKeys(db: any): Promise<void> {
+  if (fkDropAttempted) return;
+  fkDropAttempted = true;
+  try {
+    // v452.8: 动态查找并移除所有FK约束 - created_by现在引用team_members.id而非users.id
+    const fkResult = await db.execute(sql`
+      SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+    `);
+    const fkRows = (fkResult as Record<string, any>[][])[0] || [];
+    log.info(`[InviteCode] 发现 ${fkRows.length} 个FK约束需要移除`);
+    for (const fk of fkRows) {
+      const fkName = fk.CONSTRAINT_NAME || fk.constraint_name;
+      if (!fkName) continue;
+      try {
+        log.info(`[InviteCode] 正在移除FK约束: ${fkName}`);
+        await db.execute(sql.raw(`ALTER TABLE invite_codes DROP FOREIGN KEY \`${fkName}\``));
+        log.info(`[InviteCode] 已成功移除FK约束: ${fkName}`);
+      } catch (dropErr: any) {
+        log.warn(`[InviteCode] 移除FK ${fkName} 失败: ${dropErr?.message || dropErr?.cause?.message || JSON.stringify(dropErr)}`);
+      }
+    }
+  } catch (queryErr: any) {
+    log.warn(`[InviteCode] 查询FK约束失败: ${queryErr?.message || queryErr?.cause?.message || JSON.stringify(queryErr)}`);
+  }
+}
+
 async function ensureTablesExist(db: any): Promise<void> {
   if (tablesEnsured) return;
   try {
@@ -84,25 +112,6 @@ async function ensureTablesExist(db: any): Promise<void> {
         INDEX idx_code (code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    // v452.6: 动态查找并移除所有FK约束 - created_by现在引用team_members.id而非users.id
-    try {
-      const fkResult = await db.execute(sql`
-        SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-      `);
-      const fkRows = (fkResult as Record<string, any>[][])[0] || [];
-      for (const fk of fkRows) {
-        const fkName = fk.CONSTRAINT_NAME;
-        log.info(`[InviteCode] 正在移除FK约束: ${fkName}`);
-        await db.execute(sql.raw(`ALTER TABLE invite_codes DROP FOREIGN KEY \`${fkName}\``));
-        log.info(`[InviteCode] 已成功移除FK约束: ${fkName}`);
-      }
-      if (fkRows.length > 0) {
-        log.info(`[InviteCode] 共移除 ${fkRows.length} 个FK约束`);
-      }
-    } catch (_fkErr: any) {
-      log.warn(`[InviteCode] 移除FK约束时出错: ${_fkErr?.message}`);
-    }
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS invite_code_usages (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -118,9 +127,13 @@ async function ensureTablesExist(db: any): Promise<void> {
     `);
     tablesEnsured = true;
     log.info('[InviteCode] 邀请码相关表已确认就绪');
-  } catch (err) {
-    log.error('[InviteCode] 确保表存在失败:', (err as Error).message);
+  } catch (err: any) {
+    log.error(`[InviteCode] 确保表存在失败: ${err?.message || err?.cause?.message || JSON.stringify(err)}`);
+    // 即使失败也设置为true，避免每次请求都重试
+    tablesEnsured = true;
   }
+  // v452.8: FK移除在表创建之后单独执行，不影响主流程
+  await dropInviteCodesForeignKeys(db);
 }
 
 export function generateInviteCode(length: number = 8): string {
