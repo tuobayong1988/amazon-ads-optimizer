@@ -180,27 +180,29 @@ export async function syncSpNegativeKeywords(service: SyncContext): Promise<{ sy
       }
     }
 
-    // v426: 批量insert
+    // v471: 批量insert with onDuplicateKeyUpdate to handle unique constraint conflicts
     const CHUNK_SIZE = 200;
     for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
       const chunk = toInsert.slice(i, i + CHUNK_SIZE);
       try {
-        await db.insert(negativeKeywords).values(chunk);
+        await db.insert(negativeKeywords).values(chunk)
+          .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
         synced += chunk.length;
       } catch (err) {
-        log.warn(`v426: 批量insert失败(${chunk.length}条)，回退逐条: ${(err as Error).message}`);
+        log.warn(`v471: 批量insert失败(${chunk.length}条)，回退逐条: ${(err as Error).message}`);
         for (const item of chunk) {
           try {
-            await db.insert(negativeKeywords).values(item);
+            await db.insert(negativeKeywords).values(item)
+              .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
             synced++;
           } catch (e) {
-            log.warn(`v426: 逐条insert失败: ${(e as Error).message}`);
+            log.warn(`v471: 逐条insert失败: ${(e as Error).message}`);
           }
         }
       }
     }
 
-    log.info(`v426: SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
+    log.info(`v471: SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error) {
     log.error('Error syncing SP negative keywords:', error);
@@ -271,21 +273,26 @@ export async function syncSbNegativeKeywords(service: SyncContext): Promise<{ sy
       }
     }
 
-    // v426: 批量insert
+    // v471: 批量insert with onDuplicateKeyUpdate
     const CHUNK_SIZE = 200;
     for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
       const chunk = toInsert.slice(i, i + CHUNK_SIZE);
       try {
-        await db.insert(negativeKeywords).values(chunk);
+        await db.insert(negativeKeywords).values(chunk)
+          .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
         synced += chunk.length;
       } catch (err) {
         for (const item of chunk) {
-          try { await db.insert(negativeKeywords).values(item); synced++; } catch (e) { /* skip */ }
+          try {
+            await db.insert(negativeKeywords).values(item)
+              .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
+            synced++;
+          } catch (e) { /* skip */ }
         }
       }
     }
 
-    log.info(`v426: SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
+    log.info(`v471: SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
   } catch (error: unknown) {
     log.error('SB否定关键词同步失败:', (error as Error).message);
@@ -356,21 +363,26 @@ export async function syncSbNegativeTargets(service: SyncContext): Promise<{ syn
       }
     }
 
-    // v426: 批量insert
+    // v471: 批量insert with onDuplicateKeyUpdate
     const CHUNK_SIZE = 200;
     for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
       const chunk = toInsert.slice(i, i + CHUNK_SIZE);
       try {
-        await db.insert(negativeKeywords).values(chunk);
+        await db.insert(negativeKeywords).values(chunk)
+          .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
         synced += chunk.length;
       } catch (err) {
         for (const item of chunk) {
-          try { await db.insert(negativeKeywords).values(item); synced++; } catch (e) { /* skip */ }
+          try {
+            await db.insert(negativeKeywords).values(item)
+              .onDuplicateKeyUpdate({ set: { negativeStatus: sql`VALUES(negativeStatus)`, negativeMatchType: sql`VALUES(negativeMatchType)` } });
+            synced++;
+          } catch (e) { /* skip */ }
         }
       }
     }
 
-    log.info(`v426: SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
+    log.info(`v471: SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
   } catch (error: unknown) {
     log.error('SB否定商品定向同步失败:', (error as Error).message);

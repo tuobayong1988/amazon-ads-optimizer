@@ -5399,23 +5399,48 @@ export class AmazonAdsApiClient {
       }
       
       try {
-        // v323: SB Negative Keywords使用v3 API（GET方法），v4端点不存在
-        // v458: 修复406 Not Acceptable - SB API需要版本化的Accept头
-        const response = await this.axiosInstance.get('/sb/negativeKeywords', {
-          params: campaignId ? { campaignIdFilter: campaignId } : {},
-          headers: {
-            'Accept': 'application/vnd.sbkeywordresource.v4+json',
-          },
-        });
+        // v471: 尝试v4 POST端点（与listSbKeywords保持一致）
+        const response = await this.axiosInstance.post('/sb/v4/negativeKeywords/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+              'Accept': 'application/vnd.sbkeywordresource.v4+json',
+            },
+          }
+        );
         
         const negatives = response.data.negativeKeywords || [];
         allNegatives.push(...negatives);
         nextToken = response.data.nextToken;
-        log.debug(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
+        log.debug(`[SB API] v471: Fetched ${negatives.length} negative keywords via v4, total: ${allNegatives.length}`);
       } catch (error: unknown) {
-        // v255: 403是Amazon权限限制，降级为WARN而非ERROR
         // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status;
+        
+        // v471: v4端点不存在时回退到v3 GET端点（不带自定义Accept头）
+        if (statusCode === 404 || statusCode === 406) {
+          try {
+            log.info(`[SB API] v471: v4端点返回${statusCode}，回退到v3 GET /sb/negativeKeywords`);
+            const v3Response = await this.axiosInstance.get('/sb/negativeKeywords', {
+              params: campaignId ? { campaignIdFilter: campaignId } : {},
+            });
+            const negatives = Array.isArray(v3Response.data) ? v3Response.data : (v3Response.data.negativeKeywords || []);
+            allNegatives.push(...negatives);
+            log.info(`[SB API] v471: v3端点成功获取 ${negatives.length} 个SB否定关键词`);
+            return allNegatives; // v3不支持分页，直接返回
+          } catch (v3Error: unknown) {
+            // @ts-expect-error - Axios error response access
+            const v3Status = (v3Error as Error & { response?: unknown }).response?.status;
+            if (v3Status === 403) {
+              log.warn('[SB API] v471: SB Negative Keywords API access denied (403)');
+            } else {
+              log.error(`[SB API] v471: v3端点也失败: ${(v3Error as Error).message}`);
+            }
+            return allNegatives;
+          }
+        }
+        
         if (statusCode === 403) {
           log.warn('[SB API] SB Negative Keywords API access denied (403) - account may not have SB permissions');
         } else {

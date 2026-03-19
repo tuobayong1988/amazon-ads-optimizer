@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,6 +132,7 @@ export default function PerformanceGroupDetail() {
 
   // v153: 批量选择状态
   const [selectedManageCampaigns, setSelectedManageCampaigns] = useState<number[]>([]);
+  const [showBatchRemoveConfirm, setShowBatchRemoveConfirm] = useState(false);
   const [batchActionLoading, setBatchActionLoading] = useState(false);
   // v161: 区分当前正在执行的批量操作类型，防止UI混乱
   const [pendingBatchAction, setPendingBatchAction] = useState<'enable' | 'pause' | null>(null);
@@ -704,10 +706,14 @@ export default function PerformanceGroupDetail() {
     });
   };
 
-  // v153: 批量移除
+  // v153: 批量移除 (v471: 改用AlertDialog替代confirm弹窗)
   const handleBatchRemove = () => {
     if (selectedManageCampaigns.length === 0) return;
-    if (!confirm(`确定要从绩效组中移除 ${selectedManageCampaigns.length} 个广告活动吗？\n移除后这些广告活动将不再被算法自动优化。`)) return;
+    setShowBatchRemoveConfirm(true);
+  };
+
+  const confirmBatchRemove = () => {
+    setShowBatchRemoveConfirm(false);
     batchRemoveMutation.mutate({
       groupId: groupId!,
       campaignIds: selectedManageCampaigns,
@@ -2573,6 +2579,24 @@ export default function PerformanceGroupDetail() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* v471: 批量移除确认对话框 */}
+      <AlertDialog open={showBatchRemoveConfirm} onOpenChange={setShowBatchRemoveConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认批量移除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要从绩效组中移除 {selectedManageCampaigns.length} 个广告活动吗？移除后这些广告活动将不再被算法自动优化。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBatchRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              确认移除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

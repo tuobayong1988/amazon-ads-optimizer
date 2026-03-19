@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 471;  // v471: 全面修复SP/SB/SD广告类型路由—竞价/状态/位置倾斜按广告类型分流到正确的API端点
+export const SYSTEM_VERSION = 472;  // v472: 修复批量移除UI、否词同步重复插入、SB否词API 406、bid=undefined、搜索词迁移语法错误

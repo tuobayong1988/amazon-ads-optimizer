@@ -236,7 +236,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
         keywordText: apiKeyword.keywordText,
         matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
         keywordStatus: apiKeyword.state as 'enabled' | 'paused' | 'archived',  // v311: 修复字段名 status → keywordStatus，与Drizzle schema一致
-        bid: String(apiKeyword.bid),
+        bid: String(apiKeyword.bid ?? apiKeyword.defaultBid ?? 0),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
