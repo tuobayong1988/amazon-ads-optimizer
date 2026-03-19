@@ -8,10 +8,13 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import type { InferSelectModel } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { users } from "../../drizzle/schema";
+import jwt from 'jsonwebtoken';
 
 type User = InferSelectModel<typeof users>;
 import * as db from "../db";
+import { getDb } from "../db";
 import { ENV } from "./env";
 import type {
   ExchangeTokenRequest,
@@ -270,19 +273,18 @@ class SDKServer {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
-        const jwt = await import('jsonwebtoken');
+        // v468: 使用静态导入替代动态导入，防止esbuild打包后动态导入失败
         // v345: 移除不安全的默认密钥回退
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
-        const decoded = jwt.default.verify(token, secret) as Record<string, unknown>;
+        const decoded = jwt.verify(token, secret) as Record<string, unknown>;
         logSystem('Auth', `JWT decoded: userId=${decoded?.userId}, name=${decoded?.name}`);
         log.info(`[Auth] JWT decoded: userId=${decoded?.userId}`);
         // @ts-expect-error - runtime type mismatch
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
           // v257.1: 添加超时保护，防止数据库查询导致504
-          const { sql } = await import('drizzle-orm');
-          const { getDb } = await import('../db');
+          // v468: sql and getDb are now static imports at the top of the file
           
           // v447: 将getDb()也包含在超时范围内，防止连接池满时getDb()无限等待
           const dbQueryWithTimeout = async (timeoutMs: number = 5000) => {

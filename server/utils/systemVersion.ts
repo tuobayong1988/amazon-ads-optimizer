@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 467;  // v463: CmdRevalidator k.status修复, ApiHelper关键词标记修复, OptSyncQueries参数修复
+export const SYSTEM_VERSION = 468;  // v463: CmdRevalidator k.status修复, ApiHelper关键词标记修复, OptSyncQueries参数修复

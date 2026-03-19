@@ -338,12 +338,12 @@ export async function verifyToken(token: string): Promise<{
   error?: string;
 }> {
   try {
-    const jwt = await import('jsonwebtoken');
+    // v468: 使用静态导入的jwt（顶部已导入）
     // v345: 移除不安全的默认密钥回退
     const secret = process.env.JWT_SECRET;
     if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
-    const decoded = jwt.default.verify(token, secret) as Record<string, unknown>;
+    const decoded = jwt.verify(token, secret) as Record<string, unknown>;
     
     const db = await getDb();
     if (!db) return { valid: false, error: '数据库连接失败' };
