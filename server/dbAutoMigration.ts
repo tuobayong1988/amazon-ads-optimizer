@@ -735,7 +735,107 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     log.info(`v450: 核心表索引优化完成 - 新建${v450IndexSuccess}个, 已存在${v450IndexSkipped}个, 共${v450Indexes.length}个`);
     results.push(`v450索引: 新建${v450IndexSuccess}, 已存在${v450IndexSkipped}, 共${v450Indexes.length}`);
 
-    log.info(`v450: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
+    // ========== v452: 多租户基础表 ==========
+    // organizations, invite_codes, invite_code_usages, team_members 扩展
+    // 这些表是邀请码注册和多租户数据隔离的基础
+    log.info('v452: 开始多租户基础表迁移...');
+
+    // 1. organizations 表 - 租户/组织
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        type VARCHAR(50) DEFAULT 'external',
+        status ENUM('active', 'suspended', 'trial') DEFAULT 'trial',
+        subscription_plan VARCHAR(50) DEFAULT 'free',
+        subscription_status VARCHAR(50) DEFAULT 'active',
+        trial_ends_at DATETIME,
+        subscription_ends_at DATETIME,
+        owner_id INT,
+        max_users INT DEFAULT 5,
+        max_accounts INT DEFAULT 3,
+        max_ad_accounts INT DEFAULT 3,
+        max_campaigns INT DEFAULT 50,
+        max_api_calls_per_day INT DEFAULT 10000,
+        features JSON,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_slug (slug),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `, 'organizations', results);
+
+    // 插入默认组织（如果不存在）
+    try {
+      await database.execute(sql`
+        INSERT IGNORE INTO organizations (id, name, slug, type, status, subscription_plan, max_users, max_accounts, max_ad_accounts, max_campaigns, max_api_calls_per_day, features)
+        VALUES (1, 'Default Organization', 'default', 'internal', 'active', 'enterprise', 9999, 9999, 9999, 9999, 999999, '{"ml_optimization": true, "smart_campaign": true, "advanced_analytics": true, "api_access": true}')
+      `);
+      results.push('organizations: 默认组织已就绪');
+    } catch (e: unknown) {
+      // 忽略重复插入
+    }
+
+    // 2. invite_codes 表 - 邀请码
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(32) NOT NULL,
+        created_by INT NOT NULL,
+        organization_id INT,
+        invite_type ENUM('team_member', 'external_user') DEFAULT 'external_user',
+        max_uses INT DEFAULT 1,
+        used_count INT DEFAULT 0,
+        used_by INT,
+        expires_at TIMESTAMP NULL,
+        is_active TINYINT DEFAULT 1,
+        note VARCHAR(255),
+        used_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_code (code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `, 'invite_codes', results);
+
+    // 3. invite_code_usages 表 - 邀请码使用记录
+    await safeDDL(database, sql`
+      CREATE TABLE IF NOT EXISTS invite_code_usages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        invite_code_id INT NOT NULL,
+        user_id INT NOT NULL,
+        organization_id INT,
+        used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        INDEX idx_invite_code (invite_code_id),
+        INDEX idx_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `, 'invite_code_usages', results);
+
+    // 4. 确保 team_members 表有 organization_id, username, password_hash 列（多租户扩展）
+    try {
+      await database.execute(sql.raw('ALTER TABLE team_members ADD COLUMN organization_id INT DEFAULT 1'));
+      results.push('team_members: 添加 organization_id 列');
+    } catch (e: unknown) { if (!isAlreadyExistsError(e as Error)) log.warn('team_members.organization_id: ' + (e as Error).message); }
+
+    try {
+      await database.execute(sql.raw('ALTER TABLE team_members ADD COLUMN username VARCHAR(255)'));
+      results.push('team_members: 添加 username 列');
+    } catch (e: unknown) { if (!isAlreadyExistsError(e as Error)) log.warn('team_members.username: ' + (e as Error).message); }
+
+    try {
+      await database.execute(sql.raw('ALTER TABLE team_members ADD COLUMN password_hash VARCHAR(255)'));
+      results.push('team_members: 添加 password_hash 列');
+    } catch (e: unknown) { if (!isAlreadyExistsError(e as Error)) log.warn('team_members.password_hash: ' + (e as Error).message); }
+
+    try {
+      await database.execute(sql.raw('ALTER TABLE team_members ADD COLUMN last_login_at TIMESTAMP NULL'));
+      results.push('team_members: 添加 last_login_at 列');
+    } catch (e: unknown) { if (!isAlreadyExistsError(e as Error)) log.warn('team_members.last_login_at: ' + (e as Error).message); }
+
+    log.info(`v452: 多租户基础表迁移完成`);
+
+    log.info(`v452: 数据库自动迁移完成, 结果: ${results.join('; ')}`);
     return { success: true, results };
 
   } catch (error: unknown) {

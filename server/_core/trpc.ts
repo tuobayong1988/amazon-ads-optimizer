@@ -98,6 +98,36 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
   }
 }
 
+/** v452: 反查Amazon campaignId(string)的accountId - 修复字符串campaignId绕过数据隔离的漏洞 */
+const amazonCampaignAccountCache = new Map<string, { accountId: number; expiry: number }>();
+async function getCampaignAccountIdByAmazonId(amazonCampaignId: string): Promise<number | null> {
+  const cached = amazonCampaignAccountCache.get(amazonCampaignId);
+  if (cached && cached.expiry > Date.now()) {
+    return cached.accountId;
+  }
+  try {
+    const { getDb } = await import('../db/connection');
+    const { campaigns } = await import('../../drizzle/schema');
+    const { eq } = await import('drizzle-orm');
+    const row = await withTimeout((async () => {
+      const db = await getDb();
+      if (!db) return null;
+      const [r] = await db.select({ accountId: campaigns.accountId })
+        .from(campaigns)
+        .where(eq(campaigns.campaignId, amazonCampaignId))
+        .limit(1);
+      return r || null;
+    })(), 5000, null);
+    if (row) {
+      amazonCampaignAccountCache.set(amazonCampaignId, { accountId: row.accountId, expiry: Date.now() + CACHE_TTL_MS });
+      return row.accountId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** 反查campaign的accountId */
 async function getCampaignAccountId(campaignId: number): Promise<number | null> {
   const cached = campaignAccountCache.get(campaignId);
@@ -171,6 +201,7 @@ export function invalidateUserAccountCache(userId?: number): void {
   }
   // 同时清除关联缓存
   campaignAccountCache.clear();
+  amazonCampaignAccountCache.clear();
   pgAccountCache.clear();
 }
 
@@ -275,6 +306,25 @@ const enforceAccountAccess = t.middleware(async opts => {
       }
     }
 
+    // ===== 4.1 v452新增：检查字符串类型的campaignId（Amazon ID）=====
+    // 修复关键安全漏洞：placement/smartCampaign/mlOptimization等路由使用z.string()类型的campaignId
+    // 之前完全绕过了enforceAccountAccess的数据隔离检查
+    if (campaignId !== undefined && campaignId !== null && typeof campaignId === 'string' && campaignId.length > 0) {
+      const campAccountId = await getCampaignAccountIdByAmazonId(campaignId);
+      if (campAccountId !== null) {
+        const userAccounts = await getUserAccountIds(userId);
+        if (!userAccounts.has(campAccountId)) {
+          log.warn(
+            `[v452] 数据隔离拦截(campaignId/string): 用户 ${userId}(${ctx.user.email}) 试图访问不属于自己的广告活动 ${campaignId} (accountId=${campAccountId})`
+          );
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: '您没有权限访问此广告活动的数据',
+          });
+        }
+      }
+    }
+
     // ===== 5. v370.4新增：检查campaignIds数组 =====
     const campaignIds = input.campaignIds;
     if (Array.isArray(campaignIds) && campaignIds.length > 0) {
@@ -285,6 +335,19 @@ const enforceAccountAccess = t.middleware(async opts => {
           if (campAccountId !== null && !userAccounts.has(campAccountId)) {
             log.warn(
               `[v370.4] 数据隔离拦截(campaignIds): 用户 ${userId}(${ctx.user.email}) 试图批量访问不属于自己的广告活动 ${cid}`
+            );
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: '您没有权限访问部分广告活动的数据',
+            });
+          }
+        }
+        // v452: 也检查字符串类型的campaignIds
+        if (typeof cid === 'string' && cid.length > 0) {
+          const campAccountId = await getCampaignAccountIdByAmazonId(cid);
+          if (campAccountId !== null && !userAccounts.has(campAccountId)) {
+            log.warn(
+              `[v452] 数据隔离拦截(campaignIds/string): 用户 ${userId}(${ctx.user.email}) 试图批量访问不属于自己的广告活动 ${cid}`
             );
             throw new TRPCError({
               code: 'FORBIDDEN',
