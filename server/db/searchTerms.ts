@@ -448,7 +448,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      campaignId: campaign.String(campaignId),
+      campaignId: String(campaign.campaignId),
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,

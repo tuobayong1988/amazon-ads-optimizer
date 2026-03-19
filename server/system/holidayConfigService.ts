@@ -8,12 +8,48 @@ import { holidayConfigurations, type InsertHolidayConfiguration } from '../../dr
 import { eq, and, gte, lte, desc, sql, or } from 'drizzle-orm';
 import { MARKETPLACE_HOLIDAYS, type HolidayConfig } from '../algorithm/algorithmUtils';
 
+let tableEnsured = false;
+
+async function ensureHolidayTable(): Promise<void> {
+  if (tableEnsured) return;
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS holiday_configurations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      userId INT NOT NULL,
+      marketplace VARCHAR(10) NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      startDate DATE NOT NULL,
+      endDate DATE NOT NULL,
+      bidMultiplier DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+      budgetMultiplier DECIMAL(5,2) NOT NULL DEFAULT 1.00,
+      priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+      isActive TINYINT NOT NULL DEFAULT 1,
+      isSystemDefault TINYINT NOT NULL DEFAULT 0,
+      preHolidayDays INT NOT NULL DEFAULT 7,
+      notes TEXT,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_holiday_config_userId (userId),
+      INDEX idx_holiday_config_marketplace (marketplace),
+      INDEX idx_holiday_config_startDate (startDate),
+      INDEX idx_holiday_config_endDate (endDate)
+    )`);
+    tableEnsured = true;
+    console.log('[HolidayConfig] holiday_configurations 表已就绪');
+  } catch (err) {
+    console.error('[HolidayConfig] 创建表失败:', (err as Error).message);
+  }
+}
+
 /**
  * 创建节假日配置
  */
 export async function createHolidayConfig(
   data: InsertHolidayConfiguration
 ): Promise<number> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -33,6 +69,7 @@ export async function initializeSystemHolidays(
   userId: number,
   marketplace: string
 ): Promise<number> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -79,6 +116,7 @@ export async function getHolidayConfigs(
   userId: number,
   marketplace?: string
 ): Promise<typeof holidayConfigurations.$inferSelect[]> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -102,6 +140,7 @@ export async function getHolidayConfigForDate(
   marketplace: string,
   date: Date
 ): Promise<typeof holidayConfigurations.$inferSelect | null> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -136,6 +175,7 @@ export async function updateHolidayConfig(
   id: number,
   data: Partial<InsertHolidayConfiguration>
 ): Promise<boolean> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -154,6 +194,7 @@ export async function updateHolidayConfig(
  * 删除节假日配置
  */
 export async function deleteHolidayConfig(id: number): Promise<boolean> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -171,6 +212,7 @@ export async function toggleHolidayConfig(
   id: number,
   isActive: boolean
 ): Promise<boolean> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -193,6 +235,7 @@ export async function getUpcomingHolidays(
   marketplace?: string,
   days: number = 30
 ): Promise<typeof holidayConfigurations.$inferSelect[]> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
@@ -229,6 +272,7 @@ export async function getPreHolidayConfig(
   bidMultiplier: number;
   budgetMultiplier: number;
 } | null> {
+  await ensureHolidayTable();
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
