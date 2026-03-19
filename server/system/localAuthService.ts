@@ -9,6 +9,46 @@ import { sql } from "drizzle-orm";
 import * as bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+// 自愈式表创建 - 确保多租户相关表存在
+let tablesEnsured = false;
+async function ensureMultiTenantTables(db: any): Promise<void> {
+  if (tablesEnsured) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        type VARCHAR(50) DEFAULT 'external',
+        status VARCHAR(50) DEFAULT 'trial',
+        subscription_plan VARCHAR(50) DEFAULT 'free',
+        subscription_status VARCHAR(50) DEFAULT 'active',
+        trial_ends_at DATETIME,
+        subscription_ends_at DATETIME,
+        owner_id INT,
+        max_users INT DEFAULT 5,
+        max_accounts INT DEFAULT 3,
+        max_ad_accounts INT DEFAULT 3,
+        max_campaigns INT DEFAULT 50,
+        max_api_calls_per_day INT DEFAULT 10000,
+        features JSON,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_slug (slug),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `));
+    await db.execute(sql.raw(`
+      INSERT IGNORE INTO organizations (id, name, slug, type, status, subscription_plan, max_users, max_accounts, max_ad_accounts, max_campaigns, max_api_calls_per_day)
+      VALUES (1, 'Default Organization', 'default', 'internal', 'active', 'enterprise', 9999, 9999, 9999, 9999, 999999)
+    `));
+    tablesEnsured = true;
+    log.info('[LocalAuth] 多租户表已确认就绪');
+  } catch (err) {
+    log.error('[LocalAuth] 确保多租户表存在失败:', (err as Error).message);
+  }
+}
+
 export interface LocalUser {
   id: number;
   organizationId: number;
@@ -46,6 +86,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
 }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureMultiTenantTables(db);
   
   try {
     // 1. 验证邀请码
@@ -174,6 +215,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
 }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureMultiTenantTables(db);
   
   try {
     // 1. 查找用户
@@ -359,6 +401,7 @@ export async function changePassword(userId: number, oldPassword: string, newPas
 }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureMultiTenantTables(db);
   
   try {
     const result = await db.execute(sql`

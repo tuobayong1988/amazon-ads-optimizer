@@ -34,6 +34,76 @@ export interface CreateInviteCodeInput {
   note?: string;
 }
 
+let tablesEnsured = false;
+async function ensureTablesExist(db: any): Promise<void> {
+  if (tablesEnsured) return;
+  try {
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        type VARCHAR(50) DEFAULT 'external',
+        status VARCHAR(50) DEFAULT 'trial',
+        subscription_plan VARCHAR(50) DEFAULT 'free',
+        subscription_status VARCHAR(50) DEFAULT 'active',
+        trial_ends_at DATETIME,
+        subscription_ends_at DATETIME,
+        owner_id INT,
+        max_users INT DEFAULT 5,
+        max_accounts INT DEFAULT 3,
+        max_ad_accounts INT DEFAULT 3,
+        max_campaigns INT DEFAULT 50,
+        max_api_calls_per_day INT DEFAULT 10000,
+        features JSON,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_slug (slug),
+        INDEX idx_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `));
+    await db.execute(sql.raw(`
+      INSERT IGNORE INTO organizations (id, name, slug, type, status, subscription_plan, max_users, max_accounts, max_ad_accounts, max_campaigns, max_api_calls_per_day)
+      VALUES (1, 'Default Organization', 'default', 'internal', 'active', 'enterprise', 9999, 9999, 9999, 9999, 999999)
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS invite_codes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(32) NOT NULL,
+        created_by INT NOT NULL,
+        organization_id INT,
+        invite_type VARCHAR(50) DEFAULT 'external_user',
+        max_uses INT DEFAULT 1,
+        used_count INT DEFAULT 0,
+        used_by INT,
+        expires_at DATETIME NULL,
+        is_active TINYINT DEFAULT 1,
+        note VARCHAR(255),
+        used_at DATETIME NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_code (code)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `));
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS invite_code_usages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        invite_code_id INT NOT NULL,
+        user_id INT NOT NULL,
+        organization_id INT,
+        used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        INDEX idx_invite_code (invite_code_id),
+        INDEX idx_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `));
+    tablesEnsured = true;
+    log.info('[InviteCode] 邀请码相关表已确认就绪');
+  } catch (err) {
+    log.error('[InviteCode] 确保表存在失败:', (err as Error).message);
+  }
+}
+
 export function generateInviteCode(length: number = 8): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let code = '';
@@ -47,6 +117,7 @@ export function generateInviteCode(length: number = 8): string {
 export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ success: boolean; inviteCode?: InviteCode; error?: string }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     const code = generateInviteCode();
@@ -118,6 +189,7 @@ export async function createInviteCodesBatch(input: CreateInviteCodeInput, count
 export async function validateInviteCode(code: string): Promise<{ valid: boolean; error?: string; inviteCode?: InviteCode }> {
   const db = await getDb();
   if (!db) return { valid: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     const result = await db.execute(sql`
@@ -172,6 +244,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
 export async function useInviteCode(code: string, userId: number, organizationId?: number, ipAddress?: string, userAgent?: string): Promise<{ success: boolean; error?: string }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     const validation = await validateInviteCode(code);
@@ -199,6 +272,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
 export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> {
   const db = await getDb();
   if (!db) return [];
+  await ensureTablesExist(db);
   
   try {
     let result;
@@ -243,6 +317,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
 export async function disableInviteCode(id: number): Promise<{ success: boolean; error?: string }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`) as any;
@@ -255,6 +330,7 @@ export async function disableInviteCode(id: number): Promise<{ success: boolean;
 export async function enableInviteCode(id: number): Promise<{ success: boolean; error?: string }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`) as any;
@@ -267,6 +343,7 @@ export async function enableInviteCode(id: number): Promise<{ success: boolean; 
 export async function deleteInviteCode(id: number): Promise<{ success: boolean; error?: string }> {
   const db = await getDb();
   if (!db) return { success: false, error: '数据库连接失败' };
+  await ensureTablesExist(db);
   
   try {
     await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`) as any;
@@ -285,6 +362,7 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
 }> {
   const db = await getDb();
   if (!db) return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
+  await ensureTablesExist(db);
   
   try {
     // v346: 使用Drizzle参数化查询替代sql.raw字符串拼接
