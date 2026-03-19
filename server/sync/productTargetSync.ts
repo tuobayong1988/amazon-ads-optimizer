@@ -544,10 +544,10 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
           targetType = 'asin';
           targetValue = expr.value || 'AUTO_COMPLEMENTS';
           targetMatchType = 'accessory';
-        } else if (et.includes('broadrel') || et.includes('loose')) {
+        } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
           targetValue = expr.value || 'AUTO_LOOSE';
           targetMatchType = 'loose';
-        } else if (et.includes('highrel') || et.includes('close')) {
+        } else if (et.includes('highrel') || et.includes('high_rel') || et.includes('close')) {
           targetValue = expr.value || 'AUTO_CLOSE';
           targetMatchType = 'close';
         } else if (et.includes('asin') && et.includes('same')) {
@@ -582,6 +582,13 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
       // 构建品类细化条件JSON
       if (Object.keys(refinements).length > 0) {
         categoryRefinements = JSON.stringify(refinements);
+      }
+      
+      // v474: 安全处理 - 如果targetValue仍然为空，使用expression类型作为回退值
+      if (!targetValue) {
+        const exprTypes = (apiTarget.expression || []).map((e: Record<string, unknown>) => e.type || '').join(',');
+        targetValue = exprTypes || `AUTO_${String(apiTarget.targetId)}`;
+        log.debug(`v474: targetValue为空，使用回退值: ${targetValue}, expression=${JSON.stringify(apiTarget.expression)}`);
       }
       
       // Amazon API返回的state可能是大写，需要转换为小写
