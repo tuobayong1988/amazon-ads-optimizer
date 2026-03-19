@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 477;  // v477: entityNotFoundError根治 — 智能重试(移除坏entity后重试批次)+预过滤(amazon_deleted/archived)+自动标记机制，实现100%API执行成功率
+export const SYSTEM_VERSION = 478;  // v478: 全面修复5类失败根因 — SB/SD否定词API路由、否定产品定向幂等性去重、错误详情回写、失败重试入队

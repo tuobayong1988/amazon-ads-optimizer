@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 478,
+    description: 'v478: [全面修复5类失败根因 — 实现100%API执行成功率] — (1)P0-SB/SD否定词API路由: SB/SD广告活动的否定关键词不再误用SP API，改为跳过并记录 (2)P0-否定产品定向幂等性: 创建前查询已有否定产品定向，去除重复避免报错 (3)P0-错误详情回写: 否定产品定向的失败原因现在被正确记录到apiSyncDetail (4)P0-失败重试入队: add_negative_product_target失败现在会被收集并入队重试 (5)P1-campaignType传递: 否定关键词的detail对象现在携带campaignType用于API路由',
+    affectedModules: ['searchterm'],
+    correctionActions: [],
+  },
+  {
     version: 477,
     description: 'v477: [entityNotFoundError根治 — 智能重试+预过滤+自动标记机制] — (1)P0-智能重试: 遇到entityNotFoundError时自动提取坏的entity ID，从API批次中移除后重试剩余项目，最多10次 (2)P0-预过滤: 在构建API批次前查询keyword/target的状态，自动跳过amazon_deleted/archived的entity (3)P0-自动标记: 被Amazon拒绝的entity自动标记为amazon_deleted，防止后续重复失败 (4)覆盖范围: updateKeywordBids/updateProductTargetBids/updateKeywordStatus三个API函数',
     affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'searchterm'],

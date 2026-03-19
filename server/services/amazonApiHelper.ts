@@ -1179,8 +1179,37 @@ export async function syncNegativeProductTargetsToAmazon(
   // SP Campaign级否定产品定向
   if (spCampaignLevel.length > 0) {
     try {
+      // v478: 幂等性保障 - 查询已有的campaign级否定产品定向，去除重复
+      const existingNegTargets = new Set<string>();
+      const uniqueCampaignIds = [...new Set(spCampaignLevel.map(n => n.campaignId))];
+      for (const cid of uniqueCampaignIds) {
+        try {
+          const existing = await (syncService as Record<string, unknown>).client.listSpCampaignNegativeTargets(cid);
+          for (const e of (existing as Record<string, unknown>[])) {
+            const expr = (e.expression as Array<{type: string; value?: string}>) || [];
+            for (const ex of expr) {
+              if (ex.type === 'asinSameAs' && ex.value) {
+                existingNegTargets.add(`${e.campaignId}:${ex.value}`);
+              }
+            }
+          }
+        } catch (_listErr) {
+          log.warn(`[AmazonApiHelper] v478: 查询campaign ${cid} 已有否定产品定向失败`);
+        }
+      }
+      
+      const newSpCampaignLevel = spCampaignLevel.filter(n => !existingNegTargets.has(`${n.campaignId}:${n.asin}`));
+      const skippedCount = spCampaignLevel.length - newSpCampaignLevel.length;
+      if (skippedCount > 0) {
+        log.info(`[AmazonApiHelper] v478: 幂等性去重: 跳过${skippedCount}个已存在的campaign级否定产品定向`);
+        result.success += skippedCount;
+      }
+      
+      if (newSpCampaignLevel.length === 0) {
+        log.info(`[AmazonApiHelper] v478: 所有SP Campaign否定产品定向已存在，跳过`);
+      } else {
       const apiResults = await withRetry(() => (syncService as Record<string, unknown>).client.createSpCampaignNegativeTargets(
-        spCampaignLevel.map(n => ({
+        newSpCampaignLevel.map(n => ({
           campaignId: n.campaignId,
           expression: [{ type: 'asinSameAs', value: n.asin }],
           expressionType: 'manual',
@@ -1196,6 +1225,7 @@ export async function syncNegativeProductTargetsToAmazon(
           result.errors.push(`SP Campaign否定产品失败: ${(r as Record<string, unknown>).details || 'unknown'}`);
         }
       }
+      } // v478: 关闭else (newSpCampaignLevel.length > 0)块
     } catch (err: unknown) {
       result.failed += spCampaignLevel.length;
       result.errors.push(`SP Campaign否定产品批量失败: ${(err as Error).message}`);

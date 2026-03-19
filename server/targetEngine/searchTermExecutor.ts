@@ -554,6 +554,9 @@ export async function executeSearchTermAnalysis(
             apiSyncStatus: negativeAlreadyExists ? 'already_exists' : 'pending',
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel,
+            // v478: 新增campaignType，用于API路由到正确的SP/SB/SD API
+            campaignType: decision.campaignType || 'sp',
+            negativeScope: decision.negativeScope || 'campaign',
           };
           
           details.push(negativeKeyword);
@@ -1016,6 +1019,10 @@ export async function executeSearchTermAnalysis(
                                       negProdSyncResult.success === 0 ? 'failed' : 'partial';
             for (const d of (negProdDetails as unknown[])) {
               d.apiSyncStatus = negProdSyncStatus;
+              // v478: 将错误详情回写到detail，确保失败原因被记录
+              if (negProdSyncResult.errors.length > 0) {
+                d.apiSyncDetail = JSON.stringify({ errors: negProdSyncResult.errors });
+              }
             }
             log.info(`[SearchTermAnalysis] v2: 否定产品定向API同步: ${negProdDetails.length}个, 状态=${negProdSyncStatus}`);
             
@@ -1050,8 +1057,23 @@ export async function executeSearchTermAnalysis(
           try {
             // v201: 直接使用字符串避免大数字精度丢失
             const amazonCampaignId = campaignAmazonId;
+            
+            // v478: 检查campaignType，SB/SD广告活动使用不同的否定词API
+            const negCampaignType = negativeDetails[0]?.campaignType || 'sp';
+            const normalizedNegType = (negCampaignType === 'sb' || negCampaignType === 'sd') ? negCampaignType : 'sp';
+            
+            if (normalizedNegType === 'sb' || normalizedNegType === 'sd') {
+              // v478: SB/SD广告活动不支持通过SP API添加否定关键词
+              // SB使用createSbNegativeKeywords，SD暂不支持否定关键词
+              log.warn(`[SearchTermAnalysis] v478: ${normalizedNegType.toUpperCase()}广告活动否定关键词需要专用API，当前跳过 (Campaign ${campaign.campaignName})`);
+              for (const d of (negativeDetails as unknown[])) {
+                d.apiSyncStatus = 'skipped_unsupported_campaign_type';
+                d.apiSyncDetail = JSON.stringify({ reason: `v478: ${normalizedNegType.toUpperCase()}广告活动否定关键词需要专用API` });
+              }
+            }
+            
             // v2: 使用算法决策的negativeScope来确定否定层级
-            const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
+            const negSyncResult = normalizedNegType === 'sp' ? await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({
                 campaignId: amazonCampaignId,
@@ -1060,8 +1082,9 @@ export async function executeSearchTermAnalysis(
                 level: (d.negativeScope === 'ad_group' ? 'adgroup' : 'campaign') as 'campaign' | 'adgroup',
                 adGroupId: d.adGroupId || undefined,
               }))
-            );
-            // v134: 将同步状态回写到detail中
+            ) : { success: 0, failed: 0, errors: [] as string[], keywordIdMap: new Map<string, string>() };
+            // v134: 将同步状态回写到detail中 (v478: 仅对SP广告活动更新，SB/SD已在上方设置)
+            if (normalizedNegType === 'sp') {
             const negSyncStatus = negSyncResult.failed === 0 && negSyncResult.success > 0 ? 'synced' : 
                                   negSyncResult.success === 0 ? 'failed' : 'partial';
             for (const d of (negativeDetails as unknown[])) {
@@ -1126,6 +1149,7 @@ export async function executeSearchTermAnalysis(
             } else {
               log.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
             }
+            } // v478: 关闭if (normalizedNegType === 'sp')块
           } catch (apiError: unknown) {
             for (const d of (negativeDetails as unknown[])) {
               d.apiSyncStatus = 'failed';

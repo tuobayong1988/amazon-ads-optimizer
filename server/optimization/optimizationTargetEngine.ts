@@ -982,6 +982,28 @@ export async function executeOptimizationTarget(
                 campaignName: detail.campaignName,
                 adGroupId: detail.adGroupId || null,
               });
+            } else if (detail.action === 'add_negative_product_target') {
+              // v478: 否定产品定向失败 → 入队 negative_product_target 类型
+              const negProdCampaign = campaigns.find((c: Record<string, unknown>) => c.id === detail.localCampaignId);
+              const negProdAmazonCampaignId = negProdCampaign?.campaignId || null;
+              failedTasks.push({
+                batchId,
+                optimizationTargetId: config.id,
+                accountId: config.accountId,
+                taskType: 'negative_product_target',
+                priority: 1,
+                targetEntityType: 'campaign',
+                targetEntityId: detail.localCampaignId,
+                amazonEntityId: detail.amazonCampaignId || (negProdAmazonCampaignId ? String(negProdAmazonCampaignId) : null),
+                targetEntityName: detail.searchTerm,
+                action: 'add_negative_product_target',
+                oldValue: '',
+                newValue: detail.searchTerm,
+                changeReason: detail.reason || '否定产品定向重试',
+                campaignId: detail.localCampaignId,
+                campaignName: detail.campaignName,
+                adGroupId: detail.adGroupId || null,
+              });
             } else if (detail.action === 'add_keyword') {
               // 新关键词创建失败 → 入队 new_keyword 类型
               failedTasks.push({
