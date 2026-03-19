@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 470;  // v463: CmdRevalidator k.status修复, ApiHelper关键词标记修复, OptSyncQueries参数修复
+export const SYSTEM_VERSION = 471;  // v471: 全面修复SP/SB/SD广告类型路由—竞价/状态/位置倾斜按广告类型分流到正确的API端点

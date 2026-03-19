@@ -882,74 +882,171 @@ async function executeBatchByType(
         }
       }
       
-      // 批量更新商品定向出价
+      // v471: 批量更新商品定向出价 — 根据campaign类型路由到正确的SP/SB/SD API端点
+      // 之前所有product target都走SP端点(/sp/targets)，导致SB和SD的商品定向竞价调整失败
       if (ptTasks.length > 0) {
-        try {
-          // v434: product target bid约束保护 — 根据campaign类型和计费方式确定正确的最低竞价
-          const ptBidUpdates = await Promise.all(ptTasks.map(async (t: Record<string, unknown>) => {
-            const rawBid = Number(parseFloat(t.new_value).toFixed(2));
-            // 查询campaign类型和costType
-            let ptCampType = 'sp_manual';
-            let ptCostType = 'cpc';
-            let ptMarketplace = 'US';
-            // v456: 使用类型安全查询替代原生SQL，修复 pt.adGroupId 应为 pt.internal_ad_group_id 的关联错误
-            const ptCampInfo = await Q.getCampaignTypeByProductTargetId(conn, t.target_entity_id);
-            if (ptCampInfo) {
-              ptCampType = ptCampInfo.campaignType;
-              ptCostType = ptCampInfo.costType;
-              ptMarketplace = ptCampInfo.marketplace;
-            }
-            const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, ptCampType, ptMarketplace, ptCostType);
-            if (wasAdjusted) {
-              log.info(`[SyncEngine] v434: product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
-            }
-            return {
-              targetId: String(t.amazon_entity_id),
-              bid: clampedBid,
-            };
-          }));
-          const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateProductTargetBids(ptBidUpdates);
+        // v471: 先按campaign类型分组
+        const spPtTasks: unknown[] = [];
+        const sbPtTasks: unknown[] = [];
+        const sdPtTasks: unknown[] = [];
+        
+        for (const t of ptTasks) {
+          const ptCampInfo = await Q.getCampaignTypeByProductTargetId(conn, t.target_entity_id);
+          const ptCampType = ptCampInfo?.campaignType || 'sp_manual';
+          t._ptCampType = ptCampType;
+          t._ptCostType = ptCampInfo?.costType || 'cpc';
+          t._ptMarketplace = ptCampInfo?.marketplace || 'US';
           
-          const failedIds = new Map<string, string>();
-          if (apiResult.errors && apiResult.errors.length > 0) {
-            for (const err of apiResult.errors) {
-              // v444: 增强错误记录 - 保存完整错误信息
-              const ptErrDetail = err.details || (err as Record<string, unknown>).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
-              failedIds.set(String(err.targetId), ptErrDetail);
-            }
+          if (ptCampType === 'sb') {
+            sbPtTasks.push(t);
+          } else if (ptCampType === 'sd') {
+            sdPtTasks.push(t);
+          } else {
+            spPtTasks.push(t);
           }
-          
-          for (const t of ptTasks) {
-            const ptFailReason = failedIds.get(String(t.amazon_entity_id));
-            if (ptFailReason) {
-              // v458: 检测entityNotFoundError，标记商品定向为amazon_deleted避免无限重试
-              const ptFailLower = ptFailReason.toLowerCase();
-              if (ptFailLower.includes('entitynotfounderror') || ptFailLower.includes('entity_not_found')) {
-                await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${ptFailReason}`);
-                try {
-                  await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
-                  log.warn(`[SyncEngine] v458: ProductTarget ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
-                } catch (markErr: unknown) {
-                  log.error(`[SyncEngine] v458: 标记Target deleted失败: ${(markErr as Error).message}`);
-                }
-              } else {
-                await markTaskForRetry(conn, t.id, t.retry_count, ptFailReason);
+        }
+        
+        if (sbPtTasks.length > 0 || sdPtTasks.length > 0) {
+          log.info(`[SyncEngine] v471: 商品定向按类型分组: SP=${spPtTasks.length}, SB=${sbPtTasks.length}, SD=${sdPtTasks.length}`);
+        }
+        
+        // === SP商品定向 — 使用 updateProductTargetBids (PUT /sp/targets) ===
+        if (spPtTasks.length > 0) {
+          try {
+            const spPtBidUpdates = spPtTasks.map((t: Record<string, unknown>) => {
+              const rawBid = Number(parseFloat(t.new_value).toFixed(2));
+              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, t._ptCampType || 'sp_manual', t._ptMarketplace || 'US', t._ptCostType || 'cpc');
+              if (wasAdjusted) {
+                log.info(`[SyncEngine] v434: SP product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
               }
-              result.failed++;
-            } else {
+              return { targetId: String(t.amazon_entity_id), bid: clampedBid };
+            });
+            const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateProductTargetBids(spPtBidUpdates);
+            
+            const failedIds = new Map<string, string>();
+            if (apiResult.errors && apiResult.errors.length > 0) {
+              for (const err of apiResult.errors) {
+                const ptErrDetail = err.details || (err as Record<string, unknown>).code || JSON.stringify(err).substring(0, 200) || 'API_ERROR';
+                failedIds.set(String(err.targetId), ptErrDetail);
+              }
+            }
+            
+            for (const t of spPtTasks) {
+              const ptFailReason = failedIds.get(String(t.amazon_entity_id));
+              if (ptFailReason) {
+                const ptFailLower = ptFailReason.toLowerCase();
+                if (ptFailLower.includes('entitynotfounderror') || ptFailLower.includes('entity_not_found')) {
+                  await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${ptFailReason}`);
+                  try { await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, ptFailReason);
+                }
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalBid(conn, 'product_target', t.target_entity_id, t.new_value);
+                result.synced++;
+              }
+            }
+            log.warn(`[SyncEngine] v471: SP商品定向出价同步: 发送=${spPtTasks.length}, 成功=${spPtTasks.length - failedIds.size}, 失败=${failedIds.size}`);
+          } catch (err: unknown) {
+            for (const t of spPtTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += spPtTasks.length;
+            result.errors.push(`SP商品定向出价API失败: ${(err as Error).message}`);
+          }
+        }
+        
+        // === SB商品定向 — 使用 updateSbTargetBids (PUT /sb/v4/targets) ===
+        if (sbPtTasks.length > 0) {
+          try {
+            const sbPtUpdates: Array<{ targetId: string; bid: number; adGroupId: string; campaignId: string }> = [];
+            const sbPtSkipped: unknown[] = [];
+            
+            for (const t of sbPtTasks) {
+              const rawBid = Number(parseFloat(t.new_value).toFixed(2));
+              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sb', t._ptMarketplace || 'US', t._ptCostType || 'cpc');
+              if (wasAdjusted) {
+                log.info(`[SyncEngine] v471: SB product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
+              }
+              // SB API需要adGroupId和campaignId
+              const ptDetail = await Q.getProductTargetDetailById(conn, t.target_entity_id);
+              if (ptDetail && ptDetail.amazonAdGroupId && ptDetail.amazonCampaignId) {
+                sbPtUpdates.push({
+                  targetId: String(t.amazon_entity_id),
+                  bid: clampedBid,
+                  adGroupId: String(ptDetail.amazonAdGroupId),
+                  campaignId: String(ptDetail.amazonCampaignId),
+                });
+              } else {
+                await markTaskFailed(conn, t.id, 'v471: 无法获取SB商品定向的adGroupId或campaignId');
+                result.failed++;
+                sbPtSkipped.push(t);
+              }
+            }
+            
+            const activeSbPtTasks = sbPtTasks.filter(t => !sbPtSkipped.includes(t));
+            
+            if (sbPtUpdates.length > 0) {
+              const sbApiResult = await (syncService as Record<string, unknown>).client.updateSbTargetBids(sbPtUpdates);
+              const sbFailedIds = new Map<string, string>();
+              if (sbApiResult.errors && sbApiResult.errors.length > 0) {
+                for (const err of sbApiResult.errors) {
+                  sbFailedIds.set(String(err.targetId), err.details || err.code || 'SB_API_ERROR');
+                }
+              }
+              
+              for (const t of activeSbPtTasks) {
+                const failReason = sbFailedIds.get(String(t.amazon_entity_id));
+                if (failReason) {
+                  const failLower = failReason.toLowerCase();
+                  if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
+                    await markTaskFailed(conn, t.id, `[v471-entity-deleted] ${failReason}`);
+                    try { await Q.markTargetDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                  } else {
+                    await markTaskForRetry(conn, t.id, t.retry_count, failReason);
+                  }
+                  result.failed++;
+                } else {
+                  await markTaskSynced(conn, t.id);
+                  await updateLocalBid(conn, 'product_target', t.target_entity_id, t.new_value);
+                  result.synced++;
+                }
+              }
+              log.warn(`[SyncEngine] v471: SB商品定向出价同步: 发送=${sbPtUpdates.length}, 成功=${sbPtUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}, 跳过=${sbPtSkipped.length}`);
+            }
+          } catch (err: unknown) {
+            for (const t of sbPtTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += sbPtTasks.length;
+            result.errors.push(`SB商品定向出价API失败: ${(err as Error).message}`);
+          }
+        }
+        
+        // === SD商品定向 — 使用 updateSdTargetBids (PUT /sd/targets) ===
+        if (sdPtTasks.length > 0) {
+          try {
+            const sdPtBidUpdates = sdPtTasks.map((t: Record<string, unknown>) => {
+              const rawBid = Number(parseFloat(t.new_value).toFixed(2));
+              const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, 'sd', t._ptMarketplace || 'US', t._ptCostType || 'cpc');
+              if (wasAdjusted) {
+                log.info(`[SyncEngine] v471: SD product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
+              }
+              return { targetId: String(t.amazon_entity_id), bid: clampedBid };
+            });
+            
+            await (syncService as Record<string, unknown>).client.updateSdTargetBids(sdPtBidUpdates);
+            
+            // SD API (旧版) 不返回详细的per-item结果，假设全部成功
+            for (const t of sdPtTasks) {
               await markTaskSynced(conn, t.id);
               await updateLocalBid(conn, 'product_target', t.target_entity_id, t.new_value);
               result.synced++;
             }
+            log.warn(`[SyncEngine] v471: SD商品定向出价同步: 发送=${sdPtTasks.length}, 全部成功`);
+          } catch (err: unknown) {
+            for (const t of sdPtTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += sdPtTasks.length;
+            result.errors.push(`SD商品定向出价API失败: ${(err as Error).message}`);
           }
-          
-          log.warn(`[SyncEngine] 商品定向出价批量同步: 发送=${ptTasks.length}, 成功=${ptTasks.length - failedIds.size}, 失败=${failedIds.size}`);
-        } catch (err: unknown) {
-          for (const t of ptTasks) {
-            await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
-          }
-          result.failed += ptTasks.length;
-          result.errors.push(`商品定向出价API失败: ${(err as Error).message}`);
         }
       }
       break;
@@ -1032,65 +1129,137 @@ async function executeBatchByType(
       }
       
       if (validTasks.length > 0) {
-        try {
-          const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateKeywordStatus(
-            validTasks.map((t: Record<string, unknown>) => ({
-              keywordId: String(t.amazon_entity_id),
-              state: t.new_value as 'enabled' | 'paused' | 'archived',
-            }))
-          );
-          
-          // v431: 增强错误信息记录 — 保留API返回的具体错误码和描述
-          const failedIdMap = new Map<string, string>();
-          if (apiResult.errors && apiResult.errors.length > 0) {
-            for (const err of apiResult.errors) {
-              const errDetail = err.details || err.description || err.code || err.message || 'UNKNOWN_ERROR';
-              failedIdMap.set(String(err.keywordId), `v431: keyword_status API错误: ${errDetail}`);
-              log.error(`[SyncEngine] v431: keyword_status失败: keywordId=${err.keywordId}, code=${err.code}, details=${errDetail}`);
-            }
+        // v471: 按campaign类型分组，SP和SB关键词状态更新使用不同的API端点
+        // 之前所有keyword状态变更都走SP端点，导致SB关键词状态调整失败
+        const spKwTasks: unknown[] = [];
+        const sbKwTasks: unknown[] = [];
+        
+        for (const t of validTasks) {
+          const kwCampInfo = await Q.getCampaignTypeByKeywordId(conn, t.target_entity_id);
+          const kwCampType = (kwCampInfo?.campaignType || 'sp_manual').toLowerCase();
+          if (kwCampType === 'sb') {
+            sbKwTasks.push(t);
+          } else {
+            spKwTasks.push(t);
           }
-          
-          for (const t of validTasks) {
-            const statusFailReason = failedIdMap.get(String(t.amazon_entity_id));
-            if (statusFailReason) {
-              // v458: 检测entityNotFoundError或超过最大重试次数，标记为永久失败
-              const kwStatusFailLower = statusFailReason.toLowerCase();
-              if (kwStatusFailLower.includes('entitynotfounderror') || kwStatusFailLower.includes('entity_not_found')) {
-                await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${statusFailReason}`);
-                try {
-                  await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
-                  log.warn(`[SyncEngine] v458: Keyword ${t.amazon_entity_id} 状态同步失败-Amazon端已不存在，已标记为amazon_deleted`);
-                } catch (markErr: unknown) {
-                  log.error(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
-                }
-              } else if (t.retry_count >= 10) {
-                // v458: 重试超过10次，标记为永久失败
-                await markTaskFailed(conn, t.id, `[v458-max-retries] ${statusFailReason}`);
-                log.warn(`[SyncEngine] v458: Keyword ${t.amazon_entity_id} 重试${t.retry_count}次后标记为永久失败`);
-              } else {
-                await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
+        }
+        
+        if (sbKwTasks.length > 0) {
+          log.info(`[SyncEngine] v471: 关键词状态按类型分组: SP=${spKwTasks.length}, SB=${sbKwTasks.length}`);
+        }
+        
+        // === SP关键词状态 — 使用 updateKeywordStatus (PUT /sp/keywords) ===
+        if (spKwTasks.length > 0) {
+          try {
+            const apiResult: unknown = await (syncService as Record<string, unknown>).client.updateKeywordStatus(
+              spKwTasks.map((t: Record<string, unknown>) => ({
+                keywordId: String(t.amazon_entity_id),
+                state: t.new_value as 'enabled' | 'paused' | 'archived',
+              }))
+            );
+            
+            const failedIdMap = new Map<string, string>();
+            if (apiResult.errors && apiResult.errors.length > 0) {
+              for (const err of apiResult.errors) {
+                const errDetail = err.details || err.description || err.code || err.message || 'UNKNOWN_ERROR';
+                failedIdMap.set(String(err.keywordId), `v431: keyword_status API错误: ${errDetail}`);
               }
-              result.failed++;
-            } else {
-              await markTaskSynced(conn, t.id);
-              await updateLocalStatus(conn, 'keywords', t.target_entity_id, t.new_value);
-              result.synced++;
             }
+            
+            for (const t of spKwTasks) {
+              const statusFailReason = failedIdMap.get(String(t.amazon_entity_id));
+              if (statusFailReason) {
+                const kwStatusFailLower = statusFailReason.toLowerCase();
+                if (kwStatusFailLower.includes('entitynotfounderror') || kwStatusFailLower.includes('entity_not_found')) {
+                  await markTaskFailed(conn, t.id, `[v458-entity-deleted] ${statusFailReason}`);
+                  try { await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                } else if (t.retry_count >= 10) {
+                  await markTaskFailed(conn, t.id, `[v458-max-retries] ${statusFailReason}`);
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, statusFailReason);
+                }
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalStatus(conn, 'keywords', t.target_entity_id, t.new_value);
+                result.synced++;
+              }
+            }
+            log.warn(`[SyncEngine] v471: SP关键词状态同步: 发送=${spKwTasks.length}, 成功=${spKwTasks.length - failedIdMap.size}, 失败=${failedIdMap.size}`);
+          } catch (err: unknown) {
+            for (const t of spKwTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += spKwTasks.length;
           }
-          
-          log.warn(`[SyncEngine] v431: 关键词状态批量同步: 发送=${validTasks.length}, 成功=${validTasks.length - failedIdMap.size}, 失败=${failedIdMap.size}`);
-        } catch (err: unknown) {
-          for (const t of validTasks) {
-            await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
+        }
+        
+        // === SB关键词状态 — 使用 updateSbKeywordStatus (PUT /sb/keywords) ===
+        if (sbKwTasks.length > 0) {
+          try {
+            // SB API需要adGroupId和campaignId
+            const sbKwUpdates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived'; adGroupId: string; campaignId: string }> = [];
+            const sbKwSkipped: unknown[] = [];
+            
+            for (const t of sbKwTasks) {
+              const kwDetail = await Q.getKeywordDetailById(conn, t.target_entity_id);
+              if (kwDetail && kwDetail.amazonAdGroupId && kwDetail.amazonCampaignId) {
+                sbKwUpdates.push({
+                  keywordId: String(t.amazon_entity_id),
+                  state: t.new_value as 'enabled' | 'paused' | 'archived',
+                  adGroupId: String(kwDetail.amazonAdGroupId),
+                  campaignId: String(kwDetail.amazonCampaignId),
+                });
+              } else {
+                await markTaskFailed(conn, t.id, 'v471: 无法获取SB关键词的adGroupId或campaignId');
+                result.failed++;
+                sbKwSkipped.push(t);
+              }
+            }
+            
+            const activeSbKwTasks = sbKwTasks.filter(t => !sbKwSkipped.includes(t));
+            
+            if (sbKwUpdates.length > 0) {
+              const sbApiResult = await (syncService as Record<string, unknown>).client.updateSbKeywordStatus(sbKwUpdates);
+              
+              const sbFailedIds = new Map<string, string>();
+              if (sbApiResult.errors && sbApiResult.errors.length > 0) {
+                for (const err of sbApiResult.errors) {
+                  sbFailedIds.set(String(err.keywordId), err.details || err.code || 'SB_API_ERROR');
+                }
+              }
+              
+              for (const t of activeSbKwTasks) {
+                const failReason = sbFailedIds.get(String(t.amazon_entity_id));
+                if (failReason) {
+                  const failLower = failReason.toLowerCase();
+                  if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
+                    await markTaskFailed(conn, t.id, `[v471-entity-deleted] ${failReason}`);
+                    try { await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                  } else if (t.retry_count >= 10) {
+                    await markTaskFailed(conn, t.id, `[v471-max-retries] ${failReason}`);
+                  } else {
+                    await markTaskForRetry(conn, t.id, t.retry_count, failReason);
+                  }
+                  result.failed++;
+                } else {
+                  await markTaskSynced(conn, t.id);
+                  await updateLocalStatus(conn, 'keywords', t.target_entity_id, t.new_value);
+                  result.synced++;
+                }
+              }
+              log.warn(`[SyncEngine] v471: SB关键词状态同步: 发送=${sbKwUpdates.length}, 成功=${sbKwUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}, 跳过=${sbKwSkipped.length}`);
+            }
+          } catch (err: unknown) {
+            for (const t of sbKwTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += sbKwTasks.length;
           }
-          result.failed += validTasks.length;
         }
       }
       break;
     }
     
     case 'campaign_status': {
-      // 广告活动状态逐个更新（Amazon API不支持批量更新Campaign状态）
+      // v471: 广告活动状态更新 — 根据campaign类型路由到正确的SP/SB/SD API
+      // 之前所有campaign状态变更都走updateSpCampaign，导致SB/SD广告活动状态调整失败
       for (const t of (batch as unknown[])) {
         try {
           if (!t.amazon_entity_id) {
@@ -1099,23 +1268,42 @@ async function executeBatchByType(
             continue;
           }
           
-          await (syncService as Record<string, unknown>).client.updateSpCampaign(
-            String(t.amazon_entity_id),
-            { state: t.new_value === 'enabled' ? 'ENABLED' : 'PAUSED' }
-          );
+          // v471: 查询campaign类型以路由到正确的API
+          const campTypeInfo = await Q.getCampaignTypeById(conn, t.target_entity_id);
+          const campType = (campTypeInfo?.campaignType || 'sp_manual').toLowerCase();
+          const stateValue = t.new_value === 'enabled' ? 'ENABLED' : 'PAUSED';
+          
+          if (campType === 'sb') {
+            // SB: PUT /sb/v4/campaigns
+            await (syncService as Record<string, unknown>).client.updateSbCampaign(
+              String(t.amazon_entity_id),
+              { state: stateValue }
+            );
+            log.info(`[SyncEngine] v471: ✅ SB广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          } else if (campType === 'sd') {
+            // SD: PUT /sd/campaigns
+            await (syncService as Record<string, unknown>).client.updateSdCampaign(
+              String(t.amazon_entity_id),
+              { state: stateValue.toLowerCase() }  // SD API使用小写state
+            );
+            log.info(`[SyncEngine] v471: ✅ SD广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          } else {
+            // SP: PUT /sp/campaigns
+            await (syncService as Record<string, unknown>).client.updateSpCampaign(
+              String(t.amazon_entity_id),
+              { state: stateValue }
+            );
+            log.info(`[SyncEngine] ✅ SP广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          }
           
           await markTaskSynced(conn, t.id);
           await updateLocalStatus(conn, 'campaigns', t.target_entity_id, t.new_value);
           result.synced++;
-          
-          log.info(`[SyncEngine] ✅ 广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
         } catch (err: unknown) {
           const errMsg = (err as Error).message;
-          // v456: 检测entityNotFoundError，自动归档Amazon端已删除的Campaign
           const errLower = errMsg.toLowerCase();
           if (errLower.includes('entitynotfounderror') || errLower.includes('entity_not_found') || errLower.includes('could not find')) {
             await markTaskFailed(conn, t.id, `[v456-entity-archived] ${errMsg}`);
-            // 标记本地Campaign为archived，避免后续无效操作
             try {
               await Q.archiveCampaign(conn, t.target_entity_id, String(t.amazon_entity_id));
               log.warn(`[SyncEngine] v456: Campaign ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
@@ -1129,70 +1317,124 @@ async function executeBatchByType(
           result.errors.push(`Campaign ${t.target_entity_name}: ${errMsg}`);
         }
         
-        // 每个API调用间延迟200ms
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       break;
     }
     
     case 'adgroup_status': {
-      // v431: 修复方法名 updateSpAdGroup → updateSpAdGroupStatus，使用批量API
+      // v471: 广告组状态更新 — 根据campaign类型路由到正确的SP/SD API
+      // 之前所有adgroup状态变更都走updateSpAdGroupStatus，导致SD广告组状态调整失败
+      // 注意：SB不支持独立的adGroup状态更新，SB的adGroup状态跟随campaign状态
       const validAdGroupTasks = (batch as unknown[]).filter(t => t.amazon_entity_id);
       const invalidAdGroupTasks = (batch as unknown[]).filter(t => !t.amazon_entity_id);
       
-      // 标记缺少ID的任务为失败
       for (const t of invalidAdGroupTasks) {
         await markTaskFailed(conn, t.id, '缺少Amazon AdGroup ID');
         result.failed++;
       }
       
       if (validAdGroupTasks.length > 0) {
-        try {
-          const agResult = await (syncService as Record<string, unknown>).client.updateSpAdGroupStatus(
-            validAdGroupTasks.map((t: unknown) => ({
-              adGroupId: String(t.amazon_entity_id),
-              state: t.new_value === 'enabled' ? 'enabled' : 'paused',
-            }))
-          );
-          
-          const agFailedIds = new Map<string, string>();
-          if (agResult.errors && agResult.errors.length > 0) {
-            for (const err of agResult.errors) {
-              agFailedIds.set(String(err.adGroupId), err.details || err.code || 'API_ERROR');
-            }
+        // v471: 按campaign类型分组
+        const spAgTasks: unknown[] = [];
+        const sdAgTasks: unknown[] = [];
+        
+        for (const t of validAdGroupTasks) {
+          const agCampType = await Q.getCampaignTypeByAdGroupInternalId(conn, t.target_entity_id);
+          if (agCampType === 'sd') {
+            sdAgTasks.push(t);
+          } else {
+            // SP + SP自动 + SB(回退到SP) 都走SP端点
+            spAgTasks.push(t);
           }
-          
-          for (const t of validAdGroupTasks) {
-            const failReason = agFailedIds.get(String(t.amazon_entity_id));
-            if (failReason) {
-              // v456: 检测entityNotFoundError，自动归档Amazon端已删除的AdGroup
-              const failLower = failReason.toLowerCase();
-              if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('could not find')) {
-                await markTaskFailed(conn, t.id, `[v456-entity-archived] ${failReason}`);
-                try {
-                  await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id));
-                  log.warn(`[SyncEngine] v456: AdGroup ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
-                } catch (markErr: unknown) {
-                  log.error(`[SyncEngine] v456: 标记AdGroup archived失败: ${(markErr as Error).message}`);
-                }
-              } else {
-                await markTaskForRetry(conn, t.id, t.retry_count, `v431: AdGroup状态更新失败: ${failReason}`);
+        }
+        
+        if (sdAgTasks.length > 0) {
+          log.info(`[SyncEngine] v471: 广告组状态按类型分组: SP=${spAgTasks.length}, SD=${sdAgTasks.length}`);
+        }
+        
+        // === SP广告组 ===
+        if (spAgTasks.length > 0) {
+          try {
+            const agResult = await (syncService as Record<string, unknown>).client.updateSpAdGroupStatus(
+              spAgTasks.map((t: unknown) => ({
+                adGroupId: String(t.amazon_entity_id),
+                state: t.new_value === 'enabled' ? 'enabled' : 'paused',
+              }))
+            );
+            
+            const agFailedIds = new Map<string, string>();
+            if (agResult.errors && agResult.errors.length > 0) {
+              for (const err of agResult.errors) {
+                agFailedIds.set(String(err.adGroupId), err.details || err.code || 'API_ERROR');
               }
-              result.failed++;
-            } else {
-              await markTaskSynced(conn, t.id);
-              await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
-              result.synced++;
-              log.info(`[SyncEngine] ✅ 广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
             }
+            
+            for (const t of spAgTasks) {
+              const failReason = agFailedIds.get(String(t.amazon_entity_id));
+              if (failReason) {
+                const failLower = failReason.toLowerCase();
+                if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('could not find')) {
+                  await markTaskFailed(conn, t.id, `[v456-entity-archived] ${failReason}`);
+                  try { await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, `v431: SP AdGroup状态更新失败: ${failReason}`);
+                }
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
+                result.synced++;
+                log.info(`[SyncEngine] ✅ SP广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
+              }
+            }
+            log.warn(`[SyncEngine] v471: SP广告组状态同步: 发送=${spAgTasks.length}, 成功=${spAgTasks.length - agFailedIds.size}, 失败=${agFailedIds.size}`);
+          } catch (err: unknown) {
+            for (const t of spAgTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += spAgTasks.length;
           }
-          
-          log.warn(`[SyncEngine] v431: 广告组状态批量同步: 发送=${validAdGroupTasks.length}, 成功=${validAdGroupTasks.length - agFailedIds.size}, 失败=${agFailedIds.size}`);
-        } catch (err: unknown) {
-          for (const t of validAdGroupTasks) {
-            await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
+        }
+        
+        // === SD广告组 — 使用 updateSdAdGroupStatus (PUT /sd/adGroups) ===
+        if (sdAgTasks.length > 0) {
+          try {
+            const sdAgResult = await (syncService as Record<string, unknown>).client.updateSdAdGroupStatus(
+              sdAgTasks.map((t: unknown) => ({
+                adGroupId: String(t.amazon_entity_id),
+                state: t.new_value === 'enabled' ? 'enabled' : 'paused',
+              }))
+            );
+            
+            const sdAgFailedIds = new Map<string, string>();
+            if (sdAgResult.errors && sdAgResult.errors.length > 0) {
+              for (const err of sdAgResult.errors) {
+                sdAgFailedIds.set(String(err.adGroupId), err.details || err.code || 'API_ERROR');
+              }
+            }
+            
+            for (const t of sdAgTasks) {
+              const failReason = sdAgFailedIds.get(String(t.amazon_entity_id));
+              if (failReason) {
+                const failLower = failReason.toLowerCase();
+                if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found')) {
+                  await markTaskFailed(conn, t.id, `[v471-entity-archived] ${failReason}`);
+                  try { await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id)); } catch (_) {}
+                } else {
+                  await markTaskForRetry(conn, t.id, t.retry_count, `v471: SD AdGroup状态更新失败: ${failReason}`);
+                }
+                result.failed++;
+              } else {
+                await markTaskSynced(conn, t.id);
+                await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
+                result.synced++;
+                log.info(`[SyncEngine] v471: ✅ SD广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
+              }
+            }
+            log.warn(`[SyncEngine] v471: SD广告组状态同步: 发送=${sdAgTasks.length}, 成功=${sdAgTasks.length - sdAgFailedIds.size}, 失败=${sdAgFailedIds.size}`);
+          } catch (err: unknown) {
+            for (const t of sdAgTasks) { await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message); }
+            result.failed += sdAgTasks.length;
           }
-          result.failed += validAdGroupTasks.length;
         }
       }
       break;
@@ -1415,9 +1657,11 @@ async function executeBatchByType(
     }
     
     case 'placement_adjustment': {
+      // v471: 位置倾斜调整 — 根据campaign类型路由到正确的SP/SB API
+      // 之前所有placement都走updateSpCampaign，导致SB广告的位置倾斜调整失败
+      // 注意：SD不支持位置倾斜
       for (const t of (batch as unknown[])) {
         try {
-          // 位置倾斜通过Campaign的bidding策略更新
           const placementType = t.action; // e.g., 'top_of_search', 'product_pages'
           const multiplier = parseFloat(t.new_value) || 0;
           
@@ -1429,7 +1673,6 @@ async function executeBatchByType(
               if (campId) {
                 amazonCampaignId = campId;
                 await Q.updateTaskAmazonEntityId(conn, t.id, campId);
-                log.debug(`[SyncEngine] v457: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
             } catch (lookupErr: unknown) {
               log.warn(`[SyncEngine] v457: 查找Amazon campaignId失败: ${(lookupErr as Error).message}`);
@@ -1437,21 +1680,52 @@ async function executeBatchByType(
           }
           
           if (amazonCampaignId) {
-            // v423: 使用API v3的dynamicBidding.placementBidding格式
-            const v3PlacementType = placementType === 'top_of_search' ? 'PLACEMENT_TOP' 
-              : placementType === 'rest_of_search' ? 'PLACEMENT_REST_OF_SEARCH'
-              : 'PLACEMENT_PRODUCT_PAGE';
-            await (syncService as Record<string, unknown>).client.updateSpCampaign(
-              String(amazonCampaignId),
-              {
-                dynamicBidding: {
-                  placementBidding: [{
-                    placement: v3PlacementType,
-                    percentage: Math.round(multiplier * 100),
-                  }]
+            // v471: 查询campaign类型以路由到正确的API
+            const placeCampInfo = await Q.getCampaignTypeById(conn, t.target_entity_id);
+            const placeCampType = (placeCampInfo?.campaignType || 'sp_manual').toLowerCase();
+            
+            if (placeCampType === 'sb') {
+              // SB: 使用 updateSbCampaign (PUT /sb/v4/campaigns)
+              // SB v4 位置倾斜格式: bidding.bidAdjustments[{predicate, percentage}]
+              // predicate: "placementTop" = 搜索结果顶部, "placementProductPage" = 商品页面
+              const sbPredicate = placementType === 'top_of_search' ? 'placementTop'
+                : placementType === 'rest_of_search' ? 'placementRestOfSearch'
+                : 'placementProductPage';
+              await (syncService as Record<string, unknown>).client.updateSbCampaign(
+                String(amazonCampaignId),
+                {
+                  bidding: {
+                    bidAdjustments: [{
+                      predicate: sbPredicate,
+                      percentage: Math.round(multiplier * 100),
+                    }]
+                  }
                 }
-              }
-            );
+              );
+              log.info(`[SyncEngine] v471: ✅ SB位置倾斜同步: Campaign ${amazonCampaignId}, ${sbPredicate}=${Math.round(multiplier * 100)}%`);
+            } else if (placeCampType === 'sd') {
+              // SD不支持位置倾斜，标记为失败
+              await markTaskFailed(conn, t.id, 'v471: SD广告不支持位置倾斜调整');
+              result.failed++;
+              continue;
+            } else {
+              // SP: 使用 updateSpCampaign (PUT /sp/campaigns)
+              const v3PlacementType = placementType === 'top_of_search' ? 'PLACEMENT_TOP' 
+                : placementType === 'rest_of_search' ? 'PLACEMENT_REST_OF_SEARCH'
+                : 'PLACEMENT_PRODUCT_PAGE';
+              await (syncService as Record<string, unknown>).client.updateSpCampaign(
+                String(amazonCampaignId),
+                {
+                  dynamicBidding: {
+                    placementBidding: [{
+                      placement: v3PlacementType,
+                      percentage: Math.round(multiplier * 100),
+                    }]
+                  }
+                }
+              );
+              log.info(`[SyncEngine] ✅ SP位置倾斜同步: Campaign ${amazonCampaignId}, ${v3PlacementType}=${Math.round(multiplier * 100)}%`);
+            }
             
             await markTaskSynced(conn, t.id);
             result.synced++;

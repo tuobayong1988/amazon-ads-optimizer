@@ -1377,7 +1377,7 @@ async function reoptimizeTarget(
                 sql`SELECT ol.id, ol.action_type, ol.entity_type, ol.entity_id,
                            ol.previous_value, ol.new_value, ol.created_at,
                            k.bid as current_bid, k.keywordText, k.keywordId as amazon_keyword_id,
-                           pg.target_acos
+                           pg.targetAcos as target_acos
                     FROM optimization_logs ol
                     LEFT JOIN keywords k ON ol.entity_type = 'keyword' AND ol.entity_id = k.id
                     LEFT JOIN performance_groups pg ON ol.performance_group_id = pg.id

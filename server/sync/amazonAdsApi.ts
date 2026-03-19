@@ -3893,6 +3893,77 @@ export class AmazonAdsApiClient {
     return { successes: allSuccesses, errors: allErrors };
   }
 
+  /**
+   * v471: 更新SB关键词状态（暂停/启用）
+   * 使用与updateSbKeywordBids相同的v3端点: PUT /sb/keywords
+   * 之前所有SB关键词状态变更都错误地走了SP端点，导致API调用失败
+   */
+  async updateSbKeywordStatus(updates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived'; adGroupId: string; campaignId: string }>): Promise<{ successes: unknown[]; errors: unknown[] }> {
+    const BATCH_SIZE = 100;
+    const BATCH_DELAY_MS = 500;
+    const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+    log.info(`[SB API] v471: updateSbKeywordStatus: 总计${updates.length}个, 分${totalBatches}批`);
+    
+    const allSuccesses: unknown[] = [];
+    const allErrors: unknown[] = [];
+    const toInt = (v: string | number): number => typeof v === 'number' ? v : Number(v);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      
+      try {
+        // SB v3 keywords API: PUT /sb/keywords
+        // Body: Array of {keywordId(int64), adGroupId(int64), campaignId(int64), state}
+        const body = batch.map(u => ({
+          keywordId: toInt(u.keywordId),
+          adGroupId: toInt(u.adGroupId),
+          campaignId: toInt(u.campaignId),
+          state: u.state,
+        }));
+        
+        const response = await this.axiosInstance.put('/sb/keywords', body, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.sbkeywordresponse.v3+json',
+          },
+        });
+        
+        const items = Array.isArray(response.data) ? response.data : [response.data];
+        for (const item of items) {
+          if (item.code === 'SUCCESS' || item.code === 200 || !item.code) {
+            allSuccesses.push(item);
+          } else {
+            allErrors.push({ keywordId: item.keywordId, code: item.code || 'SB_ERROR', details: item.description || JSON.stringify(item).substring(0, 200) });
+          }
+        }
+      } catch (err: unknown) {
+        // @ts-expect-error - Axios error response access
+        const statusCode = (err as Error & { response?: unknown }).response?.status || 0;
+        // @ts-expect-error - Axios error response access
+        const bodyStr = (err as Error & { response?: unknown }).response?.data ? JSON.stringify((err as Error & { response?: unknown }).response.data).substring(0, 300) : (err as Error).message;
+        log.error(`[SB API] v471: SB关键词状态更新失败: HTTP ${statusCode}, body: ${bodyStr}`);
+        
+        if (statusCode === 429) {
+          // @ts-expect-error - Axios error response access
+          const retryAfter = (err as Error & { response?: unknown }).response?.headers?.['retry-after'] || 5;
+          await new Promise(resolve => setTimeout(resolve, Number(retryAfter) * 1000));
+          batchIdx--;
+          continue;
+        }
+        
+        for (const u of batch) {
+          allErrors.push({ keywordId: u.keywordId, code: `HTTP_${statusCode}`, details: bodyStr });
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    log.info(`[SB API] v471: SB关键词状态更新完成: 总计=${updates.length}, 成功=${allSuccesses.length}, 失败=${allErrors.length}`);
+    return { successes: allSuccesses, errors: allErrors };
+  }
+
   // ==================== Sponsored Display API ====================
 
   /**
@@ -4032,6 +4103,69 @@ export class AmazonAdsApiClient {
       }
     }
     log.info(`[SD API] v199: SD定位出价更新完成: 总计${updates.length}个`);
+  }
+
+  /**
+   * v471: 更新SB商品定向出价
+   * SB targets使用v4端点: PUT /sb/v4/targets
+   * 与SP targets (PUT /sp/targets) 和 SD targets (PUT /sd/targets) 完全不同的端点
+   * 之前所有SB/SD的product target竞价调整都错误地走了SP端点，导致API调用失败
+   */
+  async updateSbTargetBids(updates: Array<{ targetId: string; bid: number; adGroupId: string; campaignId: string }>): Promise<{ success: boolean; errors: unknown[] }> {
+    const BATCH_SIZE = 100;
+    const BATCH_DELAY_MS = 500;
+    const allErrors: unknown[] = [];
+    let totalSuccess = 0;
+    const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+    log.info(`[SB API] v471: updateSbTargetBids 分批处理: 总计${updates.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      log.info(`[SB API] v471: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB定向出价更新`);
+      
+      try {
+        // SB v4 targets API: PUT /sb/v4/targets
+        // Body: { targets: [{ targetId, bid, adGroupId, campaignId }] }
+        const response = await this.axiosInstance.put('/sb/v4/targets', 
+          { targets: batch.map(u => ({ targetId: u.targetId, bid: u.bid, adGroupId: u.adGroupId, campaignId: u.campaignId })) },
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbtargetresource.v4+json',
+              'Accept': 'application/vnd.sbtargetresource.v4+json',
+            },
+          }
+        );
+        
+        // 解析响应
+        if (response.data?.targets?.error && Array.isArray(response.data.targets.error)) {
+          for (const err of response.data.targets.error) {
+            allErrors.push({ targetId: err.targetId || 'unknown', code: err.code || 'ERROR', details: err.description || err.details || JSON.stringify(err).substring(0, 200) });
+          }
+        }
+        if (response.data?.targets?.success && Array.isArray(response.data.targets.success)) {
+          totalSuccess += response.data.targets.success.length;
+        } else if (!response.data?.targets?.error) {
+          // 无错误则假设全部成功
+          totalSuccess += batch.length;
+        }
+      } catch (batchErr: unknown) {
+        // @ts-expect-error - Axios error response access
+        const statusCode = (batchErr as Error & { response?: unknown }).response?.status;
+        // @ts-expect-error - Axios error response access
+        const errorDetail = (batchErr as Error & { response?: unknown }).response?.data ? JSON.stringify((batchErr as Error & { response?: unknown }).response.data).substring(0, 500) : (batchErr as Error).message;
+        log.error(`[SB API] v471: 第${batchIdx + 1}批SB定向出价更新失败: status=${statusCode}, detail=${errorDetail}`);
+        for (const item of batch) {
+          allErrors.push({ targetId: item.targetId, code: `HTTP_${statusCode}`, details: errorDetail });
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    
+    log.warn(`[SB API] v471: SB定向出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, errors: allErrors };
   }
 
   /**

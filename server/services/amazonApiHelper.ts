@@ -825,29 +825,53 @@ export async function syncPlacementAdjustmentToAmazon(
   campaignId: string,  // Amazon Campaign ID
   topOfSearchPercent: number,
   productPagePercent: number,
-  reason: string
+  reason: string,
+  campaignType?: string  // v471: 新增参数，支持SP/SB路由
 ): Promise<boolean> {
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   
+  const cType = (campaignType || 'sp_manual').toLowerCase();
+  
   try {
-    // v423: 使用API v3的dynamicBidding.placementBidding格式
-    await withRetry(async () => {
-      const placementBidding: Array<{ placement: string; percentage: number }> = [];
-      if (Math.round(topOfSearchPercent) > 0) {
-        placementBidding.push({ placement: 'PLACEMENT_TOP', percentage: Math.round(topOfSearchPercent) });
-      }
-      if (Math.round(productPagePercent) > 0) {
-        placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(productPagePercent) });
-      }
-      await (syncService as Record<string, unknown>).client.updateSpCampaign(String(campaignId), {
-        dynamicBidding: {
-          placementBidding,
-        },
-      } as Record<string, unknown>);
-    }, { label: `位置倾斜同步 Campaign ${campaignId}`, accountId });
-    log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
-      `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
+    if (cType === 'sb') {
+      // v471: SB广告位置倾斜 — 使用 updateSbCampaign (PUT /sb/v4/campaigns)
+      // SB v4格式: bidding.bidAdjustments[{predicate, percentage}]
+      await withRetry(async () => {
+        const bidAdjustments: Array<{ predicate: string; percentage: number }> = [];
+        if (Math.round(topOfSearchPercent) > 0) {
+          bidAdjustments.push({ predicate: 'placementTop', percentage: Math.round(topOfSearchPercent) });
+        }
+        if (Math.round(productPagePercent) > 0) {
+          bidAdjustments.push({ predicate: 'placementProductPage', percentage: Math.round(productPagePercent) });
+        }
+        await (syncService as Record<string, unknown>).client.updateSbCampaign(String(campaignId), {
+          bidding: { bidAdjustments },
+        } as Record<string, unknown>);
+      }, { label: `SB位置倾斜同步 Campaign ${campaignId}`, accountId });
+      log.info(`[AmazonApiHelper] v471: SB位置倾斜同步成功: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
+    } else if (cType === 'sd') {
+      // v471: SD不支持位置倾斜
+      log.warn(`[AmazonApiHelper] v471: SD广告不支持位置倾斜调整，跳过: Campaign ${campaignId}`);
+      return false;
+    } else {
+      // SP: 使用 updateSpCampaign (PUT /sp/campaigns)
+      await withRetry(async () => {
+        const placementBidding: Array<{ placement: string; percentage: number }> = [];
+        if (Math.round(topOfSearchPercent) > 0) {
+          placementBidding.push({ placement: 'PLACEMENT_TOP', percentage: Math.round(topOfSearchPercent) });
+        }
+        if (Math.round(productPagePercent) > 0) {
+          placementBidding.push({ placement: 'PLACEMENT_PRODUCT_PAGE', percentage: Math.round(productPagePercent) });
+        }
+        await (syncService as Record<string, unknown>).client.updateSpCampaign(String(campaignId), {
+          dynamicBidding: {
+            placementBidding,
+          },
+        } as Record<string, unknown>);
+      }, { label: `SP位置倾斜同步 Campaign ${campaignId}`, accountId });
+      log.info(`[AmazonApiHelper] SP位置倾斜同步成功: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
+    }
     return true;
   } catch (error: unknown) {
     log.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, (error as Error).message);

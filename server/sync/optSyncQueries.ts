@@ -922,3 +922,94 @@ export async function markTargetDeleted(
     [internalId, amazonTargetId]
   );
 }
+
+// ============================================================
+// v471: 新增查询方法 — 支持SB/SD广告类型的正确API路由
+// ============================================================
+
+/**
+ * v471: 通过product_target内部ID查询关联的Amazon adGroupId和campaignId
+ * 用于SB商品定向竞价调整时传递必填的adGroupId和campaignId
+ */
+export interface ProductTargetDetailInfo {
+  targetId: string;
+  amazonCampaignId: string;
+  amazonAdGroupId: string;
+}
+
+export async function getProductTargetDetailById(
+  conn: unknown,
+  productTargetInternalId: number
+): Promise<ProductTargetDetailInfo | null> {
+  try {
+    const [rows] = await (conn as Record<string, Function>).execute(
+      `SELECT pt.${PT.targetId}, pt.${PT.campaignId} AS amazonCampaignId, ag.${AG.adGroupId} AS amazonAdGroupId
+       FROM ${PT.table} pt
+       INNER JOIN ${AG.table} ag ON pt.${PT.internalAdGroupId} = ag.${AG.id}
+       WHERE pt.${PT.id} = ? LIMIT 1`,
+      [productTargetInternalId]
+    );
+    if ((rows as unknown[]).length > 0) {
+      const row = (rows as Record<string, unknown>[])[0];
+      return {
+        targetId: String(row.targetId || row[PT.targetId] || ''),
+        amazonCampaignId: String(row.amazonCampaignId || ''),
+        amazonAdGroupId: String(row.amazonAdGroupId || ''),
+      };
+    }
+    return null;
+  } catch (err: unknown) {
+    log.warn(`[OptSyncQueries] v471: getProductTargetDetailById失败: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * v471: 通过campaign内部ID查询campaign类型（用于campaign_status/adgroup_status/placement路由）
+ * 返回简单的campaignType字符串
+ */
+export async function getCampaignTypeByInternalId(
+  conn: unknown,
+  campaignInternalId: number | string
+): Promise<string> {
+  try {
+    const [rows] = await (conn as Record<string, Function>).execute(
+      `SELECT ${C.campaignType} FROM ${C.table} WHERE ${C.id} = ? LIMIT 1`,
+      [campaignInternalId]
+    );
+    if ((rows as unknown[]).length > 0) {
+      const row = (rows as Record<string, unknown>[])[0];
+      return String(row.campaignType || row[C.campaignType] || 'sp_manual');
+    }
+    return 'sp_manual';
+  } catch (err: unknown) {
+    log.warn(`[OptSyncQueries] v471: getCampaignTypeByInternalId失败: ${(err as Error).message}`);
+    return 'sp_manual';
+  }
+}
+
+/**
+ * v471: 通过adGroup内部ID查询所属campaign的类型
+ * 用于adgroup_status路由到正确的SP/SD API
+ */
+export async function getCampaignTypeByAdGroupInternalId(
+  conn: unknown,
+  adGroupInternalId: number | string
+): Promise<string> {
+  try {
+    const [rows] = await (conn as Record<string, Function>).execute(
+      `SELECT c.${C.campaignType} FROM ${AG.table} ag
+       INNER JOIN ${C.table} c ON ag.${AG.campaignId} = c.${C.campaignId}
+       WHERE ag.${AG.id} = ? LIMIT 1`,
+      [adGroupInternalId]
+    );
+    if ((rows as unknown[]).length > 0) {
+      const row = (rows as Record<string, unknown>[])[0];
+      return String(row.campaignType || row[C.campaignType] || 'sp_manual');
+    }
+    return 'sp_manual';
+  } catch (err: unknown) {
+    log.warn(`[OptSyncQueries] v471: getCampaignTypeByAdGroupInternalId失败: ${(err as Error).message}`);
+    return 'sp_manual';
+  }
+}

@@ -369,7 +369,7 @@ async function auditAndCorrectHistoricalCommands(
                  oe.created_at, oe.algorithm_version,
                  k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.keywordStatus as keyword_status,
                  c.dailyBudget as campaign_budget, c.campaignId as amazon_campaign_id,
-                 pg.target_acos
+                 pg.targetAcos as target_acos
           FROM optimization_events oe
           LEFT JOIN keywords k ON oe.keyword_id = k.id
           LEFT JOIN campaigns c ON oe.campaign_id = c.id
