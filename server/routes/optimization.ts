@@ -62,7 +62,7 @@ export const optimizationRouter = router({
         successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
       };
     } catch (error: unknown) {
-      log.error('[optimization.getMetrics] 查询失败:', (error as Error).message);
+      log.warn('[optimization.getMetrics] 查询失败:', (error as Error).message);
       return { totalActionsToday: 0, completedActions: 0, failedActions: 0, pendingActions: 0, totalROIImprovement: 0, totalCostSavings: 0, averageActionDuration: 0, successRate: 0 };
     }
   }),
@@ -102,7 +102,7 @@ export const optimizationRouter = router({
           completedAt: log.executedAt ? String(log.executedAt) : undefined,
         }));
       } catch (error: unknown) {
-        log.error('[optimization.getRecentActions] 查询失败:', (error as Error).message);
+        log.warn('[optimization.getRecentActions] 查询失败:', (error as Error).message);
         return [];
       }
     }),
@@ -141,7 +141,7 @@ export const optimizationRouter = router({
           costSavings: 0,
         }));
       } catch (error: unknown) {
-        log.error('[optimization.getTrends] 查询失败:', (error as Error).message);
+        log.warn('[optimization.getTrends] 查询失败:', (error as Error).message);
         return [];
       }
     }),
@@ -269,7 +269,7 @@ export const optimizationRouter = router({
               marketplace
             );
           } catch (apiError: unknown) {
-            log.error('[runOptimization] 创建Amazon API客户端失败:', (apiError as Error).message);
+            log.warn('[runOptimization] 创建Amazon API客户端失败:', (apiError as Error).message);
           }
         } else {
           log.warn('[runOptimization] 未找到API凭证，仅更新本地数据库');
@@ -330,7 +330,7 @@ export const optimizationRouter = router({
               apiSuccess = true;
               apiSuccessCount++;
             } catch (apiError: unknown) {
-              log.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, (apiError as Error).message);
+              log.warn(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, (apiError as Error).message);
               apiFailCount++;
             }
           }

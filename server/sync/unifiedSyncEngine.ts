@@ -1018,7 +1018,7 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
   try {
     const database = await db.getDb();
     if (!database) {
-      log.error('[UnifiedSync] 数据库不可用，无法发现账户');
+      log.warn('[UnifiedSync] 数据库不可用，无法发现账户');
       return [];
     }
 
@@ -1079,7 +1079,7 @@ export async function discoverSyncableAccounts(): Promise<SyncableAccount[]> {
     
     return syncable;
   } catch (error: unknown) {
-    log.error(`[UnifiedSync] 账户发现失败: ${(error as Error).message}`);
+    log.warn(`[UnifiedSync] 账户发现失败: ${(error as Error).message}`);
     logSyncError('UnifiedSync', '账户发现失败', { error: (error as Error).message });
     return [];
   }
@@ -1476,7 +1476,7 @@ export async function syncAccount(
           await sleep(throttleDelay);
         }
         
-        log.error(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常: ${(error as Error).message}`);
+        log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常: ${(error as Error).message}`);
       }
     }
 
@@ -1503,7 +1503,7 @@ export async function syncAccount(
       if (tier === 'confirmation') {
         log.warn(`[UnifiedSync] v474: ${tier}层同步0条记录(正常): ${alertMsg}`);
       } else {
-        log.error(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
+        log.warn(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
       }
       logSyncError('UnifiedSync', alertMsg, {
         accountId: account.accountId,
@@ -1542,7 +1542,7 @@ export async function syncAccount(
 
   } catch (error: unknown) {
     result.errors.push(`同步初始化失败: ${(error as Error).message}`);
-    log.error(`[UnifiedSync] 账户 ${account.accountId} 同步初始化失败: ${(error as Error).message}`);
+    log.warn(`[UnifiedSync] 账户 ${account.accountId} 同步初始化失败: ${(error as Error).message}`);
   } finally {
     // 清理
     activeSyncs.delete(lockKey);

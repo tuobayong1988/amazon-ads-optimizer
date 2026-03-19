@@ -269,7 +269,7 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'campaignStatus', success: result.success > 0, error: result.errors[0] });
           } catch (e: unknown) {
             apiSyncResults.push({ field: 'campaignStatus', success: false, error: (e as Error).message });
-            log.error(`[campaign.update] 状态同步失败:`, (e as Error).message);
+            log.warn(`[campaign.update] 状态同步失败:`, (e as Error).message);
           }
         }
         
@@ -287,7 +287,7 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'dailyBudget', success });
           } catch (e: unknown) {
             apiSyncResults.push({ field: 'dailyBudget', success: false, error: (e as Error).message });
-            log.error(`[campaign.update] 预算同步失败:`, (e as Error).message);
+            log.warn(`[campaign.update] 预算同步失败:`, (e as Error).message);
           }
         }
         
@@ -310,7 +310,7 @@ export const campaignRouter = router({
             apiSyncResults.push({ field: 'placementAdjustment', success });
           } catch (e: unknown) {
             apiSyncResults.push({ field: 'placementAdjustment', success: false, error: (e as Error).message });
-            log.error(`[campaign.update] 位置调整同步失败:`, (e as Error).message);
+            log.warn(`[campaign.update] 位置调整同步失败:`, (e as Error).message);
           }
         }
         
@@ -570,7 +570,7 @@ ${topKeywords.map((k: unknown, i: unknown) => `${i + 1}. "${k.keywordText}" - �
           generatedAt: new Date().toISOString()
         };
       } catch (error) {
-        log.error("AI摘要生成失败:", error);
+        log.warn("AI摘要生成失败:", error);
         throw new TRPCError({ 
           code: "INTERNAL_SERVER_ERROR", 
           message: "AI摘要生成失败，请稍后重试" 
@@ -786,7 +786,7 @@ ${topKeywords.map((k: unknown, i: unknown) => `${i + 1}. "${k.keywordText}" - �
           pageSize: input.pageSize,
         };
       } catch (error: unknown) {
-        log.error('Failed to get campaign change history:', error);
+        log.warn('Failed to get campaign change history:', error);
         return { records: [], total: 0, page: input.page, pageSize: input.pageSize };
       }
     }),

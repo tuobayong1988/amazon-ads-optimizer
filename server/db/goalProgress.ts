@@ -66,7 +66,7 @@ export async function getGoalProgressTrendData(performanceGroupId: number, group
     
     return { before, after };
   } catch (error) {
-    log.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error);
+    log.warn(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error);
     return { before: null, after: null };
   }
 }
@@ -151,7 +151,7 @@ export async function getMultiWindowTrendData(performanceGroupId: number, groupC
       preOptimization: preOptData[0] || null,
     };
   } catch (error) {
-    log.error(`[getMultiWindowTrendData] Error for group ${performanceGroupId}:`, error);
+    log.warn(`[getMultiWindowTrendData] Error for group ${performanceGroupId}:`, error);
     return null;
   }
 }
@@ -322,7 +322,7 @@ export async function getTimeWeightedMetricsForGoalProgress(performanceGroupId: 
       effectiveDataDays,
     };
   } catch (error) {
-    log.error(`[getTimeWeightedMetricsForGoalProgress] Error for group ${performanceGroupId}:`, error);
+    log.warn(`[getTimeWeightedMetricsForGoalProgress] Error for group ${performanceGroupId}:`, error);
     return null;
   }
 }
@@ -387,7 +387,7 @@ export async function getAccountLevelMetrics(accountId: number): Promise<{
       accountAvgAov: totalOrders > 0 ? totalSales / totalOrders : 0,
     };
   } catch (error) {
-    log.error(`[getAccountLevelMetrics] Error for account ${accountId}:`, error);
+    log.warn(`[getAccountLevelMetrics] Error for account ${accountId}:`, error);
     return null;
   }
 }
@@ -447,7 +447,7 @@ export async function getCrossCampaignCategoryMetrics(
       crossCampaignCvr: totalClicks > 0 ? totalOrders / totalClicks : 0,
     };
   } catch (error) {
-    log.error(`[getCrossCampaignCategoryMetrics] Error for account ${accountId}:`, error);
+    log.warn(`[getCrossCampaignCategoryMetrics] Error for account ${accountId}:`, error);
     return null;
   }
 }

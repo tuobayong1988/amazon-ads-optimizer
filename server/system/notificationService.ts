@@ -94,7 +94,7 @@ export async function sendNotification(notification: AlertNotification): Promise
     if (errMsg.includes('not configured')) {
       log.warn(`[NotificationService] 通知服务未配置，跳过发送`);
     } else {
-      log.error(`[NotificationService] Failed to send notification: ${errMsg}`);
+      log.warn(`[NotificationService] Failed to send notification: ${errMsg}`);
     }
     return false;
   }

@@ -202,7 +202,7 @@ export async function syncSbCampaigns(service: SyncContext,lastSyncTime?: string
 
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SB campaigns:', error);
+    log.warn('Error syncing SB campaigns:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -364,7 +364,7 @@ export async function syncSdCampaigns(service: SyncContext,lastSyncTime?: string
 
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SD campaigns:', error);
+    log.warn('Error syncing SD campaigns:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -380,7 +380,7 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
   
   const db = await getDb();
   if (!db) {
-    log.error('[同步] ❌ 数据库连接失败 - getDb()返回null');
+    log.warn('[同步] ❌ 数据库连接失败 - getDb()返回null');
     return { synced: 0, skipped: 0 };
   }
   log.info('[同步] ✅ 数据库连接成功');
@@ -627,13 +627,13 @@ export async function syncSpCampaigns(service: SyncContext,lastSyncTime?: string
     logSyncProtectionSummary('syncSpCampaigns', protectionStats);
     return { synced, skipped };
   } catch (error: unknown) {
-    log.error('[同步] ❌ SP广告活动同步失败');
-    log.error('[同步] 错误类型:', error.constructor.name);
-    log.error('[同步] 错误消息:', (error as Error).message);
-    log.error('[同步] 错误堆栈:', (error as Error).stack);
+    log.warn('[同步] ❌ SP广告活动同步失败');
+    log.warn('[同步] 错误类型:', error.constructor.name);
+    log.warn('[同步] 错误消息:', (error as Error).message);
+    log.warn('[同步] 错误堆栈:', (error as Error).stack);
     if ((error as Error & { response?: unknown }).response) {
-      log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
-      log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
+      log.warn('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.warn('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }
@@ -663,7 +663,7 @@ export async function syncCampaignsOnly(service: SyncContext,): Promise<{
     results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
     results.campaigns += results.spCampaigns;
   } catch (error: unknown) {
-    log.error('SP广告活动同步失败:', (error as Error).message);
+    log.warn('SP广告活动同步失败:', (error as Error).message);
   }
   
   try {
@@ -671,7 +671,7 @@ export async function syncCampaignsOnly(service: SyncContext,): Promise<{
     results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
     results.campaigns += results.sbCampaigns;
   } catch (error: unknown) {
-    log.error('SB广告活动同步失败:', (error as Error).message);
+    log.warn('SB广告活动同步失败:', (error as Error).message);
   }
   
   try {
@@ -679,7 +679,7 @@ export async function syncCampaignsOnly(service: SyncContext,): Promise<{
     results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
     results.campaigns += results.sdCampaigns;
   } catch (error: unknown) {
-    log.error('SD广告活动同步失败:', (error as Error).message);
+    log.warn('SD广告活动同步失败:', (error as Error).message);
   }
   
   log.info(`广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);

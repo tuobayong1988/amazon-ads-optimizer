@@ -205,7 +205,7 @@ export async function syncSpNegativeKeywords(service: SyncContext): Promise<{ sy
     log.info(`v471: SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error) {
-    log.error('Error syncing SP negative keywords:', error);
+    log.warn('Error syncing SP negative keywords:', error);
     return { synced: 0, updated: 0 };
   }
 }
@@ -295,7 +295,7 @@ export async function syncSbNegativeKeywords(service: SyncContext): Promise<{ sy
     log.info(`v471: SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
   } catch (error: unknown) {
-    log.error('SB否定关键词同步失败:', (error as Error).message);
+    log.warn('SB否定关键词同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 }
@@ -385,7 +385,7 @@ export async function syncSbNegativeTargets(service: SyncContext): Promise<{ syn
     log.info(`v471: SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
   } catch (error: unknown) {
-    log.error('SB否定商品定向同步失败:', (error as Error).message);
+    log.warn('SB否定商品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 }

@@ -93,7 +93,7 @@ async function getUserAccountIds(userId: number): Promise<Set<number>> {
     }
     return accountSet;
   } catch (error) {
-    log.error(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
+    log.warn(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
     return new Set();
   }
 }

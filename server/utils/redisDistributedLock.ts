@@ -121,7 +121,7 @@ export class RedisDistributedLock {
                 log.warn(`Redis锁 "${lockKey}" 释放失败（可能已过期或被其他持有者释放）`);
               }
             } catch (e: unknown) {
-              log.error(`释放Redis锁 "${lockKey}" 异常: ${(e as Error).message}`);
+              log.warn(`释放Redis锁 "${lockKey}" 异常: ${(e as Error).message}`);
             }
           };
         }
@@ -136,7 +136,7 @@ export class RedisDistributedLock {
         // 等待后重试
         await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
       } catch (e: unknown) {
-        log.error(`获取Redis锁 "${this.lockKey}" 异常: ${(e as Error).message}`);
+        log.warn(`获取Redis锁 "${this.lockKey}" 异常: ${(e as Error).message}`);
         // Redis 操作异常，降级到 MySQL
         return this.fallbackToMySQL(timeoutMs, waitMs);
       }
@@ -172,7 +172,7 @@ export class RedisDistributedLock {
       log.warn(`Redis锁 "${this.lockKey}" 续期失败（可能已过期或被释放）`);
       return false;
     } catch (e: unknown) {
-      log.error(`Redis锁 "${this.lockKey}" 续期异常: ${(e as Error).message}`);
+      log.warn(`Redis锁 "${this.lockKey}" 续期异常: ${(e as Error).message}`);
       return false;
     }
   }
@@ -204,7 +204,7 @@ export class RedisDistributedLock {
       log.warn(`Redis锁 "${this.lockKey}" 被强制释放`);
       return true;
     } catch (e: unknown) {
-      log.error(`强制释放Redis锁 "${this.lockKey}" 失败: ${(e as Error).message}`);
+      log.warn(`强制释放Redis锁 "${this.lockKey}" 失败: ${(e as Error).message}`);
       return false;
     }
   }
@@ -250,7 +250,7 @@ export class RedisDistributedLock {
       const mysqlLock = new DistributedLock(this.lockKey.replace(LOCK_PREFIX, ''));
       return mysqlLock.acquire(timeoutMs, waitMs);
     } catch (e: unknown) {
-      log.error(`MySQL 锁也不可用: ${(e as Error).message}`);
+      log.warn(`MySQL 锁也不可用: ${(e as Error).message}`);
       // 最终降级：返回空释放函数（无锁模式）
       return async () => {};
     }
@@ -328,7 +328,7 @@ export async function getAllRedisLockStatus(): Promise<Array<{
     }
     return locks;
   } catch (e: unknown) {
-    log.error(`获取Redis锁状态失败: ${(e as Error).message}`);
+    log.warn(`获取Redis锁状态失败: ${(e as Error).message}`);
     return [];
   }
 }

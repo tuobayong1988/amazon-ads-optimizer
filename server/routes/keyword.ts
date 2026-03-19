@@ -211,7 +211,7 @@ export const keywordRouter = router({
             }
           }
         } catch (syncError: unknown) {
-          log.error(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
+          log.warn(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
         }
       }
       
@@ -282,7 +282,7 @@ export const keywordRouter = router({
           }
         }
       } catch (syncError: unknown) {
-        log.error(`[Keyword.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
+        log.warn(`[Keyword.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
       }
       
       return { success: true, updated };
@@ -551,7 +551,7 @@ export const productTargetRouter = router({
             }
           }
         } catch (syncError: unknown) {
-          log.error(`[ProductTarget.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
+          log.warn(`[ProductTarget.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
         }
       }
       
@@ -611,7 +611,7 @@ export const productTargetRouter = router({
           }
         }
       } catch (syncError: unknown) {
-        log.error(`[ProductTarget.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
+        log.warn(`[ProductTarget.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, (syncError as Error).message);
       }
       
       return { success: true, updated };

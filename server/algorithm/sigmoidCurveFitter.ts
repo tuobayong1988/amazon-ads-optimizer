@@ -449,7 +449,7 @@ export async function fitAndCacheSigmoidForEntity(
         eq(contextualFeatures.snapshotDate, today)
       ));
   } catch (e) {
-    log.error(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e);
+    log.warn(`[SigmoidCurveFitter] Failed to cache sigmoid params:`, e);
   }
   
   return params;

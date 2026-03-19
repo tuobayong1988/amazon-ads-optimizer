@@ -49,7 +49,7 @@ export async function analyzeCrossCampaignNegatives(
 
   const db = await getDb();
   if (!db) {
-    log.error('[GlobalNegative] 数据库不可用');
+    log.warn('[GlobalNegative] 数据库不可用');
     return [];
   }
 
@@ -113,7 +113,7 @@ export async function analyzeCrossCampaignNegatives(
       };
     });
   } catch (error: unknown) {
-    log.error(`[GlobalNegative] 跨广告活动分析失败: ${(error as Error).message}`);
+    log.warn(`[GlobalNegative] 跨广告活动分析失败: ${(error as Error).message}`);
     return [];
   }
 }
@@ -148,7 +148,7 @@ export async function addGlobalNegativeKeyword(
     
     return { success: true, id: insertId, message: `成功添加全局否定词: ${negativeText}` };
   } catch (error: unknown) {
-    log.error(`[GlobalNegative] 添加全局否定词失败: ${(error as Error).message}`);
+    log.warn(`[GlobalNegative] 添加全局否定词失败: ${(error as Error).message}`);
     return { success: false, message: (error as Error).message };
   }
 }
@@ -179,7 +179,7 @@ export async function getGlobalNegativeKeywords(
       appliedCampaignCount: r.appliedCampaignCount || 0,
     }));
   } catch (error: unknown) {
-    log.error(`[GlobalNegative] 获取全局否定词失败: ${(error as Error).message}`);
+    log.warn(`[GlobalNegative] 获取全局否定词失败: ${(error as Error).message}`);
     return [];
   }
 }
@@ -225,7 +225,7 @@ export async function executeGlobalNegativeAnalysis(accountId: number): Promise<
     log.info(`[GlobalNegative] 账户${accountId}全局否定分析完成: 分析=${result.analyzed}, 添加=${result.added}`);
   } catch (error: unknown) {
     result.errors.push((error as Error).message);
-    log.error(`[GlobalNegative] 全局否定分析异常: ${(error as Error).message}`);
+    log.warn(`[GlobalNegative] 全局否定分析异常: ${(error as Error).message}`);
   }
   
   return result;

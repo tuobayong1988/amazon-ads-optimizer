@@ -134,7 +134,7 @@ export async function getSmartMergedData(
       warnings,
     };
   } catch (error: unknown) {
-    log.error('[EnhancedDualTrack] 获取合并数据失败:', error);
+    log.warn('[EnhancedDualTrack] 获取合并数据失败:', error);
     return { data: [], dataSource: 'api', freshness: 'stale', warnings: [(error as Error).message] };
   }
 }
@@ -175,7 +175,7 @@ async function getApiPerformanceData(
     const [rows] = await db.execute() as unknown;
     return Array.isArray(rows) ? rows : [];
   } catch (error) {
-    log.error('[EnhancedDualTrack] 获取API数据失败:', error);
+    log.warn('[EnhancedDualTrack] 获取API数据失败:', error);
     return [];
   }
 }
@@ -405,7 +405,7 @@ export async function checkAndBackfillData(
       message: `检测到${date}的AMS数据缺失，可使用${apiCount}条API数据进行回补`,
     };
   } catch (error: unknown) {
-    log.error('[EnhancedDualTrack] 数据回补检查失败:', error);
+    log.warn('[EnhancedDualTrack] 数据回补检查失败:', error);
     return { needsBackfill: false, backfilledRecords: 0, message: (error as Error).message };
   }
 }
@@ -518,7 +518,7 @@ export async function getTimelineAggregatedData(
 
     return { timeline, totals, dataSource: 'api' };
   } catch (error: unknown) {
-    log.error('[EnhancedDualTrack] 获取时间线数据失败:', error);
+    log.warn('[EnhancedDualTrack] 获取时间线数据失败:', error);
     return {
       timeline: [],
       totals: { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, acos: 0, roas: 0 },
@@ -632,7 +632,7 @@ export async function getRealtimeDashboardData(
       dataSource,
     };
   } catch (error: unknown) {
-    log.error('[EnhancedDualTrack] 获取实时仪表盘数据失败:', error);
+    log.warn('[EnhancedDualTrack] 获取实时仪表盘数据失败:', error);
     return defaultResult;
   }
 }

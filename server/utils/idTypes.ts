@@ -131,7 +131,7 @@ export function assertAmazonCampaignId(
   if (classification === 'local') {
     const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地campaignId(${value})被用于需要Amazon ID的场景! ` +
       `调用来源: ${context}. 必须传入campaign.campaignId而非campaign.id`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     logIdGuardError('IdTypes', `assertAmazonCampaignId: ${errorMsg}`, { context, value: String(value), classification });
     // v440: 升级为Fail-Fast模式 - 宁可中断也不让错误ID传播
     throw new Error(errorMsg);
@@ -153,7 +153,7 @@ export function assertAmazonAdGroupId(
   if (classification === 'local') {
     const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地adGroupId(${value})被用于需要Amazon ID的场景! ` +
       `调用来源: ${context}. 必须传入adGroup.adGroupId而非adGroup.id`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     logIdGuardError('IdTypes', `assertAmazonAdGroupId: ${errorMsg}`, { context, value: String(value), classification });
     // v440: 升级为Fail-Fast模式
     throw new Error(errorMsg);
@@ -170,7 +170,7 @@ export function assertLocalId(
 ): asserts value is number {
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     const errorMsg = `[IdTypes] ⛔ 断言失败: 无效的本地ID(${value}, type=${typeof value})! 调用来源: ${context}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
 }
@@ -217,7 +217,7 @@ export function extractCampaignIds(campaign: { id?: number; campaignId?: string 
   const localId = campaign.id;
   if (localId == null || typeof localId !== 'number' || localId <= 0) {
     const errorMsg = `[IdTypes] ⛔ Campaign对象缺少有效的本地id! id=${campaign.id}, campaignId=${campaign.campaignId}${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
@@ -225,7 +225,7 @@ export function extractCampaignIds(campaign: { id?: number; campaignId?: string 
   const rawAmazonId = campaign.campaignId;
   if (rawAmazonId == null) {
     const errorMsg = `[IdTypes] ⛔ Campaign对象缺少campaignId字段! id=${campaign.id}${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
@@ -233,7 +233,7 @@ export function extractCampaignIds(campaign: { id?: number; campaignId?: string 
   // @ts-expect-error - Amazon ID type assertion
   if (!isValidAmazonId(amazonId)) {
     const errorMsg = `[IdTypes] ⛔ Campaign的campaignId无效! id=${campaign.id}, campaignId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
@@ -259,14 +259,14 @@ export function extractAdGroupIds(adGroup: { id?: number; adGroupId?: string | n
   const localId = adGroup.id;
   if (localId == null || typeof localId !== 'number' || localId <= 0) {
     const errorMsg = `[IdTypes] ⛔ AdGroup对象缺少有效的本地id! id=${adGroup.id}, adGroupId=${adGroup.adGroupId}${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
   const rawAmazonId = adGroup.adGroupId;
   if (rawAmazonId == null) {
     const errorMsg = `[IdTypes] ⛔ AdGroup对象缺少adGroupId字段! id=${adGroup.id}${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
@@ -274,7 +274,7 @@ export function extractAdGroupIds(adGroup: { id?: number; adGroupId?: string | n
   // @ts-expect-error - Amazon ID type assertion
   if (!isValidAmazonId(amazonId)) {
     const errorMsg = `[IdTypes] ⛔ AdGroup的adGroupId无效! id=${adGroup.id}, adGroupId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     throw new Error(errorMsg);
   }
   
@@ -365,7 +365,7 @@ export function guardCampaignIdParam(
   if (classification === 'local') {
     // ⛔ 这是一个严重bug：调用者传了本地ID给需要Amazon ID的查询
     const msg = `${functionName}() 收到本地campaignId(${value})! 调用者必须传入campaign.campaignId而非campaign.id`;
-    log.error(`[IdTypes] ⛔ ${msg}`);
+    log.warn(`[IdTypes] ⛔ ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdParam: ${msg}`, { functionName, value: String(value), classification });
     // v440: 升级为Fail-Fast模式 - 宁可查询失败也不返回错误结果
     throw new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`);
@@ -391,9 +391,9 @@ export function guardCampaignIdInsert(
   
   if (classification === 'local') {
     const msg = `⛔ v439拦截: 尝试将本地campaignId(${value})写入${tableName}.campaignId! 该字段应存储Amazon Campaign ID`;
-    log.error(`[IdTypes] ${msg}`);
+    log.warn(`[IdTypes] ${msg}`);
     logIdGuardError('IdTypes', `guardCampaignIdInsert: ${msg}`, { tableName, value: String(value), classification });
-    log.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack || '');
+    log.warn(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack || '');
     // v439: 升级为拦截模式 - 拒绝写入本地ID，防止脏数据产生
     throw new Error(`[IdTypes] 拦截本地ID写入: ${tableName}.campaignId = ${value}`);
   }
@@ -414,7 +414,7 @@ export function guardAdGroupIdParam(
   
   if (classification === 'local') {
     const msg = `${functionName}() 收到本地adGroupId(${value})! 调用者必须传入adGroup.adGroupId而非adGroup.id`;
-    log.error(`[IdTypes] ⛔ ${msg}`);
+    log.warn(`[IdTypes] ⛔ ${msg}`);
     logIdGuardError('IdTypes', `guardAdGroupIdParam: ${msg}`, { functionName, value: String(value), classification });
     throw new Error(`[IdTypes] ${functionName}() 收到本地adGroupId(${value})`);
   }
@@ -435,7 +435,7 @@ export function guardAdGroupIdInsert(
   
   if (classification === 'local') {
     const msg = `⛔ v440拦截: 尝试将本地adGroupId(${value})写入${tableName}.adGroupId! 该字段应存储Amazon Ad Group ID`;
-    log.error(`[IdTypes] ${msg}`);
+    log.warn(`[IdTypes] ${msg}`);
     logIdGuardError('IdTypes', `guardAdGroupIdInsert: ${msg}`, { tableName, value: String(value), classification });
     throw new Error(`[IdTypes] 拦截本地ID写入: ${tableName}.adGroupId = ${value}`);
   }

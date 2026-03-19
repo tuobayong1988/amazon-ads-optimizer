@@ -324,7 +324,7 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     // 获取Amazon API客户端
     const syncService = await getAmazonSyncService(task.accountId);
     if (!syncService) {
-      log.error(`无法获取accountId=${task.accountId}的API客户端，跳过验证`);
+      log.warn(`无法获取accountId=${task.accountId}的API客户端，跳过验证`);
       cleanupTask(taskId);
       return;
     }
@@ -383,7 +383,7 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     }
     
   } catch (error: unknown) {
-    log.error(`v166: 验证任务执行异常 taskId=${taskId}:`, (error as Error).message);
+    log.warn(`v166: 验证任务执行异常 taskId=${taskId}:`, (error as Error).message);
     
     // 异常时安排重试
     if (task.attempt < task.maxAttempts) {
@@ -504,7 +504,7 @@ async function verifyBidAdjustments(
       }
       
     } catch (error: unknown) {
-      log.error(`出价验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
+      log.warn(`出价验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: (error as Error).message });
       }
@@ -557,7 +557,7 @@ async function verifyBudgetAdjustments(
     }
     
   } catch (error: unknown) {
-    log.error(`预算验证API调用失败:`, (error as Error).message);
+    log.warn(`预算验证API调用失败:`, (error as Error).message);
     for (const item of items) {
       results.push({ item, status: 'error', message: (error as Error).message });
     }
@@ -638,7 +638,7 @@ async function verifyPlacementAdjustments(
     }
     
   } catch (error: unknown) {
-    log.error(`位置倾斜验证API调用失败:`, (error as Error).message);
+    log.warn(`位置倾斜验证API调用失败:`, (error as Error).message);
     for (const item of items) {
       results.push({ item, status: 'error', message: (error as Error).message });
     }
@@ -711,7 +711,7 @@ async function verifyNegativeKeywords(
       }
       
     } catch (error: unknown) {
-      log.error(`否词验证API调用失败 campaignId=${campaignId}:`, (error as Error).message);
+      log.warn(`否词验证API调用失败 campaignId=${campaignId}:`, (error as Error).message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: (error as Error).message });
       }
@@ -768,7 +768,7 @@ async function verifyKeywordStatus(
       }
       
     } catch (error: unknown) {
-      log.error(`状态验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
+      log.warn(`状态验证API调用失败 adGroupId=${adGroupId}:`, (error as Error).message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: (error as Error).message });
       }
@@ -789,7 +789,7 @@ async function verifyKeywordStatus(
 async function applyConfirmedResults(results: VerificationResult[]): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) {
-    log.error('数据库连接失败，无法回填确认结果');
+    log.warn('数据库连接失败，无法回填确认结果');
     return;
   }
   
@@ -879,7 +879,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
     log.info(`v166: 事务回填完成, ${results.length}项已确认并更新`);
     
   } catch (error: unknown) {
-    log.error(`v166: 事务回填失败:`, (error as Error).message);
+    log.warn(`v166: 事务回填失败:`, (error as Error).message);
   }
 }
 
@@ -959,7 +959,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
     log.warn(`v166: ${results.length}项冲突已处理（以Amazon实际值为准）`);
     
   } catch (error: unknown) {
-    log.error(`v166: 冲突处理事务失败:`, (error as Error).message);
+    log.warn(`v166: 冲突处理事务失败:`, (error as Error).message);
   }
 }
 
@@ -1117,7 +1117,7 @@ export async function autoResolveConflicts(accountId: number): Promise<{ resolve
     log.info(`v257: 自动冲突解决完成 accountId=${accountId}: resolved=${resolved}, ignored=${ignored}, skipped=${skipped}, total=${pendingConflicts.length}`);
     
   } catch (error: unknown) {
-    log.error(`v257: 自动冲突解决失败 accountId=${accountId}: ${(error as Error).message}`);
+    log.warn(`v257: 自动冲突解决失败 accountId=${accountId}: ${(error as Error).message}`);
   }
   
   return { resolved, ignored, skipped };

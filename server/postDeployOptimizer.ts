@@ -978,13 +978,13 @@ async function getLastDeployedVersion(): Promise<number | null> {
       }
       return null;
     } catch (error: unknown) {
-      log.error(`[PostDeployOptimizer] 获取上次部署版本失败 (尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
+      log.warn(`[PostDeployOptimizer] 获取上次部署版本失败 (尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
       if (attempt < maxRetries) {
         await sleep(5000 * attempt); // 递增等待
       }
     }
   }
-  log.error(`[PostDeployOptimizer] 获取上次部署版本失败: 已耗尽所有重试`);
+  log.warn(`[PostDeployOptimizer] 获取上次部署版本失败: 已耗尽所有重试`);
   return null;
 }
 
@@ -1014,7 +1014,7 @@ async function recordDeployVersion(version: number, result: PostDeployResult): P
     try {
       const database = await getDb();
       if (!database) {
-        log.error(`[PostDeployOptimizer] 记录部署版本失败: 数据库连接不可用 (尝试${attempt}/${maxRetries})`);
+        log.warn(`[PostDeployOptimizer] 记录部署版本失败: 数据库连接不可用 (尝试${attempt}/${maxRetries})`);
         if (attempt < maxRetries) await sleep(10000 * attempt);
         continue;
       }
@@ -1031,13 +1031,13 @@ async function recordDeployVersion(version: number, result: PostDeployResult): P
       log.info(`[PostDeployOptimizer] ✓ 已记录部署版本 v${version} (status=${statusValue})`);
       return; // 成功，直接返回
     } catch (error: unknown) {
-      log.error(`[PostDeployOptimizer] 记录部署版本失败 (尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
+      log.warn(`[PostDeployOptimizer] 记录部署版本失败 (尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
       if (attempt < maxRetries) {
         await sleep(10000 * attempt); // 递增等待: 10s, 20s
       }
     }
   }
-  log.error(`[PostDeployOptimizer] ✗ 记录部署版本 v${version} 失败: 已耗尽所有重试，下次重启将重新触发PostDeploy`);
+  log.warn(`[PostDeployOptimizer] ✗ 记录部署版本 v${version} 失败: 已耗尽所有重试，下次重启将重新触发PostDeploy`);
 }
 
 /**
@@ -1068,7 +1068,7 @@ async function updateTargetOptimizedVersion(targetId: number, version: number): 
       `);
       return; // 成功
     } catch (error: unknown) {
-      log.error(`[PostDeployOptimizer] 更新目标版本失败 (targetId=${targetId}, 尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
+      log.warn(`[PostDeployOptimizer] 更新目标版本失败 (targetId=${targetId}, 尝试${attempt}/${maxRetries}): ${(error as Error).message}`);
       if (attempt < maxRetries) await sleep(5000);
     }
   }
@@ -1846,7 +1846,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         log.warn(`[PostDeployOptimizer] v203: 标记${miscFixed}个无重试机制的失败事件为invalid_legacy`);
       }
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v203: 数据迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v203: 数据迁移失败: ${(migrationErr as Error).message}`);
     }
   }
   
@@ -1894,7 +1894,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       }
     }
   } catch (restoreErr: unknown) {
-    log.error(`[PostDeployOptimizer] v244: 恢复优化目标状态失败:`, (restoreErr as Error).message);
+    log.warn(`[PostDeployOptimizer] v244: 恢复优化目标状态失败:`, (restoreErr as Error).message);
   }
 
   // 4b. v257: match_type历史数据回填迁移
@@ -1904,7 +1904,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       const matchTypeResult = await backfillMatchType();
       log.info(`[PostDeployOptimizer] v257: match_type回填完成: updated=${matchTypeResult.updated}, errors=${matchTypeResult.errors}`);
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v257: match_type回填失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v257: match_type回填失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1915,7 +1915,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       await runV258Migration();
       log.info(`[PostDeployOptimizer] v258: 日志字段迁移完成`);
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v258: 日志字段迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v258: 日志字段迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1926,7 +1926,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       await runV268PerformanceIndexMigration();
       log.info(`[PostDeployOptimizer] v268: 性能优化索引创建完成`);
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v268: 性能优化索引创建失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v268: 性能优化索引创建失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1937,7 +1937,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       const migResult = await migrateEncryptCredentials();
       log.info(`[PostDeployOptimizer] v345: 凭证加密迁移完成 (加密=${migResult.encrypted}, 跳过=${migResult.skipped}, 失败=${migResult.failed})`);
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v345: 凭证加密迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v345: 凭证加密迁移失败: ${(migrationErr as Error).message}`);
     }
 
     try {
@@ -1945,7 +1945,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
       await runV345PerformanceIndexMigration();
       log.info(`[PostDeployOptimizer] v345: 性能索引创建完成`);
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v345: 性能索引创建失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v345: 性能索引创建失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1959,7 +1959,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         log.info(`[PostDeployOptimizer] v361: 核心表索引创建完成`);
       }
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v361: 核心表索引创建失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v361: 核心表索引创建失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1973,7 +1973,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         log.info(`[PostDeployOptimizer] v372: 扩展索引和分布式限流表创建完成`);
       }
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v372: 扩展索引迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v372: 扩展索引迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -1987,7 +1987,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         log.info(`[PostDeployOptimizer] v390: 性能优化索引创建完成`);
       }
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v390: 性能优化索引迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v390: 性能优化索引迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 
@@ -2001,7 +2001,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         log.info(`[PostDeployOptimizer] v395: 搜索词唯一约束迁移完成`);
       }
     } catch (migrationErr: unknown) {
-      log.error(`[PostDeployOptimizer] v395: 搜索词唯一约束迁移失败: ${(migrationErr as Error).message}`);
+      log.warn(`[PostDeployOptimizer] v395: 搜索词唯一约束迁移失败: ${(migrationErr as Error).message}`);
     }
   }
 

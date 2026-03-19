@@ -262,7 +262,7 @@ export const batchOperationRouter = router({
           await enqueueTasks(syncTasks as unknown[]);
           log.info(`[BatchOperation] v453: 已入队 ${syncTasks.length} 个同步任务到Amazon API`);
         } catch (enqueueErr: unknown) {
-          log.error(`[BatchOperation] v453: 同步任务入队失败: ${(enqueueErr as Error).message}`);
+          log.warn(`[BatchOperation] v453: 同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
 
@@ -538,7 +538,7 @@ export const batchOperationRouter = router({
             }
           }
         } catch (initError: unknown) {
-          log.error('[applyBidAdjustments] 创建Amazon API客户端失败:', (initError as Error).message);
+          log.warn('[applyBidAdjustments] 创建Amazon API客户端失败:', (initError as Error).message);
         }
       }
 
@@ -565,7 +565,7 @@ export const batchOperationRouter = router({
               }]);
               apiSuccess = true;
             } catch (apiError: unknown) {
-              log.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, (apiError as Error).message);
+              log.warn(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, (apiError as Error).message);
             }
           }
 

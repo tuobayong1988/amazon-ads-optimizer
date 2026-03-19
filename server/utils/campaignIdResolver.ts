@@ -123,7 +123,7 @@ export async function safeCampaignIdForInsert(ctx: CampaignIdContext): Promise<s
   }
 
   // 步骤3：所有路径都失败
-  log.error(`[${ctx.caller}] ⛔ campaignId 解析失败! 原始值=${ctx.campaignId}, adGroupId=${ctx.adGroupId}, targetLocalId=${ctx.targetLocalId}. 写入 UNRESOLVED`);
+  log.warn(`[${ctx.caller}] ⛔ campaignId 解析失败! 原始值=${ctx.campaignId}, adGroupId=${ctx.adGroupId}, targetLocalId=${ctx.targetLocalId}. 写入 UNRESOLVED`);
   return 'UNRESOLVED';
 }
 
@@ -173,7 +173,7 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
     log.warn(`[CampaignIdResolver] adGroupId=${adGroupId} 未找到有效的 campaignId`);
     return null;
   } catch (err: unknown) {
-    log.error(`[CampaignIdResolver] 通过 adGroupId=${adGroupId} 解析 campaignId 失败: ${(err as Error).message}`);
+    log.warn(`[CampaignIdResolver] 通过 adGroupId=${adGroupId} 解析 campaignId 失败: ${(err as Error).message}`);
     return null;
   }
 }
@@ -194,7 +194,7 @@ async function resolveAdGroupIdFromTarget(targetLocalId: number, targetType: str
       return keyword?.adGroupId ? Number(keyword.adGroupId) : null;
     }
   } catch (err: unknown) {
-    log.error(`[CampaignIdResolver] 通过 ${targetType} id=${targetLocalId} 解析 adGroupId 失败: ${(err as Error).message}`);
+    log.warn(`[CampaignIdResolver] 通过 ${targetType} id=${targetLocalId} 解析 adGroupId 失败: ${(err as Error).message}`);
     return null;
   }
 }
@@ -230,7 +230,7 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
     }
     log.debug(`[CampaignIdResolver] 预热缓存: ${results.length}/${uncachedIds.length} 个 adGroup 的 campaignId`);
   } catch (err: unknown) {
-    log.error(`[CampaignIdResolver] 预热缓存失败: ${(err as Error).message}`);
+    log.warn(`[CampaignIdResolver] 预热缓存失败: ${(err as Error).message}`);
   }
 }
 

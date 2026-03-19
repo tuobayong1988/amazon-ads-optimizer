@@ -135,7 +135,7 @@ export async function syncSpAdGroups(service: SyncContext, lastSyncTime?: string
     log.info(`SP广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SP ad groups:', error);
+    log.warn('Error syncing SP ad groups:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -208,7 +208,7 @@ export async function syncSbAdGroups(service: SyncContext): Promise<{ synced: nu
     log.info(`SB广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SB ad groups:', error);
+    log.warn('Error syncing SB ad groups:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -282,7 +282,7 @@ export async function syncSdAdGroups(service: SyncContext): Promise<{ synced: nu
     log.info(`SD广告组同步完成: synced=${synced}, inserted=${toInsert.length}, updated=${toUpdate.length}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SD ad groups:', error);
+    log.warn('Error syncing SD ad groups:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -312,21 +312,21 @@ export async function syncAdGroupsAndTargeting(service: SyncContext): Promise<{
     const spAdGroupResult = await service.syncSpAdGroups();
     results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
   } catch (e: unknown) {
-    log.error('SP广告组同步失败:', (e as Error).message);
+    log.warn('SP广告组同步失败:', (e as Error).message);
   }
 
   try {
     const sbAdGroupResult = await service.syncSbAdGroups();
     results.adGroups += sbAdGroupResult.synced;
   } catch (e: unknown) {
-    log.error('SB广告组同步失败:', (e as Error).message);
+    log.warn('SB广告组同步失败:', (e as Error).message);
   }
 
   try {
     const sdAdGroupResult = await service.syncSdAdGroups();
     results.adGroups += sdAdGroupResult.synced;
   } catch (e: unknown) {
-    log.error('SD广告组同步失败:', (e as Error).message);
+    log.warn('SD广告组同步失败:', (e as Error).message);
   }
   
   // ==================== 同步关键词投放（SP + SB） ====================
@@ -334,14 +334,14 @@ export async function syncAdGroupsAndTargeting(service: SyncContext): Promise<{
     const spKeywordResult = await service.syncSpKeywords();
     results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
   } catch (e: unknown) {
-    log.error('SP关键词同步失败:', (e as Error).message);
+    log.warn('SP关键词同步失败:', (e as Error).message);
   }
 
   try {
     const sbKeywordResult = await service.syncSbKeywords();
     results.keywords += sbKeywordResult.synced;
   } catch (e: unknown) {
-    log.error('SB关键词同步失败:', (e as Error).message);
+    log.warn('SB关键词同步失败:', (e as Error).message);
   }
   
   // ==================== 同步商品定位（SP + SB + SD） ====================
@@ -349,21 +349,21 @@ export async function syncAdGroupsAndTargeting(service: SyncContext): Promise<{
     const spTargetResult = await service.syncSpProductTargets();
     results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
   } catch (e: unknown) {
-    log.error('SP商品定位同步失败:', (e as Error).message);
+    log.warn('SP商品定位同步失败:', (e as Error).message);
   }
 
   try {
     const sbTargetResult = await service.syncSbProductTargets();
     results.targets += sbTargetResult.synced;
   } catch (e: unknown) {
-    log.error('SB商品定位同步失败:', (e as Error).message);
+    log.warn('SB商品定位同步失败:', (e as Error).message);
   }
 
   try {
     const sdTargetResult = await service.syncSdProductTargets();
     results.targets += sdTargetResult.synced;
   } catch (e: unknown) {
-    log.error('SD商品定位同步失败:', (e as Error).message);
+    log.warn('SD商品定位同步失败:', (e as Error).message);
   }
 
   // v196: 中频同步时同时同步搜索词数据（7天窗口），确保搜索词数据不滞后
@@ -372,7 +372,7 @@ export async function syncAdGroupsAndTargeting(service: SyncContext): Promise<{
     const spSearchTermSynced = await service.syncSearchTerms(7);
     log.info(`v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
   } catch (e: unknown) {
-    log.error('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
+    log.warn('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
   }
 
   log.info(`全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
@@ -499,7 +499,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
         synced += updates.length;
         log.info(`SP广告组绩效同步: ${updates.length} 条记录`);
       } else if (spResult?.error) {
-        log.error('SP广告组绩效同步失败:', spResult.error);
+        log.warn('SP广告组绩效同步失败:', spResult.error);
       }
     }
 
@@ -514,7 +514,7 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
         synced += updates.length;
         log.info(`SB广告组绩效同步: ${updates.length} 条记录`);
       } else if (sbResult?.error) {
-        log.error('SB广告组绩效同步失败:', sbResult.error);
+        log.warn('SB广告组绩效同步失败:', sbResult.error);
       }
     }
 
@@ -529,14 +529,14 @@ export async function syncAdGroupPerformanceData(service: SyncContext, days: num
         synced += updates.length;
         log.info(`SD广告组绩效同步: ${updates.length} 条记录`);
       } else if (sdResult?.error) {
-        log.error('SD广告组绩效同步失败:', sdResult.error);
+        log.warn('SD广告组绩效同步失败:', sdResult.error);
       }
     }
 
     log.info(`广告组绩效同步完成: 共 ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('广告组绩效同步失败:', error);
+    log.warn('广告组绩效同步失败:', error);
     return synced;
   }
 }

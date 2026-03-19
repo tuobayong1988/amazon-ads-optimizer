@@ -178,7 +178,7 @@ export async function initializeAccount(params: {
         log.warn(`[v360] 账号 ${accountId} (${marketplace}) 冷启动触发失败: ${(coldStartErr as Error).message}`);
       }
     }).catch(async (err) => {
-      log.error(`[v360] 账号 ${accountId} (${marketplace}) 第1轮全量同步失败:`, err);
+      log.warn(`[v360] 账号 ${accountId} (${marketplace}) 第1轮全量同步失败:`, err);
       await recordSyncRound(accountId, 1, false, (err as Error).message);
       // 即使第1轮失败，仍然调度后续轮次
       scheduleSubsequentRounds(accountId, userId, clientId, clientSecret, refreshToken, profileId, region, marketplace);
@@ -187,7 +187,7 @@ export async function initializeAccount(params: {
     result.syncResult = { success: true };
     log.info(`[v360] 步骤1完成: 第1轮全量同步已启动`);
   } catch (syncError: unknown) {
-    log.error(`[v360] 步骤1失败: 全量同步启动失败:`, syncError);
+    log.warn(`[v360] 步骤1失败: 全量同步启动失败:`, syncError);
     result.syncResult = { success: false, error: (syncError as Error).message };
   }
 
@@ -221,7 +221,7 @@ export async function initializeAccount(params: {
       result.scheduleResult = { success: true, scheduleId: existingSchedule.id };
     }
   } catch (scheduleError: unknown) {
-    log.error(`步骤2失败: 创建定时同步配置失败:`, scheduleError);
+    log.warn(`步骤2失败: 创建定时同步配置失败:`, scheduleError);
     result.scheduleResult = { success: false, error: (scheduleError as Error).message };
   }
 
@@ -293,7 +293,7 @@ export async function initializeAccount(params: {
       }
     }
   } catch (amsError: unknown) {
-    log.error(`步骤3失败: AMS订阅创建失败:`, amsError);
+    log.warn(`步骤3失败: AMS订阅创建失败:`, amsError);
     result.amsResult = { success: false, error: (amsError as Error).message };
   }
 
@@ -359,7 +359,7 @@ async function recordSyncRound(
           initializationProgress: progress,
           initializationError: JSON.stringify(roundHistory),
         });
-        log.error(`[v360] 账号 ${accountId} 数据收集失败! ${successRounds}/${round} 轮成功, 未达到最低要求 ${DATA_COLLECTION_CONFIG.minSuccessRounds} 轮`);
+        log.warn(`[v360] 账号 ${accountId} 数据收集失败! ${successRounds}/${round} 轮成功, 未达到最低要求 ${DATA_COLLECTION_CONFIG.minSuccessRounds} 轮`);
       }
     } else {
       // 更新进度
@@ -370,7 +370,7 @@ async function recordSyncRound(
       log.info(`[v360] 账号 ${accountId} 第${round}轮同步${success ? '成功' : '失败'}, 进度 ${progress}%`);
     }
   } catch (err) {
-    log.error(`[v360] 记录同步轮次失败: ${(err as Error).message}`);
+    log.warn(`[v360] 记录同步轮次失败: ${(err as Error).message}`);
   }
 }
 
@@ -420,7 +420,7 @@ function scheduleSubsequentRounds(
         await db.updateAmazonApiCredentialsLastSync(accountId);
         await recordSyncRound(accountId, roundNum, true);
       } catch (err) {
-        log.error(`[v360] 账号 ${accountId} 第${roundNum}轮全量同步失败:`, err);
+        log.warn(`[v360] 账号 ${accountId} 第${roundNum}轮全量同步失败:`, err);
         await recordSyncRound(accountId, roundNum, false, (err as Error).message);
         
         // v360: 失败后重试一次
@@ -438,7 +438,7 @@ function scheduleSubsequentRounds(
           log.info(`[v360] 账号 ${accountId} 第${roundNum}轮重试成功:`, retryData);
           await recordSyncRound(accountId, roundNum, true);
         } catch (retryErr) {
-          log.error(`[v360] 账号 ${accountId} 第${roundNum}轮重试也失败:`, retryErr);
+          log.warn(`[v360] 账号 ${accountId} 第${roundNum}轮重试也失败:`, retryErr);
         }
       }
     }, delayMs);
@@ -509,7 +509,7 @@ export async function initializeMultipleAccounts(accounts: Array<{
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (error: unknown) {
-      log.error(`账号 ${account.accountId} 初始化异常:`, error);
+      log.warn(`账号 ${account.accountId} 初始化异常:`, error);
       results.push({
         accountId: account.accountId,
         marketplace: account.marketplace,

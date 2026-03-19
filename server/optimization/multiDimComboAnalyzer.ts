@@ -1017,7 +1017,7 @@ export async function persistAnalysisResults(
       } as Record<string, unknown>);
       inserted++;
     } catch (err: unknown) {
-      log.error(`[ComboAnalyzer] 写入分析结果失败: ${(err as Error).message}`);
+      log.warn(`[ComboAnalyzer] 写入分析结果失败: ${(err as Error).message}`);
     }
   }
 
@@ -1085,7 +1085,7 @@ export async function executeMultiDimComboAnalysis(
       // v183.1: 记录Campaign级别预算乘数
       campaignBudgetMultipliers.set(campaignId, analysis.suggestedBudgetMultiplier);
     } catch (err: unknown) {
-      log.error(`[ComboAnalyzer] Campaign ${campaignId} 分析失败: ${(err as Error).message}`);
+      log.warn(`[ComboAnalyzer] Campaign ${campaignId} 分析失败: ${(err as Error).message}`);
     }
   }
 

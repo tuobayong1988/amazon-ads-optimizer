@@ -81,7 +81,7 @@ async function withRetry<T>(
         log.warn(`[v242] ${operationName} 第${attempt}次失败(可重试): ${serializeError(error)}, ${Math.round(delay)}ms后重试...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
-        log.error(`[v242] ${operationName} 最终失败(尝试${attempt}次): ${serializeError(error)}`);
+        log.warn(`[v242] ${operationName} 最终失败(尝试${attempt}次): ${serializeError(error)}`);
         throw error;
       }
     }
@@ -164,7 +164,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
     log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error: unknown) {
-    log.error(`[v242] SB关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
+    log.warn(`[v242] SB关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -278,7 +278,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
     return { synced, skipped };
   } catch (error: unknown) {
-    log.error(`[v242] SP关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
+    log.warn(`[v242] SP关键词同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -291,7 +291,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
 export async function syncKeywordPerformanceData(service: SyncContext,days: number = 7): Promise<number> {
   const db = await getDb();
   if (!db) {
-    log.error('数据库连接失败');
+    log.warn('数据库连接失败');
     return 0;
   }
 
@@ -484,7 +484,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
         await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
         dbWritten++;
       } catch (e: unknown) {
-        log.error(`v196: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
+        log.warn(`v196: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
       }
     }
     for (const upd of ptUpdates) {
@@ -492,7 +492,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
         await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
         dbWritten++;
       } catch (e: unknown) {
-        log.error(`v196: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
+        log.warn(`v196: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
       }
     }
     
@@ -522,7 +522,7 @@ export async function syncKeywordPerformanceData(service: SyncContext,days: numb
     
     return synced;
   } catch (error: unknown) {
-    log.error(`[v242] 关键词绩效同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
+    log.warn(`[v242] 关键词绩效同步失败(account=${service.accountId}, marketplace=${service.marketplace}): ${serializeError(error)}`);
     return 0;
   }
 }

@@ -127,9 +127,9 @@ export function validateAndReport(): boolean {
   
   // 输出错误
   if (result.errors.length > 0) {
-    log.error(`发现 ${result.errors.length} 个环境变量错误:`);
+    log.warn(`发现 ${result.errors.length} 个环境变量错误:`);
     for (const err of result.errors) {
-      log.error(`  ✗ ${err}`);
+      log.warn(`  ✗ ${err}`);
     }
   }
   

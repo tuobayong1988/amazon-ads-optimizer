@@ -115,9 +115,9 @@ export const amazonApiRouter = router({
           }));
           log.info(`[ExchangeCode] Fetched profiles: ${profiles.length} 个`);
         } catch (profileError: unknown) {
-          log.error('[ExchangeCode] Failed to fetch profiles:', (profileError as Error).message);
+          log.warn('[ExchangeCode] Failed to fetch profiles:', (profileError as Error).message);
           // @ts-expect-error - error stack access
-          log.error(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || (profileError as Error).stack).substring(0, 500)}`);
+          log.warn(`[ExchangeCode] Profile error details: ${JSON.stringify(profileError.response?.data || (profileError as Error).stack).substring(0, 500)}`);
           // 不抛出错误，继续返回其他信息
         }
         
@@ -132,7 +132,7 @@ export const amazonApiRouter = router({
           profiles,
         };
       } catch (error: unknown) {
-        log.error('[ExchangeCode] Token exchange failed:', (error as Record<string, unknown>).response?.data || (error as Error).message);
+        log.warn('[ExchangeCode] Token exchange failed:', (error as Record<string, unknown>).response?.data || (error as Error).message);
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: `授权码换取失败: ${(error as Record<string, unknown>).response?.data?.error_description || (error as Record<string, unknown>).response?.data?.error || (error as Error).message}`,
@@ -174,7 +174,7 @@ export const amazonApiRouter = router({
       }
       // 检查必填字段
       if (!effectiveClientId || !effectiveClientSecret || !input.refreshToken) {
-        log.error('[saveCredentials] 缺少必填字段');
+        log.warn('[saveCredentials] 缺少必填字段');
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: '缺少必填的API凭证字段',
@@ -192,7 +192,7 @@ export const amazonApiRouter = router({
       });
       log.info('[saveCredentials] 验证结果:', isValid);
       if (!isValid) {
-        log.error('[saveCredentials] 凭证验证失败');
+        log.warn('[saveCredentials] 凭证验证失败');
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Invalid API credentials. Please check your credentials and try again.',
@@ -245,7 +245,7 @@ export const amazonApiRouter = router({
           const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
           await triggerImmediateSync(input.accountId, `凭证保存后立即同步 (accountId=${input.accountId}, marketplace=${marketplace})`);
         } catch (syncErr: unknown) {
-          log.error(`[v336] 事件驱动同步触发失败:`, (syncErr as Error).message);
+          log.warn(`[v336] 事件驱动同步触发失败:`, (syncErr as Error).message);
         }
         
         // v338/v360: 凭证刷新场景触发冷启动（新授权场景由accountInitializationService内部触发）
@@ -263,11 +263,11 @@ export const amazonApiRouter = router({
             });
             log.info(`[v338] 账号 ${input.accountId} 凭证刷新冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
           } catch (coldStartErr: unknown) {
-            log.error(`[v338] 凭证刷新冷启动触发失败:`, (coldStartErr as Error).message);
+            log.warn(`[v338] 凭证刷新冷启动触发失败:`, (coldStartErr as Error).message);
           }
         }
       }).catch(err => {
-        log.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
+        log.warn(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
       });
 
       // v361: 记录账户凭证更新审计日志
@@ -523,7 +523,7 @@ export const amazonApiRouter = router({
 
           log.info(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
         } catch (error: unknown) {
-          log.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
+          log.warn(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
           results.push({
             profileId: profile.profileId,
             countryCode: profile.countryCode,
@@ -565,7 +565,7 @@ export const amazonApiRouter = router({
           const accountIds = initResults.map((r: Record<string, unknown>) => r.accountId).join(',');
           await triggerImmediateSync(0, `批量凭证保存后立即同步 (accountIds=${accountIds})`);
         } catch (syncErr: unknown) {
-          log.error(`[v336] 批量事件驱动同步触发失败:`, (syncErr as Error).message);
+          log.warn(`[v336] 批量事件驱动同步触发失败:`, (syncErr as Error).message);
         }
         
         // v338: 批量初始化完成后，为每个新站点触发智能冷启动
@@ -581,14 +581,14 @@ export const amazonApiRouter = router({
               });
               log.info(`[v338] 账号 ${initResult.accountId} (${initResult.marketplace}) 新站点冷启动${coldStartResult.triggered ? '已触发' : '已跳过'}: ${coldStartResult.reason || ''}`);
             } catch (csErr: unknown) {
-              log.error(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, (csErr as Error).message);
+              log.warn(`[v338] 账号 ${initResult.accountId} 冷启动触发失败:`, (csErr as Error).message);
             }
           }
         } catch (coldStartErr: unknown) {
-          log.error(`[v338] 批量冷启动触发失败:`, (coldStartErr as Error).message);
+          log.warn(`[v338] 批量冷启动触发失败:`, (coldStartErr as Error).message);
         }
       }).catch(err => {
-        log.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
+        log.warn(`[saveMultipleProfiles] 批量初始化失败:`, err);
       });
 
       return {
@@ -893,7 +893,7 @@ export const amazonApiRouter = router({
           );
 
           if (!result) {
-            log.error(`[v406-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
+            log.warn(`[v406-同步] 账号 ${input.accountId} 同步失败: 账户不可用`);
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: '账户不可用，无法执行同步',
@@ -910,14 +910,14 @@ export const amazonApiRouter = router({
 
           log.info(`[v406-同步] 账号 ${input.accountId} 同步${result.success ? '完成' : '部分失败'}，耗时 ${result.durationMs}ms，成功 ${result.completedSteps}/${result.totalSteps} 步骤`);
         } catch (error: unknown) {
-          log.error(`[v406-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
+          log.warn(`[v406-同步失败] 账号 ${input.accountId}:`, (error as Error).message);
           try {
             await db.updateSyncJob(jobId, {
               status: 'failed',
               errorMessage: (error as Error).message,
             });
           } catch (dbErr) {
-            log.error(`[v406-同步] 更新失败状态异常:`, dbErr);
+            log.warn(`[v406-同步] 更新失败状态异常:`, dbErr);
           }
         } finally {
           // v406: 在同步完成后才释放锁（移到此处，确保锁在整个同步期间持有）
@@ -929,7 +929,7 @@ export const amazonApiRouter = router({
 
       // 异步执行同步任务，不等待完成
       runSyncAsync().catch(err => {
-        log.error(`[v406-同步异常] 账号 ${input.accountId}:`, err);
+        log.warn(`[v406-同步异常] 账号 ${input.accountId}:`, err);
       });
 
       // 立即返回jobId，前端通过轮询获取进度
@@ -1665,7 +1665,7 @@ export const amazonApiRouter = router({
         const subscriptions = await client.listAmsSubscriptions();
         return { subscriptions };
       } catch (error: unknown) {
-        log.error('[AMS] 获取订阅列表失败:', (error as Error).message);
+        log.warn('[AMS] 获取订阅列表失败:', (error as Error).message);
         return { subscriptions: [], error: (error as Error).message };
       }
     }),
@@ -1713,7 +1713,7 @@ export const amazonApiRouter = router({
         
         return { success: true, subscription };
       } catch (error: unknown) {
-        log.error('[AMS] 创建订阅失败:', (error as Error).message);
+        log.warn('[AMS] 创建订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `创建AMS订阅失败: ${(error as Record<string, unknown>).response?.data?.message || (error as Error).message}`,
@@ -1818,7 +1818,7 @@ export const amazonApiRouter = router({
           message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
         };
       } catch (error: unknown) {
-        log.error('[AMS] 批量创建订阅失败:', (error as Error).message);
+        log.warn('[AMS] 批量创建订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `批量创建AMS订阅失败: ${(error as Error).message}`,
@@ -1857,7 +1857,7 @@ export const amazonApiRouter = router({
         
         return { success: true };
       } catch (error: unknown) {
-        log.error('[AMS] 归档订阅失败:', (error as Error).message);
+        log.warn('[AMS] 归档订阅失败:', (error as Error).message);
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
           message: `归档AMS订阅失败: ${(error as Error).message}`,
@@ -2159,14 +2159,14 @@ export const amazonApiRouter = router({
                   const { triggerImmediateSync } = await import('../sync/dataSyncScheduler');
                   await triggerImmediateSync(accountId, `BatchAuth初始化完成后同步 (accountId=${accountId}, marketplace=${profile.countryCode})`);
                 } catch (syncErr: unknown) {
-                  log.error(`[v336] BatchAuth事件驱动同步触发失败:`, (syncErr as Error).message);
+                  log.warn(`[v336] BatchAuth事件驱动同步触发失败:`, (syncErr as Error).message);
                 }
               }).catch(err => {
-                log.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
+                log.warn(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
               });
               
             } catch (profileError: unknown) {
-              log.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
+              log.warn(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
             }
           }
           
@@ -2178,7 +2178,7 @@ export const amazonApiRouter = router({
           });
           
         } catch (error: unknown) {
-          log.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
+          log.warn(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
           results.push({
             regionCode,
             status: 'error',

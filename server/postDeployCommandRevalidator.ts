@@ -230,7 +230,7 @@ async function revalidatePendingCommands(
   } catch (err: unknown) {
     const cause = (err as Record<string, unknown>)?.cause;
     const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
-    log.error(`[CmdRevalidator] [${targetName}] pending重评估失败: ${(err as Error).message}${causeMsg}`);
+    log.warn(`[CmdRevalidator] [${targetName}] pending重评估失败: ${(err as Error).message}${causeMsg}`);
   }
   
   return result;
@@ -462,7 +462,7 @@ async function auditAndCorrectHistoricalCommands(
   } catch (err: unknown) {
     const cause = (err as Record<string, unknown>)?.cause;
     const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
-    log.error(`[CmdRevalidator] [${targetName}] 历史指令审计失败: ${(err as Error).message}${causeMsg}`);
+    log.warn(`[CmdRevalidator] [${targetName}] 历史指令审计失败: ${(err as Error).message}${causeMsg}`);
   }
   
   return result;
@@ -724,7 +724,7 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
       } catch (targetErr: unknown) {
         const errMsg = `目标${target.name}(${target.id})处理失败: ${(targetErr as Error).message}`;
         errors.push(errMsg);
-        log.error(`[CmdRevalidator] ${errMsg}`);
+        log.warn(`[CmdRevalidator] ${errMsg}`);
         
         targetResults.push({
           targetId: target.id,
@@ -745,7 +745,7 @@ export async function runFullRevalidation(): Promise<FullRevalidationResult> {
     
   } catch (err: unknown) {
     errors.push(`全量重评估失败: ${(err as Error).message}`);
-    log.error(`[CmdRevalidator] 全量重评估失败: ${(err as Error).message}`);
+    log.warn(`[CmdRevalidator] 全量重评估失败: ${(err as Error).message}`);
   }
   
   // 汇总结果

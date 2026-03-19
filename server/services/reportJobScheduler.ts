@@ -61,7 +61,7 @@ class ReportJobScheduler {
           logSync('ReportJobScheduler', `提交${count}个报告任务`, { count });
         }
       } catch (error: unknown) {
-        log.error('[ReportJobScheduler] Submit error:', (error as Error).message);
+        log.warn('[ReportJobScheduler] Submit error:', (error as Error).message);
         logSyncError('ReportJobScheduler', `提交报告任务失败`, { error: (error as Error).message });
       }
     }, SCHEDULER_CONFIG.submitInterval);
@@ -75,7 +75,7 @@ class ReportJobScheduler {
           logSync('ReportJobScheduler', `检查报告状态`, { completed: result.completed, failed: result.failed, pending: result.pending });
         }
       } catch (error: unknown) {
-        log.error('[ReportJobScheduler] Check error:', (error as Error).message);
+        log.warn('[ReportJobScheduler] Check error:', (error as Error).message);
         logSyncError('ReportJobScheduler', `检查报告状态失败`, { error: (error as Error).message });
       }
     }, SCHEDULER_CONFIG.checkInterval);
@@ -89,7 +89,7 @@ class ReportJobScheduler {
           logSync('ReportJobScheduler', `处理${count}个已完成报告`, { count });
         }
       } catch (error: unknown) {
-        log.error('[ReportJobScheduler] Process error:', (error as Error).message);
+        log.warn('[ReportJobScheduler] Process error:', (error as Error).message);
         logSyncError('ReportJobScheduler', `处理报告失败`, { error: (error as Error).message });
       }
     }, SCHEDULER_CONFIG.processInterval);
@@ -103,7 +103,7 @@ class ReportJobScheduler {
           logSync('ReportJobScheduler', `清理${count}个过期任务`, { count });
         }
       } catch (error: unknown) {
-        log.error('[ReportJobScheduler] Cleanup error:', (error as Error).message);
+        log.warn('[ReportJobScheduler] Cleanup error:', (error as Error).message);
         logSyncError('ReportJobScheduler', `清理过期任务失败`, { error: (error as Error).message });
       }
     }, SCHEDULER_CONFIG.cleanupInterval);

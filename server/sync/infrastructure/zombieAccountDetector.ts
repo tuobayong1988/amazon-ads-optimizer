@@ -175,7 +175,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
             });
           } catch (pauseErr: unknown) {
             const errMsg = `暂停账户${accountId}失败: ${(pauseErr as Error).message}`;
-            log.error(`[ZombieDetector] ${errMsg}`);
+            log.warn(`[ZombieDetector] ${errMsg}`);
             result.errors.push(errMsg);
           }
 
@@ -210,7 +210,7 @@ export async function detectAndPauseZombieAccounts(): Promise<ZombieDetectionRes
     return result;
   } catch (error: unknown) {
     const errMsg = `僵尸账户检测失败: ${(error as Error).message}`;
-    log.error(`[ZombieDetector] ${errMsg}`);
+    log.warn(`[ZombieDetector] ${errMsg}`);
     result.errors.push(errMsg);
     return result;
   }

@@ -61,7 +61,7 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     const response = await axios.get(API_URL, { timeout: 10000 });
     
     if (response.data?.result !== 'success' || !response.data?.rates) {
-      log.error('[ExchangeRateService] API返回异常:', response.data?.result);
+      log.warn('[ExchangeRateService] API返回异常:', response.data?.result);
       return null;
     }
     
@@ -90,7 +90,7 @@ async function fetchRatesFromApi(): Promise<Record<string, number> | null> {
     
     return ratesToUsd;
   } catch (error: unknown) {
-    log.error(`[ExchangeRateService] API请求失败: ${(error as Error).message}`);
+    log.warn(`[ExchangeRateService] API请求失败: ${(error as Error).message}`);
     return null;
   }
 }

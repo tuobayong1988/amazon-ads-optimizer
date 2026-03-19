@@ -80,7 +80,7 @@ export async function syncCampaignDailyData(
     
     log.info(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
   } catch (error: unknown) {
-    log.error(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, (error as Error).message);
+    log.warn(`[Daily Sync] 同步广告活动 ${campaignId} 失败:`, (error as Error).message);
     throw error;
   }
 }
@@ -120,7 +120,7 @@ export async function syncAllCampaignsDailyData(
         await db.createDailyPerformance(record as Record<string, unknown>);
         successCount++;
       } catch (error: unknown) {
-        log.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);
+        log.warn(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, (error as Error).message);
         failedCount++;
       }
     }
@@ -132,7 +132,7 @@ export async function syncAllCampaignsDailyData(
     log.info(`[Daily Sync] 同步完成, 成功: ${successCount}, 失败: ${failedCount}`);
     return { success: successCount, failed: failedCount };
   } catch (error: unknown) {
-    log.error('[Daily Sync] 同步失败:', (error as Error).message);
+    log.warn('[Daily Sync] 同步失败:', (error as Error).message);
     throw error;
   }
 }

@@ -516,7 +516,7 @@ async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
       lastTrainedAt: row.lastTrainedAt || new Date().toISOString(),
     };
   } catch (error) {
-    log.error(`[CQL] v230: Failed to load model from DB:`, error);
+    log.warn(`[CQL] v230: Failed to load model from DB:`, error);
     return null;
   }
 }
@@ -565,7 +565,7 @@ async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> 
     
     log.info(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
   } catch (error) {
-    log.error(`[CQL] v230: Failed to save model to DB:`, error);
+    log.warn(`[CQL] v230: Failed to save model to DB:`, error);
   }
 }
 
@@ -632,7 +632,7 @@ export async function makeCQLBidDecision(
     }
     return decision;
   } catch (error) {
-    log.error(`[CQL] Error making decision:`, error);
+    log.warn(`[CQL] Error making decision:`, error);
     return null;
   }
 }

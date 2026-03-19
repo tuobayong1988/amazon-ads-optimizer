@@ -430,7 +430,7 @@ export async function checkEmergencyBrake(
     
     return { triggered: false, reason: null, recommendation: 'none' };
   } catch (error) {
-    log.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error);
+    log.warn(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error);
     return { triggered: false, reason: null, recommendation: 'none' };
   }
 }
@@ -564,7 +564,7 @@ export async function assessRiskLevel(
     return { level, score: Math.min(riskScore, 100), factors, autoResponse };
   } catch (error) {
     // v426: P2-4 修复 — 风险评估异常时安全拒绝（默认红色），而非静默放行（默认绿色）
-    log.error(`[RiskAssessment] 风险评估异常，安全拒绝(RED) for PG ${performanceGroupId}:`, error);
+    log.warn(`[RiskAssessment] 风险评估异常，安全拒绝(RED) for PG ${performanceGroupId}:`, error);
     return {
       level: 'red',
       score: 100,

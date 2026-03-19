@@ -173,7 +173,7 @@ export const dataHealthRouter = router({
         
         return { success: true, error: null, data: results };
       } catch (e: unknown) {
-        log.error('获取数据健康概览失败', e);
+        log.warn('获取数据健康概览失败', e);
         return { success: false, error: (e as Error).message, data: null };
       }
     }),

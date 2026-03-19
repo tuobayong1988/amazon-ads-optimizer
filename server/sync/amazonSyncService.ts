@@ -158,7 +158,7 @@ async function getRecentlyOptimizedKeywordIds(
     if (keywordIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      log.error('v212: 数据库连接不可用，保护机制无法工作！');
+      log.warn('v212: 数据库连接不可用，保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -206,9 +206,9 @@ async function getRecentlyOptimizedKeywordIds(
     log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
+    log.warn('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
     // @ts-expect-error - Error stack access
-    log.error('v212: 错误详情:', (error as Record<string, unknown>).stack?.substring(0, 300));
+    log.warn('v212: 错误详情:', (error as Record<string, unknown>).stack?.substring(0, 300));
     // v212: 即使查询失败，仍返回空Set以不阻塞同步
     // 但通过error级别日志确保问题被发现
     return new Set();
@@ -227,7 +227,7 @@ async function getRecentlyOptimizedCampaignIds(
     if (campaignIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      log.error('v212: 数据库连接不可用，预算保护机制无法工作！');
+      log.warn('v212: 数据库连接不可用，预算保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -248,7 +248,7 @@ async function getRecentlyOptimizedCampaignIds(
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: ❌ 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
+    log.warn('v212: ❌ 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
     return new Set();
   }
 }
@@ -389,7 +389,7 @@ export class AmazonSyncService {
           const durationMs = Date.now() - stepStart;
           failedSteps++;
           results._syncDiagnostics!.push({ stepName, synced: 0, durationMs, error: errMsg });
-          log.error(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${errMsg}`);
+          log.warn(`[syncAll] ❌ 账户${this.accountId} 步骤[${totalSteps}] ${stepName} 失败(${durationMs}ms): ${errMsg}`);
           return null;
         }
       }
@@ -414,7 +414,7 @@ export class AmazonSyncService {
       } catch (layerErr: unknown) {
         const errMsg = (layerErr as Error).message || 'unknown';
         layerResults[layerId] = { success: false, error: errMsg };
-        log.error(`[syncAll] v402: Layer ${layerId} (${layerName}) 失败: ${errMsg}，继续执行后续层`);
+        log.warn(`[syncAll] v402: Layer ${layerId} (${layerName}) 失败: ${errMsg}，继续执行后续层`);
       }
     };
 
@@ -609,7 +609,7 @@ export class AmazonSyncService {
       log.warn(`[syncAll] ⚠️ 账户${this.accountId} 失败步骤: ${failedStepNames.join(', ')}`);
     }
     if (totalSynced === 0 && totalSteps > 0) {
-      log.error(`[syncAll] 🚨 账户${this.accountId} 全量同步完成但总记录数为0！可能存在API授权或数据问题，请检查以上各步骤详情。`);
+      log.warn(`[syncAll] 🚨 账户${this.accountId} 全量同步完成但总记录数为0！可能存在API授权或数据问题，请检查以上各步骤详情。`);
     }
     
     // v361: 记录数据同步审计日志
@@ -665,7 +665,7 @@ export class AmazonSyncService {
       results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
       results.campaigns += results.spCampaigns;
     } catch (error: unknown) {
-      log.error('SP广告活动同步失败:', (error as Error).message);
+      log.warn('SP广告活动同步失败:', (error as Error).message);
     }
     
     try {
@@ -674,7 +674,7 @@ export class AmazonSyncService {
       results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
       results.campaigns += results.sbCampaigns;
     } catch (error: unknown) {
-      log.error('SB广告活动同步失败:', (error as Error).message);
+      log.warn('SB广告活动同步失败:', (error as Error).message);
     }
     
     try {
@@ -683,7 +683,7 @@ export class AmazonSyncService {
       results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
       results.campaigns += results.sdCampaigns;
     } catch (error: unknown) {
-      log.error('SD广告活动同步失败:', (error as Error).message);
+      log.warn('SD广告活动同步失败:', (error as Error).message);
     }
     
     log.info(`广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
@@ -713,7 +713,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
     } catch (e: unknown) {
-      log.error('SP广告组同步失败:', (e as Error).message);
+      log.warn('SP广告组同步失败:', (e as Error).message);
     }
 
     try {
@@ -721,7 +721,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.adGroups += sbAdGroupResult.synced;
     } catch (e: unknown) {
-      log.error('SB广告组同步失败:', (e as Error).message);
+      log.warn('SB广告组同步失败:', (e as Error).message);
     }
 
     try {
@@ -729,7 +729,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.adGroups += sdAdGroupResult.synced;
     } catch (e: unknown) {
-      log.error('SD广告组同步失败:', (e as Error).message);
+      log.warn('SD广告组同步失败:', (e as Error).message);
     }
     
     // ==================== 同步关键词投放（SP + SB） ====================
@@ -738,7 +738,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
     } catch (e: unknown) {
-      log.error('SP关键词同步失败:', (e as Error).message);
+      log.warn('SP关键词同步失败:', (e as Error).message);
     }
 
     try {
@@ -746,7 +746,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.keywords += sbKeywordResult.synced;
     } catch (e: unknown) {
-      log.error('SB关键词同步失败:', (e as Error).message);
+      log.warn('SB关键词同步失败:', (e as Error).message);
     }
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
@@ -755,7 +755,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
     } catch (e: unknown) {
-      log.error('SP商品定位同步失败:', (e as Error).message);
+      log.warn('SP商品定位同步失败:', (e as Error).message);
     }
 
     try {
@@ -763,7 +763,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.targets += sbTargetResult.synced;
     } catch (e: unknown) {
-      log.error('SB商品定位同步失败:', (e as Error).message);
+      log.warn('SB商品定位同步失败:', (e as Error).message);
     }
 
     try {
@@ -771,7 +771,7 @@ export class AmazonSyncService {
       // @ts-expect-error - runtime type mismatch
       results.targets += sdTargetResult.synced;
     } catch (e: unknown) {
-      log.error('SD商品定位同步失败:', (e as Error).message);
+      log.warn('SD商品定位同步失败:', (e as Error).message);
     }
 
     // v196: 中频同步时同时同步搜索词数据（7天窗口），确保搜索词数据不滞后
@@ -780,7 +780,7 @@ export class AmazonSyncService {
       const spSearchTermSynced = await this.syncSearchTerms(7);
       log.info(`v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
     } catch (e: unknown) {
-      log.error('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
+      log.warn('v196: 中频同步 - SP搜索词同步失败:', (e as Error).message);
     }
 
     log.info(`全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
@@ -871,7 +871,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
           const data = await this.client.waitAndDownloadReport(reportId, 300000);
           if (data && data.length > 0) allReportData = data;
         } catch (e: unknown) {
-          log.error(`v413: SP搜索词报告请求失败:`, (e as Error).message);
+          log.warn(`v413: SP搜索词报告请求失败:`, (e as Error).message);
         }
       } else {
         const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -1079,7 +1079,7 @@ AmazonSyncService.prototype.syncSearchTerms = async function(this: AmazonSyncSer
       log.info(`v196: 搜索词同步完成: 同步=${synced}, 跳过=${skipped} (无匹配campaign/adGroup)`);
       return synced;
     } catch (error) {
-      log.error('v196: 同步搜索词失败:', error);
+      log.warn('v196: 同步搜索词失败:', error);
       return 0;
     }
   };
@@ -1107,7 +1107,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
           const data = await this.client.waitAndDownloadReport(reportId, 300000);
           if (data && data.length > 0) allReportData = data;
         } catch (e: unknown) {
-          log.error(`v413: SP自动定向报告请求失败:`, (e as Error).message);
+          log.warn(`v413: SP自动定向报告请求失败:`, (e as Error).message);
         }
       } else {
         const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -1265,7 +1265,7 @@ AmazonSyncService.prototype.syncAutoTargeting = async function(this: AmazonSyncS
       log.info(`自动定向同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      log.error('同步自动定向失败:', error);
+      log.warn('同步自动定向失败:', error);
       return 0;
     }
   };
@@ -1313,12 +1313,12 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
         const sbAdGroupResult = await this.syncSbAdGroups();
         // @ts-expect-error - runtime type mismatch
         results.adGroups += sbAdGroupResult.synced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SB广告组同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SB广告组同步失败:', (e as Error).message); }
       try {
         const sdAdGroupResult = await this.syncSdAdGroups();
         // @ts-expect-error - runtime type mismatch
         results.adGroups += sdAdGroupResult.synced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SD广告组同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SD广告组同步失败:', (e as Error).message); }
 
       // 3. 同步投放词（SP + SB）
       const keywordResult = await this.syncSpKeywords();
@@ -1328,7 +1328,7 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
         const sbKeywordResult = await this.syncSbKeywords();
         // @ts-expect-error - runtime type mismatch
         results.keywords += sbKeywordResult.synced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SB关键词同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SB关键词同步失败:', (e as Error).message); }
 
       // 4. 同步商品定向（SP + SB + SD）
       const targetResult = await this.syncSpProductTargets();
@@ -1338,12 +1338,12 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
         const sbPtResult = await this.syncSbProductTargets();
         // @ts-expect-error - runtime type mismatch
         results.targets += sbPtResult.synced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SB商品定向同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SB商品定向同步失败:', (e as Error).message); }
       try {
         const sdPtResult = await this.syncSdProductTargets();
         // @ts-expect-error - runtime type mismatch
         results.targets += sdPtResult.synced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SD商品定向同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SD商品定向同步失败:', (e as Error).message); }
 
       // 5. 同步自动定向
       const autoTargetResult = await this.syncAutoTargeting(days);
@@ -1364,12 +1364,12 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
         const negKwResult = await this.syncSpNegativeKeywords();
         // @ts-expect-error - runtime type mismatch
         log.info(`[SyncAllAd] SP否定关键词: ${negKwResult.synced}新增, ${negKwResult.updated}更新`);
-      } catch (e: unknown) { log.error('[SyncAllAd] SP否定关键词同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SP否定关键词同步失败:', (e as Error).message); }
       try {
         const negPtResult = await this.syncSpNegativeProductTargets();
         // @ts-expect-error - runtime type mismatch
         log.info(`[SyncAllAd] SP否定商品定向: ${negPtResult.synced}新增, ${negPtResult.updated}更新`);
-      } catch (e: unknown) { log.error('[SyncAllAd] SP否定商品定向同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SP否定商品定向同步失败:', (e as Error).message); }
 
       // 9. 同步搜索词（SP + SB）
       results.searchTerms = await this.syncSearchTerms(days);
@@ -1377,7 +1377,7 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
         const sbStSynced = await this.syncSbSearchTerms(days);
         // @ts-expect-error - runtime type mismatch
         results.searchTerms += sbStSynced;
-      } catch (e: unknown) { log.error('[SyncAllAd] SB搜索词同步失败:', (e as Error).message); }
+      } catch (e: unknown) { log.warn('[SyncAllAd] SB搜索词同步失败:', (e as Error).message); }
 
       // 10. 同步位置绩效
       // @ts-expect-error - runtime type mismatch
@@ -1385,7 +1385,7 @@ AmazonSyncService.prototype.syncAllAdData = async function(this: AmazonSyncServi
 
       log.info(`完整同步完成:`, results);
     } catch (error) {
-      log.error('完整同步失败:', error);
+      log.warn('完整同步失败:', error);
     }
 
     return results;
@@ -1411,7 +1411,7 @@ AmazonSyncService.prototype.syncPerformanceOnly = async function(this: AmazonSyn
       results.performance = await this.syncPerformanceData(days);
       log.info(`绩效数据同步完成: ${results.performance} 条记录`);
     } catch (error) {
-      log.error('绩效数据同步失败:', error);
+      log.warn('绩效数据同步失败:', error);
     }
     // v192: 同步关键词级别绩效数据（之前仅在syncAll中执行，导致keywords表绩效全为0）
     try {
@@ -1420,7 +1420,7 @@ AmazonSyncService.prototype.syncPerformanceOnly = async function(this: AmazonSyn
       results.keywordPerf = await this.syncKeywordPerformanceData(days);
       log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
     } catch (kwPerfError: unknown) {
-      log.error('关键词绩效数据同步失败:', (kwPerfError as Error).message);
+      log.warn('关键词绩效数据同步失败:', (kwPerfError as Error).message);
     }
     // v192: 同步商品定位级别绩效数据
     try {
@@ -1429,7 +1429,7 @@ AmazonSyncService.prototype.syncPerformanceOnly = async function(this: AmazonSyn
       results.targetPerf = await this.syncProductTargetPerformanceData(days);
       log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
     } catch (ptPerfError: unknown) {
-      log.error('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
+      log.warn('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
     }
     return results;
   };
@@ -1528,7 +1528,7 @@ AmazonSyncService.prototype.syncAssetUrls = async function(this: AmazonSyncServi
 
        return updated;
     } catch (error: unknown) {
-      log.error('syncAssetUrls失败:', (error as Error).message);
+      log.warn('syncAssetUrls失败:', (error as Error).message);
       throw error;
     }
   };
@@ -1564,7 +1564,7 @@ export async function syncInitialHistoricalData(
     results.performance = await syncService.syncPerformanceData(90);
     log.info(`首次同步完成: ${results.performance} 条历史绩效记录`);
   } catch (error) {
-    log.error('首次同步失败:', error);
+    log.warn('首次同步失败:', error);
   }
 
   return results;

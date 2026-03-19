@@ -93,7 +93,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
               executedAt: now,
             } as Record<string, unknown>);
           } catch (safetyLogErr: unknown) {
-            log.error(`[recordExecutionLog] v335: 安全检查日志写入失败: ${(safetyLogErr as Error).message}`);
+            log.warn(`[recordExecutionLog] v335: 安全检查日志写入失败: ${(safetyLogErr as Error).message}`);
           }
           continue; // 跳过后续的bid_adjustment日志写入
         }
@@ -143,7 +143,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
             guardrailInfo: detail.guardrailInfo ? JSON.stringify(detail.guardrailInfo) : undefined,
           } as Record<string, unknown>);
         } catch (insertError: unknown) {
-          log.error(`[recordExecutionLog] 出价日志写入失败: ${(insertError as Error).message}`, { keywordId: detail.keywordId, itemSyncStatus });
+          log.warn(`[recordExecutionLog] 出价日志写入失败: ${(insertError as Error).message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
       }
     }
@@ -400,7 +400,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
           directConn.release(); // v350: 归还连接到池
         }
       } catch (directErr: unknown) {
-        log.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${(directErr as Error).message}`);
+        log.warn(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${(directErr as Error).message}`);
       }
     }
     
@@ -418,7 +418,7 @@ export async function recordExecutionLog(result: OptimizationExecutionResult): P
       adGroupsEnabled: result.adGroupStatusChanges.enabledCount,
     });
   } catch (error: unknown) {
-    log.error(`[OptimizationTargetEngine] 日志写入失败:`, (error as Error).message);
+    log.warn(`[OptimizationTargetEngine] 日志写入失败:`, (error as Error).message);
     // 回退到console.log
     log.info(`[OptimizationTargetEngine] 执行完成(日志回退): ${result.targetName}`, {
       status: result.status,

@@ -106,9 +106,9 @@ export function registerGracefulShutdown(server: unknown): void {
   
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
-    log.error(`[LifecycleManager] 未捕获异常: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 未捕获异常: ${(error as Error).message}`);
     // @ts-expect-error - error stack access
-    log.error(error.stack as unknown);
+    log.warn(error.stack as unknown);
     await handleShutdown('uncaughtException');
   });
   
@@ -116,15 +116,15 @@ export function registerGracefulShutdown(server: unknown): void {
   process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
     const errorMessage = reason instanceof Error ? reason.message : String(reason);
     const errorStack = reason instanceof Error ? reason.stack : undefined;
-    log.error(`[LifecycleManager] 未处理的Promise拒绝: ${errorMessage}`);
+    log.warn(`[LifecycleManager] 未处理的Promise拒绝: ${errorMessage}`);
     if (errorStack) {
       // @ts-expect-error - type assertion
-      log.error(errorStack as unknown);
+      log.warn(errorStack as unknown);
     }
     // 记录但不关闭进程，避免因单个异步失败导致服务中断
     // 如果是严重的数据库连接错误，触发优雅关闭
     if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('PROTOCOL_CONNECTION_LOST')) {
-      log.error('[LifecycleManager] 检测到严重连接错误，触发优雅关闭');
+      log.warn('[LifecycleManager] 检测到严重连接错误，触发优雅关闭');
       handleShutdown('unhandledRejection-critical').catch(() => {});
     }
   });
@@ -173,7 +173,7 @@ async function handleShutdown(signal: string): Promise<void> {
     log.info(`[LifecycleManager] 优雅关闭完成 (耗时: ${Date.now() - shutdownState.shutdownStartedAt.getTime()}ms)`);
     
   } catch (error: unknown) {
-    log.error(`[LifecycleManager] 关闭过程出错: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 关闭过程出错: ${(error as Error).message}`);
   } finally {
     // 确保进程退出
     process.exit(0);
@@ -232,7 +232,7 @@ async function stopNewTaskAcceptance(): Promise<void> {
     }
     
   } catch (error: unknown) {
-    log.error(`[LifecycleManager] 停止任务源失败: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 停止任务源失败: ${(error as Error).message}`);
   }
 }
 
@@ -370,7 +370,7 @@ async function persistShutdownState(): Promise<void> {
     }
     
   } catch (error: unknown) {
-    log.error(`[LifecycleManager] 状态持久化失败: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 状态持久化失败: ${(error as Error).message}`);
   }
 }
 
@@ -595,7 +595,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
     diagnostics.versionChanged = diagnostics.previousVersion !== null && diagnostics.previousVersion < SYSTEM_VERSION;
     
   } catch (error: unknown) {
-    log.error(`[LifecycleManager] 启动诊断失败: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 启动诊断失败: ${(error as Error).message}`);
   }
   
   // 输出诊断结果
@@ -652,7 +652,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
     
     return recovered;
   } catch (error: unknown) {
-    log.error(`[LifecycleManager] 恢复中断任务失败: ${(error as Error).message}`);
+    log.warn(`[LifecycleManager] 恢复中断任务失败: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -845,12 +845,12 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
             VALUES (0, 'settings_change', 'auto_correction', ${syncDetail}, ${`v${SYSTEM_VERSION} 部署后完整同步完成: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}成功`}, ${`v${SYSTEM_VERSION}`}, 'success', 'not_applicable')
           `);
         } catch (syncErr: unknown) {
-          log.error(`[LifecycleManager] v405: 部署后轻量级同步失败: ${(syncErr as Error).message}`);
+          log.warn(`[LifecycleManager] v405: 部署后轻量级同步失败: ${(syncErr as Error).message}`);
         }
       }, 15 * 1000); // 延迟15秒，给系统时间完成初始化
     }
   } catch (syncRecoveryErr: unknown) {
-    log.error(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${(syncRecoveryErr as Error).message}`);
+    log.warn(`[LifecycleManager] v335: 数据同步恢复失败（不影响系统启动）: ${(syncRecoveryErr as Error).message}`);
   }
   
   // 步骤4: 延迟30秒后执行纠错和重优化
@@ -879,7 +879,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
         }
       } catch (deployErr: unknown) {
-        log.error(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${(deployErr as Error).message}`);
+        log.warn(`[LifecycleManager] v329: 部署后重优化失败（已隔离，继续执行纠错）: ${(deployErr as Error).message}`);
       }
       
       // 步骤4c: 运行API执行级纠错（独立错误隔离）
@@ -890,7 +890,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
         corrResult = await runAutoCorrection();
         log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
       } catch (corrErr: unknown) {
-        log.error(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${(corrErr as Error).message}`);
+        log.warn(`[LifecycleManager] v329: 纠错扫描失败（已隔离，继续执行验证）: ${(corrErr as Error).message}`);
       }
       
       // 步骤4d: v329 部署后效果验证（独立错误隔离 + raw SQL记录）
@@ -948,7 +948,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
           log.info(`[LifecycleManager] v338: 无需冷启动（所有账户已在当前版本执行过）`);
         }
       } catch (coldStartErr: unknown) {
-        log.error(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
+        log.warn(`[LifecycleManager] v338: 智能冷启动失败（已隔离，不影响系统运行）: ${(coldStartErr as Error).message}`);
       }
       
       // 步骤4e2: v361 部署后指令重评估与自动纠错（独立错误隔离）
@@ -958,7 +958,7 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
         const revalResult = await runFullRevalidation();
         log.info(`[LifecycleManager] v361: ✓ 指令重评估完成: ${revalResult.targetsProcessed}个目标, pending=${revalResult.totalPendingRevalidated}(取消${revalResult.totalPendingCancelled},重触发${revalResult.totalPendingRetriggered}), 历史纠正=${revalResult.totalCorrectionsGenerated}`);
       } catch (revalErr: unknown) {
-        log.error(`[LifecycleManager] v361: 指令重评估失败（已隔离，不影响系统运行）: ${(revalErr as Error).message}`);
+        log.warn(`[LifecycleManager] v361: 指令重评估失败（已隔离，不影响系统运行）: ${(revalErr as Error).message}`);
       }
       
       // 步骤4f: 如果是crash恢复，记录恢复完成事件（独立错误隔离 + raw SQL）
@@ -1005,9 +1005,9 @@ export async function orchestrateStartup(server: unknown): Promise<void> {
       log.debug(`[LifecycleManager] ========================================\n`);
       
     } catch (err: unknown) {
-      log.error(`[LifecycleManager] 启动协调任务失败: ${(err as Error).message}`);
+      log.warn(`[LifecycleManager] 启动协调任务失败: ${(err as Error).message}`);
       // @ts-expect-error - error stack access
-      log.error((err as Error).stack);
+      log.warn((err as Error).stack);
     }
   }, 30 * 1000);
   

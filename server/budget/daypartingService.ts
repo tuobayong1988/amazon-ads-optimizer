@@ -691,7 +691,7 @@ export async function ensureDaypartingStrategy(
     
     return await getDaypartingStrategy(strategyId);
   } catch (err: unknown) {
-    log.error(`[DaypartingService] v157: 自动创建分时策略失败: ${(err as Error).message}`);
+    log.warn(`[DaypartingService] v157: 自动创建分时策略失败: ${(err as Error).message}`);
     return null;
   }
 }

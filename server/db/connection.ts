@@ -56,7 +56,7 @@ function startLeakChecker() {
           tracked.releaseFunc();
           _poolStats.autoReclaimed++;
         } catch (e) {
-          log.error(`[Database] v394: 自动回收连接 #${id} 失败: ${(e as Error).message}`);
+          log.warn(`[Database] v394: 自动回收连接 #${id} 失败: ${(e as Error).message}`);
         }
         _activeConnections.delete(id);
       }
@@ -222,7 +222,7 @@ export async function getDirectConnection(timeoutMs: number = 30_000): Promise<m
     
     return conn;
   } catch (error: unknown) {
-    log.error(`[Database] v350: 获取直接连接失败: ${(error as Error).message}`);
+    log.warn(`[Database] v350: 获取直接连接失败: ${(error as Error).message}`);
     throw error;
   }
 }

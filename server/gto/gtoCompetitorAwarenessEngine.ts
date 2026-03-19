@@ -246,7 +246,7 @@ export async function analyzeCompetitionForCampaign(
       reasoning,
     };
   } catch (error: unknown) {
-    log.error(`[GTO-CompetitorAwareness] Error analyzing competition: ${(error as Error).message}`);
+    log.warn(`[GTO-CompetitorAwareness] Error analyzing competition: ${(error as Error).message}`);
     return buildDefaultProfile(`分析异常: ${(error as Error).message}`);
   }
 }

@@ -93,7 +93,7 @@ export async function geminiGenerateImage(
     });
 
     if (!response.ok) {
-      log.error(`Gemini Image API error: ${response.status} ${response.statusText}`);
+      log.warn(`Gemini Image API error: ${response.status} ${response.statusText}`);
       return null;
     }
 
@@ -112,7 +112,7 @@ export async function geminiGenerateImage(
     }
     return null;
   } catch (error) {
-    log.error('Gemini image generation failed:', error);
+    log.warn('Gemini image generation failed:', error);
     return null;
   }
 }

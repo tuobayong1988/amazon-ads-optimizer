@@ -217,7 +217,7 @@ export async function triggerInitialOptimization(
       }
     } catch (execError: unknown) {
       errors.push(`首次优化执行失败: ${(execError as Error).message}`);
-      log.error(`[${config.name}] 首次优化执行失败:`, (execError as Error).message);
+      log.warn(`[${config.name}] 首次优化执行失败:`, (execError as Error).message);
     }
     
     // ==================== 阶段3: 注册后续定时调度 ====================
@@ -241,7 +241,7 @@ export async function triggerInitialOptimization(
         `下次执行=${schedulingResult.nextExecutionTime.toISOString()}`);
     } catch (schedError: unknown) {
       errors.push(`调度注册失败: ${(schedError as Error).message}`);
-      log.error(`[${config.name}] 调度注册失败:`, (schedError as Error).message);
+      log.warn(`[${config.name}] 调度注册失败:`, (schedError as Error).message);
     }
     
     result.success = errors.length === 0;
@@ -283,7 +283,7 @@ export async function triggerInitialOptimization(
     
   } catch (error: unknown) {
     result.errors.push(`首次优化失败: ${(error as Error).message}`);
-    log.error(`[${result.targetName}] 首次优化失败:`, error);
+    log.warn(`[${result.targetName}] 首次优化失败:`, error);
   }
   
   result.duration = Date.now() - startTime;
@@ -413,7 +413,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
   } catch (error: unknown) {
     scheduled.status = 'error';
     scheduled.lastError = (error as Error).message;
-    log.error(`定时执行失败: targetId=${targetId}:`, (error as Error).message);
+    log.warn(`定时执行失败: targetId=${targetId}:`, (error as Error).message);
     logOptimizationError('OptScheduler', `定时执行失败`, { targetId, error: (error as Error).message });
     
     // 连续失败3次后暂停调度
@@ -447,7 +447,7 @@ export async function startOptimizationScheduler(): Promise<{
   try {
     const dbInstance = await getDb();
     if (!dbInstance) {
-      log.error('数据库连接失败，调度器启动失败');
+      log.warn('数据库连接失败，调度器启动失败');
       return { total: 0, scheduled: 0, errors: 1 };
     }
     
@@ -478,7 +478,7 @@ export async function startOptimizationScheduler(): Promise<{
         await registerScheduledExecution(target.id, target.name, 'daily');
         scheduled++;
       } catch (error: unknown) {
-        log.error(`注册优化目标 ${target.id} 失败:`, (error as Error).message);
+        log.warn(`注册优化目标 ${target.id} 失败:`, (error as Error).message);
         errors++;
       }
     }
@@ -491,7 +491,7 @@ export async function startOptimizationScheduler(): Promise<{
     
     return { total: activeTargets.length, scheduled, errors };
   } catch (error: unknown) {
-    log.error('调度器启动失败:', (error as Error).message);
+    log.warn('调度器启动失败:', (error as Error).message);
     isSchedulerRunning = false;
     return { total: 0, scheduled: 0, errors: 1 };
   }
@@ -560,7 +560,7 @@ export async function onTargetStatusChanged(
     log.info(`优化目标 ${targetId} 已启用，触发首次优化`);
     // 异步执行，不阻塞API响应
     triggerInitialOptimization(targetId, { triggeredBy: 'enable' }).catch(err => {
-      log.error(`启用触发优化失败:`, err);
+      log.warn(`启用触发优化失败:`, err);
     });
   } else {
     // 暂停或归档时，取消调度
@@ -583,7 +583,7 @@ export async function onCampaignsAdded(
     triggeredBy: 'add_campaigns',
     campaignIds,
   }).catch(err => {
-    log.error(`添加广告活动触发优化失败:`, err);
+    log.warn(`添加广告活动触发优化失败:`, err);
   });
 }
 
@@ -636,7 +636,7 @@ export async function triggerAccountOptimizations(
   try {
     const dbInstance = await getDb();
     if (!dbInstance) {
-      log.error(`v151: 数据库连接失败`);
+      log.warn(`v151: 数据库连接失败`);
       result.errorCount = 1;
       return result;
     }
@@ -724,7 +724,7 @@ export async function triggerAccountOptimizations(
           status: 'error',
           reason: (error as Error).message,
         });
-        log.error(`v151: 优化目标 ${target.name} 执行失败:`, (error as Error).message);
+        log.warn(`v151: 优化目标 ${target.name} 执行失败:`, (error as Error).message);
       }
     }
     
@@ -732,7 +732,7 @@ export async function triggerAccountOptimizations(
       `触发=${result.triggeredCount}, 跳过=${result.skippedCount}, 错误=${result.errorCount}`);
     
   } catch (error: unknown) {
-    log.error(`v151: 账户 ${accountId} 优化触发异常:`, (error as Error).message);
+    log.warn(`v151: 账户 ${accountId} 优化触发异常:`, (error as Error).message);
     result.errorCount++;
   }
   

@@ -74,7 +74,7 @@ export async function getRecentlyOptimizedKeywordIds(
     if (keywordIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      log.error('v212: 数据库连接不可用，保护机制无法工作！');
+      log.warn('v212: 数据库连接不可用，保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -121,7 +121,7 @@ export async function getRecentlyOptimizedKeywordIds(
     log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
+    log.warn('v212: 批量查询优化关键词失败，保护机制降级！', (error instanceof Error ? (error as Error).message : String(error)));
     return new Set();
   }
 }
@@ -137,7 +137,7 @@ export async function getRecentlyOptimizedCampaignIds(
     if (campaignIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      log.error('v212: 数据库连接不可用，预算保护机制无法工作！');
+      log.warn('v212: 数据库连接不可用，预算保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -158,7 +158,7 @@ export async function getRecentlyOptimizedCampaignIds(
     log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    log.error('v212: 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
+    log.warn('v212: 批量查询优化广告活动失败:', (error instanceof Error ? (error as Error).message : String(error)));
     return new Set();
   }
 }

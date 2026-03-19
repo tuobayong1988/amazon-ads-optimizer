@@ -497,7 +497,7 @@ export async function executeDaypartingOptimization(
             } catch (retryError: unknown) {
               adjustment.apiSyncStatus = 'failed';
               adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message, retryError: (retryError as Error).message });
-              log.error(`[DaypartingOptimization] v267 重试也失败 (kw ${keyword.keywordText}):`, (retryError as Error).message);
+              log.warn(`[DaypartingOptimization] v267 重试也失败 (kw ${keyword.keywordText}):`, (retryError as Error).message);
             }
           }
         }
@@ -648,7 +648,7 @@ export async function executeDaypartingBudgetOptimization(
         } catch (apiError: unknown) {
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-          log.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+          log.warn(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }
     } catch (error: unknown) {

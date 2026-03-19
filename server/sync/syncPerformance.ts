@@ -70,7 +70,7 @@ declare module '../../amazonSyncService' {
 AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyncService, days: number = 14): Promise<number> {
   const db = await getDb();
   if (!db) {
-    log.error('[v358] 数据库连接失败 - 这是一个真实错误，不是"0条数据"');
+    log.warn('[v358] 数据库连接失败 - 这是一个真实错误，不是"0条数据"');
     // v358: 抛出错误而不是返回0，让调用方知道这是失败而非空数据
     throw new Error('DATABASE_UNAVAILABLE: 数据库连接失败');
   }
@@ -125,7 +125,7 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
         if (errMsg.includes('retention') || errMsg.includes('startDate') || errMsg.includes('configuration date')) {
           log.warn(`[v474] 第${batch + 1}/${batches}批超出数据保留期，跳过: ${startDateStr}~${endDateStr}`);
         } else {
-          log.error(`[v358] 第${batch + 1}/${batches}批同步失败: ${errMsg}`);
+          log.warn(`[v358] 第${batch + 1}/${batches}批同步失败: ${errMsg}`);
           failedBatches.push({
             batch: batch + 1,
             startDate: startDateStr,
@@ -145,13 +145,13 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       const hourlyGenerated = await this.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
       log.info(`v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
     } catch (hourlyErr: unknown) {
-      log.error(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
+      log.warn(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
     }
     
     // v358: 如果有失败批次，抛出错误让调用方知道同步不完整
     if (failedBatches.length > 0) {
       const failSummary = failedBatches.map(fb => `批次${fb.batch}(${fb.startDate}~${fb.endDate}): ${fb.error}`).join('; ');
-      log.error(`[v358] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
+      log.warn(`[v358] 绩效数据同步部分失败: ${failedBatches.length}/${batches}批失败, 成功同步${totalSynced}条. 失败详情: ${failSummary}`);
       throw new Error(`PARTIAL_SYNC_FAILURE: ${failedBatches.length}/${batches}批失败, 成功${totalSynced}条. ${failSummary}`);
     }
     
@@ -163,13 +163,13 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
       throw error;
     }
     // @ts-expect-error - error message access
-    log.error(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: (error as Error).message, status: error.status || (error as Record<string, unknown>).response?.status, code: (error as Record<string, unknown>).code })}`);
-    log.error('[v242] 详细错误:', (error as Error).stack?.substring(0, 500));
+    log.warn(`[v242] 同步绩效数据失败: ${JSON.stringify({ message: (error as Error).message, status: error.status || (error as Record<string, unknown>).response?.status, code: (error as Record<string, unknown>).code })}`);
+    log.warn('[v242] 详细错误:', (error as Error).stack?.substring(0, 500));
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
     // @ts-expect-error - error message access
     if (error.message?.includes('timeout') || (error as Error).message?.includes('PENDING') || (error as Error).message?.includes('Report generation')) {
-      log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
+      log.warn('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
     }
     
     // v358: 抛出错误而不是返回0
@@ -256,7 +256,7 @@ AmazonSyncService.prototype.syncPerformanceDataBatch = async function(this: Amaz
           log.warn(`[${name}] 尝试${attempt}失败: ${errMsg}, ${delay/1000}秒后重试...`);
           await new Promise(r => setTimeout(r, delay));
         } else {
-          log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${errMsg}`);
+          log.warn(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${errMsg}`);
           return null;
         }
       }
@@ -602,7 +602,7 @@ AmazonSyncService.prototype.processReportData = async function(this: AmazonSyncS
     log.info(`  - 总同步: ${synced} 条`);
     return synced;
   } catch (error: unknown) {
-    log.error(`[v358] ${adType}报告数据处理失败:`, (error as Error).message);
+    log.warn(`[v358] ${adType}报告数据处理失败:`, (error as Error).message);
     // v358: 抛出错误而不是返回0，让调用方知道这是处理失败
     throw new Error(`${adType}_REPORT_PROCESS_FAILED: ${(error as Error).message}`);
   }
@@ -697,7 +697,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
     log.info(`模拟绩效数据生成完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('生成模拟绩效数据失败:', error);
+    log.warn('生成模拟绩效数据失败:', error);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -710,7 +710,7 @@ AmazonSyncService.prototype.generateMockPerformanceData = async function(this: A
 AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: AmazonSyncService, days: number = 7): Promise<number> {
   const db = await getDb();
   if (!db) {
-    log.error('数据库连接失败');
+    log.warn('数据库连接失败');
     // v358: 数据库不可用是真实错误
     throw new Error('DATABASE_UNAVAILABLE: 数据库连接不可用');
   }
@@ -736,7 +736,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         if (_is425) {
           log.warn(`v413: 关键词绩效报告请求失败 (expected 425): ${_errMsg}`);
         } else {
-          log.error(`v413: 关键词绩效报告请求失败: ${_errMsg}`);
+          log.warn(`v413: 关键词绩效报告请求失败: ${_errMsg}`);
         }
       }
     } else {
@@ -971,7 +971,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
             await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
             dbWritten++;
           } catch (e: unknown) {
-            log.error(`v387: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
+            log.warn(`v387: 更新keyword ${upd.id} 失败: ${(e as Error).message}`);
           }
         }
       }
@@ -992,7 +992,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
             await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
             dbWritten++;
           } catch (e: unknown) {
-            log.error(`v387: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
+            log.warn(`v387: 更新product_target ${upd.id} 失败: ${(e as Error).message}`);
           }
         }
       }
@@ -1035,7 +1035,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
       // @ts-expect-error - Axios error response access
       responseData: (error as Error & { response?: unknown }).response?.data ? JSON.stringify((error as Error & { response?: unknown }).response.data).substring(0, 500) : undefined,
     };
-    log.error(`[v242] 关键词绩效同步失败(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
+    log.warn(`[v242] 关键词绩效同步失败(marketplace=${this.marketplace}): ${JSON.stringify(errorInfo)}`);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -1200,7 +1200,7 @@ AmazonSyncService.prototype.generateHourlyFromDaily = async function(this: Amazo
     
     return insertedCount;
   } catch (error: unknown) {
-    log.error('v195: generateHourlyFromDaily失败:', (error as Error).message);
+    log.warn('v195: generateHourlyFromDaily失败:', (error as Error).message);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -1263,7 +1263,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           const data = await this.client.waitAndDownloadReport(reportId);
           return data || [];
         } catch (e: unknown) {
-          log.error(`v413: ${reportName}报告请求失败:`, (e as Error).message);
+          log.warn(`v413: ${reportName}报告请求失败:`, (e as Error).message);
           return [];
         }
       }
@@ -1364,7 +1364,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           log.info(`SP广告组绩效同步: ${synced} 条记录`);
         }
       } catch (error) {
-        log.error('SP广告组绩效同步失败:', error);
+        log.warn('SP广告组绩效同步失败:', error);
       }
     }
 
@@ -1416,7 +1416,7 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           log.info(`SB广告组绩效同步: ${sbSynced} 条记录`);
         }
       } catch (error) {
-        log.error('SB广告组绩效同步失败:', error);
+        log.warn('SB广告组绩效同步失败:', error);
       }
     }
 
@@ -1472,14 +1472,14 @@ AmazonSyncService.prototype.syncAdGroupPerformanceData = async function(this: Am
           log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
         }
       } catch (error) {
-        log.error('SD广告组绩效同步失败:', error);
+        log.warn('SD广告组绩效同步失败:', error);
       }
     }
 
     log.info(`广告组绩效同步完成: 共 ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('广告组绩效同步失败:', error);
+    log.warn('广告组绩效同步失败:', error);
     return synced;
   }
 };
@@ -1509,7 +1509,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
         const data = await this.client.waitAndDownloadReport(reportId, 300000);
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: SP广告位报告请求失败:`, (e as Error).message);
+        log.warn(`v413: SP广告位报告请求失败:`, (e as Error).message);
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -1675,7 +1675,7 @@ AmazonSyncService.prototype.syncPlacementPerformance = async function(this: Amaz
     log.info(`位置绩效同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('同步位置绩效失败:', error);
+    log.warn('同步位置绩效失败:', error);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -1864,7 +1864,7 @@ AmazonSyncService.prototype.updateCampaignPerformanceSummary = async function(th
 
     log.info(`[v391] 广告活动绩效汇总批量更新完成: ${updatedCount}个 (SQL查询从${accountCampaigns.length * 2}+次减少到4次)`);
   } catch (error) {
-    log.error('[v391] 更新广告活动绩效汇总失败:', error);
+    log.warn('[v391] 更新广告活动绩效汇总失败:', error);
   }
 };
 

@@ -152,7 +152,7 @@ export async function getPerformanceGroupsByAccountId(accountId: number) {
     log.debug('[db.getPerformanceGroupsByAccountId] filtered result count:', result.length);
     return result;
   } catch (error) {
-    log.error('[db.getPerformanceGroupsByAccountId] error:', error);
+    log.warn('[db.getPerformanceGroupsByAccountId] error:', error);
     return [];
   }
 }

@@ -414,7 +414,7 @@ export class SQSConsumerService {
         const errMsg = (error as Error).message || 'Unknown error';
         const errName = (error as Record<string, unknown>).name || 'Error';
         const statusCode = (error as Record<string, unknown>).$metadata?.httpStatusCode || (error as Record<string, unknown>).statusCode || '';
-        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
+        log.warn(`[SQS Consumer] 队列 ${queue.name} 轮询错误: [${errName}${statusCode ? ` HTTP ${statusCode}` : ''}] ${errMsg}`);
         logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, errorName: errName, statusCode, error: errMsg });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
@@ -471,7 +471,7 @@ export class SQSConsumerService {
           status.lastProcessedAt = new Date().toISOString();
         }
       } catch (error: unknown) {
-        log.error(`[SQS Consumer] 处理消息失败:`, (error as Error).message);
+        log.warn(`[SQS Consumer] 处理消息失败:`, (error as Error).message);
         logSyncError('SQSConsumer', `处理消息失败`, { queue: queue.name, error: (error as Error).message });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
@@ -494,7 +494,7 @@ export class SQSConsumerService {
     try {
       body = JSON.parse(message.Body);
     } catch (e) {
-      log.error('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
+      log.warn('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
       logSyncError('SQSConsumer', 'JSON解析失败', { preview: message.Body.substring(0, 200) });
       return;
     }
@@ -511,7 +511,7 @@ export class SQSConsumerService {
       try {
         amsData = JSON.parse(body.Message);
       } catch (e) {
-        log.error('[SQS Consumer] 解析SNS消息内容失败');
+        log.warn('[SQS Consumer] 解析SNS消息内容失败');
         return;
       }
     }
@@ -557,10 +557,10 @@ export class SQSConsumerService {
         if (response.status === 200) {
           log.info(`[SQS Consumer] SNS订阅确认成功: TopicArn=${topicArn}`);
         } else {
-          log.error(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
+          log.warn(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
         }
       } catch (error: unknown) {
-        log.error(`[SQS Consumer] SNS订阅确认请求失败:`, (error as Error).message);
+        log.warn(`[SQS Consumer] SNS订阅确认请求失败:`, (error as Error).message);
       }
     }
   }
@@ -644,7 +644,7 @@ export class SQSConsumerService {
       });
       log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {
-      log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, (error as Error).message);
+      log.warn(`[SQS Consumer] 保存${adType}流量数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (keyword × placement × hour)
@@ -738,7 +738,7 @@ export class SQSConsumerService {
       });
       log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${amazonCampaignId || 'N/A(account-level)'}, date=${date}`);
     } catch (error: unknown) {
-      log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, (error as Error).message);
+      log.warn(`[SQS Consumer] 保存${adType}转化数据失败:`, (error as Error).message);
     }
     
     // v183: 写入交叉维度绩效表 (转化数据)
@@ -790,7 +790,7 @@ export class SQSConsumerService {
         });
         log.info(`[SQS Consumer] ${adType}预算状态已更新: campaignId=${campaignId}`);
       } catch (error: unknown) {
-        log.error(`[SQS Consumer] 更新${adType}预算状态失败:`, (error as Error).message);
+        log.warn(`[SQS Consumer] 更新${adType}预算状态失败:`, (error as Error).message);
       }
     }
     
@@ -835,7 +835,7 @@ export class SQSConsumerService {
       
       return account ? { id: account.id } : null;
     } catch (error: unknown) {
-      log.error(`[SQS Consumer] 查找账户失败:`, (error as Error).message);
+      log.warn(`[SQS Consumer] 查找账户失败:`, (error as Error).message);
       return null;
     }
   }
@@ -876,7 +876,7 @@ export class SQSConsumerService {
           messagesInFlight: parseInt(response.Attributes?.ApproximateNumberOfMessagesNotVisible || '0'),
         });
       } catch (error: unknown) {
-        log.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, (error as Error).message);
+        log.warn(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, (error as Error).message);
         stats.push({
           name: queue.name,
           adType: queue.adType,

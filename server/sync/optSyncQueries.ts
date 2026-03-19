@@ -682,7 +682,7 @@ export async function cleanupZombieTasks(conn: unknown): Promise<number> {
     ) as unknown[];
     return (result as unknown)?.affectedRows || 0;
   } catch (err: unknown) {
-    log.error(`[OptSyncQueries] 僵尸任务清理失败: ${(err as Error).message}`);
+    log.warn(`[OptSyncQueries] 僵尸任务清理失败: ${(err as Error).message}`);
     return 0;
   }
 }
@@ -700,7 +700,7 @@ export async function cleanupDeletedKeywordTasks(conn: unknown): Promise<number>
     ) as unknown[];
     return (result as unknown)?.affectedRows || 0;
   } catch (err: unknown) {
-    log.error(`[OptSyncQueries] keyword任务清理失败: ${(err as Error).message}`);
+    log.warn(`[OptSyncQueries] keyword任务清理失败: ${(err as Error).message}`);
     return 0;
   }
 }
@@ -718,7 +718,7 @@ export async function cleanupDeletedProductTargetTasks(conn: unknown): Promise<n
     ) as unknown[];
     return (result as unknown)?.affectedRows || 0;
   } catch (err: unknown) {
-    log.error(`[OptSyncQueries] product_target任务清理失败: ${(err as Error).message}`);
+    log.warn(`[OptSyncQueries] product_target任务清理失败: ${(err as Error).message}`);
     return 0;
   }
 }
@@ -750,7 +750,7 @@ export async function getBatchTaskStats(
     }
     return { synced, failed, pending, retry, permanentlyFailed };
   } catch (err: unknown) {
-    log.error(`[OptSyncQueries] getBatchTaskStats失败: ${(err as Error).message}`);
+    log.warn(`[OptSyncQueries] getBatchTaskStats失败: ${(err as Error).message}`);
     return { synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
   }
 }
@@ -801,7 +801,7 @@ export async function getRecoverableFailedTasks(
     ) as unknown[];
     return rows as Record<string, unknown>[];
   } catch (err: unknown) {
-    log.error(`[OptSyncQueries] getRecoverableFailedTasks失败: ${(err as Error).message}`);
+    log.warn(`[OptSyncQueries] getRecoverableFailedTasks失败: ${(err as Error).message}`);
     return [];
   }
 }

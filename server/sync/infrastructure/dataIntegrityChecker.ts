@@ -96,7 +96,7 @@ export async function checkAccountIntegrity(
     const { getDb } = await import('../../db');
     const database = await getDb();
     if (!database) {
-      log.error(`[v358] 数据库连接失败，无法检查账户${accountId}的完整性`);
+      log.warn(`[v358] 数据库连接失败，无法检查账户${accountId}的完整性`);
       return result;
     }
 
@@ -277,7 +277,7 @@ export async function checkAccountIntegrity(
     });
 
   } catch (error: unknown) {
-    log.error(`[v358] 账户${accountId}完整性检查失败: ${(error as Error).message}`);
+    log.warn(`[v358] 账户${accountId}完整性检查失败: ${(error as Error).message}`);
     logSyncError('DataIntegrityChecker', `完整性检查失败`, { accountId, error: (error as Error).message });
   }
 
@@ -340,7 +340,7 @@ export async function checkAllAccountsIntegrity(
       results,
     };
   } catch (error: unknown) {
-    log.error(`[v358] 批量完整性检查失败: ${(error as Error).message}`);
+    log.warn(`[v358] 批量完整性检查失败: ${(error as Error).message}`);
     return { totalAccounts: 0, healthyAccounts: 0, unhealthyAccounts: 0, results };
   }
 }
@@ -400,7 +400,7 @@ export async function executeAutoRepair(
       }
     } catch (error: unknown) {
       errors.push(`${action.type}: ${(error as Error).message}`);
-      log.error(`[v358] 修复动作${action.type}失败: ${(error as Error).message}`);
+      log.warn(`[v358] 修复动作${action.type}失败: ${(error as Error).message}`);
     }
   }
 
@@ -438,7 +438,7 @@ async function deduplicatePerformanceData(accountId: number): Promise<number> {
     log.info(`[v358] 账户${accountId}去重完成: 删除${deletedCount}条重复记录`);
     return deletedCount;
   } catch (error: unknown) {
-    log.error(`[v358] 去重失败: ${(error as Error).message}`);
+    log.warn(`[v358] 去重失败: ${(error as Error).message}`);
     return 0;
   }
 }
@@ -470,6 +470,6 @@ async function recordPendingResync(accountId: number, dates: string[]): Promise<
 
     log.info(`[v358] 已记录账户${accountId}的补偿同步任务: ${dates.length}个日期`);
   } catch (error: unknown) {
-    log.error(`[v358] 记录补偿同步失败: ${(error as Error).message}`);
+    log.warn(`[v358] 记录补偿同步失败: ${(error as Error).message}`);
   }
 }

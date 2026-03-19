@@ -201,7 +201,7 @@ async function checkBidRatio(
 
     return { raiseCount, lowerCount, ratio };
   } catch (e) {
-    log.error('[MonitoringService] checkBidRatio error:', e);
+    log.warn('[MonitoringService] checkBidRatio error:', e);
     return { raiseCount: 0, lowerCount: 0, ratio: 1 };
   }
 }
@@ -289,7 +289,7 @@ async function checkAcosOverrun(
     const avgOverrun = accountCount > 0 ? totalOverrun / accountCount : 0;
     return { avgOverrun, highRiskCount };
   } catch (e) {
-    log.error('[MonitoringService] checkAcosOverrun error:', e);
+    log.warn('[MonitoringService] checkAcosOverrun error:', e);
     return { avgOverrun: 0, highRiskCount: 0 };
   }
 }
@@ -345,7 +345,7 @@ async function checkSyncHealth(
 
     return { successRate };
   } catch (e) {
-    log.error('[MonitoringService] checkSyncHealth error:', e);
+    log.warn('[MonitoringService] checkSyncHealth error:', e);
     return { successRate: 100 };
   }
 }
@@ -466,7 +466,7 @@ async function checkAlgorithmHealth(
 
     return { totalOps, positiveRate, activeAlgorithms };
   } catch (e) {
-    log.error('[MonitoringService] checkAlgorithmHealth error:', e);
+    log.warn('[MonitoringService] checkAlgorithmHealth error:', e);
     return { totalOps: 0, positiveRate: 0, activeAlgorithms: [] };
   }
 }
@@ -546,7 +546,7 @@ async function checkUnassignedCampaigns(
       });
     }
   } catch (e) {
-    log.error('[MonitoringService] checkUnassignedCampaigns error:', e);
+    log.warn('[MonitoringService] checkUnassignedCampaigns error:', e);
   }
 }
 
@@ -628,7 +628,7 @@ async function checkProactiveRiskWarning(
       }
     }
   } catch (e) {
-    log.error('[MonitoringService] checkProactiveRiskWarning error:', e);
+    log.warn('[MonitoringService] checkProactiveRiskWarning error:', e);
   }
 }
 

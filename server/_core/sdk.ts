@@ -346,7 +346,7 @@ class SDKServer {
               } as Record<string, unknown>;
             }
           } catch (dbError: unknown) {
-            log.error('[Auth] JWT DB query failed:', (dbError as Error).message);
+            log.warn('[Auth] JWT DB query failed:', (dbError as Error).message);
             // v257.1: 数据库查询失败时，从 JWT payload 构建基本用户信息（降级策略）
             // @ts-expect-error - runtime type mismatch
             return {
@@ -372,7 +372,7 @@ class SDKServer {
         const jwtErrMsg = (jwtError as Error)?.message || String(jwtError);
         const jwtErrName = (jwtError as Record<string,unknown>)?.name || 'unknown';
         logSystem('Auth', `JWT verify FAILED: name=${jwtErrName}, message=${jwtErrMsg}`);
-        log.error(`[Auth] JWT verification failed: name=${jwtErrName}, msg=${jwtErrMsg}`);
+        log.warn(`[Auth] JWT verification failed: name=${jwtErrName}, msg=${jwtErrMsg}`);
         // v468: JWT验证失败时不要进入OAuth流程，直接返回null
         return null;
       }
@@ -404,7 +404,7 @@ class SDKServer {
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
-        log.error("[Auth] Failed to sync user from OAuth:", error);
+        log.warn("[Auth] Failed to sync user from OAuth:", error);
         throw ForbiddenError("Failed to sync user info");
       }
     }

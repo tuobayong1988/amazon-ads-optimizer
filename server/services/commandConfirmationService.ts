@@ -247,7 +247,7 @@ export class CommandConfirmationService {
     const interval = hasPending ? PROCESSING_INTERVAL_MS : IDLE_INTERVAL_MS;
     this.processingTimer = setTimeout(() => {
       this.processQueue().catch(err => {
-        log.error(`[CommandConfirmation] 处理循环异常: ${(err as Error).message}`);
+        log.warn(`[CommandConfirmation] 处理循环异常: ${(err as Error).message}`);
       }).finally(() => {
         this.scheduleNextProcessing();
       });
@@ -401,7 +401,7 @@ export class CommandConfirmationService {
       this.totalConfirmationTimeMs += (Date.now() - request.createdAt.getTime());
       this.totalRetryCount += request.retryCount;
       
-      log.error(`[CommandConfirmation] 确认最终失败: ${request.id}, 重试${request.retryCount}次后放弃: ${errorMsg}`);
+      log.warn(`[CommandConfirmation] 确认最终失败: ${request.id}, 重试${request.retryCount}次后放弃: ${errorMsg}`);
       logSyncError('CommandConfirmation', `v359: 确认最终失败`, {
         requestId: request.id,
         accountId: request.accountId,

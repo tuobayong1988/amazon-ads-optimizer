@@ -130,7 +130,7 @@ export function serveStatic(app: Express) {
     ? path.resolve(baseDir, "public")
     : path.resolve(baseDir, "../..", "dist", "public");
   if (!fs.existsSync(distPath)) {
-    log.error(
+    log.warn(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }

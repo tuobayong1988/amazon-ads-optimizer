@@ -52,7 +52,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   
   const db = await getDb();
   if (!db) {
-    log.error('[同步WithTracking] ❌ 数据库连接失败');
+    log.warn('[同步WithTracking] ❌ 数据库连接失败');
     return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
   }
   log.info('[同步WithTracking] ✅ 数据库连接成功');
@@ -260,19 +260,19 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     logSyncProtectionSummary('syncSpCampaignsWithTracking', protectionStats);
     return result;
   } catch (error: unknown) {
-    log.error('[同步WithTracking] ❌ SP广告活动同步失败');
+    log.warn('[同步WithTracking] ❌ SP广告活动同步失败');
     // @ts-expect-error - runtime type mismatch
-    log.error('[同步WithTracking] 错误类型:', error.constructor?.name);
+    log.warn('[同步WithTracking] 错误类型:', error.constructor?.name);
     // @ts-expect-error - error message access
-    log.error('[同步WithTracking] 错误消息:', error?.message || error);
+    log.warn('[同步WithTracking] 错误消息:', error?.message || error);
     // @ts-expect-error - error stack access
-    log.error('[同步WithTracking] 错误堆栈:', error?.stack);
+    log.warn('[同步WithTracking] 错误堆栈:', error?.stack);
     // @ts-expect-error - Axios error response access
     if (error?.response) {
       // @ts-expect-error - Axios error response access
-      log.error('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.warn('[同步WithTracking] API响应状态:', (error as Error & { response?: unknown }).response.status);
       // @ts-expect-error - Axios error response access
-      log.error('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
+      log.warn('[同步WithTracking] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return result;
   }
@@ -423,7 +423,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
     return result;
   } catch (error) {
-    log.error('Error syncing SB campaigns with tracking:', error);
+    log.warn('Error syncing SB campaigns with tracking:', error);
     return result;
   }
 };
@@ -574,7 +574,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
     return result;
   } catch (error) {
-    log.error('Error syncing SD campaigns with tracking:', error);
+    log.warn('Error syncing SD campaigns with tracking:', error);
     return result;
   }
 };
@@ -720,7 +720,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
 
     return result;
   } catch (error) {
-    log.error('Error syncing SP ad groups with tracking:', error);
+    log.warn('Error syncing SP ad groups with tracking:', error);
     return result;
   }
 };
@@ -894,7 +894,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
     logSyncProtectionSummary('syncSpKeywordsWithTracking', protectionStats);
     return result;
   } catch (error) {
-    log.error('Error syncing SP keywords with tracking:', error);
+    log.warn('Error syncing SP keywords with tracking:', error);
     return result;
   }
 };
@@ -1078,7 +1078,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
     logSyncProtectionSummary('syncSpProductTargetsWithTracking', protectionStats);
     return result;
   } catch (error) {
-    log.error('Error syncing SP product targets with tracking:', error);
+    log.warn('Error syncing SP product targets with tracking:', error);
     return result;
   }
 };

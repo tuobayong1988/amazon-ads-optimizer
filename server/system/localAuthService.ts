@@ -47,7 +47,7 @@ async function ensureMultiTenantTables(db: Awaited<ReturnType<typeof getDb>>): P
   } catch (err) {
     const cause = (err as Record<string, unknown>)?.cause;
     const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
-    log.error(`[LocalAuth] 确保多租户表存在失败: ${(err as Error).message || String(err)}${causeMsg}`);
+    log.warn(`[LocalAuth] 确保多租户表存在失败: ${(err as Error).message || String(err)}${causeMsg}`);
   }
 }
 
@@ -204,7 +204,7 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       token,
     };
   } catch (error: unknown) {
-    log.error('[LocalAuth] 注册失败:', error);
+    log.warn('[LocalAuth] 注册失败:', error);
     return { success: false, error: (error as Error).message || '注册失败' };
   }
 }
@@ -324,7 +324,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       token,
     };
   } catch (error: unknown) {
-    log.error('[LocalAuth] 登录失败:', error);
+    log.warn('[LocalAuth] 登录失败:', error);
     return { success: false, error: (error as Error).message || '登录失败' };
   }
 }

@@ -49,7 +49,7 @@ export class PrelaunchPipelineOrchestrator {
     // 异步执行流水线（不阻塞请求）
     this.executePipeline(input, status).catch(err => {
       status.currentModule = 'ERROR';
-      log.error('Pipeline execution error:', err);
+      log.warn('Pipeline execution error:', err);
     });
 
     return {

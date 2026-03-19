@@ -312,7 +312,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     config.maxBidChangePercent = lifecycle.config.bid.maxAdjustmentPercent;
     log.debug(`[OptimizationTargetConfig] 目标 ${group.name} 生命周期: ${lifecycle.overallStage} (${lifecycle.summary})`);
   } catch (lcErr: unknown) {
-    log.error(`[OptimizationTargetConfig] 生命周期查询失败: ${(lcErr as Error).message}`);
+    log.warn(`[OptimizationTargetConfig] 生命周期查询失败: ${(lcErr as Error).message}`);
   }
   
   return config;
@@ -499,7 +499,7 @@ export async function executeOptimizationTarget(
           result.warnings.push(pauseMsg);
           result.status = 'skipped';
         } catch (autoPauseErr: unknown) {
-          log.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, (autoPauseErr as Error).message);
+          log.warn(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, (autoPauseErr as Error).message);
         }
       }
     }
@@ -530,7 +530,7 @@ export async function executeOptimizationTarget(
         }
       }
     } catch (idErr: unknown) {
-      log.error(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${(idErr as Error).message}`);
+      log.warn(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${(idErr as Error).message}`);
       result.warnings.push(`Pre-Sync ID Resolution异常: ${(idErr as Error).message}`);
     }
   }
@@ -614,7 +614,7 @@ export async function executeOptimizationTarget(
       log.info(`[OptimizationTarget] 多维度优化完成: 分析${multiDimResults.campaignsAnalyzed}个campaign, 生成${multiDimResults.rulesGenerated}条规则`);
     } catch (error: unknown) {
       result.errors.push(`多维度智能优化失败: ${(error as Error).message}`);
-      log.error(`[OptimizationTarget] 多维度优化异常:`, (error as Error).message);
+      log.warn(`[OptimizationTarget] 多维度优化异常:`, (error as Error).message);
     }
   }
   
@@ -650,7 +650,7 @@ export async function executeOptimizationTarget(
         }
       }
     } catch (error: unknown) {
-      log.error(`[OptimizationTarget] v183 多维度组合分析异常:`, (error as Error).message);
+      log.warn(`[OptimizationTarget] v183 多维度组合分析异常:`, (error as Error).message);
       result.warnings.push(`多维度组合分析失败: ${(error as Error).message}`);
     }
   }
@@ -695,7 +695,7 @@ export async function executeOptimizationTarget(
       }
     } catch (error: unknown) {
       result.errors.push(`Ngram自动否定失败: ${(error as Error).message}`);
-      log.error(`[NgramAutoNegation] v337.3: Ngram自动否定失败:`, (error as Error).message);
+      log.warn(`[NgramAutoNegation] v337.3: Ngram自动否定失败:`, (error as Error).message);
     }
   }
 
@@ -1073,7 +1073,7 @@ export async function executeOptimizationTarget(
         result.retryTaskCount = failedTasks.length;
       }
     } catch (enqueueErr: unknown) {
-      log.error(`[OptimizationTarget] v137: 入队失败任务异常: ${(enqueueErr as Error).message}`);
+      log.warn(`[OptimizationTarget] v137: 入队失败任务异常: ${(enqueueErr as Error).message}`);
     }
   }
   

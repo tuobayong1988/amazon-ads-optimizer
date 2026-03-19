@@ -307,7 +307,7 @@ export async function executeKeywordStatusChanges(
             } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, (apiError as Error).message);
+              log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, (apiError as Error).message);
             }
           }
         } else if (shouldEnable) {
@@ -366,7 +366,7 @@ export async function executeKeywordStatusChanges(
             } catch (apiError: unknown) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, (apiError as Error).message);
+              log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, (apiError as Error).message);
             }
           }
         }
@@ -532,7 +532,7 @@ export async function executeCampaignStatusChanges(
           } catch (apiError: unknown) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, (apiError as Error).message);
+            log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }
       } else if (shouldEnable) {
@@ -583,7 +583,7 @@ export async function executeCampaignStatusChanges(
           } catch (apiError: unknown) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, (apiError as Error).message);
+            log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }
       }

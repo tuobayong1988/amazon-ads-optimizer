@@ -283,13 +283,13 @@ export async function evaluateRecentOptimizations(
           correctionReason,
         });
       } catch (logErr) {
-        log.error(`[selfEvolution] Error evaluating optimization log:`, logErr);
+        log.warn(`[selfEvolution] Error evaluating optimization log:`, logErr);
       }
     }
     
     return assessments;
   } catch (error) {
-    log.error(`[selfEvolution] evaluateRecentOptimizations error:`, error);
+    log.warn(`[selfEvolution] evaluateRecentOptimizations error:`, error);
     return [];
   }
 }
@@ -669,7 +669,7 @@ export async function generateAutoCorrections(
         createdAt: new Date().toISOString(),
       });
     } catch (err) {
-      log.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err);
+      log.warn(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err);
     }
   }
   
@@ -927,7 +927,7 @@ export async function getAdaptiveOptimizationParams(
       recentSuccessRate: Math.round(successRate * 100) / 100,
     };
   } catch (error) {
-    log.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error);
+    log.warn(`[selfEvolution] getAdaptiveOptimizationParams error:`, error);
     return defaultParams;
   }
 }
@@ -1000,7 +1000,7 @@ export async function getKeywordOptimizationHistory(
       warningMessage,
     };
   } catch (error) {
-    log.error(`[selfEvolution] getKeywordOptimizationHistory error:`, error);
+    log.warn(`[selfEvolution] getKeywordOptimizationHistory error:`, error);
     return null;
   }
 }

@@ -78,7 +78,7 @@ export async function getUserAccountIds(userId: number): Promise<Set<number>> {
     userAccountCache.set(userId, { accounts: accountSet, expiry: Date.now() + CACHE_TTL_MS });
     return accountSet;
   } catch (error) {
-    log.error(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
+    log.warn(`[v370.4] 查询用户 ${userId} 的账户列表失败:`, error);
     return new Set();
   }
 }

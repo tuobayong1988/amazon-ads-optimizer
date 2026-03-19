@@ -325,7 +325,7 @@ export const autoOperationService = {
         totalAnalyzed = 1;
         totalSuggestions = result.suggestedNegatives?.length || 0;
       } catch (e) {
-        log.error(`N-Gram analysis failed for account ${accountId}:`, e);
+        log.warn(`N-Gram analysis failed for account ${accountId}:`, e);
       }
       
       const duration = Date.now() - startTime;
@@ -484,7 +484,7 @@ export const autoOperationService = {
           totalAdjustments += result.bidOptimization.adjustmentsCount;
           log.info(`[AutoOperation] v167: 出价优化目标 ${target.name}: 调整=${result.bidOptimization.adjustmentsCount}`);
         } catch (e: unknown) {
-          log.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, (e as Error).message);
+          log.warn(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, (e as Error).message);
         }
       }
       
@@ -553,7 +553,7 @@ export const autoOperationService = {
         results.push(result);
         executed++;
       } catch (error) {
-        log.error(`Auto operation failed for account ${accountId}:`, error);
+        log.warn(`Auto operation failed for account ${accountId}:`, error);
         failed++;
       }
     }

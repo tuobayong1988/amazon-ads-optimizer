@@ -337,7 +337,7 @@ export async function optimizeBudgetPortfolio(
     return result;
     
   } catch (error) {
-    log.error(`[BudgetPortfolio] Error:`, error);
+    log.warn(`[BudgetPortfolio] Error:`, error);
     return null;
   }
 }

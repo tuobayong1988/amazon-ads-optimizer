@@ -196,7 +196,7 @@ export async function executeBudgetAllocation(
           // API异常，不更新本地DB，保持数据一致性
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-          log.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+          log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
       }
     }

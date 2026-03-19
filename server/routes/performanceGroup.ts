@@ -197,7 +197,7 @@ export const performanceGroupRouter = router({
             
             goalProgressResult = calculateGoalProgress(groupConfig, effectiveMetrics, trendData, timeWeighted, multiWindow, algorithmData);
           } catch (progressErr) {
-            log.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
+            log.warn(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
           }
           
           return {
@@ -222,7 +222,7 @@ export const performanceGroupRouter = router({
             } : null,
           };
         } catch (error) {
-          log.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
+          log.warn(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
           return {
             ...group,
             campaignCount: 0,
@@ -320,10 +320,10 @@ export const performanceGroupRouter = router({
         const { triggerInitialOptimization } = await import('../optimization/optimizationScheduler');
         // 异步执行，不阻塞API响应
         triggerInitialOptimization(id, { triggeredBy: 'create' }).catch(err => {
-          log.error(`[Router] 创建优化目标后触发首次优化失败:`, err);
+          log.warn(`[Router] 创建优化目标后触发首次优化失败:`, err);
         });
       } catch (e) {
-        log.error('[Router] 导入optimizationScheduler失败:', e);
+        log.warn('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { id };
@@ -357,10 +357,10 @@ export const performanceGroupRouter = router({
         try {
           const { onTargetStatusChanged } = await import('../optimization/optimizationScheduler');
           onTargetStatusChanged(id, data.status as 'active' | 'paused' | 'archived').catch(err => {
-            log.error(`[Router] 状态变更触发失败:`, err);
+            log.warn(`[Router] 状态变更触发失败:`, err);
           });
         } catch (e) {
-          log.error('[Router] 导入optimizationScheduler失败:', e);
+          log.warn('[Router] 导入optimizationScheduler失败:', e);
         }
       }
       
@@ -405,10 +405,10 @@ export const performanceGroupRouter = router({
       try {
         const { onCampaignsAdded } = await import('../optimization/optimizationScheduler');
         onCampaignsAdded(input.performanceGroupId, input.campaignIds).catch(err => {
-          log.error(`[Router] 批量分配后触发优化失败:`, err);
+          log.warn(`[Router] 批量分配后触发优化失败:`, err);
         });
       } catch (e) {
-        log.error('[Router] 导入optimizationScheduler失败:', e);
+        log.warn('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { success: true, count };
@@ -478,7 +478,7 @@ export const performanceGroupRouter = router({
           apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
         } catch (syncError: unknown) {
           // v161: 捕获API同步过程中的未预期异常，防止500错误
-          log.error(`[batchUpdateCampaignStatus] API同步异常:`, (syncError as Error).message);
+          log.warn(`[batchUpdateCampaignStatus] API同步异常:`, (syncError as Error).message);
           apiResult.failed = statusChanges.length;
           apiResult.errors.push(`API同步过程发生异常: ${(syncError as Error).message}`);
         }
@@ -508,7 +508,7 @@ export const performanceGroupRouter = router({
           log.info(`[batchUpdateCampaignStatus] v454: 已记录${targetCampaigns.length}条campaign_action事件到optimization_events`);
         }
       } catch (eventErr: unknown) {
-        log.error(`[batchUpdateCampaignStatus] v454: 记录optimization_events失败: ${(eventErr as Error).message}`);
+        log.warn(`[batchUpdateCampaignStatus] v454: 记录optimization_events失败: ${(eventErr as Error).message}`);
       }
 
       // v219: 批量状态变更后触发确认同步，从 Amazon 回读最新状态
@@ -638,10 +638,10 @@ export const performanceGroupRouter = router({
       try {
         const { onCampaignsAdded } = await import('../optimization/optimizationScheduler');
         onCampaignsAdded(input.groupId, input.campaignIds).catch(err => {
-          log.error(`[Router] 添加广告活动后触发优化失败:`, err);
+          log.warn(`[Router] 添加广告活动后触发优化失败:`, err);
         });
       } catch (e) {
-        log.error('[Router] 导入optimizationScheduler失败:', e);
+        log.warn('[Router] 导入optimizationScheduler失败:', e);
       }
       
       return { success: true, count };

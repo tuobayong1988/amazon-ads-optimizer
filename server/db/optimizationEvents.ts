@@ -180,8 +180,8 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     });
     log.info(`[v274] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
-    log.error('[v212] 双写optimization_events失败:', (e instanceof Error ? (e as Error).message : String(e)) || e);
-    log.error(`[v212] 双写失败详情: logCategory=${data.logCategory} actionType=${data.actionType}`);
+    log.warn('[v212] 双写optimization_events失败:', (e instanceof Error ? (e as Error).message : String(e)) || e);
+    log.warn(`[v212] 双写失败详情: logCategory=${data.logCategory} actionType=${data.actionType}`);
   }
   
   return logId;
@@ -817,7 +817,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.biddingLogs = totalBiddingLogs;
       } catch (err: unknown) {
-        log.error('[AutoMigration] bidding_logs migration error:', (err as Error).message);
+        log.warn('[AutoMigration] bidding_logs migration error:', (err as Error).message);
         skipped.push(`bidding_logs (error: ${(err as Error).message})`);
       }
     }
@@ -834,7 +834,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
       } catch (err: unknown) {
-        log.error('[AutoMigration] bid_adjustment_history migration error:', (err as Error).message);
+        log.warn('[AutoMigration] bid_adjustment_history migration error:', (err as Error).message);
         skipped.push(`bid_adjustment_history (error: ${(err as Error).message})`);
       }
     }
@@ -854,7 +854,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.optimizationLogs = totalOptLogs;
       } catch (err: unknown) {
-        log.error('[AutoMigration] optimization_logs migration error:', (err as Error).message);
+        log.warn('[AutoMigration] optimization_logs migration error:', (err as Error).message);
         skipped.push(`optimization_logs (error: ${(err as Error).message})`);
       }
     }
@@ -864,7 +864,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     
     return { success: true, migrated, skipped };
   } catch (err: unknown) {
-    log.error('[AutoMigration] 全局迁移失败:', (err as Error).message);
+    log.warn('[AutoMigration] 全局迁移失败:', (err as Error).message);
     return { success: false, migrated, skipped: [...skipped, (err as Error).message] };
   }
 }

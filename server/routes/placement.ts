@@ -113,7 +113,7 @@ export const placementRouter = router({
           optimizationResult,
         };
       } catch (e) {
-        log.error('[generateSuggestions] 边际效益分析失败:', e);
+        log.warn('[generateSuggestions] 边际效益分析失败:', e);
       }
       
       return {

@@ -145,7 +145,7 @@ export async function executeBatchSync(options?: {
       log.warn(`[SyncEngine] v457: 清理${zombieCount}个僵尸任务(processing超过15分钟)`);
     }
   } catch (zombieErr: unknown) {
-    log.error(`[SyncEngine] v457: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
+    log.warn(`[SyncEngine] v457: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
   }
   
   // v457: 失效引用前置清理 — 使用类型安全查询
@@ -160,7 +160,7 @@ export async function executeBatchSync(options?: {
       log.warn(`[SyncEngine] v457: 清理${ptCleanCount}个引用已删除product_target的任务`);
     }
   } catch (cleanErr: unknown) {
-    log.error(`[SyncEngine] v429: 失效引用清理失败: ${(cleanErr as Error).message}`);
+    log.warn(`[SyncEngine] v429: 失效引用清理失败: ${(cleanErr as Error).message}`);
   }
   
   const accountGroups = new Map<number, Record<string, unknown>[]>();
@@ -224,7 +224,7 @@ export async function executeBatchSync(options?: {
             result.errors.push(...typeResult.errors.slice(0, 5));
           }
         } catch (err: unknown) {
-          log.error(`[SyncEngine] ${taskType} 处理异常: ${(err as Error).message}`);
+          log.warn(`[SyncEngine] ${taskType} 处理异常: ${(err as Error).message}`);
           result.errors.push(`${taskType}: ${(err as Error).message}`);
           // 标记该类型所有任务为失败
           const taskIds = typeTasks.map((t: Record<string, unknown>) => t.id);
@@ -399,7 +399,7 @@ export async function executeBatchSync(options?: {
         log.info(`[SyncEngine] v359: 提交可靠确认请求 - 账户${accountId}: ${requestId}`);
       }
     } catch (confirmErr: unknown) {
-      log.error(`[SyncEngine] v219: 触发确认同步异常: ${(confirmErr as Error).message}`);
+      log.warn(`[SyncEngine] v219: 触发确认同步异常: ${(confirmErr as Error).message}`);
     }
   }
   
@@ -452,7 +452,7 @@ async function syncTasksByType(
       result.failed += batchResult.failed;
       result.errors.push(...batchResult.errors);
     } catch (err: unknown) {
-      log.error(`[SyncEngine] 批次 ${i / config.maxBatchSize + 1} 异常: ${(err as Error).message}`);
+      log.warn(`[SyncEngine] 批次 ${i / config.maxBatchSize + 1} 异常: ${(err as Error).message}`);
       result.errors.push((err as Error).message);
       await markTasksFailed(conn, batch.map((t: Record<string, unknown>) => t.id), (err as Error).message);
       result.failed += batch.length;
@@ -729,7 +729,7 @@ async function executeBatchByType(
                       await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
                       log.warn(`[SyncEngine] v458: SP Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
                     } catch (markErr: unknown) {
-                      log.error(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
+                      log.warn(`[SyncEngine] v458: 标记Keyword deleted失败: ${(markErr as Error).message}`);
                     }
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, spFailReason);
@@ -745,7 +745,7 @@ async function executeBatchByType(
             
             log.warn(`[SyncEngine] SP关键词出价批量同步: 发送=${spKwTasks.length}, 成功=${spKwTasks.length - failedIds.size}, 失败=${failedIds.size}`);
           } catch (err: unknown) {
-            log.error(`[SyncEngine] SP关键词出价批量API调用失败: ${(err as Error).message}`);
+            log.warn(`[SyncEngine] SP关键词出价批量API调用失败: ${(err as Error).message}`);
             for (const t of spKwTasks) {
               await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
             }
@@ -856,7 +856,7 @@ async function executeBatchByType(
                       await Q.markKeywordDeleted(conn, t.target_entity_id, String(t.amazon_entity_id));
                       log.warn(`[SyncEngine] v458: SB Keyword ${t.amazon_entity_id} Amazon端已不存在，已标记为amazon_deleted`);
                     } catch (markErr: unknown) {
-                      log.error(`[SyncEngine] v458: 标记SB Keyword deleted失败: ${(markErr as Error).message}`);
+                      log.warn(`[SyncEngine] v458: 标记SB Keyword deleted失败: ${(markErr as Error).message}`);
                     }
                   } else {
                     await markTaskForRetry(conn, t.id, t.retry_count, failReason);
@@ -872,7 +872,7 @@ async function executeBatchByType(
             
             log.warn(`[SyncEngine] v429: SB关键词出价批量同步: 发送=${sbUpdates.length}, 成功=${sbUpdates.length - sbFailedIds.size}, 失败=${sbFailedIds.size}, 跳过=${sbSkippedTasks.length}`);
           } catch (err: unknown) {
-            log.error(`[SyncEngine] v429: SB关键词出价批量API调用失败: ${(err as Error).message}`);
+            log.warn(`[SyncEngine] v429: SB关键词出价批量API调用失败: ${(err as Error).message}`);
             for (const t of sbKwTasks) {
               await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
             }
@@ -1308,7 +1308,7 @@ async function executeBatchByType(
               await Q.archiveCampaign(conn, t.target_entity_id, String(t.amazon_entity_id));
               log.warn(`[SyncEngine] v456: Campaign ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
             } catch (markErr: unknown) {
-              log.error(`[SyncEngine] v456: 标记Campaign archived失败: ${(markErr as Error).message}`);
+              log.warn(`[SyncEngine] v456: 标记Campaign archived失败: ${(markErr as Error).message}`);
             }
           } else {
             await markTaskForRetry(conn, t.id, t.retry_count, errMsg);
@@ -1533,7 +1533,7 @@ async function executeBatchByType(
               result.failed += sbNegValidTasks.length;
             }
           } catch (sbNegErr: unknown) {
-            log.error(`[SyncEngine] v428: SB否定词API调用失败: ${(sbNegErr as Error).message}`);
+            log.warn(`[SyncEngine] v428: SB否定词API调用失败: ${(sbNegErr as Error).message}`);
             for (const t of sbNegValidTasks) {
               await markTaskForRetry(conn, t.id, t.retry_count, (sbNegErr as Error).message);
             }
@@ -1873,7 +1873,7 @@ async function updateLogsSyncStatus(conn: unknown, batchId: string) {
     
     log.warn(`[SyncEngine] 更新日志同步状态: batchId=${batchId}, status=${logSyncStatus}, synced=${stats.synced}, failed=${stats.failed}`);
   } catch (err: unknown) {
-    log.error(`[SyncEngine] 更新日志同步状态失败: ${(err as Error).message}`);
+    log.warn(`[SyncEngine] 更新日志同步状态失败: ${(err as Error).message}`);
   }
 }
 
@@ -1939,7 +1939,7 @@ async function resetRecoverableFailedTasks(): Promise<number> {
     }
     return recovered;
   } catch (err: unknown) {
-    log.error(`[SyncEngine] v457: 重置失败任务异常: ${(err as Error).message}`);
+    log.warn(`[SyncEngine] v457: 重置失败任务异常: ${(err as Error).message}`);
     return 0;
   } finally {
     conn.release();

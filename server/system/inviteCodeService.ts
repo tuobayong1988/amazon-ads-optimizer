@@ -155,7 +155,7 @@ async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").g
     tablesEnsured = true;
     log.info('[InviteCode] 邀请码相关表已确认就绪');
   } catch (err: unknown) {
-    log.error(`[InviteCode] 确保表存在失败: ${err?.message || err?.cause?.message || JSON.stringify(err)}`);
+    log.warn(`[InviteCode] 确保表存在失败(可能表已存在): ${err?.message || err?.cause?.message || JSON.stringify(err)}`);
     // 即使失败也设置为true，避免每次请求都重试
     tablesEnsured = true;
   }
@@ -228,7 +228,7 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     const e = error as Record<string, unknown>;
     const mysqlErr = e?.cause?.message || e?.cause?.sqlMessage || e?.errno || e?.code || 'unknown';
     const detail = JSON.stringify({msg: e?.message, cause: e?.cause?.message, code: e?.cause?.code, errno: e?.cause?.errno, sqlState: e?.cause?.sqlState});
-    log.error(`[InviteCode] 创建邀请码失败: ${e?.message} | MySQL: ${mysqlErr} | Detail: ${detail}`);
+    log.warn(`[InviteCode] 创建邀请码失败: ${e?.message} | MySQL: ${mysqlErr} | Detail: ${detail}`);
     return { success: false, error: `${(error as Error).message} | MySQL: ${mysqlErr}` };
   }
 }
@@ -300,7 +300,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       }
     };
   } catch (error: unknown) {
-    log.error('[InviteCode] 验证邀请码失败:', error);
+    log.warn('[InviteCode] 验证邀请码失败:', error);
     return { valid: false, error: (error as Error).message || '验证邀请码失败' };
   }
 }
@@ -328,7 +328,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
     
     return { success: true };
   } catch (error: unknown) {
-    log.error('[InviteCode] 使用邀请码失败:', error);
+    log.warn('[InviteCode] 使用邀请码失败:', error);
     return { success: false, error: (error as Error).message || '使用邀请码失败' };
   }
 }
@@ -374,7 +374,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       status: computeInviteCodeStatus(row),
     }));
   } catch (error) {
-    log.error('[InviteCode] 获取邀请码列表失败:', error);
+    log.warn('[InviteCode] 获取邀请码列表失败:', error);
     return [];
   }
 }
@@ -458,7 +458,7 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
     
     return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
   } catch (error) {
-    log.error('[InviteCode] 获取邀请码统计失败:', error);
+    log.warn('[InviteCode] 获取邀请码统计失败:', error);
     return { total: 0, active: 0, used: 0, expired: 0, totalUsages: 0 };
   }
 }

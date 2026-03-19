@@ -277,7 +277,7 @@ export async function migrateCampaignIdsToAmazonIds(): Promise<void> {
         });
       }
     } catch (tableErr: unknown) {
-      log.error(`  迁移表 ${tableName} 异常: ${(tableErr as Error).message}`);
+      log.warn(`  迁移表 ${tableName} 异常: ${(tableErr as Error).message}`);
       allErrors.push(`${tableName}: ${(tableErr as Error).message}`);
     }
   }

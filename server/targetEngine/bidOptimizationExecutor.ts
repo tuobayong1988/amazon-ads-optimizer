@@ -661,7 +661,7 @@ export async function executeBidOptimization(
       
       log.warn(`[BidOptimization] Amazon API同步: 成功=${apiSyncResult.success}, 失败=${apiSyncResult.failed}, 状态=${apiSyncStatus}`);
       if (apiSyncResult.errors.length > 0) {
-        log.error(`[BidOptimization] Amazon API同步错误:`, apiSyncResult.errors.join('; '));
+        log.warn(`[BidOptimization] Amazon API同步错误:`, apiSyncResult.errors.join('; '));
       }
       
       // v148: API调用成功后，才更新本地数据库（先API后DB原则）
@@ -738,7 +738,7 @@ export async function executeBidOptimization(
               log.warn(`[BidOptimization] v230: bidPerformanceHistory写入失败(不阻塞主流程): ${(bphErr as Error).message}`);
             }
           } catch (txErr: unknown) {
-            log.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${(txErr as Error).message}`);
+            log.warn(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${(txErr as Error).message}`);
             // 事务失败时，所有DB更新自动回滚，保持数据一致性
           }
         }
@@ -770,9 +770,9 @@ export async function executeBidOptimization(
     } catch (apiError: unknown) {
       apiSyncStatus = 'failed';
       apiSyncResult.errors.push((apiError as Error).message);
-      log.error(`[BidOptimization] Amazon API同步异常:`, (apiError as Error).message);
+      log.warn(`[BidOptimization] Amazon API同步异常:`, (apiError as Error).message);
       // v148: API整体异常，不更新任何本地DB记录
-      log.error(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
+      log.warn(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
     }
   } else if (dryRun) {
     apiSyncStatus = 'pending'; // 模拟模式不同步

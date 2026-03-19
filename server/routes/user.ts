@@ -113,7 +113,7 @@ export const userRouter = router({
         return { success: true };
       } catch (error: unknown) {
         // @ts-expect-error - error message access
-        log.error('[User] Failed to update preferences:', error?.message);
+        log.warn(`[User] Failed to update preferences: ${(error as Error)?.message || String(error)}`);
         // @ts-expect-error - error message access
         return { success: false, error: error?.message };
       }

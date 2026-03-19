@@ -345,7 +345,7 @@ ${suggestionsSummary}
     const content = response.choices[0]?.message?.content;
     return typeof content === "string" ? content : "无法生成摘要";
   } catch (error) {
-    log.error("LLM摘要生成失败:", error);
+    log.warn("LLM摘要生成失败:", error);
     return `## 广告活动分析\n\n当前ACoS为${metrics.acos.toFixed(1)}%，ROAS为${metrics.roas.toFixed(2)}。\n\n系统已识别${suggestions.length}条优化建议，建议执行以改善广告表现。`;
   }
 }

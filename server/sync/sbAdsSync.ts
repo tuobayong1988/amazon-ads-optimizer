@@ -92,7 +92,7 @@ export async function syncSbAds(service: SyncContext,): Promise<{ synced: number
     log.info(`SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error: unknown) {
-    log.error('SB广告素材同步失败:', (error as Error).message);
+    log.warn('SB广告素材同步失败:', (error as Error).message);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -192,7 +192,7 @@ export async function syncAssetUrls(service: SyncContext,): Promise<number> {
 
     return updated;
   } catch (error: unknown) {
-    log.error('syncAssetUrls失败:', (error as Error).message);
+    log.warn('syncAssetUrls失败:', (error as Error).message);
     throw error;
   }
 }

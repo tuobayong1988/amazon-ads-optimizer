@@ -141,7 +141,7 @@ export async function syncAutoTargeting(service: SyncContext,days: number = 14):
     log.info(`自动定向同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('同步自动定向失败:', error);
+    log.warn('同步自动定向失败:', error);
     return 0;
   }
 }
@@ -256,7 +256,7 @@ export async function syncSdTargeting(service: SyncContext,days: number = 14): P
     log.info(`SD定向同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('同步SD定向失败:', error);
+    log.warn('同步SD定向失败:', error);
     return 0;
   }
 }
@@ -362,7 +362,7 @@ export async function syncSbTargeting(service: SyncContext,days: number = 14): P
     log.info(`SB定向同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('同步SB定向失败:', error);
+    log.warn('同步SB定向失败:', error);
     return 0;
   }
 }

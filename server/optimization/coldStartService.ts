@@ -215,13 +215,13 @@ export async function triggerColdStartForAllAccounts(
         }
       } catch (err: unknown) {
         result.errors++;
-        log.error(`[ColdStart] 账户 ${account.accountId} 冷启动触发失败: ${(err as Error).message}`);
+        log.warn(`[ColdStart] 账户 ${account.accountId} 冷启动触发失败: ${(err as Error).message}`);
       }
     }
     
     log.info(`[ColdStart] 批量冷启动完成: 总计=${result.total}, 触发=${result.triggered}, 跳过=${result.skipped}, 错误=${result.errors}`);
   } catch (err: unknown) {
-    log.error(`[ColdStart] 批量冷启动异常: ${(err as Error).message}`);
+    log.warn(`[ColdStart] 批量冷启动异常: ${(err as Error).message}`);
   }
   
   return result;
@@ -287,7 +287,7 @@ async function executeColdStart(
         // 同步完成后等待，让数据库索引更新
         await sleep(COLD_START_CONFIG.postSyncDelayMs);
       } catch (syncErr: unknown) {
-        log.error(`[ColdStart] 阶段1失败（继续执行后续阶段）: ${(syncErr as Error).message}`);
+        log.warn(`[ColdStart] 阶段1失败（继续执行后续阶段）: ${(syncErr as Error).message}`);
         result.errors.push(`数据同步失败: ${(syncErr as Error).message}`);
       }
     } else {
@@ -312,7 +312,7 @@ async function executeColdStart(
       
       log.info(`[ColdStart] 阶段2完成: 目标=${histResult.targetsProcessed}, 否定词=${histResult.negativesAdded}, 收割=${histResult.keywordsHarvested}, Ngram否定=${histResult.ngramNegatives}, 耗时=${result.historicalPhase.durationMs}ms`);
     } catch (histErr: unknown) {
-      log.error(`[ColdStart] 阶段2失败（继续执行后续阶段）: ${(histErr as Error).message}`);
+      log.warn(`[ColdStart] 阶段2失败（继续执行后续阶段）: ${(histErr as Error).message}`);
       result.errors.push(`历史数据优化失败: ${(histErr as Error).message}`);
     }
     
@@ -332,7 +332,7 @@ async function executeColdStart(
       
       log.info(`[ColdStart] 阶段3完成: 目标=${recentResult.targetsProcessed}, 触发优化=${recentResult.optimizationsTriggered}, 耗时=${result.recentPhase.durationMs}ms`);
     } catch (recentErr: unknown) {
-      log.error(`[ColdStart] 阶段3失败: ${(recentErr as Error).message}`);
+      log.warn(`[ColdStart] 阶段3失败: ${(recentErr as Error).message}`);
       result.errors.push(`近期数据优化失败: ${(recentErr as Error).message}`);
     }
     
@@ -362,7 +362,7 @@ async function executeColdStart(
     await updateColdStartStatus(accountId, 'failed');
     await completeColdStartLog(logId, result);
     
-    log.error(`[ColdStart] 冷启动异常终止: 账户=${accountId}, 错误=${(err as Error).message}`);
+    log.warn(`[ColdStart] 冷启动异常终止: 账户=${accountId}, 错误=${(err as Error).message}`);
     logOptimizationError('ColdStart', `冷启动异常`, { accountId, reason, error: (err as Error).message });
   }
   
@@ -421,7 +421,7 @@ async function executeFullSync(
     log.info(`[ColdStart] v344: syncAll已包含${days}天绩效数据，无需额外同步`);
     
   } catch (err: unknown) {
-    log.error(`[ColdStart] 全量同步失败: ${(err as Error).message}`);
+    log.warn(`[ColdStart] 全量同步失败: ${(err as Error).message}`);
     throw err;
   }
   
@@ -517,7 +517,7 @@ async function executeHistoricalOptimization(
         
         log.info(`[ColdStart] 目标 ${target.name} 完成: 否定词=${execResult.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${execResult.searchTermAnalysis.newKeywordsAdded}`);
       } catch (targetErr: unknown) {
-        log.error(`[ColdStart] 目标 ${target.name} 优化失败: ${(targetErr as Error).message}`);
+        log.warn(`[ColdStart] 目标 ${target.name} 优化失败: ${(targetErr as Error).message}`);
       }
     }
     
@@ -550,7 +550,7 @@ async function executeRecentOptimization(
     
     log.info(`[ColdStart] 近期数据优化触发: 执行=${triggerResult.triggeredCount}, 跳过=${triggerResult.skippedCount}`);
   } catch (err: unknown) {
-    log.error(`[ColdStart] 近期数据优化触发失败: ${(err as Error).message}`);
+    log.warn(`[ColdStart] 近期数据优化触发失败: ${(err as Error).message}`);
     throw err;
   }
   

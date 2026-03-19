@@ -849,12 +849,12 @@ export async function executeSearchTermAnalysis(
                       } else {
                         newKeyword.apiSyncStatus = 'failed';
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
-                        log.error(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
+                        log.warn(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
                       }
                     } catch (apiError: unknown) {
                       newKeyword.apiSyncStatus = 'failed';
                       newKeyword.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-                      log.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, (apiError as Error).message);
+                      log.warn(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, (apiError as Error).message);
                     }
                   } else {
                     log.warn(`[SearchTermAnalysis] 缺少Amazon ID，无法同步: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
@@ -959,17 +959,17 @@ export async function executeSearchTermAnalysis(
                       } else {
                         newTarget.apiSyncStatus = 'failed';
                         newTarget.apiSyncDetail = JSON.stringify({ errors: ptSyncResult.errors });
-                        log.error(`[SearchTermAnalysis] v310: ASIN定向同步失败: "${decision.targetValue}" - ${ptSyncResult.errors.join('; ')}`);
+                        log.warn(`[SearchTermAnalysis] v310: ASIN定向同步失败: "${decision.targetValue}" - ${ptSyncResult.errors.join('; ')}`);
                       }
                     } catch (apiError: unknown) {
                       newTarget.apiSyncStatus = 'failed';
                       newTarget.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
-                      log.error(`[SearchTermAnalysis] v310: ASIN定向API异常: "${decision.targetValue}" -`, (apiError as Error).message);
+                      log.warn(`[SearchTermAnalysis] v310: ASIN定向API异常: "${decision.targetValue}" -`, (apiError as Error).message);
                     }
                   } catch (dbErr: unknown) {
                     newTarget.apiSyncStatus = 'failed';
                     newTarget.apiSyncDetail = JSON.stringify({ error: `DB insert failed: ${(dbErr as Error).message}` });
-                    log.error(`[SearchTermAnalysis] v310: ASIN定向DB写入失败: "${decision.targetValue}" - ${(dbErr as Error).message}`);
+                    log.warn(`[SearchTermAnalysis] v310: ASIN定向DB写入失败: "${decision.targetValue}" - ${(dbErr as Error).message}`);
                   }
                 } else {
                   log.warn(`[SearchTermAnalysis] v310: 缺少Amazon ID，无法同步ASIN定向: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
@@ -1023,7 +1023,7 @@ export async function executeSearchTermAnalysis(
                       await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
                       log.info(`[SearchTermAnalysis] v2: 否定产品DB写入成功: "${d.searchTerm}"`);
                     } catch (dbErr: unknown) {
-                      log.error(`[SearchTermAnalysis] v2: 否定产品DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
+                      log.warn(`[SearchTermAnalysis] v2: 否定产品DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
                     }
                   }
                 }
@@ -1034,7 +1034,7 @@ export async function executeSearchTermAnalysis(
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
-            log.error(`[SearchTermAnalysis] v2: 否定产品定向API同步失败:`, (apiError as Error).message);
+            log.warn(`[SearchTermAnalysis] v2: 否定产品定向API同步失败:`, (apiError as Error).message);
           }
         }
         
@@ -1092,7 +1092,7 @@ export async function executeSearchTermAnalysis(
                       
                       log.info(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
                     } catch (dbErr: unknown) {
-                      log.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
+                      log.warn(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${(dbErr as Error).message}`);
                     }
                   }
                 }
@@ -1124,7 +1124,7 @@ export async function executeSearchTermAnalysis(
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: (apiError as Error).message });
             }
-            log.error(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+            log.warn(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
           }
         }
       }

@@ -243,7 +243,7 @@ export async function calculateDynamicBenchmarks(
       cpcBaseline: Math.max(0.5, Math.min(5, (data.avgCpc || 1) * 1.5))
     };
   } catch (error) {
-    log.error('[PlacementOptimization] 计算动态基准失败:', error);
+    log.warn('[PlacementOptimization] 计算动态基准失败:', error);
     return DEFAULT_BENCHMARKS;
   }
 }
@@ -307,7 +307,7 @@ export async function checkAdjustmentCooldown(
       lastAdjustmentDate: lastDate
     };
   } catch (error) {
-    log.error('[PlacementOptimization] 检查冷却期失败:', error);
+    log.warn('[PlacementOptimization] 检查冷却期失败:', error);
     return { inCooldown: false };
   }
 }
@@ -342,7 +342,7 @@ export async function getCampaignBiddingStrategy(
     // 默认返回down_only，实际应该从Amazon API同步
     return 'down_only';
   } catch (error) {
-    log.error('[PlacementOptimization] 获取竞价策略失败:', error);
+    log.warn('[PlacementOptimization] 获取竞价策略失败:', error);
     return 'fixed';
   }
 }
@@ -797,7 +797,7 @@ export async function recordPlacementAdjustment(
       status: 'applied'
     });
   } catch (error) {
-    log.error('[PlacementOptimization] 记录调整历史失败:', error);
+    log.warn('[PlacementOptimization] 记录调整历史失败:', error);
   }
 }
 
@@ -895,7 +895,7 @@ export async function updatePlacementSettings(
       log.info(`[PlacementOptimization] v166: campaigns表位置倾斜已同步更新(待确认) - campaignId=${campaignId}`, campaignUpdateData);
     }
   } catch (campaignUpdateError: unknown) {
-    log.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${(campaignUpdateError as Error).message}`);
+    log.warn(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${(campaignUpdateError as Error).message}`);
   }
 }
 
@@ -988,7 +988,7 @@ export async function executeAutomaticPlacementOptimization(
       biddingStrategy
     };
   } catch (error) {
-    log.error('[PlacementOptimization] 位置倾斜优化执行失败:', error);
+    log.warn('[PlacementOptimization] 位置倾斜优化执行失败:', error);
     return {
       success: false,
       message: `优化执行失败: ${error instanceof Error ? (error as Error).message : '未知错误'}`,
@@ -1179,7 +1179,7 @@ export async function applyPlacementAdjustment(
     }] as PlacementAdjustmentSuggestion[]);
     return true;
   } catch (error) {
-    log.error('[placementOptimizationService] applyPlacementAdjustment error:', error);
+    log.warn('[placementOptimizationService] applyPlacementAdjustment error:', error);
     return false;
   }
 }

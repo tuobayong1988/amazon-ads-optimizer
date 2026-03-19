@@ -50,7 +50,7 @@ async function ensureTable(): Promise<boolean> {
     tableEnsured = true;
     return true;
   } catch (e: unknown) {
-    log.error(`创建sync_locks表失败: ${(e as Error).message}`);
+    log.warn(`创建sync_locks表失败: ${(e as Error).message}`);
     return false;
   }
 }
@@ -140,7 +140,7 @@ export class DistributedLock {
             `);
             log.info(`锁 "${lockKey}" 已释放 (holder: ${holderId})`);
           } catch (e: unknown) {
-            log.error(`释放锁 "${lockKey}" 失败: ${(e as Error).message}`);
+            log.warn(`释放锁 "${lockKey}" 失败: ${(e as Error).message}`);
           }
         };
       } catch (e: unknown) {
@@ -162,7 +162,7 @@ export class DistributedLock {
         }
         
         // 其他错误
-        log.error(`获取锁 "${this.lockKey}" 异常: ${errorMsg}`);
+        log.warn(`获取锁 "${this.lockKey}" 异常: ${errorMsg}`);
         // 回退到无锁模式，避免阻塞业务
         return async () => {};
       }
@@ -195,7 +195,7 @@ export class DistributedLock {
       log.warn(`锁 "${this.lockKey}" 续期失败（可能已过期或被释放）`);
       return false;
     } catch (e: unknown) {
-      log.error(`锁 "${this.lockKey}" 续期异常: ${(e as Error).message}`);
+      log.warn(`锁 "${this.lockKey}" 续期异常: ${(e as Error).message}`);
       return false;
     }
   }
@@ -229,7 +229,7 @@ export class DistributedLock {
       log.warn(`锁 "${this.lockKey}" 被强制释放`);
       return true;
     } catch (e: unknown) {
-      log.error(`强制释放锁 "${this.lockKey}" 失败: ${(e as Error).message}`);
+      log.warn(`强制释放锁 "${this.lockKey}" 失败: ${(e as Error).message}`);
       return false;
     }
   }

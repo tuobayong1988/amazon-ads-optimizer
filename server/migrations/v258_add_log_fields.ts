@@ -15,7 +15,7 @@ const log = createModuleLogger('Migration-v258');
 export async function runV258Migration(): Promise<void> {
   const db = await getDb();
   if (!db) {
-    log.error('v258迁移: 数据库连接失败');
+    log.warn('v258迁移: 数据库连接失败');
     return;
   }
 
@@ -74,6 +74,6 @@ export async function runV258Migration(): Promise<void> {
 
     log.info('v258迁移: 优化日志增强字段添加完成');
   } catch (error: unknown) {
-    log.error(`v258迁移失败: ${(error as Error).message}`);
+    log.warn(`v258迁移失败: ${(error as Error).message}`);
   }
 }

@@ -182,7 +182,7 @@ export class GuardrailConfigService {
     
     // 异步持久化到数据库
     this.persistToDatabase(entry).catch(err => {
-      log.error('持久化护栏配置失败', err);
+      log.warn('持久化护栏配置失败', err);
     });
     
     return { success: true, errors: [] };
@@ -198,7 +198,7 @@ export class GuardrailConfigService {
     if (existed) {
       log.info(`安全护栏配置已删除: ${cacheKey}`);
       this.removeFromDatabase(scope, scopeKey).catch(err => {
-        log.error('从数据库删除护栏配置失败', err);
+        log.warn('从数据库删除护栏配置失败', err);
       });
     }
     
@@ -269,7 +269,7 @@ export class GuardrailConfigService {
       
       this.lastCacheRefresh = Date.now();
     } catch (err) {
-      log.error('从数据库加载护栏配置失败', err);
+      log.warn('从数据库加载护栏配置失败', err);
     }
   }
   
@@ -383,7 +383,7 @@ export class GuardrailConfigService {
         )
       `);
     } catch (err) {
-      log.error('持久化护栏配置到数据库失败', err);
+      log.warn('持久化护栏配置到数据库失败', err);
       throw err;
     }
   }
@@ -407,7 +407,7 @@ export class GuardrailConfigService {
         AND JSON_EXTRACT(action_detail, '$.scopeKey') = ${scopeKey}
       `);
     } catch (err) {
-      log.error('从数据库删除护栏配置失败', err);
+      log.warn('从数据库删除护栏配置失败', err);
     }
   }
 }

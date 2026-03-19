@@ -1121,7 +1121,7 @@ export async function runUnifiedEffectTrackingTask(period: number): Promise<numb
       
       processed++;
     } catch (error) {
-      log.error(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error);
+      log.warn(`[AdvancedAnalytics] Failed to track event ${event.id}:`, error);
     }
   }
   

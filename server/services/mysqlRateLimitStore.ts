@@ -91,7 +91,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
         this.initialized = true;
         log.info('[v372] MySQL限流存储表初始化完成');
       } catch (err) {
-        log.error(`[v372] 初始化MySQL限流存储失败: ${(err as Error).message}`);
+        log.warn(`[v372] 初始化MySQL限流存储失败: ${(err as Error).message}`);
         // 不抛出错误，让调用方降级到内存存储
       }
     })();
@@ -119,7 +119,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
       }
       return null;
     } catch (err) {
-      log.error(`[v372] getBucket失败: ${(err as Error).message}`);
+      log.warn(`[v372] getBucket失败: ${(err as Error).message}`);
       return null;
     }
   }
@@ -138,7 +138,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
             ON DUPLICATE KEY UPDATE tokens = ${tokens}, last_refill_time = ${lastRefillTime}`
       );
     } catch (err) {
-      log.error(`[v372] setBucket失败: ${(err as Error).message}`);
+      log.warn(`[v372] setBucket失败: ${(err as Error).message}`);
     }
   }
 
@@ -203,7 +203,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
         return { remaining: 0, waitMs: 1000 };
       }
     } catch (err) {
-      log.error(`[v372] consumeToken失败: ${(err as Error).message}`);
+      log.warn(`[v372] consumeToken失败: ${(err as Error).message}`);
       // 降级: 出错时允许请求通过
       return { remaining: config.burstCapacity, waitMs: 0 };
     }
@@ -237,7 +237,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
 
       return rows && rows.length > 0 ? parseInt(rows[0].total || '0') : 0;
     } catch (err) {
-      log.error(`[v372] incrementCounter失败: ${(err as Error).message}`);
+      log.warn(`[v372] incrementCounter失败: ${(err as Error).message}`);
       return 0;
     }
   }
@@ -263,7 +263,7 @@ export class MysqlRateLimitStore implements RateLimitStore {
 
       return rows && rows.length > 0 ? parseInt(rows[0].total || '0') : 0;
     } catch (err) {
-      log.error(`[v372] getCounter失败: ${(err as Error).message}`);
+      log.warn(`[v372] getCounter失败: ${(err as Error).message}`);
       return 0;
     }
   }

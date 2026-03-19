@@ -212,7 +212,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
     
     return { success: errors.length === 0, viewsCreated, errors };
   } catch (err: unknown) {
-    log.error(`[RLS] 初始化失败: ${err?.message || ''}`);
+    log.warn(`[RLS] 初始化失败: ${err?.message || ''}`);
     return { success: false, viewsCreated, errors: [...errors, `初始化异常: ${err?.message || ''}`] };
   }
 }
@@ -275,7 +275,7 @@ export async function verifyRLSAccess(
 
     return allowed;
   } catch (err: unknown) {
-    log.error(`[RLS] 验证失败: ${err?.message || ''}`);
+    log.warn(`[RLS] 验证失败: ${err?.message || ''}`);
     return false; // 安全优先：验证失败时拒绝访问
   }
 }

@@ -128,7 +128,7 @@ export class ABTestAutomationScheduler {
     setTimeout(() => {
       if (this.running) {
         this.runCycle().catch(err => {
-          log.error(`[ABTestAutomation] 首次运行失败: ${(err as Error).message}`);
+          log.warn(`[ABTestAutomation] 首次运行失败: ${(err as Error).message}`);
         });
       }
     }, 30 * 60 * 1000);
@@ -136,7 +136,7 @@ export class ABTestAutomationScheduler {
     // 定期运行
     this.timer = setInterval(() => {
       this.runCycle().catch(err => {
-        log.error(`[ABTestAutomation] 定期运行失败: ${(err as Error).message}`);
+        log.warn(`[ABTestAutomation] 定期运行失败: ${(err as Error).message}`);
       });
     }, DEFAULT_CONFIG.checkIntervalMs);
     
@@ -205,7 +205,7 @@ export class ABTestAutomationScheduler {
       
       log.info(`[ABTestAutomation] v359: 自动化周期完成, 创建=${this.stats.totalCreated}, 完成=${this.stats.totalCompleted}, 自动应用=${this.stats.totalAutoApplied}`);
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 自动化周期异常: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 自动化周期异常: ${(error as Error).message}`);
     }
   }
   
@@ -228,7 +228,7 @@ export class ABTestAutomationScheduler {
         }
       }
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 检查活跃实验失败: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 检查活跃实验失败: ${(error as Error).message}`);
     }
   }
   
@@ -302,7 +302,7 @@ export class ABTestAutomationScheduler {
         log.warn(`[ABTestAutomation] 实验${execution.testId}超时: 显著性仅${significance}, 未达到阈值${DEFAULT_CONFIG.minSignificanceThreshold}`);
       }
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 评估实验${execution.testId}失败: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 评估实验${execution.testId}失败: ${(error as Error).message}`);
     }
   }
   
@@ -395,7 +395,7 @@ export class ABTestAutomationScheduler {
         }
       }
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 发现实验机会失败: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 发现实验机会失败: ${(error as Error).message}`);
     }
   }
   
@@ -454,7 +454,7 @@ export class ABTestAutomationScheduler {
           log.info(`[ABTestAutomation] v359: 自动创建实验: ${plan.name}, testId=${result.testId}`);
         }
       } catch (error: unknown) {
-        log.error(`[ABTestAutomation] 创建实验失败: ${plan.name}: ${(error as Error).message}`);
+        log.warn(`[ABTestAutomation] 创建实验失败: ${plan.name}: ${(error as Error).message}`);
         // 失败的计划不放回队列，避免无限重试
       }
     }
@@ -487,7 +487,7 @@ export class ABTestAutomationScheduler {
         }
       }
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 收集实验指标失败: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 收集实验指标失败: ${(error as Error).message}`);
     }
   }
   
@@ -523,7 +523,7 @@ export class ABTestAutomationScheduler {
       
       log.info(`[ABTestAutomation] v359: 胜出策略已记录, 实验${execution.testId}`);
     } catch (error: unknown) {
-      log.error(`[ABTestAutomation] 自动应用失败: ${(error as Error).message}`);
+      log.warn(`[ABTestAutomation] 自动应用失败: ${(error as Error).message}`);
     }
   }
   

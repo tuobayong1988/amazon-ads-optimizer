@@ -438,7 +438,7 @@ export async function makeLinUCBBidDecision(
     return decision;
     
   } catch (error) {
-    log.error(`[LinUCB] Error making bid decision:`, error);
+    log.warn(`[LinUCB] Error making bid decision:`, error);
     return null;
   }
 }

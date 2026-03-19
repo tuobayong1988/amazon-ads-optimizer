@@ -205,7 +205,7 @@ AmazonSyncService.prototype.syncSdCampaigns = async function(this: AmazonSyncSer
 
     return { synced, skipped };
   } catch (error) {
-    log.error(`Error syncing SD campaigns: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`Error syncing SD campaigns: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -277,7 +277,7 @@ AmazonSyncService.prototype.syncSdAdGroups = async function(this: AmazonSyncServ
     log.info(`SD广告组同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error(`Error syncing SD ad groups: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`Error syncing SD ad groups: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -428,7 +428,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
     log.info(`SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error(`Error syncing SD product targets: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`Error syncing SD product targets: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -458,7 +458,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
         const data = await this.client.waitAndDownloadReport(reportId, 300000);
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: SD定向报告请求失败:`, (e as Error).message);
+        log.warn(`v413: SD定向报告请求失败:`, (e as Error).message);
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];
@@ -601,7 +601,7 @@ AmazonSyncService.prototype.syncSdTargeting = async function(this: AmazonSyncSer
     log.info(`SD定向同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error(`同步SD定向失败: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`同步SD定向失败: ${(error as Error).message || JSON.stringify(error)}`);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -710,7 +710,7 @@ AmazonSyncService.prototype.syncSdNegativeTargets = async function(this: AmazonS
     log.info(`SD否定产品定向同步完成: ${synced}条新增, ${updated}条更新`);
     return { synced, updated };
   } catch (error: unknown) {
-    log.error('SD否定产品定向同步失败:', (error as Error).message);
+    log.warn('SD否定产品定向同步失败:', (error as Error).message);
     return { synced: 0, updated: 0 };
   }
 };
@@ -847,7 +847,7 @@ AmazonSyncService.prototype.syncSdBidRecommendations = async function(this: Amaz
     log.info(`[v417] ========== SD建议竞价同步总结: 定位=${targetBidsUpdated}, 错误=${errors} ==========`);
     return { synced: targetBidsUpdated, skipped: errors };
   } catch (error) {
-    log.error(`[v417] Error syncing SD bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`[v417] Error syncing SD bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: targetBidsUpdated, skipped: errors };
   }
 };

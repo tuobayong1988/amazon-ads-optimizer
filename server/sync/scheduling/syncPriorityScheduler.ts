@@ -198,7 +198,7 @@ export async function calculateAccountPriorities(
 
     return accounts;
   } catch (err) {
-    log.error(`[SyncPriority] v373: 优先级评分失败: ${(err as Error).message}`);
+    log.warn(`[SyncPriority] v373: 优先级评分失败: ${(err as Error).message}`);
     return accounts;
   }
 }

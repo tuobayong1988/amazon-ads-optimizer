@@ -195,7 +195,7 @@ export function safeParseApiResponse<T>(
         dataPreview: JSON.stringify(data).slice(0, 500),
       });
     } else {
-      log.error(`API数据校验异常 [${context}]:`, error);
+      log.warn(`API数据校验异常 [${context}]:`, error);
     }
     return null;
   }

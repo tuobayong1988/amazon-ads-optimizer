@@ -204,7 +204,7 @@ export async function analyzePlacementRoi(
       summary,
     };
   } catch (error) {
-    log.error(`[PlacementROI] 分析失败: ${(error as Error).message}`);
+    log.warn(`[PlacementROI] 分析失败: ${(error as Error).message}`);
     return emptyReport;
   }
 }

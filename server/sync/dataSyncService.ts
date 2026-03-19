@@ -234,7 +234,7 @@ async function syncCampaigns(userId: number, accountId: number, account: unknown
       message: `通过Amazon API同步了${result?.campaigns || 0}个广告活动` 
     };
   } catch (error: unknown) {
-    log.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, (error as Error).message);
+    log.warn(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, (error as Error).message);
     return { success: false, count: 0, message: (error as Error).message };
   }
 }
@@ -267,7 +267,7 @@ async function syncKeywords(userId: number, accountId: number, account: unknown)
       message: `通过Amazon API同步了${result?.keywords || 0}个关键词` 
     };
   } catch (error: unknown) {
-    log.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, (error as Error).message);
+    log.warn(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, (error as Error).message);
     return { success: false, count: 0, message: (error as Error).message };
   }
 }
@@ -298,7 +298,7 @@ async function syncPerformance(userId: number, accountId: number, account: unkno
       message: `通过Amazon API同步了${result?.performance || 0}条绩效数据` 
     };
   } catch (error: unknown) {
-    log.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, (error as Error).message);
+    log.warn(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, (error as Error).message);
     return { success: false, count: 0, message: (error as Error).message };
   }
 }
@@ -543,7 +543,7 @@ export async function executeScheduledSync(scheduleId: number): Promise<{ succes
   `);
 
   // 异步执行同步任务
-  executeSyncJob(jobId).catch((err) => log.error("[DataSync] executeSyncJob failed:", err));
+  executeSyncJob(jobId).catch((err) => log.warn("[DataSync] executeSyncJob failed:", err));
 
   return { success: true, jobId, message: "同步任务已启动" };
 }
@@ -615,7 +615,7 @@ export async function runScheduleCheck(): Promise<{ executed: number; failed: nu
       else failed++;
     } catch (error) {
       failed++;
-      log.error(`执行调度任务 ${schedule.id} 失败:`, error);
+      log.warn(`执行调度任务 ${schedule.id} 失败:`, error);
     }
   }
 
@@ -715,7 +715,7 @@ export async function getScheduleExecutionHistory(
       duration: row.duration,
     }));
   } catch (error) {
-    log.error("获取执行历史失败:", error);
+    log.warn("获取执行历史失败:", error);
     return [];
   }
 }
@@ -801,7 +801,7 @@ async function logScheduleExecution(
       details: { scheduleId, retryCount, timestamp: new Date().toISOString() },
     });
   } catch (error) {
-    log.error("记录执行日志失败:", error);
+    log.warn("记录执行日志失败:", error);
   }
 }
 
@@ -852,7 +852,7 @@ async function sendScheduleFailureAlert(
       `.trim(),
     });
   } catch (error) {
-    log.error("发送失败告警失败:", error);
+    log.warn("发送失败告警失败:", error);
   }
 }
 
@@ -918,7 +918,7 @@ export async function getScheduleExecutionStats(scheduleId: number): Promise<{
       lastFailureAt: row.lastFailureAt ? new Date(row.lastFailureAt) : null,
     };
   } catch (error) {
-    log.error("获取执行统计失败:", error);
+    log.warn("获取执行统计失败:", error);
     return {
       totalExecutions: 0,
       successCount: 0,
@@ -952,7 +952,7 @@ export async function runScheduleCheckWithRetry(): Promise<{ executed: number; f
       }
     } catch (error) {
       failed++;
-      log.error(`执行调度任务 ${schedule.id} 失败:`, error);
+      log.warn(`执行调度任务 ${schedule.id} 失败:`, error);
     }
   }
 
@@ -1020,7 +1020,7 @@ export async function cleanupStaleJobs(maxRunningMinutes: number = 120): Promise
     log.info(`[DataSync] v334: 卡死任务清理完成，共清理 ${staleJobs.length} 个任务: ${jobIds.join(', ')}`);
     return { cleaned: staleJobs.length, jobIds };
   } catch (error: unknown) {
-    log.error(`[DataSync] v334: 卡死任务清理失败: ${(error as Error).message}`);
+    log.warn(`[DataSync] v334: 卡死任务清理失败: ${(error as Error).message}`);
     return { cleaned: 0, jobIds: [] };
   }
 }
@@ -1054,7 +1054,7 @@ export async function cleanupOrphanedPendingJobs(maxPendingMinutes: number = 60)
     }
     return { cleaned };
   } catch (error: unknown) {
-    log.error(`[DataSync] v334: 孤儿pending任务清理失败: ${(error as Error).message}`);
+    log.warn(`[DataSync] v334: 孤儿pending任务清理失败: ${(error as Error).message}`);
     return { cleaned: 0 };
   }
 }

@@ -402,7 +402,7 @@ export async function runPrelaunchDbMigration(): Promise<{ success: boolean; res
           results.push(`${table.name}: 表已存在（跳过）`);
         } else {
           results.push(`${table.name}: 创建失败 - ${(err as Error).message}`);
-          log.error(`${table.name} 创建失败: ${(err as Error).message}`);
+          log.warn(`${table.name} 创建失败: ${(err as Error).message}`);
         }
       }
     }
@@ -411,7 +411,7 @@ export async function runPrelaunchDbMigration(): Promise<{ success: boolean; res
     return { success: true, results };
 
   } catch (error: unknown) {
-    log.error(`预发布引擎数据库迁移异常: ${(error as Error).message}`);
+    log.warn(`预发布引擎数据库迁移异常: ${(error as Error).message}`);
     return { success: false, results: [`迁移异常: ${(error as Error).message}`] };
   }
 }

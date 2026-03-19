@@ -174,7 +174,7 @@ export const debugSyncRouter = router({
           log.info(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
             JSON.stringify(result).substring(0, 500));
         }).catch((err: Error) => {
-          log.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, (err as Error).message);
+          log.warn(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, (err as Error).message);
         });
 
         return {
@@ -230,7 +230,7 @@ export const debugSyncRouter = router({
             syncService.syncAll({ syncMode: 'recovery' }).then((result: Record<string, unknown>) => {
               log.info(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
             }).catch((err: Error) => {
-              log.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, (err as Error).message);
+              log.warn(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, (err as Error).message);
             });
 
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'triggered' });

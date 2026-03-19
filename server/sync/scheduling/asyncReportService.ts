@@ -348,7 +348,7 @@ export class AsyncReportService {
         const statusCode = (error as Error & { response?: unknown }).response?.status || error.status;
         
         // 详细记录错误信息
-        log.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
+        log.warn(`[AsyncReportService] Failed to submit job ${job.id}:`, {
           message: errorMessage,
           statusCode,
           accountId: job.accountId,
@@ -471,7 +471,7 @@ export class AsyncReportService {
           pending++;
         }
       } catch (error: unknown) {
-        log.error(`[AsyncReportService] Error checking job ${job.id}:`, (error as Error).message);
+        log.warn(`[AsyncReportService] Error checking job ${job.id}:`, (error as Error).message);
         failed++;
       }
     }
@@ -547,7 +547,7 @@ export class AsyncReportService {
         processedCount++;
         log.debug(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
       } catch (error: unknown) {
-        log.error(`[AsyncReportService] Error processing job ${job.id}:`, (error as Error).message);
+        log.warn(`[AsyncReportService] Error processing job ${job.id}:`, (error as Error).message);
 
         await db
           .update(reportJobs)
@@ -670,7 +670,7 @@ export class AsyncReportService {
 
         processedCount++;
       } catch (error: unknown) {
-        log.error(`[AsyncReportService] Error processing row:`, (error as Error).message);
+        log.warn(`[AsyncReportService] Error processing row:`, (error as Error).message);
       }
     }
 

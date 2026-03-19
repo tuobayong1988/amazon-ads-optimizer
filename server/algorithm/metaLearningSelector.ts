@@ -609,7 +609,7 @@ export async function selectBestAlgorithm(
       }
     }
   } catch (error) {
-    log.error(`Error executing algorithm(s):`, error);
+    log.warn(`Error executing algorithm(s):`, error);
     recommendedBid = currentBid || 0;
     confidence = 0.3;
     fusionMode = 'single';

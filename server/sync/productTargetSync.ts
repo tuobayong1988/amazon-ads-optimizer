@@ -168,7 +168,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
     log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SB product targets:', error);
+    log.warn('Error syncing SB product targets:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -315,7 +315,7 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
     log.info(`SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SD product targets:', error);
+    log.warn('Error syncing SD product targets:', error);
     return { synced: 0, skipped: 0 };
   }
 }
@@ -447,7 +447,7 @@ export async function syncSpNegativeProductTargets(service: SyncContext,): Promi
     log.info(`SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error) {
-    log.error('Error syncing SP negative product targets:', error);
+    log.warn('Error syncing SP negative product targets:', error);
     return { synced: 0, updated: 0 };
   }
 }
@@ -669,7 +669,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
     logSyncProtectionSummary('syncSpProductTargets', protectionStats);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SP product targets:', error);
+    log.warn('Error syncing SP product targets:', error);
     return { synced: 0, skipped: 0 };
   }
 }

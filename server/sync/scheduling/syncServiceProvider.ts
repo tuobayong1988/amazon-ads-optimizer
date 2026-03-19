@@ -69,25 +69,25 @@ export async function getAmazonSyncService(accountId: number): Promise<unknown> 
       // 获取账号信息
       const account = await db.getAdAccountById(accountId);
       if (!account) {
-        log.error(`[SyncServiceProvider] 账号 ${accountId} 不存在`);
+        log.warn(`[SyncServiceProvider] 账号 ${accountId} 不存在`);
         return null;
       }
       
       // 获取API凭证
       const credentials = await db.getAmazonApiCredentials(accountId);
       if (!credentials) {
-        log.error(`[SyncServiceProvider] 账号 ${accountId} 未配置API凭证`);
+        log.warn(`[SyncServiceProvider] 账号 ${accountId} 未配置API凭证`);
         return null;
       }
       
       // 验证凭证完整性
       if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-        log.error(`[SyncServiceProvider] 账号 ${accountId} API凭证不完整`);
+        log.warn(`[SyncServiceProvider] 账号 ${accountId} API凭证不完整`);
         return null;
       }
       
       if (!account.profileId) {
-        log.error(`[SyncServiceProvider] 账号 ${accountId} 缺少profileId`);
+        log.warn(`[SyncServiceProvider] 账号 ${accountId} 缺少profileId`);
         return null;
       }
       
@@ -118,7 +118,7 @@ export async function getAmazonSyncService(accountId: number): Promise<unknown> 
         continue;
       }
       
-      log.error(`[SyncServiceProvider] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, (error as Error).message);
+      log.warn(`[SyncServiceProvider] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, (error as Error).message);
       return null;
     }
   }

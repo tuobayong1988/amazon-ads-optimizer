@@ -101,7 +101,7 @@ export async function syncBidAdjustmentsToAmazon(
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    log.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.warn(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = adjustments.length;
     for (const adj of adjustments) {
@@ -179,7 +179,7 @@ export async function syncBidAdjustmentsToAmazon(
           // @ts-expect-error - runtime type mismatch
           amazonKeywordId = await resolveKeywordIdOnDemand(accountId, adj.keywordId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
+          log.warn(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -238,7 +238,7 @@ export async function syncBidAdjustmentsToAmazon(
           // @ts-expect-error - runtime type mismatch
           amazonTargetId = await resolveProductTargetIdOnDemand(accountId, actualId) || undefined;
         } catch (resolveErr: unknown) {
-          log.error(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
+          log.warn(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
         }
       }
       
@@ -312,13 +312,13 @@ export async function syncBidAdjustmentsToAmazon(
           );
           log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundKeywordIds.length}个关键词为amazon_deleted（Amazon端已不存在）: ${entityNotFoundKeywordIds.slice(0, 5).join(', ')}`);
         } catch (markErr: unknown) {
-          log.error(`[AmazonApiHelper] v454: 标记过期关键词失败: ${(markErr as Error).message}`);
+          log.warn(`[AmazonApiHelper] v454: 标记过期关键词失败: ${(markErr as Error).message}`);
         }
       }
       
       log.info(`[AmazonApiHelper] v359: 关键词出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundKeywordIds.length}`);
     } catch (batchErr: unknown) {
-      log.error(`[AmazonApiHelper] v359: 关键词出价批量更新异常: ${(batchErr as Error).message}`);
+      log.warn(`[AmazonApiHelper] v359: 关键词出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += resolvedKeywordBids.length;
       for (const item of resolvedKeywordBids) {
         result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
@@ -376,13 +376,13 @@ export async function syncBidAdjustmentsToAmazon(
           );
           log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundTargetIds.length}个商品定向为amazon_deleted`);
         } catch (markErr: unknown) {
-          log.error(`[AmazonApiHelper] v454: 标记过期商品定向失败: ${(markErr as Error).message}`);
+          log.warn(`[AmazonApiHelper] v454: 标记过期商品定向失败: ${(markErr as Error).message}`);
         }
       }
       
       log.info(`[AmazonApiHelper] v359: 商品定向出价批量更新完成: 成功=${successCount}, 失败=${apiResult.errors?.length || 0}, entityNotFound=${entityNotFoundTargetIds.length}`);
     } catch (batchErr: unknown) {
-      log.error(`[AmazonApiHelper] v359: 商品定向出价批量更新异常: ${(batchErr as Error).message}`);
+      log.warn(`[AmazonApiHelper] v359: 商品定向出价批量更新异常: ${(batchErr as Error).message}`);
       result.failed += resolvedTargetBids.length;
       for (const item of resolvedTargetBids) {
         result.itemResults.set(item.localId, { status: 'failed', error: (batchErr as Error).message });
@@ -398,7 +398,7 @@ export async function syncBidAdjustmentsToAmazon(
     // v474: 如果所有错误都是entityNotFoundError/entityStateError，降级为WARN
     const hasRealErrors = result.errors.some(e => !e.includes('entityNotFoundError') && !e.includes('entityStateError') && !e.includes('ENTITY_NOT_FOUND'));
     if (hasRealErrors) {
-      log.error(`[AmazonApiHelper] 错误详情: ${result.errors.slice(0, 5).join('; ')}`);
+      log.warn(`[AmazonApiHelper] 错误详情: ${result.errors.slice(0, 5).join('; ')}`);
     } else {
       log.warn(`[AmazonApiHelper] v474: 已删除/归档实体错误(${result.errors.length}条): ${result.errors.slice(0, 3).join('; ').slice(0, 200)}`);
     }
@@ -447,8 +447,8 @@ export async function syncBidAdjustmentsToAmazon(
            e.includes('Token已过期') || e.includes('token expired');
   });
   if (authErrors.length > 0) {
-    log.error(`[ALERT] v333: ⚠️ 发现${authErrors.length}条认证相关错误! 请立即检查accountId=${accountId}的API凭证有效性`);
-    log.error(`[ALERT] v333: 认证错误详情: ${authErrors.slice(0, 3).join('; ')}`);
+    log.warn(`[ALERT] v333: ⚠️ 发现${authErrors.length}条认证相关错误! 请立即检查accountId=${accountId}的API凭证有效性`);
+    log.warn(`[ALERT] v333: 认证错误详情: ${authErrors.slice(0, 3).join('; ')}`);
     
     try {
       const dbInstance = await db.getDb();
@@ -632,7 +632,7 @@ export async function syncNewKeywordsToAmazon(
                 rawConn.release();
               }
             } catch (dbError: unknown) {
-              log.error(`[AmazonApiHelper] v357: 更新本地keywordId失败:`, (dbError as Error).message);
+              log.warn(`[AmazonApiHelper] v357: 更新本地keywordId失败:`, (dbError as Error).message);
             }
           }
         } else {
@@ -641,7 +641,7 @@ export async function syncNewKeywordsToAmazon(
           // @ts-expect-error - dynamic property access
           const errorDetail = (created as Record<string, unknown>).details || (created as Record<string, unknown>).description || '';
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${errorCode}`);
-          log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
+          log.warn(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${errorCode}, detail=${errorDetail}`);
           
           // v350: 增强永久性错误识别 - 包含Amazon返回的通用ERROR码
           // 原因: 大量code=ERROR的关键词反复重试浪费API配额
@@ -674,7 +674,7 @@ export async function syncNewKeywordsToAmazon(
                 log.warn(`[AmazonApiHelper] v351: 关键词"${original.keywordText}"已标记为永久失败 (${errorCode})`);
               }
             } catch (markErr: unknown) {
-              log.error(`[AmazonApiHelper] v351: 标记永久失败异常: ${(markErr as Error).message}`);
+              log.warn(`[AmazonApiHelper] v351: 标记永久失败异常: ${(markErr as Error).message}`);
             }
           }
         }
@@ -689,7 +689,7 @@ export async function syncNewKeywordsToAmazon(
       const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${(error as Error).message}`;
       result.errors.push(errorMsg);
       // @ts-expect-error - Axios error response access
-      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`, (error as Error & { response?: unknown }).response?.data || '');
+      log.warn(`[AmazonApiHelper] ❌ ${errorMsg}`, (error as Error & { response?: unknown }).response?.data || '');
       
       // 如果是限流错误，增加等待时间
       // @ts-expect-error - Axios error response access
@@ -771,11 +771,11 @@ export async function syncNewProductTargetsToAmazon(
           result.failed++;
           const errMsg = `ASIN ${batch[j].asin}: ${created.code}`;
           result.errors.push(errMsg);
-          log.error(`[AmazonApiHelper] v310: 商品定向创建失败: ${errMsg}`);
+          log.warn(`[AmazonApiHelper] v310: 商品定向创建失败: ${errMsg}`);
         }
       }
     } catch (batchErr: unknown) {
-      log.error(`[AmazonApiHelper] v310: 商品定向批次同步失败: ${(batchErr as Error).message}`);
+      log.warn(`[AmazonApiHelper] v310: 商品定向批次同步失败: ${(batchErr as Error).message}`);
       result.failed += batch.length;
       result.errors.push(`Batch error: ${(batchErr as Error).message}`);
     }
@@ -827,7 +827,7 @@ export async function syncBudgetAdjustmentToAmazon(
     log.info(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
   } catch (error: unknown) {
-    log.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, (error as Error).message);
+    log.warn(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, (error as Error).message);
     return false;
   }
 }
@@ -890,7 +890,7 @@ export async function syncPlacementAdjustmentToAmazon(
     }
     return true;
   } catch (error: unknown) {
-    log.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, (error as Error).message);
+    log.warn(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, (error as Error).message);
     return false;
   }
 }
@@ -1250,7 +1250,7 @@ export async function syncKeywordStatusToAmazon(
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    log.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.warn(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -1298,7 +1298,7 @@ export async function syncKeywordStatusToAmazon(
                 kw = { keywordId: resolvedId };
               }
             } catch (resolveErr: unknown) {
-              log.error(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
+              log.warn(`[AmazonApiHelper] v429: 即时回填异常: ${(resolveErr as Error).message}`);
             }
           }
           
@@ -1337,7 +1337,7 @@ export async function syncKeywordStatusToAmazon(
         }
         log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: unknown) {
-        log.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${(batchErr as Error).message}`);
+        log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${(batchErr as Error).message}`);
         result.failed += resolvedKeywordUpdates.length;
         result.errors.push(`关键词状态批量更新异常: ${(batchErr as Error).message}`);
       }
@@ -1378,7 +1378,7 @@ export async function syncKeywordStatusToAmazon(
             const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
             resolvedTargetId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
           } catch (resolveErr: unknown) {
-            log.error(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
+            log.warn(`[AmazonApiHelper] v429: 商品定向即时回填异常: ${(resolveErr as Error).message}`);
           }
         }
         
@@ -1415,7 +1415,7 @@ export async function syncKeywordStatusToAmazon(
         }
         log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: unknown) {
-        log.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${(batchErr as Error).message}`);
+        log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${(batchErr as Error).message}`);
         result.failed += resolvedTargetUpdates.length;
         result.errors.push(`商品定向状态批量更新异常: ${(batchErr as Error).message}`);
       }
@@ -1453,7 +1453,7 @@ export async function syncCampaignStatusToAmazon(
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    log.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.warn(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -1490,7 +1490,7 @@ export async function syncCampaignStatusToAmazon(
       return { success: true };
     } catch (error: unknown) {
       const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, ${campaignType}) 状态同步失败: ${(error as Error).message}`;
-      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+      log.warn(`[AmazonApiHelper] ❌ ${errorMsg}`);
       
       // 记录同步失败到数据库
       try {
@@ -1562,7 +1562,7 @@ export async function syncAdGroupStatusToAmazon(
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    log.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.warn(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -1611,7 +1611,7 @@ export async function syncAdGroupStatusToAmazon(
       }
       log.info(`[AmazonApiHelper] v359: SP广告组状态批量更新完成`);
     } catch (batchErr: unknown) {
-      log.error(`[AmazonApiHelper] v359: SP广告组状态批量更新异常: ${(batchErr as Error).message}`);
+      log.warn(`[AmazonApiHelper] v359: SP广告组状态批量更新异常: ${(batchErr as Error).message}`);
       result.failed += spChanges.length;
       result.errors.push(`SP广告组状态批量更新异常: ${(batchErr as Error).message}`);
     }
@@ -1640,7 +1640,7 @@ export async function syncAdGroupStatusToAmazon(
       }
       log.info(`[AmazonApiHelper] v359: SD广告组状态批量更新完成`);
     } catch (batchErr: unknown) {
-      log.error(`[AmazonApiHelper] v359: SD广告组状态批量更新异常: ${(batchErr as Error).message}`);
+      log.warn(`[AmazonApiHelper] v359: SD广告组状态批量更新异常: ${(batchErr as Error).message}`);
       result.failed += sdChanges.length;
       result.errors.push(`SD广告组状态批量更新异常: ${(batchErr as Error).message}`);
     }

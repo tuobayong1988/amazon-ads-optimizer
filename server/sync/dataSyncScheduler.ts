@@ -178,7 +178,7 @@ export async function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60
     startSelfHealing();
     log.info('[DataSyncScheduler] v384: 自愈调度器已启动');
   } catch (healErr: unknown) {
-    log.error(`[DataSyncScheduler] v384: 自愈调度器启动失败: ${(healErr as Error).message}`);
+    log.warn(`[DataSyncScheduler] v384: 自愈调度器启动失败: ${(healErr as Error).message}`);
   }
   
   log.info(`[DataSyncScheduler] v384: 所有调度器已启动完成`);
@@ -217,7 +217,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
         logSystem('DataSyncScheduler', 'v335启动时卡死任务清理', { staleCleaned: staleResult.cleaned, orphanCleaned: orphanResult.cleaned, staleJobIds: staleResult.jobIds });
       }
     } catch (cleanupErr: unknown) {
-      log.error(`[DataSyncScheduler] v335: 启动清理失败: ${(cleanupErr as Error).message}`);
+      log.warn(`[DataSyncScheduler] v335: 启动清理失败: ${(cleanupErr as Error).message}`);
     }
   })();
 
@@ -307,7 +307,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
               log.info(`[DataSyncScheduler] v411: 任务接管同步完成 - 成功: ${syncResult.successfulAccounts}/${syncResult.totalAccounts}, 失败: ${syncResult.failedAccounts}, 耗时: ${syncResult.durationMs}ms`);
             }
           } catch (resumeErr: unknown) {
-            log.error(`[DataSyncScheduler] v411: 任务接管失败: ${(resumeErr as Error).message}`);
+            log.warn(`[DataSyncScheduler] v411: 任务接管失败: ${(resumeErr as Error).message}`);
           }
           break; // 一次只接管一个任务，避免并发冲突
         } else {
@@ -352,7 +352,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
         log.warn(`[DataSyncScheduler] 重试同步完成: 处理=${retryResult.processed}, 成功=${retryResult.synced}, 失败=${retryResult.failed}`);
       }
     } catch (err: unknown) {
-      log.error(`[DataSyncScheduler] 重试同步异常: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] 重试同步异常: ${(err as Error).message}`);
     }
   }, 5 * 60 * 1000));
   log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
@@ -366,7 +366,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
         log.warn(`[DataSyncScheduler] v334: 定期清理发现 ${result.cleaned} 个卡死任务: ${result.jobIds.join(', ')}`);
       }
     } catch (err: unknown) {
-      log.error(`[DataSyncScheduler] v334: 定期卡死任务清理异常: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v334: 定期卡死任务清理异常: ${(err as Error).message}`);
     }
   }, 10 * 60 * 1000));
   log.info('[DataSyncScheduler] v334: 卡死任务定期清理已启动，间隔: 10分钟');
@@ -377,7 +377,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
       const { getSLOMetrics } = await import('../services/sync/sloMonitor');
       const metrics = await getSLOMetrics();
       if (metrics.overallStatus === 'unhealthy') {
-        log.error(`[DataSyncScheduler] v358.1: SLO健康度异常! score=${metrics.overallScore}, ` +
+        log.warn(`[DataSyncScheduler] v358.1: SLO健康度异常! score=${metrics.overallScore}, ` +
           `syncRate=${metrics.syncSuccessRate.actual}%, coverage=${metrics.dataCoverage.actual}%, ` +
           `freshness=${metrics.dataFreshness.actual}`);
       } else if (metrics.overallStatus === 'degraded') {
@@ -387,7 +387,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
         log.debug(`[DataSyncScheduler] v358.1: SLO正常 score=${metrics.overallScore}`);
       }
     } catch (err: unknown) {
-      log.error(`[DataSyncScheduler] v358.1: SLO监控采集失败: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v358.1: SLO监控采集失败: ${(err as Error).message}`);
     }
   }, 10 * 60 * 1000));
   log.info('[DataSyncScheduler] v358.1: SLO监控已启动，间隔: 10分钟');
@@ -409,11 +409,11 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
           log.info(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复: ` +
             `成功=${repairResult.repaired}, 动作=${repairResult.actionsExecuted}, 错误=${repairResult.errors.length}`);
         } catch (repairErr: unknown) {
-          log.error(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复失败: ${(repairErr as Error).message}`);
+          log.warn(`[DataSyncScheduler] v358.1: 账户${result.accountId}自动修复失败: ${(repairErr as Error).message}`);
         }
       }
     } catch (err: unknown) {
-      log.error(`[DataSyncScheduler] v358.1: 数据完整性检查失败: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v358.1: 数据完整性检查失败: ${(err as Error).message}`);
     }
   }, 4 * 60 * 60 * 1000));
   log.info('[DataSyncScheduler] v358.1: 数据完整性检查器已启动，间隔: 4小时');
@@ -427,7 +427,7 @@ async function startSchedulerTasks(defaultIntervalMs: number): Promise<void> {
       log.info(`[DataSyncScheduler] v358.1: 部署后首次检查完成 - 总计=${checkResult.totalAccounts}, ` +
         `健康=${checkResult.healthyAccounts}, 需修复=${checkResult.unhealthyAccounts}`);
     } catch (err: unknown) {
-      log.error(`[DataSyncScheduler] v358.1: 部署后首次完整性检查失败: ${(err as Error).message}`);
+      log.warn(`[DataSyncScheduler] v358.1: 部署后首次完整性检查失败: ${(err as Error).message}`);
     }
   }, 5 * 60 * 1000);
   
@@ -592,7 +592,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
           await triggerAccountOptimizations(accountResult.accountId, 'unified_sync_complete');
           log.info(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发完成`);
         } catch (optErr: unknown) {
-          log.error(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
+          log.warn(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发失败: ${(optErr as Error).message}`);
         }
       }
       
@@ -603,7 +603,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
         await executeOptimizationTask('daily_search_term_negation');
         log.info(`[DataSyncScheduler] v337.4: 快速否定扫描完成`);
       } catch (negErr: unknown) {
-        log.error(`[DataSyncScheduler] v337.4: 快速否定扫描失败: ${(negErr as Error).message}`);
+        log.warn(`[DataSyncScheduler] v337.4: 快速否定扫描失败: ${(negErr as Error).message}`);
       }
     }
 
@@ -616,7 +616,7 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
     schedulerStatus.errors = schedulerStatus.errors.slice(-10);
 
   } catch (error: unknown) {
-    log.error(`[DataSyncScheduler] v219: ${tier}层同步执行失败:`, error);
+    log.warn(`[DataSyncScheduler] v219: ${tier}层同步执行失败:`, error);
     schedulerStatus.errors.push(`v219 ${tier}层同步失败: ${(error as Error).message}`);
     logSyncError('DataSyncScheduler', `v219 ${tier}层同步失败`, { tier, error: (error as Error).message });
   }
@@ -663,7 +663,7 @@ async function executeLayeredSync(tier: SyncTier): Promise<void> {
     log.info(`[DataSyncScheduler] ${SYNC_TIER_CONFIG[tier].description}完成`);
 
   } catch (error: unknown) {
-    log.error(`[DataSyncScheduler] ${tier}层同步执行失败:`, error);
+    log.warn(`[DataSyncScheduler] ${tier}层同步执行失败:`, error);
     schedulerStatus.errors.push(`${tier}层同步失败: ${(error as Error).message}`);
   }
 
@@ -714,7 +714,7 @@ async function processQueue(): Promise<void> {
         } catch (error: unknown) {
           schedulerStatus.failedSyncs++;
           schedulerStatus.errors.push(`账号 ${request.accountId} ${request.tier}层同步失败: ${(error as Error).message}`);
-          log.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
+          log.warn(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
         }
         schedulerStatus.totalSyncs++;
       }
@@ -774,7 +774,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       try {
         await syncService.syncPerformanceOnly(1);
       } catch (e: unknown) {
-        log.error(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, (e as Error).message);
+        log.warn(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, (e as Error).message);
         logSyncError('DataSyncScheduler', `账号${accountId}高频绩效同步失败`, { accountId, error: (e as Error).message });
       }
       break;
@@ -785,7 +785,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       try {
         await syncService.syncPerformanceOnly(7);
       } catch (e: unknown) {
-        log.error(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, (e as Error).message);
+        log.warn(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, (e as Error).message);
         logSyncError('DataSyncScheduler', `账号${accountId}中频绩效同步失败`, { accountId, error: (e as Error).message });
       }
       break;
@@ -846,7 +846,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       log.info(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
       logOptimization('DataSyncScheduler', `账号${accountId}优化目标执行完成`, { accountId, tier });
     } catch (optErr: unknown) {
-      log.error(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${(optErr as Error).message}`);
+      log.warn(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${(optErr as Error).message}`);
       logOptimizationError('DataSyncScheduler', `账号${accountId}优化目标执行失败`, { accountId, error: (optErr as Error).message });
     }
   }
@@ -879,7 +879,7 @@ async function executeScheduledSync(): Promise<void> {
       } catch (error: unknown) {
         schedulerStatus.failedSyncs++;
         schedulerStatus.errors.push(`账号 ${schedule.accountId} 同步失败: ${(error as Error).message}`);
-        log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步失败:`, error);
+        log.warn(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步失败:`, error);
       }
 
       schedulerStatus.totalSyncs++;
@@ -893,7 +893,7 @@ async function executeScheduledSync(): Promise<void> {
     schedulerStatus.errors = schedulerStatus.errors.slice(-10);
 
   } catch (error: unknown) {
-    log.error('[DataSyncScheduler] 定时同步任务执行失败:', error);
+    log.warn('[DataSyncScheduler] 定时同步任务执行失败:', error);
     schedulerStatus.errors.push(`任务执行失败: ${(error as Error).message}`);
   }
 }
@@ -1018,7 +1018,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const recUpdated = await updateAllCampaignRecommendations(schedule.accountId);
     log.info(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐已更新: ${recUpdated} 个广告活动`);
   } catch (recError: unknown) {
-    log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, (recError as Error).message);
+    log.warn(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, (recError as Error).message);
   }
 
   // ✅ v168: 数据同步完成后，检查是否有优化目标需要自动恢复
@@ -1038,7 +1038,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       }
     }
   } catch (autoResumeErr: unknown) {
-    log.error(`[DataSyncScheduler] v168: 优化目标自动恢复检查失败:`, (autoResumeErr as Error).message);
+    log.warn(`[DataSyncScheduler] v168: 优化目标自动恢复检查失败:`, (autoResumeErr as Error).message);
   }
 
   // ✅ v151: 统一优化入口 - 数据同步完成后，通过optimizationScheduler触发该账户下所有活跃优化目标的执行
@@ -1052,7 +1052,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       errors: triggerResult.errorCount,
     });
   } catch (autoOptError: unknown) {
-    log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, (autoOptError as Error).message);
+    log.warn(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, (autoOptError as Error).message);
   }
 
   // ✅ v152: 数据同步完成后，自动执行效果追踪（追踪之前优化的7/14/30天效果）
@@ -1061,7 +1061,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const trackingResult = await runEffectTracking();
     log.info(`[DataSyncScheduler] v152: 效果追踪完成: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
   } catch (trackError: unknown) {
-    log.error(`[DataSyncScheduler] v152: 效果追踪失败:`, (trackError as Error).message);
+    log.warn(`[DataSyncScheduler] v152: 效果追踪失败:`, (trackError as Error).message);
   }
 
   // v360: 算法进化周期从每天一次优化为每12小时一次，并使用DB持久化去重
@@ -1092,7 +1092,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       log.info(`[DataSyncScheduler] v360: 算法进化完成(12h周期): 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
     }
   } catch (evoError: unknown) {
-    log.error(`[DataSyncScheduler] v360: 算法进化失败:`, (evoError as Error).message);
+    log.warn(`[DataSyncScheduler] v360: 算法进化失败:`, (evoError as Error).message);
   }
 
   // ✅ v167: 数据同步完成后，自动运行纠错扫描（检测并修复过往错误优化）
@@ -1100,7 +1100,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     const correctionResult = await runAutoCorrection(schedule.accountId);
     log.warn(`[DataSyncScheduler] v167: 自动纠错扫描完成: 发现${correctionResult.totalIssuesFound}个问题, 纠正${correctionResult.totalCorrected}个, 失败${correctionResult.totalFailed}个`);
   } catch (correctionError: unknown) {
-    log.error(`[DataSyncScheduler] v167: 自动纠错扫描失败:`, (correctionError as Error).message);
+    log.warn(`[DataSyncScheduler] v167: 自动纠错扫描失败:`, (correctionError as Error).message);
   }
 
   // 发送通知（如果配置了）
@@ -1111,7 +1111,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
         content: `同步结果: ${result.campaigns} 个广告活动, ${result.adGroups} 个广告组, ${result.keywords} 个关键词, ${result.targets} 个商品定位`
       });
     } catch (e) {
-      log.error('[DataSyncScheduler] 发送通知失败:', e);
+      log.warn('[DataSyncScheduler] 发送通知失败:', e);
     }
   }
 }
@@ -1626,7 +1626,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }
     log.info(`[OptimizationScheduler] v242: 已恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录 (JSON精确恢复=${restoredFromJson}, 回退恢复=${restoredFromFallback})`);
   } catch (restoreErr: unknown) {
-    log.error(`[OptimizationScheduler] v242: 恢复模块执行时间失败: ${(restoreErr as Error).message}`);
+    log.warn(`[OptimizationScheduler] v242: 恢复模块执行时间失败: ${(restoreErr as Error).message}`);
   }
   
   // v181: 所有任务添加启动偏移量，避免多个任务同时触发导致锁竞争
@@ -1745,7 +1745,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     startAutoCorrector();
     log.info('[OptimizationScheduler] v167: 自动纠错服务已启动');
   } catch (correctorErr: unknown) {
-    log.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', (correctorErr as Error).message);
+    log.warn('[OptimizationScheduler] v167: 自动纠错服务启动失败:', (correctorErr as Error).message);
   }
   
   // v204: 启动NextGen维护任务 - 启动后立即执行，然后每2小时重复
@@ -1817,7 +1817,7 @@ export async function startOptimizationScheduler(): Promise<void> {
         }
         log.info(`[ABTestScheduler] v267: A/B测试每日指标收集完成`);
       } catch (err: unknown) {
-        log.error(`[ABTestScheduler] v267: A/B测试调度失败: ${(err as Error).message}`);
+        log.warn(`[ABTestScheduler] v267: A/B测试调度失败: ${(err as Error).message}`);
       }
     }
   }, 60 * 60 * 1000);  log.info(`[OptimizationScheduler] v267: A/B测试指标收集已启动，执行时间: 每日凌昨昨3:00`);
@@ -1854,7 +1854,7 @@ export async function startOptimizationScheduler(): Promise<void> {
           conn.release();
         }
       } catch (err: unknown) {
-        log.error(`[DataCleanup] v350: 自动数据清理失败: ${(err as Error).message}`);
+        log.warn(`[DataCleanup] v350: 自动数据清理失败: ${(err as Error).message}`);
       }
     }
   }, 60 * 60 * 1000));
@@ -1966,11 +1966,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               log.info(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查完成: ` +
                 `${adjustments.length}个Campaign, 危急=${criticalCount}, 超速=${overspendCount}, 欠速=${underspendCount}`);
             } catch (pacingError: unknown) {
-              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查异常:`, (pacingError as Error).message);
+              log.warn(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查异常:`, (pacingError as Error).message);
             }
           }
         } catch (pacingError: unknown) {
-          log.error(`[OptimizationScheduler] 日内节奏监控异常:`, (pacingError as Error).message);
+          log.warn(`[OptimizationScheduler] 日内节奏监控异常:`, (pacingError as Error).message);
         }
         break;
       }
@@ -2003,11 +2003,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               }
               log.info(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
             } catch (riskError: unknown) {
-              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描异常:`, (riskError as Error).message);
+              log.warn(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描异常:`, (riskError as Error).message);
             }
           }
         } catch (riskError: unknown) {
-          log.error(`[OptimizationScheduler] 风控扫描异常:`, (riskError as Error).message);
+          log.warn(`[OptimizationScheduler] 风控扫描异常:`, (riskError as Error).message);
         }
         // v122修复：删除了此处的 executeAllEnabledTargets() 调用
         // 之前风控扫描会执行全量优化（出价+位置+分时+搜索词+预算+关键词），导致所有模块的独立调度频率失效
@@ -2039,7 +2039,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             }
           }
         } catch (daypartingError: unknown) {
-          log.error(`[OptimizationScheduler] 分时竞价调整失败:`, (daypartingError as Error).message);
+          log.warn(`[OptimizationScheduler] 分时竞价调整失败:`, (daypartingError as Error).message);
         }
         break;
       }
@@ -2058,7 +2058,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             log.debug(`  - ${r.targetName}: 分时预算调整=${r.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
           }
         } catch (daypartingBudgetError: unknown) {
-          log.error(`[OptimizationScheduler] v179: 分时预算调整失败:`, (daypartingBudgetError as Error).message);
+          log.warn(`[OptimizationScheduler] v179: 分时预算调整失败:`, (daypartingBudgetError as Error).message);
         }
         break;
       }
@@ -2091,13 +2091,13 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 出价调整=${result.bidOptimization.adjustmentsCount}, 关键词暂停=${result.keywordStatusChanges.pausedCount}`);
             } catch (targetErr: unknown) {
-              log.error(`  - ${target.name} 出价优化失败: ${(targetErr as Error).message}`);
+              log.warn(`  - ${target.name} 出价优化失败: ${(targetErr as Error).message}`);
             }
           }
           
           log.info(`[OptimizationScheduler] v273出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}, 总目标=${targets.length}, 时间=${new Date().toISOString()}`);
         } catch (bidError: unknown) {
-          log.error(`[OptimizationScheduler] 出价优化失败:`, (bidError as Error).message);
+          log.warn(`[OptimizationScheduler] 出价优化失败:`, (bidError as Error).message);
         }
         break;
       }
@@ -2130,13 +2130,13 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 位置调整=${result.placementOptimization.adjustmentsCount}`);
             } catch (targetErr: unknown) {
-              log.error(`  - ${target.name} 位置优化失败: ${(targetErr as Error).message}`);
+              log.warn(`  - ${target.name} 位置优化失败: ${(targetErr as Error).message}`);
             }
           }
           
           log.info(`[OptimizationScheduler] 位置优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (placementError: unknown) {
-          log.error(`[OptimizationScheduler] 位置优化失败:`, (placementError as Error).message);
+          log.warn(`[OptimizationScheduler] 位置优化失败:`, (placementError as Error).message);
         }
         break;
       }
@@ -2169,13 +2169,13 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 否定词添加=${result.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${result.searchTermAnalysis.newKeywordsAdded}`);
             } catch (targetErr: unknown) {
-              log.error(`  - ${target.name} 搜索词否定失败: ${(targetErr as Error).message}`);
+              log.warn(`  - ${target.name} 搜索词否定失败: ${(targetErr as Error).message}`);
             }
           }
           
           log.info(`[OptimizationScheduler] 搜索词否定完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (searchTermError: unknown) {
-          log.error(`[OptimizationScheduler] 搜索词否定失败:`, (searchTermError as Error).message);
+          log.warn(`[OptimizationScheduler] 搜索词否定失败:`, (searchTermError as Error).message);
         }
         break;
       }
@@ -2208,7 +2208,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               executedCount++;
               log.debug(`  - ${target.name} [${stage}]: 预算调整=${result.budgetAllocation.adjustmentsCount}`);
             } catch (targetErr: unknown) {
-              log.error(`  - ${target.name} 预算分配失败: ${(targetErr as Error).message}`);
+              log.warn(`  - ${target.name} 预算分配失败: ${(targetErr as Error).message}`);
             }
           }
           
@@ -2220,10 +2220,10 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             const autoExecResult = await checkAndExecutePendingTasks();
             log.info(`[OptimizationScheduler] v267: 预算自动执行完成: 执行=${autoExecResult.executed}, 失败=${autoExecResult.failed}, 错误数=${autoExecResult.errors.length}`);
           } catch (autoExecErr: unknown) {
-            log.error(`[OptimizationScheduler] v267: 预算自动执行失败:`, (autoExecErr as Error).message);
+            log.warn(`[OptimizationScheduler] v267: 预算自动执行失败:`, (autoExecErr as Error).message);
           }
         } catch (budgetError: unknown) {
-          log.error(`[OptimizationScheduler] 预算分配失败:`, (budgetError as Error).message);
+          log.warn(`[OptimizationScheduler] 预算分配失败:`, (budgetError as Error).message);
         }
         break;
       }
@@ -2250,11 +2250,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 `失败=${harvestResult.summary.failed}, ` +
                 `回滚=${harvestResult.summary.rolledBack}`);
             } catch (harvestError: unknown) {
-              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割异常:`, (harvestError as Error).message);
+              log.warn(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割异常:`, (harvestError as Error).message);
             }
           }
         } catch (harvestError: unknown) {
-          log.error(`[OptimizationScheduler] 搜索词收割异常:`, (harvestError as Error).message);
+          log.warn(`[OptimizationScheduler] 搜索词收割异常:`, (harvestError as Error).message);
         }
         break;
       }
@@ -2276,7 +2276,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               const result = await nextGenOrchestrator.executeNextGenMaintenanceTasks(target.accountId);
               log.debug(`  - 账户${target.accountId}: 特征缓存=${result.featuresCached}, Sigmoid拟合=${result.sigmoidFitted.fitted}, Reward回填=${result.rewardsBackfilled}, 因果分析=${result.causalAnalysis.analyzed}`);
             } catch (err: unknown) {
-              log.error(`  - 账户${target.accountId} NextGen维护失败: ${(err as Error).message}`);
+              log.warn(`  - 账户${target.accountId} NextGen维护失败: ${(err as Error).message}`);
             }
           }
           
@@ -2286,10 +2286,10 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             const backfillResult = await backfillBidPerformanceResults();
             log.info(`[OptimizationScheduler] v230: bidPerformanceHistory回填完成: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
           } catch (bErr: unknown) {
-            log.error(`[OptimizationScheduler] v230: bidPerformanceHistory回填失败: ${(bErr as Error).message}`);
+            log.warn(`[OptimizationScheduler] v230: bidPerformanceHistory回填失败: ${(bErr as Error).message}`);
           }
         } catch (err: unknown) {
-          log.error(`[OptimizationScheduler] v197: NextGen维护失败:`, (err as Error).message);
+          log.warn(`[OptimizationScheduler] v197: NextGen维护失败:`, (err as Error).message);
         }
         break;
       }
@@ -2304,11 +2304,11 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               await nextGenOrchestrator.executeModelTraining(target.accountId);
               log.info(`  - 账户${target.accountId}: CQL模型训练完成`);
             } catch (err: unknown) {
-              log.error(`  - 账户${target.accountId} CQL训练失败: ${(err as Error).message}`);
+              log.warn(`  - 账户${target.accountId} CQL训练失败: ${(err as Error).message}`);
             }
           }
         } catch (err: unknown) {
-          log.error(`[OptimizationScheduler] v197: 模型训练失败:`, (err as Error).message);
+          log.warn(`[OptimizationScheduler] v197: 模型训练失败:`, (err as Error).message);
         }
         break;
       }
@@ -2323,17 +2323,17 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               await nextGenOrchestrator.executeBudgetOptimization(target.accountId);
               log.info(`  - 账户${target.accountId}: 预算组合优化完成`);
             } catch (err: unknown) {
-              log.error(`  - 账户${target.accountId} 预算优化失败: ${(err as Error).message}`);
+              log.warn(`  - 账户${target.accountId} 预算优化失败: ${(err as Error).message}`);
             }
             try {
               await nextGenOrchestrator.executeKeywordGraphAnalysis(target.accountId);
               log.info(`  - 账户${target.accountId}: 关键词图谱分析完成`);
             } catch (err: unknown) {
-              log.error(`  - 账户${target.accountId} 关键词图谱失败: ${(err as Error).message}`);
+              log.warn(`  - 账户${target.accountId} 关键词图谱失败: ${(err as Error).message}`);
             }
           }
         } catch (err: unknown) {
-          log.error(`[OptimizationScheduler] v197: 预算优化失败:`, (err as Error).message);
+          log.warn(`[OptimizationScheduler] v197: 预算优化失败:`, (err as Error).message);
         }
         break;
       }
@@ -2342,7 +2342,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     log.info(`[OptimizationScheduler] ${config.description} 执行完成`);
     
   } catch (error: unknown) {
-    log.error(`[OptimizationScheduler] ${taskType} 执行失败:`, (error as Error).message);
+    log.warn(`[OptimizationScheduler] ${taskType} 执行失败:`, (error as Error).message);
   } finally {
     // 确保释放执行锁
     releaseLock(taskType);
@@ -2420,7 +2420,7 @@ async function verifySyncHealth(): Promise<void> {
         apiSyncStatus: 'not_applicable',
       });
       
-      log.error(`[DataSyncScheduler] v336: ❗ 同步健康严重告警 - 连续${consecutiveFailures}次同步失败，已记录告警事件`);
+      log.warn(`[DataSyncScheduler] v336: ❗ 同步健康严重告警 - 连续${consecutiveFailures}次同步失败，已记录告警事件`);
       
       // 重置计数器避免重复告警
       consecutiveFailures = 0;
@@ -2453,12 +2453,12 @@ export async function triggerImmediateSync(accountId: number, reason: string): P
         // 同步完成后验证健康
         await verifySyncHealth();
       } catch (syncErr: unknown) {
-        log.error(`[DataSyncScheduler] v336: 事件驱动同步失败 - 账户${accountId}: ${(syncErr as Error).message}`);
+        log.warn(`[DataSyncScheduler] v336: 事件驱动同步失败 - 账户${accountId}: ${(syncErr as Error).message}`);
         logSyncError('DataSyncScheduler', `v336: 事件驱动同步失败`, { accountId, reason, error: (syncErr as Error).message });
       }
     }, 5 * 1000);
   } catch (err: unknown) {
-    log.error(`[DataSyncScheduler] v336: 事件驱动同步触发异常: ${(err as Error).message}`);
+    log.warn(`[DataSyncScheduler] v336: 事件驱动同步触发异常: ${(err as Error).message}`);
   }
 }
 

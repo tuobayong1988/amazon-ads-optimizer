@@ -298,7 +298,7 @@ export async function acquireDistributedLock(lockName: string, timeoutSec: numbe
     log.debug(`[DistLock] 获取分布式锁失败: ${lockName} (result=${result})`);
     return false;
   } catch (error) {
-    log.error(`[DistLock] 获取分布式锁异常: ${lockName} - ${(error as Error).message}`);
+    log.warn(`[DistLock] 获取分布式锁异常: ${lockName} - ${(error as Error).message}`);
     return false;
   }
 }
@@ -328,7 +328,7 @@ export async function releaseDistributedLock(lockName: string): Promise<void> {
       log.debug(`[DistLock] 释放分布式锁: ${lockName} (无对应连接，可能已释放)`);
     }
   } catch (error) {
-    log.error(`[DistLock] 释放分布式锁异常: ${lockName} - ${(error as Error).message}`);
+    log.warn(`[DistLock] 释放分布式锁异常: ${lockName} - ${(error as Error).message}`);
   }
 }
 

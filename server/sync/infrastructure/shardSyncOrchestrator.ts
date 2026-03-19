@@ -102,7 +102,7 @@ export async function shardBasedSyncAll(
     // Step 4: 创建持久化任务
     const taskId = await createSyncTask(tier, shardDefs, triggerSource);
     if (!taskId) {
-      log.error('[v358] 创建同步任务失败');
+      log.warn('[v358] 创建同步任务失败');
       return result;
     }
     result.taskId = taskId;
@@ -176,7 +176,7 @@ export async function shardBasedSyncAll(
 
           } catch (error: unknown) {
             const durationMs = Date.now() - shardStartTime;
-            log.error(`[v358] Shard ${shard.shardId} 执行异常: ${(error as Error).message}`);
+            log.warn(`[v358] Shard ${shard.shardId} 执行异常: ${(error as Error).message}`);
             
             // 根据错误类型分类
             let errorCode = 'UNKNOWN';
@@ -294,7 +294,7 @@ export async function retryFailedShards(): Promise<{
         result.failed++;
       }
     } catch (error: unknown) {
-      log.error(`[v358] 重试shard ${shard.shardId} 异常: ${(error as Error).message}`);
+      log.warn(`[v358] 重试shard ${shard.shardId} 异常: ${(error as Error).message}`);
       await markShardFailed(shard.shardId, (error as Error).message, 'RETRY_EXCEPTION');
       result.failed++;
     }

@@ -116,7 +116,7 @@ export async function getLocalDataStats(accountId: number): Promise<LocalDataSta
       productTargets: Number(subStats?.productTargetCount || 0),
     };
   } catch (error) {
-    log.error('[getLocalDataStats] Error:', error);
+    log.warn('[getLocalDataStats] Error:', error);
     return { spCampaigns: 0, sbCampaigns: 0, sdCampaigns: 0, adGroups: 0, keywords: 0, productTargets: 0 };
   }
 }
@@ -182,7 +182,7 @@ export async function getAccountPerformanceSummary(
       totalClicks: Number(result?.totalClicks || 0),
     };
   } catch (error) {
-    log.error('[getAccountPerformanceSummary] Error:', error);
+    log.warn('[getAccountPerformanceSummary] Error:', error);
     return null;
   }
 }
@@ -269,7 +269,7 @@ export async function getDailyTrendData(
       };
     });
   } catch (error) {
-    log.error('[getDailyTrendData] Error:', error);
+    log.warn('[getDailyTrendData] Error:', error);
     return [];
   }
 }
@@ -356,7 +356,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<DataDateRa
     
     return defaultRange();
   } catch (error) {
-    log.error('[getDataDateRange] Error:', error);
+    log.warn('[getDataDateRange] Error:', error);
     return defaultRange();
   }
 }
@@ -395,7 +395,7 @@ export async function getPlacementPerformanceByCampaignId(campaignId: string) {
     
     return extractRows(result) || [];
   } catch (error) {
-    log.error('[getPlacementPerformanceByCampaignId] Error:', error);
+    log.warn('[getPlacementPerformanceByCampaignId] Error:', error);
     return [];
   }
 }

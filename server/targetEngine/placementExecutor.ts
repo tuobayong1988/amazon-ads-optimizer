@@ -191,7 +191,7 @@ export async function executePlacementOptimization(
           }
         } catch (apiError: unknown) {
           placementSyncError = (apiError as Error).message;
-          log.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
+          log.warn(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, (apiError as Error).message);
         }
         
         // v134: 将同步状态回写到该campaign的所有detail中

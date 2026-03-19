@@ -61,7 +61,7 @@ export async function applyBidAdjustment(service: SyncContext,
         .limit(1);
       
       if (!kw) {
-        log.error(`[applyBidAdjustment] keyword id=${targetId} 不存在`);
+        log.warn(`[applyBidAdjustment] keyword id=${targetId} 不存在`);
         return false;
       }
       if (!kw.keywordId) {
@@ -94,12 +94,12 @@ export async function applyBidAdjustment(service: SyncContext,
               }
             }
           } catch (resolveErr: unknown) {
-            log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
+            log.warn(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
           }
         }
         
         if (!kw.keywordId) {
-          log.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
+          log.warn(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
           // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
           const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
           throw err;
@@ -123,7 +123,7 @@ export async function applyBidAdjustment(service: SyncContext,
 
       // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
       if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
-        log.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
+        log.warn(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
@@ -134,7 +134,7 @@ export async function applyBidAdjustment(service: SyncContext,
       }]);
       if (!bidResult.success && bidResult.errors.length > 0) {
         const errDetail = JSON.stringify(bidResult.errors[0]);
-        log.error(`[applyBidAdjustment] v426: Amazon API返回错误: keywordId=${amazonId}, errors=${errDetail}`);
+        log.warn(`[applyBidAdjustment] v426: Amazon API返回错误: keywordId=${amazonId}, errors=${errDetail}`);
         throw new Error(`AMAZON_API_ERROR: keyword bid update failed: ${errDetail}`);
       }
 
@@ -148,7 +148,7 @@ export async function applyBidAdjustment(service: SyncContext,
         .limit(1);
       
       if (!pt) {
-        log.error(`[applyBidAdjustment] product_target id=${targetId} 不存在`);
+        log.warn(`[applyBidAdjustment] product_target id=${targetId} 不存在`);
         return false;
       }
       if (!pt.targetId) {
@@ -181,12 +181,12 @@ export async function applyBidAdjustment(service: SyncContext,
               }
             }
           } catch (resolveErr: unknown) {
-            log.error(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
+            log.warn(`[applyBidAdjustment] 即时回填异常: ${(resolveErr as Error).message}`);
           }
         }
         
         if (!pt.targetId) {
-          log.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
+          log.warn(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
           // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
           const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
           throw err;
@@ -210,7 +210,7 @@ export async function applyBidAdjustment(service: SyncContext,
 
       // v125: Amazon SP API v3 要求targetId为字符串类型，直接传递字符串
       if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
-        log.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}"`);
+        log.warn(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}"`);
         return false;
       }
       log.debug(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
@@ -221,7 +221,7 @@ export async function applyBidAdjustment(service: SyncContext,
       }]);
       if (!targetBidResult.success && targetBidResult.errors.length > 0) {
         const errDetail = JSON.stringify(targetBidResult.errors[0]);
-        log.error(`[applyBidAdjustment] v426: Amazon API返回错误: targetId=${amazonId}, errors=${errDetail}`);
+        log.warn(`[applyBidAdjustment] v426: Amazon API返回错误: targetId=${amazonId}, errors=${errDetail}`);
         throw new Error(`AMAZON_API_ERROR: target bid update failed: ${errDetail}`);
       }
 
@@ -255,22 +255,22 @@ export async function applyBidAdjustment(service: SyncContext,
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
     } catch (logError: unknown) {
-      log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${(logError as Error).message}`);
+      log.warn(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${(logError as Error).message}`);
       try {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
         await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
         log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
       } catch (rawSqlError: unknown) {
-        log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${(rawSqlError as Error).message}`);
+        log.warn(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${(rawSqlError as Error).message}`);
       }
     }
 
     return true;
   } catch (error: unknown) {
     const errorDetail = (error as Record<string, unknown>).response?.data ? JSON.stringify(error.response.data) : (error as Error).message;
-    log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
-    log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
+    log.warn(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
+    log.warn(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${(error as Error & { response?: unknown }).response?.status || 'N/A'}`);
     
     // v126: 记录失败的出价调整到bidding_logs
     try {
@@ -281,7 +281,7 @@ export async function applyBidAdjustment(service: SyncContext,
       const errMsg = errorDetail.substring(0, 500);
       await db.execute(sql`INSERT INTO bidding_logs (accountId, campaignId, internal_ad_group_id, logTargetType, targetId, targetName, actionType, previousBid, newBid, bidChangePercent, reason, algorithmVersion, isIntradayAdjustment, execution_status, error_message, createdAt) VALUES (${service.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
     } catch (logErr: unknown) {
-      log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${(logErr as Error).message}`);
+      log.warn(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${(logErr as Error).message}`);
     }
     
     return false;

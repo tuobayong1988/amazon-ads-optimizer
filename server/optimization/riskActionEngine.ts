@@ -192,7 +192,7 @@ async function persistRiskAlert(
       VALUES (${accountId}, 0, 0, 0, 0, ${`[${alertType}] severity=${severity}: ${detail}`}, 'alert_sent', NOW())
     `);
   } catch (err: unknown) {
-    log.error(`[persistRiskAlert] 写入anomaly_alert_logs失败: ${(err as Error).message}`);
+    log.warn(`[persistRiskAlert] 写入anomaly_alert_logs失败: ${(err as Error).message}`);
   }
 }
 
@@ -231,7 +231,7 @@ async function persistEmergencyTask(
     log.info(`[RiskActionEngine] v245: 账户${accountId}紧急优化任务已持久化到数据库: ${actionType}`);
     return true;
   } catch (err: unknown) {
-    log.error(`[persistEmergencyTask] 写入emergency_optimization_queue失败: ${(err as Error).message}`);
+    log.warn(`[persistEmergencyTask] 写入emergency_optimization_queue失败: ${(err as Error).message}`);
     return false;
   }
 }
@@ -336,13 +336,13 @@ export async function assessAccountRisks(): Promise<AccountRiskAssessment[]> {
           recommendedActions: actions,
         });
       } catch (err: unknown) {
-        log.error(`[assessAccountRisks] Error assessing account ${account.id}: ${(err as Error).message}`);
+        log.warn(`[assessAccountRisks] Error assessing account ${account.id}: ${(err as Error).message}`);
       }
     }
     
     return assessments.sort((a: unknown, b: unknown) => b.currentAcos - a.currentAcos);
   } catch (err: unknown) {
-    log.error(`[assessAccountRisks] Fatal error: ${(err as Error).message}`);
+    log.warn(`[assessAccountRisks] Fatal error: ${(err as Error).message}`);
     return [];
   }
 }
@@ -422,7 +422,7 @@ export async function assessSyncHealth(): Promise<SyncHealthAssessment> {
       recommendedActions: actions,
     };
   } catch (err: unknown) {
-    log.error(`[assessSyncHealth] Error: ${(err as Error).message}`);
+    log.warn(`[assessSyncHealth] Error: ${(err as Error).message}`);
     return {
       syncedCount: 0, pendingCount: 0, failedCount: 0, notApplicableCount: 0,
       syncRate: 0, healthStatus: 'critical', recommendedActions: [],
@@ -551,7 +551,7 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
       });
     }
   } catch (err: unknown) {
-    log.error(`[RiskActionEngine] 未分配广告活动检测失败: ${(err as Error).message}`);
+    log.warn(`[RiskActionEngine] 未分配广告活动检测失败: ${(err as Error).message}`);
   }
 
   // v263: 6. 主动ACoS趋势预警 — 对warning账户检查趋势是否恶化
@@ -574,7 +574,7 @@ export async function executeRiskActions(): Promise<RiskActionResult> {
         });
       }
     } catch (err: unknown) {
-      log.error(`[RiskActionEngine] 账户${account.accountId}趋势检查失败: ${(err as Error).message}`);
+      log.warn(`[RiskActionEngine] 账户${account.accountId}趋势检查失败: ${(err as Error).message}`);
     }
   }
 
@@ -606,7 +606,7 @@ async function markAccountForEmergencyOptimization(
     log.info(`[RiskActionEngine] 账户${accountId}已加入紧急优化队列(DB持久化): ${actionType}`);
     return result;
   } catch (err: unknown) {
-    log.error(`[RiskActionEngine] 标记紧急优化失败: ${(err as Error).message}`);
+    log.warn(`[RiskActionEngine] 标记紧急优化失败: ${(err as Error).message}`);
     return false;
   }
 }
@@ -633,7 +633,7 @@ export async function isAccountInEmergencyQueue(accountId: number): Promise<{ in
     }
     return { inQueue: false };
   } catch (err: unknown) {
-    log.error(`[isAccountInEmergencyQueue] 查询失败: ${(err as Error).message}`);
+    log.warn(`[isAccountInEmergencyQueue] 查询失败: ${(err as Error).message}`);
     return { inQueue: false };
   }
 }
@@ -654,7 +654,7 @@ export async function markEmergencyOptimizationProcessed(accountId: number): Pro
     `);
     log.info(`[RiskActionEngine] 账户${accountId}紧急优化已处理(DB更新)`);
   } catch (err: unknown) {
-    log.error(`[markEmergencyOptimizationProcessed] 更新失败: ${(err as Error).message}`);
+    log.warn(`[markEmergencyOptimizationProcessed] 更新失败: ${(err as Error).message}`);
   }
 }
 
@@ -679,7 +679,7 @@ export async function getPendingEmergencyAccounts(): Promise<{ accountId: number
     if (!rows) return [];
     return rows.map((r: Record<string, unknown>) => ({ accountId: r.accountId, type: r.actionType }));
   } catch (err: unknown) {
-    log.error(`[getPendingEmergencyAccounts] 查询失败: ${(err as Error).message}`);
+    log.warn(`[getPendingEmergencyAccounts] 查询失败: ${(err as Error).message}`);
     return [];
   }
 }
@@ -762,7 +762,7 @@ async function detectAndReportUnassignedCampaigns(): Promise<{ unassignedCount: 
     
     return { unassignedCount: activeCampaigns.length, totalDailyBudget: totalBudget, autoAssigned };
   } catch (err: unknown) {
-    log.error(`[detectAndReportUnassignedCampaigns] Error: ${(err as Error).message}`);
+    log.warn(`[detectAndReportUnassignedCampaigns] Error: ${(err as Error).message}`);
     return { unassignedCount: 0, totalDailyBudget: 0, autoAssigned: 0 };
   }
 }
@@ -907,7 +907,7 @@ async function checkAcosTrendForAccount(accountId: number): Promise<{
     
     return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0, riskScore: 0, riskFactors: [] };
   } catch (err: unknown) {
-    log.error(`[checkAcosTrendForAccount] Error for account ${accountId}: ${(err as Error).message}`);
+    log.warn(`[checkAcosTrendForAccount] Error for account ${accountId}: ${(err as Error).message}`);
     return { isDeteriorating: false, recentAcos: 0, prevAcos: 0, deteriorationRate: 0 };
   }
 }
@@ -933,6 +933,6 @@ export async function cleanupProcessedEntries(): Promise<void> {
       log.info(`[RiskActionEngine] v245: 清理${deleted}条已处理的紧急优化记录`);
     }
   } catch (err: unknown) {
-    log.error(`[cleanupProcessedEntries] 清理失败: ${(err as Error).message}`);
+    log.warn(`[cleanupProcessedEntries] 清理失败: ${(err as Error).message}`);
   }
 }

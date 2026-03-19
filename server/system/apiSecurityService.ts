@@ -135,7 +135,7 @@ export async function logApiOperation(params: LogOperationParams): Promise<numbe
     log.info(`[ApiSecurity] Operation logged: ${params.operationType} - ${params.actionDescription}`);
     return logId;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to log operation:', error);
+    log.warn('[ApiSecurity] Failed to log operation:', error);
     return null;
   }
 }
@@ -192,7 +192,7 @@ ${params.changeAmount ? `变更金额: $${params.changeAmount}` : ''}
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    log.error('[ApiSecurity] Failed to send high risk notification:', error);
+    log.warn('[ApiSecurity] Failed to send high risk notification:', error);
   }
 }
 
@@ -259,7 +259,7 @@ export async function getOperationLogs(params: {
       total: countResult[0]?.count || 0,
     };
   } catch (error) {
-    log.error('[ApiSecurity] Failed to get operation logs:', error);
+    log.warn('[ApiSecurity] Failed to get operation logs:', error);
     return { logs: [], total: 0 };
   }
 }
@@ -315,7 +315,7 @@ export async function upsertSpendLimitConfig(params: SpendLimitConfigParams): Pr
       return Number(result[0].insertId);
     }
   } catch (error) {
-    log.error('[ApiSecurity] Failed to upsert spend limit config:', error);
+    log.warn('[ApiSecurity] Failed to upsert spend limit config:', error);
     return null;
   }
 }
@@ -339,7 +339,7 @@ export async function getSpendLimitConfig(userId: number, accountId: number): Pr
 
     return configs[0] || null;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to get spend limit config:', error);
+    log.warn('[ApiSecurity] Failed to get spend limit config:', error);
     return null;
   }
 }
@@ -464,7 +464,7 @@ ${alertType === 'limit_reached' ? '⚠️ 建议立即检查广告活动状态' 
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    log.error('[ApiSecurity] Failed to send spend alert:', error);
+    log.warn('[ApiSecurity] Failed to send spend alert:', error);
   }
 }
 
@@ -494,7 +494,7 @@ export async function getSpendAlertHistory(
 
     return alerts;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to get spend alert history:', error);
+    log.warn('[ApiSecurity] Failed to get spend alert history:', error);
     return [];
   }
 }
@@ -553,7 +553,7 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
 
     return Number(result[0].insertId);
   } catch (error) {
-    log.error('[ApiSecurity] Failed to create anomaly rule:', error);
+    log.warn('[ApiSecurity] Failed to create anomaly rule:', error);
     return null;
   }
 }
@@ -579,7 +579,7 @@ export async function getAnomalyRules(userId: number, accountId?: number): Promi
 
     return rules;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to get anomaly rules:', error);
+    log.warn('[ApiSecurity] Failed to get anomaly rules:', error);
     return [];
   }
 }
@@ -719,7 +719,7 @@ ${rule.ruleDescription || ''}
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    log.error('[ApiSecurity] Failed to send anomaly alert:', error);
+    log.warn('[ApiSecurity] Failed to send anomaly alert:', error);
   }
 }
 
@@ -777,7 +777,7 @@ export async function recordAutoPause(params: {
 
     return recordId;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to record auto pause:', error);
+    log.warn('[ApiSecurity] Failed to record auto pause:', error);
     return null;
   }
 }
@@ -813,7 +813,7 @@ async function sendAutoPauseNotification(params: {
   try {
     await notifyOwner({ title, content });
   } catch (error) {
-    log.error('[ApiSecurity] Failed to send auto pause notification:', error);
+    log.warn('[ApiSecurity] Failed to send auto pause notification:', error);
   }
 }
 
@@ -841,7 +841,7 @@ export async function resumePausedEntities(
 
     return true;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to resume paused entities:', error);
+    log.warn('[ApiSecurity] Failed to resume paused entities:', error);
     return false;
   }
 }
@@ -874,7 +874,7 @@ export async function getAutoPauseRecords(
 
     return records;
   } catch (error) {
-    log.error('[ApiSecurity] Failed to get auto pause records:', error);
+    log.warn('[ApiSecurity] Failed to get auto pause records:', error);
     return [];
   }
 }

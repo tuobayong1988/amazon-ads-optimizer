@@ -144,7 +144,7 @@ export async function submitReportRequest(requestId: number): Promise<void> {
     await database.execute(sql`
       UPDATE report_requests SET status = 'failed', errorMessage = ${(error as Error).message}, retryCount = retryCount + 1, updatedAt = NOW() WHERE id = ${requestId}
     `);
-    log.error(`[AsyncReportService] 报告请求提交失败: ${requestId}`, error);
+    log.warn(`[AsyncReportService] 报告请求提交失败: ${requestId}`, error);
   }
 }
 
@@ -182,7 +182,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
   // 从amazonApiCredentials表获取API凭证
   const credentials = await db.getAmazonApiCredentials(req.accountId);
   if (!credentials) {
-    log.error(`[AsyncReportService] Account ${req.accountId} 未配置API凭证`);
+    log.warn(`[AsyncReportService] Account ${req.accountId} 未配置API凭证`);
     return false;
   }
 
@@ -238,7 +238,7 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
 
     return false;
   } catch (error: unknown) {
-    log.error(`[AsyncReportService] 检查报告状态失败: ${requestId}`, error);
+    log.warn(`[AsyncReportService] 检查报告状态失败: ${requestId}`, error);
     return false;
   }
 }
@@ -488,7 +488,7 @@ async function pollPendingReports(): Promise<void> {
       }
     }
   } catch (error: unknown) {
-    log.error('[AsyncReportService] 轮询报告失败:', error);
+    log.warn('[AsyncReportService] 轮询报告失败:', error);
   }
 }
 

@@ -453,7 +453,7 @@ export const adAutomationRouter = router({
           await enqueueTasks(syncTasks as unknown[]);
           log.info(`[AdAutomation] v453: 已入队 ${syncTasks.length} 个否定词同步任务到Amazon API`);
         } catch (enqueueErr: unknown) {
-          log.error(`[AdAutomation] v453: 否定词同步任务入队失败: ${(enqueueErr as Error).message}`);
+          log.warn(`[AdAutomation] v453: 否定词同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
       
@@ -522,7 +522,7 @@ export const adAutomationRouter = router({
           await enqueueTasks(syncTasks as unknown[]);
           log.info(`[AdAutomation] v453: 已入队 ${syncTasks.length} 个出价调整同步任务到Amazon API`);
         } catch (enqueueErr: unknown) {
-          log.error(`[AdAutomation] v453: 出价调整同步任务入队失败: ${(enqueueErr as Error).message}`);
+          log.warn(`[AdAutomation] v453: 出价调整同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
       

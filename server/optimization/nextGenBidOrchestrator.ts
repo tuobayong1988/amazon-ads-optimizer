@@ -400,7 +400,7 @@ async function checkCircuitBreaker(
     return { tripped: false, reason: '', guardrailInfo };
   } catch (error: unknown) {
     // v426: P2-4 修复 — 熔断检查异常时安全拒绝（tripped=true），而非静默放行
-    log.error(`[CircuitBreaker] 熔断检查异常，安全拒绝: ${(error as Error).message}`);
+    log.warn(`[CircuitBreaker] 熔断检查异常，安全拒绝: ${(error as Error).message}`);
     return { tripped: true, reason: `熔断检查异常(安全拒绝): ${(error as Error).message}`, guardrailInfo: {} };
   }
 }
@@ -1134,7 +1134,7 @@ export async function calculateNextGenBid(
         bidAfter: safeBid,
         actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
                       metaDecision.selectedAlgorithm === 'cql' ? 'cql' : 'rule_based',
-      }).catch(err => log.error('[NextGenOrchestrator] RL recording error:', err));
+      }).catch(err => log.warn('[NextGenOrchestrator] RL recording error:', err));
       
       // v272 P0-1: 记录算法决策追踪
       try {
@@ -1326,13 +1326,13 @@ export async function calculateNextGenBid(
       bidBefore: target.currentBid,
       bidAfter: safeBid,
       actionSource: 'rule_based',
-    }).catch(err => log.error('[NextGenOrchestrator] RL recording error:', err));
+    }).catch(err => log.warn('[NextGenOrchestrator] RL recording error:', err));
     
     return buildResult(target, safeBid, 'rule_engine', ruleResult.confidence,
       `[规则引擎] ${finalReason}`, 'rule_engine');
     
   } catch (ruleError: unknown) {
-    log.error(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${(ruleError as Error).message}`);
+    log.warn(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${(ruleError as Error).message}`);
   }
   
   // ===== 第3层：保守策略（绝对兜底） =====
@@ -1661,7 +1661,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始特征提取: 账户${accountId}`);
     results.featuresCached = await batchExtractAndCacheFeatures(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] 特征提取失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] 特征提取失败: ${(err as Error).message}`);
   }
   
   // 2. 批量拟合Sigmoid曲线
@@ -1669,7 +1669,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始Sigmoid曲线拟合`);
     results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] Sigmoid拟合失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] Sigmoid拟合失败: ${(err as Error).message}`);
   }
   
   // 3. 回填RL Rewards
@@ -1677,7 +1677,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始Reward回填`);
     results.rewardsBackfilled = await backfillRewards(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] Reward回填失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] Reward回填失败: ${(err as Error).message}`);
   }
   
   // 4. 运行因果推断分析
@@ -1685,7 +1685,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始因果推断分析`);
     results.causalAnalysis = await batchCausalAnalysis(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] 因果分析失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] 因果分析失败: ${(err as Error).message}`);
   }
   
   // 5. 回填算法选择结果
@@ -1693,7 +1693,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始算法结果回填`);
     results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] 算法结果回填失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] 算法结果回填失败: ${(err as Error).message}`);
   }
   
   // 6. v256: 自动解决积压的sync_conflicts
@@ -1702,7 +1702,7 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     log.info(`[NextGenMaintenance] 开始自动冲突解决`);
     conflictsResult = await autoResolveConflicts(accountId);
   } catch (err: unknown) {
-    log.error(`[NextGenMaintenance] 自动冲突解决失败: ${(err as Error).message}`);
+    log.warn(`[NextGenMaintenance] 自动冲突解决失败: ${(err as Error).message}`);
   }
   
   log.info(`[NextGenMaintenance] 维护完成(账户${accountId}): ` +
@@ -1723,7 +1723,7 @@ export async function executeModelTraining(accountId: number): Promise<void> {
     await trainCQL(accountId);
     log.info(`[NextGenTraining] CQL训练完成: 账户${accountId}`);
   } catch (error: unknown) {
-    log.error(`[NextGenTraining] CQL训练失败(账户${accountId}): ${(error as Error).message}`);
+    log.warn(`[NextGenTraining] CQL训练失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1738,7 +1738,7 @@ export async function executeBudgetOptimization(accountId: number): Promise<void
       log.info(`[NextGenBudget] 预算优化完成: ${result.allocations.length}个广告活动, 预期利润=$${result.expectedTotalProfit.toFixed(2)}`);
     }
   } catch (error: unknown) {
-    log.error(`[NextGenBudget] 预算优化失败(账户${accountId}): ${(error as Error).message}`);
+    log.warn(`[NextGenBudget] 预算优化失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1753,7 +1753,7 @@ export async function executeKeywordGraphAnalysis(accountId: number): Promise<vo
     const negatives = await discoverNegativeCandidates(accountId);
     log.info(`[NextGenKeyword] 图谱分析完成: ${opportunities.length}个扩展机会, ${negatives.length}个否定词候选`);
   } catch (error: unknown) {
-    log.error(`[NextGenKeyword] 图谱分析失败(账户${accountId}): ${(error as Error).message}`);
+    log.warn(`[NextGenKeyword] 图谱分析失败(账户${accountId}): ${(error as Error).message}`);
   }
 }
 
@@ -1769,6 +1769,6 @@ export async function updateLinUCBFromReward(
   try {
     await updateArm(accountId, armType, context, reward);
   } catch (error: unknown) {
-    log.error(`[NextGenOrchestrator] LinUCB更新失败: ${(error as Error).message}`);
+    log.warn(`[NextGenOrchestrator] LinUCB更新失败: ${(error as Error).message}`);
   }
 }

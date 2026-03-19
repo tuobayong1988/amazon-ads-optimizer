@@ -203,7 +203,7 @@ export async function checkAllCampaignsPacing(
     
     return results;
   } catch (error) {
-    log.error('[IntradayPacing] 批量检查失败:', error);
+    log.warn('[IntradayPacing] 批量检查失败:', error);
     return [];
   }
 }
@@ -284,7 +284,7 @@ async function getCampaignBudget(
     const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
     return campaign?.dailyBudget || 0;
   } catch (error) {
-    log.error('[IntradayPacing] 获取预算失败:', error);
+    log.warn('[IntradayPacing] 获取预算失败:', error);
     return 0;
   }
 }

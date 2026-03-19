@@ -497,7 +497,7 @@ export function preflightValidateReport(config: ReportRequestConfig, callerName?
     if (validationMode === 'strict') {
       throw new Error(errorMsg);
     } else {
-      log.error(`[Preflight] ${errorMsg}`);
+      log.warn(`[Preflight] ${errorMsg}`);
     }
   }
 }
@@ -526,7 +526,7 @@ export function preflightValidateEntityUpdate(
     if (validationMode === 'strict') {
       throw new Error(errorMsg);
     } else {
-      log.error(`[Preflight] ${errorMsg}`);
+      log.warn(`[Preflight] ${errorMsg}`);
     }
   }
 }

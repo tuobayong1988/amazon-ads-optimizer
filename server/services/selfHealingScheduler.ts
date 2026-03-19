@@ -360,7 +360,7 @@ export class SelfHealingScheduler {
         // 检查是否需要自动禁用
         if (task.disableOnConsecutiveFailures && 
             status.consecutiveFailures >= task.disableOnConsecutiveFailures) {
-          log.error(`[SelfHealingScheduler] 任务${task.id}连续失败${status.consecutiveFailures}次，自动禁用`);
+          log.warn(`[SelfHealingScheduler] 任务${task.id}连续失败${status.consecutiveFailures}次，自动禁用`);
           this.setTaskEnabled(task.id, false);
         }
         
@@ -386,7 +386,7 @@ export class SelfHealingScheduler {
       };
       this.executionHistory.push(record);
       
-      log.error(`[SelfHealingScheduler] 任务${task.id}执行异常: ${errorMsg}`);
+      log.warn(`[SelfHealingScheduler] 任务${task.id}执行异常: ${errorMsg}`);
       
       return { success: false, issuesFound: 0, issuesFixed: 0, details: errorMsg };
     }
@@ -419,7 +419,7 @@ export class SelfHealingScheduler {
         log.info(`[SelfHealingScheduler] 升级触发: ${sourceTask.id} -> ${taskId} (原因: ${result.escalateReason})`);
         // 异步触发，不阻塞当前任务
         this.executeTask(task).catch(err => {
-          log.error(`[SelfHealingScheduler] 升级任务${taskId}执行失败: ${(err as Error).message}`);
+          log.warn(`[SelfHealingScheduler] 升级任务${taskId}执行失败: ${(err as Error).message}`);
         });
         break; // 只触发下一级
       }
@@ -447,7 +447,7 @@ export class SelfHealingScheduler {
           const expectedMaxInterval = task.intervalMs * 3; // 允许3倍间隔的容差
           
           if (timeSinceLastRun > expectedMaxInterval) {
-            log.error(`[Watchdog] 任务${taskId}可能已停止! 上次运行: ${status.lastRun.toISOString()}, 已过${Math.round(timeSinceLastRun / 1000)}秒`);
+            log.warn(`[Watchdog] 任务${taskId}可能已停止! 上次运行: ${status.lastRun.toISOString()}, 已过${Math.round(timeSinceLastRun / 1000)}秒`);
             
             // 尝试重新调度
             if (this.running) {
@@ -766,7 +766,7 @@ export function createDefaultSelfHealingScheduler(): SelfHealingScheduler {
         }
         
         if (totalIssues > 0) {
-          log.error(`[DataHealthCheck] ⛔ 发现${totalIssues}条ID格式异常: ${issueDetails.join('; ')}`);
+          log.warn(`[DataHealthCheck] ⛔ 发现${totalIssues}条ID格式异常: ${issueDetails.join('; ')}`);
           return {
             success: false,
             issuesFound: totalIssues,

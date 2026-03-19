@@ -121,7 +121,7 @@ export async function recordBidAdjustment(data: {
       sourceId: Number(result[0]?.insertId || 0),
     });
   } catch (e) {
-    log.error('[v145] 双写optimization_events失败(bidAdjustment):', e);
+    log.warn('[v145] 双写optimization_events失败(bidAdjustment):', e);
   }
   
   return result;

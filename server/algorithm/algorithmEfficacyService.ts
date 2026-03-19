@@ -164,7 +164,7 @@ export async function getAlgorithmEfficacyForTarget(
       improvementTrend,
     };
   } catch (err: unknown) {
-    log.error(`[algorithmEfficacyService] Error for target ${targetId}:`, (err as Error).message);
+    log.warn(`[algorithmEfficacyService] Error for target ${targetId}:`, (err as Error).message);
     return undefined;
   }
 }

@@ -236,7 +236,7 @@ export async function identifyHarvestCandidates(
     return candidates;
 
   } catch (error: unknown) {
-    log.error(`识别候选项失败:`, (error as Error).message);
+    log.warn(`识别候选项失败:`, (error as Error).message);
     return [];
   }
 }
@@ -293,7 +293,7 @@ export async function harvestSearchTermAtomic(
       }
       
       result.error = `Step1 创建关键词失败: ${errorMsg}`;
-      log.error(`${result.error}`);
+      log.warn(`${result.error}`);
       return result;
     }
 
@@ -303,7 +303,7 @@ export async function harvestSearchTermAtomic(
 
   } catch (error: unknown) {
     result.error = `Step1 异常: ${(error as Error).message}`;
-    log.error(`${result.error}`);
+    log.warn(`${result.error}`);
     return result;
   }
 
@@ -335,7 +335,7 @@ export async function harvestSearchTermAtomic(
       
       if (!isDuplicate) {
         // Step 2 失败，需要回滚 Step 1
-        log.error(`Step2 失败，开始回滚 Step1...`);
+        log.warn(`Step2 失败，开始回滚 Step1...`);
         await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
         result.stage = 'rolled_back';
         result.error = `Step2 否定词创建失败: ${JSON.stringify(negativeErrors)}`;
@@ -355,7 +355,7 @@ export async function harvestSearchTermAtomic(
 
   } catch (error: unknown) {
     // Step 2 异常，回滚 Step 1
-    log.error(`Step2 异常: ${(error as Error).message}，开始回滚 Step1...`);
+    log.warn(`Step2 异常: ${(error as Error).message}，开始回滚 Step1...`);
     await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
     result.stage = 'rolled_back';
     result.error = `Step2 异常: ${(error as Error).message}`;
@@ -370,7 +370,7 @@ export async function harvestSearchTermAtomic(
     // v357: 验证Amazon keywordId有效性 - 必须是有效的非空值
     const amazonKeywordId = String(result.createdKeywordId || '');
     if (!amazonKeywordId || amazonKeywordId === 'undefined' || amazonKeywordId === 'null' || amazonKeywordId === '0') {
-      log.error(`v357: Step3 中止 - Amazon keywordId无效: "${amazonKeywordId}"，不写入本地数据库`);
+      log.warn(`v357: Step3 中止 - Amazon keywordId无效: "${amazonKeywordId}"，不写入本地数据库`);
       result.error = `Step3 中止: Amazon keywordId无效 (${amazonKeywordId})，API操作已生效但本地未记录`;
       result.success = true; // API层面成功
       result.stage = 'negative_added';
@@ -514,7 +514,7 @@ export async function batchHarvestSearchTerms(
   // 2. 获取API客户端
   const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
-    log.error(`账号 ${accountId} 无API凭证，无法执行收割`);
+    log.warn(`账号 ${accountId} 无API凭证，无法执行收割`);
     return {
       candidates,
       results: [],
@@ -551,7 +551,7 @@ export async function batchHarvestSearchTerms(
       await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error: unknown) {
-      log.error(`收割异常: "${candidate.searchTerm}" - ${(error as Error).message}`);
+      log.warn(`收割异常: "${candidate.searchTerm}" - ${(error as Error).message}`);
       results.push({
         searchTerm: candidate.searchTerm,
         success: false,
@@ -708,7 +708,7 @@ async function rollbackKeywordCreation(
     // 这里通过设置最低出价来最小化影响
     log.info(`回滚成功: 关键词 ${keywordId} 已设置最低出价`);
   } catch (error: unknown) {
-    log.error(`回滚失败: 关键词 ${keywordId} - ${(error as Error).message}`);
+    log.warn(`回滚失败: 关键词 ${keywordId} - ${(error as Error).message}`);
     // 回滚失败时记录告警，需要人工介入
   }
 }

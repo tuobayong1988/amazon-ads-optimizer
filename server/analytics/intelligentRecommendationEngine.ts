@@ -317,7 +317,7 @@ async function executeAutoOptimizationForTarget(
     return { status: result.status, actions, summary };
     
   } catch (error: unknown) {
-    log.error(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败:`, (error as Error).message);
+    log.warn(`[智能推荐] 对优化目标「${targetName}」执行自动优化失败: ${(error as Error)?.message || String(error)}`);
     return {
       status: 'error',
       actions: [{

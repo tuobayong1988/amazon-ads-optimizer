@@ -366,7 +366,7 @@ export async function updateAllCampaignRecommendations(accountId: number): Promi
     log.info(`[StrategyRecommendation] 已更新 ${updated} 个广告活动的策略推荐`);
     return updated;
   } catch (error) {
-    log.error('[StrategyRecommendation] 更新策略推荐失败:', error);
+    log.warn('[StrategyRecommendation] 更新策略推荐失败:', error);
     return 0;
   }
 }

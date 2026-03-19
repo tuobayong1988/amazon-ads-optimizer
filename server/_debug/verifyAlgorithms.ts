@@ -591,7 +591,7 @@ function main() {
     testSafetyAndOrchestrator();
     testIntegration();
   } catch (error) {
-    log.error('\n💥 FATAL ERROR:', error);
+    log.warn('\n💥 FATAL ERROR:', error);
     failedTests++;
   }
   

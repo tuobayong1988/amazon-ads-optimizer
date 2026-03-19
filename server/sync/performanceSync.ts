@@ -46,7 +46,7 @@ const log = createModuleLogger('performanceSync');
 export async function syncPerformanceData(service: SyncContext,days: number = 14): Promise<number> {
   const db = await getDb();
   if (!db) {
-    log.error('数据库连接失败');
+    log.warn('数据库连接失败');
     return 0;
   }
 
@@ -92,7 +92,7 @@ export async function syncPerformanceData(service: SyncContext,days: number = 14
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (batchError: unknown) {
-        log.error(`第${batch + 1}批同步失败:`, (batchError as Error).message);
+        log.warn(`第${batch + 1}批同步失败:`, (batchError as Error).message);
         // 继续下一批，不中断整个同步过程
       }
     }
@@ -105,17 +105,17 @@ export async function syncPerformanceData(service: SyncContext,days: number = 14
       const hourlyGenerated = await service.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
       log.info(`v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
     } catch (hourlyErr: unknown) {
-      log.error(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
+      log.warn(`v195: hourly_performance生成失败: ${(hourlyErr as Error).message}`);
     }
     
     log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
     return totalSynced;
   } catch (error: unknown) {
-    log.error('同步绩效数据失败:', error);
+    log.warn('同步绩效数据失败:', error);
     
     // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
     if ((error as Error).message?.includes('timeout') || (error as Error).message?.includes('PENDING') || (error as Error).message?.includes('Report generation')) {
-      log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
+      log.warn('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
     }
     
     return 0;
@@ -142,9 +142,9 @@ async function syncPerformanceDataBatch(service: SyncContext, startDateStr: stri
   const spData = results[0]?.data || null;
   const sbData = results[1]?.data || null;
   const sdData = results[2]?.data || null;
-  if (results[0]?.error) log.error(`[SP] 报告同步失败: ${results[0].error}`);
-  if (results[1]?.error) log.error(`[SB] 报告同步失败: ${results[1].error}`);
-  if (results[2]?.error) log.error(`[SD] 报告同步失败: ${results[2].error}`);
+  if (results[0]?.error) log.warn(`[SP] 报告同步失败: ${results[0].error}`);
+  if (results[1]?.error) log.warn(`[SB] 报告同步失败: ${results[1].error}`);
+  if (results[2]?.error) log.warn(`[SD] 报告同步失败: ${results[2].error}`);
 
   // 串行处理数据（避免数据库并发冲突）
   if (spData && spData.length > 0) {
@@ -384,7 +384,7 @@ async function processReportData(service: SyncContext, db: DbInstance, reportDat
     log.info(`  - 总同步: ${synced} 条`);
     return synced;
   } catch (error: unknown) {
-    log.error(`${adType}报告数据处理失败:`, (error as Error).message);
+    log.warn(`${adType}报告数据处理失败:`, (error as Error).message);
     return 0;
   }
 }
@@ -511,7 +511,7 @@ async function flushPerfBatch(
     log.debug(`v423: 批量写入完成 - insert=${toInsert.length}, update=${toUpdate.length}, synced=${synced}`);
     return synced;
   } catch (err: unknown) {
-    log.error(`v423: flushPerfBatch失败: ${(err as Error).message}`);
+    log.warn(`v423: flushPerfBatch失败: ${(err as Error).message}`);
     // 回退到逐条写入
     let synced = 0;
     for (const perfData of batch) {
@@ -628,7 +628,7 @@ export async function generateMockPerformanceData(service: SyncContext,days: num
     log.info(`模拟绩效数据生成完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('生成模拟绩效数据失败:', error);
+    log.warn('生成模拟绩效数据失败:', error);
     return 0;
   }
 }
@@ -752,7 +752,7 @@ export async function generateHourlyFromDaily(service: SyncContext,startDate: st
     
     return insertedCount;
   } catch (error: unknown) {
-    log.error('v195: generateHourlyFromDaily失败:', (error as Error).message);
+    log.warn('v195: generateHourlyFromDaily失败:', (error as Error).message);
     return 0;
   }
 }
@@ -903,7 +903,7 @@ export async function syncPlacementPerformance(service: SyncContext,days: number
     log.info(`v426: 位置绩效同步完成: synced=${synced}, inserted=${toInsertPlacement.length}`);
     return synced;
   } catch (error) {
-    log.error('同步位置绩效失败:', error);
+    log.warn('同步位置绩效失败:', error);
     return 0;
   }
 }
@@ -1028,7 +1028,7 @@ export async function updateCampaignPerformanceSummary(service: SyncContext,): P
 
     log.info(`广告活动绩效汇总更新完成`);
   } catch (error) {
-    log.error('更新广告活动绩效汇总失败:', error);
+    log.warn('更新广告活动绩效汇总失败:', error);
   }
 }
 
@@ -1053,7 +1053,7 @@ export async function syncPerformanceOnly(service: SyncContext,days: number = 14
     results.performance = await service.syncPerformanceData(days);
     log.info(`绩效数据同步完成: ${results.performance} 条记录`);
   } catch (error) {
-    log.error('绩效数据同步失败:', error);
+    log.warn('绩效数据同步失败:', error);
   }
   // v192: 同步关键词级别绩效数据（之前仅在syncAll中执行，导致keywords表绩效全为0）
   try {
@@ -1061,7 +1061,7 @@ export async function syncPerformanceOnly(service: SyncContext,days: number = 14
     results.keywordPerf = await service.syncKeywordPerformanceData(days);
     log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
   } catch (kwPerfError: unknown) {
-    log.error('关键词绩效数据同步失败:', (kwPerfError as Error).message);
+    log.warn('关键词绩效数据同步失败:', (kwPerfError as Error).message);
   }
   // v192: 同步商品定位级别绩效数据
   try {
@@ -1069,7 +1069,7 @@ export async function syncPerformanceOnly(service: SyncContext,days: number = 14
     results.targetPerf = await service.syncProductTargetPerformanceData(days);
     log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
   } catch (ptPerfError: unknown) {
-    log.error('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
+    log.warn('商品定位绩效数据同步失败:', (ptPerfError as Error).message);
   }
   return results;
 }
@@ -1173,7 +1173,7 @@ export async function syncSbPlacementPerformance(service: SyncContext,days: numb
     
     log.info(`SB广告位绩效同步完成: ${synced}条`);
   } catch (error: unknown) {
-    log.error('SB广告位绩效同步失败:', (error as Error).message);
+    log.warn('SB广告位绩效同步失败:', (error as Error).message);
   }
   return synced;
 }

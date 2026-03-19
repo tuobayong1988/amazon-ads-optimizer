@@ -48,7 +48,7 @@ async function initRedis(): Promise<boolean> {
       maxRetriesPerRequest: 3,
       retryStrategy(times: number) {
         if (times > 10) {
-          log.error(`Redis 重连失败 ${times} 次，停止重试`);
+          log.warn(`Redis 重连失败 ${times} 次，停止重试`);
           return null; // 停止重试
         }
         const delay = Math.min(times * 500, 5000);
@@ -80,7 +80,7 @@ async function initRedis(): Promise<boolean> {
     });
 
     _client.on('error', (err: Error) => {
-      log.error(`Redis 错误: ${err.message}`);
+      log.warn(`Redis 错误: ${err.message}`);
       _isConnected = false;
     });
 

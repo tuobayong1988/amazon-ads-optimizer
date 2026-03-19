@@ -348,7 +348,7 @@ async function logCoordinationResult(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    log.error('[BidCoordinator] 记录日志失败:', error);
+    log.warn('[BidCoordinator] 记录日志失败:', error);
   }
 }
 
@@ -390,7 +390,7 @@ export async function getCampaignBidConfig(
       biddingStrategy: campaign.biddingStrategy || 'manual',
     };
   } catch (error) {
-    log.error('[BidCoordinator] 获取Campaign配置失败:', error);
+    log.warn('[BidCoordinator] 获取Campaign配置失败:', error);
     return null;
   }
 }

@@ -303,7 +303,7 @@ export async function estimateCausalEffect(
     return result;
     
   } catch (error) {
-    log.error(`[CausalInference] Error estimating causal effect:`, error);
+    log.warn(`[CausalInference] Error estimating causal effect:`, error);
     return null;
   }
 }

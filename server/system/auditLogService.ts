@@ -119,7 +119,7 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<{ succ
     
     return { success: true };
   } catch (error: unknown) {
-    log.error('[AuditLog] 创建审计日志失败:', error);
+    log.warn('[AuditLog] 创建审计日志失败:', error);
     return { success: false, error: (error as Error).message };
   }
 }
@@ -181,7 +181,7 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     
     return { logs, total };
   } catch (error) {
-    log.error('[AuditLog] 查询审计日志失败:', error);
+    log.warn('[AuditLog] 查询审计日志失败:', error);
     return { logs: [], total: 0 };
   }
 }

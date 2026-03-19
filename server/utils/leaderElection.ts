@@ -60,7 +60,7 @@ async function ensureLeaderTable(): Promise<void> {
       conn.release();
     }
   } catch (err) {
-    log.error(`[LeaderElection] v371: 创建leader_election表失败: ${(err as Error).message}`);
+    log.warn(`[LeaderElection] v371: 创建leader_election表失败: ${(err as Error).message}`);
   }
 }
 
@@ -135,7 +135,7 @@ async function tryBecomeLeader(): Promise<boolean> {
       try { await conn.rollback(); } catch (e) { /* ignore */ }
       try { conn.release(); } catch (e) { /* ignore */ }
     }
-    log.error(`[LeaderElection] v371: 竞选异常: ${(err as Error).message}`);
+    log.warn(`[LeaderElection] v371: 竞选异常: ${(err as Error).message}`);
     return false;
   }
 }
@@ -163,7 +163,7 @@ async function sendHeartbeat(): Promise<boolean> {
     return true;
   } catch (err) {
     if (conn) try { conn.release(); } catch (e) { /* ignore */ }
-    log.error(`[LeaderElection] v371: 心跳异常: ${(err as Error).message}`);
+    log.warn(`[LeaderElection] v371: 心跳异常: ${(err as Error).message}`);
     return false;
   }
 }
@@ -183,7 +183,7 @@ async function resignLeadership(): Promise<void> {
     log.info(`[LeaderElection] v371: 已放弃Leadership`);
   } catch (err) {
     if (conn) try { conn.release(); } catch (e) { /* ignore */ }
-    log.error(`[LeaderElection] v371: 放徃Leadership异常: ${(err as Error).message}`);
+    log.warn(`[LeaderElection] v371: 放徃Leadership异常: ${(err as Error).message}`);
   }
 }
 
@@ -282,7 +282,7 @@ function startElectionLoop(): void {
       
       // v383: 支持async回调
       Promise.resolve(onBecomeLeader?.()).catch(err => {
-        log.error(`[LeaderElection] v383: onBecomeLeader回调执行失败: ${(err as Error).message}`);
+        log.warn(`[LeaderElection] v383: onBecomeLeader回调执行失败: ${(err as Error).message}`);
       });
     }
   }, 45 * 1000);

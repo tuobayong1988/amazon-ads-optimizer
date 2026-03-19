@@ -144,7 +144,7 @@ export async function resolveAmazonCampaignId(localCampaignId: number): Promise<
       return amazonId;
     }
   } catch (err: unknown) {
-    log.error(`[IdResolver] resolveAmazonCampaignId(${localCampaignId}) 失败: ${err.message}`);
+    log.warn(`[IdResolver] resolveAmazonCampaignId(${localCampaignId}) 失败: ${err.message}`);
   }
   return null;
 }
@@ -190,7 +190,7 @@ export async function resolveLocalCampaignId(
       return campaign.id;
     }
   } catch (err: unknown) {
-    log.error(`[IdResolver] resolveLocalCampaignId(${amazonIdStr}) 失败: ${err.message}`);
+    log.warn(`[IdResolver] resolveLocalCampaignId(${amazonIdStr}) 失败: ${err.message}`);
   }
   return null;
 }
@@ -226,7 +226,7 @@ export async function resolveAmazonKeywordId(localKeywordId: number): Promise<st
       }
     }
   } catch (err: unknown) {
-    log.error(`[IdResolver] resolveAmazonKeywordId(${localKeywordId}) 失败: ${err.message}`);
+    log.warn(`[IdResolver] resolveAmazonKeywordId(${localKeywordId}) 失败: ${err.message}`);
   }
   return null;
 }
@@ -257,7 +257,7 @@ export async function resolveAmazonTargetId(localTargetId: number): Promise<stri
       }
     }
   } catch (err: unknown) {
-    log.error(`[IdResolver] resolveAmazonTargetId(${localTargetId}) 失败: ${err.message}`);
+    log.warn(`[IdResolver] resolveAmazonTargetId(${localTargetId}) 失败: ${err.message}`);
   }
   return null;
 }
@@ -288,7 +288,7 @@ export async function preloadCampaignIds(accountId: number): Promise<number> {
     log.debug(`[IdResolver] 预热Campaign ID缓存: accountId=${accountId}, 加载${campaigns.length}条`);
     return campaigns.length;
   } catch (err: unknown) {
-    log.error(`[IdResolver] preloadCampaignIds 失败: ${err.message}`);
+    log.warn(`[IdResolver] preloadCampaignIds 失败: ${err.message}`);
     return 0;
   }
 }
@@ -326,7 +326,7 @@ export async function preloadKeywordIds(amazonCampaignId: string): Promise<numbe
     log.debug(`[IdResolver] 预热Keyword ID缓存: campaign=${amazonCampaignId}, 加载${loaded}条`);
     return loaded;
   } catch (err: unknown) {
-    log.error(`[IdResolver] preloadKeywordIds 失败: ${err.message}`);
+    log.warn(`[IdResolver] preloadKeywordIds 失败: ${err.message}`);
     return 0;
   }
 }
@@ -364,7 +364,7 @@ export async function toAmazonCampaignId(
     if (amazonId) {
       return amazonId;
     }
-    log.error(`[IdResolver] ⛔ 无法将本地campaignId(${value})转换为Amazon ID! 调用来源: ${context}`);
+    log.warn(`[IdResolver] ⛔ 无法将本地campaignId(${value})转换为Amazon ID! 调用来源: ${context}`);
     // 返回原值的字符串形式（可能导致下游查询返回空，但至少不会崩溃）
     return str;
   }

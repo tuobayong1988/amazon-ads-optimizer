@@ -197,7 +197,7 @@ export function recordAudit(entry: AuditLogEntry): void {
   // 缓冲区满时立即刷新
   if (buffer.length >= BUFFER_SIZE) {
     flushBuffer().catch(err => {
-      log.error(`[AuditLog] 刷新缓冲区失败: ${(err as Error).message}`);
+      log.warn(`[AuditLog] 刷新缓冲区失败: ${(err as Error).message}`);
     });
   }
   
@@ -205,7 +205,7 @@ export function recordAudit(entry: AuditLogEntry): void {
   if (!flushTimer) {
     flushTimer = setInterval(() => {
       flushBuffer().catch(err => {
-        log.error(`[AuditLog] 定时刷新失败: ${(err as Error).message}`);
+        log.warn(`[AuditLog] 定时刷新失败: ${(err as Error).message}`);
       });
     }, FLUSH_INTERVAL_MS);
   }
@@ -258,13 +258,13 @@ async function flushBuffer(): Promise<void> {
           errorMessage: e.errorMessage || null,
         } as Record<string, unknown>);
       } catch (insertErr) {
-        log.error(`[AuditLog] 单条审计日志写入失败: ${(insertErr as Error).message} | action=${e.action}`);
+        log.warn(`[AuditLog] 单条审计日志写入失败: ${(insertErr as Error).message} | action=${e.action}`);
       }
     }
     
     log.debug(`[AuditLog] 已写入${entries.length}条审计日志`);
   } catch (err) {
-    log.error(`[AuditLog] 写入审计日志失败: ${(err as Error).message}`);
+    log.warn(`[AuditLog] 写入审计日志失败: ${(err as Error).message}`);
     // 将失败的条目放回缓冲区（最多保留BUFFER_SIZE/2条）
     buffer = [...entries.slice(-Math.floor(BUFFER_SIZE / 2)), ...buffer].slice(0, BUFFER_SIZE);
   }
@@ -326,7 +326,7 @@ export async function queryAuditLogs(params: {
       total,
     };
   } catch (err) {
-    log.error(`[AuditLog] 查询审计日志失败: ${(err as Error).message}`);
+    log.warn(`[AuditLog] 查询审计日志失败: ${(err as Error).message}`);
     return { logs: [], total: 0 };
   }
 }

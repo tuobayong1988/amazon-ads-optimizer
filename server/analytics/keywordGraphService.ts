@@ -158,7 +158,7 @@ Output ONLY the JSON array, no explanation.`
         for (const _ of batch) embeddings.push(Array(32).fill(0));
       }
     } catch (error) {
-      log.error(`[KeywordGraph] Embedding generation error:`, error);
+      log.warn(`[KeywordGraph] Embedding generation error:`, error);
       for (const _ of batch) embeddings.push(Array(32).fill(0));
     }
   }
@@ -264,7 +264,7 @@ export async function buildKeywordGraph(accountId: number): Promise<{
     return result;
     
   } catch (error) {
-    log.error(`[KeywordGraph] Error building graph:`, error);
+    log.warn(`[KeywordGraph] Error building graph:`, error);
     return result;
   }
 }
@@ -352,7 +352,7 @@ export async function discoverOpportunities(accountId: number): Promise<KeywordO
     return opportunities;
     
   } catch (error) {
-    log.error(`[KeywordGraph] Error discovering opportunities:`, error);
+    log.warn(`[KeywordGraph] Error discovering opportunities:`, error);
     return opportunities;
   }
 }
@@ -412,7 +412,7 @@ export async function discoverNegativeCandidates(accountId: number): Promise<Neg
     return candidates;
     
   } catch (error) {
-    log.error(`[KeywordGraph] Error discovering negatives:`, error);
+    log.warn(`[KeywordGraph] Error discovering negatives:`, error);
     return candidates;
   }
 }

@@ -127,10 +127,10 @@ export function handleError(
   if (!options?.silent) {
     switch (severity) {
       case ErrorSeverity.CRITICAL:
-        log.error(`[CRITICAL] ${errorMessage}`);
+        log.warn(`[CRITICAL] ${errorMessage}`);
         break;
       case ErrorSeverity.HIGH:
-        log.error(`${errorMessage}`);
+        log.warn(`${errorMessage}`);
         break;
       case ErrorSeverity.MEDIUM:
         log.warn(`${errorMessage}`);

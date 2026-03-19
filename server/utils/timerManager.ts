@@ -45,7 +45,7 @@ class TimerManager {
       try {
         await callback();
       } catch (err: unknown) {
-        log.error(`[TimerManager] ${module}/${description} 执行异常: ${(err as Error).message}`);
+        log.warn(`[TimerManager] ${module}/${description} 执行异常: ${(err as Error).message}`);
       }
     };
 
@@ -79,7 +79,7 @@ class TimerManager {
       try {
         await callback();
       } catch (err: unknown) {
-        log.error(`[TimerManager] ${module}/${description} 执行异常: ${(err as Error).message}`);
+        log.warn(`[TimerManager] ${module}/${description} 执行异常: ${(err as Error).message}`);
       } finally {
         // timeout执行后自动从管理器中移除
         this.timers.delete(key);

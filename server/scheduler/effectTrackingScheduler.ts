@@ -218,7 +218,7 @@ export async function runEffectTrackingTask(period: number): Promise<TrackingRes
         trackingData,
       });
     } catch (error) {
-      log.error(`Failed to track record ${record.id}:`, error);
+      log.warn(`Failed to track record ${record.id}:`, error);
     }
   }
   
@@ -409,7 +409,7 @@ async function executeScheduledTask(): Promise<void> {
     log.info(`[${new Date().toISOString()}] 效果追踪任务完成: 7天=${results.day7.length}, 14天=${results.day14.length}, 30天=${results.day30.length}`);
   } catch (error: unknown) {
     const errorMsg = `效果追踪任务执行失败: ${(error as Error).message}`;
-    log.error(errorMsg);
+    log.warn(errorMsg);
     schedulerStatus.errors.push(errorMsg);
   }
 }

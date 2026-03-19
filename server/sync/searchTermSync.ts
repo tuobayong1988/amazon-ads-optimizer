@@ -204,7 +204,7 @@ export async function syncSbSearchTerms(service: SyncContext, days: number = 14)
     log.info(`v426: SB搜索词同步完成: synced=${synced}, inserted=${toInsert.length}, skipped=${skipped}`);
     return synced;
   } catch (error) {
-    log.error('同步SB搜索词失败:', error);
+    log.warn('同步SB搜索词失败:', error);
     return 0;
   }
 }
@@ -390,7 +390,7 @@ export async function syncSearchTerms(service: SyncContext,days: number = 14): P
     log.info(`v196: 搜索词同步完成: 同步=${synced}, 跳过=${skipped} (无匹配campaign/adGroup)`);
     return synced;
   } catch (error) {
-    log.error('v196: 同步搜索词失败:', error);
+    log.warn('v196: 同步搜索词失败:', error);
     return 0;
   }
 }

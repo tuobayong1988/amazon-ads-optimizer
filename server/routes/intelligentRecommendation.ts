@@ -54,16 +54,16 @@ export const intelligentRecommendationRouter = router({
           const { triggerInitialOptimization } = await import('../optimization/optimizationScheduler');
           // @ts-expect-error - catch block error type
           triggerInitialOptimization(id, { triggeredBy: 'create' as unknown }).catch(err => {
-            log.error(`[智能推荐] 触发首次优化失败:`, err);
+            log.warn(`[智能推荐] 触发首次优化失败:`, err);
           });
         } catch (e) {
-          log.error('[智能推荐] 导入optimizationScheduler失败:', e);
+          log.warn('[智能推荐] 导入optimizationScheduler失败:', e);
         }
 
         log.info(`[智能推荐] 成功创建优化目标 #${id}，包含${input.campaignIds.length}个广告活动`);
         return { success: true, goalId: id, campaignCount: input.campaignIds.length };
       } catch (error: unknown) {
-        log.error('[智能推荐] 创建优化目标失败:', error);
+        log.warn('[智能推荐] 创建优化目标失败:', error);
         throw new Error(`创建优化目标失败: ${(error as Error).message}`);
       }
     }),

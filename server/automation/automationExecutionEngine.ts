@@ -517,7 +517,7 @@ export async function executeOptimization(
                   bidApiSuccess = true;
                 }
               } catch (apiErr: unknown) {
-                log.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, (apiErr as Error).message);
+                log.warn(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, (apiErr as Error).message);
               }
             }
           }
@@ -575,7 +575,7 @@ export async function executeOptimization(
               budgetApiSuccess = true;
             }
           } catch (budgetApiErr: unknown) {
-            log.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, (budgetApiErr as Error).message);
+            log.warn(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, (budgetApiErr as Error).message);
           }
         }
         // v148: 先API后DB原则 - 只有API成功才更新本地DB
@@ -640,7 +640,7 @@ export async function executeOptimization(
                   ptApiSuccess = true;
                 }
               } catch (ptApiErr: unknown) {
-                log.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, (ptApiErr as Error).message);
+                log.warn(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, (ptApiErr as Error).message);
               }
             }
           }
@@ -712,7 +712,7 @@ export async function executeOptimization(
               placementApiSuccess = true;
             }
           } catch (plApiErr: unknown) {
-            log.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, (plApiErr as Error).message);
+            log.warn(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, (plApiErr as Error).message);
           }
         }
         await db.createBiddingLog({
@@ -765,7 +765,7 @@ export async function executeOptimization(
               daypartingApiSuccess = true;
             }
           } catch (dpApiErr: unknown) {
-            log.error(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, (dpApiErr as Error).message);
+            log.warn(`[AutoExec] v271: 分时策略Amazon API调整失败 (campaign ${targetId}):`, (dpApiErr as Error).message);
           }
         }
         // v271: 先API后DB原则
@@ -846,7 +846,7 @@ export async function executeOptimization(
         
         // v400-fix: BUG-A6修复 - 如果无法解析到Amazon campaignId，不应传入内部keyword ID作为campaignId
         if (!negCampaignId) {
-          log.error(`[AutoExec] v400-fix: 无法解析否定词的Amazon campaignId, keyword=${targetId}, 跳过API调用`);
+          log.warn(`[AutoExec] v400-fix: 无法解析否定词的Amazon campaignId, keyword=${targetId}, 跳过API调用`);
           await db.createBiddingLog({
             accountId,
             campaignId: 'UNRESOLVED',
@@ -875,10 +875,10 @@ export async function executeOptimization(
             negApiSuccess = true;
             log.info(`[AutoExec] v266: 否定关键词API同步成功: "${targetName}", matchType=${negMatchType}`);
           } else {
-            log.error(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
+            log.warn(`[AutoExec] v266: 否定关键词API同步失败: ${negSyncResult.errors.join('; ')}`);
           }
         } catch (negApiErr: unknown) {
-          log.error(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, (negApiErr as Error).message);
+          log.warn(`[AutoExec] v266: 否定关键词Amazon API调用异常:`, (negApiErr as Error).message);
         }
         
         // 先API后DB原则: 只有API成功才写入本地DB
@@ -966,10 +966,10 @@ export async function executeOptimization(
             harvestApiSuccess = true;
             log.info(`[AutoExec] v266: 搜索词收割API同步成功: "${targetName}", bid=${newValue}`);
           } else {
-            log.error(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
+            log.warn(`[AutoExec] v266: 搜索词收割API同步失败: ${harvestSyncResult.errors.join('; ')}`);
           }
         } catch (harvestApiErr: unknown) {
-          log.error(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, (harvestApiErr as Error).message);
+          log.warn(`[AutoExec] v266: 搜索词收割Amazon API调用异常:`, (harvestApiErr as Error).message);
         }
         
         // v357: 先API后DB原则 - 只有API成功且返回有效keywordId才写入本地DB
@@ -1428,7 +1428,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
             log.warn(`[AutomationEngine] N-Gram否定词部分同步失败: ${syncResult.errors.join('; ')}`);
           }
         } catch (apiError: unknown) {
-          log.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${(apiError as Error).message}`);
+          log.warn(`[AutomationEngine] N-Gram否定词 API同步失败: ${(apiError as Error).message}`);
           // API失败时仍然写入本地DB，等待AutoCorrector重试
           for (const campaign of (campaigns as unknown[])) {
             try {

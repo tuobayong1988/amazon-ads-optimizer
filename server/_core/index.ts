@@ -224,7 +224,7 @@ async function startServer() {
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
           log.info('[Logger] system_logs表已就绪');
         } catch (e: unknown) {
-          log.error('[Logger] system_logs表创建失败:', (e as Error).message);
+          log.warn('[Logger] system_logs表创建失败:', (e as Error).message);
         }
       }
     }).catch(() => {});
@@ -234,10 +234,10 @@ async function startServer() {
       if (result.success) {
         log.info(`[NextGen] 数据库表检查完成: ${result.tablesCreated} 个表已就绪`);
       } else {
-        log.error('[NextGen] 数据库表创建失败:', result.error);
+        log.warn('[NextGen] 数据库表创建失败:', result.error);
       }
     }).catch(err => {
-      log.error('[NextGen] 数据库表检查异常:', (err as Error).message);
+      log.warn('[NextGen] 数据库表检查异常:', (err as Error).message);
     });
 
     // v248: 启动时自动创建v245+所需的数据库表和列
@@ -245,10 +245,10 @@ async function startServer() {
       if (result.success) {
         log.info(`[AutoDbMigration] v248数据库迁移完成: ${result.results.join('; ')}`);
       } else {
-        log.error('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
+        log.warn('[AutoDbMigration] v248数据库迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      log.error('[AutoDbMigration] v248迁移异常:', (err as Error).message);
+      log.warn('[AutoDbMigration] v248迁移异常:', (err as Error).message);
     });
 
     // 预发布引擎数据库表自动创建
@@ -256,10 +256,10 @@ async function startServer() {
       if (result.success) {
         log.info(`[PrelaunchDb] 预发布引擎表迁移完成: ${result.results.filter(r => r.includes('已就绪')).length} 张表创建/确认`);
       } else {
-        log.error('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
+        log.warn('[PrelaunchDb] 预发布引擎表迁移失败:', result.results.join('; '));
       }
     }).catch(err => {
-      log.error('[PrelaunchDb] 预发布引擎表迁移异常:', (err as Error).message);
+      log.warn('[PrelaunchDb] 预发布引擎表迁移异常:', (err as Error).message);
     });
 
     // v452.9: 启动时初始化数据库级 RLS（行级安全）
@@ -270,7 +270,7 @@ async function startServer() {
         log.warn(`[RLS] RLS初始化部分失败: ${result.errors.join('; ')}`);
       }
     }).catch(err => {
-      log.error('[RLS] RLS初始化异常:', (err as Error).message);
+      log.warn('[RLS] RLS初始化异常:', (err as Error).message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
@@ -283,10 +283,10 @@ async function startServer() {
           log.info('[AutoMigration] v146数据迁移: 无新数据需要迁移', result.skipped);
         }
       } else {
-        log.error('[AutoMigration] v146数据迁移失败:', result.skipped);
+        log.warn('[AutoMigration] v146数据迁移失败:', result.skipped);
       }
     }).catch(err => {
-      log.error('[AutoMigration] v146迁移异常:', (err as Error).message);
+      log.warn('[AutoMigration] v146迁移异常:', (err as Error).message);
     });
 
     // v208: 启动时自动修复历史数据中的campaignId（本地int → Amazon ID）
@@ -294,7 +294,7 @@ async function startServer() {
       log.info('[AutoMigration] v208 campaignId标准化迁移完成');
       logMigration('CampaignIdMigration', 'v208 campaignId标准化迁移完成');
     }).catch(err => {
-      log.error('[AutoMigration] v208 campaignId迁移异常:', (err as Error).message);
+      log.warn('[AutoMigration] v208 campaignId迁移异常:', (err as Error).message);
       logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${(err as Error).message}`);
     });
 
@@ -305,7 +305,7 @@ async function startServer() {
       log.info('[EntityIdResolver] v429: 集中式ID解析器已初始化');
       logSystem('EntityIdResolver', 'v429: 集中式ID解析器已初始化');
     } catch (resolverErr: unknown) {
-      log.error(`[EntityIdResolver] v429: 初始化失败: ${(resolverErr as Error).message}`);
+      log.warn(`[EntityIdResolver] v429: 初始化失败: ${(resolverErr as Error).message}`);
     }
 
     // v427: 初始化 Redis 连接（用于分布式锁和缓存）
@@ -339,7 +339,7 @@ async function startServer() {
       startSQSConsumer().then(() => {
         log.info('[SQS Consumer] AMS实时数据流消费者已启动');
       }).catch(err => {
-        log.error('[SQS Consumer] 启动失败:', (err as Error).message);
+        log.warn('[SQS Consumer] 启动失败:', (err as Error).message);
       });
     } else {
       log.info('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
@@ -369,7 +369,7 @@ async function startServer() {
     // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
     // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
     orchestrateStartup(server).catch(err => {
-      log.error('[LifecycleManager] 启动协调失败:', (err as Error).message);
+      log.warn('[LifecycleManager] 启动协调失败:', (err as Error).message);
     });
   });
 }

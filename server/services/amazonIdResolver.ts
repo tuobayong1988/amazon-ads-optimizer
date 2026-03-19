@@ -92,7 +92,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
 
   } catch (err: unknown) {
     result.errors.push(`IdResolver异常: ${(err as Error).message}`);
-    log.error(`异常: ${(err as Error).message}`);
+    log.warn(`异常: ${(err as Error).message}`);
   } finally {
     if (directConn) {
       try { directConn.release(); } catch (_) {} // v350: 归还连接到池
@@ -163,7 +163,7 @@ async function resolveKeywordIds(
         [adGroupLocalId]
       );
       if (!agRows[0] || !agRows[0].adGroupId) {
-        log.error(`adGroup id=${adGroupLocalId} 缺少Amazon adGroupId`);
+        log.warn(`adGroup id=${adGroupLocalId} 缺少Amazon adGroupId`);
         result.keywordsFailed += kwsInGroup.length;
         continue;
       }
@@ -259,7 +259,7 @@ async function resolveKeywordIds(
               log.debug(`🧹 清理重复keyword id=${kw.id} (keywordId=${amazonKeywordId}已存在)`);
             } else {
               result.keywordsFailed++;
-              log.error(`❌ 回填keyword id=${kw.id}失败: ${(updateErr as Error).message}`);
+              log.warn(`❌ 回填keyword id=${kw.id}失败: ${(updateErr as Error).message}`);
             }
           }
         } else {
@@ -403,12 +403,12 @@ async function resolveKeywordIds(
                     result.keywordsFailed++;
                     // @ts-expect-error - dynamic property access
                     const errDetail = (created as Record<string, unknown>).details || created.code || 'Unknown';
-                    log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
+                    log.warn(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
               }
             } catch (createErr: unknown) {
-              log.error(`❌ 批量创建keywords异常: ${(createErr as Error).message}`);
+              log.warn(`❌ 批量创建keywords异常: ${(createErr as Error).message}`);
               result.keywordsFailed += batch.length;
             }
 
@@ -418,12 +418,12 @@ async function resolveKeywordIds(
             }
           }
         } else {
-          log.error(`adGroup=${adGroupLocalId} 无法获取Amazon campaignId`);
+          log.warn(`adGroup=${adGroupLocalId} 无法获取Amazon campaignId`);
           result.keywordsFailed += toCreate.length;
         }
       }
     } catch (agErr: unknown) {
-      log.error(`adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
+      log.warn(`adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
       result.keywordsFailed += kwsInGroup.length;
     }
   }
@@ -565,7 +565,7 @@ async function resolveProductTargetIds(
         }
       }
     } catch (agErr: unknown) {
-      log.error(`PT adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
+      log.warn(`PT adGroup=${adGroupLocalId}处理异常: ${(agErr as Error).message}`);
       result.productTargetsFailed += ptsInGroup.length;
     }
   }
@@ -721,13 +721,13 @@ export async function resolveKeywordIdOnDemand(
           return newKeywordId;
         }
       } catch (createErr: unknown) {
-        log.error(`即时创建keyword失败: ${(createErr as Error).message}`);
+        log.warn(`即时创建keyword失败: ${(createErr as Error).message}`);
       }
     }
 
     return null;
   } catch (err: unknown) {
-    log.error(`resolveKeywordIdOnDemand异常: ${(err as Error).message}`);
+    log.warn(`resolveKeywordIdOnDemand异常: ${(err as Error).message}`);
     return null;
   } finally {
     if (conn) {
@@ -803,7 +803,7 @@ export async function resolveProductTargetIdOnDemand(
 
     return null;
   } catch (err: unknown) {
-    log.error(`resolveProductTargetIdOnDemand异常: ${(err as Error).message}`);
+    log.warn(`resolveProductTargetIdOnDemand异常: ${(err as Error).message}`);
     return null;
   } finally {
     if (conn) {

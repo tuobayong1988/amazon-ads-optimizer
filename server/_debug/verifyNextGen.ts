@@ -150,8 +150,8 @@ async function runVerification() {
         log.info("\n--- Verification Script Finished Successfully ---");
 
     } catch (error) {
-        log.error("\n--- VERIFICATION FAILED ---");
-        log.error(String(error));
+        log.warn("\n--- VERIFICATION FAILED ---");
+        log.warn(String(error));
         process.exit(1);
     }
 }

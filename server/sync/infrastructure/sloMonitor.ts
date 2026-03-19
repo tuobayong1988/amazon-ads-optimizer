@@ -296,7 +296,7 @@ export async function getSLOMetrics(): Promise<SLOMetrics> {
       `freshness=${metrics.dataFreshness.actual}`);
 
   } catch (error: unknown) {
-    log.error(`[v358] SLO指标获取失败: ${(error as Error).message}`);
+    log.warn(`[v358] SLO指标获取失败: ${(error as Error).message}`);
   }
 
   return metrics;

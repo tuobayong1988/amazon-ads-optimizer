@@ -857,7 +857,7 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     return { success: true, results };
 
   } catch (error: unknown) {
-    log.error(`v418: 数据库自动迁移异常: ${(error as Error).message}`);
+    log.warn(`v418: 数据库自动迁移异常: ${(error as Error).message}`);
     return { success: false, results: [`迁移异常: ${(error as Error).message}`] };
   }
 }

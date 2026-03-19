@@ -64,7 +64,7 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
   
   const db = await getDb();
   if (!db) {
-    log.error('[同步] ❌ 数据库连接失败 - getDb()返回null');
+    log.warn('[同步] ❌ 数据库连接失败 - getDb()返回null');
     return { synced: 0, skipped: 0 };
   }
   log.info('[同步] ✅ 数据库连接成功');
@@ -282,16 +282,16 @@ AmazonSyncService.prototype.syncSpCampaigns = async function(this: AmazonSyncSer
     logSyncProtectionSummary('syncSpCampaigns', protectionStats);
     return { synced, skipped };
   } catch (error: unknown) {
-    log.error('[同步] ❌ SP广告活动同步失败');
+    log.warn('[同步] ❌ SP广告活动同步失败');
     // @ts-expect-error - runtime type mismatch
-    log.error('[同步] 错误类型:', error.constructor.name);
-    log.error('[同步] 错误消息:', (error as Error).message);
-    log.error('[同步] 错误堆栈:', (error as Error).stack);
+    log.warn('[同步] 错误类型:', error.constructor.name);
+    log.warn('[同步] 错误消息:', (error as Error).message);
+    log.warn('[同步] 错误堆栈:', (error as Error).stack);
     if ((error as Error & { response?: unknown }).response) {
       // @ts-expect-error - Axios error response access
-      log.error('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
+      log.warn('[同步] API响应状态:', (error as Error & { response?: unknown }).response.status);
       // @ts-expect-error - Axios error response access
-      log.error('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
+      log.warn('[同步] API响应数据:', JSON.stringify((error as Error & { response?: unknown }).response.data, null, 2));
     }
     return { synced: 0, skipped: 0 };
   }
@@ -373,8 +373,10 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(this: AmazonSyncServ
   } catch (error) {
     {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
-    const _mysqlInfo = _cause ? `code=${_cause.code||_cause.errno}, msg=${String(_cause.message||_cause.sqlMessage||'').slice(0,200)}` : 'no-cause';
-    log.error(`Error syncing SP ad groups: ${(error as Error).message} | MySQL: ${_mysqlInfo}`);
+    const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
+    const _mysqlErr = _mysqlCause || _cause;
+    const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
+    log.warn(`Error syncing SP ad groups: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     }
     return { synced: 0, skipped: 0 };
   }
@@ -479,8 +481,10 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     return { synced, skipped };
   } catch (error) {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
-    const _mysqlInfo = _cause ? `code=${_cause.code||_cause.errno}, msg=${String(_cause.message||_cause.sqlMessage||'').slice(0,200)}` : 'no-cause';
-    log.error(`Error syncing SP keywords: ${(error as Error).message} | MySQL: ${_mysqlInfo}`);
+    const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
+    const _mysqlErr = _mysqlCause || _cause;
+    const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
+    log.warn(`Error syncing SP keywords: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -705,8 +709,10 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
   } catch (error) {
     {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
-    const _mysqlInfo = _cause ? `code=${_cause.code||_cause.errno}, msg=${String(_cause.message||_cause.sqlMessage||'').slice(0,200)}` : 'no-cause';
-    log.error(`Error syncing SP product targets: ${(error as Error).message} | MySQL: ${_mysqlInfo}`);
+    const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
+    const _mysqlErr = _mysqlCause || _cause;
+    const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
+    log.warn(`Error syncing SP product targets: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     }
     return { synced: 0, skipped: 0 };
   }
@@ -844,8 +850,10 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
   } catch (error) {
     {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
-    const _mysqlInfo = _cause ? `code=${_cause.code||_cause.errno}, msg=${String(_cause.message||_cause.sqlMessage||'').slice(0,200)}` : 'no-cause';
-    log.error(`Error syncing SP negative keywords: ${(error as Error).message} | MySQL: ${_mysqlInfo}`);
+    const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
+    const _mysqlErr = _mysqlCause || _cause;
+    const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
+    log.warn(`Error syncing SP negative keywords: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     }
     return { synced: 0, updated: 0 };
   }
@@ -979,8 +987,10 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
   } catch (error) {
     {
     const _cause = (error as Record<string, unknown>)?.cause as Record<string, unknown> | undefined;
-    const _mysqlInfo = _cause ? `code=${_cause.code||_cause.errno}, msg=${String(_cause.message||_cause.sqlMessage||'').slice(0,200)}` : 'no-cause';
-    log.error(`Error syncing SP negative product targets: ${(error as Error).message} | MySQL: ${_mysqlInfo}`);
+    const _mysqlCause = _cause?.cause as Record<string, unknown> | undefined;
+    const _mysqlErr = _mysqlCause || _cause;
+    const _mysqlInfo = _mysqlErr ? `code=${_mysqlErr.code||_mysqlErr.errno||'?'}, msg=${String(_mysqlErr.message||_mysqlErr.sqlMessage||'').slice(0,200)}` : 'no-mysql-cause';
+    log.warn(`Error syncing SP negative product targets: ${(error as Error).message?.slice(0,200)} | MySQL: ${_mysqlInfo}`);
     }
     return { synced: 0, updated: 0 };
   }
@@ -1280,7 +1290,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error) {
-    log.error(`[v414] Error syncing SP bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`[v414] Error syncing SP bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   }
 };
@@ -1460,7 +1470,7 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
     log.info(`[v424] ========== SP Budget Rules同步完成: ${totalRulesSynced} 条规则, ${allRules.length} 个campaigns有规则 ==========`);
     return totalRulesSynced;
   } catch (error) {
-    log.error(`[v424] Error syncing SP budget rules: ${(error as Error).message || JSON.stringify(error)}`);
+    log.warn(`[v424] Error syncing SP budget rules: ${(error as Error).message || JSON.stringify(error)}`);
     return totalRulesSynced;
   }
 };

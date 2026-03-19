@@ -199,7 +199,7 @@ async function getActiveExperiments(accountId: number): Promise<ActiveExperiment
     
     return experiments;
   } catch (error) {
-    log.error(`[ABTestIntegration] 加载活跃实验失败:`, error);
+    log.warn(`[ABTestIntegration] 加载活跃实验失败:`, error);
     return [];
   }
 }
@@ -259,7 +259,7 @@ export async function recordExperimentDailyMetrics(accountId: number): Promise<v
       
       log.info(`[ABTestIntegration] 实验 ${exp.testId} 每日指标记录完成`);
     } catch (error) {
-      log.error(`[ABTestIntegration] 实验 ${exp.testId} 指标记录失败:`, error);
+      log.warn(`[ABTestIntegration] 实验 ${exp.testId} 指标记录失败:`, error);
     }
   }
 }
@@ -296,7 +296,7 @@ export async function checkAndCompleteExpiredExperiments(): Promise<number> {
     
     return completedCount;
   } catch (error) {
-    log.error(`[ABTestIntegration] 检查到期实验失败:`, error);
+    log.warn(`[ABTestIntegration] 检查到期实验失败:`, error);
     return 0;
   }
 }

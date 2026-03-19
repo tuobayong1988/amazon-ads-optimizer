@@ -1659,7 +1659,7 @@ export async function addNegativeKeyword(
       message: `成功添加否定关键词: ${keyword}`
     };
   } catch (error) {
-    log.error('[adAutomation] addNegativeKeyword error:', error);
+    log.warn('[adAutomation] addNegativeKeyword error:', error);
     return {
       success: false,
       message: `添加否定关键词失败: ${error}`
@@ -1687,7 +1687,7 @@ export async function addKeywordFromSearchTerm(
       message: `成功添加关键词: ${searchTerm}`
     };
   } catch (error) {
-    log.error('[adAutomation] addKeywordFromSearchTerm error:', error);
+    log.warn('[adAutomation] addKeywordFromSearchTerm error:', error);
     return {
       success: false,
       message: `添加关键词失败: ${error}`
