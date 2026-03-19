@@ -538,14 +538,27 @@ export async function addNegativeKeyword(data: {
   keyword: string;
   matchType: 'phrase' | 'exact';
   level?: 'ad_group' | 'campaign';
+  accountId?: number; // v453: 支持传入accountId，不再硬编码
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v453: 如果未传入accountId，通过campaignId查询关联账号
+  let resolvedAccountId = data.accountId || 0;
+  if (!resolvedAccountId && data.campaignId) {
+    try {
+      const { sql } = await import('drizzle-orm');
+      const rows = await db.execute(sql`SELECT accountId FROM campaigns WHERE id = ${data.campaignId} OR campaignId = ${String(data.campaignId)} LIMIT 1`);
+      if (rows && (rows as unknown[]).length > 0) {
+        resolvedAccountId = (rows as unknown[])[0]?.accountId || 0;
+      }
+    } catch { /* 查询失败时使用默认值 */ }
+  }
+  
   // 记录到negativeKeywords表
   // @ts-expect-error - Drizzle query builder type
   await db.insert(negativeKeywords).values({
-    accountId: 1, // 默认账号
+    accountId: resolvedAccountId,
     campaignId: data.campaignId,
     internalAdGroupId: data.adGroupId || null,
     negativeLevel: data.level || (data.adGroupId ? 'ad_group' : 'campaign'),

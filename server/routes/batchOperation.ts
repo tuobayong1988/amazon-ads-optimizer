@@ -190,11 +190,14 @@ export const batchOperationRouter = router({
       let failedCount = 0;
       const errors: Array<{ itemId: number; error: string }> = [];
 
+      // v453: 收集同步任务，确保批量操作通过Amazon API真正生效
+      const syncTasks: Array<Record<string, unknown>> = [];
+      
       for (const item of items) {
         try {
           // Execute based on operation type
           if (batch.operationType === 'negative_keyword' && item.negativeKeyword) {
-            // Add negative keyword
+            // Add negative keyword to local DB
             await db.addNegativeKeyword({
               campaignId: item.entityId,
               adGroupId: item.negativeLevel === 'ad_group' ? item.entityId : undefined,
@@ -202,13 +205,37 @@ export const batchOperationRouter = router({
               matchType: item.negativeMatchType === 'negative_phrase' ? 'phrase' : 'exact',
               level: item.negativeLevel as 'ad_group' | 'campaign',
             });
+            // v453: 创建同步任务
+            syncTasks.push({
+              accountId: batch.accountId || 0,
+              taskType: 'negative_keyword',
+              targetEntityType: item.negativeLevel === 'ad_group' ? 'ad_group' : 'campaign',
+              targetEntityId: item.entityId,
+              targetEntityName: item.negativeKeyword,
+              action: item.negativeMatchType === 'negative_exact' ? 'add_negative_exact' : 'add_negative_phrase',
+              source: 'batch_operation',
+              priority: 'high',
+            });
           } else if (batch.operationType === 'bid_adjustment' && item.newBid) {
-            // Update bid
+            // Update bid in local DB
             if (item.entityType === 'keyword') {
               await db.updateKeyword(item.entityId, { bid: item.newBid });
             } else if (item.entityType === 'product_target') {
               await db.updateProductTargetBid(item.entityId, item.newBid);
             }
+            // v453: 创建同步任务
+            syncTasks.push({
+              accountId: batch.accountId || 0,
+              taskType: item.entityType === 'keyword' ? 'bid' : 'product_target_bid',
+              targetEntityType: item.entityType || 'keyword',
+              targetEntityId: item.entityId,
+              targetEntityName: item.entityType || 'target',
+              action: 'adjust_bid',
+              newValue: String(item.newBid),
+              oldValue: String(item.previousBid || 0),
+              source: 'batch_operation',
+              priority: 'high',
+            });
           }
 
           await db.updateBatchOperationItemStatus(item.id, {
@@ -225,6 +252,17 @@ export const batchOperationRouter = router({
           });
           failedCount++;
           errors.push({ itemId: item.id, error: errorMessage });
+        }
+      }
+      
+      // v453: 将同步任务入队到优化同步引擎
+      if (syncTasks.length > 0) {
+        try {
+          const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
+          await enqueueTasks(syncTasks as unknown[]);
+          log.info(`[BatchOperation] v453: 已入队 ${syncTasks.length} 个同步任务到Amazon API`);
+        } catch (enqueueErr: unknown) {
+          log.error(`[BatchOperation] v453: 同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
 

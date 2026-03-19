@@ -276,6 +276,9 @@ export default function PerformanceGroupDetail() {
   const batchRemoveMutation = trpc.performanceGroup.batchRemoveCampaignsFromGroup.useMutation({
     onSuccess: (data) => {
       toast.success(`已成功移除 ${data.count} 个广告活动`);
+      if (data.errors && data.errors.length > 0) {
+        toast.error(`部分移除失败: ${data.errors[0]}`);
+      }
       setSelectedManageCampaigns([]);
       refetchCampaigns();
       refetchGroup();

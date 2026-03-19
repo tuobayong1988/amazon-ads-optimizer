@@ -10,6 +10,8 @@ import * as adAutomation from '../automation/adAutomation';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { verifyAccountAccess } from '../utils/accessControl';
 import { apiCache } from '../services/apiCacheService';
+import { createModuleLogger } from '../utils/logger';
+const log = createModuleLogger('Route_adAutomation');
 
 
 // ==================== Ad Automation Router ====================
@@ -416,6 +418,7 @@ export const adAutomationRouter = router({
       
       let successCount = 0;
       const errors: { keyword: string; error: string }[] = [];
+      const syncTasks: Array<Record<string, unknown>> = [];
       
       for (const item of validation.valid) {
         try {
@@ -426,9 +429,31 @@ export const adAutomationRouter = router({
             matchType: item.matchType,
             level: item.level,
           });
+          // v453: 创建Amazon API同步任务，确保否定词真正同步到Amazon
+          syncTasks.push({
+            accountId: input.accountId,
+            taskType: 'negative_keyword',
+            targetEntityType: item.level === 'ad_group' ? 'ad_group' : 'campaign',
+            targetEntityId: item.campaignId,
+            targetEntityName: item.keyword,
+            action: item.matchType === 'exact' ? 'add_negative_exact' : 'add_negative_phrase',
+            source: 'manual_batch',
+            priority: 'high',
+          });
           successCount++;
         } catch (error: unknown) {
           errors.push({ keyword: item.keyword, error: (error as Error).message });
+        }
+      }
+      
+      // v453: 将同步任务入队到优化同步引擎，确保否定词通过Amazon API真正生效
+      if (syncTasks.length > 0) {
+        try {
+          const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
+          await enqueueTasks(syncTasks as unknown[]);
+          log.info(`[AdAutomation] v453: 已入队 ${syncTasks.length} 个否定词同步任务到Amazon API`);
+        } catch (enqueueErr: unknown) {
+          log.error(`[AdAutomation] v453: 否定词同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
       
@@ -459,6 +484,7 @@ export const adAutomationRouter = router({
       
       let successCount = 0;
       const errors: { targetName: string; error: string }[] = [];
+      const syncTasks: Array<Record<string, unknown>> = [];
       
       for (const item of validation.valid) {
         try {
@@ -470,9 +496,33 @@ export const adAutomationRouter = router({
             newBid: item.newBid,
             reason: item.reason,
           });
+          // v453: 创建Amazon API同步任务，确保出价调整真正同步到Amazon
+          syncTasks.push({
+            accountId: input.accountId,
+            taskType: item.targetType === 'keyword' ? 'bid' : 'product_target_bid',
+            targetEntityType: item.targetType,
+            targetEntityId: item.targetId,
+            targetEntityName: item.targetName,
+            action: 'adjust_bid',
+            newValue: String(item.newBid),
+            oldValue: String(item.currentBid),
+            source: 'manual_batch',
+            priority: 'high',
+          });
           successCount++;
         } catch (error: unknown) {
           errors.push({ targetName: item.targetName, error: (error as Error).message });
+        }
+      }
+      
+      // v453: 将同步任务入队到优化同步引擎，确保出价调整通过Amazon API真正生效
+      if (syncTasks.length > 0) {
+        try {
+          const { enqueueTasks } = await import('../sync/optimizationSyncEngine');
+          await enqueueTasks(syncTasks as unknown[]);
+          log.info(`[AdAutomation] v453: 已入队 ${syncTasks.length} 个出价调整同步任务到Amazon API`);
+        } catch (enqueueErr: unknown) {
+          log.error(`[AdAutomation] v453: 出价调整同步任务入队失败: ${(enqueueErr as Error).message}`);
         }
       }
       

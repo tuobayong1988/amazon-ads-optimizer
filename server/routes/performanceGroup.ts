@@ -20,54 +20,7 @@ const log = createModuleLogger('Route_performanceGroup');
 
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
-function generateSimulatedTrendData(target: Record<string, unknown>, days: number) {
-  const data = [];
-  const now = new Date();
-  
-  // 基础数据
-  const baseImpressions = target.impressions || 1000;
-  const baseClicks = target.clicks || 50;
-  const baseSpend = parseFloat(target.spend || "10");
-  const baseSales = parseFloat(target.sales || "30");
-  const baseOrders = target.orders || 3;
-  
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    
-    // 添加随机波动（±30%）
-    const variation = 0.7 + Math.random() * 0.6;
-    const weekdayFactor = date.getDay() === 0 || date.getDay() === 6 ? 0.8 : 1.1;
-    
-    const impressions = Math.round((baseImpressions / days) * variation * weekdayFactor);
-    const clicks = Math.round((baseClicks / days) * variation * weekdayFactor);
-    const spend = Math.round((baseSpend / days) * variation * weekdayFactor * 100) / 100;
-    const sales = Math.round((baseSales / days) * variation * weekdayFactor * 100) / 100;
-    const orders = Math.round((baseOrders / days) * variation * weekdayFactor);
-    
-    const ctr = impressions > 0 ? (clicks / impressions * 100) : 0;
-    const cvr = clicks > 0 ? (orders / clicks * 100) : 0;
-    const acos = sales > 0 ? (spend / sales * 100) : 0;
-    const roas = spend > 0 ? (sales / spend) : 0;
-    const cpc = clicks > 0 ? (spend / clicks) : 0;
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      impressions,
-      clicks,
-      spend,
-      sales,
-      orders,
-      ctr: Math.round(ctr * 100) / 100,
-      cvr: Math.round(cvr * 100) / 100,
-      acos: Math.round(acos * 100) / 100,
-      roas: Math.round(roas * 100) / 100,
-      cpc: Math.round(cpc * 100) / 100,
-    });
-  }
-  
-  return data;
-}
+// v453: 已删除 generateSimulatedTrendData 死代码（系统全部使用真实数据库查询）
 
 // 计算趋势摘要数据
 function calculateTrendSummary(data: unknown[]) {
@@ -556,13 +509,27 @@ export const performanceGroupRouter = router({
       campaignIds: z.array(z.number()),
     }))
     .mutation(async ({ ctx, input }: unknown) => {
-      let count = 0;
-      for (const campaignId of input.campaignIds) {
-        await db.assignCampaignToPerformanceGroup(campaignId, null);
-        await db.updateCampaign(campaignId, { optimizationStatus: 'unmanaged' });
-        count++;
+      // v453: 添加访问控制（之前缺失，导致安全隐患）
+      const { verifyPerformanceGroupAccess } = await import('../utils/accessControl');
+      await verifyPerformanceGroupAccess(ctx.user.id, input.groupId);
+      
+      // v453: 验证输入
+      if (!input.campaignIds || input.campaignIds.length === 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '请选择至少一个广告活动' });
       }
-      return { success: true, count };
+      
+      let count = 0;
+      const errors: string[] = [];
+      for (const campaignId of input.campaignIds) {
+        try {
+          await db.assignCampaignToPerformanceGroup(campaignId, null);
+          await db.updateCampaign(campaignId, { optimizationStatus: 'unmanaged' });
+          count++;
+        } catch (err: unknown) {
+          errors.push(`广告活动 ${campaignId} 移除失败: ${(err as Error).message}`);
+        }
+      }
+      return { success: count > 0, count, errors: errors.length > 0 ? errors : undefined };
     }),
 
   // v370.4: 数据隔离 - 获取绩效组详情（通过ID）
