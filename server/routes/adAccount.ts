@@ -11,12 +11,16 @@ import { apiCache } from '../services/apiCacheService';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
 
+// v452.8: 系统管理员判断 - 只有内部组织(orgId=1)的admin才是系统管理员
+function isSystemAdmin(user: any): boolean {
+  return user.role === 'admin' && user.organizationId === 1;
+}
+
 // ==================== Ad Account Router ====================
 export const adAccountRouter = router({
-  // v359: 安全修复 — 获取用户所有账号列表（需认证，按用户隔离数据）
+  // v452.8: 安全修复 — 只有系统管理员可查看所有账户，其他用户仅查看自己的账户
   list: protectedProcedure.query(async ({ ctx }: any) => {
-    // v359: 管理员可查看所有账户，普通用户仅查看自己的账户
-    if (ctx.user.role === 'admin') {
+    if (isSystemAdmin(ctx.user)) {
       return db.getAdAccounts();
     }
     return db.getAdAccountsByUserId(ctx.user.id);
@@ -31,7 +35,7 @@ export const adAccountRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
       }
       // v359: 非管理员只能查看自己的账户
-      if (ctx.user.role !== 'admin' && account.userId !== ctx.user.id) {
+      if (!isSystemAdmin(ctx.user) && account.userId !== ctx.user.id) {
         throw new TRPCError({ code: 'FORBIDDEN', message: '无权访问此账号' });
       }
       return account;
@@ -42,7 +46,7 @@ export const adAccountRouter = router({
     .input(z.object({ userId: z.number().optional() }).optional())
     .query(async ({ ctx }: any) => {
       // v359: 使用认证用户的ID获取其账户列表
-      const accounts = ctx.user.role === 'admin'
+      const accounts = isSystemAdmin(ctx.user)
         ? await db.getAdAccounts()
         : await db.getAdAccountsByUserId(ctx.user.id);
       return accounts.find(a => a.isDefault) || accounts[0] || null;
@@ -207,7 +211,7 @@ export const adAccountRouter = router({
 
     const timeRange = input?.timeRange || '7days';
     // 管理员可以访问所有账户
-    const accounts = ctx.user.role === 'admin' 
+    const accounts = isSystemAdmin(ctx.user) 
       ? await db.getAdAccounts() 
       : await db.getAdAccountsByUserId(ctx.user.id);
     
@@ -361,7 +365,7 @@ export const adAccountRouter = router({
   // 获取账号统计信息
   getStats: protectedProcedure.query(async ({ ctx }: any) => {
     // 管理员可以访问所有账户
-    const accounts = ctx.user.role === 'admin' 
+    const accounts = isSystemAdmin(ctx.user) 
       ? await db.getAdAccounts() 
       : await db.getAdAccountsByUserId(ctx.user.id);
     
@@ -410,7 +414,7 @@ export const adAccountRouter = router({
       if (cached) return cached;
 
       // 管理员可以访问所有账户
-      const accounts = ctx.user.role === 'admin' 
+      const accounts = isSystemAdmin(ctx.user) 
         ? await db.getAdAccounts() 
         : await db.getAdAccountsByUserId(ctx.user.id);
       const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
@@ -461,7 +465,7 @@ export const adAccountRouter = router({
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
   getDataDateRange: protectedProcedure.query(async ({ ctx }: any) => {
     // 管理员可以访问所有账户
-    const accounts = ctx.user.role === 'admin' 
+    const accounts = isSystemAdmin(ctx.user) 
       ? await db.getAdAccounts() 
       : await db.getAdAccountsByUserId(ctx.user.id);
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');

@@ -27,7 +27,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5分钟
 const adminUserCache = new Map<number, { isAdmin: boolean; expiry: number }>();
 const ADMIN_CACHE_TTL_MS = 10 * 60 * 1000; // 10分钟
 
-/** v447: 检查用户是否为admin角色（带缓存） */
+/** v452.8: 检查用户是否为系统管理员（带缓存）
+ * 必须同时满足: role='admin' 且 organization_id=1(内部组织)
+ * 外部租户的admin角色不会被视为系统管理员
+ */
 export async function isAdminUser(userId: number): Promise<boolean> {
   const cached = adminUserCache.get(userId);
   if (cached && cached.expiry > Date.now()) {
@@ -38,10 +41,14 @@ export async function isAdminUser(userId: number): Promise<boolean> {
     const { teamMembers } = await import('../../drizzle/schema');
     const db = await getDb();
     if (!db) return false;
-    const rows = await db.select({ role: teamMembers.role })
+    const rows = await db.select({ role: teamMembers.role, organizationId: teamMembers.organizationId })
       .from(teamMembers).where(eq(teamMembers.id, userId)).limit(1);
-    const isAdmin = rows.length > 0 && rows[0].role === 'admin';
+    // v452.8: 系统管理员必须是内部组织(org_id=1)的admin
+    const isAdmin = rows.length > 0 && rows[0].role === 'admin' && (rows[0].organizationId === 1 || rows[0].organizationId === null);
     adminUserCache.set(userId, { isAdmin, expiry: Date.now() + ADMIN_CACHE_TTL_MS });
+    if (!isAdmin && rows.length > 0 && rows[0].role === 'admin') {
+      log.info(`[v452.8] 外部租户admin角色不作为系统管理员: userId=${userId}, orgId=${rows[0].organizationId}`);
+    }
     return isAdmin;
   } catch {
     return false;

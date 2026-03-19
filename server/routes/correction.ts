@@ -344,9 +344,10 @@ export const autoCorrectionRouter = router({
     const dbInstance = await db.getDb();
     if (!dbInstance) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '数据库连接失败' });
     
-    const isAdmin = ctx.user.role === 'admin';
+    // v452.8: 只有系统管理员(内部组织)可以查看所有账户数据
+    const isAdmin = ctx.user.role === 'admin' && ctx.user.organizationId === 1;
     
-    // v399: admin用户可以查看所有账户数据，普通用户只能看自己的
+    // v452.8: 系统管理员可以查看所有账户数据，普通用户只能看自己的
     let accountIds: number[] = [];
     if (!isAdmin) {
       const userAccounts = await dbInstance.execute(

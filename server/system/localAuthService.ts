@@ -110,21 +110,24 @@ export async function registerWithInviteCode(input: RegisterInput, ipAddress?: s
       return { success: false, error: '用户名已存在' };
     }
     
-    // 3. 确定组织ID
-    let organizationId = inviteCode.organizationId;
+    // 3. v452.8: 确定组织ID - 外部用户始终创建新组织以确保数据隔离
+    let organizationId: number | null = null;
     
-    // 如果是外部用户邀请且没有指定组织，创建新组织
-    if (inviteCode.inviteType === 'external_user' && !organizationId) {
+    if (inviteCode.inviteType === 'external_user') {
+      // 外部用户始终创建新组织，不共享管理员的组织
       const orgName = input.organizationName || `${input.name}的团队`;
       const orgResult = await db.execute(sql`
         INSERT INTO organizations (name, type, status, max_users, max_accounts, created_at)
         VALUES (${orgName}, 'external', 'active', 10, 5, NOW())
       `);
       organizationId = (orgResult as Record<string, any>[])[0]?.insertId;
+    } else if (inviteCode.inviteType === 'team_member') {
+      // 团队成员加入邀请者的组织
+      organizationId = inviteCode.organizationId;
     }
     
     if (!organizationId) {
-      organizationId = 1; // 默认组织
+      organizationId = 1; // 回退到默认组织
     }
     
     // 4. 加密密码

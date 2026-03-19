@@ -27,8 +27,8 @@ export const auditRouter = router({
     }))
     .query(async ({ ctx, input }) => {
       const { getAuditLogs } = await import("../system/auditService");
-      // 管理员可以查看所有用户的日志
-      const isAdmin = ctx.user.role === 'admin';
+      // v452.8: 只有系统管理员(内部组织)可以查看所有用户的日志
+      const isAdmin = ctx.user.role === 'admin' && ctx.user.organizationId === 1;
       const userId = isAdmin && input.viewAll ? (input.filterUserId || undefined) : ctx.user.id;
       return getAuditLogs({
         ...input,
@@ -42,8 +42,8 @@ export const auditRouter = router({
     .query(async ({ ctx, input }: any) => {
       const { getAuditLogById } = await import("../system/auditService");
       const log = await getAuditLogById(input.id);
-      // v370.4: 验证审计日志归属（管理员可查看所有）
-      if (log && log.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+      // v452.8: 验证审计日志归属（只有系统管理员可查看所有）
+      if (log && log.userId !== ctx.user.id && !(ctx.user.role === 'admin' && ctx.user.organizationId === 1)) {
         throw new (await import('@trpc/server')).TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
       return log;
@@ -54,8 +54,8 @@ export const auditRouter = router({
     .input(z.object({ days: z.number().default(30), viewAll: z.boolean().optional() }))
     .query(async ({ ctx, input }) => {
       const { getUserAuditStats } = await import("../system/auditService");
-      const isAdmin = ctx.user.role === 'admin';
-      // 管理员默认查看所有用户的汇总统计，普通用户只看自己的
+      const isAdmin = ctx.user.role === 'admin' && ctx.user.organizationId === 1;
+      // v452.8: 只有系统管理员查看所有用户的汇总统计，普通用户只看自己的
       const userId = (isAdmin && input.viewAll !== false) ? undefined : ctx.user.id;
       return getUserAuditStats(userId, input.days);
     }),
