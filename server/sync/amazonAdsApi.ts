@@ -4443,8 +4443,12 @@ export class AmazonAdsApiClient {
         body.nextToken = nextToken;
       }
       
+      // v458: 添加Accept头修复415 Unsupported Media Type错误
       const response = await this.axiosInstance.post('/sp/campaignNegativeTargets/list', body, {
-        headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
+        headers: { 
+          'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json',
+          'Accept': 'application/vnd.spCampaignNegativeTargetingClause.v3+json',
+        },
       });
       
       const targets = response.data.campaignNegativeTargetingClauses || [];
@@ -5262,10 +5266,11 @@ export class AmazonAdsApiClient {
       
       try {
         // v323: SB Negative Keywords使用v3 API（GET方法），v4端点不存在
+        // v458: 修复406 Not Acceptable - SB API需要版本化的Accept头
         const response = await this.axiosInstance.get('/sb/negativeKeywords', {
           params: campaignId ? { campaignIdFilter: campaignId } : {},
           headers: {
-            'Accept': 'application/json',
+            'Accept': 'application/vnd.sbkeywordresource.v4+json',
           },
         });
         
@@ -5308,12 +5313,13 @@ export class AmazonAdsApiClient {
       
       try {
         // v323: SB Negative Targets使用v3 API（POST方法），v4端点不存在
+        // v458: 修复406 Not Acceptable - SB API需要版本化的Accept头
         const response = await this.axiosInstance.post('/sb/negativeTargets/list', 
           body,
           {
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              'Content-Type': 'application/vnd.sbtargetresource.v4+json',
+              'Accept': 'application/vnd.sbtargetresource.v4+json',
             },
           }
         );
@@ -5714,6 +5720,29 @@ export class AmazonAdsApiClient {
           await new Promise(resolve => setTimeout(resolve, submitDelayMs));
         }
       } catch (submitErr: unknown) {
+        // v458: HTTP 425 表示Amazon已有相同报告请求，提取已存在的reportId继续轮询
+        // @ts-expect-error - Axios error response access
+        const errStatus = (submitErr as Error & { response?: unknown }).response?.status;
+        // @ts-expect-error - Axios error response access
+        const errData = (submitErr as Error & { response?: unknown }).response?.data;
+        
+        if (errStatus === 425 && errData?.detail) {
+          // detail格式: "The Request is a duplicate of : <reportId>"
+          const match = String(errData.detail).match(/duplicate of\s*:\s*([a-f0-9-]+)/i);
+          if (match) {
+            const existingReportId = match[1];
+            log.info(`[Amazon API] v458: 报告重复提交(425)，复用已有reportId [${req.name}]: ${existingReportId}`);
+            pendingReports.push({
+              name: req.name,
+              reportId: existingReportId,
+              index: i,
+              completed: false,
+              data: null,
+            });
+            continue;
+          }
+        }
+        
         log.error(`[Amazon API] v413: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}`);
         results[i] = { name: req.name, data: null, error: (submitErr as Error).message };
       }

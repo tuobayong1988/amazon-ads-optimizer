@@ -555,10 +555,26 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
     ];
     for (const tableName of v418Tables) {
       // 先尝试CHANGE COLUMN（从varchar ad_group_id到int internal_ad_group_id）
-      await safeDDL(database, sql.raw(`
+      const changed = await safeDDL(database, sql.raw(`
         ALTER TABLE \`${tableName}\` CHANGE COLUMN \`ad_group_id\` \`internal_ad_group_id\` INT NULL
       `), `${tableName}.ad_group_id→internal_ad_group_id`, results);
+      // v458: 如果CHANGE失败（ad_group_id列不存在），尝试ADD COLUMN确保internal_ad_group_id存在
+      if (!changed) {
+        await safeDDL(database, sql.raw(`
+          ALTER TABLE \`${tableName}\` ADD COLUMN \`internal_ad_group_id\` INT NULL
+        `), `${tableName}.add_internal_ad_group_id`, results);
+      }
     }
+
+    // ==================== v458: 扩展状态枚举支持amazon_deleted ====================
+    // keywords.keywordStatus和product_targets.targetStatus枚举需要包含'amazon_deleted'
+    // 用于标记Amazon端已删除但本地仍存在的实体
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE \`keywords\` MODIFY COLUMN \`keywordStatus\` ENUM('enabled','paused','archived','amazon_deleted') DEFAULT 'enabled'
+    `), 'keywords.keywordStatus_add_amazon_deleted', results);
+    await safeDDL(database, sql.raw(`
+      ALTER TABLE \`product_targets\` MODIFY COLUMN \`targetStatus\` ENUM('enabled','paused','archived','amazon_deleted') DEFAULT 'enabled'
+    `), 'product_targets.targetStatus_add_amazon_deleted', results);
 
     // ==================== v446: 数据库索引性能优化 ====================
     // 为19个高频查询表添加84个缺失索引，覆盖所有核心WHERE条件

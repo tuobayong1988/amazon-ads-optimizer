@@ -137,25 +137,22 @@ export async function getLocalKeywordBidRecommendation(
   // ========== 策略3: 同Account级别（同类型广告活动） ==========
   try {
     const accountPerf = await db.select({
-      totalClicks: sql<number>`COALESCE(SUM(k.clicks), 0)`,
-      totalSpend: sql<number>`COALESCE(SUM(CAST(k.spend AS DECIMAL(12,2))), 0)`,
-      totalSales: sql<number>`COALESCE(SUM(CAST(k.sales AS DECIMAL(12,2))), 0)`,
-      totalOrders: sql<number>`COALESCE(SUM(k.orders), 0)`,
-      totalImpressions: sql<number>`COALESCE(SUM(k.impressions), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${keywordsTable.clicks}), 0)`,
+      totalSpend: sql<number>`COALESCE(SUM(CAST(${keywordsTable.spend} AS DECIMAL(12,2))), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(CAST(${keywordsTable.sales} AS DECIMAL(12,2))), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${keywordsTable.orders}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${keywordsTable.impressions}), 0)`,
       sampleCount: sql<number>`COUNT(*)`,
-      avgBid: sql<number>`COALESCE(AVG(CAST(k.bid AS DECIMAL(10,2))), 0)`,
+      avgBid: sql<number>`COALESCE(AVG(CAST(${keywordsTable.bid} AS DECIMAL(10,2))), 0)`,
     })
-    .from(sql`${keywordsTable} k`)
-    .innerJoin(
-      sql`${campaignsTable} c`,
-      sql`k.campaign_id = c.campaign_id AND k.account_id = c.account_id`
-    )
+    .from(keywordsTable)
+    .innerJoin(campaignsTable, eq(keywordsTable.campaignId, campaignsTable.campaignId))
     .where(
       and(
-        sql`k.account_id = ${accountId}`,
-        sql`c.campaign_type = ${campaignType}`,
-        sql`k.keyword_status = 'enabled'`,
-        sql`k.clicks > 0`,
+        eq(keywordsTable.accountId, accountId),
+        eq(campaignsTable.campaignType, campaignType as any),
+        eq(keywordsTable.keywordStatus, 'enabled'),
+        gt(keywordsTable.clicks, 0),
       )
     );
 
@@ -276,26 +273,29 @@ export async function getLocalTargetBidRecommendation(
   // ========== 策略3: 同Account级别 ==========
   try {
     const accountPerf = await db.select({
-      totalClicks: sql<number>`COALESCE(SUM(pt.clicks), 0)`,
-      totalSpend: sql<number>`COALESCE(SUM(CAST(pt.spend AS DECIMAL(12,2))), 0)`,
-      totalSales: sql<number>`COALESCE(SUM(CAST(pt.sales AS DECIMAL(12,2))), 0)`,
-      totalOrders: sql<number>`COALESCE(SUM(pt.orders), 0)`,
-      totalImpressions: sql<number>`COALESCE(SUM(pt.impressions), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${productTargetsTable.clicks}), 0)`,
+      totalSpend: sql<number>`COALESCE(SUM(CAST(${productTargetsTable.spend} AS DECIMAL(12,2))), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(CAST(${productTargetsTable.sales} AS DECIMAL(12,2))), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${productTargetsTable.orders}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${productTargetsTable.impressions}), 0)`,
       sampleCount: sql<number>`COUNT(*)`,
-      avgBid: sql<number>`COALESCE(AVG(CAST(pt.bid AS DECIMAL(10,2))), 0)`,
+      avgBid: sql<number>`COALESCE(AVG(CAST(${productTargetsTable.bid} AS DECIMAL(10,2))), 0)`,
     })
-    .from(sql`${productTargetsTable} pt`)
-    .innerJoin(
-      sql`${campaignsTable} c`,
-      sql`pt.campaign_id = c.campaign_id AND pt.account_id = c.account_id`
-    )
+    .from(productTargetsTable)
+    .innerJoin(campaignsTable, eq(productTargetsTable.campaignId, campaignsTable.campaignId))
     .where(
       and(
-        sql`pt.account_id = ${accountId}`,
-        sql`c.campaign_type = ${campaignType}`,
-        sql`(pt.target_status = 'enabled' OR pt.target_status IS NULL)`,
-        sql`pt.clicks > 0`,
-        sql`(pt.amazon_deleted = 0 OR pt.amazon_deleted IS NULL)`,
+        eq(productTargetsTable.accountId, accountId),
+        eq(campaignsTable.campaignType, campaignType as any),
+        or(
+          eq(productTargetsTable.targetStatus, 'enabled'),
+          isNull(productTargetsTable.targetStatus),
+        ),
+        gt(productTargetsTable.clicks, 0),
+        or(
+          eq(productTargetsTable.amazonDeleted, 0),
+          isNull(productTargetsTable.amazonDeleted),
+        ),
       )
     );
 

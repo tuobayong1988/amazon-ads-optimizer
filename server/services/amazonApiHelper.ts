@@ -307,7 +307,7 @@ export async function syncBidAdjustmentsToAmazon(
           const { inArray: inArr } = await import('drizzle-orm');
           // 将这些关键词标记为amazon_deleted，后续优化引擎将跳过它们
           await dbInstance.execute(
-            `UPDATE keywords SET keyword_status = 'amazon_deleted' WHERE keyword_id IN (${entityNotFoundKeywordIds.map(() => '?').join(',')})`,
+            `UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${entityNotFoundKeywordIds.map(() => '?').join(',')})`,
             entityNotFoundKeywordIds
           );
           log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundKeywordIds.length}个关键词为amazon_deleted（Amazon端已不存在）: ${entityNotFoundKeywordIds.slice(0, 5).join(', ')}`);
@@ -371,7 +371,7 @@ export async function syncBidAdjustmentsToAmazon(
       if (entityNotFoundTargetIds.length > 0) {
         try {
           await dbInstance.execute(
-            `UPDATE product_targets SET status = 'amazon_deleted' WHERE target_id IN (${entityNotFoundTargetIds.map(() => '?').join(',')})`,
+            `UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${entityNotFoundTargetIds.map(() => '?').join(',')})`,
             entityNotFoundTargetIds
           );
           log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundTargetIds.length}个商品定向为amazon_deleted`);

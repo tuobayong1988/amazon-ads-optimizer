@@ -998,7 +998,7 @@ async function correctBudgetMismatches(database: unknown, accountId: number): Pr
         c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.campaignId
+      JOIN campaigns c ON oe.campaign_id = c.id
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'budget_adjustment'
@@ -1121,7 +1121,7 @@ async function correctPlacementMismatches(database: unknown, accountId: number):
         c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
-      JOIN campaigns c ON oe.campaign_id = c.campaignId
+      JOIN campaigns c ON oe.campaign_id = c.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'placement_adjustment'
         AND oe.status = 'success'
