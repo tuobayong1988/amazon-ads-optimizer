@@ -658,7 +658,7 @@ export function getApiRateLimitService(): ApiRateLimitService {
     // 设置限流告警回调
     globalRateLimitService.onThrottle((accountId, endpointType, waitMs) => {
       if (waitMs > 5000) {
-        log.error(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
+        log.warn(`[ALERT] v${SYSTEM_VERSION}: API限流告警! 账户${accountId} ${endpointType}端点等待${waitMs}ms`);
       }
     });
   }

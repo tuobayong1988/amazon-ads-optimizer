@@ -23,6 +23,33 @@ export interface InviteCode {
   note: string | null;
   createdAt: string;
   creatorName?: string;
+  status: 'active' | 'disabled' | 'expired' | 'used_up';
+}
+
+/**
+ * v474: 计算邀请码状态 - 修复前端显示“已过期”的bug
+ * 优先级: disabled > expired > used_up > active
+ */
+function computeInviteCodeStatus(row: { is_active: unknown; expires_at: unknown; used_count: unknown; max_uses: unknown }): 'active' | 'disabled' | 'expired' | 'used_up' {
+  // 1. 检查是否被禁用
+  if (!row.is_active || row.is_active === 0) {
+    return 'disabled';
+  }
+  // 2. 检查是否过期 - 使用UTC时间比较
+  if (row.expires_at) {
+    const expiresDate = new Date(row.expires_at as string);
+    if (expiresDate.getTime() < Date.now()) {
+      return 'expired';
+    }
+  }
+  // 3. 检查是否已达到最大使用次数
+  const maxUses = Number(row.max_uses) || 0;
+  const usedCount = Number(row.used_count) || 0;
+  if (maxUses > 0 && usedCount >= maxUses) {
+    return 'used_up';
+  }
+  // 4. 其他情况均为有效
+  return 'active';
 }
 
 export interface CreateInviteCodeInput {
@@ -191,6 +218,7 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
           isActive: row.is_active === 1,
           note: row.note,
           createdAt: row.created_at,
+          status: computeInviteCodeStatus(row),
         }
       };
     }
@@ -268,6 +296,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
         note: row.note,
         createdAt: row.created_at,
         creatorName: row.creator_name,
+        status: computeInviteCodeStatus(row),
       }
     };
   } catch (error: unknown) {
@@ -342,6 +371,7 @@ export async function getInviteCodes(createdBy?: number): Promise<InviteCode[]> 
       note: row.note,
       createdAt: row.created_at,
       creatorName: row.creator_name,
+      status: computeInviteCodeStatus(row),
     }));
   } catch (error) {
     log.error('[InviteCode] 获取邀请码列表失败:', error);

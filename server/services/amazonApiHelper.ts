@@ -410,8 +410,8 @@ export async function syncBidAdjustmentsToAmazon(
   // v126: API同步失败率监控告警
   const FAILURE_RATE_THRESHOLD = 20; // 失败率超过20%触发告警
   if (failureRate > FAILURE_RATE_THRESHOLD && totalAttempts >= 5) {
-    log.error(`[ALERT] ⚠️ Amazon API同步失败率过高! 失败率=${failureRate.toFixed(1)}% (阈值=${FAILURE_RATE_THRESHOLD}%), 成功=${result.success}, 失败=${result.failed}`);
-    log.error(`[ALERT] 请检查Amazon API凭证、配额和网络状态`);
+    log.warn(`[ALERT] ⚠️ Amazon API同步失败率过高! 失败率=${failureRate.toFixed(1)}% (阈值=${FAILURE_RATE_THRESHOLD}%), 成功=${result.success}, 失败=${result.failed}`);
+    log.warn(`[ALERT] 请检查Amazon API凭证、配额和网络状态`);
     
     // 将告警信息写入数据库，便于前端展示
     try {

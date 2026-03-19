@@ -731,7 +731,13 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         const data = await this.client.waitAndDownloadReport(reportId, 300000);
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: 关键词绩效报告请求失败: ${(e as Error).message}`);
+        const _errMsg = (e as Error).message || '';
+        const _is425 = _errMsg.includes('425') || _errMsg.includes('Too Early');
+        if (_is425) {
+          log.warn(`v413: 关键词绩效报告请求失败 (expected 425): ${_errMsg}`);
+        } else {
+          log.error(`v413: 关键词绩效报告请求失败: ${_errMsg}`);
+        }
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];

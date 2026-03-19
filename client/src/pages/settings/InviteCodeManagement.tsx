@@ -122,7 +122,7 @@ export default function InviteCodeManagement() {
       ...codes.map((code: unknown) => [
         code.code,
         code.inviteType === "external_user" ? "外部用户" : "团队成员",
-        code.status === "active" ? "有效" : code.status === "disabled" ? "已禁用" : "已过期",
+        code.status === "active" ? "有效" : code.status === "disabled" ? "已禁用" : code.status === "used_up" ? "已用完" : "已过期",
         `${code.usedCount}/${code.maxUses || "无限"}`,
         code.createdAt,
         code.expiresAt || "永不过期",
@@ -380,11 +380,13 @@ export default function InviteCodeManagement() {
                             code.status === "disabled" ? "destructive" : "secondary"
                           }
                           className={
-                            code.status === "active" ? "bg-green-500/20 text-green-400" : ""
+                            code.status === "active" ? "bg-green-500/20 text-green-400" : 
+                            code.status === "used_up" ? "bg-orange-500/20 text-orange-400" : ""
                           }
                         >
                           {code.status === "active" ? "有效" : 
-                           code.status === "disabled" ? "已禁用" : "已过期"}
+                           code.status === "disabled" ? "已禁用" : 
+                           code.status === "used_up" ? "已用完" : "已过期"}
                         </Badge>
                       </div>
                       <div className="text-sm text-gray-400 mt-1">

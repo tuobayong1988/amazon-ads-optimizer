@@ -2250,8 +2250,8 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
     
     // 9. 如果是紧急状态，输出详细诊断信息
     if (level === 'emergency' || level === 'critical') {
-      log.error(`[SyncHealth] v204: ❗❗❗ 系统同步健康度异常 (${level}) ❗❗❗`);
-      log.error(`[SyncHealth] v204: 请检查: 1) Amazon API凭证是否过期 2) API速率限制 3) 网络连接 4) 数据库状态`);
+      log.warn(`[SyncHealth] v204: ❗❗❗ 系统同步健康度异常 (${level}) ❗❗❗`);
+      log.warn(`[SyncHealth] v204: 请检查: 1) Amazon API凭证是否过期 2) API速率限制 3) 网络连接 4) 数据库状态`);
       
       // 输出最近失败事件的典型错误模式
       try {
@@ -2267,18 +2267,18 @@ async function evaluateSyncHealth(database: unknown, scanResult: CorrectionScanR
         `) as unknown;
         
         if (Array.isArray(recentErrors) && recentErrors.length > 0) {
-          log.error(`[SyncHealth] v204: 最近24小时失败模式:`);
+          log.warn(`[SyncHealth] v204: 最近24小时失败模式:`);
           for (const err of recentErrors) {
-            log.error(`[SyncHealth] v204:   ${err.action_type}: "${String(err.error_message || '').slice(0, 80)}" (${err.count}次)`);
+            log.warn(`[SyncHealth] v204:   ${err.action_type}: "${String(err.error_message || '').slice(0, 80)}" (${err.count}次)`);
           }
         }
       } catch (diagErr: unknown) {
-        log.error(`[SyncHealth] v204: 诊断信息获取失败: ${(diagErr as Error).message}`);
+        log.warn(`[SyncHealth] v204: 诊断信息获取失败: ${(diagErr as Error).message}`);
       }
     }
     
   } catch (error: unknown) {
-    log.error(`[SyncHealth] v204: 健康度评估失败: ${(error as Error).message}`);
+    log.warn(`[SyncHealth] v204: 健康度评估失败: ${(error as Error).message}`);
   }
 }
 

@@ -812,7 +812,7 @@ export async function executeBidOptimization(
     const pauseRatio = safetyPausedCampaignCount / totalCampaigns;
     const summaryMsg = `v244: 优化目标"${config.name}" 安全检查汇总 - ${safetyPausedCampaignCount}/${totalCampaigns}个campaign触发安全暂停(${(pauseRatio * 100).toFixed(0)}%)，已跳过这些campaign的出价优化`;
     if (pauseRatio > 0.5) {
-      log.error(`[BidOptimization] ${summaryMsg} - 超过50%campaign触发安全暂停，建议人工检查`);
+      log.warn(`[BidOptimization] ${summaryMsg} - 超过50%campaign触发安全暂停，建议人工检查`);
     } else {
       log.warn(`[BidOptimization] ${summaryMsg}`);
     }
