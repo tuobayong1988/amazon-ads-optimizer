@@ -89,7 +89,13 @@ export async function sendNotification(notification: AlertNotification): Promise
     
     return result;
   } catch (error) {
-    log.error(`[NotificationService] Failed to send notification: ${(error as Error).message || JSON.stringify(error)}`);
+    // v474: URL未配置是预期的，降级为WARN
+    const errMsg = (error as Error).message || JSON.stringify(error);
+    if (errMsg.includes('not configured')) {
+      log.warn(`[NotificationService] 通知服务未配置，跳过发送`);
+    } else {
+      log.error(`[NotificationService] Failed to send notification: ${errMsg}`);
+    }
     return false;
   }
 }

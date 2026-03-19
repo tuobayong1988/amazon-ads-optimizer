@@ -1499,7 +1499,12 @@ export async function syncAccount(
     // v340: 同步健康监控告警 - 当同步完成但总记录数为0时触发告警
     if (result.totalSynced === 0 && result.totalSteps > 0) {
       const alertMsg = `⚠️ 账户${account.accountId}(${account.accountName}) ${tier}层同步完成但总记录数为0！步骤=${result.totalSteps}, 失败=${result.failedSteps}, 错误=${result.errors.slice(0, 3).join('; ')}`;
-      log.error(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
+      // v474: confirmation层同步0条是常见的(无待确认的出价更新)，降级为WARN
+      if (tier === 'confirmation') {
+        log.warn(`[UnifiedSync] v474: ${tier}层同步0条记录(正常): ${alertMsg}`);
+      } else {
+        log.error(`[UnifiedSync] 🚨 同步健康告警: ${alertMsg}`);
+      }
       logSyncError('UnifiedSync', alertMsg, {
         accountId: account.accountId,
         accountName: account.accountName,

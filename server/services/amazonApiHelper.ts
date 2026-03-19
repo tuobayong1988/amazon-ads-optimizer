@@ -395,7 +395,13 @@ export async function syncBidAdjustmentsToAmazon(
   const failureRate = totalAttempts > 0 ? (result.failed / totalAttempts) * 100 : 0;
   log.warn(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 成功率=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
-    log.error(`[AmazonApiHelper] 错误详情: ${result.errors.slice(0, 5).join('; ')}`);
+    // v474: 如果所有错误都是entityNotFoundError/entityStateError，降级为WARN
+    const hasRealErrors = result.errors.some(e => !e.includes('entityNotFoundError') && !e.includes('entityStateError') && !e.includes('ENTITY_NOT_FOUND'));
+    if (hasRealErrors) {
+      log.error(`[AmazonApiHelper] 错误详情: ${result.errors.slice(0, 5).join('; ')}`);
+    } else {
+      log.warn(`[AmazonApiHelper] v474: 已删除/归档实体错误(${result.errors.length}条): ${result.errors.slice(0, 3).join('; ').slice(0, 200)}`);
+    }
   }
   
   // v454: 记录同步统计到日志，便于追踪失败率趋势
@@ -426,13 +432,18 @@ export async function syncBidAdjustmentsToAmazon(
   // v333: 401/403认证失败专项检测
   // v474: 排除SB/SD端点的403错误，这些是预期的(账户未开通该广告类型)
   const authErrors = result.errors.filter(e => {
+    // v474: 排除非认证错误（entityNotFoundError/entityStateError等）
+    if (e.includes('entityNotFoundError') || e.includes('entityStateError') || e.includes('ENTITY_NOT_FOUND')) {
+      return false;
+    }
     // 排除SB/SD权限不足的403错误
-    if ((e.includes('403') || e.includes('Forbidden') || e.includes('PERMISSION_DENIED')) && 
+    if ((e.includes('status=403') || e.includes('Forbidden') || e.includes('PERMISSION_DENIED')) && 
         (e.includes('/sb/') || e.includes('/sd/') || e.includes('SB/SD权限不足'))) {
       return false;
     }
-    return e.includes('401') || e.includes('Unauthorized') || 
-           e.includes('403') || e.includes('Forbidden') ||
+    // v474: 使用更精确的匹配模式避免关键词ID中包含'403'的误报
+    return e.includes('status=401') || e.includes('HTTP 401') || e.includes('Unauthorized') || 
+           e.includes('status=403') || e.includes('HTTP 403') || e.includes('Forbidden') ||
            e.includes('Token已过期') || e.includes('token expired');
   });
   if (authErrors.length > 0) {

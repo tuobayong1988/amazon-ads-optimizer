@@ -120,14 +120,19 @@ AmazonSyncService.prototype.syncPerformanceData = async function(this: AmazonSyn
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (batchError: unknown) {
-        // v358: 记录失败批次详情，而不是仅打日志就跳过
-        log.error(`[v358] 第${batch + 1}/${batches}批同步失败: ${(batchError as Error).message}`);
-        failedBatches.push({
-          batch: batch + 1,
-          startDate: startDateStr,
-          endDate: endDateStr,
-          error: (batchError as Error).message,
-        });
+        const errMsg = (batchError as Error).message || '';
+        // v474: 日期保留期限制的400错误是预期的（SD/SB只保留~60天），降级为WARN
+        if (errMsg.includes('retention') || errMsg.includes('startDate') || errMsg.includes('configuration date')) {
+          log.warn(`[v474] 第${batch + 1}/${batches}批超出数据保留期，跳过: ${startDateStr}~${endDateStr}`);
+        } else {
+          log.error(`[v358] 第${batch + 1}/${batches}批同步失败: ${errMsg}`);
+          failedBatches.push({
+            batch: batch + 1,
+            startDate: startDateStr,
+            endDate: endDateStr,
+            error: errMsg,
+          });
+        }
         // 继续下一批，不中断整个同步过程
       }
     }

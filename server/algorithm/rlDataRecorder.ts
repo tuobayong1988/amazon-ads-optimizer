@@ -198,8 +198,8 @@ export async function recordBidAction(action: BidAction): Promise<void> {
     } as Record<string, unknown>);
     
   } catch (error) {
-    // v369: 增强错误日志，记录完整的错误上下文以便排查
-    rlLog.error(`[RLDataRecorder] v369: Failed to record bid action: accountId=${action.accountId}, keywordId=${action.keywordId}, targetId=${action.targetId}, bidBefore=${action.bidBefore}, bidAfter=${action.bidAfter}, source=${action.actionSource}, error=${(error as Error).message}`, error);
+    // v474: RL训练日志记录失败是非关键错误，降级为WARN
+    rlLog.warn(`[RLDataRecorder] v474: Failed to record bid action: accountId=${action.accountId}, keywordId=${action.keywordId}, targetId=${action.targetId}, source=${action.actionSource}, error=${(error as Error).message}`);
   }
 }
 

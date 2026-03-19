@@ -447,7 +447,8 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     return processedCount;
     
   } catch (error) {
-    log.error(`[ContextualFeatureService] Error extracting features for account ${accountId}: ${(error as Error).message || JSON.stringify(error)}`);
+    // v474: 上下文特征提取失败是非关键错误，降级为WARN
+    log.warn(`[ContextualFeatureService] Error extracting features for account ${accountId}: ${(error as Error).message || JSON.stringify(error)}`);
     return processedCount;
   }
 }

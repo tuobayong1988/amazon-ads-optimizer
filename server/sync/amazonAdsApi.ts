@@ -1144,7 +1144,12 @@ export class AmazonAdsApiClient {
               const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
               const fullErrorStr = JSON.stringify(err).substring(0, 300);
               allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails || fullErrorStr });
-              log.error(`[SP API] v444: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+              // v474: entityNotFoundError/entityStateError是预期的(关键词已删除/已归档)，降级为WARN
+              if (fullErrorStr.includes('entityNotFoundError') || fullErrorStr.includes('entityStateError')) {
+                log.warn(`[SP API] v474: 关键词已删除/归档: keywordId=${failedKeywordId}, error=${fullErrorStr.slice(0, 150)}`);
+              } else {
+                log.error(`[SP API] v444: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+              }
             }
           }
           if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
@@ -4188,7 +4193,12 @@ export class AmazonAdsApiClient {
         const statusCode = (batchErr as Error & { response?: unknown }).response?.status;
         // @ts-expect-error - Axios error response access
         const errorDetail = (batchErr as Error & { response?: unknown }).response?.data ? JSON.stringify((batchErr as Error & { response?: unknown }).response.data).substring(0, 500) : (batchErr as Error).message;
-        log.error(`[SB API] v471: 第${batchIdx + 1}批SB定向出价更新失败: status=${statusCode}, detail=${errorDetail}`);
+        // v474: 404/403是预期的(SB API端点不存在或无权限)，降级为WARN
+        if (statusCode === 404 || statusCode === 403 || (errorDetail && errorDetail.includes('API端点不存在'))) {
+          log.warn(`[SB API] v474: SB定向出价更新端点不可用: status=${statusCode}`);
+        } else {
+          log.error(`[SB API] v471: 第${batchIdx + 1}批SB定向出价更新失败: status=${statusCode}, detail=${errorDetail}`);
+        }
         for (const item of batch) {
           allErrors.push({ targetId: item.targetId, code: `HTTP_${statusCode}`, details: errorDetail });
         }
@@ -5526,8 +5536,8 @@ export class AmazonAdsApiClient {
         // v255: 403是Amazon权限限制，降级为WARN而非ERROR
         // @ts-expect-error - Axios error response access
         const statusCode = (error as Error & { response?: unknown }).response?.status;
-        if (statusCode === 403) {
-          log.warn('[SB API] SB Negative Targets API access denied (403) - account may not have SB permissions');
+        if (statusCode === 403 || statusCode === 404) {
+          log.warn(`[SB API] v474: SB Negative Targets API 不可用 (${statusCode}) - 账户可能未开通SB`);
         } else {
           log.error('[SB API] Error fetching SB negative targets:', (error as Error).message);
         }
@@ -5791,7 +5801,8 @@ export class AmazonAdsApiClient {
     } catch (error: unknown) {
       // @ts-expect-error - Axios error response access
       const errInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
-      log.error(`[Assets API] Failed to get asset ${assetId}: ${typeof errInfo === 'object' ? JSON.stringify(errInfo).slice(0, 200) : errInfo}`);
+      // v474: 单个素材获取失败是非关键错误，降级为WARN
+      log.warn(`[Assets API] Failed to get asset ${assetId}: ${typeof errInfo === 'object' ? JSON.stringify(errInfo).slice(0, 200) : errInfo}`);
       return null;
     }
   }
@@ -5942,7 +5953,13 @@ export class AmazonAdsApiClient {
         // @ts-expect-error - Axios error response access
         const errBody = (submitErr as Error & { response?: unknown }).response?.data;
         const errDetail = errBody ? ` | response: ${JSON.stringify(errBody).slice(0, 300)}` : '';
-        log.error(`[Amazon API] v474: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}${errDetail}`);
+        // v474: 日期保留期限制的400错误是预期的，降级为WARN
+        const isRetentionError = errDetail.includes('retention') || errDetail.includes('configuration date');
+        if (isRetentionError) {
+          log.warn(`[Amazon API] v474: 报告超出数据保留期 [${req.name}]: ${errDetail.slice(0, 200)}`);
+        } else {
+          log.error(`[Amazon API] v474: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}${errDetail}`);
+        }
         results[i] = { name: req.name, data: null, error: (submitErr as Error).message };
       }
     }
