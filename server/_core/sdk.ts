@@ -316,6 +316,25 @@ class SDKServer {
                 organizationId: localUser.organization_id,
                 role: localUser.role,
               } as Record<string, unknown>;
+            } else {
+              // v463: DB查询成功但用户不存在，从 JWT payload 构建基本用户信息（降级策略）
+              log.warn(`[Auth] JWT user not found in DB (userId=${decoded.userId}), using JWT fallback`);
+              // @ts-expect-error - runtime type mismatch
+              return {
+                // @ts-expect-error - runtime type mismatch
+                id: decoded.userId,
+                // @ts-expect-error - runtime type mismatch
+                openId: `local_${decoded.userId}`,
+                // @ts-expect-error - runtime type mismatch
+                name: decoded.name || 'User',
+                // @ts-expect-error - runtime type mismatch
+                email: decoded.username || '',
+                loginMethod: 'local',
+                lastSignedIn: new Date().toISOString(),
+                // @ts-expect-error - runtime type mismatch
+                organizationId: decoded.organizationId || null,
+                role: decoded.role || 'user',
+              } as Record<string, unknown>;
             }
           } catch (dbError: unknown) {
             log.error('[Auth] JWT DB query failed:', (dbError as Error).message);

@@ -45,7 +45,9 @@ async function ensureMultiTenantTables(db: Awaited<ReturnType<typeof getDb>>): P
     tablesEnsured = true;
     log.info('[LocalAuth] 多租户表已确认就绪');
   } catch (err) {
-    log.error('[LocalAuth] 确保多租户表存在失败:', (err as Error).message);
+    const cause = (err as Record<string, unknown>)?.cause;
+    const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
+    log.error(`[LocalAuth] 确保多租户表存在失败: ${(err as Error).message || String(err)}${causeMsg}`);
   }
 }
 
