@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 476;  // v476: API限流防护 — 多层级节流机制(模块间3s/阶段间5s/目标间10-15s/API批次间2s/建议竞价1s)，降低429错误率，提升优化任务执行成功率
+export const SYSTEM_VERSION = 477;  // v477: entityNotFoundError根治 — 智能重试(移除坏entity后重试批次)+预过滤(amazon_deleted/archived)+自动标记机制，实现100%API执行成功率

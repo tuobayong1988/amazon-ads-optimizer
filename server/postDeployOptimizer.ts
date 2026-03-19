@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 477,
+    description: 'v477: [entityNotFoundError根治 — 智能重试+预过滤+自动标记机制] — (1)P0-智能重试: 遇到entityNotFoundError时自动提取坏的entity ID，从API批次中移除后重试剩余项目，最多10次 (2)P0-预过滤: 在构建API批次前查询keyword/target的状态，自动跳过amazon_deleted/archived的entity (3)P0-自动标记: 被Amazon拒绝的entity自动标记为amazon_deleted，防止后续重复失败 (4)覆盖范围: updateKeywordBids/updateProductTargetBids/updateKeywordStatus三个API函数',
+    affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'searchterm'],
+    correctionActions: [],
+  },
+  {
     version: 476,
     description: 'v476: [API限流防护 — 全层级激进节流机制，优先保证100%成功率] — (1)P0-优化模块间节流: 每个模块执行后等待20秒 (2)P0-PostDeploy阶段间节流: A-F阶段间每次等待20秒 (3)P0-目标间节流: 调度器和PostDeploy目标间均等待30秒 (4)P0-广告活动间节流: 每个广告活动的优化操作间隔5秒 (5)P1-API批次间节流: 关键词/商品定向批量更新间等待10秒 (6)P1-建议竞价同步节流: 每个adGroup请求间隔5秒 (7)P1-重试机制增强: 基础延迟10秒/最大退避60秒/最多5次重试 (8)P2-数据同步节流: 步骤间基础延迟2秒/大账户额外延迟10秒/账户间延迟10秒',
     affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm'],

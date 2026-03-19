@@ -1114,80 +1114,155 @@ export class AmazonAdsApiClient {
     log.info(`[SP API] v199: updateKeywordBids 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-      const requestBody = { keywords: batch };
-      log.info(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词出价更新`);
+      let currentBatch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      log.info(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${currentBatch.length}个关键词出价更新`);
       
-      try {
-        const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
-          headers: { 
-            'Content-Type': 'application/vnd.spKeyword.v3+json',
-            'Accept': 'application/vnd.spKeyword.v3+json'
-          },
-        });
-        
-        // v333: 提取Amazon API响应中的requestId用于端到端日志追踪
-        const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
-        if (requestId) {
-          allRequestIds.push(requestId);
-          log.info(`[SP API] v333: 关键词出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
-        }
-        
-        // v426: 修复v3 API响应解析 - 正确处理success/error数组和index字段
-        const responseKeywords = response.data?.keywords;
-        if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
-          // v3 API格式: { keywords: { success: [...], error: [...] } }
-          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-            for (const err of responseKeywords.error) {
-              // v444: 增强错误解析 - 记录完整error对象，兼容更多字段名
-              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
-              const failedKeywordId = err.keywordId || (failedIndex !== undefined ? batch[failedIndex]?.keywordId : 'unknown');
-              const errorCode = err.code || err.errorCode || 'ERROR';
-              const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
-              const fullErrorStr = JSON.stringify(err).substring(0, 300);
-              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails || fullErrorStr });
-              // v474: entityNotFoundError/entityStateError是预期的(关键词已删除/已归档)，降级为WARN
-              if (fullErrorStr.includes('entityNotFoundError') || fullErrorStr.includes('entityStateError')) {
-                log.warn(`[SP API] v474: 关键词已删除/归档: keywordId=${failedKeywordId}, error=${fullErrorStr.slice(0, 150)}`);
-              } else {
-                log.warn(`[SP API] v444: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+      // v477: 智能重试机制 — 遇到entityNotFoundError时移除坏keyword并重试，最多重试10次
+      const MAX_ENTITY_RETRIES = 10;
+      let entityRetryCount = 0;
+      const removedKeywordIds: string[] = [];  // 收集所有被移除的entityNotFound keyword
+      
+      let batchCompleted = false;
+      while (!batchCompleted && currentBatch.length > 0) {
+        const requestBody = { keywords: currentBatch };
+        try {
+          const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+            headers: { 
+              'Content-Type': 'application/vnd.spKeyword.v3+json',
+              'Accept': 'application/vnd.spKeyword.v3+json'
+            },
+          });
+          
+          // v333: 提取Amazon API响应中的requestId用于端到端日志追踪
+          const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
+          if (requestId) {
+            allRequestIds.push(requestId);
+            log.info(`[SP API] v333: 关键词出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
+          }
+          
+          // v426: 修复v3 API响应解析 - 正确处理success/error数组和index字段
+          const responseKeywords = response.data?.keywords;
+          if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+            // v3 API格式: { keywords: { success: [...], error: [...] } }
+            if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+              for (const err of responseKeywords.error) {
+                const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+                const failedKeywordId = err.keywordId || (failedIndex !== undefined ? currentBatch[failedIndex]?.keywordId : 'unknown');
+                const errorCode = err.code || err.errorCode || 'ERROR';
+                const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
+                const fullErrorStr = JSON.stringify(err).substring(0, 300);
+                allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails || fullErrorStr });
+                if (fullErrorStr.includes('entityNotFoundError') || fullErrorStr.includes('entityStateError')) {
+                  log.warn(`[SP API] v474: 关键词已删除/归档: keywordId=${failedKeywordId}, error=${fullErrorStr.slice(0, 150)}`);
+                  removedKeywordIds.push(String(failedKeywordId));
+                } else {
+                  log.warn(`[SP API] v444: 关键词出价更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+                }
               }
             }
+            if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+              totalSuccess += responseKeywords.success.length;
+              for (const item of responseKeywords.success) {
+                const successKeywordId = item.keywordId || (typeof item.index === 'number' ? currentBatch[item.index]?.keywordId : 'unknown');
+                log.debug(`[SP API] v426: 关键词出价更新成功: keywordId=${successKeywordId}`);
+              }
+            }
+          } else if (Array.isArray(response.data)) {
+            for (const item of response.data) {
+              if (item.code === 'SUCCESS') {
+                totalSuccess++;
+              } else {
+                allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || item.details || '' });
+                log.warn(`[SP API] v426: 关键词出价更新失败(v2): keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details}`);
+              }
+            }
+          } else {
+            log.warn(`[SP API] v426: 关键词出价更新响应格式未知, HTTP状态=${response.status}, 假设batch#${batchIdx + 1}的${currentBatch.length}个更新成功`);
+            totalSuccess += currentBatch.length;
           }
-          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-            totalSuccess += responseKeywords.success.length;
-            for (const item of responseKeywords.success) {
-              const successKeywordId = item.keywordId || (typeof item.index === 'number' ? batch[item.index]?.keywordId : 'unknown');
-              log.debug(`[SP API] v426: 关键词出价更新成功: keywordId=${successKeywordId}`);
+          batchCompleted = true;  // 请求成功（即使有部分item失败），标记批次完成
+          
+        } catch (batchErr: unknown) {
+          // v477: 智能entityNotFoundError重试 — 从HTTP错误响应中提取坏的keywordId，移除后重试
+          const errResponse = (batchErr as Record<string, unknown>)?.response;
+          const errData = errResponse?.data;
+          const errString = typeof errData === 'string' ? errData : JSON.stringify(errData || '');
+          const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
+          if (errRequestId) {
+            allRequestIds.push(errRequestId);
+          }
+          
+          const isEntityNotFound = errString.includes('entityNotFoundError') || errString.includes('ENTITY_NOT_FOUND') || errString.includes('entityStateError');
+          
+          if (isEntityNotFound && entityRetryCount < MAX_ENTITY_RETRIES) {
+            // 从错误中提取坏的keywordId
+            const badKeywordIds: string[] = [];
+            try {
+              const errObj = typeof errData === 'string' ? JSON.parse(errData) : errData;
+              const errors = errObj?.errors || [];
+              for (const err of errors) {
+                const entityId = err?.errorValue?.entityNotFoundError?.entityId 
+                  || err?.errorValue?.entityStateError?.entityId || '';
+                const trigger = err?.errorValue?.entityNotFoundError?.cause?.trigger
+                  || err?.errorValue?.entityStateError?.cause?.trigger || '';
+                if (entityId) badKeywordIds.push(String(entityId));
+                else if (trigger) badKeywordIds.push(String(trigger));
+              }
+            } catch (_) {
+              // 尝试用正则提取
+              const matches = errString.match(/entityId[":\s]+["](\d{10,})/g) || [];
+              for (const m of matches) {
+                const id = m.match(/(\d{10,})/);
+                if (id) badKeywordIds.push(id[1]);
+              }
+              if (badKeywordIds.length === 0) {
+                const triggerMatches = errString.match(/trigger[":\s]+["](\d{10,})/g) || [];
+                for (const m of triggerMatches) {
+                  const id = m.match(/(\d{10,})/);
+                  if (id) badKeywordIds.push(id[1]);
+                }
+              }
+            }
+            
+            if (badKeywordIds.length > 0) {
+              const badSet = new Set(badKeywordIds);
+              const beforeCount = currentBatch.length;
+              currentBatch = currentBatch.filter(item => !badSet.has(item.keywordId));
+              removedKeywordIds.push(...badKeywordIds);
+              entityRetryCount++;
+              
+              // 记录被移除的keyword为失败
+              for (const badId of badKeywordIds) {
+                allErrors.push({ keywordId: badId, code: 'ENTITY_NOT_FOUND', details: 'Amazon端已不存在，已自动移除并重试剩余批次' });
+              }
+              
+              log.warn(`[SP API] v477: entityNotFoundError智能重试(${entityRetryCount}/${MAX_ENTITY_RETRIES}): 移除${badKeywordIds.length}个坏keyword(${badKeywordIds.join(',')}), 批次从${beforeCount}减至${currentBatch.length}, 等待5秒后重试...`);
+              await new Promise(resolve => setTimeout(resolve, 5000));  // 重试前等待5秒
+              continue;  // 重试当前批次
             }
           }
-        } else if (Array.isArray(response.data)) {
-          // v2 API兼容: 响应为数组格式
-          for (const item of response.data) {
-            if (item.code === 'SUCCESS') {
-              totalSuccess++;
-            } else {
-              allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || item.details || '' });
-              log.warn(`[SP API] v426: 关键词出价更新失败(v2): keywordId=${item.keywordId}, code=${item.code}, details=${item.description || item.details}`);
-            }
+          
+          // 非entityNotFoundError或已达最大重试次数，标记整批失败
+          log.warn(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${(batchErr as Error).message}`);
+          for (const item of currentBatch) {
+            allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
           }
-        } else {
-          // 无法解析的响应格式 - 假设成功（API未返回错误）
-          log.warn(`[SP API] v426: 关键词出价更新响应格式未知, HTTP状态=${response.status}, 假设batch#${batchIdx + 1}的${batch.length}个更新成功`);
-          totalSuccess += batch.length;
+          batchCompleted = true;
         }
-      } catch (batchErr: unknown) {
-        log.warn(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${(batchErr as Error).message}`);
-        // v333: 尝试从错误响应中提取requestId
-        const errResponse = (batchErr as unknown)?.response;
-        const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
-        if (errRequestId) {
-          allRequestIds.push(errRequestId);
-          log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
-        }
-        // 将该批次所有关键词记录为失败
-        for (const item of batch) {
-          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
+      }
+      
+      // v477: 批量标记所有entityNotFound的keyword为amazon_deleted
+      if (removedKeywordIds.length > 0) {
+        try {
+          const { getDb } = await import('../db');
+          const db = getDb();
+          const idList = removedKeywordIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
+          await db.execute(
+            `UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList})`
+          );
+          log.warn(`[SP API] v477: 已标记${removedKeywordIds.length}个entityNotFound关键词为amazon_deleted: ${removedKeywordIds.slice(0, 5).join(', ')}`);
+        } catch (markErr: unknown) {
+          log.warn(`[SP API] v477: 标记过期关键词失败: ${(markErr as Error).message}`);
         }
       }
       
@@ -1222,46 +1297,89 @@ export class AmazonAdsApiClient {
     log.info(`[SP API] v199: updateKeywordStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-      const requestBody = { keywords: batch };
+      let currentBatch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
       
-      try {
-        const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
-          headers: {
-            'Content-Type': 'application/vnd.spKeyword.v3+json',
-            'Accept': 'application/vnd.spKeyword.v3+json'
-          },
-        });
-        
-        // v426: 修复v3 API响应解析 - 正确处理index字段
-        const responseKeywords = response.data?.keywords;
-        if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
-          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-            for (const err of responseKeywords.error) {
-              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
-              const failedKeywordId = err.keywordId || (failedIndex !== undefined ? batch[failedIndex]?.keywordId : 'unknown');
-              const errorCode = err.code || 'ERROR';
-              const errorDetails = err.description || err.details || err.message || '';
-              allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
-              log.warn(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+      // v477: 智能重试机制
+      const MAX_ENTITY_RETRIES = 10;
+      let entityRetryCount = 0;
+      
+      let batchCompleted = false;
+      while (!batchCompleted && currentBatch.length > 0) {
+        const requestBody = { keywords: currentBatch };
+        try {
+          const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+            headers: {
+              'Content-Type': 'application/vnd.spKeyword.v3+json',
+              'Accept': 'application/vnd.spKeyword.v3+json'
+            },
+          });
+          
+          const responseKeywords = response.data?.keywords;
+          if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+            if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+              for (const err of responseKeywords.error) {
+                const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+                const failedKeywordId = err.keywordId || (failedIndex !== undefined ? currentBatch[failedIndex]?.keywordId : 'unknown');
+                const errorCode = err.code || 'ERROR';
+                const errorDetails = err.description || err.details || err.message || '';
+                allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
+                log.warn(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+              }
+            }
+            if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+              totalSuccess += responseKeywords.success.length;
+            }
+          } else if (Array.isArray(response.data)) {
+            for (const item of response.data) {
+              if (item.code === 'SUCCESS') { totalSuccess++; }
+              else { allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || '' }); }
+            }
+          } else {
+            log.warn(`[SP API] v426: 关键词状态更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
+            totalSuccess += currentBatch.length;
+          }
+          batchCompleted = true;
+        } catch (batchErr: unknown) {
+          // v477: entityNotFoundError智能重试
+          const errResponse = (batchErr as Record<string, unknown>)?.response;
+          const errData = errResponse?.data;
+          const errString = typeof errData === 'string' ? errData : JSON.stringify(errData || '');
+          const isEntityNotFound = errString.includes('entityNotFoundError') || errString.includes('ENTITY_NOT_FOUND') || errString.includes('entityStateError');
+          
+          if (isEntityNotFound && entityRetryCount < MAX_ENTITY_RETRIES) {
+            const badKeywordIds: string[] = [];
+            try {
+              const errObj = typeof errData === 'string' ? JSON.parse(errData) : errData;
+              for (const err of (errObj?.errors || [])) {
+                const entityId = err?.errorValue?.entityNotFoundError?.entityId || err?.errorValue?.entityStateError?.entityId || '';
+                const trigger = err?.errorValue?.entityNotFoundError?.cause?.trigger || err?.errorValue?.entityStateError?.cause?.trigger || '';
+                if (entityId) badKeywordIds.push(String(entityId));
+                else if (trigger) badKeywordIds.push(String(trigger));
+              }
+            } catch (_) {
+              const matches = errString.match(/entityId[":\s]+["](\d{10,})/g) || [];
+              for (const m of matches) { const id = m.match(/(\d{10,})/); if (id) badKeywordIds.push(id[1]); }
+            }
+            
+            if (badKeywordIds.length > 0) {
+              const badSet = new Set(badKeywordIds);
+              const beforeCount = currentBatch.length;
+              currentBatch = currentBatch.filter(item => !badSet.has(item.keywordId));
+              entityRetryCount++;
+              for (const badId of badKeywordIds) {
+                allErrors.push({ keywordId: badId, code: 'ENTITY_NOT_FOUND', details: 'Amazon端已不存在，已自动移除并重试' });
+              }
+              log.warn(`[SP API] v477: 状态更新entityNotFoundError智能重试(${entityRetryCount}/${MAX_ENTITY_RETRIES}): 移除${badKeywordIds.length}个, 批次从${beforeCount}减至${currentBatch.length}`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              continue;
             }
           }
-          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-            totalSuccess += responseKeywords.success.length;
+          
+          log.warn(`[SP API] v199: 第${batchIdx + 1}批状态更新API调用失败: ${(batchErr as Error).message}`);
+          for (const item of currentBatch) {
+            allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
           }
-        } else if (Array.isArray(response.data)) {
-          for (const item of response.data) {
-            if (item.code === 'SUCCESS') { totalSuccess++; }
-            else { allErrors.push({ keywordId: item.keywordId, code: item.code || 'ERROR', details: item.description || '' }); }
-          }
-        } else {
-          log.warn(`[SP API] v426: 关键词状态更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
-          totalSuccess += batch.length;
-        }
-      } catch (batchErr: unknown) {
-        log.warn(`[SP API] v199: 第${batchIdx + 1}批状态更新API调用失败: ${(batchErr as Error).message}`);
-        for (const item of batch) {
-          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
+          batchCompleted = true;
         }
       }
       
@@ -1491,62 +1609,132 @@ export class AmazonAdsApiClient {
     log.info(`[SP API] v199: updateProductTargetBids 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
     for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-      const requestBody = { targetingClauses: batch };
+      let currentBatch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
       
-      try {
-        const response = await this.axiosInstance.put('/sp/targets', requestBody, {
-          headers: { 
-            'Content-Type': 'application/vnd.spTargetingClause.v3+json',
-            'Accept': 'application/vnd.spTargetingClause.v3+json'
-          },
-        });
-        
-        // v333: 提取Amazon API响应中的requestId用于端到端日志追踪
-        const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
-        if (requestId) {
-          allRequestIds.push(requestId);
-          log.info(`[SP API] v333: 商品定位出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
-        }
-        
-        // v426: 修复v3 API响应解析 - 正确处理index字段
-        const responseTargets = response.data?.targetingClauses;
-        if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
-          if (responseTargets.error && Array.isArray(responseTargets.error)) {
-            for (const err of responseTargets.error) {
-              // v444: 增强错误解析 - 记录完整error对象
-              const failedIndex = typeof err.index === 'number' ? err.index : undefined;
-              const failedTargetId = err.targetId || (failedIndex !== undefined ? batch[failedIndex]?.targetId : 'unknown');
-              const errorCode = err.code || err.errorCode || 'ERROR';
-              const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
-              const fullErrorStr = JSON.stringify(err).substring(0, 300);
-              allErrors.push({ targetId: failedTargetId, code: errorCode, details: errorDetails || fullErrorStr });
-              log.warn(`[SP API] v444: 商品定位出价更新失败: targetId=${failedTargetId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+      // v477: 智能重试机制 — 遇到entityNotFoundError时移除坏target并重试
+      const MAX_ENTITY_RETRIES = 10;
+      let entityRetryCount = 0;
+      const removedTargetIds: string[] = [];
+      
+      let batchCompleted = false;
+      while (!batchCompleted && currentBatch.length > 0) {
+        const requestBody = { targetingClauses: currentBatch };
+        try {
+          const response = await this.axiosInstance.put('/sp/targets', requestBody, {
+            headers: { 
+              'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+              'Accept': 'application/vnd.spTargetingClause.v3+json'
+            },
+          });
+          
+          const requestId = response.headers?.['x-amzn-requestid'] || response.headers?.['x-amz-request-id'] || response.headers?.['requestid'] || '';
+          if (requestId) {
+            allRequestIds.push(requestId);
+            log.info(`[SP API] v333: 商品定位出价更新 batch#${batchIdx + 1} requestId=${requestId}`);
+          }
+          
+          const responseTargets = response.data?.targetingClauses;
+          if (responseTargets && typeof responseTargets === 'object' && !Array.isArray(responseTargets)) {
+            if (responseTargets.error && Array.isArray(responseTargets.error)) {
+              for (const err of responseTargets.error) {
+                const failedIndex = typeof err.index === 'number' ? err.index : undefined;
+                const failedTargetId = err.targetId || (failedIndex !== undefined ? currentBatch[failedIndex]?.targetId : 'unknown');
+                const errorCode = err.code || err.errorCode || 'ERROR';
+                const errorDetails = err.description || err.details || err.message || err.errorMessage || err.errorDescription || '';
+                const fullErrorStr = JSON.stringify(err).substring(0, 300);
+                allErrors.push({ targetId: failedTargetId, code: errorCode, details: errorDetails || fullErrorStr });
+                if (fullErrorStr.includes('entityNotFoundError') || fullErrorStr.includes('entityStateError')) {
+                  log.warn(`[SP API] v477: 商品定向已删除/归档: targetId=${failedTargetId}`);
+                  removedTargetIds.push(String(failedTargetId));
+                } else {
+                  log.warn(`[SP API] v444: 商品定位出价更新失败: targetId=${failedTargetId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}, fullError=${fullErrorStr}`);
+                }
+              }
+            }
+            if (responseTargets.success && Array.isArray(responseTargets.success)) {
+              totalSuccess += responseTargets.success.length;
+            }
+          } else if (Array.isArray(response.data)) {
+            for (const item of response.data) {
+              if (item.code === 'SUCCESS') { totalSuccess++; }
+              else { allErrors.push({ targetId: item.targetId, code: item.code || 'ERROR', details: item.description || '' }); }
+            }
+          } else {
+            log.warn(`[SP API] v426: 商品定位出价更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
+            totalSuccess += currentBatch.length;
+          }
+          batchCompleted = true;
+          
+        } catch (batchErr: unknown) {
+          // v477: 智能entityNotFoundError重试
+          const errResponse = (batchErr as Record<string, unknown>)?.response;
+          const errData = errResponse?.data;
+          const errString = typeof errData === 'string' ? errData : JSON.stringify(errData || '');
+          const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
+          if (errRequestId) {
+            allRequestIds.push(errRequestId);
+          }
+          
+          const isEntityNotFound = errString.includes('entityNotFoundError') || errString.includes('ENTITY_NOT_FOUND') || errString.includes('entityStateError');
+          
+          if (isEntityNotFound && entityRetryCount < MAX_ENTITY_RETRIES) {
+            const badTargetIds: string[] = [];
+            try {
+              const errObj = typeof errData === 'string' ? JSON.parse(errData) : errData;
+              const errors = errObj?.errors || [];
+              for (const err of errors) {
+                const entityId = err?.errorValue?.entityNotFoundError?.entityId 
+                  || err?.errorValue?.entityStateError?.entityId || '';
+                const trigger = err?.errorValue?.entityNotFoundError?.cause?.trigger
+                  || err?.errorValue?.entityStateError?.cause?.trigger || '';
+                if (entityId) badTargetIds.push(String(entityId));
+                else if (trigger) badTargetIds.push(String(trigger));
+              }
+            } catch (_) {
+              const matches = errString.match(/entityId[":\s]+["](\d{10,})/g) || [];
+              for (const m of matches) {
+                const id = m.match(/(\d{10,})/);
+                if (id) badTargetIds.push(id[1]);
+              }
+            }
+            
+            if (badTargetIds.length > 0) {
+              const badSet = new Set(badTargetIds);
+              const beforeCount = currentBatch.length;
+              currentBatch = currentBatch.filter(item => !badSet.has(item.targetId));
+              removedTargetIds.push(...badTargetIds);
+              entityRetryCount++;
+              
+              for (const badId of badTargetIds) {
+                allErrors.push({ targetId: badId, code: 'ENTITY_NOT_FOUND', details: 'Amazon端已不存在，已自动移除并重试剩余批次' });
+              }
+              
+              log.warn(`[SP API] v477: target entityNotFoundError智能重试(${entityRetryCount}/${MAX_ENTITY_RETRIES}): 移除${badTargetIds.length}个坏target, 批次从${beforeCount}减至${currentBatch.length}, 等待5秒后重试...`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              continue;
             }
           }
-          if (responseTargets.success && Array.isArray(responseTargets.success)) {
-            totalSuccess += responseTargets.success.length;
+          
+          log.warn(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${(batchErr as Error).message}`);
+          for (const item of currentBatch) {
+            allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
           }
-        } else if (Array.isArray(response.data)) {
-          for (const item of response.data) {
-            if (item.code === 'SUCCESS') { totalSuccess++; }
-            else { allErrors.push({ targetId: item.targetId, code: item.code || 'ERROR', details: item.description || '' }); }
-          }
-        } else {
-          log.warn(`[SP API] v426: 商品定位出价更新响应格式未知, HTTP状态=${response.status}, 假设batch成功`);
-          totalSuccess += batch.length;
+          batchCompleted = true;
         }
-      } catch (batchErr: unknown) {
-        log.warn(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${(batchErr as Error).message}`);
-        // v333: 尝试从错误响应中提取requestId
-        const errResponse = (batchErr as unknown)?.response;
-        const errRequestId = errResponse?.headers?.['x-amzn-requestid'] || errResponse?.headers?.['x-amz-request-id'] || '';
-        if (errRequestId) {
-          allRequestIds.push(errRequestId);
-          log.info(`[SP API] v333: 失败批次 batch#${batchIdx + 1} requestId=${errRequestId}`);
-        }
-        for (const item of batch) {
-          allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: (batchErr as Error).message });
+      }
+      
+      // v477: 标记entityNotFound的target为amazon_deleted
+      if (removedTargetIds.length > 0) {
+        try {
+          const { getDb } = await import('../db');
+          const db = getDb();
+          const idList = removedTargetIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
+          await db.execute(
+            `UPDATE product_targets SET targetStatus = 'amazon_deleted' WHERE targetId IN (${idList})`
+          );
+          log.warn(`[SP API] v477: 已标记${removedTargetIds.length}个entityNotFound商品定向为amazon_deleted`);
+        } catch (markErr: unknown) {
+          log.warn(`[SP API] v477: 标记过期商品定向失败: ${(markErr as Error).message}`);
         }
       }
       

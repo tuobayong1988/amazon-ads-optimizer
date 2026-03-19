@@ -145,22 +145,39 @@ export async function syncBidAdjustmentsToAmazon(
     const { inArray } = await import('drizzle-orm');
     const kwLocalIds = keywordAdjustments.map(a => a.keywordId);
     
-    // v391: 一次性查询所有keyword的Amazon ID
+    // v391+v477: 一次性查询所有keyword的Amazon ID，同时获取keywordStatus用于预过滤
     const kwResults = await dbInstance
-      .select({ id: keywords.id, keywordId: keywords.keywordId })
+      .select({ id: keywords.id, keywordId: keywords.keywordId, keywordStatus: keywords.keywordStatus })
       .from(keywords)
       .where(inArray(keywords.id, kwLocalIds));
     
     const kwIdMap = new Map<number, string>();
+    const amazonDeletedKwIds = new Set<number>();  // v477: 收集已标记为amazon_deleted的keyword
     for (const kw of kwResults) {
+      // v477: 预过滤amazon_deleted和archived状态的keyword，避免发送到API后被拒绝
+      if (kw.keywordStatus === 'amazon_deleted' || kw.keywordStatus === 'archived') {
+        amazonDeletedKwIds.add(kw.id);
+        continue;
+      }
       if (kw.keywordId && kw.keywordId !== '0' && kw.keywordId !== '') {
         kwIdMap.set(kw.id, kw.keywordId);
       }
     }
-    log.info(`[v391] 批量解析关键词Amazon ID: ${kwLocalIds.length}个请求, ${kwIdMap.size}个已解析`);
+    if (amazonDeletedKwIds.size > 0) {
+      log.warn(`[AmazonApiHelper] v477: 预过滤${amazonDeletedKwIds.size}个amazon_deleted/archived关键词，跳过API同步`);
+      for (const deletedId of amazonDeletedKwIds) {
+        result.failed++;
+        result.errors.push(`keyword ${deletedId}: amazon_deleted/archived，跳过同步`);
+        result.itemResults.set(deletedId, { status: 'failed', error: 'amazon_deleted/archived，跳过同步' });
+      }
+    }
+    log.info(`[v391] 批量解析关键词Amazon ID: ${kwLocalIds.length}个请求, ${kwIdMap.size}个已解析, ${amazonDeletedKwIds.size}个已过滤`);
     
     // 处理每个keyword的解析结果
     for (const adj of keywordAdjustments) {
+      // v477: 跳过已预过滤的amazon_deleted/archived关键词
+      if (amazonDeletedKwIds.has(adj.keywordId)) continue;
+      
       let amazonKeywordId = kwIdMap.get(adj.keywordId);
       
       // v429: entityIdResolver优先，amazonIdResolver降级
@@ -204,22 +221,39 @@ export async function syncBidAdjustmentsToAmazon(
     const { inArray } = await import('drizzle-orm');
     const ptLocalIds = productTargetAdjustments.map(a => a.productTargetId || a.keywordId);
     
-    // v391: 一次性查询所有productTarget的Amazon ID
+    // v391+v477: 一次性查询所有productTarget的Amazon ID，同时获取targetStatus用于预过滤
     const ptResults = await dbInstance
-      .select({ id: productTargets.id, targetId: productTargets.targetId })
+      .select({ id: productTargets.id, targetId: productTargets.targetId, targetStatus: productTargets.targetStatus })
       .from(productTargets)
       .where(inArray(productTargets.id, ptLocalIds));
     
     const ptIdMap = new Map<number, string>();
+    const amazonDeletedPtIds = new Set<number>();  // v477: 收集已标记为amazon_deleted的target
     for (const pt of ptResults) {
+      // v477: 预过滤amazon_deleted和archived状态的target
+      if (pt.targetStatus === 'amazon_deleted' || pt.targetStatus === 'archived') {
+        amazonDeletedPtIds.add(pt.id);
+        continue;
+      }
       if (pt.targetId && pt.targetId !== '0' && pt.targetId !== '') {
         ptIdMap.set(pt.id, pt.targetId);
       }
     }
-    log.info(`[v391] 批量解析商品定向Amazon ID: ${ptLocalIds.length}个请求, ${ptIdMap.size}个已解析`);
+    if (amazonDeletedPtIds.size > 0) {
+      log.warn(`[AmazonApiHelper] v477: 预过滤${amazonDeletedPtIds.size}个amazon_deleted/archived商品定向，跳过API同步`);
+      for (const deletedId of amazonDeletedPtIds) {
+        result.failed++;
+        result.errors.push(`product_target ${deletedId}: amazon_deleted/archived，跳过同步`);
+        result.itemResults.set(deletedId, { status: 'failed', error: 'amazon_deleted/archived，跳过同步' });
+      }
+    }
+    log.info(`[v391] 批量解析商品定向Amazon ID: ${ptLocalIds.length}个请求, ${ptIdMap.size}个已解析, ${amazonDeletedPtIds.size}个已过滤`);
     
     for (const adj of productTargetAdjustments) {
       const actualId = adj.productTargetId || adj.keywordId;
+      // v477: 跳过已预过滤的amazon_deleted/archived商品定向
+      if (amazonDeletedPtIds.has(actualId)) continue;
+      
       let amazonTargetId = ptIdMap.get(actualId);
       
       // v429: entityIdResolver优先，amazonIdResolver降级
