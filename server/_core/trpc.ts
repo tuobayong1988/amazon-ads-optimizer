@@ -215,8 +215,9 @@ const enforceAccountAccess = t.middleware(async opts => {
     const input = rawInput as Record<string, any>;
     const userId = ctx.user.id;
     
-    // v447: admin角色拥有全部账户访问权限，跳过数据隔离检查
-    if (ctx.user.role === 'admin') {
+    // v452.9: 只有系统管理员(内部组织 org_id=1)才能跳过数据隔离检查
+    // 外部租户的admin角色不能绕过中间件层的数据隔离
+    if (ctx.user.role === 'admin' && (ctx.user.organizationId === 1 || ctx.user.organizationId === null || ctx.user.organizationId === undefined)) {
       return next();
     }
     
@@ -392,7 +393,8 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    // v452.9: 系统管理员必须是内部组织(org_id=1)的admin
+    if (!ctx.user || ctx.user.role !== 'admin' || (ctx.user.organizationId !== 1 && ctx.user.organizationId !== null && ctx.user.organizationId !== undefined)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 

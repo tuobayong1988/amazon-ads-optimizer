@@ -28,6 +28,7 @@ import { runPrelaunchDbMigration } from '../prelaunchDbMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
+import { initializeRLS } from '../utils/dbRLS';
 import { startEffectTrackingScheduler } from '../scheduler/effectTrackingScheduler';
 // v224: 加载 AmazonSyncService 的 prototype 扩展子模块
 import '../sync/init';
@@ -261,6 +262,17 @@ async function startServer() {
       }
     }).catch(err => {
       log.error('[PrelaunchDb] 预发布引擎表迁移异常:', (err as Error).message);
+    });
+
+    // v452.9: 启动时初始化数据库级 RLS（行级安全）
+    initializeRLS().then(result => {
+      if (result.success) {
+        log.info(`[RLS] 数据库级行级安全初始化完成: ${result.viewsCreated} 个安全视图已创建`);
+      } else {
+        log.warn(`[RLS] RLS初始化部分失败: ${result.errors.join('; ')}`);
+      }
+    }).catch(err => {
+      log.error('[RLS] RLS初始化异常:', (err as Error).message);
     });
 
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）

@@ -333,8 +333,9 @@ class SDKServer {
               loginMethod: 'local',
               lastSignedIn: new Date().toISOString(),
               // @ts-expect-error - runtime type mismatch
-              organizationId: decoded.organizationId || 1,
-              role: 'user',
+              // v452.9: 降级时不能默认为内部组织(1)，防止外部租户获得系统管理员权限
+              organizationId: decoded.organizationId || null,
+              role: decoded.role || 'user',
             } as Record<string, any>;
           }
         }

@@ -348,6 +348,37 @@ export const multiTenantRouter = router({
 
       return { success: true };
     }),
+
+  /**
+   * v452.9: 获取 RLS（行级安全）状态
+   * 仅系统管理员可访问
+   */
+  getRLSStatus: protectedProcedure
+    .query(async ({ ctx }) => {
+      // 只有系统管理员可以查看 RLS 状态
+      if (ctx.user.role !== 'admin' || (ctx.user as any).organizationId !== 1) {
+        return { initialized: false, viewCount: 0, auditLogCount: 0, recentViolations: 0, error: '无权访问' };
+      }
+      const { getRLSStatus } = await import('../utils/dbRLS');
+      return getRLSStatus();
+    }),
+
+  /**
+   * v452.9: 获取 RLS 审计日志（记录所有被拦截的跨租户访问尝试）
+   */
+  getRLSAuditLog: protectedProcedure
+    .input(z.object({
+      userId: z.number().optional(),
+      limit: z.number().min(1).max(500).default(100),
+    }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'admin' || (ctx.user as any).organizationId !== 1) {
+        return { logs: [], error: '无权访问' };
+      }
+      const { getRLSAuditLog } = await import('../utils/dbRLS');
+      const logs = await getRLSAuditLog({ userId: input.userId, limit: input.limit });
+      return { logs };
+    }),
 });
 
 // ==================== Helper Functions ====================
