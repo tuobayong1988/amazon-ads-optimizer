@@ -138,15 +138,16 @@ export const smartCampaignRouter = router({
     .query(async ({ ctx, input }: any) => {
       const { campaignId, goal, daysOfHistory } = input;
 
-      // v403: 数据隔离验证 - 验证campaign是否属于当前用户
-      const { verifyCampaignAccess } = await import('../utils/accessControl');
-      await verifyCampaignAccess(ctx.user.id, parseInt(campaignId, 10));
-
-      // 获取广告活动信息
-      const campaign = await db.getCampaignById(parseInt(campaignId, 10));
+      // v451.2: 修复ID查找 - 使用Amazon campaignId查找，而非parseInt后用内部ID查找
+      // parseInt对大数字Amazon ID会精度丢失，导致找不到campaign
+      const campaign = await db.getCampaignByAmazonCampaignId(campaignId);
       if (!campaign) {
         throw new Error('Campaign not found');
       }
+
+      // v403: 数据隔离验证 - 使用campaign的内部ID验证权限
+      const { verifyCampaignAccess } = await import('../utils/accessControl');
+      await verifyCampaignAccess(ctx.user.id, campaign.id);
 
       // 获取历史数据
       const cutoffDate = new Date();
@@ -260,9 +261,13 @@ export const smartCampaignRouter = router({
     .mutation(async ({ ctx, input }: any) => {
       const { campaignId, action, value, dryRun } = input;
 
-      // v403: 数据隔离验证 - 验证campaign是否属于当前用户
+      // v451.2: 修复ID查找 - 先用Amazon campaignId查找，再用内部ID验证权限
+      const campaignRecord = await db.getCampaignByAmazonCampaignId(campaignId);
+      if (!campaignRecord) {
+        throw new Error('Campaign not found');
+      }
       const { verifyCampaignAccess } = await import('../utils/accessControl');
-      await verifyCampaignAccess(ctx.user.id, parseInt(campaignId, 10));
+      await verifyCampaignAccess(ctx.user.id, campaignRecord.id);
 
       const executor = new AutoExecutionEngine();
       const decision = {

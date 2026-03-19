@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 451;  // v451: 修复smartCampaign ID类型混淆 + getExecutionSummary缓存优化 + 汇率服务启动初始化
+export const SYSTEM_VERSION = 452;  // v452: 彻底修复smartCampaign中parseInt导致的Amazon ID精度丢失，改用getCampaignByAmazonCampaignId查找
