@@ -84,6 +84,19 @@ async function ensureTablesExist(db: any): Promise<void> {
         INDEX idx_code (code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
+    // v452.5: 移除FK约束 - created_by现在引用team_members.id而非users.id
+    try {
+      await db.execute(sql`ALTER TABLE invite_codes DROP FOREIGN KEY invite_codes_ibfk_1`);
+      log.info('[InviteCode] 已移除invite_codes_ibfk_1外键约束');
+    } catch (_fkErr) {
+      // FK可能已经不存在，忽略
+    }
+    try {
+      await db.execute(sql`ALTER TABLE invite_codes DROP FOREIGN KEY invite_codes_ibfk_2`);
+      log.info('[InviteCode] 已移除invite_codes_ibfk_2外键约束');
+    } catch (_fkErr2) {
+      // FK可能已经不存在，忽略
+    }
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS invite_code_usages (
         id INT AUTO_INCREMENT PRIMARY KEY,
