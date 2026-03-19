@@ -529,7 +529,7 @@ router.get('/db-logs', async (req: Request, res: Response) => {
     const level = req.query.level as string || '';
     const module = req.query.module as string || '';
     const keyword = req.query.keyword as string || '';
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 2000);
     const hours = parseInt(req.query.hours as string) || 24;
     
     let whereClause = `WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
@@ -589,7 +589,7 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
       return;
     }
     
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 2000);
     const hours = parseInt(req.query.hours as string) || 24;
     const category = req.query.category as string || '';
     const status = req.query.status as string || '';

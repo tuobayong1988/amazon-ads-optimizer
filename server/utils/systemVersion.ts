@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 461;  // v461: 索引列名修正, CmdRevalidator日志增强, ops.ts嵌套sql.raw修复、entityNotFoundError处理、LIMIT/INTERVAL全面修复、否定词campaignId解析增强
+export const SYSTEM_VERSION = 462;  // v462: API查询限制提升至2000, 全面系统测试修复
