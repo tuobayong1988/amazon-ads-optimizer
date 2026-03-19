@@ -62,7 +62,7 @@ async function safeDDL(database: unknown, ddlSql: unknown, tableName: string, re
       return true;
     } else {
       results.push(`${tableName}: 失败 - ${(err as Error).message}`);
-      log.error(`${tableName} 操作失败: ${(err as Error).message}`);
+      log.warn(`${tableName} 操作失败 (可能已应用): ${(err as Error).message}`);
       return false;
     }
   }

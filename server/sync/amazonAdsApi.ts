@@ -352,6 +352,8 @@ export class AmazonAdsApiClient {
             // v474: 404/403是预期的(账户未开通SB/SD等)，降级为WARN避免污染错误日志
             if (status === 404 || status === 403) {
               log.warn(`[Amazon API] v474: HTML响应 status=${status}, URL=${config?.url} (账户可能未开通该广告类型)`);
+            } else if (status === 429) {
+              log.warn(`[Amazon API] v474: HTML响应 status=429 (API限流), URL=${config?.url}`);
             } else {
               log.error(`[Amazon API] v148: HTML响应 status=${status}, URL=${config?.url}`);
             }
@@ -1241,7 +1243,7 @@ export class AmazonAdsApiClient {
               const errorCode = err.code || 'ERROR';
               const errorDetails = err.description || err.details || err.message || '';
               allErrors.push({ keywordId: failedKeywordId, code: errorCode, details: errorDetails });
-              log.error(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
+              log.warn(`[SP API] v426: 关键词状态更新失败: keywordId=${failedKeywordId}, index=${failedIndex}, code=${errorCode}, details=${errorDetails}`);
             }
           }
           if (responseKeywords.success && Array.isArray(responseKeywords.success)) {

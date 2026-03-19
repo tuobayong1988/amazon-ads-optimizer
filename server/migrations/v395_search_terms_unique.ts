@@ -101,7 +101,7 @@ export async function runV395SearchTermsUnique(db: unknown): Promise<void> {
     log.info(`[v395] 迁移完成: 清理前=${totalBefore}, 清理后=${totalAfter}, 减少=${Number(totalBefore) - Number(totalAfter)}条`);
 
   } catch (error: unknown) {
-    log.error(`[v395] search_terms唯一约束迁移失败:`, error.message);
+    log.warn(`[v395] search_terms唯一约束迁移失败 (可能已应用):`, (error as Error).message);
     // 不抛出错误，允许系统继续启动
   }
 }
