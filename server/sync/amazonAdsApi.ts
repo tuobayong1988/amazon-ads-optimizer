@@ -2427,7 +2427,8 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['adGroup'],
           columns: [
-            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为spAdGroup
+            // v473: 修复reportTypeId - Amazon文档明确说明SP没有独立的adGroup报告类型
+            // 正确做法: 使用spCampaigns + groupBy:['adGroup'] 获取广告组级别数据
             'campaignId',
             'campaignName',
             'adGroupId',
@@ -2443,7 +2444,7 @@ export class AmazonAdsApiClient {
             'salesOtherSku7d',
             'unitsSoldOtherSku7d'
           ],
-          reportTypeId: 'spAdGroup',
+          reportTypeId: 'spCampaigns',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -2483,7 +2484,7 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_BRANDS',
           groupBy: ['adGroup'],
           columns: [
-            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sbAdGroup
+            // v473: 修复reportTypeId - SB也应使用sbCampaigns + groupBy:['adGroup']
             'campaignId',
             'campaignName',
             'adGroupId',
@@ -2498,7 +2499,7 @@ export class AmazonAdsApiClient {
             'attributedSalesNewToBrand14d',
             'attributedOrdersNewToBrand14d'
           ],
-          reportTypeId: 'sbAdGroup',
+          reportTypeId: 'sbCampaigns',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -2538,7 +2539,7 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_DISPLAY',
           groupBy: ['adGroup'],
           columns: [
-            // v255: 移除'date'列（与timeUnit:SUMMARY冲突），修正reportTypeId为sdAdGroup
+            // v473: 修复reportTypeId - SD也应使用sdCampaigns + groupBy:['adGroup']
             'campaignId',
             'campaignName',
             'adGroupId',
@@ -2552,7 +2553,7 @@ export class AmazonAdsApiClient {
             'newToBrandPurchases',
             'newToBrandSales'
           ],
-          reportTypeId: 'sdAdGroup',
+          reportTypeId: 'sdCampaigns',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
         },
@@ -3175,7 +3176,8 @@ export class AmazonAdsApiClient {
             'viewClickThroughRate'
           ],
           // v230: SD报告不支持filters参数（会导致400错误），已移除
-          reportTypeId: 'sdAdGroup',
+          // v473: 修复 - SD没有独立的adGroup报告类型，使用sdCampaigns + groupBy:['adGroup']
+          reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
         },
@@ -3745,15 +3747,17 @@ export class AmazonAdsApiClient {
         log.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
       } catch (error: unknown) {
         // @ts-expect-error - Axios error response access
-        const statusCode = (error as Error & { response?: unknown }).response?.status;
-        // v230: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
-        if (statusCode === 404) {
-          log.warn(`[SB API] v230: SB targets/list返回404，该账户可能未开通SB商品定向功能，跳过`);
+        const statusCode = (error as Error & { response?: unknown }).response?.status || (error as Record<string, unknown>).status;
+        const errorMsg = (error as Error).message || '';
+        // v230/v472: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
+        // v472: 也检查包装后的错误消息（拦截器可能已包装原始错误）
+        if (statusCode === 404 || errorMsg.includes('API端点不存在')) {
+          log.warn(`[SB API] v472: SB targets/list返回404，该账户可能未开通SB商品定向功能，跳过`);
           return [];
         }
         // v456: 添加403处理 — Profile缺少SB权限时优雅跳过
-        if (statusCode === 403) {
-          log.warn(`[SB API] v456: SB targets/list返回403 PERMISSION_DENIED，Profile缺少SB权限，跳过SB商品定向同步`);
+        if (statusCode === 403 || errorMsg.includes('没有访问权限') || errorMsg.includes('PERMISSION_DENIED')) {
+          log.warn(`[SB API] v472: SB targets/list返回403 PERMISSION_DENIED，Profile缺少SB权限，跳过SB商品定向同步`);
           return [];
         }
         throw error;
@@ -4060,15 +4064,31 @@ export class AmazonAdsApiClient {
         params.adGroupIdFilter = adGroupId;
       }
       
-      const response = await this.axiosInstance.get('/sd/targets', { params });
-      const targets = response.data || [];
-      allTargets.push(...targets);
-      log.debug(`[SD API] Fetched ${targets.length} targets, total: ${allTargets.length}`);
-      
-      if (targets.length < count) {
-        break;
+      try {
+        const response = await this.axiosInstance.get('/sd/targets', { params });
+        const targets = response.data || [];
+        allTargets.push(...targets);
+        log.debug(`[SD API] Fetched ${targets.length} targets, total: ${allTargets.length}`);
+        
+        if (targets.length < count) {
+          break;
+        }
+        startIndex += count;
+      } catch (error: unknown) {
+        // v473: 正确处理403/404错误
+        // @ts-expect-error - Axios error response access
+        const statusCode = (error as Error & { response?: unknown }).response?.status;
+        const errorMsg = (error as Error).message || '';
+        if (statusCode === 403 || errorMsg.includes('403') || errorMsg.includes('PERMISSION_DENIED')) {
+          log.warn(`[SD API] v473: SD targets返回403，Profile缺少SD权限，跳过`);
+          return [];
+        }
+        if (statusCode === 404 || errorMsg.includes('API端点不存在')) {
+          log.warn(`[SD API] v473: SD targets返回404，该账户可能未开通SD广告，跳过`);
+          return [];
+        }
+        throw error;
       }
-      startIndex += count;
     }
     
     log.debug(`[SD API] Total targets fetched: ${allTargets.length}`);
@@ -5472,13 +5492,13 @@ export class AmazonAdsApiClient {
       
       try {
         // v323: SB Negative Targets使用v3 API（POST方法），v4端点不存在
-        // v458: 修复406 Not Acceptable - SB API需要版本化的Accept头
+        // v473: 修复406 Not Acceptable - v3端点不接受v4的Accept头，使用默认application/json
         const response = await this.axiosInstance.post('/sb/negativeTargets/list', 
           body,
           {
             headers: {
-              'Content-Type': 'application/vnd.sbtargetresource.v4+json',
-              'Accept': 'application/vnd.sbtargetresource.v4+json',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
             },
           }
         );

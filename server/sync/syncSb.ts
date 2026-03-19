@@ -242,7 +242,7 @@ AmazonSyncService.prototype.syncSbCampaigns = async function(this: AmazonSyncSer
 
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SB campaigns:', error);
+    log.error(`Error syncing SB campaigns: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -312,7 +312,7 @@ AmazonSyncService.prototype.syncSbAdGroups = async function(this: AmazonSyncServ
     log.info(`SB广告组同步完成: synced=${synced}, skipped=${skipped}`);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SB ad groups:', error);
+    log.error(`Error syncing SB ad groups: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -744,7 +744,7 @@ AmazonSyncService.prototype.syncSbSearchTerms = async function(this: AmazonSyncS
     log.info(`[v395] SB搜索词同步完成: 同步=${synced}, 跳过=${skipped}`);
     return synced;
   } catch (error) {
-    log.error('同步SB搜索词失败:', error);
+    log.error(`同步SB搜索词失败: ${(error as Error).message || JSON.stringify(error)}`);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -902,7 +902,7 @@ AmazonSyncService.prototype.syncSbTargeting = async function(this: AmazonSyncSer
     log.info(`SB定向同步完成: ${synced} 条记录`);
     return synced;
   } catch (error) {
-    log.error('同步SB定向失败:', error);
+    log.error(`同步SB定向失败: ${(error as Error).message || JSON.stringify(error)}`);
     // v358: 抛出错误而不是返回0
     throw error;
   }
@@ -1530,7 +1530,7 @@ AmazonSyncService.prototype.syncSbBidRecommendations = async function(this: Amaz
 
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error) {
-    log.error('[v417] Error syncing SB bid recommendations:', error);
+    log.error(`[v417] Error syncing SB bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   }
 };

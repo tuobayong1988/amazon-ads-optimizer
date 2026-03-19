@@ -37,11 +37,13 @@ function isAlreadyExistsError(err: Error): boolean {
   const causeMessage = String(err?.cause?.message || err?.cause || '');
   const combined = message + ' ' + causeMessage;
   
-  // MySQL错误码：1060=Duplicate column name, 1050=Table already exists
+  // MySQL错误码：1060=Duplicate column name, 1050=Table already exists, 1054=Unknown column (CHANGE COLUMN时源列已不存在)
   return combined.includes('Duplicate column') ||
          combined.includes('already exists') ||
+         combined.includes('Unknown column') ||
          combined.includes('1060') ||
-         combined.includes('1050');
+         combined.includes('1050') ||
+         combined.includes('1054');
 }
 
 /**

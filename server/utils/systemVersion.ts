@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 472;  // v472: 修复批量移除UI、否词同步重复插入、SB否词API 406、bid=undefined、搜索词迁移语法错误
+export const SYSTEM_VERSION = 473;  // v473: 修复SP/SB/SD广告组报告400错误(reportTypeId)、Profile广告类型能力检测、SB否定targets头部修复、迁移错误静默处理、错误日志序列化

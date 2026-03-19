@@ -371,7 +371,7 @@ AmazonSyncService.prototype.syncSpAdGroups = async function(this: AmazonSyncServ
 
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SP ad groups:', error);
+    log.error(`Error syncing SP ad groups: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -474,7 +474,7 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
     logSyncProtectionSummary('syncSpKeywords', protectionStats);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SP keywords:', error);
+    log.error(`Error syncing SP keywords: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -689,7 +689,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
     logSyncProtectionSummary('syncSpProductTargets', protectionStats);
     return { synced, skipped };
   } catch (error) {
-    log.error('Error syncing SP product targets:', error);
+    log.error(`Error syncing SP product targets: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, skipped: 0 };
   }
 };
@@ -824,7 +824,7 @@ AmazonSyncService.prototype.syncSpNegativeKeywords = async function(this: Amazon
     log.info(`SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error) {
-    log.error('Error syncing SP negative keywords:', error);
+    log.error(`Error syncing SP negative keywords: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, updated: 0 };
   }
 };
@@ -955,7 +955,7 @@ AmazonSyncService.prototype.syncSpNegativeProductTargets = async function(this: 
     log.info(`SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
     return { synced, updated };
   } catch (error) {
-    log.error('Error syncing SP negative product targets:', error);
+    log.error(`Error syncing SP negative product targets: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: 0, updated: 0 };
   }
 };
@@ -1254,7 +1254,7 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
 
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   } catch (error) {
-    log.error('[v414] Error syncing SP bid recommendations:', error);
+    log.error(`[v414] Error syncing SP bid recommendations: ${(error as Error).message || JSON.stringify(error)}`);
     return { synced: keywordBidsUpdated + targetBidsUpdated, skipped: errors };
   }
 };
@@ -1434,7 +1434,7 @@ AmazonSyncService.prototype.syncSpBudgetRules = async function(this: AmazonSyncS
     log.info(`[v424] ========== SP Budget Rules同步完成: ${totalRulesSynced} 条规则, ${allRules.length} 个campaigns有规则 ==========`);
     return totalRulesSynced;
   } catch (error) {
-    log.error('[v424] Error syncing SP budget rules:', error);
+    log.error(`[v424] Error syncing SP budget rules: ${(error as Error).message || JSON.stringify(error)}`);
     return totalRulesSynced;
   }
 };

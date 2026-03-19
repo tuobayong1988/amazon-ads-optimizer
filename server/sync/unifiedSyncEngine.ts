@@ -421,6 +421,11 @@ export interface SyncContext {
   totalSynced: number;
   totalErrors: number;
   checkpoint: Record<string, unknown>;
+  /** v473: Profile广告类型能力检测 — 记录该Profile支持的广告类型 */
+  adTypeCapabilities: {
+    sb: boolean | null; // null=未检测, true=支持, false=不支持(403)
+    sd: boolean | null;
+  };
 }
 
 /** 账户同步结果 */
@@ -1287,6 +1292,7 @@ export async function syncAccount(
       totalSynced: 0,
       totalErrors: 0,
       checkpoint: {},
+      adTypeCapabilities: { sb: null, sd: null },
     };
 
     // 逐步执行同步
@@ -1307,6 +1313,24 @@ export async function syncAccount(
         } catch (progressErr: unknown) {
           log.debug(`[UnifiedSync] v406: 进度回调失败: ${(progressErr as Error).message}`);
         }
+      }
+
+      // v473: Profile广告类型能力检测 — 如果已检测到不支持SB/SD，跳过对应步骤
+      const isSbStep = step.id.startsWith('sb_');
+      const isSdStep = step.id.startsWith('sd_');
+      if (isSbStep && context.adTypeCapabilities.sb === false) {
+        log.info(`[UnifiedSync] v473: 跳过步骤 ${step.name} — 该Profile不支持SB广告`);
+        result.stepResults[step.id] = { success: true, synced: 0, errors: [] };
+        result.completedSteps++;
+        context.completedSteps.push(step.id);
+        continue;
+      }
+      if (isSdStep && context.adTypeCapabilities.sd === false) {
+        log.info(`[UnifiedSync] v473: 跳过步骤 ${step.name} — 该Profile不支持SD广告`);
+        result.stepResults[step.id] = { success: true, synced: 0, errors: [] };
+        result.completedSteps++;
+        context.completedSteps.push(step.id);
+        continue;
       }
 
       log.info(`[UnifiedSync] 账户 ${account.accountId} 执行步骤 [${i + 1}/${steps.length}]: ${step.name}`);
@@ -1391,10 +1415,32 @@ export async function syncAccount(
           // @ts-expect-error - runtime type mismatch
           context.totalSynced += safeSynced;
         } else {
-          result.failedSteps++;
-          context.failedSteps.push(step.id);
-          context.totalErrors++;
-          result.errors.push(`${step.name}: ${stepResult.errors.join(', ')}`);
+          // v473: 检测403权限拒绝 — 如果SB/SD广告活动步骤返回403，记录该Profile不支持此广告类型
+          const errMsg = stepResult.errors.join(', ').toLowerCase();
+          const is403 = errMsg.includes('403') || errMsg.includes('permission') || errMsg.includes('forbidden') || errMsg.includes('not authorized');
+          if (step.id === 'sb_campaigns' && is403) {
+            context.adTypeCapabilities.sb = false;
+            log.warn(`[UnifiedSync] v473: 检测到账户${account.accountId}的Profile不支持SB广告(403)，后续所有SB步骤将自动跳过`);
+            // 不计入失败 — 这是正常的权限限制，不是错误
+            result.completedSteps++;
+            context.completedSteps.push(step.id);
+          } else if (step.id === 'sd_campaigns' && is403) {
+            context.adTypeCapabilities.sd = false;
+            log.warn(`[UnifiedSync] v473: 检测到账户${account.accountId}的Profile不支持SD广告(403)，后续所有SD步骤将自动跳过`);
+            result.completedSteps++;
+            context.completedSteps.push(step.id);
+          } else {
+            result.failedSteps++;
+            context.failedSteps.push(step.id);
+            context.totalErrors++;
+            result.errors.push(`${step.name}: ${stepResult.errors.join(', ')}`);
+          }
+        }
+
+        // v473: 如果SB/SD campaigns步骤成功，记录该Profile支持此广告类型
+        if (stepResult.success) {
+          if (step.id === 'sb_campaigns') context.adTypeCapabilities.sb = true;
+          if (step.id === 'sd_campaigns') context.adTypeCapabilities.sd = true;
         }
 
         // 保存检查点
