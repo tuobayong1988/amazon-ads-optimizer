@@ -264,6 +264,7 @@ class SDKServer {
   async authenticateRequest(req: Request): Promise<User> {
     // Check for JWT token from local auth (Authorization: Bearer <token>)
     const authHeader = req.headers.authorization;
+    log.info(`[Auth] authenticateRequest called, hasAuthHeader=${!!authHeader}, startsWithBearer=${authHeader?.startsWith('Bearer ')}, headerLen=${authHeader?.length}`);
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
@@ -272,6 +273,7 @@ class SDKServer {
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
         const decoded = jwt.default.verify(token, secret) as Record<string, unknown>;
+        log.info(`[Auth] JWT decoded: userId=${decoded?.userId}, name=${decoded?.name}`);
         // @ts-expect-error - runtime type mismatch
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
@@ -303,6 +305,7 @@ class SDKServer {
           try {
             const result = await dbQueryWithTimeout();
             const rows = (result as Record<string, unknown>[][])[0];
+            log.info(`[Auth] DB query result: rowsType=${typeof rows}, isArray=${Array.isArray(rows)}, length=${rows?.length}, keys=${rows && rows[0] ? Object.keys(rows[0] as Record<string,unknown>).join(',') : 'N/A'}`);
             if (rows && rows.length > 0) {
               const localUser = rows[0] as Record<string, unknown>;
               // @ts-expect-error - runtime type mismatch
