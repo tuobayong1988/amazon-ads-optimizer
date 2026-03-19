@@ -228,7 +228,9 @@ async function revalidatePendingCommands(
     log.info(`[CmdRevalidator] [${targetName}] pending重评估完成: 总计=${result.total}, 保留并重触发=${result.retriggered}, 取消=${result.cancelled}`);
     
   } catch (err: unknown) {
-    log.error(`[CmdRevalidator] [${targetName}] pending重评估失败: ${(err as Error).message}`);
+    const cause = (err as Record<string, unknown>)?.cause;
+    const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
+    log.error(`[CmdRevalidator] [${targetName}] pending重评估失败: ${(err as Error).message}${causeMsg}`);
   }
   
   return result;
@@ -458,7 +460,9 @@ async function auditAndCorrectHistoricalCommands(
     log.info(`[CmdRevalidator] [${targetName}] 历史审计完成: 总计=${result.total}, 合理=${result.reasonable}, 不合理=${result.unreasonable}, 生成纠正=${result.correctionGenerated}`);
     
   } catch (err: unknown) {
-    log.error(`[CmdRevalidator] [${targetName}] 历史指令审计失败: ${(err as Error).message}`);
+    const cause = (err as Record<string, unknown>)?.cause;
+    const causeMsg = cause ? ` | cause: ${String((cause as Record<string, unknown>)?.message || cause)}` : '';
+    log.error(`[CmdRevalidator] [${targetName}] 历史指令审计失败: ${(err as Error).message}${causeMsg}`);
   }
   
   return result;

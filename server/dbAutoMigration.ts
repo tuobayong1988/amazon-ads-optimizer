@@ -719,10 +719,10 @@ export async function runAutoDbMigration(): Promise<{ success: boolean; results:
       // keywords 表 - 补充高频查询索引
       ['keywords', 'idx_keywords_accountId', 'accountId'],
       ['keywords', 'idx_keywords_account_adgroup', 'accountId, internalAdGroupId'],
-      // optimization_events 表 - 同步率查询
-      ['optimization_events', 'idx_oe_accountId', 'accountId'],
-      ['optimization_events', 'idx_oe_account_status', 'accountId, apiSyncStatus'],
-      ['optimization_events', 'idx_oe_createdAt', 'createdAt'],
+      // optimization_events 表 - 同步率查询 (v460: 修正列名为snake_case)
+      ['optimization_events', 'idx_oe_account_id', 'account_id'],
+      ['optimization_events', 'idx_oe_account_status', 'account_id, api_sync_status'],
+      ['optimization_events', 'idx_oe_created_at', 'created_at'],
     ];
     let v450IndexSuccess = 0;
     let v450IndexSkipped = 0;
