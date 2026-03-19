@@ -392,7 +392,7 @@ function DashboardLayoutContent({
   // 构建面包屑路径
   const breadcrumbs = useMemo(() => {
     const crumbs: { label: string; path: string }[] = [];
-    let currentPath = location;
+    const currentPath = location;
     
     // 处理动态路由（如 /campaigns/:id）
     const basePath = currentPath.replace(/\/\d+$/, '').replace(/\/\d+\/.*$/, '');

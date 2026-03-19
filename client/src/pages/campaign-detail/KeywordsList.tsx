@@ -3,8 +3,7 @@
  * v361: 从CampaignDetail.tsx拆分的KeywordsList子组件
  */
 
-import React from "react";
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Tag } from 'lucide-react';

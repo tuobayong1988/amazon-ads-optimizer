@@ -36,7 +36,7 @@ export interface CreateInviteCodeInput {
 
 let tablesEnsured = false;
 let fkDropAttempted = false;
-async function dropInviteCodesForeignKeys(db: any): Promise<void> {
+async function dropInviteCodesForeignKeys(db: Awaited<ReturnType<typeof import("../db").getDb>>): Promise<void> {
   if (fkDropAttempted) return;
   fkDropAttempted = true;
   try {
@@ -54,16 +54,16 @@ async function dropInviteCodesForeignKeys(db: any): Promise<void> {
         log.info(`[InviteCode] 正在移除FK约束: ${fkName}`);
         await db.execute(sql.raw(`ALTER TABLE invite_codes DROP FOREIGN KEY \`${fkName}\``));
         log.info(`[InviteCode] 已成功移除FK约束: ${fkName}`);
-      } catch (dropErr: any) {
+      } catch (dropErr: unknown) {
         log.warn(`[InviteCode] 移除FK ${fkName} 失败: ${dropErr?.message || dropErr?.cause?.message || JSON.stringify(dropErr)}`);
       }
     }
-  } catch (queryErr: any) {
+  } catch (queryErr: unknown) {
     log.warn(`[InviteCode] 查询FK约束失败: ${queryErr?.message || queryErr?.cause?.message || JSON.stringify(queryErr)}`);
   }
 }
 
-async function ensureTablesExist(db: any): Promise<void> {
+async function ensureTablesExist(db: Awaited<ReturnType<typeof import("../db").getDb>>): Promise<void> {
   if (tablesEnsured) return;
   try {
     await db.execute(sql`
@@ -127,7 +127,7 @@ async function ensureTablesExist(db: any): Promise<void> {
     `);
     tablesEnsured = true;
     log.info('[InviteCode] 邀请码相关表已确认就绪');
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[InviteCode] 确保表存在失败: ${err?.message || err?.cause?.message || JSON.stringify(err)}`);
     // 即使失败也设置为true，避免每次请求都重试
     tablesEnsured = true;
@@ -172,11 +172,11 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
       )
     `);
     
-    const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`) as any;
+    const result = await db.execute(sql`SELECT * FROM invite_codes WHERE code = ${code}`);
     const rows = (result as Record<string, any>[][])[0];
     
     if (rows && rows.length > 0) {
-      const row = rows[0] as any;
+      const row = rows[0] as Record<string, unknown>;
       return {
         success: true,
         inviteCode: {
@@ -197,7 +197,7 @@ export async function createInviteCode(input: CreateInviteCodeInput): Promise<{ 
     
     return { success: false, error: '创建邀请码失败' };
   } catch (error: unknown) {
-    const e = error as any;
+    const e = error as Record<string, unknown>;
     const mysqlErr = e?.cause?.message || e?.cause?.sqlMessage || e?.errno || e?.code || 'unknown';
     const detail = JSON.stringify({msg: e?.message, cause: e?.cause?.message, code: e?.cause?.code, errno: e?.cause?.errno, sqlState: e?.cause?.sqlState});
     log.error(`[InviteCode] 创建邀请码失败: ${e?.message} | MySQL: ${mysqlErr} | Detail: ${detail}`);
@@ -239,7 +239,7 @@ export async function validateInviteCode(code: string): Promise<{ valid: boolean
       return { valid: false, error: '邀请码不存在' };
     }
     
-    const row = rows[0] as any;
+    const row = rows[0] as Record<string, unknown>;
     
     if (!row.is_active) {
       return { valid: false, error: '邀请码已被禁用' };
@@ -295,7 +295,7 @@ export async function useInviteCode(code: string, userId: number, organizationId
       VALUES (${inviteCode.id}, ${userId}, ${organizationId || null}, ${now}, ${ipAddress || null}, ${userAgent || null})
     `);
     
-    await db.execute(sql`UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ${inviteCode.id}`) as any;
+    await db.execute(sql`UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ${inviteCode.id}`);
     
     return { success: true };
   } catch (error: unknown) {
@@ -355,7 +355,7 @@ export async function disableInviteCode(id: number): Promise<{ success: boolean;
   await ensureTablesExist(db);
   
   try {
-    await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`) as any;
+    await db.execute(sql`UPDATE invite_codes SET is_active = 0 WHERE id = ${id}`);
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -368,7 +368,7 @@ export async function enableInviteCode(id: number): Promise<{ success: boolean; 
   await ensureTablesExist(db);
   
   try {
-    await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`) as any;
+    await db.execute(sql`UPDATE invite_codes SET is_active = 1 WHERE id = ${id}`);
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -381,7 +381,7 @@ export async function deleteInviteCode(id: number): Promise<{ success: boolean; 
   await ensureTablesExist(db);
   
   try {
-    await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`) as any;
+    await db.execute(sql`DELETE FROM invite_codes WHERE id = ${id}`);
     return { success: true };
   } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
@@ -416,7 +416,7 @@ export async function getInviteCodeStats(createdBy?: number): Promise<{
     
     const rows = (result as Record<string, any>[][])[0];
     if (rows && rows.length > 0) {
-      const row = rows[0] as any;
+      const row = rows[0] as Record<string, unknown>;
       return {
         total: row.total || 0,
         active: row.active || 0,

@@ -5,7 +5,7 @@ import { getCurrencySymbol } from "@/utils/currency";
  * 布局：策略模板库 → 已创建的优化目标列表
  */
 import { useState, useMemo, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +46,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
 import { useCurrentStore, useCurrentMarketplace, setCurrentSelection } from "@/components/GlobalAccountSelector";
 

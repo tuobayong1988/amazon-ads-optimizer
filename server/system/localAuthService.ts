@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
 
 // 自愈式表创建 - 确保多租户相关表存在
 let tablesEnsured = false;
-async function ensureMultiTenantTables(db: any): Promise<void> {
+async function ensureMultiTenantTables(db: Awaited<ReturnType<typeof getDb>>): Promise<void> {
   if (tablesEnsured) return;
   try {
     await db.execute(sql`
@@ -234,7 +234,7 @@ export async function loginLocalUser(input: LoginInput, ipAddress?: string, user
       return { success: false, error: '用户名或密码错误' };
     }
     
-    const user = rows[0] as any;
+    const user = rows[0] as Record<string, unknown>;
     
     // 2. 检查账号状态
     if (user.status === 'suspended') {
@@ -341,7 +341,7 @@ export async function verifyToken(token: string): Promise<{
     const secret = process.env.JWT_SECRET;
     if (!secret) return { valid: false, error: 'JWT_SECRET 环境变量未配置' };
     
-    const decoded = jwt.default.verify(token, secret) as any;
+    const decoded = jwt.default.verify(token, secret) as Record<string, unknown>;
     
     const db = await getDb();
     if (!db) return { valid: false, error: '数据库连接失败' };
@@ -355,7 +355,7 @@ export async function verifyToken(token: string): Promise<{
       return { valid: false, error: '用户不存在' };
     }
     
-    const user = rows[0] as any;
+    const user = rows[0] as Record<string, unknown>;
     
     if (user.status !== 'active') {
       return { valid: false, error: '账号已被禁用' };
@@ -416,8 +416,8 @@ export async function changePassword(userId: number, oldPassword: string, newPas
       return { success: false, error: '用户不存在' };
     }
     
-    const user = rows[0] as any;
-    const passwordValid = await bcrypt.compare(oldPassword, user.password_hash);
+    const user = rows[0] as Record<string, unknown>;
+    const passwordValid = await bcrypt.compare(oldPassword, user.password_hash as string);
     
     if (!passwordValid) {
       return { success: false, error: '原密码错误' };

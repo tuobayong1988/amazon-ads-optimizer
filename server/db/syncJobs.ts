@@ -4,7 +4,7 @@
  */
 
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
-import { InsertSyncChangeRecord, InsertSyncChangeSummary, InsertSyncConflict, InsertSyncTaskQueue, SyncTaskQueue, dataSyncJobs, dataSyncLogs, syncChangeRecords, syncChangeSummary, syncConflicts, syncTaskQueue } from '../../drizzle/schema';
+import { InsertSyncChangeRecord, InsertSyncChangeSummary, InsertSyncConflict, InsertSyncTaskQueue, SyncTaskQueue, dataSyncJobs, dataSyncLogs, syncChangeRecords, syncChangeSummary, syncConflicts, syncTaskQueue, dataSyncSchedules } from "../../drizzle/schema";
 import { getDb } from './connection';
 
 // ==================== 同步历史记录相关函数 ====================
@@ -792,7 +792,6 @@ export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7
 
 // ==================== 定时同步调度相关函数 ====================
 
-import { dataSyncSchedules } from '../../drizzle/schema';
 
 export type DataSyncSchedule = typeof dataSyncSchedules.$inferSelect;
 

@@ -20,7 +20,7 @@ import type {
   GetUserInfoWithJwtResponse,
 } from "./types/manusTypes";
 // Utility function
-const isNonEmptyString = (value: any): value is string =>
+const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
 export type SessionPayload = {
@@ -97,7 +97,7 @@ class SDKServer {
   }
 
   private deriveLoginMethod(
-    platforms: any,
+    platforms: unknown,
     fallback: string | null | undefined
   ): string | null {
     if (fallback && fallback.length > 0) return fallback;
@@ -271,7 +271,7 @@ class SDKServer {
         // v345: 移除不安全的默认密钥回退
         const secret = process.env.JWT_SECRET;
         if (!secret) throw new Error('JWT_SECRET 环境变量未配置');
-        const decoded = jwt.default.verify(token, secret) as any;
+        const decoded = jwt.default.verify(token, secret) as Record<string, unknown>;
         // @ts-expect-error - runtime type mismatch
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
@@ -304,7 +304,7 @@ class SDKServer {
             const result = await dbQueryWithTimeout();
             const rows = (result as Record<string, any>[][])[0];
             if (rows && rows.length > 0) {
-              const localUser = rows[0] as any;
+              const localUser = rows[0] as Record<string, unknown>;
               // @ts-expect-error - runtime type mismatch
               return {
                 id: localUser.id,

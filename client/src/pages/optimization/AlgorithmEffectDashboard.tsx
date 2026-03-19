@@ -970,7 +970,7 @@ export default function AlgorithmEffectDashboard() {
                 {/* 模型列表 */}
                 <div className="space-y-3">
                   {(() => {
-                    let models = [...(cqlModelStatus?.models || [])];
+                    const models = [...(cqlModelStatus?.models || [])];
                     if (cqlSortBy === 'version') models.sort((a: any, b: any) => (b.modelVersion || 0) - (a.modelVersion || 0));
                     else if (cqlSortBy === 'loss') models.sort((a: any, b: any) => (a.avgLoss || 999) - (b.avgLoss || 999));
                     else if (cqlSortBy === 'steps') models.sort((a: any, b: any) => (b.trainingSteps || 0) - (a.trainingSteps || 0));

@@ -3,7 +3,7 @@
  * 追踪预算分配方案应用后的效果，生成对比报告
  */
 
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, InferInsertModel } from "drizzle-orm";
 import { getDb } from "../db";
 import {
   budgetAllocationTracking,
@@ -11,7 +11,6 @@ import {
   dailyPerformance,
   campaigns,
 } from "../../drizzle/schema";
-import { InferInsertModel } from "drizzle-orm";
 
 type InsertBudgetAllocationTracking = InferInsertModel<typeof budgetAllocationTracking>;
 

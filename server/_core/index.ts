@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { createModuleLogger } from '../utils/logger';
+import { createModuleLogger, logger } from "../utils/logger";
 const log = createModuleLogger('Server');
 import express from "express";
 import compression from "compression";
@@ -12,7 +12,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler, startOptimizationScheduler } from "../sync/dataSyncScheduler";
-import { runAutoMigration } from "../db";
+import { runAutoMigration, getDb } from "../db";
 import { startOptimizationScheduler as startTargetScheduler } from "../optimization/optimizationScheduler";
 import { startSQSConsumer } from "../sync/sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
@@ -26,13 +26,11 @@ import { startObservabilityService } from '../system/observabilityService';
 import { runAutoDbMigration } from '../dbAutoMigration';
 import { runPrelaunchDbMigration } from '../prelaunchDbMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
-import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
 import { initializeRLS } from '../utils/dbRLS';
 import { startEffectTrackingScheduler } from '../scheduler/effectTrackingScheduler';
 // v224: 加载 AmazonSyncService 的 prototype 扩展子模块
 import '../sync/init';
-import { getDb } from '../db';
 // v429: 加载集中式EntityIdResolver及其数据库提供者
 import { initEntityIdResolver } from '../services/entityIdResolver';
 import { createEntityIdResolverDbProvider } from '../services/entityIdResolverDbProvider';

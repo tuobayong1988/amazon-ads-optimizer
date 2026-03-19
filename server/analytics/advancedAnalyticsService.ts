@@ -10,9 +10,8 @@ const log = createModuleLogger('AdvancedAnalyticsService');
  */
 
 import { DbInstance, getDb } from '../db';
-import { optimizationEvents, dailyPerformance } from '../../drizzle/schema';
+import { optimizationEvents, dailyPerformance, type OptimizationEvent } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, asc, sql, isNotNull, ne } from 'drizzle-orm';
-import type { OptimizationEvent } from '../../drizzle/schema';
 
 // ==================== 类型定义 ====================
 

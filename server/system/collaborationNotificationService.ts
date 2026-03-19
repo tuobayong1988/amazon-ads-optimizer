@@ -11,7 +11,7 @@ import {
   teamMembers,
   auditLogs,
 } from "../../drizzle/schema";
-import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { InferInsertModel, InferSelectModel, eq, and, desc, gte, lte, inArray, sql } from "drizzle-orm";
 
 type InsertCollaborationNotificationRule = InferInsertModel<typeof collaborationNotificationRules>;
 type CollaborationNotificationRule = InferSelectModel<typeof collaborationNotificationRules>;
@@ -19,7 +19,6 @@ type InsertCollaborationNotification = InferInsertModel<typeof collaborationNoti
 type CollaborationNotification = InferSelectModel<typeof collaborationNotifications>;
 type InsertUserNotificationPreference = InferInsertModel<typeof userNotificationPreferences>;
 type UserNotificationPreference = InferSelectModel<typeof userNotificationPreferences>;
-import { eq, and, desc, gte, lte, inArray, sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 
 // 重要操作类型（需要触发通知的操作）

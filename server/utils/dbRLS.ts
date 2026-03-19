@@ -126,7 +126,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
         await db.execute(sql.raw(viewSQL));
         viewsCreated++;
         log.info(`[RLS] 创建安全视图: ${view.viewName} (${view.description})`);
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errMsg = `视图 ${view.viewName} 创建失败: ${err?.message || String(err)}`;
         errors.push(errMsg);
         log.warn(`[RLS] ${errMsg}`);
@@ -151,7 +151,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `));
       log.info('[RLS] RLS 审计日志表已就绪');
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`RLS审计表创建失败: ${err?.message || ''}`);
     }
 
@@ -171,7 +171,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
         END
       `));
       log.info('[RLS] RLS 上下文设置存储过程已创建');
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`存储过程创建失败: ${err?.message || ''}`);
     }
 
@@ -203,7 +203,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
         END
       `));
       log.info('[RLS] RLS 访问验证存储过程已创建');
-    } catch (err: any) {
+    } catch (err: unknown) {
       errors.push(`验证存储过程创建失败: ${err?.message || ''}`);
     }
 
@@ -211,7 +211,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
     log.info(`[RLS] 初始化完成: ${viewsCreated} 个视图创建成功, ${errors.length} 个错误`);
     
     return { success: errors.length === 0, viewsCreated, errors };
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[RLS] 初始化失败: ${err?.message || ''}`);
     return { success: false, viewsCreated, errors: [...errors, `初始化异常: ${err?.message || ''}`] };
   }
@@ -224,7 +224,7 @@ export async function initializeRLS(): Promise<{ success: boolean; viewsCreated:
  * 应在每个请求的数据库操作开始前调用
  */
 export async function setRLSContext(
-  db: any,
+  db: Awaited<ReturnType<typeof import("../db").getDb>>,
   userId: number,
   organizationId: number | null,
   isSystemAdmin: boolean
@@ -233,7 +233,7 @@ export async function setRLSContext(
     await db.execute(sql.raw(
       `SET @rls_user_id = ${Number(userId)}, @rls_org_id = ${organizationId ? Number(organizationId) : 'NULL'}, @rls_is_system_admin = ${isSystemAdmin ? 1 : 0}`
     ));
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.warn(`[RLS] 设置 RLS 上下文失败: ${err?.message || ''}`);
   }
 }
@@ -258,8 +258,8 @@ export async function verifyRLSAccess(
       `SELECT COUNT(*) as cnt FROM ad_accounts WHERE id = ${Number(accountId)} AND userId = ${Number(userId)}`
     ));
     
-    const rows = (result as any[][])[0];
-    const allowed = rows && rows[0] && (rows[0] as any).cnt > 0;
+    const rows = (result as Record<string, unknown>[][])[0];
+    const allowed = rows && rows[0] && (rows[0] as Record<string, unknown>).cnt > 0;
 
     if (!allowed) {
       // 记录到 RLS 审计日志
@@ -274,7 +274,7 @@ export async function verifyRLSAccess(
     }
 
     return allowed;
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error(`[RLS] 验证失败: ${err?.message || ''}`);
     return false; // 安全优先：验证失败时拒绝访问
   }
@@ -303,7 +303,7 @@ export async function getRLSAuditLog(options: {
     query += ` ORDER BY created_at DESC LIMIT ${options.limit || 100}`;
 
     const result = await db.execute(sql.raw(query));
-    return (result as any[][])[0] || [];
+    return (result as Record<string, unknown>[][])[0] || [];
   } catch {
     return [];
   }
@@ -327,19 +327,19 @@ export async function getRLSStatus(): Promise<{
     const viewResult = await db.execute(sql.raw(
       `SELECT COUNT(*) as cnt FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'rls_%'`
     ));
-    const viewCount = ((viewResult as any[][])[0]?.[0] as any)?.cnt || 0;
+    const viewCount = ((viewResult as Record<string, unknown>[][])[0]?.[0] as Record<string, unknown>)?.cnt || 0;
 
     // 统计审计日志
     let auditLogCount = 0;
     let recentViolations = 0;
     try {
       const auditResult = await db.execute(sql.raw(`SELECT COUNT(*) as cnt FROM rls_audit_log`));
-      auditLogCount = ((auditResult as any[][])[0]?.[0] as any)?.cnt || 0;
+      auditLogCount = ((auditResult as Record<string, unknown>[][])[0]?.[0] as Record<string, unknown>)?.cnt || 0;
 
       const recentResult = await db.execute(sql.raw(
         `SELECT COUNT(*) as cnt FROM rls_audit_log WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) AND blocked = TRUE`
       ));
-      recentViolations = ((recentResult as any[][])[0]?.[0] as any)?.cnt || 0;
+      recentViolations = ((recentResult as Record<string, unknown>[][])[0]?.[0] as Record<string, unknown>)?.cnt || 0;
     } catch {
       // 审计表可能还不存在
     }

@@ -3,8 +3,7 @@
  * 测试CSV和Excel导出的数据格式化和下载触发逻辑
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { exportToCSV, exportToExcel, exportTable } from './exportTable';
-import type { ExportColumn } from './exportTable';
+import { exportToCSV, exportToExcel, exportTable, type ExportColumn } from './exportTable';
 
 describe('exportTable', () => {
   const columns: ExportColumn[] = [

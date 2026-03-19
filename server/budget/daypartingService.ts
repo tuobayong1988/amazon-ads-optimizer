@@ -5,7 +5,7 @@ const log = createModuleLogger('DaypartingService');
  * 实现基于历史数据的智能分时预算分配和出价调整
  */
 
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, type InferInsertModel } from "drizzle-orm";
 import { getDb } from "../db";
 import { MARKETPLACE_TIMEZONES, getLocalHour, getLocalDayOfWeek, getTimeSlotIndex, convertToLocalTime } from "../algorithm/algorithmUtils";
 import {
@@ -17,7 +17,6 @@ import {
   campaigns,
   dailyPerformance,
 } from "../../drizzle/schema";
-import { InferInsertModel } from "drizzle-orm";
 
 type InsertHourlyPerformance = InferInsertModel<typeof hourlyPerformance>;
 type InsertDaypartingStrategy = InferInsertModel<typeof daypartingStrategies>;

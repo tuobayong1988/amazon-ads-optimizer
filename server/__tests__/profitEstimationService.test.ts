@@ -13,8 +13,8 @@ import {
   isBidProfitable,
   recordProfitSnapshot,
   getProfitTrend,
+  type ProfitConfig,
 } from '../budget/profitEstimationService';
-import type { ProfitConfig } from '../budget/profitEstimationService';
 
 describe('profitEstimationService v272 修正版', () => {
   

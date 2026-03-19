@@ -3,8 +3,7 @@
  * v417: 从 bidOptimizer.ts 拆分
  */
 
-import type { BidChangeRecord } from "../../algorithm/algorithmUtils";
-import type { UCBBidSuggestion, HolidayConfig } from '../../algorithm/algorithmUtils';
+import { type BidChangeRecord, type UCBBidSuggestion, type HolidayConfig } from "../../algorithm/algorithmUtils";
 
 // ==================== 算法常量定义 ====================
 

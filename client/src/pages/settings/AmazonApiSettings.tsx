@@ -1384,8 +1384,8 @@ export default function AmazonApiSettings() {
     
     // 初始化进度状态
     let currentSiteStatuses = [...initialSiteStatuses];
-    let totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
-    let failedSites: SiteSyncStatus[] = [];
+    const totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
+    const failedSites: SiteSyncStatus[] = [];
     let completedCount = 0;
 
     setSyncProgress({

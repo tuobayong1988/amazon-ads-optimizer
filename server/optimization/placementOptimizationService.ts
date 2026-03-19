@@ -23,10 +23,10 @@ import {
   placementPerformance, 
   placementSettings,
   campaigns,
-  bidAdjustmentHistory
+  bidAdjustmentHistory,
+  dailyPerformance
 } from "../../drizzle/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
-import { dailyPerformance } from "../../drizzle/schema";
 import * as timeDecayService from "../analytics/timeDecayWeightedDataService";
 import * as gradualEngine from "./gradualOptimizationEngine";
 

@@ -1,0 +1,7 @@
+server/_archived/**
+server/_archived_v149/**
+server/sync/**
+node_modules/**
+dist/**
+build/**
+.next/**

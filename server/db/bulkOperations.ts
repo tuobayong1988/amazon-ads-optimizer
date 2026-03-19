@@ -4,7 +4,7 @@
  */
 
 import { not, sql } from 'drizzle-orm';
-import { InsertAdGroup, InsertCampaign, InsertDailyPerformance, InsertKeyword, InsertProductTarget, adGroups, campaigns, dailyPerformance, keywords, productTargets } from '../../drizzle/schema';
+import { InsertAdGroup, InsertCampaign, InsertDailyPerformance, InsertKeyword, InsertProductTarget, adGroups, campaigns, dailyPerformance, keywords, productTargets, amazonApiCredentials, InsertAmazonApiCredential, AmazonApiCredential } from "../../drizzle/schema";
 import { getDb } from './connection';
 
 // ==================== Bulk Operations ====================
@@ -118,4 +118,3 @@ export async function bulkCreateDailyPerformance(perfData: InsertDailyPerformanc
 
 
 // ==================== Amazon API Credentials Functions ====================
-import { amazonApiCredentials, InsertAmazonApiCredential, AmazonApiCredential } from "../../drizzle/schema";

@@ -5,14 +5,13 @@
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { sql } from "drizzle-orm";
+import { sql, eq, and, gte, lte, desc } from "drizzle-orm";
 import * as db from "../db";
 import * as bidOptimizer from "../optimization/bidOptimizer";
 import { AmazonSyncService } from '../sync/amazonSyncService';
 import { runAutoBidOptimization } from '../sync/autoBidOptimization';
 import * as unifiedOptimizationEngine from '../optimization/unifiedOptimizationEngine';
 import * as nextGenOrchestrator from '../optimization/nextGenBidOrchestrator';
-import { eq, and, gte, lte, desc } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 
 const log = createModuleLogger('Route_optimization');
