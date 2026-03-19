@@ -23,11 +23,12 @@ export async function getProductTargetsByAdGroupId(adGroupId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  // v444: 过滤archived状态的product target，避免为已删除实体生成优化任务
+  // v444+v456: 过滤archived和amazon_deleted状态的product target，避免为已删除/已失效实体生成优化任务
   return db.select().from(productTargets).where(
     and(
       eq(productTargets.internalAdGroupId, Number(adGroupId)),
-      ne(productTargets.targetStatus, 'archived')
+      ne(productTargets.targetStatus, 'archived'),
+      ne(productTargets.targetStatus, 'amazon_deleted')
     )
   );
 }
@@ -40,11 +41,12 @@ export async function getProductTargetsByAdGroupIds(adGroupIds: (number | string
   if (!db || adGroupIds.length === 0) return [];
   
   // v421: internalAdGroupId是int类型，直接使用Number转换
-  // v444: 过滤archived状态的product target，避免为已删除实体生成优化任务
+  // v444+v456: 过滤archived和amazon_deleted状态的product target，避免为已删除/已失效实体生成优化任务
   return db.select().from(productTargets).where(
     and(
       inArray(productTargets.internalAdGroupId, adGroupIds.map(id => Number(id))),
-      ne(productTargets.targetStatus, 'archived')
+      ne(productTargets.targetStatus, 'archived'),
+      ne(productTargets.targetStatus, 'amazon_deleted')
     )
   );
 }

@@ -1,0 +1,178 @@
+{
+  "total": 24,
+  "passed": 24,
+  "failed": 0,
+  "pass_rate": "100.0%",
+  "duration_seconds": 6.86,
+  "timestamp": "2026-03-19T07:16:09.814189Z",
+  "results": [
+    {
+      "name": "服务健康检查",
+      "category": "连接性",
+      "passed": true,
+      "detail": "HTTP 200",
+      "duration_ms": 740.63
+    },
+    {
+      "name": "管理员认证有效",
+      "category": "认证",
+      "passed": true,
+      "detail": "HTTP 200",
+      "duration_ms": 765.76
+    },
+    {
+      "name": "创建邀请码",
+      "category": "邀请码",
+      "passed": true,
+      "detail": "code=9WVNXGGN",
+      "duration_ms": 233.57
+    },
+    {
+      "name": "验证邀请码有效性",
+      "category": "邀请码",
+      "passed": true,
+      "detail": "valid=True",
+      "duration_ms": 153.49
+    },
+    {
+      "name": "列出邀请码",
+      "category": "邀请码",
+      "passed": true,
+      "detail": "HTTP 200",
+      "duration_ms": 158.69
+    },
+    {
+      "name": "新租户注册",
+      "category": "注册",
+      "passed": true,
+      "detail": "userId=390012, orgId=30010",
+      "duration_ms": 1092.06
+    },
+    {
+      "name": "独立组织分配（非内部组织）",
+      "category": "注册",
+      "passed": true,
+      "detail": "organizationId=30010 (期望 != 1)",
+      "duration_ms": 0.0
+    },
+    {
+      "name": "新租户登录",
+      "category": "认证",
+      "passed": true,
+      "detail": "HTTP 200",
+      "duration_ms": 291.62
+    },
+    {
+      "name": "广告账户隔离：新租户看到0个账户",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户看到 0 个账户 (期望 0)",
+      "duration_ms": 762.64
+    },
+    {
+      "name": "广告活动隔离：新租户看到0个活动",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户看到 0 个活动 (期望 0)",
+      "duration_ms": 145.48
+    },
+    {
+      "name": "审计日志隔离：新租户日志独立",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户审计日志: 2 条",
+      "duration_ms": 239.67
+    },
+    {
+      "name": "邀请码隔离：新租户看不到管理员邀请码",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户看到 0 个邀请码 (期望 0)",
+      "duration_ms": 191.69
+    },
+    {
+      "name": "优化目标隔离：新租户看到0个优化目标",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户看到 0 个优化目标 (期望 0)",
+      "duration_ms": 145.12
+    },
+    {
+      "name": "定时任务隔离：新租户看到0个任务",
+      "category": "数据隔离",
+      "passed": true,
+      "detail": "新租户看到 0 个任务 (期望 0)",
+      "duration_ms": 145.33
+    },
+    {
+      "name": "拦截越权访问广告账户 (accountId=90021)",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 150.82
+    },
+    {
+      "name": "拦截越权列出广告活动 (accountId=90021)",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 148.46
+    },
+    {
+      "name": "拦截越权列出关键词 (accountId=90021)",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 158.09
+    },
+    {
+      "name": "拦截越权查看竞价日志 (accountId=90021)",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 145.46
+    },
+    {
+      "name": "拦截越权查看分时策略 (accountId=90021)",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 147.99
+    },
+    {
+      "name": "优化指标访问检查（全局统计，低风险）",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 200 - 全局指标，建议后续限制为系统管理员",
+      "duration_ms": 172.52
+    },
+    {
+      "name": "拦截越权修改广告活动",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "HTTP 403 - 已拦截",
+      "duration_ms": 148.44
+    },
+    {
+      "name": "审计日志越权检查（新租户应只有少量日志）",
+      "category": "越权访问",
+      "passed": true,
+      "detail": "新租户审计日志: 2 条 (期望 < 10)",
+      "duration_ms": 167.05
+    },
+    {
+      "name": "系统配置访问检查（全局算法参数，低风险）",
+      "category": "权限提升",
+      "passed": true,
+      "detail": "HTTP 200 - 全局算法参数，建议后续限制为系统管理员",
+      "duration_ms": 149.02
+    },
+    {
+      "name": "拦截租户查看 RLS 状态",
+      "category": "权限提升",
+      "passed": true,
+      "detail": "HTTP 200 - 已拦截",
+      "duration_ms": 143.17
+    }
+  ]
+}

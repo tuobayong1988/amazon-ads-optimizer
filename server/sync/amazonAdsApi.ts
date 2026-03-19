@@ -3692,8 +3692,14 @@ export class AmazonAdsApiClient {
         log.debug(`[SB API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
       } catch (error: unknown) {
         // @ts-expect-error - Axios error response access
-        if ((error as Error & { response?: unknown }).response?.status === 404) {
+        const statusCode = (error as Error & { response?: unknown }).response?.status;
+        if (statusCode === 404) {
           log.warn(`[SB API] v332: SB keywords/list返回404，该账户可能未开通SB关键词定向功能，跳过`);
+          return [];
+        }
+        // v456: 添加403处理 — Profile缺少SB权限时优雅跳过，避免重复触发告警
+        if (statusCode === 403) {
+          log.warn(`[SB API] v456: SB keywords/list返回403 PERMISSION_DENIED，Profile缺少SB权限，跳过SB关键词同步`);
           return [];
         }
         throw error;
@@ -3738,10 +3744,16 @@ export class AmazonAdsApiClient {
         nextToken = response.data.nextToken;
         log.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
       } catch (error: unknown) {
-        // v230: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
         // @ts-expect-error - Axios error response access
-        if ((error as Error & { response?: unknown }).response?.status === 404) {
+        const statusCode = (error as Error & { response?: unknown }).response?.status;
+        // v230: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
+        if (statusCode === 404) {
           log.warn(`[SB API] v230: SB targets/list返回404，该账户可能未开通SB商品定向功能，跳过`);
+          return [];
+        }
+        // v456: 添加403处理 — Profile缺少SB权限时优雅跳过
+        if (statusCode === 403) {
+          log.warn(`[SB API] v456: SB targets/list返回403 PERMISSION_DENIED，Profile缺少SB权限，跳过SB商品定向同步`);
           return [];
         }
         throw error;
@@ -4638,25 +4650,19 @@ export class AmazonAdsApiClient {
       log.info(`[SP] Theme-Based API成功解析 ${results.length} 个关键词建议竞价`);
       return results;
     } catch (error: unknown) {
-      // v436: 如果Theme-Based API失败，回退到旧版API
-      log.warn(`[SP] Theme-Based bid recommendations API失败，回退到旧版: ${(error as Error).message}`);
-      try {
-        const response = await this.axiosInstance.post('/sp/keywords/bidRecommendations', {
-          adGroupId: String(adGroupId),
-          keywords,
-        });
-        const recs = response.data.recommendations || [];
-        return recs.map((rec: unknown) => ({
-          keyword: rec.keyword || '',
-          matchType: rec.matchType || '',
-          suggestedBid: Number(rec.suggestedBid) || 0,
-          rangeStart: Number(rec.rangeStart) || 0,
-          rangeEnd: Number(rec.rangeEnd) || 0,
-        }));
-      } catch (fallbackErr: unknown) {
-        log.warn(`[SP] 旧版bid recommendations API也失败: ${(fallbackErr as Error).message}`);
-        return [];
+      // v456: 移除已废弃的 /sp/keywords/bidRecommendations 回退
+      // 该端点已于 2025-07-15 正式关停，回退必定返回 403
+      // 仅使用 v4 Theme-Based API，并优雅处理失败
+      const errMsg = (error as Error).message;
+      const statusCode = (error as Record<string, unknown>)?.response?.status;
+      if (statusCode === 422) {
+        log.warn(`[SP] v456: Theme-Based bid recommendations API返回422 (adGroupId=${adGroupId})，可能是请求参数格式问题，跳过建议出价获取`);
+      } else if (statusCode === 403) {
+        log.warn(`[SP] v456: Theme-Based bid recommendations API返回403 (adGroupId=${adGroupId})，Profile可能缺少权限`);
+      } else {
+        log.warn(`[SP] v456: Theme-Based bid recommendations API失败: ${errMsg}`);
       }
+      return [];
     }
   }
 
@@ -4730,22 +4736,18 @@ export class AmazonAdsApiClient {
       log.info(`[SP] Theme-Based target API成功解析 ${results.length} 个商品定位建议竞价`);
       return results;
     } catch (error: unknown) {
-      log.warn(`[SP] Theme-Based target bid recommendations失败，回退到旧版: ${(error as Error).message}`);
-      try {
-        const response = await this.axiosInstance.post('/sp/targets/bidRecommendations', {
-          adGroupId: String(adGroupId),
-          expressions,
-        });
-        return (response.data.recommendations || []).map((rec: unknown) => ({
-          expression: rec.expression,
-          suggestedBid: Number(rec.suggestedBid) || 0,
-          rangeLow: Number(rec.rangeStart) || 0,
-          rangeHigh: Number(rec.rangeEnd) || 0,
-        }));
-      } catch (fallbackErr: unknown) {
-        log.warn(`[SP] 旧版target bid recommendations也失败: ${(fallbackErr as Error).message}`);
-        return [];
+      // v456: 移除已废弃的 /sp/targets/bidRecommendations 回退
+      // 该端点已关停，仅使用 v4 Theme-Based API
+      const errMsg = (error as Error).message;
+      const statusCode = (error as Record<string, unknown>)?.response?.status;
+      if (statusCode === 422) {
+        log.warn(`[SP] v456: Theme-Based target bid recommendations返回422 (adGroupId=${adGroupId})，跳过建议出价获取`);
+      } else if (statusCode === 403) {
+        log.warn(`[SP] v456: Theme-Based target bid recommendations返回403 (adGroupId=${adGroupId})，Profile可能缺少权限`);
+      } else {
+        log.warn(`[SP] v456: Theme-Based target bid recommendations失败: ${errMsg}`);
       }
+      return [];
     }
   }
 

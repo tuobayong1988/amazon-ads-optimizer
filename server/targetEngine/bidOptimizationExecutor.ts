@@ -52,6 +52,7 @@ import { getCampaignAmazonId, getCampaignLocalId } from '../utils/idTypes';
 import { clampBidToConstraint, getBidConstraint } from '../utils/amazonBidConstraints';
 import { recordAudit, auditBidChange } from '../services/auditLogService';
 import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeNgramNegativeKeywords } from '../analytics/ngramAnalysis';
+import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
 
 const log = createModuleLogger('TargetEngine');
 
@@ -241,6 +242,27 @@ export async function executeBidOptimization(
               }
             } catch (kwBidErr: unknown) {
               log.debug(`[BidOptimization] v436 R-01: 关键词建议出价获取失败: ${(kwBidErr as Error).message}`);
+              // v457: Amazon API失败(含422)时，使用本地历史数据推荐引擎
+              try {
+                const campaignId = String(firstCampaign.amazonCampaignId || firstCampaign.campaignId || '');
+                const localRec = await getLocalKeywordBidRecommendation(
+                  config.accountId,
+                  adGroupId,
+                  campaignId,
+                  'sponsoredProducts',
+                  config.targetAcos || 0.30,
+                );
+                if (localRec.source !== 'minimum_default') {
+                  suggestedBidData = {
+                    suggestedBid: localRec.suggestedBid,
+                    rangeStart: localRec.rangeStart,
+                    rangeEnd: localRec.rangeEnd,
+                  };
+                  log.info(`[BidOptimization] v457: 本地推荐引擎提供建议出价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source}, confidence=${localRec.confidence.toFixed(2)}, samples=${localRec.sampleSize})`);
+                }
+              } catch (localRecErr: unknown) {
+                log.debug(`[BidOptimization] v457: 本地推荐引擎异常: ${(localRecErr as Error).message}`);
+              }
             }
           }
         }

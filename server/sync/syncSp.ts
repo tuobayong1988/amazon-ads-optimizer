@@ -25,6 +25,7 @@ import type { AmazonAdsApiClient, SpCampaign } from './amazonAdsApi';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from '../utils/timezone';
 import { getExchangeRateByMarketplace } from '../services/exchangeRateService';
 import { AmazonSyncService } from './amazonSyncService';
+import { getLocalKeywordBidRecommendation, getLocalTargetBidRecommendation } from '../optimization/localBidRecommendationEngine';
 import {
   SYNC_PROTECTION_CONFIG,
   createSyncProtectionStats,
@@ -1086,6 +1087,27 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
         errors++;
         const errMsg = (err as Error).message || 'unknown';
         log.warn(`[v414] adGroup ${internalAgId} 关键词建议竞价获取失败: ${errMsg}`);
+        // v457: Amazon API失败时，使用本地历史数据推荐引擎为该adGroup的关键词提供建议竞价
+        try {
+          const localRec = await getLocalKeywordBidRecommendation(
+            this.accountId, amazonAgId, kwList[0]?.campaignId || '', 'sponsoredProducts', 0.30
+          );
+          if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+            for (const kw of kwList) {
+              await db.update(keywords)
+                .set({
+                  suggestedBid: String(localRec.suggestedBid),
+                  suggestedBidLow: String(localRec.rangeStart),
+                  suggestedBidHigh: String(localRec.rangeEnd),
+                })
+                .where(eq(keywords.id, kw.id));
+              keywordBidsUpdated++;
+            }
+            log.info(`[v457] 本地推荐引擎为adGroup ${internalAgId} 的 ${kwList.length} 个关键词提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source})`);
+          }
+        } catch (localErr: unknown) {
+          log.debug(`[v457] 本地推荐引擎异常: ${(localErr as Error).message}`);
+        }
       }
     }
 
@@ -1203,6 +1225,27 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
         errors++;
         const errMsg = (err as Error).message || 'unknown';
         log.warn(`[v414] adGroup ${internalAgId} 商品定位建议竞价获取失败: ${errMsg}`);
+        // v457: Amazon API失败时，使用本地历史数据推荐引擎
+        try {
+          const localRec = await getLocalTargetBidRecommendation(
+            this.accountId, amazonAgId, tgtList[0]?.campaignId || '', 'sponsoredProducts', 0.30
+          );
+          if (localRec.source !== 'minimum_default' && localRec.suggestedBid > 0) {
+            for (const tgt of tgtList) {
+              await db.update(productTargets)
+                .set({
+                  suggestedBid: String(localRec.suggestedBid),
+                  suggestedBidLow: String(localRec.rangeStart),
+                  suggestedBidHigh: String(localRec.rangeEnd),
+                })
+                .where(eq(productTargets.id, tgt.id));
+              targetBidsUpdated++;
+            }
+            log.info(`[v457] 本地推荐引擎为adGroup ${internalAgId} 的 ${tgtList.length} 个定位提供建议竞价 $${localRec.suggestedBid.toFixed(2)} (${localRec.source})`);
+          }
+        } catch (localErr: unknown) {
+          log.debug(`[v457] Target本地推荐引擎异常: ${(localErr as Error).message}`);
+        }
       }
     }
 

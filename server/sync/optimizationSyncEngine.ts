@@ -18,6 +18,7 @@ import { randomUUID } from 'crypto';
 import { isShuttingDown, registerActiveTask, unregisterActiveTask } from '../utils/taskLifecycle';
 import { createModuleLogger } from '../utils/logger';
 import { clampBidToConstraint } from '../utils/amazonBidConstraints';
+import * as Q from './optSyncQueries';
 
 const log = createModuleLogger('OptSyncEngine');
 
@@ -88,36 +89,8 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
   const conn = await db.getDirectConnection();
   
   try {
-    // 分批插入（每批500条）
-    const INSERT_BATCH = 500;
-    for (let i = 0; i < tasks.length; i += INSERT_BATCH) {
-      const batch = tasks.slice(i, i + INSERT_BATCH);
-      // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-      const placeholders = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())').join(', ');
-      const values: unknown[] = [];
-      
-      for (const t of (batch as unknown[])) {
-        values.push(
-          batchId, t.optimizationTargetId, t.accountId,
-          t.taskType, t.priority,
-          t.targetEntityType, t.targetEntityId, t.amazonEntityId || null, t.targetEntityName || null,
-          t.action, t.oldValue || null, t.newValue || null,
-          t.changeReason || null, t.algorithmUsed || null, t.confidenceScore || null,
-          t.campaignId || null, t.campaignName || null, t.adGroupId || null,
-          'pending'
-        );
-      }
-      
-      await conn.execute(
-        `INSERT INTO optimization_tasks 
-         (batch_id, optimization_target_id, account_id, task_type, priority,
-          target_entity_type, target_entity_id, amazon_entity_id, target_entity_name,
-          action, old_value, new_value, change_reason, algorithm_used, confidence_score,
-          campaign_id, campaign_name, ad_group_id, status, created_at)
-         VALUES ${placeholders}`,
-        values
-      );
-    }
+    // v457: 使用类型安全查询模块批量插入任务
+    await Q.insertTasks(conn, batchId, tasks);
     
     log.info(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${tasks.length}条任务`);
   } finally {
@@ -165,47 +138,26 @@ export async function executeBatchSync(options?: {
   // v350: 使用连接池获取直接连接，替代独立createConnection
   const conn = await db.getDirectConnection(60_000); // 60秒超时，因为同步任务可能较长
   
-  // v429: P1修复 — 僵尸任务清理：将超过15分钟仍在processing状态的任务重置为retry
-  // v428使用的是30分钟窗口，v429缩短到15分钟以更快恢复被中断的任务
+  // v457: 僵尸任务清理 — 使用类型安全查询
   try {
-    const [zombieResult] = await conn.execute(
-      `UPDATE optimization_tasks SET status = 'retry', retry_count = retry_count + 1, 
-       error_message = CONCAT(IFNULL(error_message,''), ' | v429: 僵尸任务自动重置(processing超过15分钟)') 
-       WHERE status = 'processing' AND processing_started_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)`
-    ) as unknown[];
-    const zombieCount = (zombieResult as unknown)?.affectedRows || 0;
+    const zombieCount = await Q.cleanupZombieTasks(conn);
     if (zombieCount > 0) {
-      log.warn(`[SyncEngine] v429: 清理${zombieCount}个僵尸任务(processing超过15分钟)`);
+      log.warn(`[SyncEngine] v457: 清理${zombieCount}个僵尸任务(processing超过15分钟)`);
     }
   } catch (zombieErr: unknown) {
-    log.error(`[SyncEngine] v429: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
+    log.error(`[SyncEngine] v457: 僵尸任务清理失败: ${(zombieErr as Error).message}`);
   }
   
-  // v429: P1修复 — 失效引用前置清理：将引用已删除实体的retry任务标记为cancelled
-  // 避免无效的API重试消耗资源
+  // v457: 失效引用前置清理 — 使用类型安全查询
   try {
-    // 清理引用已删除keyword的任务
-    const [kwCleanResult] = await conn.execute(
-      `UPDATE optimization_tasks ot
-       LEFT JOIN keywords k ON ot.target_entity_id = k.id
-       SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标keyword已被删除')
-       WHERE ot.target_entity_type = 'keyword' AND ot.status IN ('pending', 'retry') AND k.id IS NULL AND ot.target_entity_id IS NOT NULL`
-    ) as unknown[];
-    const kwCleanCount = (kwCleanResult as unknown)?.affectedRows || 0;
+    const kwCleanCount = await Q.cleanupDeletedKeywordTasks(conn);
     if (kwCleanCount > 0) {
-      log.warn(`[SyncEngine] v429: 清理${kwCleanCount}个引用已删除keyword的任务`);
+      log.warn(`[SyncEngine] v457: 清理${kwCleanCount}个引用已删除keyword的任务`);
     }
     
-    // 清理引用已删除product_target的任务
-    const [ptCleanResult] = await conn.execute(
-      `UPDATE optimization_tasks ot
-       LEFT JOIN product_targets pt ON ot.target_entity_id = pt.id
-       SET ot.status = 'failed', ot.error_message = CONCAT(IFNULL(ot.error_message,''), ' | v429: 目标product_target已被删除')
-       WHERE ot.target_entity_type = 'product_target' AND ot.status IN ('pending', 'retry') AND pt.id IS NULL AND ot.target_entity_id IS NOT NULL`
-    ) as unknown[];
-    const ptCleanCount = (ptCleanResult as unknown)?.affectedRows || 0;
+    const ptCleanCount = await Q.cleanupDeletedProductTargetTasks(conn);
     if (ptCleanCount > 0) {
-      log.warn(`[SyncEngine] v429: 清理${ptCleanCount}个引用已删除product_target的任务`);
+      log.warn(`[SyncEngine] v457: 清理${ptCleanCount}个引用已删除product_target的任务`);
     }
   } catch (cleanErr: unknown) {
     log.error(`[SyncEngine] v429: 失效引用清理失败: ${(cleanErr as Error).message}`);
@@ -213,27 +165,12 @@ export async function executeBatchSync(options?: {
   
   const accountGroups = new Map<number, Record<string, unknown>[]>();
   try {
-    // 1. 读取待处理任务
-    let query = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
-    const params: unknown[] = [];
-    
-    if (options?.batchId) {
-      query += ` AND batch_id = ?`;
-      params.push(options.batchId);
-    }
-    if (options?.accountId) {
-      query += ` AND account_id = ?`;
-      params.push(options.accountId);
-    }
-    // 重试任务需要检查next_retry_at
-    query += ` AND (status = 'pending' OR (status = 'retry' AND (next_retry_at IS NULL OR next_retry_at <= NOW())))`;
-    query += ` ORDER BY priority ASC, created_at ASC`;
-    
-    if (options?.maxTasks) {
-      query += ` LIMIT ${Number(options.maxTasks)}`;
-    }
-    
-    const [rows] = await conn.execute(query, params) as unknown[];
+    // v457: 使用类型安全查询读取待处理任务
+    const rows = await Q.getPendingTasks(conn, {
+      batchId: options?.batchId,
+      accountId: options?.accountId,
+      maxTasks: options?.maxTasks,
+    });
     result.totalTasks = rows.length;
     
     if (rows.length === 0) {
@@ -493,13 +430,10 @@ async function syncTasksByType(
     return result;
   }
   
-  // 标记任务为processing
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
+  // v457: 标记任务为processing — 使用类型安全查询
   const taskIds = tasks.map((t: Record<string, unknown>) => t.id);
   if (taskIds.length > 0) {
-    await conn.execute(
-      `UPDATE optimization_tasks SET status = 'processing', processing_started_at = NOW() WHERE id IN (${taskIds.join(',')})`,
-    );
+    await Q.markTasksProcessing(conn, taskIds as number[]);
   }
   
   if (dryRun) {
@@ -552,30 +486,18 @@ async function executeBatchByType(
         if (!t.amazon_entity_id && t.target_entity_id) {
           try {
             if (t.target_entity_type === 'keyword') {
-              const [kwRows] = await conn.execute(
-                'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
-                [t.target_entity_id]
-              ) as unknown[];
-              if (kwRows[0]?.keywordId) {
-                t.amazon_entity_id = kwRows[0].keywordId;
-                await conn.execute(
-                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                  [t.amazon_entity_id, t.id]
-                );
-                log.debug(`[SyncEngine] v138: 自动查找到keyword Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+              const kwAmazonId = await Q.getKeywordAmazonId(conn, t.target_entity_id);
+              if (kwAmazonId) {
+                t.amazon_entity_id = kwAmazonId;
+                await Q.updateTaskAmazonEntityId(conn, t.id, kwAmazonId);
+                log.debug(`[SyncEngine] v457: 自动查找到keyword Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
               }
             } else if (t.target_entity_type === 'product_target') {
-              const [ptRows] = await conn.execute(
-                'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
-                [t.target_entity_id]
-              ) as unknown[];
-              if (ptRows[0]?.targetId) {
-                t.amazon_entity_id = ptRows[0].targetId;
-                await conn.execute(
-                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                  [t.amazon_entity_id, t.id]
-                );
-                log.debug(`[SyncEngine] v138: 自动查找到product_target Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+              const ptAmazonId = await Q.getProductTargetAmazonId(conn, t.target_entity_id);
+              if (ptAmazonId) {
+                t.amazon_entity_id = ptAmazonId;
+                await Q.updateTaskAmazonEntityId(conn, t.id, ptAmazonId);
+                log.debug(`[SyncEngine] v457: 自动查找到product_target Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
               }
             }
           } catch (lookupErr: unknown) {
@@ -591,11 +513,8 @@ async function executeBatchByType(
         if (t.target_entity_id) {
           try {
             const checkTable = t.target_entity_type === 'keyword' ? 'keywords' : 'product_targets';
-            const [existRows] = await conn.execute(
-              `SELECT id FROM ${checkTable} WHERE id = ? LIMIT 1`,
-              [t.target_entity_id]
-            ) as unknown[];
-            if (existRows.length === 0) {
+            const exists = await Q.entityExists(conn, checkTable, t.target_entity_id);
+            if (!exists) {
               await markTaskFailed(conn, t.id, `v428: 目标实体已不存在 (${checkTable}.id=${t.target_entity_id})`);
               result.failed++;
               continue;
@@ -629,9 +548,9 @@ async function executeBatchByType(
               const resolved = kwResult.resolved.get(t.target_entity_id);
               if (resolved) {
                 t.amazon_entity_id = resolved.amazonId;
-                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+                await Q.updateTaskAmazonEntityId(conn, t.id, resolved.amazonId);
                 kwTasks.push(t);
-                log.debug(`[SyncEngine] v429: ✅ 批量解析keyword: id=${t.target_entity_id} -> ${resolved.amazonId}`);
+                log.debug(`[SyncEngine] v457: ✅ 批量解析keyword: id=${t.target_entity_id} -> ${resolved.amazonId}`);
               } else {
                 // 回退到旧的amazonIdResolver即时回填（处理keywordId为NULL需要通过API创建的情况）
                 try {
@@ -639,9 +558,9 @@ async function executeBatchByType(
                   const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
                   if (resolvedId) {
                     t.amazon_entity_id = resolvedId;
-                    await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                    await Q.updateTaskAmazonEntityId(conn, t.id, resolvedId);
                     kwTasks.push(t);
-                    log.info(`[SyncEngine] v429: ✅ 回退即时回填成功: keyword id=${t.target_entity_id} -> ${resolvedId}`);
+                    log.info(`[SyncEngine] v457: ✅ 回退即时回填成功: keyword id=${t.target_entity_id} -> ${resolvedId}`);
                   } else {
                     await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
                     result.failed++;
@@ -662,18 +581,18 @@ async function executeBatchByType(
               const resolved = ptResult.resolved.get(t.target_entity_id);
               if (resolved) {
                 t.amazon_entity_id = resolved.amazonId;
-                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+                await Q.updateTaskAmazonEntityId(conn, t.id, resolved.amazonId);
                 ptTasks.push(t);
-                log.debug(`[SyncEngine] v429: ✅ 批量解析product_target: id=${t.target_entity_id} -> ${resolved.amazonId}`);
+                log.debug(`[SyncEngine] v457: ✅ 批量解析product_target: id=${t.target_entity_id} -> ${resolved.amazonId}`);
               } else {
                 try {
                   const { resolveProductTargetIdOnDemand } = await import('../services/amazonIdResolver');
                   const resolvedId = await resolveProductTargetIdOnDemand(t.account_id, t.target_entity_id);
                   if (resolvedId) {
                     t.amazon_entity_id = resolvedId;
-                    await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                    await Q.updateTaskAmazonEntityId(conn, t.id, resolvedId);
                     ptTasks.push(t);
-                    log.info(`[SyncEngine] v429: ✅ 回退即时回填成功: product_target id=${t.target_entity_id} -> ${resolvedId}`);
+                    log.info(`[SyncEngine] v457: ✅ 回退即时回填成功: product_target id=${t.target_entity_id} -> ${resolvedId}`);
                   } else {
                     await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
                     result.failed++;
@@ -700,7 +619,7 @@ async function executeBatchByType(
                 }
                 if (resolvedId) {
                   t.amazon_entity_id = resolvedId;
-                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  await Q.updateTaskAmazonEntityId(conn, t.id, resolvedId);
                   if (t.target_entity_type === 'keyword') kwTasks.push(t); else ptTasks.push(t);
                 } else {
                   await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
@@ -730,34 +649,20 @@ async function executeBatchByType(
             let campaignType = 'sp_manual'; // 默认SP
             let kwMarketplace = 'US'; // v434: 默认US，动态获取
             let kwCostType = 'cpc'; // v434: 默认CPC
+            // v456: 使用类型安全查询替代原生SQL，避免列名硬编码错误
             if (t.campaign_id) {
-              const [campRows] = await conn.execute(
-                `SELECT c.campaignType, c.costType, a.country as marketplace 
-                 FROM campaigns c 
-                 LEFT JOIN ad_accounts a ON c.accountId = a.id 
-                 WHERE c.id = ? OR c.campaignId = ? LIMIT 1`,
-                [t.campaign_id, String(t.campaign_id)]
-              ) as unknown[];
-              if (campRows.length > 0) {
-                if (campRows[0].campaignType) campaignType = campRows[0].campaignType;
-                if (campRows[0].marketplace) kwMarketplace = campRows[0].marketplace;
-                if (campRows[0].costType) kwCostType = campRows[0].costType;
+              const campInfo = await Q.getCampaignTypeById(conn, t.campaign_id);
+              if (campInfo) {
+                campaignType = campInfo.campaignType;
+                kwMarketplace = campInfo.marketplace;
+                kwCostType = campInfo.costType;
               }
             } else if (t.target_entity_id) {
-              // v429: 修复字段名bug — keywords表中字段名是internal_ad_group_id，不是adGroupId
-              const [kwCampRows] = await conn.execute(
-                `SELECT c.campaignType, c.costType, a.country as marketplace 
-                 FROM keywords k
-                 INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
-                 INNER JOIN campaigns c ON ag.campaignId = c.campaignId
-                 LEFT JOIN ad_accounts a ON c.accountId = a.id
-                 WHERE k.id = ? LIMIT 1`,
-                [t.target_entity_id]
-              ) as unknown[];
-              if (kwCampRows.length > 0) {
-                if (kwCampRows[0].campaignType) campaignType = kwCampRows[0].campaignType;
-                if (kwCampRows[0].marketplace) kwMarketplace = kwCampRows[0].marketplace;
-                if (kwCampRows[0].costType) kwCostType = kwCampRows[0].costType;
+              const kwCampInfo = await Q.getCampaignTypeByKeywordId(conn, t.target_entity_id);
+              if (kwCampInfo) {
+                campaignType = kwCampInfo.campaignType;
+                kwMarketplace = kwCampInfo.marketplace;
+                kwCostType = kwCampInfo.costType;
               }
             }
             // v434: 保存marketplace和costType到任务对象，供后续bid constraint使用
@@ -847,39 +752,27 @@ async function executeBatchByType(
             
             for (const t of sbKwTasks) {
               try {
-                const [kwDetailRows] = await conn.execute(
-                  `SELECT k.keywordId, k.campaignId AS amazonCampaignId, ag.adGroupId AS amazonAdGroupId
-                   FROM keywords k
-                   INNER JOIN ad_groups ag ON k.internal_ad_group_id = ag.id
-                   WHERE k.id = ? LIMIT 1`,
-                  [t.target_entity_id]
-                ) as unknown[];
+                // v456: 使用类型安全查询替代原生SQL
+                const kwDetail = await Q.getKeywordDetailById(conn, t.target_entity_id);
                 
-                if (kwDetailRows.length > 0 && kwDetailRows[0].amazonAdGroupId && kwDetailRows[0].amazonCampaignId) {
-                  // v436: SB keyword最低bid保护 — 增强ad_format获取，支持campaign名称推断
+                if (kwDetail && kwDetail.amazonAdGroupId && kwDetail.amazonCampaignId) {
+                  // v436: SB keyword最侎bid保护 — 增强ad_format获取，支持campaign名称推断
                   let sbBid = Number(parseFloat(t.new_value).toFixed(2));
                   let sbAdFormat: string | null = null;
                   let sbMarketplace = 'US';
-                  try {
-                    const [campDetailRows] = await conn.execute(
-                      `SELECT c.ad_format, c.campaignName, a.marketplace FROM campaigns c
-                       LEFT JOIN ad_accounts a ON c.accountId = a.id
-                       WHERE c.campaignId = ? LIMIT 1`,
-                      [kwDetailRows[0].amazonCampaignId]
-                    ) as unknown[];
-                    if (campDetailRows.length > 0) {
-                      sbAdFormat = campDetailRows[0].ad_format || null;
-                      sbMarketplace = campDetailRows[0].marketplace || 'US';
-                      // v436: 如果ad_format为NULL，从campaign名称推断
-                      if (!sbAdFormat && campDetailRows[0].campaignName) {
-                        const campName = String(campDetailRows[0].campaignName).toUpperCase();
-                        if (campName.includes('SBV') || campName.includes('VIDEO')) {
-                          sbAdFormat = 'video';
-                          log.info(`[SyncEngine] v436: 从campaign名称推断SBV: ${campDetailRows[0].campaignName}`);
-                        }
+                  const campDetail = await Q.getCampaignDetailByAmazonId(conn, kwDetail.amazonCampaignId);
+                  if (campDetail) {
+                    sbAdFormat = campDetail.adFormat;
+                    sbMarketplace = campDetail.marketplace;
+                    // v436: 如果ad_format为NULL，从campaign名称推断
+                    if (!sbAdFormat && campDetail.campaignName) {
+                      const campName = campDetail.campaignName.toUpperCase();
+                      if (campName.includes('SBV') || campName.includes('VIDEO')) {
+                        sbAdFormat = 'video';
+                        log.info(`[SyncEngine] v436: 从campaign名称推断SBV: ${campDetail.campaignName}`);
                       }
                     }
-                  } catch (e) { /* 查询失败时使用默认值 */ }
+                  }
                   // v436: 也从任务的campaign_name推断
                   if (!sbAdFormat && t.campaign_name) {
                     const taskCampName = String(t.campaign_name).toUpperCase();
@@ -895,8 +788,8 @@ async function executeBatchByType(
                   sbUpdates.push({
                     keywordId: String(t.amazon_entity_id),
                     bid: sbBid,
-                    adGroupId: String(kwDetailRows[0].amazonAdGroupId),
-                    campaignId: String(kwDetailRows[0].amazonCampaignId),
+                    adGroupId: String(kwDetail.amazonAdGroupId),
+                    campaignId: String(kwDetail.amazonCampaignId),
                   });
                 } else {
                   // 无法获取关联ID，标记失败
@@ -975,21 +868,13 @@ async function executeBatchByType(
             let ptCampType = 'sp_manual';
             let ptCostType = 'cpc';
             let ptMarketplace = 'US';
-            try {
-              const [ptCampRows] = await conn.execute(
-                `SELECT c.campaignType, c.costType, a.marketplace FROM product_targets pt
-                 INNER JOIN ad_groups ag ON pt.adGroupId = ag.adGroupId
-                 INNER JOIN campaigns c ON ag.campaignId = c.campaignId
-                 LEFT JOIN ad_accounts a ON c.accountId = a.id
-                 WHERE pt.id = ? LIMIT 1`,
-                [t.target_entity_id]
-              ) as unknown[];
-              if (ptCampRows.length > 0) {
-                ptCampType = ptCampRows[0].campaignType || 'sp_manual';
-                ptCostType = ptCampRows[0].costType || 'cpc';
-                ptMarketplace = ptCampRows[0].marketplace || 'US';
-              }
-            } catch (e) { /* 查询失败时使用默认值 */ }
+            // v456: 使用类型安全查询替代原生SQL，修复 pt.adGroupId 应为 pt.internal_ad_group_id 的关联错误
+            const ptCampInfo = await Q.getCampaignTypeByProductTargetId(conn, t.target_entity_id);
+            if (ptCampInfo) {
+              ptCampType = ptCampInfo.campaignType;
+              ptCostType = ptCampInfo.costType;
+              ptMarketplace = ptCampInfo.marketplace;
+            }
             const { clampedBid, wasAdjusted, constraint, adTypeKey } = clampBidToConstraint(rawBid, ptCampType, ptMarketplace, ptCostType);
             if (wasAdjusted) {
               log.info(`[SyncEngine] v434: product target ${t.amazon_entity_id} bid $${rawBid} 超出${adTypeKey}约束[$${constraint.minBid}~$${constraint.maxBid}]，调整为$${clampedBid}`);
@@ -1059,9 +944,9 @@ async function executeBatchByType(
             const resolved = kwResult.resolved.get(t.target_entity_id);
             if (resolved) {
               t.amazon_entity_id = resolved.amazonId;
-              await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolved.amazonId, t.id]);
+              await Q.updateTaskAmazonEntityId(conn, t.id, resolved.amazonId);
               validTasks.push(t);
-              log.debug(`[SyncEngine] v429: ✅ keyword_status批量解析: id=${t.target_entity_id} -> ${resolved.amazonId}`);
+              log.debug(`[SyncEngine] v457: ✅ keyword_status批量解析: id=${t.target_entity_id} -> ${resolved.amazonId}`);
             } else {
               // 回退到amazonIdResolver即时回填
               try {
@@ -1069,7 +954,7 @@ async function executeBatchByType(
                 const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
                 if (resolvedId) {
                   t.amazon_entity_id = resolvedId;
-                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  await Q.updateTaskAmazonEntityId(conn, t.id, resolvedId);
                   validTasks.push(t);
                 } else {
                   await markTaskFailed(conn, t.id, '缺少Amazon ID（entityIdResolver+即时回填均失败）');
@@ -1083,7 +968,7 @@ async function executeBatchByType(
           }
         } catch (resolverErr: unknown) {
           // entityIdResolver不可用时回退
-          log.warn(`[SyncEngine] v429: entityIdResolver不可用，回退到amazonIdResolver`);
+          log.warn(`[SyncEngine] v457: entityIdResolver不可用，回退到amazonIdResolver`);
           try {
             const { resolveKeywordIdOnDemand } = await import('../services/amazonIdResolver');
             for (const t of noIdTasks) {
@@ -1091,7 +976,7 @@ async function executeBatchByType(
                 const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
                 if (resolvedId) {
                   t.amazon_entity_id = resolvedId;
-                  await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                  await Q.updateTaskAmazonEntityId(conn, t.id, resolvedId);
                   validTasks.push(t);
                 } else {
                   await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
@@ -1172,9 +1057,23 @@ async function executeBatchByType(
           
           log.info(`[SyncEngine] ✅ 广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
         } catch (err: unknown) {
-          await markTaskForRetry(conn, t.id, t.retry_count, (err as Error).message);
+          const errMsg = (err as Error).message;
+          // v456: 检测entityNotFoundError，自动归档Amazon端已删除的Campaign
+          const errLower = errMsg.toLowerCase();
+          if (errLower.includes('entitynotfounderror') || errLower.includes('entity_not_found') || errLower.includes('could not find')) {
+            await markTaskFailed(conn, t.id, `[v456-entity-archived] ${errMsg}`);
+            // 标记本地Campaign为archived，避免后续无效操作
+            try {
+              await Q.archiveCampaign(conn, t.target_entity_id, String(t.amazon_entity_id));
+              log.warn(`[SyncEngine] v456: Campaign ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
+            } catch (markErr: unknown) {
+              log.error(`[SyncEngine] v456: 标记Campaign archived失败: ${(markErr as Error).message}`);
+            }
+          } else {
+            await markTaskForRetry(conn, t.id, t.retry_count, errMsg);
+          }
           result.failed++;
-          result.errors.push(`Campaign ${t.target_entity_name}: ${(err as Error).message}`);
+          result.errors.push(`Campaign ${t.target_entity_name}: ${errMsg}`);
         }
         
         // 每个API调用间延迟200ms
@@ -1213,7 +1112,19 @@ async function executeBatchByType(
           for (const t of validAdGroupTasks) {
             const failReason = agFailedIds.get(String(t.amazon_entity_id));
             if (failReason) {
-              await markTaskForRetry(conn, t.id, t.retry_count, `v431: AdGroup状态更新失败: ${failReason}`);
+              // v456: 检测entityNotFoundError，自动归档Amazon端已删除的AdGroup
+              const failLower = failReason.toLowerCase();
+              if (failLower.includes('entitynotfounderror') || failLower.includes('entity_not_found') || failLower.includes('could not find')) {
+                await markTaskFailed(conn, t.id, `[v456-entity-archived] ${failReason}`);
+                try {
+                  await Q.archiveAdGroup(conn, t.target_entity_id, String(t.amazon_entity_id));
+                  log.warn(`[SyncEngine] v456: AdGroup ${t.target_entity_name} (${t.amazon_entity_id}) Amazon端已不存在，已标记为archived`);
+                } catch (markErr: unknown) {
+                  log.error(`[SyncEngine] v456: 标记AdGroup archived失败: ${(markErr as Error).message}`);
+                }
+              } else {
+                await markTaskForRetry(conn, t.id, t.retry_count, `v431: AdGroup状态更新失败: ${failReason}`);
+              }
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);
@@ -1241,28 +1152,19 @@ async function executeBatchByType(
       for (const t of (batch as unknown[])) {
         if (!t.campaign_id && t.target_entity_id) {
           try {
-            const [rows] = await conn.execute(
-              'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
-              [t.target_entity_id]
-            ) as unknown[];
-            if (rows.length > 0 && rows[0].campaignId) {
-              t.campaign_id = rows[0].campaignId;
-              t.amazon_entity_id = rows[0].campaignId;
-              t._campaignType = rows[0].campaignType || 'sp_manual';
+            const campInfo = await Q.getCampaignIdAndType(conn, t.target_entity_id);
+            if (campInfo && campInfo.campaignId) {
+              t.campaign_id = campInfo.campaignId;
+              t.amazon_entity_id = campInfo.campaignId;
+              t._campaignType = campInfo.campaignType || 'sp_manual';
             }
           } catch (lookupErr: unknown) {
             // 忽略查找失败
           }
         } else if (t.campaign_id && !t._campaignType) {
-          // v395: 已有campaign_id但缺少campaignType，尝试查询
+          // v457: 使用类型安全查询获取campaignType
           try {
-            const [rows] = await conn.execute(
-              'SELECT campaignType FROM campaigns WHERE campaignId = ? LIMIT 1',
-              [t.campaign_id]
-            ) as unknown[];
-            if (rows.length > 0) {
-              t._campaignType = rows[0].campaignType || 'sp_manual';
-            }
+            t._campaignType = await Q.getCampaignTypeByAmazonOrInternalId(conn, t.campaign_id, 0);
           } catch (lookupErr: unknown) {
             // 忽略查找失败
           }
@@ -1305,11 +1207,9 @@ async function executeBatchByType(
             for (const t of sbNegValidTasks) {
               if (!t.ad_group_id && t.target_entity_id) {
                 try {
-                  const [agRows] = await conn.execute(
-                    'SELECT ag.adGroupId FROM ad_groups ag JOIN campaigns c ON ag.internalCampaignId = c.id WHERE c.campaignId = ? LIMIT 1',
-                    [t.amazon_entity_id || t.campaign_id]
-                  ) as unknown[];
-                  if (agRows.length > 0) t.ad_group_id = agRows[0].adGroupId;
+                  // v456: 使用类型安全查询替代原生SQL，修复 ag.internalCampaignId 不存在的问题
+                  const agId = await Q.getFirstAdGroupIdByCampaignId(conn, String(t.amazon_entity_id || t.campaign_id));
+                  if (agId) t.ad_group_id = agId;
                 } catch { /* ignore */ }
               }
             }
@@ -1442,13 +1342,7 @@ async function executeBatchByType(
               await markTaskSynced(conn, t.id);
               // v357: 更新本地关键词的Amazon keywordId，同时回填accountId和campaignId
               if (t.target_entity_id) {
-                await conn.execute(
-                  `UPDATE keywords SET keywordId = ?, 
-                   accountId = COALESCE(accountId, ?),
-                   campaignId = COALESCE(campaignId, ?)
-                   WHERE id = ? AND keywordId IS NULL`,
-                  [String(created.keywordId), t.account_id || null, t.campaign_id || null, t.target_entity_id]
-                );
+                await Q.updateKeywordAmazonId(conn, t.target_entity_id, String(created.keywordId), t.account_id, t.campaign_id);
                 log.info(`[SyncEngine] v357: keyword已同步: localId=${t.target_entity_id}, amazonKeywordId=${created.keywordId}`);
               }
               result.synced++;
@@ -1478,20 +1372,14 @@ async function executeBatchByType(
           let amazonCampaignId = t.amazon_entity_id;
           if (!amazonCampaignId && t.target_entity_id) {
             try {
-              const [rows] = await conn.execute(
-                'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
-                [t.target_entity_id]
-              ) as unknown[];
-              if (rows.length > 0 && rows[0].campaignId) {
-                amazonCampaignId = rows[0].campaignId;
-                await conn.execute(
-                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                  [amazonCampaignId, t.id]
-                );
-                log.debug(`[SyncEngine] v189: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
+              const campId = await Q.getCampaignAmazonId(conn, t.target_entity_id);
+              if (campId) {
+                amazonCampaignId = campId;
+                await Q.updateTaskAmazonEntityId(conn, t.id, campId);
+                log.debug(`[SyncEngine] v457: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
             } catch (lookupErr: unknown) {
-              log.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${(lookupErr as Error).message}`);
+              log.warn(`[SyncEngine] v457: 查找Amazon campaignId失败: ${(lookupErr as Error).message}`);
             }
           }
           
@@ -1535,38 +1423,22 @@ async function executeBatchByType(
           let amazonCampaignId = t.amazon_entity_id;
           let campaignType = 'sp_manual';
           
-          // v189: 如果缺少Amazon Campaign ID，尝试通过本地ID回填
+          // v457: 使用类型安全查询回填Amazon Campaign ID
           if (!amazonCampaignId && t.target_entity_id) {
             try {
-              const [rows] = await conn.execute(
-                'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
-                [t.target_entity_id]
-              ) as unknown[];
-              if (rows.length > 0 && rows[0].campaignId) {
-                amazonCampaignId = rows[0].campaignId;
-                campaignType = rows[0].campaignType || 'sp_manual';
-                await conn.execute(
-                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
-                  [amazonCampaignId, t.id]
-                );
-                log.debug(`[SyncEngine] v189: 回填Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
+              const campInfo = await Q.getCampaignIdAndType(conn, t.target_entity_id);
+              if (campInfo && campInfo.campaignId) {
+                amazonCampaignId = campInfo.campaignId;
+                campaignType = campInfo.campaignType || 'sp_manual';
+                await Q.updateTaskAmazonEntityId(conn, t.id, amazonCampaignId);
+                log.debug(`[SyncEngine] v457: 回填Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
             } catch (lookupErr: unknown) {
-              log.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${(lookupErr as Error).message}`);
+              log.warn(`[SyncEngine] v457: 查找Amazon campaignId失败: ${(lookupErr as Error).message}`);
             }
           } else if (amazonCampaignId) {
             // 查询campaign类型以选择正确的API
-            try {
-              const [campRows] = await conn.execute(
-                'SELECT campaignType FROM campaigns WHERE campaignId = ? OR id = ? LIMIT 1',
-                [String(amazonCampaignId), t.target_entity_id || 0]
-              ) as unknown[];
-              if (campRows.length > 0 && campRows[0].campaignType) {
-                campaignType = campRows[0].campaignType;
-              }
-            } catch (lookupErr: unknown) {
-              // 查询失败时默认使用sp_manual
-            }
+            campaignType = await Q.getCampaignTypeByAmazonOrInternalId(conn, String(amazonCampaignId), t.target_entity_id || 0);
           }
           
           if (amazonCampaignId) {
@@ -1613,106 +1485,38 @@ async function executeBatchByType(
 // 辅助函数：任务状态管理
 // ============================================================
 
-// @ts-expect-error - runtime type mismatch
-async function markTaskSynced(conn: DbInstance, taskId: number) {
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-  await conn.execute(
-    `UPDATE optimization_tasks SET status = 'synced', completed_at = NOW() WHERE id = ?`,
-    [taskId]
-  );
+// v457: 委托给类型安全查询模块
+async function markTaskSynced(conn: unknown, taskId: number) {
+  await Q.markTaskSynced(conn, taskId);
 }
 
-// @ts-expect-error - runtime type mismatch
-async function markTaskFailed(conn: DbInstance, taskId: number, errorMessage: string) {
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-  await conn.execute(
-    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id = ?`,
-    [errorMessage.substring(0, 1000), taskId]
-  );
+// v457: 委托给类型安全查询模块
+async function markTaskFailed(conn: unknown, taskId: number, errorMessage: string) {
+  await Q.markTaskFailed(conn, taskId, errorMessage);
 }
 
-// @ts-expect-error - runtime type mismatch
-async function markTasksFailed(conn: DbInstance, taskIds: number[], errorMessage: string) {
-  if (taskIds.length === 0) return;
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-  await conn.execute(
-    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = NOW() WHERE id IN (${taskIds.join(',')})`,
-    [errorMessage.substring(0, 1000)]
-  );
+// v457: 委托给类型安全查询模块
+async function markTasksFailed(conn: unknown, taskIds: number[], errorMessage: string) {
+  await Q.markTasksFailed(conn, taskIds, errorMessage);
 }
 
-// @ts-expect-error - runtime type mismatch
-async function markTaskForRetry(conn: DbInstance, taskId: number, currentRetryCount: number, errorMessage: string) {
-  // v429.1: 修复时区不一致问题
-  // 问题: toISOString()返回UTC时间，但数据库NOW()返回US/Pacific时间
-  // 解决: 统一使用SQL的NOW()和DATE_ADD()来设置时间戳，避免JS/DB时区不一致
-  const newRetryCount = (currentRetryCount || 0) + 1;
-  
-  // v444: 不可恢复错误检测 — 这些错误类型无论重试多少次都不会成功
-  // entityNotFoundError: Amazon后台已删除该实体
-  // malformedValueError: 实体ID格式无效（如SKIP_前缀）
-  const UNRECOVERABLE_PATTERNS = ['entityNotFoundError', 'malformedValueError', 'ENTITY_NOT_FOUND'];
-  const isUnrecoverable = UNRECOVERABLE_PATTERNS.some(p => errorMessage.includes(p));
-  
-  if (isUnrecoverable) {
-    // v444: 不可恢复错误直接标记为permanently_failed，不浪费重试配额
-    await conn.execute(
-      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
-      [`[v444-unrecoverable] ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
-    );
-    return;
-  }
-  
-  // v190: 增加重试次数到5次，延长退避时间，确保更高的最终成功率
-  // 重试策略: 1分钟 -> 5分钟 -> 15分钟 -> 30分钟 -> 60分钟
-  // 总等待时间约111分钟（近两小时），足以覆盖大多数临时性API故障
-  const MAX_RETRIES = 5;
-  
-  if (newRetryCount >= MAX_RETRIES) {
-    // 超过最大重试次数，标记为永久失败
-    await conn.execute(
-      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = NOW() WHERE id = ?`,
-      [`超过最大重试次数(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1000), newRetryCount, taskId]
-    );
-  } else {
-    // v429.1: 使用SQL的DATE_ADD(NOW(), INTERVAL)设置next_retry_at
-    // 这样next_retry_at和WHERE条件中的NOW()使用相同时区
-    const retryDelayMinutes = [1, 5, 15, 30, 60][newRetryCount - 1] || 60;
-    
-    await conn.execute(
-      `UPDATE optimization_tasks SET status = 'retry', error_message = ?, retry_count = ?, next_retry_at = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?`,
-      [errorMessage.substring(0, 1000), newRetryCount, retryDelayMinutes, taskId]
-    );
-  }
+// v457: 委托给类型安全查询模块
+async function markTaskForRetry(conn: unknown, taskId: number, currentRetryCount: number, errorMessage: string) {
+  await Q.markTaskForRetry(conn, taskId, currentRetryCount, errorMessage);
 }
 
-// @ts-expect-error - runtime type mismatch
-async function updateLocalBid(conn: DbInstance, entityType: string, entityId: number, newBid: string) {
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
+// v457: 委托给类型安全查询模块
+async function updateLocalBid(conn: unknown, entityType: string, entityId: number, newBid: string) {
   if (entityType === 'keyword') {
-    await conn.execute('UPDATE keywords SET bid = ?, updatedAt = NOW() WHERE id = ?', [newBid, entityId]);
+    await Q.updateKeywordBid(conn, entityId, newBid);
   } else if (entityType === 'product_target') {
-    await conn.execute('UPDATE product_targets SET bid = ?, updatedAt = NOW() WHERE id = ?', [newBid, entityId]);
+    await Q.updateProductTargetBid(conn, entityId, newBid);
   }
 }
 
-// @ts-expect-error - runtime type mismatch
-async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: number, newStatus: string) {
-  // v362: SQL注入防护 - 白名单验证表名
-  // v428: P1修复 — 修复列名映射错误，各表的状态列名不同
-  const TABLE_STATUS_COLUMN: Record<string, string> = {
-    'keywords': 'keywordStatus',
-    'product_targets': 'targetStatus',
-    'campaigns': 'campaignStatus',
-    'ad_groups': 'adGroupStatus',
-  };
-  const statusColumn = TABLE_STATUS_COLUMN[tableName];
-  if (!statusColumn) {
-    throw new Error(`[updateLocalStatus] 非法表名: ${tableName}`);
-  }
-  // v429.1: 使用SQL NOW()替代JS toISOString()，避免时区不一致
-  const statusValue = newStatus === 'enabled' ? 'enabled' : 'paused';
-  await conn.execute(`UPDATE ${tableName} SET ${statusColumn} = ?, updatedAt = NOW() WHERE id = ?`, [statusValue, entityId]);
+// v457: 委托给类型安全查询模块
+async function updateLocalStatus(conn: unknown, tableName: string, entityId: number, newStatus: string) {
+  await Q.updateEntityStatus(conn, tableName, entityId, newStatus);
 }
 
 // ============================================================
@@ -1722,48 +1526,25 @@ async function updateLocalStatus(conn: DbInstance, tableName: string, entityId: 
 /**
  * 根据batch的同步结果，更新optimization_logs的api_sync_status
  */
-// @ts-expect-error - runtime type mismatch
-async function updateLogsSyncStatus(conn: DbInstance, batchId: string) {
+// v457: 委托给类型安全查询模块
+async function updateLogsSyncStatus(conn: unknown, batchId: string) {
   try {
-    // 统计该批次的同步结果
-    const [stats] = await conn.execute(
-      `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
-      [batchId]
-    ) as unknown[];
-    
-    let totalSynced = 0, totalFailed = 0, totalPending = 0, totalRetry = 0;
-    for (const s of stats) {
-      if (s.status === 'synced') totalSynced = s.cnt;
-      else if (s.status === 'failed' || s.status === 'permanently_failed') totalFailed += s.cnt;
-      else if (s.status === 'pending' || s.status === 'processing') totalPending += s.cnt;
-      else if (s.status === 'retry') totalRetry += s.cnt;
-    }
+    const stats = await Q.getBatchTaskStats(conn, batchId);
     
     let logSyncStatus: string;
-    if (totalPending + totalRetry > 0) {
+    if (stats.pending + stats.retry > 0) {
       logSyncStatus = 'syncing';
-    } else if (totalFailed === 0 && totalSynced > 0) {
+    } else if (stats.failed === 0 && stats.synced > 0) {
       logSyncStatus = 'synced';
-    } else if (totalSynced === 0 && totalFailed > 0) {
+    } else if (stats.synced === 0 && stats.failed > 0) {
       logSyncStatus = 'failed';
     } else {
       logSyncStatus = 'partial';
     }
     
-    // 更新该批次对应的所有optimization_logs
-    // v429.1: 移除未使用的now变量（时区不一致修复）
-    await conn.execute(
-      `UPDATE optimization_logs 
-       SET api_sync_status = ?, 
-           action_detail = JSON_SET(COALESCE(action_detail, '{}'), 
-             '$.syncBatchId', ?,
-             '$.syncSummary', JSON_OBJECT('synced', ?, 'failed', ?, 'pending', ?, 'retry', ?))
-       WHERE action_detail LIKE CONCAT('%', ?, '%') 
-         AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)`,
-      [logSyncStatus, batchId, totalSynced, totalFailed, totalPending, totalRetry, batchId]
-    );
+    await Q.updateLogsSyncStatus(conn, batchId, logSyncStatus, stats.synced, stats.failed, stats.pending, stats.retry);
     
-    log.warn(`[SyncEngine] 更新日志同步状态: batchId=${batchId}, status=${logSyncStatus}, synced=${totalSynced}, failed=${totalFailed}`);
+    log.warn(`[SyncEngine] 更新日志同步状态: batchId=${batchId}, status=${logSyncStatus}, synced=${stats.synced}, failed=${stats.failed}`);
   } catch (err: unknown) {
     log.error(`[SyncEngine] 更新日志同步状态失败: ${(err as Error).message}`);
   }
@@ -1801,20 +1582,11 @@ export async function processRetryTasks(): Promise<{ processed: number; synced: 
  * 检查永久失败的任务是否现在有了Amazon ID（通过绩效同步回填等），如果有则重新入队
  */
 async function resetRecoverableFailedTasks(): Promise<number> {
-  // v350: 使用连接池获取直接连接
+  // v457: 使用类型安全查询模块
   const conn = await db.getDirectConnection();
   
   try {
-    // 查找永久失败且缺少Amazon ID的任务
-    const [failedTasks] = await conn.execute(
-      `SELECT ot.id, ot.target_entity_type, ot.target_entity_id, ot.task_type
-       FROM optimization_tasks ot
-       WHERE ot.status IN ('permanently_failed', 'failed')
-         AND (ot.amazon_entity_id IS NULL OR ot.amazon_entity_id = '')
-         AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-       LIMIT 200`
-    ) as unknown[];
-    
+    const failedTasks = await Q.getRecoverableFailedTasks(conn);
     if (failedTasks.length === 0) return 0;
     
     let recovered = 0;
@@ -1822,43 +1594,28 @@ async function resetRecoverableFailedTasks(): Promise<number> {
       let amazonId: string | null = null;
       
       if (task.target_entity_type === 'keyword') {
-        const [rows] = await conn.execute(
-          'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL AND keywordId NOT LIKE "SKIP_%" LIMIT 1',
-          [task.target_entity_id]
-        ) as unknown[];
-        if (rows[0]?.keywordId) amazonId = rows[0].keywordId;
+        amazonId = await Q.getKeywordAmazonId(conn, task.target_entity_id, true);
       } else if (task.target_entity_type === 'product_target') {
-        const [rows] = await conn.execute(
-          'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
-          [task.target_entity_id]
-        ) as unknown[];
-        if (rows[0]?.targetId) amazonId = rows[0].targetId;
+        amazonId = await Q.getProductTargetAmazonId(conn, task.target_entity_id);
       } else if (task.target_entity_type === 'campaign') {
-        const [rows] = await conn.execute(
-          'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
-          [task.target_entity_id]
-        ) as unknown[];
-        if (rows[0]?.campaignId) amazonId = rows[0].campaignId;
+        amazonId = await Q.getCampaignAmazonId(conn, task.target_entity_id);
       }
       
       if (amazonId) {
-        await conn.execute(
-          `UPDATE optimization_tasks SET status = 'pending', amazon_entity_id = ?, retry_count = 0, error_message = 'v196: 自动恢复 - Amazon ID已可用' WHERE id = ?`,
-          [amazonId, task.id]
-        );
+        await Q.recoverTask(conn, task.id, amazonId);
         recovered++;
       }
     }
     
     if (recovered > 0) {
-      log.warn(`[SyncEngine] v196: 自动恢复了${recovered}/${failedTasks.length}个失败任务`);
+      log.warn(`[SyncEngine] v457: 自动恢复了${recovered}/${failedTasks.length}个失败任务`);
     }
     return recovered;
   } catch (err: unknown) {
-    log.error(`[SyncEngine] v196: 重置失败任务异常: ${(err as Error).message}`);
+    log.error(`[SyncEngine] v457: 重置失败任务异常: ${(err as Error).message}`);
     return 0;
   } finally {
-    conn.release(); // v350: 归还连接到池
+    conn.release();
   }
 }
 
@@ -1873,27 +1630,20 @@ export async function getBatchStatus(batchId: string): Promise<{
   retry: number;
   permanentlyFailed: number;
 }> {
-  // v350: 使用连接池获取直接连接
+  // v457: 使用类型安全查询模块
   const conn = await db.getDirectConnection();
   
   try {
-    const [rows] = await conn.execute(
-      `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
-      [batchId]
-    );
-    
-    const result = { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
-    for (const r of (rows as unknown[])) {
-      result.total += r.cnt;
-      if (r.status === 'synced') result.synced = r.cnt;
-      else if (r.status === 'failed') result.failed = r.cnt;
-      else if (r.status === 'pending' || r.status === 'processing') result.pending += r.cnt;
-      else if (r.status === 'retry') result.retry = r.cnt;
-      else if (r.status === 'permanently_failed') result.permanentlyFailed = r.cnt;
-    }
-    
-    return result;
+    const stats = await Q.getBatchTaskStats(conn, batchId);
+    return {
+      total: stats.synced + stats.failed + stats.pending + stats.retry + stats.permanentlyFailed,
+      synced: stats.synced,
+      failed: stats.failed,
+      pending: stats.pending,
+      retry: stats.retry,
+      permanentlyFailed: stats.permanentlyFailed,
+    };
   } finally {
-    conn.release(); // v350: 归还连接到池
+    conn.release();
   }
 }
