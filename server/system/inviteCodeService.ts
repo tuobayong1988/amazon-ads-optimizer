@@ -84,18 +84,24 @@ async function ensureTablesExist(db: any): Promise<void> {
         INDEX idx_code (code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    // v452.5: 移除FK约束 - created_by现在引用team_members.id而非users.id
+    // v452.6: 动态查找并移除所有FK约束 - created_by现在引用team_members.id而非users.id
     try {
-      await db.execute(sql`ALTER TABLE invite_codes DROP FOREIGN KEY invite_codes_ibfk_1`);
-      log.info('[InviteCode] 已移除invite_codes_ibfk_1外键约束');
-    } catch (_fkErr) {
-      // FK可能已经不存在，忽略
-    }
-    try {
-      await db.execute(sql`ALTER TABLE invite_codes DROP FOREIGN KEY invite_codes_ibfk_2`);
-      log.info('[InviteCode] 已移除invite_codes_ibfk_2外键约束');
-    } catch (_fkErr2) {
-      // FK可能已经不存在，忽略
+      const fkResult = await db.execute(sql`
+        SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invite_codes' AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+      `);
+      const fkRows = (fkResult as Record<string, any>[][])[0] || [];
+      for (const fk of fkRows) {
+        const fkName = fk.CONSTRAINT_NAME;
+        log.info(`[InviteCode] 正在移除FK约束: ${fkName}`);
+        await db.execute(sql.raw(`ALTER TABLE invite_codes DROP FOREIGN KEY \`${fkName}\``));
+        log.info(`[InviteCode] 已成功移除FK约束: ${fkName}`);
+      }
+      if (fkRows.length > 0) {
+        log.info(`[InviteCode] 共移除 ${fkRows.length} 个FK约束`);
+      }
+    } catch (_fkErr: any) {
+      log.warn(`[InviteCode] 移除FK约束时出错: ${_fkErr?.message}`);
     }
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS invite_code_usages (
