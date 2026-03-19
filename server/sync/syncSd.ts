@@ -358,10 +358,10 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
             targetType = 'asin';
             targetValue = expr.value || '';
             targetMatchType = 'exact';
-          } else if (et.includes('broadrel') || et.includes('loose')) {
+          } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
             targetValue = expr.value || 'AUTO_LOOSE';
             targetMatchType = 'loose';
-          } else if (et.includes('highrel') || et.includes('close')) {
+          } else if (et.includes('highrel') || et.includes('high_rel') || et.includes('close')) {
             targetValue = expr.value || 'AUTO_CLOSE';
             targetMatchType = 'close';
           } else if (expr.value && !targetValue) {
@@ -378,6 +378,12 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
           targetValue = 'AUTO';
           targetMatchType = 'loose';
         }
+      }
+
+      // v474: 安全处理 - 如果targetValue仍然为空，使用expression类型作为回退值
+      if (!targetValue) {
+        const exprTypes = Array.isArray(apiTarget.expression) ? apiTarget.expression.map((e: Record<string, unknown>) => e.type || '').join(',') : '';
+        targetValue = exprTypes || `AUTO_${String(apiTarget.targetId)}`;
       }
 
        // v363: 使用批量预查询结果

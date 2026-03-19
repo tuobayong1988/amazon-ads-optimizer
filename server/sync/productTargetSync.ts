@@ -1,5 +1,5 @@
 /**
- * 商品定位同步模块
+ * 商品定位同步模块 v474_MARKER_XYZZY
  * 从 amazonSyncService.ts 拆分的独立模块
  */
 import { eq, and, sql, gte, inArray } from 'drizzle-orm';
@@ -29,6 +29,7 @@ export interface SyncContext {
 }
 
 const log = createModuleLogger('productTargetSync');
+const _v474_BUILD_MARKER = 'v474_XYZZY_BUILD_CHECK';
 
 /**
  * 同步SB商品定位

@@ -285,7 +285,13 @@ export class AmazonAdsApiClient {
           const authErrorType = status === 401 ? 'TOKEN_EXPIRED' : 'PERMISSION_DENIED';
           const requestUrl = config?.url || 'unknown';
           const profileId = config?.headers?.['Amazon-Advertising-API-Scope'] || 'unknown';
-          log.error(`[Amazon API] v333: 认证失败告警! status=${status}, type=${authErrorType}, profileId=${profileId}, URL=${requestUrl}`);
+          // v474: SB/SD端点的403是预期的(账户未开通该广告类型)，降级为WARN
+          const isSbSdEndpoint = requestUrl.startsWith('/sb/') || requestUrl.startsWith('/sd/');
+          if (status === 403 && isSbSdEndpoint) {
+            log.warn(`[Amazon API] v474: SB/SD权限不足(403), profileId=${profileId}, URL=${requestUrl} (账户可能未开通该广告类型)`);
+          } else {
+            log.error(`[Amazon API] v333: 认证失败告警! status=${status}, type=${authErrorType}, profileId=${profileId}, URL=${requestUrl}`);
+          }
           
           // 异步触发告警（不阻塞主流程）
           this._triggerAuthFailureAlert(status, authErrorType, profileId, requestUrl).catch((alertErr: unknown) => {
@@ -343,7 +349,12 @@ export class AmazonAdsApiClient {
           const data = (error as Record<string, unknown>).response.data;
           
           if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
-            log.error(`[Amazon API] v148: HTML响应 status=${status}, URL=${config?.url}`);
+            // v474: 404/403是预期的(账户未开通SB/SD等)，降级为WARN避免污染错误日志
+            if (status === 404 || status === 403) {
+              log.warn(`[Amazon API] v474: HTML响应 status=${status}, URL=${config?.url} (账户可能未开通该广告类型)`);
+            } else {
+              log.error(`[Amazon API] v148: HTML响应 status=${status}, URL=${config?.url}`);
+            }
             
             let errorMessage = 'Amazon API returned an error page';
             if (status === 401) {

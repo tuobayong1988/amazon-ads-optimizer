@@ -429,8 +429,8 @@ AmazonSyncService.prototype.syncSpKeywords = async function(this: AmazonSyncServ
         campaignId: adGroup.campaignId || '',  // v357
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
-        matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
-        status: apiKeyword.state as 'enabled' | 'paused' | 'archived',
+        matchType: (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
+        keywordStatus: (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived',
         bid: String(apiKeyword.bid),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
@@ -572,10 +572,10 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
           targetType = 'asin';
           targetValue = expr.value || 'AUTO_COMPLEMENTS';
           targetMatchType = 'accessory';
-        } else if (et.includes('broadrel') || et.includes('loose')) {
+        } else if (et.includes('broadrel') || et.includes('broad_rel') || et.includes('loose')) {
           targetValue = expr.value || 'AUTO_LOOSE';
           targetMatchType = 'loose';
-        } else if (et.includes('highrel') || et.includes('close')) {
+        } else if (et.includes('highrel') || et.includes('high_rel') || et.includes('close')) {
           targetValue = expr.value || 'AUTO_CLOSE';
           targetMatchType = 'close';
         } else if (et.includes('asin') && et.includes('same')) {
@@ -612,6 +612,13 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         categoryRefinements = JSON.stringify(refinements);
       }
       
+      // v474: 安全处理 - 如果targetValue仍然为空，使用expression类型作为回退值
+      if (!targetValue) {
+        const exprTypes = (apiTarget.expression || []).map((e: Record<string, unknown>) => e.type || '').join(',');
+        targetValue = exprTypes || `AUTO_${String(apiTarget.targetId)}`;
+        log.debug(`v474: targetValue为空，使用回退值: ${targetValue}`);
+      }
+      
       // Amazon API返回的state可能是大写，需要转换为小写
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
@@ -642,7 +649,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
         targetExpression: JSON.stringify(apiTarget.expression),
         targetMatchType,
         targetStatus: normalizedState,
-        bid: String(apiTarget.bid || 0),
+        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null ? (apiTarget.bid as Record<string, unknown>).amount || 0 : (apiTarget.bid || 0)),
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),

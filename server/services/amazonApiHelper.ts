@@ -424,12 +424,17 @@ export async function syncBidAdjustmentsToAmazon(
   }
   
   // v333: 401/403认证失败专项检测
-  // 检查错误列表中是否包含认证相关错误，即使总体失败率未超阈值也要告警
-  const authErrors = result.errors.filter(e => 
-    e.includes('401') || e.includes('Unauthorized') || 
-    e.includes('403') || e.includes('Forbidden') ||
-    e.includes('Token已过期') || e.includes('token expired')
-  );
+  // v474: 排除SB/SD端点的403错误，这些是预期的(账户未开通该广告类型)
+  const authErrors = result.errors.filter(e => {
+    // 排除SB/SD权限不足的403错误
+    if ((e.includes('403') || e.includes('Forbidden') || e.includes('PERMISSION_DENIED')) && 
+        (e.includes('/sb/') || e.includes('/sd/') || e.includes('SB/SD权限不足'))) {
+      return false;
+    }
+    return e.includes('401') || e.includes('Unauthorized') || 
+           e.includes('403') || e.includes('Forbidden') ||
+           e.includes('Token已过期') || e.includes('token expired');
+  });
   if (authErrors.length > 0) {
     log.error(`[ALERT] v333: ⚠️ 发现${authErrors.length}条认证相关错误! 请立即检查accountId=${accountId}的API凭证有效性`);
     log.error(`[ALERT] v333: 认证错误详情: ${authErrors.slice(0, 3).join('; ')}`);
