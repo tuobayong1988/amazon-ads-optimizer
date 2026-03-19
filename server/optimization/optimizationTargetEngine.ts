@@ -1231,35 +1231,51 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
   
   const campaigns = await db.getCampaignsByPerformanceGroupId(targetId);
   
-  // v451: 优化N+1查询 - 并行获取关键词计数 + 并行执行dry-run
-  const [keywordCounts, dryRunResult] = await Promise.all([
-    // 并行获取所有campaign的关键词数量
-    Promise.all(
-      (campaigns as any[]).map(async (campaign) => {
-        try {
-          const campaignAmazonId = getCampaignAmazonId(campaign);
-          const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
-          return keywords.length;
-        } catch {
-          return 0;
-        }
-      })
-    ),
-    // 同时执行干运行获取待处理操作数量
-    executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true }),
-  ]);
+  // v451.1: 深度优化 - 先快速返回基本信息，dry-run结果通过超时保护获取
+  // 并行获取关键词数量（每个campaign并行查询）
+  const keywordCounts = await Promise.all(
+    (campaigns as any[]).map(async (campaign) => {
+      try {
+        const campaignAmazonId = getCampaignAmazonId(campaign);
+        const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
+        return keywords.length;
+      } catch {
+        return 0;
+      }
+    })
+  );
   const keywordsCount = keywordCounts.reduce((sum, count) => sum + count, 0);
+  
+  // v451.1: dry-run超时保护 - 最多等待15秒，超时则返回默认值
+  let pendingActions = {
+    bidAdjustments: -1,  // -1 表示计算中/未知
+    placementAdjustments: -1,
+    negativeKeywords: -1,
+    budgetAdjustments: -1,
+  };
+  
+  try {
+    const dryRunPromise = executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000));
+    const dryRunResult = await Promise.race([dryRunPromise, timeoutPromise]);
+    
+    if (dryRunResult) {
+      pendingActions = {
+        bidAdjustments: dryRunResult.bidOptimization.details.length,
+        placementAdjustments: dryRunResult.placementOptimization.details.length,
+        negativeKeywords: dryRunResult.searchTermAnalysis.negativeKeywordsAdded,
+        budgetAdjustments: dryRunResult.budgetAllocation.details.length,
+      };
+    }
+  } catch (err: unknown) {
+    // dry-run失败不影响基本信息返回
+  }
   
   return {
     config,
     campaignsCount: campaigns.length,
     keywordsCount,
-    pendingActions: {
-      bidAdjustments: dryRunResult.bidOptimization.details.length,
-      placementAdjustments: dryRunResult.placementOptimization.details.length,
-      negativeKeywords: dryRunResult.searchTermAnalysis.negativeKeywordsAdded,
-      budgetAdjustments: dryRunResult.budgetAllocation.details.length,
-    },
+    pendingActions,
   };
 }
 
