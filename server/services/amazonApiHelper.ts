@@ -11,6 +11,7 @@
  */
 import { AmazonSyncService } from '../sync/amazonSyncService';
 import * as db from '../db';
+import { sql } from 'drizzle-orm';
 import { createModuleLogger } from '../utils/logger';
 // v359: 分端点限流服务
 import { acquireApiPermit, classifyEndpoint, getApiRateLimitService } from './apiRateLimitService';
@@ -304,11 +305,10 @@ export async function syncBidAdjustmentsToAmazon(
       // v454: 自动标记Amazon端已不存在的关键词，避免后续重复同步失败
       if (entityNotFoundKeywordIds.length > 0) {
         try {
-          const { inArray: inArr } = await import('drizzle-orm');
           // 将这些关键词标记为amazon_deleted，后续优化引擎将跳过它们
+          const idList = entityNotFoundKeywordIds.map(id => `'${String(id).replace(/'/g, "''")}'`).join(',');
           await dbInstance.execute(
-            `UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${entityNotFoundKeywordIds.map(() => '?').join(',')})`,
-            entityNotFoundKeywordIds
+            sql.raw(`UPDATE keywords SET keywordStatus = 'amazon_deleted' WHERE keywordId IN (${idList})`)
           );
           log.warn(`[AmazonApiHelper] v454: 已标记${entityNotFoundKeywordIds.length}个关键词为amazon_deleted（Amazon端已不存在）: ${entityNotFoundKeywordIds.slice(0, 5).join(', ')}`);
         } catch (markErr: unknown) {

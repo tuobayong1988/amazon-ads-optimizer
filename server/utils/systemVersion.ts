@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 462;  // v462: API查询限制提升至2000, 全面系统测试修复
+export const SYSTEM_VERSION = 463;  // v463: CmdRevalidator k.status修复, ApiHelper关键词标记修复, OptSyncQueries参数修复

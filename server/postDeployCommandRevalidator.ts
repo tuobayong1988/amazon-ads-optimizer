@@ -367,7 +367,7 @@ async function auditAndCorrectHistoricalCommands(
                  oe.campaign_id, oe.campaign_name, oe.internal_ad_group_id,
                  oe.previous_bid, oe.new_bid, oe.previous_value, oe.new_value,
                  oe.created_at, oe.algorithm_version,
-                 k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.status as keyword_status,
+                 k.bid as current_bid, k.keywordId as amazon_keyword_id, k.matchType, k.keywordStatus as keyword_status,
                  c.dailyBudget as campaign_budget, c.campaignId as amazon_campaign_id,
                  pg.target_acos
           FROM optimization_events oe

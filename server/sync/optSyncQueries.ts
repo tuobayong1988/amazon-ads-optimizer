@@ -797,8 +797,7 @@ export async function getRecoverableFailedTasks(
        WHERE ot.status IN ('permanently_failed', 'failed')
          AND (ot.amazon_entity_id IS NULL OR ot.amazon_entity_id = '')
          AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-       LIMIT ${Number(limit) || 200}`,
-      []
+       LIMIT ${Number(limit) || 200}`
     ) as unknown[];
     return rows as Record<string, unknown>[];
   } catch (err: unknown) {
