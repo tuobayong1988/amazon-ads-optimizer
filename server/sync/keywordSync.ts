@@ -142,7 +142,7 @@ export async function syncSbKeywords(service: SyncContext,): Promise<{ synced: n
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText || apiKeyword.keyword || '',
         matchType: normalizedMatchType,
-        bid: String(apiKeyword.bid || 0),
+        bid: String(apiKeyword.bid && apiKeyword.bid !== 'undefined' ? apiKeyword.bid : 0),
         keywordStatus: normalizedState,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
@@ -236,7 +236,7 @@ export async function syncSpKeywords(service: SyncContext,lastSyncTime?: string 
         keywordText: apiKeyword.keywordText,
         matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
         keywordStatus: apiKeyword.state as 'enabled' | 'paused' | 'archived',  // v311: 修复字段名 status → keywordStatus，与Drizzle schema一致
-        bid: String(apiKeyword.bid ?? apiKeyword.defaultBid ?? 0),
+        bid: String(apiKeyword.bid && apiKeyword.bid !== 'undefined' ? apiKeyword.bid : (apiKeyword.defaultBid && apiKeyword.defaultBid !== 'undefined' ? apiKeyword.defaultBid : 0)),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 

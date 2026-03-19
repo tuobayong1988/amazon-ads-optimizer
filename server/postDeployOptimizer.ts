@@ -851,6 +851,13 @@ const VERSION_CHANGELOG: VersionChange[] = [
     correctionActions: ['rerun_correction_scan'],
   },
   {
+    version: 474,
+    description: 'v474: [日志系统全面修复+产品定向bid格式安全+报告错误详情] — (1)P0-createModuleLogger重构: Error对象自动序列化到message字段,一次性修复全系统160+处空错误日志 (2)P0-SD/SB/SP产品定向bid格式安全处理: 当API返回对象型式bid时提取amount数值,修复"Cannot convert object to primitive value"错误 (3)P1-报告提交失败日志增强: 记录完整HTTP响应体,便于调试SB/SD报告400错误 (4)P1-Assets API/NotificationService/ContextualFeatureService错误日志修复',
+    // @ts-expect-error - runtime type mismatch
+    affectedModules: ['logging', 'sync', 'reporting'],
+    correctionActions: [],
+  },
+  {
     version: 425,
     description: 'v425: [同步失败全面修复+同步锁机制重构+手动同步最高优先级] — (1)P0-同步锁机制重构: 手动同步最高优先级,任何时候触发都能立即执行,不被自动同步阻塞 (2)P0-syncIdempotencyService新增forceAcquireSyncLock强制获取锁 (3)P0-unifiedSyncEngine同层级/full层锁冲突时手动同步强制释放 (4)P0-dataSyncScheduler.triggerManualSync添加幂等锁保护 (5)P1-纠错服务增强: retryFailedBidAdjustments修复成功判断逻辑(itemResults逐条判断) (6)P1-新增cleanupExpiredDaypartingBids: 超过24h的dayparting_bid失败标记为superseded (7)P1-超过7天的失败事件标记为permanently_failed (8)P1-daypartingExecutor重试增强: 从1次增加到3次指数退避 (9)P1-amazonApiHelper Amazon ID缺失容错: 区分可重试和不可重试,不可重试标记为not_applicable (10)P1-riskActionEngine同步健康度优化: 排除superseded/permanently_failed,失败率>5%才触发P0告警',
     // @ts-expect-error - runtime type mismatch

@@ -140,7 +140,7 @@ export async function syncSbProductTargets(service: SyncContext,): Promise<{ syn
         targetValue,
         targetExpression,
         targetMatchType,
-        bid: String(apiTarget.bid || 0),
+        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null ? (apiTarget.bid as Record<string, unknown>).amount || 0 : (apiTarget.bid || 0)),
         targetStatus: normalizedState,
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
@@ -287,14 +287,14 @@ export async function syncSdProductTargets(service: SyncContext,): Promise<{ syn
         targetValue,
         targetExpression,
         targetMatchType,
-        bid: String(apiTarget.bid || 0),
+        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null ? (apiTarget.bid as Record<string, unknown>).amount || 0 : (apiTarget.bid || 0)),
         targetStatus: normalizedState,
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
       if (synced === 0) {
-        log.debug(`SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);;
+        log.debug(`SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}, bid=${JSON.stringify(apiTarget.bid)}`);
       }
 
       if (existing) {
@@ -613,7 +613,7 @@ export async function syncSpProductTargets(service: SyncContext,lastSyncTime?: s
         targetExpression: JSON.stringify(apiTarget.expression),
         targetMatchType,
         targetStatus: normalizedState,
-        bid: String(apiTarget.bid || 0),
+        bid: String(typeof apiTarget.bid === 'object' && apiTarget.bid !== null ? (apiTarget.bid as Record<string, unknown>).amount || 0 : (apiTarget.bid || 0)),
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),

@@ -89,7 +89,7 @@ export async function sendNotification(notification: AlertNotification): Promise
     
     return result;
   } catch (error) {
-    log.error('[NotificationService] Failed to send notification:', error);
+    log.error(`[NotificationService] Failed to send notification: ${(error as Error).message || JSON.stringify(error)}`);
     return false;
   }
 }

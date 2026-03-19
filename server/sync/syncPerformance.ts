@@ -726,7 +726,7 @@ AmazonSyncService.prototype.syncKeywordPerformanceData = async function(this: Am
         const data = await this.client.waitAndDownloadReport(reportId, 300000);
         if (data && data.length > 0) allReportData = data;
       } catch (e: unknown) {
-        log.error(`v413: 关键词绩效报告请求失败:`, (e as Error).message);
+        log.error(`v413: 关键词绩效报告请求失败: ${(e as Error).message}`);
       }
     } else {
       const batchRequests: Array<{ name: string; requestFn: () => Promise<string> }> = [];

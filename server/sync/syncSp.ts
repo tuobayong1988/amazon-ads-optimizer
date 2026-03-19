@@ -633,6 +633,7 @@ AmazonSyncService.prototype.syncSpProductTargets = async function(this: AmazonSy
       // 始终使用Amazon API返回的最新数据更新本地记录
 
       const targetData = {
+        accountId: this.accountId,
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),

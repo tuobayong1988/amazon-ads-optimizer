@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 473;  // v473: 修复SP/SB/SD广告组报告400错误(reportTypeId)、Profile广告类型能力检测、SB否定targets头部修复、迁移错误静默处理、错误日志序列化
+export const SYSTEM_VERSION = 474;  // v474: 日志系统全面修复(Error对象自动序列化)、SD/SB/SP产品定向bid格式安全处理(对象→数值)、报告提交失败详细响应体记录

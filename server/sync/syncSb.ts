@@ -495,6 +495,7 @@ AmazonSyncService.prototype.syncSbProductTargets = async function(this: AmazonSy
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
        const targetData = {
+        accountId: this.accountId,
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v357
         targetId: String(apiTarget.targetId),

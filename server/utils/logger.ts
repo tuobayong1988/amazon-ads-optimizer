@@ -622,14 +622,32 @@ export const logger = new Logger({
   bufferSize: 10000,  // v447: 从30000缩减到10000，日志已持久化到DB，内存缓冲区不需要这么大，降低内存占用
 });
 
+/** v474: 辅助函数 - 当metadata是Error对象时，将error.message追加到日志消息中 */
+function resolveLogArgs(message: string, metadata?: unknown): [string, Record<string, unknown> | undefined] {
+  if (metadata instanceof Error) {
+    const errMsg = metadata.message || String(metadata);
+    const enrichedMessage = message.endsWith(':') || message.endsWith(': ') 
+      ? `${message.trimEnd()} ${errMsg}` 
+      : `${message} ${errMsg}`;
+    return [enrichedMessage, { errorName: metadata.name, errorStack: metadata.stack?.slice(0, 500) } as Record<string, unknown>];
+  }
+  if (metadata !== undefined && metadata !== null && typeof metadata === 'object') {
+    return [message, metadata as Record<string, unknown>];
+  }
+  if (metadata !== undefined) {
+    return [message, { value: metadata }];
+  }
+  return [message, undefined];
+}
+
 /** 创建模块专用的日志快捷方法 */
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, metadata?: unknown) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    info: (message: string, metadata?: unknown) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    warn: (message: string, metadata?: unknown) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    error: (message: string, metadata?: unknown) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
-    fatal: (message: string, metadata?: unknown) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    debug: (message: string, metadata?: unknown) => { const [msg, meta] = resolveLogArgs(message, metadata); logger.debug(moduleName, msg, meta); },
+    info: (message: string, metadata?: unknown) => { const [msg, meta] = resolveLogArgs(message, metadata); logger.info(moduleName, msg, meta); },
+    warn: (message: string, metadata?: unknown) => { const [msg, meta] = resolveLogArgs(message, metadata); logger.warn(moduleName, msg, meta); },
+    error: (message: string, metadata?: unknown) => { const [msg, meta] = resolveLogArgs(message, metadata); logger.error(moduleName, msg, meta); },
+    fatal: (message: string, metadata?: unknown) => { const [msg, meta] = resolveLogArgs(message, metadata); logger.fatal(moduleName, msg, meta); },
   };
 }
 

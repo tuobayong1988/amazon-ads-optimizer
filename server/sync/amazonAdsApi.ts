@@ -2645,7 +2645,9 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SD定向报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SD定向报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
+      // @ts-expect-error - Axios error response access
+      const sdErrInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
+      log.error(`[Amazon API] 请求SD定向报告失败: ${typeof sdErrInfo === 'object' ? JSON.stringify(sdErrInfo).slice(0, 300) : sdErrInfo}`);
       throw error;
     }
   }
@@ -2878,7 +2880,9 @@ export class AmazonAdsApiClient {
       log.info(`[Amazon API] SB定向报告请求成功, reportId: ${response.data.reportId}`);
       return response.data.reportId;
     } catch (error: unknown) {
-      log.error('[Amazon API] 请求SB定向报告失败:', (error as Record<string, unknown>).response?.data || (error as Error).message);
+      // @ts-expect-error - Axios error response access
+      const sbErrInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
+      log.error(`[Amazon API] 请求SB定向报告失败: ${typeof sbErrInfo === 'object' ? JSON.stringify(sbErrInfo).slice(0, 300) : sbErrInfo}`);
       throw error;
     }
   }
@@ -5774,7 +5778,9 @@ export class AmazonAdsApiClient {
       });
       return response.data;
     } catch (error: unknown) {
-      log.error(`[Assets API] Failed to get asset ${assetId}:`, (error as Record<string, unknown>).response?.data || (error as Error).message);
+      // @ts-expect-error - Axios error response access
+      const errInfo = (error as Error & { response?: unknown }).response?.data || (error as Error).message;
+      log.error(`[Assets API] Failed to get asset ${assetId}: ${typeof errInfo === 'object' ? JSON.stringify(errInfo).slice(0, 200) : errInfo}`);
       return null;
     }
   }
@@ -5922,7 +5928,10 @@ export class AmazonAdsApiClient {
           }
         }
         
-        log.error(`[Amazon API] v413: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}`);
+        // @ts-expect-error - Axios error response access
+        const errBody = (submitErr as Error & { response?: unknown }).response?.data;
+        const errDetail = errBody ? ` | response: ${JSON.stringify(errBody).slice(0, 300)}` : '';
+        log.error(`[Amazon API] v474: 报告提交失败 [${req.name}]: ${(submitErr as Error).message}${errDetail}`);
         results[i] = { name: req.name, data: null, error: (submitErr as Error).message };
       }
     }

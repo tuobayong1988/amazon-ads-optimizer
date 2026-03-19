@@ -447,7 +447,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
     return processedCount;
     
   } catch (error) {
-    log.error(`[ContextualFeatureService] Error extracting features for account ${accountId}:`, error);
+    log.error(`[ContextualFeatureService] Error extracting features for account ${accountId}: ${(error as Error).message || JSON.stringify(error)}`);
     return processedCount;
   }
 }

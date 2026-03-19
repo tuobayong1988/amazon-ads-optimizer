@@ -395,7 +395,7 @@ export async function syncBidAdjustmentsToAmazon(
   const failureRate = totalAttempts > 0 ? (result.failed / totalAttempts) * 100 : 0;
   log.warn(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 成功率=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
-    log.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
+    log.error(`[AmazonApiHelper] 错误详情: ${result.errors.slice(0, 5).join('; ')}`);
   }
   
   // v454: 记录同步统计到日志，便于追踪失败率趋势

@@ -383,7 +383,11 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
        // v363: 使用批量预查询结果
       const existing = existingSdTgtMap.get(`${String(adGroup.id)}:${String(apiTarget.targetId)}`) || null;
       const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+      // v473: SD API的bid可能是对象格式 {amount: number} 或直接数字
+      const rawBid = apiTarget.bid;
+      const bidValue = typeof rawBid === 'object' && rawBid !== null ? (rawBid as Record<string, unknown>).amount || 0 : rawBid || 0;
       const targetData = {
+        accountId: this.accountId,
         internalAdGroupId: adGroup.id,  // v418: ID体系重构
         campaignId: adGroup.campaignId || '',  // v3577
         targetId: String(apiTarget.targetId),
@@ -391,7 +395,7 @@ AmazonSyncService.prototype.syncSdProductTargets = async function(this: AmazonSy
         targetValue,
         targetExpression,
         targetMatchType,
-        bid: String(apiTarget.bid || 0),
+        bid: String(bidValue),
         targetStatus: normalizedState,
         categoryName: categoryName,
         categoryRefinements: categoryRefinements,
