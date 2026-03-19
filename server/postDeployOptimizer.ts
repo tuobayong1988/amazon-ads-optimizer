@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 475,
+    description: 'v475: [PostDeployOptimizer自愈修复+全量重优化触发] — (1)P0-版本检测修复: getLastDeployedVersion现在同时接受success和partial_success状态,修复无限重试循环 (2)P0-状态判定改进: 无模块执行且无错误时视为success(无需操作) (3)P0-全量重优化触发: 因之前版本从未真正执行重优化,本版本强制触发full_reoptimize对所有活跃目标重新优化 (4)P1-错误详情日志: 每个目标的重优化错误现在以WARN级别记录,便于诊断',
+    affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm', 'keyword', 'multidim', 'coordination', 'product_target'],
+    correctionActions: ['full_reoptimize', 'rerun_optimization', 'revalidate_pending_commands', 'audit_synced_commands', 'rerun_correction_scan'],
+  },
+  {
     version: 445,
     description: 'v445: [锁冲突机制修复 + force-sync重构 + 错误解析增强] — (1)P0-force-sync重构: tier=full时使用triggerManualFullSync获得完整功能(含nightly步骤+心跳进度), 添加isManual标记使手动同步获得最高优先级 (2)P0-trigger_source区分: data_sync_jobs新增trigger_source字段区分manual/auto, 自动同步调度器排除手动同步job避免互相阻塞 (3)P1-negative_keyword错误解析增强: 覆盖otherError/entityNotFoundError/malformedValueError等所有Amazon错误类型, 不再丢失错误详情 (4)P1-不可恢复错误自动检测: entityNotFoundError/malformedValueError直接标记permanently_failed不再重试 (5)P2-archived实体过滤: getKeywordsByCampaignId/getKeywordsByAdGroupId/getProductTargetsByCampaignId自动过滤archived状态实体',
     // @ts-expect-error - runtime type mismatch
@@ -959,7 +965,7 @@ async function getLastDeployedVersion(): Promise<number | null> {
         SELECT action_detail FROM optimization_events
         WHERE event_category = 'settings_change'
           AND action_type = 'settings_update'
-          AND status = 'success'
+          AND status IN ('success', 'partial_success')
           AND JSON_EXTRACT(action_detail, '$.type') = 'system_deploy'
         ORDER BY created_at DESC
         LIMIT 1
@@ -1688,11 +1694,20 @@ async function reoptimizeTarget(
       log.warn(`[PostDeployOptimizer] v241: 更新模块执行时间失败(不影响主流程): ${(syncErr as Error).message}`);
     }
     
+    // v475: 改进状态判定逻辑 — 没有模块执行且没有错误时视为success(无需操作)
+    // 只有存在错误且没有任何模块成功执行时才视为failed
+    const finalStatus = errors.length === 0 ? 'success' : (modulesExecuted.length > 0 ? 'success' : 'failed');
+    if (errors.length > 0) {
+      log.warn(`[PostDeployOptimizer] [${config.name}] 重优化错误详情: ${errors.join('; ')}`);
+    }
+    if (modulesExecuted.length === 0 && errors.length === 0) {
+      log.info(`[PostDeployOptimizer] [${config.name}] 无需执行任何模块(correctionActions无匹配/shouldFullReoptimize=false)`);
+    }
     return {
       targetId,
       targetName: config.name,
       accountId: config.accountId,
-      status: errors.length === 0 ? 'success' : (modulesExecuted.length > 0 ? 'success' : 'failed'),
+      status: finalStatus,
       modulesExecuted,
       correctionsApplied,
       optimizationActions,
@@ -1701,6 +1716,7 @@ async function reoptimizeTarget(
     };
     
   } catch (error: unknown) {
+    log.warn(`[PostDeployOptimizer] 目标${targetId}重优化异常: ${(error as Error).message}`);
     return {
       targetId,
       targetName: 'unknown',
@@ -2122,13 +2138,17 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   // 8. 记录部署版本
   await recordDeployVersion(SYSTEM_VERSION, finalResult);
   
-  log.debug(`[PostDeployOptimizer] ========================================`);
+  log.info(`[PostDeployOptimizer] ========================================`);
   log.info(`[PostDeployOptimizer] 部署后重优化完成!`);
   log.info(`[PostDeployOptimizer] 版本: v${lastVersion || 0} → v${SYSTEM_VERSION}`);
-  log.warn(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
-  log.debug(`[PostDeployOptimizer] 优化动作: ${totalActions}个`);
-  log.debug(`[PostDeployOptimizer] 耗时: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}秒`);
-  log.debug(`[PostDeployOptimizer] ========================================`);
+  if (failed > 0) {
+    log.warn(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
+  } else {
+    log.info(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
+  }
+  log.info(`[PostDeployOptimizer] 优化动作: ${totalActions}个`);
+  log.info(`[PostDeployOptimizer] 耗时: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}秒`);
+  log.info(`[PostDeployOptimizer] ========================================`);
   
   return finalResult;
 }

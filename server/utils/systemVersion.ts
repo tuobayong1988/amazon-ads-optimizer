@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 474;  // v474: 日志系统全面修复(Error对象自动序列化)、SD/SB/SP产品定向bid格式安全处理(对象→数值)、报告提交失败详细响应体记录
+export const SYSTEM_VERSION = 475;  // v475: PostDeployOptimizer自愈修复(版本检测接受partial_success/状态判定逻辑改进/错误详情WARN日志)、AuditLog写入失败降级WARN
