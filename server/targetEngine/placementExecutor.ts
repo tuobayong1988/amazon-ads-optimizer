@@ -83,7 +83,14 @@ export async function executePlacementOptimization(
     log.warn(`[PlacementOptimization] v183: 加载组合分析结果失败: ${(comboErr as Error).message}`);
   }
 
+  let placementCampaignIndex = 0;
   for (const campaign of (campaigns as unknown[])) {
+    // v476: 广告活动间节流 — 每个广告活动的位置优化间隔5秒
+    if (placementCampaignIndex > 0) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    placementCampaignIndex++;
+
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {

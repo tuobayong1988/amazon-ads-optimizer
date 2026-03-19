@@ -77,6 +77,12 @@ type CorrectionAction =
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
+    version: 476,
+    description: 'v476: [API限流防护 — 全层级激进节流机制，优先保证100%成功率] — (1)P0-优化模块间节流: 每个模块执行后等待20秒 (2)P0-PostDeploy阶段间节流: A-F阶段间每次等待20秒 (3)P0-目标间节流: 调度器和PostDeploy目标间均等待30秒 (4)P0-广告活动间节流: 每个广告活动的优化操作间隔5秒 (5)P1-API批次间节流: 关键词/商品定向批量更新间等待10秒 (6)P1-建议竞价同步节流: 每个adGroup请求间隔5秒 (7)P1-重试机制增强: 基础延迟10秒/最大退避60秒/最多5次重试 (8)P2-数据同步节流: 步骤间基础延迟2秒/大账户额外延迟10秒/账户间延迟10秒',
+    affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm'],
+    correctionActions: [],
+  },
+  {
     version: 475,
     description: 'v475: [PostDeployOptimizer自愈修复+全量重优化触发] — (1)P0-版本检测修复: getLastDeployedVersion现在同时接受success和partial_success状态,修复无限重试循环 (2)P0-状态判定改进: 无模块执行且无错误时视为success(无需操作) (3)P0-全量重优化触发: 因之前版本从未真正执行重优化,本版本强制触发full_reoptimize对所有活跃目标重新优化 (4)P1-错误详情日志: 每个目标的重优化错误现在以WARN级别记录,便于诊断',
     affectedModules: ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm', 'keyword', 'multidim', 'coordination', 'product_target'],
@@ -1587,6 +1593,12 @@ async function reoptimizeTarget(
           }
         }
         
+        // v476: 阶段间节流 — 分时竞价完成后等待20秒，优先保证100%成功率
+        if (modulesExecuted.includes('dayparting')) {
+          log.info(`[PostDeployOptimizer] v476: 阶段间节流 - 等待20秒...`);
+          await sleep(20000);
+        }
+        
         // 阶段B: 分时预算
         if (affectedModules.includes('dayparting_budget')) {
           try {
@@ -1600,6 +1612,12 @@ async function reoptimizeTarget(
           } catch (dbErr: unknown) {
             errors.push(`分时预算重优化失败: ${(dbErr as Error).message}`);
           }
+        }
+        
+        // v476: 阶段间节流 — 分时预算完成后等待20秒
+        if (modulesExecuted.includes('dayparting_budget')) {
+          log.info(`[PostDeployOptimizer] v476: 阶段间节流 - 等待20秒...`);
+          await sleep(20000);
         }
         
         // 阶段C: 出价优化
@@ -1618,6 +1636,12 @@ async function reoptimizeTarget(
           }
         }
         
+        // v476: 阶段间节流 — 出价优化完成后等待20秒
+        if (modulesExecuted.includes('bid')) {
+          log.info(`[PostDeployOptimizer] v476: 阶段间节流 - 等待20秒...`);
+          await sleep(20000);
+        }
+        
         // 阶段D: 位置优化
         if (affectedModules.includes('placement')) {
           try {
@@ -1633,6 +1657,12 @@ async function reoptimizeTarget(
           }
         }
         
+        // v476: 阶段间节流 — 位置优化完成后等待20秒
+        if (modulesExecuted.includes('placement')) {
+          log.info(`[PostDeployOptimizer] v476: 阶段间节流 - 等待20秒...`);
+          await sleep(20000);
+        }
+        
         // 阶段E: 预算分配
         if (affectedModules.includes('budget')) {
           try {
@@ -1646,6 +1676,12 @@ async function reoptimizeTarget(
           } catch (bgErr: unknown) {
             errors.push(`预算重优化失败: ${(bgErr as Error).message}`);
           }
+        }
+        
+        // v476: 阶段间节流 — 预算分配完成后等待20秒
+        if (modulesExecuted.includes('budget')) {
+          log.info(`[PostDeployOptimizer] v476: 阶段间节流 - 等待20秒...`);
+          await sleep(20000);
         }
         
         // 阶段F: 搜索词分析
@@ -2105,6 +2141,12 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
           `模块=${result.modulesExecuted.join(',')}, 纠正=${result.correctionsApplied}, ` +
           `优化=${result.optimizationActions}, 耗时=${result.duration}ms` +
           (result.errors.length > 0 ? `, 错误=${result.errors.length}` : ''));
+        
+        // v476: 目标间节流 — 每个目标执行完成后等待15秒，避免API限流
+        // PostDeploy是全量重优化，API调用密度更高，需要更长的间隔
+        const INTER_TARGET_DELAY_MS = 30000;  // 30秒 — 优先保证100%成功率
+        log.info(`[PostDeployOptimizer] v476: 目标间节流 - 等待${INTER_TARGET_DELAY_MS / 1000}秒后执行下一个目标...`);
+        await sleep(INTER_TARGET_DELAY_MS);
       }
     }
     

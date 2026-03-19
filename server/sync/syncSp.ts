@@ -1062,12 +1062,19 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     const internalToAmazonAdGroupId = new Map(adGroupMappingRows.map(r => [r.id, r.adGroupId]));
 
     // 按adGroup批量请求建议竞价
+    let adGroupIndex = 0;
     for (const [internalAgId, kwList] of kwByAdGroup) {
       const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
       if (!amazonAgId) {
         log.debug(`[v414] adGroup ${internalAgId} 无Amazon adGroupId映射，跳过`);
         continue;
       }
+
+      // v476: API节流 — 每个adGroup的建议竞价请求间隔5秒，优先保证100%成功率
+      if (adGroupIndex > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      adGroupIndex++;
 
       try {
         // 每批最多100个关键词
@@ -1189,9 +1196,16 @@ AmazonSyncService.prototype.syncSpBidRecommendations = async function(this: Amaz
     }
 
     // 按adGroup批量请求建议竞价
+    let tgtAdGroupIndex = 0;
     for (const [internalAgId, tgtList] of tgtByAdGroup) {
       const amazonAgId = internalToAmazonAdGroupId.get(internalAgId);
       if (!amazonAgId) continue;
+
+      // v476: API节流 — 每个adGroup的商品定向建议竞价请求间隔5秒，优先保证100%成功率
+      if (tgtAdGroupIndex > 0) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+      tgtAdGroupIndex++;
 
       try {
         const batchSize = 100;

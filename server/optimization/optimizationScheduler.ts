@@ -703,6 +703,12 @@ export async function triggerAccountOptimizations(
         log.info(`v151: 执行优化目标 ${target.name} (id=${target.id})`);
         const execResult = await optimizationTargetEngine.executeOptimizationTarget(target.id);
         
+        // v476: 目标间节流 — 每个优化目标执行完成后等待10秒，避免API限流
+        // 给亚马逊API足够时间处理上一个目标的优化指令
+        const INTER_TARGET_DELAY_MS = 30000;  // 30秒 — 优先保证100%成功率
+        log.info(`v476: 目标间节流 - 等待${INTER_TARGET_DELAY_MS / 1000}秒后执行下一个目标...`);
+        await new Promise(resolve => setTimeout(resolve, INTER_TARGET_DELAY_MS));
+        
         // 更新最后执行时间
         if (scheduledTargets.has(target.id)) {
           scheduledTargets.get(target.id)!.lastExecutionTime = new Date();

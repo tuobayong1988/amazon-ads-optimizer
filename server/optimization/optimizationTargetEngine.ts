@@ -47,6 +47,16 @@ import { generateNegativeKeywordSuggestions, executeNegativeKeywords as executeN
 
 const log = createModuleLogger('TargetEngine');
 
+// v476: API限流防护 — 模块间节流延迟配置
+// 每个优化模块执行完成后，等待一段时间再执行下一个模块
+// 目的：避免所有优化指令在极短时间内通过API密集发送，给亚马逊API足够的处理窗口
+const INTER_MODULE_DELAY_MS = 20000;  // 模块间延迟20秒 — 优先保证100%成功率，不追求执行速度
+const INTER_API_BATCH_DELAY_MS = 10000;  // API批次间延迟10秒 — 完全避免429限流
+
+function throttleDelay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // 缓存账号站点信息，避免重复查询
 
 // v362: 从子模块导入拆分的执行器函数
@@ -582,6 +592,11 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // v476: 模块间节流 — 出价优化完成后等待，给API限流窗口
+  if (config.enableBidOptimization && shouldExecute('bid') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
+  }
+  
   // 2. 执行位置优化
   if (config.enablePlacementOptimization && shouldExecute('placement')) {
     try {
@@ -590,6 +605,11 @@ export async function executeOptimizationTarget(
     } catch (error: unknown) {
       result.errors.push(`位置优化失败: ${(error as Error).message}`);
     }
+  }
+  
+  // v476: 模块间节流 — 位置优化完成后等待
+  if (config.enablePlacementOptimization && shouldExecute('placement') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
   }
   
   // 2.5 执行多维度智能优化（分时+分位置+分投放词三维联动）
@@ -655,6 +675,11 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // v476: 模块间节流 — 多维度分析完成后等待
+  if (config.enableDaypartingOptimization && (shouldExecute('multidim') || shouldExecute('combo_analysis')) && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
+  }
+  
   // 3. 执行分时竞价优化（基于多维度优化生成的规则执行）
   if (config.enableDaypartingOptimization && shouldExecute('dayparting')) {
     try {
@@ -665,6 +690,11 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // v476: 模块间节流 — 分时竞价完成后等待
+  if (config.enableDaypartingOptimization && shouldExecute('dayparting') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
+  }
+  
   // 3.5 v179: 执行分时预算优化（根据星期几调整预算）
   if (config.enableDaypartingOptimization && shouldExecute('dayparting_budget')) {
     try {
@@ -673,6 +703,11 @@ export async function executeOptimizationTarget(
     } catch (error: unknown) {
       result.errors.push(`分时预算优化失败: ${(error as Error).message}`);
     }
+  }
+  
+  // v476: 模块间节流 — 分时预算完成后等待
+  if (config.enableDaypartingOptimization && shouldExecute('dayparting_budget') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
   }
   
   // 4. 执行搜索词分析
@@ -699,6 +734,11 @@ export async function executeOptimizationTarget(
     }
   }
 
+  // v476: 模块间节流 — 搜索词分析完成后等待
+  if (config.enableSearchTermAnalysis && shouldExecute('searchterm') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
+  }
+  
   // 5. 执行预算分配优化
   if (config.enableBudgetAllocation && shouldExecute('budget')) {
     try {
@@ -707,6 +747,11 @@ export async function executeOptimizationTarget(
     } catch (error: unknown) {
       result.errors.push(`预算分配优化失败: ${(error as Error).message}`);
     }
+  }
+  
+  // v476: 模块间节流 — 预算分配完成后等待
+  if (config.enableBudgetAllocation && shouldExecute('budget') && !dryRun) {
+    await throttleDelay(INTER_MODULE_DELAY_MS);
   }
   
   // 6. 执行投放词状态变更

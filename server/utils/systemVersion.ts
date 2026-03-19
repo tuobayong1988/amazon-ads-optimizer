@@ -14,4 +14,4 @@
  * VERSION_CHANGELOG 中添加对应的变更日志条目。
  */
 
-export const SYSTEM_VERSION = 475;  // v475: PostDeployOptimizer自愈修复(版本检测接受partial_success/状态判定逻辑改进/错误详情WARN日志)、AuditLog写入失败降级WARN
+export const SYSTEM_VERSION = 476;  // v476: API限流防护 — 多层级节流机制(模块间3s/阶段间5s/目标间10-15s/API批次间2s/建议竞价1s)，降低429错误率，提升优化任务执行成功率

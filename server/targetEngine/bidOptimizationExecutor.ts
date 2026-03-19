@@ -357,7 +357,14 @@ export async function executeBidOptimization(
   log.info(`[BidOptimization] v165: CPC最高出价=$${cpcMaxBidLimit} | VCPM最高出价=$${vcpmMaxBidLimit} (用户设置max_bid=${config.maxBid || '未设置'})`);
   log.debug(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
+  let bidCampaignIndex = 0;
   for (const campaign of (campaigns as unknown[])) {
+    // v476: 广告活动间节流 — 每个广告活动的出价优化间隔5秒，优先保证100%成功率
+    if (bidCampaignIndex > 0) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    bidCampaignIndex++;
+
     // v206: 统一ID提取 — 在循环开头一次性提取，后续代码统一使用
     const campaignLocalId = getCampaignLocalId(campaign);   // int PK，用于本地DB更新
     const campaignAmazonId = getCampaignAmazonId(campaign); // varchar，用于查询和API调用

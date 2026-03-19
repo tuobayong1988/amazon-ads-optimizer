@@ -56,8 +56,8 @@ class ApiRateController {
   private callTimestamps: number[] = [];
   
   // 自适应速率
-  private baseStepDelayMs = 200; // 步骤间基础延迟（毫秒）
-  private currentStepDelayMs = 200; // 当前步骤间延迟
+  private baseStepDelayMs = 2000; // v476: 步骤间基础延迟2秒，优先保证100%成功率
+  private currentStepDelayMs = 2000; // v476: 当前步骤间延迟
   private baseBatchDelayMs = 2000; // 批次间基础延迟
   private currentBatchDelayMs = 2000; // 当前批次间延迟
   
@@ -102,7 +102,7 @@ class ApiRateController {
     
     // 遇到限流时增加延迟（指数退避）
     const backoffFactor = Math.min(Math.pow(1.5, this.throttleCount), 8); // 最多8倍
-    this.currentStepDelayMs = Math.min(this.baseStepDelayMs * backoffFactor, 5000); // 最多5秒
+    this.currentStepDelayMs = Math.min(this.baseStepDelayMs * backoffFactor, 15000); // v476: 最多15秒，完全避免429限流
     this.currentBatchDelayMs = Math.min(this.baseBatchDelayMs * backoffFactor, 30000); // 最多30秒
     
     log.warn(`[RateControl] API限流! 第${this.throttleCount}次, 步骤延迟调整为${this.currentStepDelayMs}ms, 批次延迟调整为${this.currentBatchDelayMs}ms`);
@@ -1247,7 +1247,7 @@ export async function syncAccount(
     let campaignCount = 0;
     let isLargeAccount = false;
     const LARGE_ACCOUNT_THRESHOLD = 1000; // 超过1000个广告活动视为大账户
-    const LARGE_ACCOUNT_STEP_DELAY_MS = 3000; // 大账户步骤间额外延迟3秒
+    const LARGE_ACCOUNT_STEP_DELAY_MS = 10000; // v476: 大账户步骤间额外延迟10秒，优先保证100%成功率
     const BASE_SYNC_TIMEOUT_MS = 45 * 60 * 1000; // 基础超时45分钟
     // v403: nightly层级超时4小时，其他层级保持原有动态超时
     const NIGHTLY_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4小时
@@ -1677,7 +1677,7 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
     log.info(`[UnifiedSync] [v373] 动态并发: ${PARALLEL_USERS}用户并行, 批次延迟${ACCOUNT_DELAY_MS}ms`);
   } catch {
     PARALLEL_USERS = Math.min(MAX_CONCURRENT_ACCOUNTS, 5);
-    ACCOUNT_DELAY_MS = 3000;
+    ACCOUNT_DELAY_MS = 10000;  // v476: 账户间延迟10秒，优先保证100%成功率
   }
   
   // 按用户分组

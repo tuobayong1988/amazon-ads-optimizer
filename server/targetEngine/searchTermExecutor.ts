@@ -335,7 +335,14 @@ export async function executeSearchTermAnalysis(
     log.warn(`[SearchTermAnalysis] v310: pending重试处理失败: ${(timeoutErr as Error).message}`, (timeoutErr as Error).stack?.slice(0, 300));
   }
   
+  let stCampaignIndex = 0;
   for (const campaign of (campaigns as unknown[])) {
+    // v476: 广告活动间节流 — 每个广告活动的搜索词分析间隔5秒
+    if (stCampaignIndex > 0) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    stCampaignIndex++;
+
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {

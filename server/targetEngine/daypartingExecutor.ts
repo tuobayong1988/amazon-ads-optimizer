@@ -206,7 +206,14 @@ export async function executeDaypartingOptimization(
   let dpDiag = { total: 0, noStrategy: 0, draftInsufficient: 0, draftUpgraded: 0, draftUpgradeFailed: 0, noHourlyRule: 0, noKeywords: 0, bidUnchanged: 0, adjusted: 0 };
   log.info(`[DaypartingOptimization] v349: 开始分时竞价执行, campaigns=${campaigns.length}, hour=${currentHour}, dayOfWeek=${currentDayOfWeek}, marketplace=${marketplace}`);
   
+  let dpCampaignIndex = 0;
   for (const campaign of (campaigns as unknown[])) {
+    // v476: 广告活动间节流 — 每个广告活动的分时竞价优化间隔5秒，优先保证100%成功率
+    if (dpCampaignIndex > 0) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    dpCampaignIndex++;
+
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     dpDiag.total++;
@@ -536,7 +543,14 @@ export async function executeDaypartingBudgetOptimization(
   const now = new Date();
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   
+  let dpBudgetCampaignIndex = 0;
   for (const campaign of (campaigns as unknown[])) {
+    // v476: 广告活动间节流 — 每个广告活动的分时预算优化间隔5秒
+    if (dpBudgetCampaignIndex > 0) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    dpBudgetCampaignIndex++;
+
     const campaignLocalId = getCampaignLocalId(campaign);
     const campaignAmazonId = getCampaignAmazonId(campaign);
     try {

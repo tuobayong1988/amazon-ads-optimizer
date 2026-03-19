@@ -30,7 +30,7 @@ async function withRetry<T>(
   fn: () => Promise<T>,
   options: { maxRetries?: number; baseDelayMs?: number; label?: string; accountId?: number } = {}
 ): Promise<T> {
-  const { maxRetries = 4, baseDelayMs = 3000, label = 'API', accountId = 0 } = options;  // v248+v369: 增强429限流重试，支持按账户限流
+  const { maxRetries = 5, baseDelayMs = 10000, label = 'API', accountId = 0 } = options;  // v476: 大幅增加重试间隔和次数，优先保证100%成功率
   let lastError: Error | null = null;
   // v360: 真正集成限流服务 - 在每次API调用前获取令牌
   const endpointType = classifyEndpoint(label);
@@ -60,7 +60,7 @@ async function withRetry<T>(
       }
       
       const delay = isThrottle 
-        ? Math.min(baseDelayMs * Math.pow(2, attempt), 30000)  // v248: 最大退避15s→30s
+        ? Math.min(baseDelayMs * Math.pow(2, attempt), 60000)  // v476: 最大退避60s，完全避免429限流
         : baseDelayMs * (attempt + 1);
       log.warn(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${(error as Error).message?.substring(0, 80)})`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -336,6 +336,12 @@ export async function syncBidAdjustmentsToAmazon(
       }
       result.errors.push(`关键词出价批量更新异常: ${(batchErr as Error).message}`);
     }
+  }
+  
+  // v476: API批次间节流 — 关键词出价更新完成后等待10秒再发送商品定向出价更新，优先保证100%成功率
+  if (deduplicatedKeywordBids.length > 0 && resolvedTargetBids.length > 0) {
+    log.info(`[AmazonApiHelper] v476: API批次间节流 - 等待10秒后发送商品定向出价更新...`);
+    await new Promise(resolve => setTimeout(resolve, 10000));
   }
   
   // v359: 批量更新商品定向出价
